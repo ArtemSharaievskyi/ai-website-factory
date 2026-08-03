@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DocumentBaseSchema, IsoDateTimeSchema, LocaleSchema, NonEmptyStringSchema, UrlSchema, UserValueSchema } from "../shared/schemas";
+import { DocumentBaseSchema, IsoDateTimeSchema, LocaleSchema, NonEmptyStringSchema, UserValueSchema } from "../shared/schemas";
 
 export const ClarificationCategorySchema = z.enum(["business", "audience", "pages", "functionality", "content", "contact", "legal", "design", "brand", "images", "authentication", "forms", "email", "database", "storage", "administration", "GitHub", "constraints"]);
 export const AnswerStatusSchema = z.enum(["answered", "not-applicable", "deferred", "unresolved"]);
@@ -14,6 +14,8 @@ const ImageSourceSchema = z.enum(["ai-generated", "user-supplied", "ai-plus-user
 export const RequirementSpecificationSchema = DocumentBaseSchema.extend({
   documentType: z.literal("requirements"),
   projectSummary: NonEmptyStringSchema,
+  protectedFunctionalityRequired: z.boolean(),
+  imagesRequired: z.boolean(),
   businessGoals: z.array(NonEmptyStringSchema),
   targetAudiences: z.array(NonEmptyStringSchema),
   pages: z.array(z.object({ slug: NonEmptyStringSchema, purpose: NonEmptyStringSchema }).strict()),

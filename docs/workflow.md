@@ -6,4 +6,4 @@
 
 `FAILED` is a terminal failure state from any operational phase.
 
-Implementation is forbidden until clarification is complete, business facts are complete or explicitly marked as user-provided later, the final brief is approved, one of three designs is selected, and architecture is accepted by the configured workflow. This state machine is documentation only in the current foundation.
+Implementation is forbidden until clarification is complete, business facts are complete or explicitly marked as user-provided later, the final brief is approved, one of three designs is selected, and architecture is accepted by the configured workflow. The state machine and transition guards are now implemented as pure TypeScript domain contracts under `src/domain/workflow/`. Persistence, agents, orchestration, and UI are still not implemented.

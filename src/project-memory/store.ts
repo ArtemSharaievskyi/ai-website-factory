@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { appendFile, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { appendFile, lstat, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { DecisionRecordSchema, type DecisionRecord } from "../domain/workflow/decision";
@@ -15,11 +15,12 @@ const now = () => new Date().toISOString();
 
 export class ProjectMemoryStore {
   readonly root: string;
-  constructor(rootDirectory: string) { this.root = path.resolve(rootDirectory); }
+  private readonly hooks?: { beforeManifestRename?: () => Promise<void> };
+  constructor(rootDirectory: string, hooks?: { beforeManifestRename?: () => Promise<void> }) { this.root = path.resolve(rootDirectory); this.hooks = hooks; }
 
   private safeName(name: string) {
     const normalized = name.replaceAll("\\", "/");
-    if (path.posix.isAbsolute(normalized)) throw new DomainError("ABSOLUTE_PATH_REJECTED", "Absolute document paths are not allowed.");
+    if (path.posix.isAbsolute(normalized) || /^[A-Za-z]:[\\/]/.test(normalized)) throw new DomainError("ABSOLUTE_PATH_REJECTED", "Absolute document paths are not allowed.");
     if (normalized.split("/").includes("..") || normalized.includes(":") || normalized.includes("\0")) throw new DomainError("PATH_TRAVERSAL_REJECTED", "Document path traversal is not allowed.");
     if (!CANONICAL_DOCUMENT_NAMES.includes(normalized as typeof CANONICAL_DOCUMENT_NAMES[number]) && normalized !== "original-prompt.md") throw new DomainError("DOCUMENT_UNKNOWN", "Unknown Project Memory document.");
     return normalized;
@@ -48,6 +49,7 @@ export class ProjectMemoryStore {
   private async atomicWrite(name: string, bytes: Buffer) {
     await this.ensureSafeRoot();
     const target = this.file(name); const temp = `${target}.${process.pid}.${Date.now()}.tmp`;
+    try { if ((await lstat(target)).isSymbolicLink()) throw new DomainError("PATH_TRAVERSAL_REJECTED", "Symbolic-link document paths are not allowed."); } catch (error) { if (error instanceof DomainError) throw error; if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     let previous: Buffer | undefined;
     try { previous = await readFile(target); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     await writeFile(temp, bytes, { flag: "wx", mode: 0o600 });
@@ -66,9 +68,10 @@ export class ProjectMemoryStore {
     for (const name of REQUIRED_DOCUMENTS) {
       try { const bytes = await readFile(this.file(name)); const info = await stat(this.file(name)); let documentType = "decisions"; if (name === "original-prompt.md") documentType = "original-prompt"; else if (name !== JSONL_NAME) documentType = this.parse(name, JSON.parse(bytes.toString("utf8"))).documentType; entries.push({ relativePath: name, documentType, schemaVersion: SCHEMA_VERSION, sha256: checksum(bytes), byteSize: info.size, updatedAt: info.mtime.toISOString() }); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     }
-    let base = entries[0] ? await this.readDocumentBase(entries[0].relativePath) : undefined;
+    const base = entries[0] ? await this.readDocumentBase(entries[0].relativePath) : undefined;
     const manifest = { schemaVersion: SCHEMA_VERSION, documentType: "manifest" as const, projectId: base?.projectId ?? "00000000-0000-0000-0000-000000000000", projectVersion: base?.projectVersion ?? 1, createdAt: base?.createdAt ?? now(), updatedAt: now(), documents: entries };
     ProjectMemoryManifestSchema.parse(manifest);
+    if (this.hooks?.beforeManifestRename) await this.hooks.beforeManifestRename();
     await this.atomicWrite("manifest.json", Buffer.from(toJson(manifest), "utf8"));
     return manifest;
   }
@@ -83,10 +86,10 @@ export class ProjectMemoryStore {
     return parsed as z.infer<(typeof DOCUMENT_SCHEMAS)[T]>;
   }
 
-  async writeOriginalPrompt(prompt: string) { await this.assertMutable(); if (typeof prompt !== "string") throw new DomainError("VALIDATION_FAILED", "Original prompt must be text."); const normalized = prompt.replace(/\r\n?/g, "\n"); await this.atomicWrite("original-prompt.md", Buffer.from(normalized, "utf8")); return normalized; }
+  async writeOriginalPrompt(prompt: string) { await this.assertMutable(); if (typeof prompt !== "string") throw new DomainError("VALIDATION_FAILED", "Original prompt must be text."); const normalized = prompt.replace(/\r\n?/g, "\n"); await this.atomicWrite("original-prompt.md", Buffer.from(normalized, "utf8")); await this.rebuildManifestInternal(); return normalized; }
 
   async readDocument<T extends StructuredDocumentName>(name: T): Promise<z.infer<(typeof DOCUMENT_SCHEMAS)[T]>> {
-    try { const value = JSON.parse(await readFile(this.file(name), "utf8")); const parsed = this.parse(name, value); if ((parsed as { schemaVersion: number }).schemaVersion !== SCHEMA_VERSION) throw new DomainError("SCHEMA_VERSION_MISMATCH", "Project Memory schema version is unsupported."); return parsed as z.infer<(typeof DOCUMENT_SCHEMAS)[T]>; } catch (error) { if (error instanceof DomainError) throw error; if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new DomainError("DOCUMENT_NOT_FOUND", "Project Memory document was not found."); throw new DomainError("VALIDATION_FAILED", "Project Memory document could not be read.", undefined, error); }
+    try { const value = JSON.parse(await readFile(this.file(name), "utf8")); if (value?.schemaVersion !== SCHEMA_VERSION) throw new DomainError("SCHEMA_VERSION_MISMATCH", "Project Memory schema version is unsupported."); const parsed = this.parse(name, value); return parsed as z.infer<(typeof DOCUMENT_SCHEMAS)[T]>; } catch (error) { if (error instanceof DomainError) throw error; if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new DomainError("DOCUMENT_NOT_FOUND", "Project Memory document was not found."); throw new DomainError("VALIDATION_FAILED", "Project Memory document could not be read.", undefined, error); }
   }
 
   async appendDecision(record: DecisionRecord) { await this.assertMutable(); const parsed = DecisionRecordSchema.parse(record); const bytes = Buffer.from(`${JSON.stringify(parsed)}\n`, "utf8"); await appendFile(this.file(JSONL_NAME), bytes, { mode: 0o600 }); await this.rebuildManifestInternal(); return parsed; }

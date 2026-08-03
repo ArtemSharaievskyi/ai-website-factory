@@ -4,6 +4,7 @@ import { DocumentBaseSchema, IsoDateTimeSchema, NonEmptyStringSchema } from "../
 export const TechnicalArchitectureSchema = DocumentBaseSchema.extend({
   documentType: z.literal("architecture"),
   applicationProfile: z.enum(["marketing-site", "business-site", "web-application"]),
+  packageManager: z.literal("npm"),
   routes: z.array(z.object({ path: NonEmptyStringSchema, responsibility: NonEmptyStringSchema }).strict()),
   componentBoundaries: z.array(NonEmptyStringSchema),
   componentDecisions: z.array(z.object({ area: NonEmptyStringSchema, serverOrClient: z.enum(["server", "client"]), rationale: NonEmptyStringSchema }).strict()),

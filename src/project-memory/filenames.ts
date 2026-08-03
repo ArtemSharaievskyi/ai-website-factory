@@ -8,7 +8,6 @@ import { QualityReportSchema } from "../domain/quality/schema";
 import { RequirementSpecificationSchema, ClarificationSessionSchema } from "../domain/requirements/schema";
 import { ReleaseReportSchema } from "../domain/release/schema";
 import { TaskGraphSchema } from "../domain/tasks/schema";
-import { DecisionsDocumentSchema } from "../domain/workflow/decision";
 import { DocumentBaseSchema, SCHEMA_VERSION } from "../domain/shared/schemas";
 
 export const ProjectMemoryDocumentSchema = z.object({ relativePath: z.string(), documentType: z.string(), schemaVersion: z.literal(SCHEMA_VERSION), sha256: z.string().regex(/^[a-f0-9]{64}$/), byteSize: z.number().int().nonnegative(), updatedAt: z.string() }).strict();

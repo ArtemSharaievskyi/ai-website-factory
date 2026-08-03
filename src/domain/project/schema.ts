@@ -13,6 +13,11 @@ export const FactoryProjectSchema = DocumentBaseSchema.extend({
   workflowState: WorkflowStateSchema,
   implementationStartedAt: IsoDateTimeSchema.optional(),
   completedAt: IsoDateTimeSchema.optional(),
-}).strict();
+}).strict().superRefine((project, context) => {
+  const beforeImplementation = ["DRAFT", "CLARIFYING", "AWAITING_BRIEF_APPROVAL", "AWAITING_DESIGN_SELECTION", "READY_FOR_IMPLEMENTATION"].includes(project.workflowState);
+  if (beforeImplementation && project.implementationStartedAt) context.addIssue({ code: "custom", path: ["implementationStartedAt"], message: "Implementation timestamp is not allowed before implementation" });
+  if (project.workflowState === "PROJECT_READY" && !project.completedAt) context.addIssue({ code: "custom", path: ["completedAt"], message: "PROJECT_READY requires completedAt" });
+  if (project.workflowState !== "PROJECT_READY" && project.completedAt) context.addIssue({ code: "custom", path: ["completedAt"], message: "completedAt is only allowed for PROJECT_READY" });
+});
 
 export type FactoryProject = z.infer<typeof FactoryProjectSchema>;
