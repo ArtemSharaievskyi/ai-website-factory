@@ -36,6 +36,8 @@ docker compose down
 
 The optional `FACTORY_PORT` environment variable changes the host port. Copy `.env.example` to a local `.env` only when needed; never commit credentials.
 
+The minimal Factory health contract is available at `GET /api/health` and returns `{ "status": "ok", "service": "ai-website-factory" }`.
+
 ## Repository conventions
 
 - npm is the only package manager.
