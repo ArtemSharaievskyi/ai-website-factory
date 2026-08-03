@@ -1,0 +1,46 @@
+import { DomainError } from "../shared/errors";
+import { WorkflowStateSchema } from "../project/schema";
+import type { DesignDirectionSet, SelectedDesign } from "../design/schema";
+import type { RequirementSpecification } from "../requirements/schema";
+import type { TechnicalArchitecture } from "../architecture/schema";
+import type { QualityReport } from "../quality/schema";
+import type { ReleaseReport } from "../release/schema";
+import type { DecisionRecord } from "./decision";
+
+export type WorkflowState = typeof WorkflowStateSchema.options[number];
+export const WORKFLOW_TRANSITIONS: Record<WorkflowState, readonly WorkflowState[]> = {
+  DRAFT: ["CLARIFYING"], CLARIFYING: ["AWAITING_BRIEF_APPROVAL"], AWAITING_BRIEF_APPROVAL: ["CLARIFYING", "AWAITING_DESIGN_SELECTION"], AWAITING_DESIGN_SELECTION: ["AWAITING_BRIEF_APPROVAL", "READY_FOR_IMPLEMENTATION"], READY_FOR_IMPLEMENTATION: ["AWAITING_BRIEF_APPROVAL", "IMPLEMENTING"], IMPLEMENTING: ["VALIDATING", "FAILED"], VALIDATING: ["REPAIRING", "PROJECT_READY", "FAILED"], REPAIRING: ["VALIDATING", "FAILED"], PROJECT_READY: [], FAILED: [],
+};
+
+export type TransitionContext = { requirements?: RequirementSpecification; requirementsChecksum?: string; designSet?: DesignDirectionSet; selectedDesign?: SelectedDesign; selectedDirectionChecksum?: string; architecture?: TechnicalArchitecture; decisions?: DecisionRecord[]; qualityReport?: QualityReport; releaseReport?: ReleaseReport; knownErrors?: string[]; recovery?: boolean };
+
+function reject(code: ConstructorParameters<typeof DomainError>[0], message: string): never { throw new DomainError(code, message); }
+
+export function transitionWorkflow(state: WorkflowState, next: WorkflowState, context: TransitionContext = {}): WorkflowState {
+  if (state === "PROJECT_READY") reject("PROJECT_VERSION_IMMUTABLE", "Released project versions are immutable.");
+  if (state === "FAILED" && !context.recovery) reject("WORKFLOW_TRANSITION_INVALID", "Failed workflows require explicit recovery.");
+  if (!WORKFLOW_TRANSITIONS[state].includes(next)) reject("WORKFLOW_TRANSITION_INVALID", `Transition from ${state} to ${next} is not permitted.`);
+  if (state === "CLARIFYING" && next === "AWAITING_BRIEF_APPROVAL" && context.requirements?.unresolvedItems.some((item) => item.blocking)) reject("BLOCKING_CLARIFICATIONS_REMAIN", "Blocking clarification items remain unresolved.");
+  if (state === "AWAITING_BRIEF_APPROVAL" && next === "AWAITING_DESIGN_SELECTION") {
+    if (!context.requirements?.approval.approved) reject("REQUIREMENTS_NOT_APPROVED", "Requirements must be approved first.");
+    if (!context.requirementsChecksum || context.requirements.approval.approvedRequirementsChecksum !== context.requirementsChecksum) reject("REQUIREMENTS_CHECKSUM_MISMATCH", "Approved requirements checksum does not match.");
+    if (context.requirements.unresolvedItems.some((item) => item.blocking)) reject("BLOCKING_CLARIFICATIONS_REMAIN", "Blocking requirement items remain unresolved.");
+  }
+  if (state === "AWAITING_DESIGN_SELECTION" && next === "READY_FOR_IMPLEMENTATION") {
+    if (!context.designSet || context.designSet.directions.length !== 3 || !context.designSet.readyForSelection) reject("DESIGN_DIRECTIONS_INVALID", "Exactly three ready design directions are required.");
+    if (!context.selectedDesign || !context.designSet.directions.some((direction) => direction.id === context.selectedDesign?.selectedDirectionId)) reject("DESIGN_NOT_SELECTED", "A current design direction must be selected.");
+    if (context.selectedDirectionChecksum !== context.selectedDesign.selectedDirectionChecksum) reject("DESIGN_CHECKSUM_MISMATCH", "Selected design checksum does not match.");
+    if (!context.architecture?.acceptance.accepted) reject("ARCHITECTURE_NOT_ACCEPTED", "Technical architecture must be accepted.");
+    if (context.requirements?.imageSourceDecision === "pending") reject("REQUIREMENTS_NOT_APPROVED", "Image sourcing decision is pending.");
+  }
+  if (state === "READY_FOR_IMPLEMENTATION" && next === "IMPLEMENTING") {
+    if (!context.requirements?.approval.approved) reject("REQUIREMENTS_NOT_APPROVED", "Requirements must be approved before implementation.");
+    if (!context.architecture?.acceptance.accepted) reject("ARCHITECTURE_NOT_ACCEPTED", "Architecture must be accepted before implementation.");
+    if (context.decisions?.some((decision) => decision.requirementChange && decision.userApprovalStatus !== "approved")) reject("UNAPPROVED_REQUIREMENT_CHANGE", "An unapproved requirement change is present.");
+  }
+  if (state === "VALIDATING" && next === "PROJECT_READY") {
+    if (context.knownErrors?.length || context.releaseReport?.knownErrors.length || context.qualityReport?.knownErrors.length) reject("KNOWN_ERRORS_REMAIN", "Known errors remain.");
+    if (!context.releaseReport?.ready || context.qualityReport?.checks.some((check) => check.required && check.status !== "passed")) reject("QUALITY_GATES_INCOMPLETE", "Required quality gates are incomplete.");
+  }
+  return next;
+}
