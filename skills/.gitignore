@@ -1,0 +1,6 @@
+staging/
+rejected/
+registry/*.json
+registry/audit.jsonl
+approved/
+!approved/.gitkeep

@@ -8,3 +8,5 @@
 - **shadcn/ui** may use only official and explicitly approved registries. It is a customizable technical base, not a fixed visual template.
 
 No tool is installed or integrated by this task.
+
+Imported skills do not select or install tools. Tool permissions are explicit approval fields and are checked together with role, task type, checksum, and context limits. The registry currently contains no approved external skills.
