@@ -25,6 +25,11 @@ export class ProjectVersionRepository {
   constructor(private readonly db: PersistenceDatabase) {}
   async create(row: ProjectVersionRow, idempotencyKey?: string) { if (row.versionNumber < 1) throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", "Project version must be positive."); return this.db.transaction((tx) => tx.insertVersion(row, token(idempotencyKey, row))); }
   async get(projectId: string, version: number) { return this.db.transaction((tx) => tx.getVersion(projectId, version)); }
+  async list(projectId: string) { return this.db.transaction((tx) => tx.listVersions(projectId)); }
+  async getVersion(projectId: string, version: number) { return this.get(projectId, version); }
+  async listVersions(projectId: string) { return this.list(projectId); }
+  async reserveNextVersion(projectId: string, idempotencyKey?: string) { return this.db.transaction((tx) => tx.reserveNextVersion(projectId, token(idempotencyKey, { projectId }))); }
+  async markImmutable(projectId: string, version: number, releasedAt: string) { return this.db.transaction((tx) => tx.updateVersionImmutable(projectId, version, releasedAt)); }
 }
 
 export class DocumentRepository {

@@ -6,5 +6,5 @@ export function stableValue(value: unknown): unknown {
   return value;
 }
 
-export function serializePersistedDocument(value: unknown): string { return JSON.stringify(stableValue(value)); }
+export function serializePersistedDocument(value: unknown): string { return `${JSON.stringify(stableValue(value), null, 2)}\n`; }
 export function checksumPersistedDocument(value: unknown): string { return createHash("sha256").update(serializePersistedDocument(value), "utf8").digest("hex"); }

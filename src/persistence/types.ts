@@ -14,7 +14,9 @@ export interface PersistenceTransaction {
   insertProject(row: ProjectRow, idempotency?: { key: string; payloadHash: string }): Promise<ProjectRow>;
   updateProjectState(input: { id: string; expectedState: WorkflowState; expectedRowVersion: number; state: WorkflowState; updatedAt: string; implementationStartedAt?: string; completedAt?: string }): Promise<ProjectRow>;
   getVersion(projectId: string, version: number): Promise<ProjectVersionRow | null>;
+  listVersions(projectId: string): Promise<ProjectVersionRow[]>;
   insertVersion(row: ProjectVersionRow, idempotency?: { key: string; payloadHash: string }): Promise<ProjectVersionRow>;
+  reserveNextVersion(projectId: string, idempotency?: { key: string; payloadHash: string }): Promise<ProjectVersionRow>;
   updateVersionImmutable(projectId: string, version: number, releasedAt: string): Promise<ProjectVersionRow>;
   saveDocument(row: DocumentRow, idempotency?: { key: string; payloadHash: string }): Promise<DocumentRow>;
   getDocument(projectId: string, version: number, documentType: string): Promise<DocumentRow | null>;

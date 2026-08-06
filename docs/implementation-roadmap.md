@@ -1,7 +1,7 @@
 # Implementation roadmap
 
 1. Foundation: this single application, npm, Docker, hygiene, and decisions.
-2. Durable workflow state: define approved Supabase schema, repositories, and state transitions.
+2. Durable workflow state: define approved Supabase schema, repositories, state transitions, and versioned Workspace Manager output.
 3. Requirements: implement Lead Agent clarification and brief approval.
 4. Design: implement three-direction proposal and selection freeze.
 5. Generation: add project workspace, planning, implementation, and approved integrations.
