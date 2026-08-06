@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { DomainError } from "../domain/shared/errors";
 import { DocumentBaseSchema } from "../domain/shared/schemas";
@@ -19,8 +20,11 @@ export type PersistedDocument = z.infer<typeof PersistedDocumentSchema>;
 
 export type DocumentRow = { projectId: string; projectVersion: number; documentType: string; schemaVersion: number; checksum: string; payload: unknown; createdAt: string; updatedAt: string; rowVersion: number };
 
+const normalizePrompt = (prompt: string) => prompt.replace(/\r\n?/g, "\n");
+const promptChecksum = (prompt: string) => createHash("sha256").update(normalizePrompt(prompt)).digest("hex");
+
 export function mapProjectToRow(project: z.infer<typeof FactoryProjectSchema>) {
-  return { id: project.id, slug: project.slug, title: project.title ?? null, original_prompt: project.originalPrompt, current_version: project.currentVersion, workflow_state: project.workflowState, created_at: project.createdAt, updated_at: project.updatedAt, implementation_started_at: project.implementationStartedAt ?? null, completed_at: project.completedAt ?? null, row_version: 1 };
+  return { id: project.id, slug: project.slug, title: project.title ?? null, original_prompt: project.originalPrompt, original_prompt_checksum: promptChecksum(project.originalPrompt), current_version: project.currentVersion, workflow_state: project.workflowState, created_at: project.createdAt, updated_at: project.updatedAt, implementation_started_at: project.implementationStartedAt ?? null, completed_at: project.completedAt ?? null, row_version: 1 };
 }
 
 export function mapRowToProject(row: Record<string, unknown>) {

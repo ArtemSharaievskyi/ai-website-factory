@@ -1,0 +1,9 @@
+import type { DecisionRecord } from "../domain/workflow/decision";
+import type { ClarificationSession } from "../domain/requirements/schema";
+import type { BriefDraft, ClarificationPlan, LeadAgentAnalysis, LeadAgentInput } from "./contracts";
+
+export interface LeadAnalysisProvider { analyzePrompt(input: LeadAgentInput): Promise<LeadAgentAnalysis>; proposeClarifications(input: { analysis: LeadAgentAnalysis; session?: ClarificationSession }): Promise<ClarificationPlan>; assembleBriefDraft(input: { analysis: LeadAgentAnalysis; session: ClarificationSession }): Promise<BriefDraft>; }
+export interface SkillSelectionPort { select(input: { role: "lead"; taskType: "clarify-requirements" | "create-requirements-spec" }): Promise<string[]>; }
+export interface LeadMemoryPort { writeSnapshot(projectId: string, projectVersion: number, documents: Record<string, unknown>): Promise<void>; appendDecision(projectId: string, projectVersion: number, decision: DecisionRecord): Promise<void>; verify(projectId: string, projectVersion: number): Promise<boolean>; checksums(projectId: string, projectVersion: number): Promise<Record<string, string>>; }
+export class EmptySkillSelectionPort implements SkillSelectionPort { async select() { return []; } }
+export class DeterministicLeadProvider implements LeadAnalysisProvider { constructor(private readonly analyze: (input: LeadAgentInput) => LeadAgentAnalysis, private readonly plan: (input: { analysis: LeadAgentAnalysis; session?: ClarificationSession }) => ClarificationPlan, private readonly brief: (input: { analysis: LeadAgentAnalysis; session: ClarificationSession }) => BriefDraft) {} async analyzePrompt(input: LeadAgentInput) { return this.analyze(input); } async proposeClarifications(input: { analysis: LeadAgentAnalysis; session?: ClarificationSession }) { return this.plan(input); } async assembleBriefDraft(input: { analysis: LeadAgentAnalysis; session: ClarificationSession }) { return this.brief(input); } }

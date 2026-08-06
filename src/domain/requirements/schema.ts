@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { DocumentBaseSchema, IsoDateTimeSchema, LocaleSchema, NonEmptyStringSchema, UserValueSchema } from "../shared/schemas";
 
-export const ClarificationCategorySchema = z.enum(["business", "audience", "pages", "functionality", "content", "contact", "legal", "design", "brand", "images", "authentication", "forms", "email", "database", "storage", "administration", "GitHub", "constraints"]);
+export const ClarificationCategorySchema = z.enum(["business", "audience", "pages", "functionality", "content", "contact", "legal", "design", "brand", "images", "authentication", "forms", "email", "database", "storage", "administration", "GitHub", "languages", "localization", "constraints"]);
 export const AnswerStatusSchema = z.enum(["answered", "not-applicable", "deferred", "unresolved"]);
-export const ClarificationQuestionSchema = z.object({ id: z.string().uuid(), category: ClarificationCategorySchema, question: NonEmptyStringSchema, reason: NonEmptyStringSchema, required: z.boolean(), blocking: z.boolean(), askedAt: IsoDateTimeSchema, answerStatus: AnswerStatusSchema }).strict();
+export const ClarificationQuestionSchema = z.object({ id: z.string().uuid(), category: ClarificationCategorySchema, question: NonEmptyStringSchema, reason: NonEmptyStringSchema, required: z.boolean(), blocking: z.boolean(), askedAt: IsoDateTimeSchema, answerStatus: AnswerStatusSchema, requirementKey: NonEmptyStringSchema.optional(), fingerprint: NonEmptyStringSchema.optional(), evidence: z.array(NonEmptyStringSchema).optional() }).strict();
 export const ClarificationAnswerSchema = z.object({ questionId: z.string().uuid(), status: AnswerStatusSchema, answer: z.string().optional(), answeredAt: IsoDateTimeSchema, answeredBy: NonEmptyStringSchema }).strict().superRefine((value, context) => {
   if (value.status === "answered" && !value.answer?.trim()) context.addIssue({ code: "custom", path: ["answer"], message: "Answered questions require an answer" });
 });
@@ -39,6 +39,7 @@ export const RequirementSpecificationSchema = DocumentBaseSchema.extend({
   userAcceptanceCriteria: z.array(NonEmptyStringSchema),
   unresolvedItems: z.array(z.object({ id: z.string().uuid(), description: NonEmptyStringSchema, blocking: z.boolean() }).strict()),
   approval: z.object({ approved: z.boolean(), approvedAt: IsoDateTimeSchema.optional(), approvedBy: NonEmptyStringSchema.optional(), approvedRequirementsChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict(),
+  projectTitle: NonEmptyStringSchema.optional(), contactFacts: z.array(NonEmptyStringSchema).default([]), legalFacts: z.array(NonEmptyStringSchema).default([]), brandFacts: z.array(NonEmptyStringSchema).default([]), logoMetadata: z.array(NonEmptyStringSchema).default([]), imageSourcingNotes: z.array(NonEmptyStringSchema).default([]), evidence: z.array(z.object({ field: NonEmptyStringSchema, source: NonEmptyStringSchema, excerpt: NonEmptyStringSchema }).strict()).default([]), recommendations: z.array(NonEmptyStringSchema).default([]), analysisMetadata: z.object({ provider: z.string(), originalPromptChecksum: z.string().regex(/^[a-f0-9]{64}$/), unsupportedAssumptions: z.array(z.string()), contradictionCount: z.number().int().nonnegative() }).strict().optional(), briefStatus: z.enum(["draft", "approved"]).default("draft"), briefVersion: z.number().int().positive().default(1), briefApprovalNote: z.string().optional(),
 }).strict();
 export type ClarificationQuestion = z.infer<typeof ClarificationQuestionSchema>;
 export type ClarificationAnswer = z.infer<typeof ClarificationAnswerSchema>;
