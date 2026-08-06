@@ -9,3 +9,6 @@
 7. Validation and release: add deterministic checks, functional browser tests, repair loops, versioning, local Git, and optional GitHub creation.
 
 Deployment, Preview, arbitrary tool installation, and unapproved infrastructure remain excluded.
+# Planner / Architect milestone
+
+The Planner / Architect foundation now consumes only approved Briefs, produces deterministic traceable planning documents, and accepts them without advancing beyond `AWAITING_DESIGN_SELECTION`. Design directions, implementation, source generation, and release remain future work.

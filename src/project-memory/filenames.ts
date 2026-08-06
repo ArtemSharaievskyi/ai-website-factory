@@ -9,6 +9,7 @@ import { RequirementSpecificationSchema, ClarificationSessionSchema } from "../d
 import { ReleaseReportSchema } from "../domain/release/schema";
 import { TaskGraphSchema } from "../domain/tasks/schema";
 import { DocumentBaseSchema, SCHEMA_VERSION } from "../domain/shared/schemas";
+import { PlanningPackageSchema } from "../planner/contracts";
 
 export const ProjectMemoryDocumentSchema = z.object({ relativePath: z.string(), documentType: z.string(), schemaVersion: z.literal(SCHEMA_VERSION), sha256: z.string().regex(/^[a-f0-9]{64}$/), byteSize: z.number().int().nonnegative(), updatedAt: z.string() }).strict();
 export const ProjectMemoryManifestSchema = DocumentBaseSchema.extend({ documentType: z.literal("manifest"), documents: z.array(ProjectMemoryDocumentSchema) }).strict();
@@ -22,13 +23,14 @@ export const DOCUMENT_SCHEMAS = {
   "architecture.json": TechnicalArchitectureSchema,
   "content-plan.json": ContentPlanSchema,
   "asset-manifest.json": AssetManifestSchema,
+  "planning-package.json": PlanningPackageSchema,
   "task-graph.json": TaskGraphSchema,
   "quality-report.json": QualityReportSchema,
   "release-report.json": ReleaseReportSchema,
   "manifest.json": ProjectMemoryManifestSchema,
 } as const;
 
-export const REQUIRED_DOCUMENTS = [...Object.keys(DOCUMENT_SCHEMAS).filter((name) => name !== "manifest.json"), "decisions.jsonl", "original-prompt.md"];
+export const REQUIRED_DOCUMENTS = [...Object.keys(DOCUMENT_SCHEMAS).filter((name) => name !== "manifest.json" && name !== "planning-package.json"), "decisions.jsonl", "original-prompt.md"];
 export const CANONICAL_DOCUMENT_NAMES = [...Object.keys(DOCUMENT_SCHEMAS), "decisions.jsonl", "original-prompt.md"] as const;
 export type StructuredDocumentName = keyof typeof DOCUMENT_SCHEMAS;
 export type ProjectMemoryManifest = z.infer<typeof ProjectMemoryManifestSchema>;

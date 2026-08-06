@@ -1,6 +1,6 @@
 # Agent architecture
 
-The role structure is planned, but the Lead Agent intake and brief-approval boundary are implemented. The lightweight role structure is:
+The role structure is planned, but the Lead Agent intake/brief boundary and Planner / Architect planning boundary are implemented. The lightweight role structure is:
 
 1. **Lead Agent** communicates with the user, extracts requirements, asks every unresolved question, creates the final brief, and requests approval. It does not write production code.
 2. **Planner / Architect Agent** creates product, UX, technical, content, and asset plans within the fixed stack. It does not add infrastructure without requirements.

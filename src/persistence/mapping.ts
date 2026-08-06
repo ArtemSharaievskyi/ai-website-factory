@@ -14,8 +14,9 @@ import { ReleaseReportSchema } from "../domain/release/schema";
 import { TaskGraphSchema } from "../domain/tasks/schema";
 import { checksumPersistedDocument } from "./serialization";
 import { PersistenceError } from "./errors";
+import { PlanningPackageSchema } from "../planner/contracts";
 
-export const PersistedDocumentSchema = z.union([ClarificationSessionSchema, RequirementSpecificationSchema, DesignDirectionSetSchema, SelectedDesignSchema, TechnicalArchitectureSchema, ContentPlanSchema, AssetManifestSchema, TaskGraphSchema, QualityReportSchema, ReleaseReportSchema]);
+export const PersistedDocumentSchema = z.union([ClarificationSessionSchema, RequirementSpecificationSchema, DesignDirectionSetSchema, SelectedDesignSchema, TechnicalArchitectureSchema, ContentPlanSchema, AssetManifestSchema, PlanningPackageSchema, TaskGraphSchema, QualityReportSchema, ReleaseReportSchema]);
 export type PersistedDocument = z.infer<typeof PersistedDocumentSchema>;
 
 export type DocumentRow = { projectId: string; projectVersion: number; documentType: string; schemaVersion: number; checksum: string; payload: unknown; createdAt: string; updatedAt: string; rowVersion: number };

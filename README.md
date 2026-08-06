@@ -4,7 +4,7 @@ AI Website Factory is a local, single-user foundation for a future agent-assiste
 
 ## Current status
 
-The current implementation includes the Lead Agent intake, clarification, deterministic Project Brief draft, and user approval boundary. It also includes the technical foundation: one Next.js App Router application, npm tooling, Docker packaging, domain contracts, filesystem Project Memory, server-only Supabase workflow persistence, and safe versioned Workspace Manager output. Planner/Architect, Design, Implementation, QA/Release orchestration, website generation, Preview, external skills, MCP integrations, GitHub automation, and deployment are not implemented.
+The current implementation includes the Lead Agent intake, clarification, deterministic Project Brief approval boundary, and Planner / Architect planning package acceptance. It also includes the technical foundation: one Next.js App Router application, npm tooling, Docker packaging, domain contracts, filesystem Project Memory, server-only Supabase workflow persistence, and safe versioned Workspace Manager output. Design, Implementation, QA/Release orchestration, website generation, Preview, external skills, MCP integrations, GitHub automation, and deployment are not implemented.
 The Workspace Manager now creates safe, versioned project roots and `.factory` memory only; it does not generate website source or execute customer projects. The Approved Skills Registry is currently empty; future imports require static review and manual checksum-bound approval.
 
 The old `ai-website-factory-preview-prototype` repository is a separate legacy reference and is intentionally not imported or modified. This repository contains no customer-site Preview system.
