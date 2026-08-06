@@ -1,5 +1,7 @@
 # Security model
 
+OpenAI credentials remain server-only, provider telemetry is redacted metadata, and prompts are limited to role-specific bounded context.
+
 The local single-user process is the primary trust boundary. External AI providers, MCP servers, imported skills, registries, dependencies, generated code, and GitHub are separate trust boundaries. Secrets are never sent unnecessarily, and generated code must never receive or access Factory secrets.
 
 Future orchestration requires reviewed skills and scripts, approved MCP installations, command allowlists, process timeouts, output-size limits, dependency review, secret scanning, and path-traversal protection. Server Actions and Route Handlers must validate input. Supabase projects require least-privilege access and RLS policies. Arbitrary registry URLs and arbitrary agent-installed MCPs are prohibited.

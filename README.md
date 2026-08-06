@@ -9,6 +9,8 @@ The Workspace Manager now creates safe, versioned project roots and `.factory` m
 
 The old `ai-website-factory-preview-prototype` repository is a separate legacy reference and is intentionally not imported or modified. This repository contains no customer-site Preview system.
 
+See [AI provider architecture](docs/ai-provider.md), [security](docs/ai-provider-security.md), and [manual smoke test](docs/ai-smoke-test.md) for the production OpenAI foundation. Real AI is opt-in and deterministic tests remain network-free.
+
 ## Development
 
 ```bash

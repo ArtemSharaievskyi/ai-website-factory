@@ -1,5 +1,7 @@
 # Agent architecture
 
+Production provider calls are server-only adapters behind the existing role ports; deterministic providers remain available for offline tests.
+
 The role structure is planned, but the Lead Agent intake/brief boundary, Planner / Architect planning boundary, and Design Agent selection boundary are implemented. The lightweight role structure is:
 
 1. **Lead Agent** communicates with the user, extracts requirements, asks every unresolved question, creates the final brief, and requests approval. It does not write production code.

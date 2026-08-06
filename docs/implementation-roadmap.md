@@ -1,5 +1,7 @@
 # Implementation roadmap
 
+The production provider foundation is now available behind existing ports; real smoke testing remains explicit opt-in.
+
 1. Foundation: this single application, npm, Docker, hygiene, and decisions.
 2. Durable workflow state: define approved Supabase schema, repositories, state transitions, and versioned Workspace Manager output.
 3. Approved skills: implement isolated import, static review, manual approval, immutable copies, permissions, and bounded loading. The registry is currently empty.

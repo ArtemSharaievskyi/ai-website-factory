@@ -1,5 +1,7 @@
 # Tool policy
 
+AI provider calls are server-only structured requests; provider output has no tool, filesystem, approval, or workflow-transition authority.
+
 - **Context7** is a read-only source for verified version-specific library documentation; it does not make architecture decisions.
 - **Magic Patterns** is limited to the design stage and exactly three directions; its output requires adaptation before production use.
 - **Motion** is optional and purposeful, not automatic.
