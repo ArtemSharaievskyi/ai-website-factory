@@ -1,6 +1,6 @@
 # Fixed stack
 
-The Factory application uses Next.js App Router, React, TypeScript, npm, and Docker. Supabase may later hold durable Factory workflow state where appropriate. No local Supabase infrastructure is added until database functionality genuinely requires it.
+The Factory application uses Next.js App Router, React, TypeScript, npm, Docker, and Supabase PostgreSQL for durable Factory workflow metadata. The server-only persistence foundation uses a typed Postgres adapter and SQL migrations; no local Supabase infrastructure is added.
 
 Generated projects use Next.js App Router, React, TypeScript, Tailwind CSS, customizable shadcn/ui, Supabase PostgreSQL, optional Auth and Storage, Server Actions and Route Handlers, Zod, optional React Hook Form, purposeful optional Motion, ESLint, Vitest, Playwright, and npm.
 
