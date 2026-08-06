@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { appendFile, lstat, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { DecisionRecordSchema, type DecisionRecord } from "../domain/workflow/decision";
@@ -9,7 +9,15 @@ import { SCHEMA_VERSION } from "../domain/shared/schemas";
 import { CANONICAL_DOCUMENT_NAMES, DOCUMENT_SCHEMAS, ProjectMemoryManifestSchema, REQUIRED_DOCUMENTS, type ProjectMemoryManifest, type StructuredDocumentName } from "./filenames";
 
 const JSONL_NAME = "decisions.jsonl";
-const toJson = (data: unknown) => `${JSON.stringify(data, null, 2)}\n`;
+function stableValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right)).map(([key, entry]) => [key, stableValue(entry)]));
+  }
+  return value;
+}
+
+const toJson = (data: unknown) => `${JSON.stringify(stableValue(data), null, 2)}\n`;
 const checksum = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 const now = () => new Date().toISOString();
 
@@ -86,17 +94,46 @@ export class ProjectMemoryStore {
     return parsed as z.infer<(typeof DOCUMENT_SCHEMAS)[T]>;
   }
 
-  async writeOriginalPrompt(prompt: string) { await this.assertMutable(); if (typeof prompt !== "string") throw new DomainError("VALIDATION_FAILED", "Original prompt must be text."); const normalized = prompt.replace(/\r\n?/g, "\n"); await this.atomicWrite("original-prompt.md", Buffer.from(normalized, "utf8")); await this.rebuildManifestInternal(); return normalized; }
+  async writeOriginalPrompt(prompt: string) {
+    await this.assertMutable();
+    if (typeof prompt !== "string") throw new DomainError("VALIDATION_FAILED", "Original prompt must be text.");
+    const normalized = prompt.replace(/\r\n?/g, "\n");
+    const previousManifest = await this.readManifest();
+    let previous: Buffer | undefined;
+    try { previous = await readFile(this.file("original-prompt.md")); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    await this.atomicWrite("original-prompt.md", Buffer.from(normalized, "utf8"));
+    try { await this.rebuildManifestInternal(); } catch (error) {
+      if (previous) await this.atomicWrite("original-prompt.md", previous); else await rm(this.file("original-prompt.md"), { force: true });
+      if (previousManifest) await this.atomicWrite("manifest.json", Buffer.from(toJson(previousManifest), "utf8"));
+      throw error;
+    }
+    return normalized;
+  }
 
   async readDocument<T extends StructuredDocumentName>(name: T): Promise<z.infer<(typeof DOCUMENT_SCHEMAS)[T]>> {
     try { const value = JSON.parse(await readFile(this.file(name), "utf8")); if (value?.schemaVersion !== SCHEMA_VERSION) throw new DomainError("SCHEMA_VERSION_MISMATCH", "Project Memory schema version is unsupported."); const parsed = this.parse(name, value); return parsed as z.infer<(typeof DOCUMENT_SCHEMAS)[T]>; } catch (error) { if (error instanceof DomainError) throw error; if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new DomainError("DOCUMENT_NOT_FOUND", "Project Memory document was not found."); throw new DomainError("VALIDATION_FAILED", "Project Memory document could not be read.", undefined, error); }
   }
 
-  async appendDecision(record: DecisionRecord) { await this.assertMutable(); const parsed = DecisionRecordSchema.parse(record); const bytes = Buffer.from(`${JSON.stringify(parsed)}\n`, "utf8"); await appendFile(this.file(JSONL_NAME), bytes, { mode: 0o600 }); await this.rebuildManifestInternal(); return parsed; }
+  async appendDecision(record: DecisionRecord) {
+    await this.assertMutable();
+    let parsed: DecisionRecord;
+    try { parsed = DecisionRecordSchema.parse(record); } catch (error) { if (error instanceof z.ZodError) throw new DomainError("VALIDATION_FAILED", "Invalid decision record.", undefined, error); throw error; }
+    const previousManifest = await this.readManifest();
+    let previous: Buffer | undefined;
+    try { previous = await readFile(this.file(JSONL_NAME)); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    const bytes = Buffer.from(`${JSON.stringify(stableValue(parsed))}\n`, "utf8");
+    await this.atomicWrite(JSONL_NAME, Buffer.concat([previous ?? Buffer.alloc(0), bytes]));
+    try { await this.rebuildManifestInternal(); } catch (error) {
+      if (previous) await this.atomicWrite(JSONL_NAME, previous); else await rm(this.file(JSONL_NAME), { force: true });
+      if (previousManifest) await this.atomicWrite("manifest.json", Buffer.from(toJson(previousManifest), "utf8"));
+      throw error;
+    }
+    return parsed;
+  }
   async rebuildManifest() { await this.assertMutable(); return this.rebuildManifestInternal(); }
   async listAvailableDocuments() { await this.ensureSafeRoot(); return (await readdir(this.root)).filter((name) => name.endsWith(".json") || name.endsWith(".jsonl") || name === "original-prompt.md"); }
   async detectMissingRequiredDocuments() { const available = new Set(await this.listAvailableDocuments()); return REQUIRED_DOCUMENTS.filter((name) => !available.has(name)); }
-  async detectUnknownCanonicalDocuments() { const available = await this.listAvailableDocuments(); return available.filter((name) => name.endsWith(".json") && !CANONICAL_DOCUMENT_NAMES.includes(name as typeof CANONICAL_DOCUMENT_NAMES[number])); }
+  async detectUnknownCanonicalDocuments() { const available = await this.listAvailableDocuments(); return available.filter((name) => (name.endsWith(".json") || name.endsWith(".jsonl") || name === "original-prompt.md") && !CANONICAL_DOCUMENT_NAMES.includes(name as typeof CANONICAL_DOCUMENT_NAMES[number])); }
   async verifyIntegrity() {
     const manifest = await this.readDocument("manifest.json"); const failures: string[] = [];
     for (const entry of manifest.documents) { try { const bytes = await readFile(this.file(entry.relativePath)); if (checksum(bytes) !== entry.sha256) failures.push(entry.relativePath); } catch { failures.push(entry.relativePath); } }
