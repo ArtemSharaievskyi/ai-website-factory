@@ -1,6 +1,6 @@
 # Project Memory
 
-The `ProjectMemoryStore` in `src/project-memory/` supports the future `.factory/` document set:
+The `ProjectMemoryStore` in `src/project-memory/` supports the `.factory/` document set, including the Orchestrator's checksummed `task-graph.json`:
 
 ```text
 project.json

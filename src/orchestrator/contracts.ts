@@ -1,0 +1,21 @@
+import { z } from "zod";
+import { AssetManifestSchema } from "../domain/assets/schema";
+import { TechnicalArchitectureSchema } from "../domain/architecture/schema";
+import { ContentPlanSchema } from "../domain/content/schema";
+import { SelectedDesignSchema } from "../domain/design/schema";
+import { RequirementSpecificationSchema } from "../domain/requirements/schema";
+import { TaskGraphSchema, type TaskGraph, type AgentTask } from "../domain/tasks/schema";
+import { WorkflowStateSchema } from "../domain/project/schema";
+import { PlanningPackageSchema } from "../planner/contracts";
+import { SkillDefinitionSchema } from "../skills/contracts";
+
+export const ToolCategorySchema = z.enum(["filesystem-read", "filesystem-write", "npm", "git-read", "git-write", "database-read", "database-write", "Context7-read", "shadcn-registry-read", "Magic-Patterns-design", "Playwright-functional", "image-generation", "shell-restricted"]);
+export const ApprovedSkillSnapshotSchema = z.object({ schemaVersion: z.literal(1), checksum: z.string().regex(/^[a-f0-9]{64}$/), skills: z.array(SkillDefinitionSchema) }).strict();
+export const OrchestrationPolicySchema = z.object({ version: z.string().min(1), maxConcurrency: z.number().int().positive().max(8), implementationMaxAttempts: z.number().int().positive().max(3), validationMaxAttempts: z.number().int().positive().max(2), releaseMaxAttempts: z.literal(1), maxContextBytes: z.number().int().positive() }).strict();
+export const DEFAULT_ORCHESTRATION_POLICY = OrchestrationPolicySchema.parse({ version: "orchestrator-v1", maxConcurrency: 3, implementationMaxAttempts: 3, validationMaxAttempts: 2, releaseMaxAttempts: 1, maxContextBytes: 120000 });
+export const OrchestratorInputSchema = z.object({ projectId: z.string().uuid(), projectVersion: z.number().int().positive(), approvedBrief: RequirementSpecificationSchema, approvedBriefChecksum: z.string().regex(/^[a-f0-9]{64}$/), acceptedPlanningPackage: PlanningPackageSchema, acceptedPlanningChecksum: z.string().regex(/^[a-f0-9]{64}$/), selectedDesign: SelectedDesignSchema, selectedDesignChecksum: z.string().regex(/^[a-f0-9]{64}$/), technicalArchitecture: TechnicalArchitectureSchema, contentPlan: ContentPlanSchema, assetManifest: AssetManifestSchema, currentWorkflowState: WorkflowStateSchema, existingDecisions: z.array(z.unknown()), currentTaskGraph: TaskGraphSchema.optional(), allowedRoles: z.array(z.enum(["lead", "planner-architect", "design", "implementation", "qa-release"])), approvedSkillRegistrySnapshot: ApprovedSkillSnapshotSchema, toolPolicyVersion: z.string().min(1), orchestrationPolicyVersion: z.string().min(1), idempotencyKey: z.string().min(1), expectedRowVersion: z.number().int().positive(), workspaceReserved: z.boolean().default(false), projectImmutable: z.boolean().default(false), requiredExternalDecisionPending: z.boolean().default(false) }).strict();
+export type OrchestratorInput = z.input<typeof OrchestratorInputSchema>;
+export type OrchestrationPolicy = z.infer<typeof OrchestrationPolicySchema>;
+export type ApprovedSkillSnapshot = z.infer<typeof ApprovedSkillSnapshotSchema>;
+export type OrchestrationResult = { taskGraph: TaskGraph; valid: boolean; errors: string[]; warnings: string[]; readyForExecution: boolean; blockingReasons: string[]; graphChecksum: string };
+export type TaskEvent = { taskId: string; from: AgentTask["status"]; to: AgentTask["status"]; actor: string; reason: string; attempt: number; createdAt: string };
