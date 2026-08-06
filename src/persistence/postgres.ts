@@ -1,7 +1,6 @@
-import "server-only";
-
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
-import { readServerEnvironment } from "./env";
+import { DomainError } from "../domain/shared/errors";
+import { readServerEnvironment, requireDatabaseSsl } from "./env";
 import { PersistenceError } from "./errors";
 import type { DocumentRow } from "./mapping";
 import type { PersistenceDatabase, PersistenceTransaction, ProjectRow, ProjectVersionRow, WorkflowEvent, CostRecord } from "./types";
@@ -9,11 +8,12 @@ import type { DecisionRecord } from "../domain/workflow/decision";
 
 const safeProviderError = (error: unknown): never => { throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "The database operation failed.", undefined, error); };
 const value = <T>(result: { rows: QueryResultRow[] }) => result.rows[0] as T | undefined;
+const normalizeProjectRow = (row: ProjectRow) => ({ ...row, row_version: Number(row.row_version) });
 
 export function createPostgresPool() {
   const environment = readServerEnvironment();
   if (!environment.DATABASE_URL) throw new Error("DATABASE_URL is required for the Postgres persistence adapter.");
-  return new Pool({ connectionString: environment.DATABASE_URL, max: 5, connectionTimeoutMillis: 5000, idleTimeoutMillis: 10000 });
+  return new Pool({ connectionString: requireDatabaseSsl(environment.DATABASE_URL), ssl: { rejectUnauthorized: false }, max: 5, connectionTimeoutMillis: 5000, idleTimeoutMillis: 10000 });
 }
 
 export class PostgresPersistenceDatabase implements PersistenceDatabase {
@@ -22,7 +22,7 @@ export class PostgresPersistenceDatabase implements PersistenceDatabase {
   async transaction<T>(work: (transaction: PersistenceTransaction) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
     try { await client.query("BEGIN"); const result = await work(new PostgresTransaction(client)); await client.query("COMMIT"); return result; }
-    catch (error) { await client.query("ROLLBACK").catch(() => undefined); if (error instanceof PersistenceError) throw error; return safeProviderError(error); }
+    catch (error) { await client.query("ROLLBACK").catch(() => undefined); if (error instanceof PersistenceError || error instanceof DomainError) throw error; return safeProviderError(error); }
     finally { client.release(); }
   }
 }
@@ -39,9 +39,9 @@ class PostgresTransaction implements PersistenceTransaction {
     return undefined;
   }
 
-  async getProject(id: string) { return value<ProjectRow>(await this.query("SELECT * FROM factory_projects WHERE id = $1", [id])) ?? null; }
-  async insertProject(row: ProjectRow, token?: { key: string; payloadHash: string }) { const existing = await this.idempotent("project:create", token, row); if (existing) return existing as ProjectRow; const result = value<ProjectRow>(await this.query("INSERT INTO factory_projects (id, slug, title, original_prompt, current_version, workflow_state, created_at, updated_at, implementation_started_at, completed_at, row_version) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *", [row.id, row.slug, row.title, row.original_prompt, row.current_version, row.workflow_state, row.created_at, row.updated_at, row.implementation_started_at, row.completed_at, row.row_version])); if (!result) throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "Project insert returned no row."); return result; }
-  async updateProjectState(input: { id: string; expectedState: ProjectRow["workflow_state"]; expectedRowVersion: number; state: ProjectRow["workflow_state"]; updatedAt: string; implementationStartedAt?: string; completedAt?: string }) { const result = value<ProjectRow>(await this.query("UPDATE factory_projects SET workflow_state=$1, updated_at=$2, implementation_started_at=COALESCE($3, implementation_started_at), completed_at=COALESCE($4, completed_at), row_version=row_version+1 WHERE id=$5 AND workflow_state=$6 AND row_version=$7 RETURNING *", [input.state, input.updatedAt, input.implementationStartedAt ?? null, input.completedAt ?? null, input.id, input.expectedState, input.expectedRowVersion])); if (!result) throw new PersistenceError("PERSISTENCE_CONFLICT", "The workflow state is stale."); return result; }
+  async getProject(id: string) { const result = value<ProjectRow>(await this.query("SELECT * FROM factory_projects WHERE id = $1", [id])); return result ? normalizeProjectRow(result) : null; }
+  async insertProject(row: ProjectRow, token?: { key: string; payloadHash: string }) { const existing = await this.idempotent("project:create", token, row); if (existing) return normalizeProjectRow(existing as ProjectRow); const result = value<ProjectRow>(await this.query("INSERT INTO factory_projects (id, slug, title, original_prompt, current_version, workflow_state, created_at, updated_at, implementation_started_at, completed_at, row_version) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *", [row.id, row.slug, row.title, row.original_prompt, row.current_version, row.workflow_state, row.created_at, row.updated_at, row.implementation_started_at, row.completed_at, row.row_version])); if (!result) throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "Project insert returned no row."); return normalizeProjectRow(result); }
+  async updateProjectState(input: { id: string; expectedState: ProjectRow["workflow_state"]; expectedRowVersion: number; state: ProjectRow["workflow_state"]; updatedAt: string; implementationStartedAt?: string; completedAt?: string }) { const result = value<ProjectRow>(await this.query("UPDATE factory_projects SET workflow_state=$1, updated_at=$2, implementation_started_at=COALESCE($3, implementation_started_at), completed_at=COALESCE($4, completed_at), row_version=row_version+1 WHERE id=$5 AND workflow_state=$6 AND row_version=$7 RETURNING *", [input.state, input.updatedAt, input.implementationStartedAt ?? null, input.completedAt ?? null, input.id, input.expectedState, input.expectedRowVersion])); if (!result) throw new PersistenceError("PERSISTENCE_CONFLICT", "The workflow state is stale."); return normalizeProjectRow(result); }
   async getVersion(projectId: string, version: number) { return (value(await this.query("SELECT id, project_id AS \"projectId\", version_number AS \"versionNumber\", state, memory_root_path AS \"memoryRootPath\", requirements_checksum AS \"requirementsChecksum\", selected_design_checksum AS \"selectedDesignChecksum\", architecture_checksum AS \"architectureChecksum\", released_at AS \"releasedAt\", immutable, created_at AS \"createdAt\", updated_at AS \"updatedAt\", row_version AS \"rowVersion\" FROM project_versions WHERE project_id=$1 AND version_number=$2", [projectId, version])) as ProjectVersionRow | undefined) ?? null; }
   async insertVersion(row: ProjectVersionRow, token?: { key: string; payloadHash: string }) { const existing = await this.idempotent("version:create", token, row); if (existing) return existing as ProjectVersionRow; const result = value(await this.query("INSERT INTO project_versions (id, project_id, version_number, state, memory_root_path, requirements_checksum, selected_design_checksum, architecture_checksum, released_at, immutable, created_at, updated_at, row_version) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id, project_id AS \"projectId\", version_number AS \"versionNumber\", state, memory_root_path AS \"memoryRootPath\", requirements_checksum AS \"requirementsChecksum\", selected_design_checksum AS \"selectedDesignChecksum\", architecture_checksum AS \"architectureChecksum\", released_at AS \"releasedAt\", immutable, created_at AS \"createdAt\", updated_at AS \"updatedAt\", row_version AS \"rowVersion\"", [row.id, row.projectId, row.versionNumber, row.state, row.memoryRootPath, row.requirementsChecksum, row.selectedDesignChecksum, row.architectureChecksum, row.releasedAt, row.immutable, row.createdAt, row.updatedAt, row.rowVersion])); if (!result) throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "Version insert returned no row."); return result as ProjectVersionRow; }
   async updateVersionImmutable(projectId: string, version: number, releasedAt: string) { const result = value(await this.query("UPDATE project_versions SET state='PROJECT_READY', released_at=$1, immutable=true, updated_at=$1, row_version=row_version+1 WHERE project_id=$2 AND version_number=$3 AND immutable=false RETURNING id, project_id AS \"projectId\", version_number AS \"versionNumber\", state, memory_root_path AS \"memoryRootPath\", requirements_checksum AS \"requirementsChecksum\", selected_design_checksum AS \"selectedDesignChecksum\", architecture_checksum AS \"architectureChecksum\", released_at AS \"releasedAt\", immutable, created_at AS \"createdAt\", updated_at AS \"updatedAt\", row_version AS \"rowVersion\"", [releasedAt, projectId, version])); if (!result) throw new PersistenceError("PERSISTENCE_IMMUTABLE", "Project version is missing or immutable."); return result as ProjectVersionRow; }

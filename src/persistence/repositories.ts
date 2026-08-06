@@ -2,6 +2,7 @@ import { z } from "zod";
 import { SelectedDesignSchema } from "../domain/design/schema";
 import { FactoryProjectSchema, type FactoryProject } from "../domain/project/schema";
 import type { WorkflowState } from "../domain/workflow/engine";
+import { ClarificationSessionSchema, type ClarificationSession } from "../domain/requirements/schema";
 import { QualityReportSchema } from "../domain/quality/schema";
 import { ReleaseReportSchema } from "../domain/release/schema";
 import { DecisionRecordSchema, type DecisionRecord } from "../domain/workflow/decision";
@@ -42,12 +43,16 @@ export class DesignRepository extends DocumentRepository {
   }
 }
 
+export class ClarificationRepository extends DocumentRepository {
+  async saveSession(session: ClarificationSession, idempotencyKey?: string) { return this.save(parse(ClarificationSessionSchema, session, "Clarification session is invalid."), idempotencyKey); }
+  async getSession(projectId: string, version: number) { const document = await this.get(projectId, version, "clarification-log"); return document?.documentType === "clarification-log" ? document : null; }
+  async hasBlockingUnresolved(projectId: string, version: number) { const session = await this.getSession(projectId, version); return session?.questions.some((question) => question.blocking && question.answerStatus === "unresolved") ?? false; }
+}
+
 export class DecisionRepository {
   constructor(private readonly db: PersistenceDatabase) {}
   async append(projectId: string, version: number, record: DecisionRecord) { const parsed = parse(DecisionRecordSchema, record, "Decision does not match its domain contract."); return this.db.transaction(async (tx) => { const versionRow = await tx.getVersion(projectId, version); if (versionRow?.immutable) throw new PersistenceError("PERSISTENCE_IMMUTABLE", "Released project versions are immutable."); return tx.appendDecision(projectId, version, parsed); }); }
   async list(projectId: string, version: number) { return this.db.transaction((tx) => tx.listDecisions(projectId, version)); }
-  async update() { throw new PersistenceError("PERSISTENCE_UNSUPPORTED", "Decision records are append-only."); }
-  async delete() { throw new PersistenceError("PERSISTENCE_UNSUPPORTED", "Decision records are append-only."); }
 }
 
 export class WorkflowPersistenceService {

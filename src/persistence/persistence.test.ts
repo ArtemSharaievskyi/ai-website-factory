@@ -39,7 +39,7 @@ describe("persistence foundation", () => {
   it("enforces released-version immutability and append-only decisions", async () => {
     const db = new InMemoryPersistenceDatabase(); const value = project(); await new ProjectRepository(db).create(value); await new ProjectVersionRepository(db).create({ ...version(value.id), immutable: true, state: "PROJECT_READY", releasedAt: "2026-01-02T00:00:00.000Z" });
     const documentRepo = new DocumentRepository(db); await expect(documentRepo.save(requirements(value.id as ReturnType<typeof id>))).rejects.toMatchObject({ code: "PERSISTENCE_IMMUTABLE" });
-    const decisions = new DecisionRepository(db); await expect(decisions.update()).rejects.toMatchObject({ code: "PERSISTENCE_UNSUPPORTED" }); await expect(decisions.delete()).rejects.toMatchObject({ code: "PERSISTENCE_UNSUPPORTED" });
+    const decisions = new DecisionRepository(db); expect("update" in decisions).toBe(false); expect("delete" in decisions).toBe(false);
   });
 
   it("compares database and filesystem checksums through the sync port", async () => {

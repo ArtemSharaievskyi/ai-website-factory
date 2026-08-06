@@ -6,4 +6,14 @@ Supabase stores project metadata, version state, workflow events, validated stru
 
 RLS is enabled for the metadata tables with no anonymous policies. This is a local single-user application: only the trusted server-side database connection is supported. No browser Supabase client or Factory authentication is implemented. `DATABASE_URL` is server-only and required for production persistence. `SUPABASE_SERVICE_ROLE_KEY` is reserved for a future explicit adapter and is never exposed to client code.
 
-Apply `supabase/migrations/*.sql` with the normal Supabase migration workflow. `npm run db:validate` performs offline safety assertions; it does not connect to or reset a real database. No agents, OpenAI calls, Workspace Manager, generated projects, Preview, or deployment are included.
+Apply and verify the migration through the server-only scripts:
+
+```text
+npm run db:validate
+npm run db:migrate
+npm run db:status
+npm run db:verify
+npm run db:smoke
+```
+
+The migration runner records filename/checksum history, uses an advisory lock, applies each migration transactionally, and makes repeated runs no-ops. `db:verify` checks tables, constraints, indexes, TLS, transactions, and RLS. `db:smoke` uses unique disposable data and cleans it up; no reset or destructive migration command is provided. `npm run db:validate` and `npm run db:test-integrity` are offline checks. No agents, OpenAI calls, Workspace Manager, generated projects, Preview, or deployment are included.

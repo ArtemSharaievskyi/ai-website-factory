@@ -8,12 +8,13 @@ import { DesignDirectionSetSchema, SelectedDesignSchema } from "../domain/design
 import { FactoryProjectSchema } from "../domain/project/schema";
 import { QualityReportSchema } from "../domain/quality/schema";
 import { RequirementSpecificationSchema } from "../domain/requirements/schema";
+import { ClarificationSessionSchema } from "../domain/requirements/schema";
 import { ReleaseReportSchema } from "../domain/release/schema";
 import { TaskGraphSchema } from "../domain/tasks/schema";
 import { checksumPersistedDocument } from "./serialization";
 import { PersistenceError } from "./errors";
 
-export const PersistedDocumentSchema = z.union([RequirementSpecificationSchema, DesignDirectionSetSchema, SelectedDesignSchema, TechnicalArchitectureSchema, ContentPlanSchema, AssetManifestSchema, TaskGraphSchema, QualityReportSchema, ReleaseReportSchema]);
+export const PersistedDocumentSchema = z.union([ClarificationSessionSchema, RequirementSpecificationSchema, DesignDirectionSetSchema, SelectedDesignSchema, TechnicalArchitectureSchema, ContentPlanSchema, AssetManifestSchema, TaskGraphSchema, QualityReportSchema, ReleaseReportSchema]);
 export type PersistedDocument = z.infer<typeof PersistedDocumentSchema>;
 
 export type DocumentRow = { projectId: string; projectVersion: number; documentType: string; schemaVersion: number; checksum: string; payload: unknown; createdAt: string; updatedAt: string; rowVersion: number };
@@ -23,8 +24,9 @@ export function mapProjectToRow(project: z.infer<typeof FactoryProjectSchema>) {
 }
 
 export function mapRowToProject(row: Record<string, unknown>) {
+  const iso = (value: unknown) => value instanceof Date ? value.toISOString() : value;
   try {
-    return FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId: row.id, projectVersion: row.current_version, createdAt: row.created_at, updatedAt: row.updated_at, id: row.id, slug: row.slug, ...(row.title ? { title: row.title } : {}), originalPrompt: row.original_prompt, currentVersion: row.current_version, workflowState: row.workflow_state, ...(row.implementation_started_at ? { implementationStartedAt: row.implementation_started_at } : {}), ...(row.completed_at ? { completedAt: row.completed_at } : {}) });
+    return FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId: row.id, projectVersion: row.current_version, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), id: row.id, slug: row.slug, ...(row.title ? { title: row.title } : {}), originalPrompt: row.original_prompt, currentVersion: row.current_version, workflowState: row.workflow_state, ...(row.implementation_started_at ? { implementationStartedAt: iso(row.implementation_started_at) } : {}), ...(row.completed_at ? { completedAt: iso(row.completed_at) } : {}) });
   } catch (error) { throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", "Stored project data is invalid.", undefined, error); }
 }
 

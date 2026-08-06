@@ -7,3 +7,5 @@ The migration `supabase/migrations/202608060001_factory_metadata.sql` defines th
 - Clarifications, design sets/directions, selected designs, tasks/dependencies, decisions, quality reports/checks, release reports, workflow events, costs, and idempotency records have dedicated tables where relationships and append-only behavior matter.
 
 JSONB is not an unchecked escape hatch: repositories validate every payload with the existing Zod schemas and compare the persisted checksum on retrieval. Database constraints enforce UUID relationships, positive versions, valid workflow states, unique version numbers, unique current design sets/selections, and duplicate-free task dependency edges.
+
+Migration history is stored in `factory_schema_migrations` with the migration filename and SHA-256 checksum. A changed file with an already-applied filename is rejected. The current verified migration is `202608060001_factory_metadata.sql`; its applied checksum is recorded by `npm run db:status`.

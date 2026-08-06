@@ -13,7 +13,12 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "db:validate": "node scripts/validate-migrations.mjs"
+    "db:validate": "node scripts/validate-migrations.mjs",
+    "db:migrate": "node scripts/db-migrate.mjs",
+    "db:status": "node scripts/db-status.mjs",
+    "db:verify": "node scripts/db-verify.mjs",
+    "db:test-integrity": "node scripts/migration-integrity-fixture.mjs",
+    "db:smoke": "tsx scripts/db-smoke.ts"
   },
   "dependencies": {
     "next": "16.2.12",
@@ -32,6 +37,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
     "tailwindcss": "^4",
+    "tsx": "^4.23.9",
     "typescript": "^5",
     "vitest": "^3.2.4"
   }

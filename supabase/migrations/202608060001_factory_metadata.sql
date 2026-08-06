@@ -77,6 +77,9 @@ create table if not exists agent_tasks (
   id uuid primary key, project_id uuid not null references factory_projects(id), project_version integer not null,
   payload jsonb not null check (jsonb_typeof(payload) = 'object'), row_version bigint not null default 1
 );
+create index if not exists factory_projects_workflow_state_idx on factory_projects(workflow_state);
+create index if not exists project_versions_lookup_idx on project_versions(project_id, version_number, state);
+create index if not exists agent_tasks_project_status_idx on agent_tasks(project_id, project_version);
 create table if not exists task_dependencies (
   task_id uuid not null references agent_tasks(id) on delete cascade, dependency_id uuid not null references agent_tasks(id),
   primary key(task_id, dependency_id), check(task_id <> dependency_id)
