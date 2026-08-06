@@ -10,7 +10,7 @@ import type { DecisionRecord } from "./decision";
 
 export type WorkflowState = typeof WorkflowStateSchema.options[number];
 export const WORKFLOW_TRANSITIONS: Record<WorkflowState, readonly WorkflowState[]> = {
-  DRAFT: ["CLARIFYING"], CLARIFYING: ["AWAITING_BRIEF_APPROVAL"], AWAITING_BRIEF_APPROVAL: ["CLARIFYING", "AWAITING_DESIGN_SELECTION"], AWAITING_DESIGN_SELECTION: ["AWAITING_BRIEF_APPROVAL", "READY_FOR_IMPLEMENTATION"], READY_FOR_IMPLEMENTATION: ["AWAITING_BRIEF_APPROVAL", "IMPLEMENTING"], IMPLEMENTING: ["VALIDATING", "FAILED"], VALIDATING: ["REPAIRING", "PROJECT_READY", "FAILED"], REPAIRING: ["VALIDATING", "FAILED"], PROJECT_READY: [], FAILED: [],
+  DRAFT: ["CLARIFYING"], CLARIFYING: ["AWAITING_BRIEF_APPROVAL"], AWAITING_BRIEF_APPROVAL: ["CLARIFYING", "AWAITING_DESIGN_SELECTION"], AWAITING_DESIGN_SELECTION: ["AWAITING_BRIEF_APPROVAL", "READY_FOR_IMPLEMENTATION"], READY_FOR_IMPLEMENTATION: ["AWAITING_BRIEF_APPROVAL", "AWAITING_DESIGN_SELECTION", "IMPLEMENTING"], IMPLEMENTING: ["VALIDATING", "FAILED"], VALIDATING: ["REPAIRING", "PROJECT_READY", "FAILED"], REPAIRING: ["VALIDATING", "FAILED"], PROJECT_READY: [], FAILED: [],
 };
 
 export type TransitionContext = { requirements?: RequirementSpecification; clarificationSession?: ClarificationSession; requirementsChecksum?: string; designSet?: DesignDirectionSet; selectedDesign?: SelectedDesign; selectedDirectionChecksum?: string; architecture?: TechnicalArchitecture; decisions?: DecisionRecord[]; qualityReport?: QualityReport; releaseReport?: ReleaseReport; knownErrors?: string[]; recovery?: boolean };

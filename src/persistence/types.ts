@@ -19,6 +19,7 @@ export interface PersistenceTransaction {
   reserveNextVersion(projectId: string, idempotency?: { key: string; payloadHash: string }): Promise<ProjectVersionRow>;
   updateVersionImmutable(projectId: string, version: number, releasedAt: string): Promise<ProjectVersionRow>;
   saveDocument(row: DocumentRow, idempotency?: { key: string; payloadHash: string }): Promise<DocumentRow>;
+  deleteDocument(projectId: string, version: number, documentType: string): Promise<void>;
   getDocument(projectId: string, version: number, documentType: string): Promise<DocumentRow | null>;
   appendDecision(projectId: string, version: number, record: DecisionRecord): Promise<DecisionRecord>;
   listDecisions(projectId: string, version: number): Promise<DecisionRecord[]>;

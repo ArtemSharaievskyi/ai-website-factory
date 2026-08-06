@@ -37,6 +37,7 @@ export class DocumentRepository {
   constructor(private readonly db: PersistenceDatabase) {}
   async save(document: StoredDocument, idempotencyKey?: string) { const row = mapDocumentToRow(document); if (document.documentType === "design-directions" && document.directions.length !== 3) throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", "A design direction set must contain exactly three directions."); return this.db.transaction(async (tx) => { const version = await tx.getVersion(document.projectId, document.projectVersion); if (version?.immutable) throw new PersistenceError("PERSISTENCE_IMMUTABLE", "Released project versions are immutable."); return mapRowToDocument(await tx.saveDocument(row, token(idempotencyKey, document))); }); }
   async get(projectId: string, version: number, documentType: string) { return this.db.transaction(async (tx) => { const row = await tx.getDocument(projectId, version, documentType); return row ? mapRowToDocument(row) : null; }); }
+  async delete(projectId: string, version: number, documentType: string) { return this.db.transaction((tx) => tx.deleteDocument(projectId, version, documentType)); }
 }
 
 export class DesignRepository extends DocumentRepository {

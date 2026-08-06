@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { ProjectMemoryStore } from "../project-memory/store";
 import { CANONICAL_DOCUMENT_NAMES, type StructuredDocumentName } from "../project-memory/filenames";
@@ -22,5 +22,6 @@ export class FilesystemProjectMemorySyncPort implements ProjectMemorySyncPort {
   async verifyVersionSnapshot(_projectId: string, projectVersion: number) { try { return await this.store(projectVersion).verifyIntegrity(); } catch (error) { throw new WorkspaceError("MEMORY_SYNC_DOCUMENT_MISSING", "Project Memory integrity verification failed.", undefined, error); } }
   async compareDatabaseAndFilesystemChecksums(databaseChecksums: Record<string, string>, filesystemChecksums: Record<string, string>) { const names = new Set([...Object.keys(databaseChecksums), ...Object.keys(filesystemChecksums)]); const mismatches = [...names].filter((name) => databaseChecksums[name] !== filesystemChecksums[name]); return { matches: mismatches.length === 0, mismatches }; }
   async filesystemChecksums(projectVersion: number) { const manifest = await this.store(projectVersion).readDocument("manifest.json"); return Object.fromEntries(manifest.documents.map((entry) => [entry.relativePath, entry.sha256])); }
+  async removeVersionDocument(_projectId: string, projectVersion: number, documentName: string) { if (documentName !== "selected-design.json") throw new WorkspaceError("MEMORY_SYNC_SCHEMA_MISMATCH", "Only the selected design may be invalidated by the Design Agent."); const store = await this.store(projectVersion).initialize(); await rm(path.join(store.root, documentName), { force: true }); await store.rebuildManifest(); }
   async readOriginalPrompt(projectVersion: number) { return readFile(path.join(this.projectRoot, versionDirectoryName(projectVersion), ".factory", "original-prompt.md"), "utf8"); }
 }
