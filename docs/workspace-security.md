@@ -7,3 +7,5 @@ All workspace paths are derived from a validated slug and version number and che
 Per-project lock files contain only an operation ID and bounded timestamps. Active foreign locks cannot be removed; expired locks may be reclaimed. Database row-version concurrency remains authoritative for version reservation.
 
 Factory-level immutability means the Workspace Manager refuses to modify released versions. It cannot prevent manual edits made outside Factory processes. Secrets are excluded from revision copies; `.env.example` is retained when present, while `.env` and `.env.local` are excluded.
+
+Implementation execution verifies a reservation-owned staging directory and refuses paths outside that staging root before applying any proposal.

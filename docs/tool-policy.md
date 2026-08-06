@@ -11,4 +11,6 @@ No tool is installed or integrated by this task.
 
 The Orchestrator resolves task-specific permissions for future execution. Magic Patterns is rejected for implementation tasks; Playwright is limited to functional QA; Context7 remains read-only; Git write and unrestricted shell execution are not granted.
 
+The Implementation Agent foundation connects only internal filesystem-read and filesystem-write capabilities. npm, database, browser, image, documentation, registry, and shell capabilities remain disconnected.
+
 Imported skills do not select or install tools. Tool permissions are explicit approval fields and are checked together with role, task type, checksum, and context limits. The registry currently contains no approved external skills.

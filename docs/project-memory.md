@@ -13,6 +13,7 @@ architecture.json
 content-plan.json
 asset-manifest.json
 task-graph.json
+implementation-runs.json
 decisions.jsonl
 quality-report.json
 release-report.json

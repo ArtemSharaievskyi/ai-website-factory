@@ -2,6 +2,7 @@ export * from "./architecture/schema";
 export * from "./assets/schema";
 export * from "./content/schema";
 export * from "./design/schema";
+export * from "./implementation/schema";
 export * from "./project/schema";
 export * from "./quality/schema";
 export * from "./release/schema";
