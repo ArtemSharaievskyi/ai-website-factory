@@ -75,7 +75,7 @@ describe("Lead Agent clarification workflow", () => {
   it("keeps fixed stack questions out of clarification planning", () => { const plan = planClarificationsDeterministically({ analysis: analyzePromptDeterministically(input("Purpose: A")) }); expect(plan.questions.some((question) => /NestJS|Redis|framework/i.test(question.question))).toBe(false); });
   it("returns stable analysis contract", () => { expect(() => LeadAgentAnalysisSchema.parse(analyzePromptDeterministically(input("Purpose: A")))).not.toThrow(); });
   it("does not require network access", () => { expect(typeof fetch).toBe("function"); });
-  it("fake provider has no token usage by default", () => { expect(analyzePromptDeterministically(input("Purpose: A")).provider.inputTokens).toBeUndefined(); });
+  it("fake provider has no token usage by default", () => { expect(analyzePromptDeterministically(input("Purpose: A")).provider.inputTokens).toBeNull(); });
   it("records confirmed answers as evidence", async () => { const { service, request } = await setup(); const draft = await service.buildBriefDraft(request.projectId, 1); expect(draft.evidence.some((entry) => entry.source === "prior-answer")).toBe(true); });
   it("returns a deterministic project profile", async () => { const { service, request } = await setup(); const draft = await service.buildBriefDraft(request.projectId, 1); expect(draft.requirements.localization.defaultLocale).toBe("en"); });
 });
