@@ -76,3 +76,5 @@ Controlled full TaskGraph execution is fake-smoke tested and stops at pre-releas
 The real Factory chain is an explicit opt-in smoke only: set `ALLOW_REAL_FACTORY_E2E=true` and run `npm run factory:e2e-smoke`. Without opt-in it prints `REAL_FACTORY_E2E_PENDING`; see [`docs/real-factory-e2e-smoke.md`](docs/real-factory-e2e-smoke.md).
 
 Production wiring is centralized in [`docs/production-factory-runtime.md`](docs/production-factory-runtime.md); automated tests use an explicit deterministic composition.
+
+Production FullTaskGraph adapters are documented in [`docs/production-execution-state-adapter.md`](docs/production-execution-state-adapter.md).

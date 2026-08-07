@@ -7,3 +7,5 @@ The command is inert unless `ALLOW_REAL_FACTORY_E2E=true` is present. Without op
 Context7 and shadcn are demand-driven and are recorded as `not-needed` when the VeloFix acceptance path does not require them. Enabled but unavailable integrations block the run rather than being replaced with synthetic responses.
 
 The server-only production composition root is [`production-factory-runtime.ts`](../src/runtime/production-factory-runtime.ts). It owns the shared production AI bundle and real runtime/browser adapters; deterministic tests use the separate deterministic composition.
+
+The composed FullTaskGraph adapters are production-owned and preserve optional Context7/shadcn `not-needed` behavior.

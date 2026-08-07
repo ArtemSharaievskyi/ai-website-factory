@@ -12,3 +12,5 @@ Full execution routes runtime validation tasks to these fixed operations and rer
 # Production composition
 
 In `REAL_E2E`, `GeneratedRuntimeValidator` is composed with the real `NodeRuntimeProcessRunner`; test compositions inject their fake runner explicitly.
+
+Production TaskGraph validation routes only through `runLint`, `runTypecheck`, `runTests`, and `runBuild`; executable strings are not accepted from tasks.

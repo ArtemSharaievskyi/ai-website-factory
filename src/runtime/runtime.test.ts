@@ -14,7 +14,7 @@ describe("Factory composition modes", () => {
   });
   it("describes a production composition without constructing external clients", () => {
     const identity = createProductionFactoryIdentity({ context7: "not-needed", shadcn: "not-needed" });
-    expect(identity).toMatchObject({ mode: "production", leadProviderMode: "production", plannerProviderMode: "production", designProviderMode: "production", implementationProviderMode: "production", processRunnerMode: "real", browserRunnerMode: "real", fullExecutorMode: "production" });
+    expect(identity).toMatchObject({ mode: "production", leadProviderMode: "production", plannerProviderMode: "production", designProviderMode: "production", implementationProviderMode: "production", processRunnerMode: "real", browserRunnerMode: "real", executionStateMode: "production", taskExecutorMode: "production", repairerMode: "production", fullExecutorMode: "production" });
   });
   it("does not treat optional documentation integrations as mandatory", () => {
     expect(createProductionFactoryIdentity().context7).toBe("not-needed");

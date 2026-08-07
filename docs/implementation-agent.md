@@ -17,3 +17,6 @@ Backend handlers support plan-bound forms, Server Actions, Route Handlers, logic
 # Runtime validation handoff
 
 When implementation is complete, use the generated runtime validator for the fixed npm quality sequence. See `generated-runtime-validation.md`.
+# Production TaskGraph adapter
+
+FullTaskGraph implementation dispatch calls the existing `ImplementationAgentService`; the adapter constructs its validated input from canonical project documents and never calls the GPT provider directly.

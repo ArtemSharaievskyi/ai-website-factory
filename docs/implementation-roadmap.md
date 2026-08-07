@@ -12,6 +12,8 @@ The production provider foundation is now available behind existing ports; real 
 
 The production stage composition root is documented in [`production-factory-runtime.md`](production-factory-runtime.md).
 
+Production execution-state and task-executor adapters now bridge the existing FullTaskGraph scheduler to application services.
+
 Deployment, Preview, arbitrary tool installation, and unapproved infrastructure remain excluded.
 # Planner / Architect milestone
 

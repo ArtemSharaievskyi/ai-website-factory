@@ -7,3 +7,5 @@ It stops at the pre-release boundary. `releaseEligible` means mandatory technica
 The explicit real-chain smoke is governed by [`real-factory-e2e-smoke.md`](real-factory-e2e-smoke.md) and requires real provider, npm, and Chromium prerequisites.
 
 The production composition creates the existing `FullTaskGraphExecutor` with injected production adapters; it does not duplicate scheduler logic.
+
+The production adapters translate canonical documents into Implementation Agent, runtime-validator, and Functional QA inputs; the executor remains the sole scheduler and release-boundary owner.

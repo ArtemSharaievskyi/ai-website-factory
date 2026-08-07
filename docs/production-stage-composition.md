@@ -4,3 +4,4 @@ The composition root preserves the existing service boundaries: GPT adapters rem
 
 The real smoke report includes safe adapter identity and real-stage evidence fields. A successful report must prove Lead, Planner, Design, Implementation, npm, and browser execution; adapter identity alone cannot create release eligibility.
 
+FullTaskGraph execution adapters are documented in [`production-execution-state-adapter.md`](production-execution-state-adapter.md) and [`production-task-executor-adapter.md`](production-task-executor-adapter.md).
