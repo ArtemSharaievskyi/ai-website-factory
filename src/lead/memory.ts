@@ -7,11 +7,13 @@ import { versionDirectoryName } from "../workspace/schemas";
 import type { LeadMemoryPort } from "./ports";
 
 export class LeadMemoryAdapter implements LeadMemoryPort {
-  constructor(private readonly sync: ProjectMemorySyncPort, private readonly decisions: { append(projectId: string, version: number, decision: DecisionRecord): Promise<unknown> }, private readonly projectRoot?: string) {}
+  private readonly projectRoot?: string;
+  constructor(private readonly sync: ProjectMemorySyncPort, projectRootOrLegacy?: string | { append(projectId: string, version: number, decision: DecisionRecord): Promise<unknown> }, projectRoot?: string) {
+    this.projectRoot = projectRoot ?? (typeof projectRootOrLegacy === "string" ? projectRootOrLegacy : undefined);
+  }
   async writeSnapshot(projectId: string, projectVersion: number, documents: Record<string, unknown>) { await this.sync.writeVersionSnapshot(projectId, projectVersion, documents); }
   async appendDecision(projectId: string, projectVersion: number, decision: DecisionRecord) {
     if (this.projectRoot) await new ProjectMemoryStore(path.join(this.projectRoot, versionDirectoryName(projectVersion), ".factory")).appendDecision(decision);
-    await this.decisions.append(projectId, projectVersion, decision);
   }
   async verify(projectId: string, projectVersion: number) { return this.sync.verifyVersionSnapshot(projectId, projectVersion); }
   async checksums(projectId: string, projectVersion: number) {
