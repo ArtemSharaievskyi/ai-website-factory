@@ -46,11 +46,21 @@ export function resolveVeloFixClarification(question: Pick<ClarificationQuestion
     case "contact.informationTreatment": return { answer: facts.contact, intent: "contact-information-treatment" };
     case "imagery.placeholders": return { answer: facts.imagery, intent: "placeholder-imagery" };
     case "appointmentForm.notifications": return { answer: facts.noRealEmail, intent: "form-notifications" };
+    case "appointmentForm.emailDelivery": return { answer: facts.noRealEmail, intent: "form-notifications" };
+    case "appointmentEmailDelivery": return { answer: facts.noRealEmail, intent: "form-notifications" };
     case "appointmentForm.submissionDestination": return { answer: `${facts.noExternalDatabase}; ${facts.noRealEmail}.`, intent: "form-submission-destination" };
+    case "appointmentSubmissionDestination": return { answer: `Local/mock smoke submission only; ${facts.noExternalDatabase}; ${facts.noRealEmail}.`, intent: "form-submission-destination" };
+    case "appointmentForm.submissionHandling": return { answer: `Local/mock smoke submission only; ${facts.noExternalDatabase}; ${facts.noRealEmail}.`, intent: "form-submission-destination" };
+    case "appointmentRequestHandling":
+    case "submissionDelivery": return { answer: `Local/mock smoke submission only; ${facts.noExternalDatabase}; ${facts.noRealEmail}.`, intent: "form-submission-destination" };
     case "appointmentRequest.delivery": return { answer: `${facts.noExternalDatabase}; ${facts.noRealEmail}.`, intent: "form-submission-destination" };
     case "customerData.storage": return { answer: `${facts.noExternalDatabase}; customer data must not be retained.`, intent: "customer-data-storage" };
+    case "appointmentDataPersistence":
+    case "appointmentForm.persistence":
+    case "dataPersistence": return { answer: `${facts.noExternalDatabase}; local/mock smoke behavior only.`, intent: "customer-data-storage" };
     case "services.detail": return { answer: facts.service, intent: "service-list" };
     case "appointmentForm.fields": return { answer: facts.formFields.map((field) => `${field.name} (required)`).join(", "), intent: "form-fields" };
+    case "appointmentForm.validation": return { answer: facts.formValidation, intent: "form-validation" };
     case "appointmentForm.privacy": return { intent: "form-privacy", safeReason: "FIXTURE_FACT_MISSING" };
     case "brand.visualDirection": return { answer: `${facts.logo}; do not generate a logo.`, intent: "logo-treatment" };
     default: return { intent: question.requirementKey ?? question.category, safeReason: "UNSUPPORTED_REQUIREMENT_KEY" };
