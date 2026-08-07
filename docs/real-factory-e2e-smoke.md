@@ -9,3 +9,5 @@ Context7 and shadcn are demand-driven and are recorded as `not-needed` when the 
 The server-only production composition root is [`production-factory-runtime.ts`](../src/runtime/production-factory-runtime.ts). It owns the shared production AI bundle and real runtime/browser adapters; deterministic tests use the separate deterministic composition.
 
 The composed FullTaskGraph adapters are production-owned and preserve optional Context7/shadcn `not-needed` behavior.
+
+REAL_E2E invokes one concrete production stage runner. Explicit Brief approval, planning acceptance, and design selection precede Orchestrator graph creation and FullTaskGraph execution; adapter-owned real-stage evidence is mandatory for success.

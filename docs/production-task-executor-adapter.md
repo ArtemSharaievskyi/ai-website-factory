@@ -9,3 +9,4 @@
 
 The adapter never calls OpenAI, child processes, or Playwright directly. It builds validated service inputs from canonical documents and maps safe service results back to `TaskExecutionOutcome`.
 
+It also records adapter-owned evidence for successful implementation provider calls, ProcessRunner commands, and Playwright execution; the stage runner only validates those records.

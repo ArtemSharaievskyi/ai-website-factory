@@ -65,6 +65,21 @@ export class WorkspaceManager {
     finally { await this.releaseLock(parsed.slug, lock.operationId).catch(() => undefined); }
   }
 
+  async createMutableExecutionStaging(project: FactoryProject, version: number, operation: string) {
+    const parsed = FactoryProjectSchema.parse(project); await this.getProjectRoot(parsed.slug); const source = path.join(await this.getProjectRoot(parsed.slug), versionDirectoryName(version));
+    if (!(await this.exists(source))) throw new WorkspaceError("WORKSPACE_VERSION_NOT_FOUND", "The execution source version was not found.");
+    const staging = await this.createStaging(parsed.slug, version, operation);
+    try { await this.copyVersionFiles(source, staging); await this.initializeVersionMemoryAt(staging, this.versionProject(parsed, version)); return staging; }
+    catch (error) { await this.safeRemoveStaging(parsed.slug, staging, operation).catch(() => undefined); throw error; }
+  }
+
+  async materializeReservedInitialVersion(project: FactoryProject, options: VersionCreationOptions = {}) {
+    const parsed = FactoryProjectSchema.parse(project); const projectRoot = await this.createProjectRoot(parsed); const op = operationId(options.operationId); const lock = await this.acquireLock(parsed.slug, op); let staging: string | undefined;
+    try { const version = await this.versions.getVersion(parsed.id, 1); if (!version) throw new WorkspaceError("WORKSPACE_VERSION_NOT_FOUND", "The reserved initial version was not found."); const finalPath = path.join(projectRoot, versionDirectoryName(1)); if (await this.exists(finalPath)) { await this.verifyVersion(parsed.slug, 1); return { version, path: finalPath }; } staging = await this.createStaging(parsed.slug, 1, op); await this.initializeVersionMemoryAt(staging, this.versionProject(parsed, 1), options.documents); await this.verifyStaging(staging); await this.promoteStagingInternal(parsed.slug, version, staging); return { version, path: finalPath }; }
+    catch (error) { if (staging) await this.safeRemoveStaging(parsed.slug, staging, op).catch(() => undefined); if (error instanceof WorkspaceError) throw error; throw new WorkspaceError("WORKSPACE_STAGING_FAILED", "Reserved workspace materialization failed.", undefined, error); }
+    finally { await this.releaseLock(parsed.slug, lock.operationId).catch(() => undefined); }
+  }
+
   async initializeVersionMemory(slug: string, version: number, operation: string, project: FactoryProject, documents?: Record<string, unknown>) { const staging = this.stagingPath(slug, version, operation); await this.initializeVersionMemoryAt(staging, this.versionProject(project, version), documents); return staging; }
   async promoteStagingVersion(slug: string, version: number, operation: string) { const op = OperationIdSchema.parse(operation); const lock = await this.acquireLock(slug, op); try { const versionRow = await this.versions.getVersion((await this.readWorkspaceMetadata(slug)).projectId, version); if (!versionRow) throw new WorkspaceError("WORKSPACE_VERSION_NOT_FOUND", "Workspace version was not found in persistence."); await this.promoteStagingInternal(slug, versionRow, this.stagingPath(slug, version, op)); } finally { await this.releaseLock(slug, lock.operationId).catch(() => undefined); } }
 

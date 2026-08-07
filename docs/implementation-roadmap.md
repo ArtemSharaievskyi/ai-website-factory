@@ -14,6 +14,8 @@ The production stage composition root is documented in [`production-factory-runt
 
 Production execution-state and task-executor adapters now bridge the existing FullTaskGraph scheduler to application services.
 
+The production E2E stage-runner milestone is composed through `startImplementation` and those adapters. Real opt-in execution remains dependent on the configured provider, npm, and Chromium.
+
 Deployment, Preview, arbitrary tool installation, and unapproved infrastructure remain excluded.
 # Planner / Architect milestone
 

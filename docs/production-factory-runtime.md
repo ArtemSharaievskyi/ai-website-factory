@@ -7,3 +7,5 @@
 The production identity is validated before execution. Mandatory production identities are `production`, `real`, and `production`; Context7 and shadcn remain optional and default to `not-needed`.
 
 The project scope now creates `ProductionExecutionStateAdapter`, `ProductionTaskExecutorAdapter`, and the production repairer internally. REAL_E2E callers receive a fully composed `FullTaskGraphExecutor` context rather than supplying arbitrary state or task callbacks.
+
+The opt-in harness uses `runProductionE2EStages` as its single application-level coordinator around that executor.

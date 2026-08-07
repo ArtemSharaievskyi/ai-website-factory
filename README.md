@@ -11,6 +11,8 @@ The old `ai-website-factory-preview-prototype` repository is a separate legacy r
 
 See [AI provider architecture](docs/ai-provider.md), [security](docs/ai-provider-security.md), and [manual smoke test](docs/ai-smoke-test.md) for the production OpenAI foundation. Real AI is opt-in and deterministic tests remain network-free.
 
+The opt-in `factory:e2e-smoke` flow uses one production stage runner for the approved workflow and delegates implementation/runtime/QA execution to `FullTaskGraphExecutor`. Raw external transports are not available to the runner; adapter evidence is required for success.
+
 ## Development
 
 ```bash

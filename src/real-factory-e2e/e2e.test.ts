@@ -21,10 +21,9 @@ describe("real Factory E2E safety boundary", () => {
     expect(report.releaseEligible).toBe(false);
     expect(report.prohibitedActions.deployment).toBe(false);
   });
-  it("keeps the synthetic prompt factual and dependency execution explicit", () => {
+  it("keeps the synthetic prompt factual and production runtime explicit", () => {
     expect(VELOFIX_WERKSTATT_PROMPT).toContain("VeloFix Werkstatt");
     expect(VELOFIX_WERKSTATT_PROMPT).toContain("Do not invent");
-    expect(() => assertRealDependencies(undefined, { status: "passed", optIn: true, blockers: [], warnings: [], integrations: { provider: "configured", context7: "not-needed", shadcn: "not-needed" } })).toThrow("REAL_E2E_STAGE_RUNNER_REQUIRED");
+    expect(() => assertRealDependencies(undefined, { status: "passed", optIn: true, blockers: [], warnings: [], integrations: { provider: "configured", context7: "not-needed", shadcn: "not-needed" } })).toThrow("REAL_E2E_PRODUCTION_RUNTIME_REQUIRED");
   });
 });
-
