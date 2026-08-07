@@ -2,9 +2,12 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { loadFactoryCliEnv } from "./cli-env";
 import { readCodebaseMemoryConfig } from "../src/codebase-memory/config";
 import { CodebaseMemoryService } from "../src/codebase-memory/service";
 import { createProcessTransport } from "../src/codebase-memory/transport";
+
+loadFactoryCliEnv();
 
 async function main() {
   if (process.env.ALLOW_REAL_CODEBASE_MEMORY_SMOKE !== "true") { console.log("REAL_CODEBASE_MEMORY_SMOKE_PENDING"); return; }

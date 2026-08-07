@@ -1,7 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { loadFactoryCliEnv } from "./cli-env";
 import { runRealFactoryE2EPreflight } from "../src/real-factory-e2e/preflight";
 import { runRealFactoryE2E } from "../src/real-factory-e2e/harness";
+
+loadFactoryCliEnv();
 
 async function main() {
   const preflight = await runRealFactoryE2EPreflight();

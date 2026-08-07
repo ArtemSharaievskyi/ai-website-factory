@@ -1,7 +1,10 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { loadFactoryCliEnv } from "./cli-env";
 import { chooseLoopbackPort, NodeLocalTestServer, PlaywrightBrowserRunner, waitForLocalReadiness } from "../src/playwright-functional-qa";
+
+loadFactoryCliEnv();
 
 async function main() {
   if (process.env.ALLOW_PLAYWRIGHT_SMOKE !== "true") { console.error("REAL_PLAYWRIGHT_SMOKE_PENDING: set ALLOW_PLAYWRIGHT_SMOKE=true to run the opt-in local Playwright smoke test."); process.exitCode = 1; return; }

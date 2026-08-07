@@ -1,7 +1,10 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { loadFactoryCliEnv } from "./cli-env";
 import { GeneratedRuntimeValidator } from "../src/runtime-validation";
+
+loadFactoryCliEnv();
 
 async function main() {
   if (process.env.ALLOW_GENERATED_RUNTIME_SMOKE !== "true") {

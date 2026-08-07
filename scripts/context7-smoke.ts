@@ -1,9 +1,12 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { loadFactoryCliEnv } from "./cli-env";
 import { Context7Cache } from "../src/context7/cache";
 import { readContext7Config } from "../src/context7/config";
 import { Context7Service, syntheticContext7Transport } from "../src/context7/service";
+
+loadFactoryCliEnv();
 
 async function main() {
   if (process.env.ALLOW_REAL_CONTEXT7_SMOKE !== "true") { console.error("REAL_CONTEXT7_SMOKE_PENDING: explicit opt-in is required."); process.exitCode = 1; return; }

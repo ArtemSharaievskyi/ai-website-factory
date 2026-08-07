@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { loadFactoryCliEnv } from "./cli-env";
+
+loadFactoryCliEnv();
 
 async function main() {
   if (process.env.ALLOW_REAL_AI_SMOKE !== "true" || !process.env.OPENAI_API_KEY) { console.error("REAL_AI_SMOKE_PENDING: set OPENAI_API_KEY and ALLOW_REAL_AI_SMOKE=true to run the opt-in smoke test."); return; }
