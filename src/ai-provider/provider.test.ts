@@ -4,7 +4,7 @@ import { OpenAiStructuredClient } from "./client";
 import { AiProviderError } from "./errors";
 import { FifoConcurrencyLimiter } from "./limiter";
 import { zodResponseFormat } from "openai/helpers/zod";
-import { BriefDraftStructuredOutputSchema } from "./adapters";
+import { BriefDraftStructuredOutputSchema, PlanningPackageStructuredOutputSchema } from "./adapters";
 
 const config = { apiKey: "test", model: "test-model", modelLabel: "GPT-5.6 Luna", timeoutMs: 1000, maxRetries: 1, maxConcurrentRequests: 1 };
 const schema = z.object({ ok: z.boolean(), summary: z.string() }).strict();
@@ -14,6 +14,9 @@ const validExecutor = async <T>() => ({ value: { ok: true, summary: "bounded" } 
 describe("production AI provider boundary", () => {
   it("uses a strict Brief transport schema while preserving nullable optional domain values", () => {
     expect(() => zodResponseFormat(BriefDraftStructuredOutputSchema, "brief-draft")).not.toThrow();
+  });
+  it("uses a strict Planner transport schema without weakening the canonical package", () => {
+    expect(() => zodResponseFormat(PlanningPackageStructuredOutputSchema, "planning-package")).not.toThrow();
   });
   it("passes the configured model unchanged through the official structured API", async () => {
     let sent: Record<string, unknown> | undefined;
