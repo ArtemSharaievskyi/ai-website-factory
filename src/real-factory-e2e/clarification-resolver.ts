@@ -54,7 +54,9 @@ export const VELOFIX_SMOKE_FACTS: VeloFixSmokeFacts = {
 export type ClarificationResolution = { answer: string; intent: string } | { answer?: undefined; intent: string; safeReason: "FIXTURE_FACT_MISSING" | "UNSUPPORTED_REQUIREMENT_KEY" };
 
 export function resolveVeloFixClarification(question: Pick<ClarificationQuestion, "requirementKey" | "category">, facts = VELOFIX_SMOKE_FACTS): ClarificationResolution {
-  switch (question.requirementKey) {
+  const requirementKey = question.requirementKey?.startsWith("workflow.") ? question.requirementKey.replace(/[-_](.)/g, (_, character: string) => character.toUpperCase()) : question.requirementKey;
+  if (requirementKey && /brief/i.test(requirementKey) && /approval|approve/i.test(requirementKey)) return { answer: "The finalized Project Brief is explicitly approved in the Brief Approval stage before Planner runs.", intent: "workflow-brief-approval" };
+  switch (requirementKey) {
     case "localization.languages": return { answer: facts.language, intent: "language" };
     case "services.list": return { answer: facts.service, intent: "service-list" };
     case "contact.informationTreatment": return { answer: facts.contact, intent: "contact-information-treatment" };
@@ -94,8 +96,12 @@ export function resolveVeloFixClarification(question: Pick<ClarificationQuestion
     case "forms.validationRules": return { answer: facts.validationRules, intent: "form-validation" };
     case "pages.routeNames": return { answer: facts.routeNames, intent: "pages" };
     case "workflow.briefPrerequisite": return { answer: "The finalized Project Brief is explicitly approved in the Brief Approval stage before Planner runs.", intent: "workflow-brief-approval" };
+    case "workflow.order": return { answer: "The finalized Project Brief is explicitly approved in the Brief Approval stage before Planner runs; Design selection happens after Planner and Planning Acceptance.", intent: "workflow-brief-approval" };
+    case "confirmationRequired": return { answer: "The finalized Project Brief is explicitly approved in the Brief Approval stage before Planner runs.", intent: "workflow-brief-approval" };
+    case "approval.projectBrief": return { answer: "The finalized Project Brief is explicitly approved in the Brief Approval stage before Planner runs.", intent: "workflow-brief-approval" };
     case "briefApproval": return { answer: "The finalized Project Brief is explicitly approved in the Brief Approval stage before Planner runs.", intent: "workflow-brief-approval" };
     case "workflow.briefApproval": return { answer: "The finalized Project Brief is explicitly approved in the Brief Approval stage before Planner runs.", intent: "workflow-brief-approval" };
+    case "workflow.brief-approval": return { answer: "The finalized Project Brief is explicitly approved in the Brief Approval stage before Planner runs.", intent: "workflow-brief-approval" };
     case "projectBriefApproval": return { answer: "The finalized Project Brief is explicitly approved in the Brief Approval stage before Planner runs.", intent: "workflow-brief-approval" };
     case "primary-action":
     case "primaryAction":

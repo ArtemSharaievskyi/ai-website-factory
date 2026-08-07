@@ -7,7 +7,7 @@ import type { DocumentRow } from "./mapping";
 import type { PersistenceDatabase, PersistenceTransaction, ProjectRow, ProjectVersionRow, WorkflowEvent, CostRecord } from "./types";
 import type { DecisionRecord } from "../domain/workflow/decision";
 
-const safeProviderError = (error: unknown): never => { throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "The database operation failed.", undefined, error); };
+const safeProviderError = (error: unknown): never => { const providerCode = typeof error === "object" && error && "code" in error && typeof error.code === "string" ? error.code : "unknown"; throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "The database operation failed.", { providerCode }, error); };
 const value = <T>(result: { rows: QueryResultRow[] }) => result.rows[0] as T | undefined;
 const normalizeProjectRow = (row: ProjectRow) => ({ ...row, row_version: Number(row.row_version) });
 const isoTimestamp = (value: unknown): string | null => value == null ? null : value instanceof Date ? value.toISOString() : String(value);
