@@ -3,6 +3,8 @@ import { z } from "zod";
 import { OpenAiStructuredClient } from "./client";
 import { AiProviderError } from "./errors";
 import { FifoConcurrencyLimiter } from "./limiter";
+import { zodResponseFormat } from "openai/helpers/zod";
+import { BriefDraftStructuredOutputSchema } from "./adapters";
 
 const config = { apiKey: "test", model: "test-model", modelLabel: "GPT-5.6 Luna", timeoutMs: 1000, maxRetries: 1, maxConcurrentRequests: 1 };
 const schema = z.object({ ok: z.boolean(), summary: z.string() }).strict();
@@ -10,6 +12,9 @@ const request = { role: "test", promptVersion: "test.v1", system: "policy", user
 const validExecutor = async <T>() => ({ value: { ok: true, summary: "bounded" } as T, requestId: "req_test" });
 
 describe("production AI provider boundary", () => {
+  it("uses a strict Brief transport schema while preserving nullable optional domain values", () => {
+    expect(() => zodResponseFormat(BriefDraftStructuredOutputSchema, "brief-draft")).not.toThrow();
+  });
   it("passes the configured model unchanged through the official structured API", async () => {
     let sent: Record<string, unknown> | undefined;
     const client = new OpenAiStructuredClient(config, { client: { chat: { completions: { parse: async (value: Record<string, unknown>) => { sent = value; return { id: "req_model", choices: [{ message: { parsed: { ok: true, summary: "bounded" } }, finish_reason: "stop" }], usage: {} }; } } } } as never });

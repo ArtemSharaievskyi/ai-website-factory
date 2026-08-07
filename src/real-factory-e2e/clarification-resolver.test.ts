@@ -12,19 +12,32 @@ describe("VeloFix clarification resolver", () => {
     ["imagery.placeholders", "Placeholders only"],
     ["appointmentForm.notifications", "No real email"],
     ["appointmentForm.emailDelivery", "No real email"],
+    ["validationRules", "Client and server validation"],
+    ["appointmentFormValidation", "Client and server validation"],
+    ["appointment_form_validation", "Client and server validation"],
+    ["serverValidationRules", "Client and server validation"],
     ["appointmentEmailDelivery", "No real email"],
+    ["notificationEmail", "No real email"],
     ["appointmentForm.submissionDestination", "No real database persistence"],
     ["appointmentSubmissionDestination", "Local/mock smoke submission"],
     ["appointmentForm.submissionHandling", "Local/mock smoke submission"],
+    ["appointmentSubmissionHandling", "Local/mock smoke submission"],
+    ["submissionHandling", "Local/mock smoke submission"],
     ["appointmentRequestHandling", "Local/mock smoke submission"],
     ["submissionDelivery", "Local/mock smoke submission"],
     ["appointmentRequest.delivery", "No real database persistence"],
     ["customerData.storage", "No real database persistence"],
+    ["customer_data", "customer data"],
     ["appointmentDataPersistence", "No real database persistence"],
     ["appointmentForm.persistence", "No real database persistence"],
+    ["appointmentStorage", "No real database persistence"],
     ["appointmentForm.validation", "Client and server validation"],
     ["dataPersistence", "No real database persistence"],
     ["services.detail", "Bicycle repairs"],
+    ["primary-action", "Request an appointment"],
+    ["primary_action", "Request an appointment"],
+    ["acceptance-criteria", "Local navigation"],
+    ["buildEnvironment", "successful production build"],
     ["brand.visualDirection", "No supplied logo"],
   ])("resolves %s from canonical fixture facts", (key, expected) => {
     expect(resolveVeloFixClarification(question(key)).answer).toContain(expected);
@@ -36,6 +49,10 @@ describe("VeloFix clarification resolver", () => {
     expect(answer.split(", ")).toEqual(fields.map((field) => `${field} (required)`));
     expect(answer).not.toContain("Telefon");
     expect(answer).not.toContain("Adresse");
+  });
+
+  it("resolves snake-case form field facts without inventing fields", () => {
+    expect(resolveVeloFixClarification(question("appointment_form_fields")).answer).toContain("Name (required)");
   });
 
   it("keeps the canonical prompt aligned with the typed form facts", () => {

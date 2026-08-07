@@ -11,13 +11,26 @@ import { rolePrompt } from "./prompts";
 import type { ProviderUsageSink } from "./usage";
 import type { OrchestrationPlanningProvider } from "../orchestrator/service";
 import { z } from "zod";
+import { IsoDateTimeSchema, NonEmptyStringSchema } from "../domain/shared/schemas";
+import { RequirementSpecificationSchema } from "../domain/requirements/schema";
 const OrchestrationPlanSchema = z.object({ tasks: z.array(z.unknown()) }).strict();
+
+const BriefStructuredApprovalSchema = z.object({ approved: z.boolean(), approvedAt: IsoDateTimeSchema.nullable(), approvedBy: NonEmptyStringSchema.nullable(), approvedRequirementsChecksum: z.string().regex(/^[a-f0-9]{64}$/).nullable() }).strict();
+const BriefStructuredAnalysisMetadataSchema = z.object({ provider: z.string(), originalPromptChecksum: z.string().regex(/^[a-f0-9]{64}$/), unsupportedAssumptions: z.array(z.string()), contradictionCount: z.number().int().nonnegative() }).strict();
+/** Strict-output transport shape; nullable values are normalized into the canonical Brief domain shape below. */
+export const BriefDraftStructuredOutputSchema = BriefDraftSchema.extend({ requirements: RequirementSpecificationSchema.extend({ approval: BriefStructuredApprovalSchema, projectTitle: NonEmptyStringSchema.nullable(), analysisMetadata: BriefStructuredAnalysisMetadataSchema.nullable(), briefApprovalNote: z.string().nullable() }) });
+function normalizeBriefDraft(value: z.infer<typeof BriefDraftStructuredOutputSchema>): BriefDraft {
+  const { requirements } = value;
+  const { approval, projectTitle, analysisMetadata, briefApprovalNote, ...canonicalFields } = requirements;
+  const normalizedRequirements = { ...canonicalFields, approval: { approved: approval.approved, ...(approval.approvedAt === null ? {} : { approvedAt: approval.approvedAt }), ...(approval.approvedBy === null ? {} : { approvedBy: approval.approvedBy }), ...(approval.approvedRequirementsChecksum === null ? {} : { approvedRequirementsChecksum: approval.approvedRequirementsChecksum }) }, ...(projectTitle === null ? {} : { projectTitle }), ...(analysisMetadata === null ? {} : { analysisMetadata }), ...(briefApprovalNote === null ? {} : { briefApprovalNote }) };
+  return BriefDraftSchema.parse({ ...value, requirements: normalizedRequirements });
+}
 
 export class OpenAiLeadProvider implements LeadAnalysisProvider {
   constructor(private readonly ai: OpenAiStructuredClient) {}
   async analyzePrompt(input: Parameters<LeadAnalysisProvider["analyzePrompt"]>[0]): Promise<LeadAgentAnalysis> { return this.call("lead", input, LeadAgentAnalysisSchema, "lead-analysis", "lead-analysis"); }
   async proposeClarifications(input: Parameters<LeadAnalysisProvider["proposeClarifications"]>[0]): Promise<ClarificationPlan> { return this.call("lead", input, ClarificationPlanSchema, "clarification-plan", "lead-clarifications"); }
-  async assembleBriefDraft(input: Parameters<LeadAnalysisProvider["assembleBriefDraft"]>[0]): Promise<BriefDraft> { return this.call("lead", input, BriefDraftSchema, "brief-draft", "lead-brief"); }
+  async assembleBriefDraft(input: Parameters<LeadAnalysisProvider["assembleBriefDraft"]>[0]): Promise<BriefDraft> { const prompt = rolePrompt("lead", input); const result = await this.ai.request<z.infer<typeof BriefDraftStructuredOutputSchema>>({ ...prompt, role: "lead", schema: BriefDraftStructuredOutputSchema, schemaName: "brief-draft", idempotencyKey: "lead-brief" }); return normalizeBriefDraft(result.value); }
   private async call<T>(role: "lead", input: unknown, schema: typeof LeadAgentAnalysisSchema | typeof ClarificationPlanSchema | typeof BriefDraftSchema, schemaName: string, idempotencyKey: string): Promise<T> { const prompt = rolePrompt(role, input); return (await this.ai.request<T>({ ...prompt, role, schema: schema as never, schemaName, idempotencyKey })).value; }
 }
 export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
