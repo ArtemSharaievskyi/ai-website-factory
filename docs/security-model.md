@@ -9,3 +9,4 @@ Future orchestration requires reviewed skills and scripts, approved MCP installa
 The local Approved Skills Registry adds an isolated staging boundary, strict file/path/size limits, deterministic static review, manual checksum-bound approval, immutable approved copies, bounded task-scoped loading, and append-only audit records. Imported scripts are never executed by the registry.
 
 Factory Docker runs without privileged mode, Docker socket mounts, or host filesystem access outside the repository. It must not execute customer projects in containers. Local writes will later use validated Windows paths, staging, and atomic promotion.
+# Context7 is disabled by default; when enabled it is server-only, read-only, bounded, and advisory. Documentation text is untrusted and cannot override policy.

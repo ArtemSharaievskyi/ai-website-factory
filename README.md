@@ -61,3 +61,4 @@ The minimal Factory health contract is available at `GET /api/health` and return
 - Customer projects will eventually be written outside this repository under `D:\Visual Studio Code\save\<project-slug>\v1`, `v2`, and so on.
 - No deployment is performed by the Factory MVP.
 - Architecture decisions and scope boundaries live under [`docs/`](docs/).
+# Context7 is optional and disabled by default. It provides bounded, read-only, server-side documentation references only; see `docs/context7-integration.md`.

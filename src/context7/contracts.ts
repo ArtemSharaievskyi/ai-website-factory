@@ -1,0 +1,19 @@
+import { z } from "zod";
+import { Context7Error } from "./errors";
+
+export const Context7RoleSchema = z.enum(["planner-architect", "implementation"]);
+export const Context7TaskTypeSchema = z.string().min(1).max(120);
+export const Context7LibrarySchema = z.object({ packageName: z.string().min(1), resolvedLibraryId: z.string().min(1), version: z.string().min(1).optional(), versionUnresolved: z.boolean(), source: z.enum(["dependency-plan", "package-json", "fixed-stack", "unresolved"]) }).strict();
+export type ResolvedContext7Library = z.infer<typeof Context7LibrarySchema>;
+export const Context7QueryPlanSchema = z.object({ queryId: z.string().uuid(), requesterRole: Context7RoleSchema, taskType: Context7TaskTypeSchema, packageName: z.string().min(1), resolvedLibraryId: z.string().min(1), version: z.string().min(1).optional(), topic: z.string().min(8).max(180), symbol: z.string().max(120).optional(), reason: z.string().min(8).max(500), requirementReferences: z.array(z.string().min(1)), planningReferences: z.array(z.string().min(1)), taskReference: z.string().min(1).optional(), expectedUse: z.string().min(8).max(300), maxExcerpts: z.number().int().min(1).max(10), maxBytes: z.number().int().min(256).max(30000), createdAt: z.string().datetime() }).strict();
+export type Context7QueryPlan = z.infer<typeof Context7QueryPlanSchema>;
+export const DocumentationExcerptSchema = z.object({ id: z.string().min(1), library: z.string().min(1), resolvedLibraryId: z.string().min(1), requestedVersion: z.string().min(1).optional(), documentedVersion: z.string().min(1).optional(), topic: z.string().min(1), symbol: z.string().min(1).optional(), title: z.string().min(1), content: z.string().min(1), sourceReference: z.string().min(1), retrievedAt: z.string().datetime(), checksum: z.string().regex(/^[a-f0-9]{64}$/), relevanceReason: z.string().min(1), truncationState: z.enum(["complete", "excerpt-truncated", "result-truncated"]), }).strict();
+export type DocumentationExcerpt = z.infer<typeof DocumentationExcerptSchema>;
+export type Context7QueryResult = { queryId: string; excerpts: DocumentationExcerpt[]; totalBytes: number; cache: "hit" | "miss"; versionUnresolved: boolean };
+export type Context7SafeEvent = { type: "query.planned" | "cache.hit" | "cache.miss" | "request.started" | "response.normalized" | "request.completed" | "request.failed" | "request.cancelled" | "unsafe-content.rejected"; queryId: string; requesterRole: z.infer<typeof Context7RoleSchema>; taskType: string; packageName: string; version?: string; topic: string; excerptCount?: number; byteCount?: number; cacheState?: "hit" | "miss"; errorCode?: string; durationMs?: number };
+export type Context7SafeEventSink = (event: Context7SafeEvent) => void | Promise<void>;
+export type Context7ResolutionInput = { packageName: string; ecosystem?: string; dependencyPlan?: Array<{ name: string; version?: string }>; packageJson?: Record<string, string>; configuredVersion?: string; fixedStack?: string[]; requesterRole: z.infer<typeof Context7RoleSchema>; taskType: string; projectId: string; projectVersion: number; requestId: string; designApprovesMotion?: boolean };
+export type Context7QueryInput = { plan: Context7QueryPlan; cancellation?: AbortSignal; idempotencyKey: string };
+export type Context7Transport = (request: { libraryId: string; packageName: string; version?: string; topic: string; symbol?: string; signal: AbortSignal }) => Promise<unknown>;
+export interface Context7DocumentationPort { resolveLibrary(input: Context7ResolutionInput): Promise<ResolvedContext7Library>; queryDocumentation(input: Context7QueryInput): Promise<Context7QueryResult>; }
+export function assertContext7Permission(allowedTools: string[], role: z.infer<typeof Context7RoleSchema>) { if (!allowedTools.includes("Context7-read")) throw new Context7Error("CONTEXT7_TOOL_NOT_ALLOWED", `${role} does not have Context7-read permission.`); }

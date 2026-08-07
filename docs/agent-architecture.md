@@ -11,3 +11,4 @@ The role structure is planned, but the Lead Agent intake/brief boundary, Planner
 5. **QA / Release Agent** runs deterministic validation and targeted repairs, later using Playwright and Playwright MCP for functional checks. It creates the local version, Git repository, and GitHub repository, but never deploys.
 
 Skills provide reviewed specialization to roles; they do not replace the Orchestrator. In the current milestone no external skill is required. Agents must not install arbitrary skills, change requirements, invent facts, or broaden infrastructure.
+# Context7 is a replaceable documentation port at the Planner and Implementation context seams, not an Orchestrator or general MCP layer.

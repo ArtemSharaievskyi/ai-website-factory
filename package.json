@@ -20,6 +20,7 @@
     "db:test-integrity": "node scripts/migration-integrity-fixture.mjs",
     "db:smoke": "tsx scripts/db-smoke.ts"
     ,"ai:smoke": "tsx scripts/ai-smoke.ts"
+    ,"context7:smoke": "tsx scripts/context7-smoke.ts"
   },
   "dependencies": {
     "next": "16.2.12",
