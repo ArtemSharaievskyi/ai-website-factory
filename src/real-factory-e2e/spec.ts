@@ -18,4 +18,5 @@ Appointment form fields: exactly Name (required), E-Mail (required), Fahrradtyp 
 Logo: No supplied logo.
 Images: Use placeholders for imagery.
 Acceptance: Local navigation, an appointment form with client and server validation, and a successful production build.
+Administration: No admin or management area is required; keep the site public and guest-facing.
 Exclusions: Do not invent address, opening hours, prices, staff, testimonials, contact details, or customer data.`;

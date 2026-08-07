@@ -15,6 +15,7 @@ export type VeloFixSmokeFacts = {
   formValidation: "Client and server validation";
   noExternalDatabase: "No real database persistence";
   noRealEmail: "No real email";
+  administration: "No admin or management area";
   pageContent: "Home introduces VeloFix Werkstatt and bicycle repairs; services explains bicycle repair; appointment explains requesting an appointment and presents the exact appointment form. Placeholder copy may be generated from these supplied facts without unsupported business claims.";
   submissionBehavior: "After valid client and server validation, show a German success message; do not send an email and do not persist the submitted data.";
   validationRuntime: "Client and server validation through the existing Next.js server boundary; hosting and deployment are outside this smoke scenario.";
@@ -38,6 +39,7 @@ export const VELOFIX_SMOKE_FACTS: VeloFixSmokeFacts = {
   formValidation: "Client and server validation",
   noExternalDatabase: "No real database persistence",
   noRealEmail: "No real email",
+  administration: "No admin or management area",
   pageContent: "Home introduces VeloFix Werkstatt and bicycle repairs; services explains bicycle repair; appointment explains requesting an appointment and presents the exact appointment form. Placeholder copy may be generated from these supplied facts without unsupported business claims.",
   submissionBehavior: "After valid client and server validation, show a German success message; do not send an email and do not persist the submitted data.",
   validationRuntime: "Client and server validation through the existing Next.js server boundary; hosting and deployment are outside this smoke scenario.",
