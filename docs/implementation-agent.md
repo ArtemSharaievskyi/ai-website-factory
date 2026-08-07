@@ -10,3 +10,6 @@ This foundation supports deterministic execution for workspace preparation, proj
 Relevant implementation tasks may also receive normalized read-only shadcn Registry references when `shadcn-registry-read` is explicitly granted. The Registry cannot install, write, execute commands, or expand file scopes.
 
 Backend handlers support plan-bound forms, Server Actions, Route Handlers, logical migrations, RLS, Auth, Storage, and email validation. They generate proposals only; customer migrations, npm, builds, tests, and network calls remain outside this stage.
+# Runtime validation handoff
+
+When implementation is complete, use the generated runtime validator for the fixed npm quality sequence. See `generated-runtime-validation.md`.

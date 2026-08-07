@@ -66,3 +66,5 @@ The minimal Factory health contract is available at `GET /api/health` and return
 The shadcn Registry is optional and read-only; see `docs/shadcn-registry-integration.md`.
 
 Backend task handlers are plan-bound and static-validation-only; see `docs/backend-implementation.md`.
+
+Generated project runtime validation is npm-only, bounded, secret-stripped, and opt-in for real smoke execution; see [`docs/generated-runtime-validation.md`](docs/generated-runtime-validation.md).

@@ -18,3 +18,6 @@ The Implementation Agent foundation connects only internal filesystem-read and f
 Backend task handlers do not execute customer SQL, npm, builds, or network operations. Context7 remains optional documentation enrichment; shadcn Registry remains limited to relevant form UI tasks.
 
 Imported skills do not select or install tools. Tool permissions are explicit approval fields and are checked together with role, task type, checksum, and context limits. The registry currently contains no approved external skills.
+# Runtime command boundary
+
+Generated runtime validation has its own npm-only allowlist and does not expose a generic command tool.

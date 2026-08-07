@@ -28,3 +28,6 @@ Before `PROJECT_READY`, documents are replaceable through the store. Once the pr
 # Lead Agent memory writes
 
 Lead intake and clarification writes are incremental and preserve `original-prompt.md`, `clarification-log.json`, and `requirements.json` under the active version's `.factory` directory. Planner acceptance additionally mirrors planning documents, and Design Agent generation/selection mirrors `design-directions.json` and `selected-design.json`, then appends structured `decisions.jsonl` records. Regeneration invalidates the selected-design document and preserves supersession history in decisions. The manifest remains the integrity source for filesystem checksums.
+# Runtime evidence
+
+Persist runtime reports as bounded quality evidence with package and lockfile checksums; do not persist raw secrets or unbounded logs.

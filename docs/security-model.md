@@ -14,3 +14,6 @@ Factory Docker runs without privileged mode, Docker socket mounts, or host files
 The shadcn Registry is likewise disabled by default, server-only, read-only, bounded, and security-scanned. It cannot execute a component CLI or write customer files.
 
 Backend validation adds SQL safety, RLS least-privilege, secret/environment binding, and server/client boundary checks without replacing later database parsing or execution testing.
+# Generated runtime boundary
+
+Runtime processes receive a stripped environment and bounded redacted output; customer secrets are not forwarded.

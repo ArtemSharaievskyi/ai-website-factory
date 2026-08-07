@@ -5,3 +5,6 @@ Execution transitions one READY task to RUNNING, increments its attempt, assembl
 Execution history contains bounded checksums, changed-file lists, validation summaries, safe failure codes, timestamps, and provider usage metadata. It does not contain prompts, source dumps, secrets, stack traces, or chain-of-thought.
 
 Backend tasks use the same one-READY-task execution path. Static backend validation runs before a proposal can pass; dependents are not automatically executed.
+# Runtime validation
+
+Validation tasks map to fixed npm commands only; arbitrary shell execution is not part of task execution.

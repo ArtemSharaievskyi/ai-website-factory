@@ -23,6 +23,7 @@
     ,"context7:smoke": "tsx scripts/context7-smoke.ts"
     ,"shadcn:smoke": "tsx scripts/shadcn-smoke.ts"
     ,"backend:smoke": "tsx scripts/backend-smoke.ts"
+    ,"generated:runtime-smoke": "tsx scripts/generated-runtime-smoke.ts"
   },
   "dependencies": {
     "next": "16.2.12",
