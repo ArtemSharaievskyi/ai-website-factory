@@ -7,6 +7,8 @@ The Implementation Agent executes exactly one authorized `ready` implementation 
 This foundation supports deterministic execution for workspace preparation, project foundation, design system, shared layout/navigation/components, pages, approved content, SEO, and unit-test tasks. Unsupported backend and integration tasks fail safely. No command, npm, network, model, MCP, Git, Preview, or deployment capability is connected.
 
 Functional QA is a separate `validate-functional-flow` task and uses only the controlled Playwright-functional boundary after runtime validation.
+
+Full execution invokes this agent through its existing single-task contract and does not duplicate proposal, scope, skill, or atomic-apply logic.
 # Implementation may receive only relevant, bounded Context7 excerpts when the task includes Context7-read. Existing scope and proposal validators remain authoritative.
 
 Relevant implementation tasks may also receive normalized read-only shadcn Registry references when `shadcn-registry-read` is explicitly granted. The Registry cannot install, write, execute commands, or expand file scopes.

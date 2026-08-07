@@ -70,3 +70,5 @@ Backend task handlers are plan-bound and static-validation-only; see `docs/backe
 Generated project runtime validation is npm-only, bounded, secret-stripped, and opt-in for real smoke execution; see [`docs/generated-runtime-validation.md`](docs/generated-runtime-validation.md).
 
 Playwright is reserved for functional localhost QA only; screenshot and visual review are explicitly excluded. See [`docs/playwright-functional-qa.md`](docs/playwright-functional-qa.md).
+
+Controlled full TaskGraph execution is fake-smoke tested and stops at pre-release eligibility; see [`docs/full-taskgraph-execution.md`](docs/full-taskgraph-execution.md).

@@ -7,3 +7,5 @@ Graph creation is deterministic and conditional. Marketing sites receive foundat
 The five roles remain `lead`, `planner-architect`, `design`, `implementation`, and `qa-release`. Production work is assigned to implementation and quality work to qa-release. No fictional specialist agents are created.
 
 `startImplementation` is a separate explicit operation. It verifies graph readiness and the workspace, persists `.factory/task-graph.json`, records a DecisionRecord, transitions `READY_FOR_IMPLEMENTATION` to `IMPLEMENTING`, and marks only dependency-free tasks ready. It never runs a task.
+
+The later Full TaskGraph Executor is a separate deterministic scheduler. It may run the accepted graph after this boundary through existing task services, but it does not create tasks from provider output or perform Git, Preview, or deployment actions.
