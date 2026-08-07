@@ -8,7 +8,7 @@ The production provider foundation is now available behind existing ports; real 
 4. Requirements: implement Lead Agent clarification and brief approval.
 5. Design: implement three-direction proposal and selection freeze.
 6. Generation: add project workspace, planning, and controlled single-task Implementation Agent execution. The Orchestrator provides deterministic TaskGraph planning; full graph execution and customer website generation remain future work.
-7. Validation and release: add deterministic checks, functional browser tests, repair loops, versioning, local Git, and optional GitHub creation.
+7. Validation and release: add deterministic checks, functional browser tests, repair loops, versioning, local Git, and optional GitHub creation. The controlled real-chain smoke boundary is documented in [`real-factory-e2e-smoke.md`](real-factory-e2e-smoke.md).
 
 Deployment, Preview, arbitrary tool installation, and unapproved infrastructure remain excluded.
 # Planner / Architect milestone

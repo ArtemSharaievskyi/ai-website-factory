@@ -72,3 +72,5 @@ Generated project runtime validation is npm-only, bounded, secret-stripped, and 
 Playwright is reserved for functional localhost QA only; screenshot and visual review are explicitly excluded. See [`docs/playwright-functional-qa.md`](docs/playwright-functional-qa.md).
 
 Controlled full TaskGraph execution is fake-smoke tested and stops at pre-release eligibility; see [`docs/full-taskgraph-execution.md`](docs/full-taskgraph-execution.md).
+
+The real Factory chain is an explicit opt-in smoke only: set `ALLOW_REAL_FACTORY_E2E=true` and run `npm run factory:e2e-smoke`. Without opt-in it prints `REAL_FACTORY_E2E_PENDING`; see [`docs/real-factory-e2e-smoke.md`](docs/real-factory-e2e-smoke.md).
