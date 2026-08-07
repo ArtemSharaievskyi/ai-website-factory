@@ -16,7 +16,7 @@ async function main() {
   validateProductionFactoryRuntime(runtime);
   const report = await runRealFactoryE2E({ preflight, generatedProjectsRoot: root, runtime });
   await mkdir(path.join(root, "_smoke"), { recursive: true });
-  const reportPath = path.join(root, "_smoke", "real-factory-e2e-report.json");
+  const reportPath = path.join(root, "_smoke", `real-factory-e2e-${report.smokeId}.json`);
   await writeFile(reportPath, JSON.stringify(report, null, 2) + "\n", { flag: "wx", mode: 0o600 });
   console.log(JSON.stringify({ status: report.overallStatus, reportPath, releaseEligible: report.releaseEligible }));
   if (report.overallStatus !== "passed") process.exitCode = 1;
