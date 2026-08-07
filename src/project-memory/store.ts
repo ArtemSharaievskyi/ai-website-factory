@@ -76,7 +76,8 @@ export class ProjectMemoryStore {
     for (const name of REQUIRED_DOCUMENTS) {
       try { const bytes = await readFile(this.file(name)); const info = await stat(this.file(name)); let documentType = "decisions"; if (name === "original-prompt.md") documentType = "original-prompt"; else if (name !== JSONL_NAME) documentType = this.parse(name, JSON.parse(bytes.toString("utf8"))).documentType; entries.push({ relativePath: name, documentType, schemaVersion: SCHEMA_VERSION, sha256: checksum(bytes), byteSize: info.size, updatedAt: info.mtime.toISOString() }); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     }
-    const base = entries[0] ? await this.readDocumentBase(entries[0].relativePath) : undefined;
+    const baseEntry = entries.find((entry) => entry.relativePath !== "original-prompt.md" && entry.relativePath !== JSONL_NAME);
+    const base = baseEntry ? await this.readDocumentBase(baseEntry.relativePath) : undefined;
     const manifest = { schemaVersion: SCHEMA_VERSION, documentType: "manifest" as const, projectId: base?.projectId ?? "00000000-0000-0000-0000-000000000000", projectVersion: base?.projectVersion ?? 1, createdAt: base?.createdAt ?? now(), updatedAt: now(), documents: entries };
     ProjectMemoryManifestSchema.parse(manifest);
     if (this.hooks?.beforeManifestRename) await this.hooks.beforeManifestRename();

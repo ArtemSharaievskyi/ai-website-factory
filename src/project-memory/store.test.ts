@@ -14,6 +14,15 @@ async function makeStore() { const root = await mkdtemp(path.join(os.tmpdir(), "
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
 
 describe("ProjectMemoryStore", () => {
+  it("validates a fresh PROJECT-stage prompt snapshot before project.json exists", async () => {
+    const store = await makeStore();
+    await store.writeOriginalPrompt("Build a bicycle repair site");
+    const manifest = await store.readDocument("manifest.json");
+    expect(manifest.schemaVersion).toBe(1);
+    expect(manifest.documents.map((entry) => entry.relativePath)).toEqual(["original-prompt.md"]);
+    expect(await store.verifyIntegrity()).toBe(true);
+  });
+
   it("initializes, writes, reads, and lists canonical documents", async () => {
     const store = await makeStore(); await store.writeDocument("project.json", project()); await store.writeOriginalPrompt("line one\r\nline two");
     await store.appendDecision({ id: randomUUID(), timestamp: "2026-01-01T00:00:00.000Z", actorType: "user", actorIdentifier: "user", category: "scope", decision: "Foundation only", rationale: "Keep scope bounded", affectedDocuments: ["project.json"], requirementChange: false, userApprovalRequired: false, userApprovalStatus: "not-required" });
