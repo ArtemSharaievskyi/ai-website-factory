@@ -10,3 +10,5 @@ The local Approved Skills Registry adds an isolated staging boundary, strict fil
 
 Factory Docker runs without privileged mode, Docker socket mounts, or host filesystem access outside the repository. It must not execute customer projects in containers. Local writes will later use validated Windows paths, staging, and atomic promotion.
 # Context7 is disabled by default; when enabled it is server-only, read-only, bounded, and advisory. Documentation text is untrusted and cannot override policy.
+
+The shadcn Registry is likewise disabled by default, server-only, read-only, bounded, and security-scanned. It cannot execute a component CLI or write customer files.

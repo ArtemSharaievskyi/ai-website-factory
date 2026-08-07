@@ -15,3 +15,5 @@ Deployment, Preview, arbitrary tool installation, and unapproved infrastructure 
 
 The Planner / Architect foundation now consumes only approved Briefs, produces deterministic traceable planning documents, and accepts them without advancing beyond `AWAITING_DESIGN_SELECTION`. The Design Agent now creates exactly three deterministic directions and waits for explicit selection before `READY_FOR_IMPLEMENTATION`. Implementation, source generation, and release remain future work.
 # Read-only Context7 documentation enrichment is implemented; shadcn Registry, Magic Patterns, Preview, deployment, and customer repository automation remain future work.
+
+Read-only shadcn Registry references are now available for explicitly permitted implementation tasks. Automatic installation and backend task-handler integration remain future work.

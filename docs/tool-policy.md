@@ -9,10 +9,10 @@ AI provider calls are server-only structured requests; provider output has no to
 - **Playwright MCP** later supports functional browser QA and does not replace committed Playwright tests.
 - **shadcn/ui** may use only official and explicitly approved registries. It is a customizable technical base, not a fixed visual template.
 
-The Context7 port is server-only and injectable; no general MCP executor or shadcn registry is integrated.
+The Context7 and shadcn Registry ports are server-only and injectable; neither is a generic MCP executor. shadcn Registry access is read-only and limited to relevant implementation tasks.
 
 The Orchestrator resolves task-specific permissions for future execution. Magic Patterns is rejected for implementation tasks; Playwright is limited to functional QA; Context7 remains read-only; Git write and unrestricted shell execution are not granted.
 
-The Implementation Agent foundation connects only internal filesystem-read and filesystem-write capabilities. npm, database, browser, image, documentation, registry, and shell capabilities remain disconnected.
+The Implementation Agent foundation connects only internal filesystem-read and filesystem-write capabilities. npm, database, browser, image, and shell capabilities remain disconnected; documentation and Registry references are optional advisory inputs.
 
 Imported skills do not select or install tools. Tool permissions are explicit approval fields and are checked together with role, task type, checksum, and context limits. The registry currently contains no approved external skills.

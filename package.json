@@ -21,6 +21,7 @@
     "db:smoke": "tsx scripts/db-smoke.ts"
     ,"ai:smoke": "tsx scripts/ai-smoke.ts"
     ,"context7:smoke": "tsx scripts/context7-smoke.ts"
+    ,"shadcn:smoke": "tsx scripts/shadcn-smoke.ts"
   },
   "dependencies": {
     "next": "16.2.12",

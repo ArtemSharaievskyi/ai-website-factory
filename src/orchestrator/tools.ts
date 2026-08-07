@@ -10,6 +10,7 @@ export function resolveTools(taskType: string, assetSources: string[] = []): { a
   if (taskType === "implement-motion") return { allowed: [...write], denied: ["Magic-Patterns-design", "Playwright-functional", "git-write"] };
   const allowed: string[] = [...write];
   if (taskType.startsWith("implement-") || taskType.startsWith("write-") || taskType === "repair-targeted-failure") allowed.push("Context7-read");
+  if (["implement-design-system", "implement-shared-layout", "implement-navigation", "implement-page", "implement-shared-component", "implement-form"].includes(taskType)) allowed.push("shadcn-registry-read");
   if (assetSources.some((source) => source === "ai-generated" || source === "ai-plus-user-supplied")) allowed.push("image-generation");
   return { allowed, denied: ["Magic-Patterns-design", "Playwright-functional", "git-write", "npm"] };
 }
@@ -19,5 +20,5 @@ export function validateToolPolicy(task: AgentTask) {
   if (task.taskType.startsWith("validate-") && task.allowedTools.includes("Playwright-functional") && task.taskType !== "validate-functional-flow") throw new OrchestratorError("TASK_TOOL_POLICY_VIOLATION", "Playwright is limited to functional-flow validation.");
   if (task.taskType === "validate-functional-flow" && !task.allowedTools.includes("Playwright-functional")) throw new OrchestratorError("TASK_TOOL_POLICY_VIOLATION", "Functional-flow validation requires its controlled browser tool.");
   if (task.allowedTools.includes("Context7-read") && (!task.taskType.startsWith("implement-") && !task.taskType.startsWith("write-") && task.taskType !== "repair-targeted-failure")) throw new OrchestratorError("CONTEXT7_TOOL_NOT_ALLOWED", "Context7-read is limited to relevant implementation tasks.");
-  if (task.allowedTools.includes("shadcn-registry-read")) throw new OrchestratorError("TASK_TOOL_POLICY_VIOLATION", "The shadcn registry is not integrated.");
+  if (task.allowedTools.includes("shadcn-registry-read") && !["implement-design-system", "implement-shared-layout", "implement-navigation", "implement-page", "implement-shared-component", "implement-form"].includes(task.taskType)) throw new OrchestratorError("SHADCN_TOOL_NOT_ALLOWED", "shadcn-registry-read is limited to relevant implementation tasks.");
 }
