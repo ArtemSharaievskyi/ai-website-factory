@@ -53,7 +53,26 @@ export const VELOFIX_SMOKE_FACTS: VeloFixSmokeFacts = {
 
 export type ClarificationResolution = { answer: string; intent: string } | { answer?: undefined; intent: string; safeReason: "FIXTURE_FACT_MISSING" | "UNSUPPORTED_REQUIREMENT_KEY" };
 
-export function resolveVeloFixClarification(question: Pick<ClarificationQuestion, "requirementKey" | "category">, facts = VELOFIX_SMOKE_FACTS): ClarificationResolution {
+function resolveSemanticClarification(question: Pick<ClarificationQuestion, "requirementKey" | "category"> & Partial<Pick<ClarificationQuestion, "question" | "reason">>, facts: VeloFixSmokeFacts): ClarificationResolution | undefined {
+  if (!question.question && !question.reason) return undefined;
+  const text = `${question.requirementKey ?? ""} ${question.question ?? ""} ${question.reason ?? ""}`.toLocaleLowerCase("de-DE");
+  const has = (...patterns: RegExp[]) => patterns.some((pattern) => pattern.test(text));
+  if (has(/legal|privacy|datenschutz|rechtlich|policy|richtlinie/)) return undefined;
+  if (has(/field|felder|angab|information|daten|required|pflicht|form|formular|appointment|termin|repair.?request|reparatur/) && has(/name|e-mail|email|fahrrad|problem|beschreibung|field|felder|angab|formular|form/)) return { answer: facts.formFields.map((field) => `${field.name} (required)`).join(", "), intent: "form-fields" };
+  if (has(/validation|validierung|validate|prüf|email.?format|server|client/)) return { answer: `${facts.formValidation}; ${facts.validationRuntime}`, intent: "form-validation" };
+  if (has(/submission|submit|send|delivery|notification|benachrichtig|persist|speicher|database|datenbank|email|e-mail/)) return { answer: `${facts.submissionBehavior} ${facts.noExternalDatabase}; ${facts.noRealEmail}.`, intent: "form-submission-destination" };
+  if (has(/logo|brand|branding|marke/)) return { answer: `${facts.logo}; do not generate a logo.`, intent: "logo-treatment" };
+  if (has(/language|sprache|localiz|lokalis|german|deutsch/)) return { answer: facts.language, intent: "language" };
+  if (has(/route|routes|page|pages|seite|seiten|navigation|nav/)) return { answer: facts.routeNames, intent: "pages" };
+  if (has(/service|bicycle|bike|repair|fahrrad|reparatur/)) return { answer: facts.service, intent: "service-list" };
+  if (question.category === "contact" && has(/contact|kontakt|address|adresse|phone|telefon|details|angab/)) return { answer: facts.contact, intent: "contact-information-treatment" };
+  if (question.category === "images" && has(/image|images|bild|bilder|imagery|placeholder|platzhalter/)) return { answer: facts.imagery, intent: "placeholder-imagery" };
+  return undefined;
+}
+
+export function resolveVeloFixClarification(question: Pick<ClarificationQuestion, "requirementKey" | "category"> & Partial<Pick<ClarificationQuestion, "question" | "reason">>, facts = VELOFIX_SMOKE_FACTS): ClarificationResolution {
+  const semantic = resolveSemanticClarification(question, facts);
+  if (semantic) return semantic;
   const requirementKey = question.requirementKey?.startsWith("workflow.") ? question.requirementKey.replace(/[-_](.)/g, (_, character: string) => character.toUpperCase()) : question.requirementKey;
   if (requirementKey && /brief/i.test(requirementKey) && /approval|approve/i.test(requirementKey)) return { answer: "The finalized Project Brief is explicitly approved in the Brief Approval stage before Planner runs.", intent: "workflow-brief-approval" };
   switch (requirementKey) {

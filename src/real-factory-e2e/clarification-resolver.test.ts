@@ -3,6 +3,7 @@ import { resolveVeloFixClarification } from "./clarification-resolver";
 import { VELOFIX_WERKSTATT_PROMPT } from "./spec";
 
 const question = (requirementKey: string, category = "content") => ({ requirementKey, category }) as never;
+const semanticQuestion = (questionText: string, category = "content") => ({ requirementKey: "provider-generated-key", question: questionText, reason: "The provider needs this decision.", category }) as never;
 
 describe("VeloFix clarification resolver", () => {
   it.each([
@@ -88,5 +89,27 @@ describe("VeloFix clarification resolver", () => {
 
   it("does not invent answers for unknown requirements", () => {
     expect(resolveVeloFixClarification(question("openingHours.value"))).toMatchObject({ safeReason: "UNSUPPORTED_REQUIREMENT_KEY" });
+  });
+
+  it.each([
+    "Welche Angaben muss das Terminformular enthalten?",
+    "Welche Felder sind für eine Reparaturanfrage verpflichtend?",
+  ])("resolves equivalent form-field wording from semantic facts: %s", (wording) => {
+    expect(resolveVeloFixClarification(semanticQuestion(wording, "forms"))).toMatchObject({ intent: "form-fields", answer: "Name (required), E-Mail (required), Fahrradtyp (required), Beschreibung des Problems (required)" });
+  });
+
+  it.each([
+    ["Soll die Validierung im Browser und auf dem Server erfolgen?", "form-validation"],
+    ["Was passiert nach einer gültigen Einsendung und werden Daten gespeichert?", "form-submission-destination"],
+    ["Gibt es ein bereitgestelltes Logo oder eine Marken-Datei?", "logo-treatment"],
+  ])("resolves supported semantic intent without relying on a literal key: %s", (wording, intent) => {
+    expect(resolveVeloFixClarification(semanticQuestion(wording))).toMatchObject({ intent });
+  });
+
+  it.each([
+    ["Welche Datenschutzrichtlinie soll gelten?", "legal"],
+    ["Welche neuen Öffnungszeiten sollen wir erfinden?", "business"],
+  ])("keeps unsupported semantic decisions unresolved: %s", (wording, category) => {
+    expect(resolveVeloFixClarification(semanticQuestion(wording, category))).toMatchObject({ safeReason: "UNSUPPORTED_REQUIREMENT_KEY" });
   });
 });
