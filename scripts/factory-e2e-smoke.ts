@@ -10,7 +10,7 @@ async function main() {
   const preflight = await runRealFactoryE2EPreflight();
   if (!preflight.optIn) { console.log("REAL_FACTORY_E2E_PENDING"); return; }
   if (preflight.status !== "passed") { console.error(JSON.stringify({ status: preflight.status, blockers: preflight.blockers, warnings: preflight.warnings })); process.exitCode = 1; return; }
-  const { createProductionFactoryRuntime, validateProductionFactoryRuntime } = await import("../src/runtime/production-factory-runtime");
+  const { createProductionFactoryRuntime, validateProductionFactoryRuntime } = await import("../src/runtime/server");
   const root = path.resolve(process.env.GENERATED_PROJECTS_ROOT ?? path.resolve(".factory-generated"));
   const runtime = createProductionFactoryRuntime({ context7: preflight.integrations.context7 === "configured" ? "configured" : "not-needed", shadcn: preflight.integrations.shadcn === "configured" ? "configured" : "not-needed", generatedProjectsRoot: root });
   validateProductionFactoryRuntime(runtime);
