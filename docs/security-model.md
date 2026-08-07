@@ -21,3 +21,6 @@ Runtime processes receive a stripped environment and bounded redacted output; cu
 Functional QA uses synthetic data, a temporary browser context, localhost-only requests, and bounded evidence without cookies or tokens.
 
 Full execution has no generic shell/MCP path and routes only through injected existing task services. It cannot initialize customer Git, deploy, or execute customer migrations.
+# Codebase Memory
+
+Codebase Memory is server-only, disabled by default, workspace-scoped, checksum-bound, and hard-allowlisted. It cannot write source/configuration, run shell commands, install agent configuration, or access arbitrary paths.

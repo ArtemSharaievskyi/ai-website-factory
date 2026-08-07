@@ -9,3 +9,6 @@ The production identity is validated before execution. Mandatory production iden
 The project scope now creates `ProductionExecutionStateAdapter`, `ProductionTaskExecutorAdapter`, and the production repairer internally. REAL_E2E callers receive a fully composed `FullTaskGraphExecutor` context rather than supplying arbitrary state or task callbacks.
 
 The opt-in harness uses `runProductionE2EStages` as its single application-level coordinator around that executor.
+# Optional Codebase Memory composition
+
+`ProductionFactoryRuntime` composes Codebase Memory only when `CODEBASE_MEMORY_ENABLED=true`. It remains absent and does not affect the real E2E path when disabled or not needed.

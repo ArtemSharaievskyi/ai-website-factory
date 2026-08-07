@@ -20,3 +20,6 @@ When implementation is complete, use the generated runtime validator for the fix
 # Production TaskGraph adapter
 
 FullTaskGraph implementation dispatch calls the existing `ImplementationAgentService`; the adapter constructs its validated input from canonical project documents and never calls the GPT provider directly.
+# Codebase Memory
+
+Implementation tasks can use `codebase-memory-read` for narrow structural lookup after a current version index is verified. The provider receives advisory normalized references only.

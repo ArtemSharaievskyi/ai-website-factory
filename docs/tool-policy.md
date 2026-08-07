@@ -13,6 +13,8 @@ The Context7 and shadcn Registry ports are server-only and injectable; neither i
 
 The Orchestrator resolves task-specific permissions for future execution. Magic Patterns is rejected for implementation tasks; Playwright is limited to functional QA; Context7 remains read-only; Git write and unrestricted shell execution are not granted.
 
+Codebase Memory is a separate, optional read-only structural source. Only implementation, targeted repair, and reconciliation tasks may receive `codebase-memory-read`; it never grants filesystem scope or write authority.
+
 Playwright-functional exposes only approved route, form, assertion, and error-capture operations; it has no arbitrary evaluator, MCP executor, screenshot review, or external URL access.
 
 The Implementation Agent foundation connects only internal filesystem-read and filesystem-write capabilities. npm, database, browser, image, and shell capabilities remain disconnected; documentation and Registry references are optional advisory inputs.

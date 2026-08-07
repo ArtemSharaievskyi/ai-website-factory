@@ -35,3 +35,6 @@ Persist runtime reports as bounded quality evidence with package and lockfile ch
 Optional `functional-qa.json` stores only scenario statuses, counts, safe failures, QualityCheck reference, runtime checksum, and policy version.
 
 Optional `full-execution.json` stores bounded run status, checkpoint, task counts, repair counts, quality gates, source checksums, and pre-release eligibility.
+# Project Memory boundary
+
+Project Memory answers what the Factory decided to build. Codebase Memory answers what code currently exists. Codebase Memory may leave only safe index metadata references; it never replaces canonical Project Memory documents or stores a graph there.

@@ -11,3 +11,6 @@ The server-only production composition root is [`production-factory-runtime.ts`]
 The composed FullTaskGraph adapters are production-owned and preserve optional Context7/shadcn `not-needed` behavior.
 
 REAL_E2E invokes one concrete production stage runner. Explicit Brief approval, planning acceptance, and design selection precede Orchestrator graph creation and FullTaskGraph execution; adapter-owned real-stage evidence is mandatory for success.
+# Codebase Memory boundary
+
+The default and real Factory E2E smoke do not require Codebase Memory. The dedicated structural smoke is separate, explicitly opt-in, and is not run in this task.

@@ -7,3 +7,6 @@ The provider receives no original conversation, secrets, unrelated Project Memor
 When explicitly permitted and relevant, the assembler may attach bounded normalized Context7 excerpts. They are advisory, untrusted reference material and never expand requirements, tools, file scopes, or implementation authority.
 
 When a task explicitly has `shadcn-registry-read`, the assembler may attach a bounded, normalized component reference after relevance, dependency, source-security, and design-adaptation checks. Suggested Registry paths are not write authorization.
+# Structural context
+
+When authorized and current, Implementation context may include bounded normalized Codebase Memory symbols, relationships, routes, and excerpts. Raw MCP responses are excluded, and structural findings never expand the task's file scope.

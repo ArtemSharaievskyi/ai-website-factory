@@ -11,3 +11,6 @@ The production composition creates the existing `FullTaskGraphExecutor` with inj
 The production adapters translate canonical documents into Implementation Agent, runtime-validator, and Functional QA inputs; the executor remains the sole scheduler and release-boundary owner.
 
 The production E2E stage runner only coordinates the application stages surrounding this executor and never manually dispatches its tasks.
+# Optional structural intelligence
+
+Full TaskGraph execution remains independent of Codebase Memory. The optional server-only adapter is used only by authorized implementation or repair context and is not required for release eligibility.

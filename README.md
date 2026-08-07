@@ -80,3 +80,8 @@ The real Factory chain is an explicit opt-in smoke only: set `ALLOW_REAL_FACTORY
 Production wiring is centralized in [`docs/production-factory-runtime.md`](docs/production-factory-runtime.md); automated tests use an explicit deterministic composition.
 
 Production FullTaskGraph adapters are documented in [`docs/production-execution-state-adapter.md`](docs/production-execution-state-adapter.md).
+# Optional Codebase Memory
+
+Project Memory is canonical workflow memory; Codebase Memory is optional read-only structural intelligence for generated project versions. It is disabled by default, never indexes the Factory repository, and is available only to authorized implementation/repair/reconciliation context. See [`docs/codebase-memory-integration.md`](docs/codebase-memory-integration.md).
+
+Run `npm run codebase-memory:smoke` for the opt-in real adapter smoke. Without explicit opt-in it reports `REAL_CODEBASE_MEMORY_SMOKE_PENDING`.

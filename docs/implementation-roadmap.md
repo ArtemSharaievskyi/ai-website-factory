@@ -32,3 +32,6 @@ The runtime-validation module provides the npm-only command policy, deterministi
 The Playwright foundation adds controlled functional QA after runtime validation; real browser smoke remains explicit opt-in.
 
 Controlled full TaskGraph execution now provides bounded routing, retries, repairs, validation reruns, pause/resume/cancellation, and pre-release eligibility without Git or deployment.
+# Structural code intelligence
+
+The optional read-only Codebase Memory port now supports bounded generated-workspace indexing, structural lookup, freshness checks, and repair impact context without changing Project Memory or write scope.
