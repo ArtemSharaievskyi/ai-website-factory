@@ -15,4 +15,6 @@ The Orchestrator resolves task-specific permissions for future execution. Magic 
 
 The Implementation Agent foundation connects only internal filesystem-read and filesystem-write capabilities. npm, database, browser, image, and shell capabilities remain disconnected; documentation and Registry references are optional advisory inputs.
 
+Backend task handlers do not execute customer SQL, npm, builds, or network operations. Context7 remains optional documentation enrichment; shadcn Registry remains limited to relevant form UI tasks.
+
 Imported skills do not select or install tools. Tool permissions are explicit approval fields and are checked together with role, task type, checksum, and context limits. The registry currently contains no approved external skills.

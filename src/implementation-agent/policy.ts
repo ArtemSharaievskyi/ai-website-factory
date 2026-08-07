@@ -7,6 +7,7 @@ import { ImplementationContextSchema, type ImplementationAgentInput, type Implem
 import type { Context7DocumentationPort } from "../context7/contracts";
 import { assertContext7Permission } from "../context7/contracts";
 import { randomUUID } from "node:crypto";
+import { assertBackendTaskRequired, type BackendPlans } from "./backend";
 import type { ShadcnRegistryPort } from "../shadcn-registry/contracts";
 import { assertShadcnPermission } from "../shadcn-registry/contracts";
 
@@ -19,6 +20,7 @@ export interface ContextAssemblerDependencies { workspace: ExecutionWorkspacePor
 export class TaskContextAssembler {
   constructor(private readonly policy: { maxContextBytes: number; maxContextFiles: number; maxSourceFileBytes: number }, private readonly dependencies: ContextAssemblerDependencies) {}
   async assemble(input: ImplementationAgentInput): Promise<ImplementationContext> {
+    assertBackendTaskRequired(input.task, { brief: input.approvedBrief, planning: input.acceptedPlanningPackage as BackendPlans["planning"] });
     if (!(await this.dependencies.workspace.verifyStaging(input.projectId, input.projectVersion, input.workspaceReservationId, input.stagingWorkspacePath))) throw new ImplementationError("IMPLEMENTATION_WORKSPACE_INVALID", "The staging workspace could not be verified.");
     const files: Array<{ relativePath: string; sha256: string; content: string }> = [];
     const root = path.resolve(input.stagingWorkspacePath);

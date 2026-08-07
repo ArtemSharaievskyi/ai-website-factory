@@ -64,3 +64,5 @@ The minimal Factory health contract is available at `GET /api/health` and return
 # Context7 is optional and disabled by default. It provides bounded, read-only, server-side documentation references only; see `docs/context7-integration.md`.
 
 The shadcn Registry is optional and read-only; see `docs/shadcn-registry-integration.md`.
+
+Backend task handlers are plan-bound and static-validation-only; see `docs/backend-implementation.md`.

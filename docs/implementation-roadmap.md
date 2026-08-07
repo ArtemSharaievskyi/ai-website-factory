@@ -17,3 +17,5 @@ The Planner / Architect foundation now consumes only approved Briefs, produces d
 # Read-only Context7 documentation enrichment is implemented; shadcn Registry, Magic Patterns, Preview, deployment, and customer repository automation remain future work.
 
 Read-only shadcn Registry references are now available for explicitly permitted implementation tasks. Automatic installation and backend task-handler integration remain future work.
+
+Backend task-handler foundation is implemented; customer migration execution, generated-project npm/build/test execution, Playwright, Preview, and deployment remain future work.

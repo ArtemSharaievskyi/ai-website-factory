@@ -8,3 +8,5 @@ This foundation supports deterministic execution for workspace preparation, proj
 # Implementation may receive only relevant, bounded Context7 excerpts when the task includes Context7-read. Existing scope and proposal validators remain authoritative.
 
 Relevant implementation tasks may also receive normalized read-only shadcn Registry references when `shadcn-registry-read` is explicitly granted. The Registry cannot install, write, execute commands, or expand file scopes.
+
+Backend handlers support plan-bound forms, Server Actions, Route Handlers, logical migrations, RLS, Auth, Storage, and email validation. They generate proposals only; customer migrations, npm, builds, tests, and network calls remain outside this stage.
