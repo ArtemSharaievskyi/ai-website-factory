@@ -1,0 +1,25 @@
+import type { Browser, BrowserContext, Page } from "playwright";
+import { FunctionalQaError } from "./errors";
+import { assertLocalhostRoute } from "./policy";
+import type { PlaywrightFunctionalRunner } from "./contracts";
+
+type BrowserError = Awaited<ReturnType<PlaywrightFunctionalRunner["readConsoleErrors"]>>[number];
+
+export class PlaywrightBrowserRunner implements PlaywrightFunctionalRunner {
+  private browser?: Browser; private context?: BrowserContext; private page?: Page; private baseUrl = ""; private port = 0; private status = 0; private readonly errors: BrowserError[] = [];
+  async launch(input: { baseUrl: string; port: number; signal?: AbortSignal }) { if (input.signal?.aborted) throw new FunctionalQaError("QA_CANCELLED", "QA was cancelled before browser launch."); this.baseUrl = input.baseUrl; this.port = input.port; const playwright = await import("playwright"); this.browser = await playwright.chromium.launch({ headless: true }); this.context = await this.browser.newContext(); this.page = await this.context.newPage(); await this.page.route("**/*", async (route) => { const requestUrl = new URL(route.request().url()); if (requestUrl.protocol !== "http:" || !["localhost", "127.0.0.1", "::1"].includes(requestUrl.hostname) || requestUrl.port !== String(this.port)) { this.errors.push({ kind: "external-request", safeSummary: "External browser request blocked.", safeErrorCode: "QA_EXTERNAL_REQUEST_BLOCKED", approvedNoise: false }); await route.abort(); return; } await route.continue(); }); this.page.on("console", (message) => { if (message.type() === "error") this.errors.push({ kind: "console-error", safeSummary: "Browser console error captured.", safeErrorCode: "QA_BROWSER_RUNTIME_ERROR", approvedNoise: false }); }); this.page.on("pageerror", () => this.errors.push({ kind: "page-error", safeSummary: "Uncaught browser page error captured.", safeErrorCode: "QA_BROWSER_RUNTIME_ERROR", approvedNoise: false })); this.page.on("requestfailed", (request) => { if (request.url().startsWith(this.baseUrl)) this.errors.push({ kind: "failed-resource", safeSummary: "Required local browser resource failed.", approvedNoise: false }); }); this.page.on("response", (response) => { if (response.status() >= 500 && response.url().startsWith(this.baseUrl)) this.errors.push({ kind: "server-5xx", safeSummary: "Local page returned a server error.", safeErrorCode: "QA_ROUTE_RUNTIME_ERROR", approvedNoise: false }); }); }
+  private get current() { if (!this.page) throw new FunctionalQaError("QA_NOT_READY", "The browser has not been launched."); return this.page; }
+  async navigate(route: string, timeoutMs: number) { assertLocalhostRoute(route, this.port); const response = await this.current.goto(`${this.baseUrl}${route}`, { waitUntil: "domcontentloaded", timeout: timeoutMs }); this.status = response?.status() ?? 0; if (this.status >= 500) throw new FunctionalQaError("QA_ROUTE_RUNTIME_ERROR", "The local route returned a server error."); return this.status; }
+  async fill(selector: string, value: string, timeoutMs: number) { await this.current.locator(selector).fill(value, { timeout: timeoutMs }); }
+  async click(selector: string, timeoutMs: number) { await this.current.locator(selector).click({ timeout: timeoutMs }); }
+  async submit(selector: string, timeoutMs: number) { await this.current.locator(selector).locator('button[type="submit"], input[type="submit"]').first().click({ timeout: timeoutMs }); await this.current.waitForLoadState("domcontentloaded", { timeout: timeoutMs }).catch(() => undefined); }
+  async select(selector: string, value: string, timeoutMs: number) { await this.current.locator(selector).selectOption(value, { timeout: timeoutMs }); }
+  async check(selector: string, timeoutMs: number) { await this.current.locator(selector).check({ timeout: timeoutMs }); }
+  async waitFor(input: { selector?: string; timeoutMs: number }) { if (input.selector) await this.current.locator(input.selector).waitFor({ state: "visible", timeout: input.timeoutMs }); else await this.current.waitForTimeout(Math.min(input.timeoutMs, 1000)); }
+  async assertText(selector: string, expected: string, timeoutMs: number) { await this.current.locator(selector).getByText(expected, { exact: false }).waitFor({ state: "visible", timeout: timeoutMs }); }
+  async assertVisible(selector: string, timeoutMs: number) { await this.current.locator(selector).waitFor({ state: "visible", timeout: timeoutMs }); }
+  async assertUrl(route: string) { assertLocalhostRoute(route, this.port); if (new URL(this.current.url()).pathname !== route) throw new FunctionalQaError("QA_ASSERTION_FAILED", "The browser URL did not match the approved route."); }
+  async assertStatus(expected: number) { if (this.status !== expected) throw new FunctionalQaError("QA_ASSERTION_FAILED", `Expected local status ${expected}.`); }
+  async readConsoleErrors() { return [...this.errors]; }
+  async close() { await this.context?.close().catch(() => undefined); await this.browser?.close().catch(() => undefined); this.page = undefined; this.context = undefined; this.browser = undefined; }
+}

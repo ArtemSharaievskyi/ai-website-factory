@@ -31,3 +31,5 @@ Lead intake and clarification writes are incremental and preserve `original-prom
 # Runtime evidence
 
 Persist runtime reports as bounded quality evidence with package and lockfile checksums; do not persist raw secrets or unbounded logs.
+
+Optional `functional-qa.json` stores only scenario statuses, counts, safe failures, QualityCheck reference, runtime checksum, and policy version.

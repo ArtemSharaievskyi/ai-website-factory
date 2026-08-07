@@ -5,3 +5,5 @@ Generated projects are validated only from a mutable staging workspace beneath t
 Each command produces a bounded, redacted result and a corresponding quality check. Validation stops at the first failure, records a safe repair category, and never accepts caller-provided executable or argument strings.
 
 The real generated-project smoke test is opt-in: `ALLOW_GENERATED_RUNTIME_SMOKE=true npm run generated:runtime-smoke`.
+
+Functional QA may start only after this report is passed and its package/lockfile checksums remain current.

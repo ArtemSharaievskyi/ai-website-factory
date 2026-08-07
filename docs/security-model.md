@@ -17,3 +17,5 @@ Backend validation adds SQL safety, RLS least-privilege, secret/environment bind
 # Generated runtime boundary
 
 Runtime processes receive a stripped environment and bounded redacted output; customer secrets are not forwarded.
+
+Functional QA uses synthetic data, a temporary browser context, localhost-only requests, and bounded evidence without cookies or tokens.

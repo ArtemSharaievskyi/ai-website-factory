@@ -18,12 +18,13 @@
     "db:status": "node scripts/db-status.mjs",
     "db:verify": "node scripts/db-verify.mjs",
     "db:test-integrity": "node scripts/migration-integrity-fixture.mjs",
-    "db:smoke": "tsx scripts/db-smoke.ts"
-    ,"ai:smoke": "tsx scripts/ai-smoke.ts"
-    ,"context7:smoke": "tsx scripts/context7-smoke.ts"
-    ,"shadcn:smoke": "tsx scripts/shadcn-smoke.ts"
-    ,"backend:smoke": "tsx scripts/backend-smoke.ts"
-    ,"generated:runtime-smoke": "tsx scripts/generated-runtime-smoke.ts"
+    "db:smoke": "tsx scripts/db-smoke.ts",
+    "ai:smoke": "tsx scripts/ai-smoke.ts",
+    "context7:smoke": "tsx scripts/context7-smoke.ts",
+    "shadcn:smoke": "tsx scripts/shadcn-smoke.ts",
+    "backend:smoke": "tsx scripts/backend-smoke.ts",
+    "generated:runtime-smoke": "tsx scripts/generated-runtime-smoke.ts",
+    "playwright:smoke": "tsx scripts/playwright-smoke.ts"
   },
   "dependencies": {
     "next": "16.2.12",
@@ -42,6 +43,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
+    "playwright": "^1.62.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.9",
     "typescript": "^5",

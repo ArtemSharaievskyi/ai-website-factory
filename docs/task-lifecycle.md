@@ -6,3 +6,5 @@ Task execution is intentionally not implemented. Blocking failures keep dependen
 # Runtime validation state
 
 Validation reports are reconciled against workspace checksums before a quality gate is accepted.
+
+Functional QA transitions `READY` to `RUNNING` to `PASSED`/`FAILED`/`CANCELLED` under the existing optimistic task persistence boundary.

@@ -22,3 +22,5 @@ Backend task-handler foundation is implemented; customer migration execution, ge
 # Runtime validation foundation
 
 The runtime-validation module provides the npm-only command policy, deterministic runner contract, quality mapping, and reconciliation boundary.
+
+The Playwright foundation adds controlled functional QA after runtime validation; real browser smoke remains explicit opt-in.
