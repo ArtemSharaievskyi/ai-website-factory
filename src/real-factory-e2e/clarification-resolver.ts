@@ -60,6 +60,7 @@ function resolveSemanticClarification(question: Pick<ClarificationQuestion, "req
   const text = `${question.requirementKey ?? ""} ${question.question ?? ""} ${question.reason ?? ""}`.toLocaleLowerCase("de-DE");
   const has = (...patterns: RegExp[]) => patterns.some((pattern) => pattern.test(text));
   if (has(/legal|privacy|datenschutz|rechtlich|policy|richtlinie/)) return undefined;
+  if (has(/brief|briefing|project brief/) && has(/approval|approve|bestÃ¤tig|bestätig|freigabe|confirm|planner|planung/)) return { answer: "The finalized Project Brief is explicitly approved in the Brief Approval stage before Planner runs.", intent: "workflow-brief-approval" };
   if (has(/field|felder|angab|information|daten|required|pflicht|form|formular|appointment|termin|repair.?request|reparatur/) && has(/name|e-mail|email|fahrrad|problem|beschreibung|field|felder|angab|formular|form/)) return { answer: facts.formFields.map((field) => `${field.name} (required)`).join(", "), intent: "form-fields" };
   if (has(/validation|validierung|validate|prüf|email.?format|server|client/)) return { answer: `${facts.formValidation}; ${facts.validationRuntime}`, intent: "form-validation" };
   if (has(/submission|submit|send|delivery|notification|benachrichtig|persist|speicher|database|datenbank|email|e-mail/)) return { answer: `${facts.submissionBehavior} ${facts.noExternalDatabase}; ${facts.noRealEmail}.`, intent: "form-submission-destination" };

@@ -2,7 +2,7 @@ import type { AgentTask } from "../domain/tasks/schema";
 import type { ImplementationChangeProposal } from "./contracts";
 import { ImplementationError } from "./errors";
 import { BACKEND_TASK_TYPES, validateBackendProposal, type BackendPlans } from "./backend";
-export const SUPPORTED_IMPLEMENTATION_TASK_TYPES = new Set(["prepare-workspace", "implement-project-foundation", "implement-design-system", "implement-shared-layout", "implement-navigation", "implement-page", "implement-shared-component", "integrate-content", "implement-seo", "write-unit-tests", ...BACKEND_TASK_TYPES]);
+export const SUPPORTED_IMPLEMENTATION_TASK_TYPES = new Set(["prepare-workspace", "implement-project-foundation", "implement-design-system", "implement-shared-layout", "implement-navigation", "implement-page", "implement-shared-component", "integrate-content", "integrate-assets", "implement-seo", "write-unit-tests", "write-integration-tests", "write-e2e-tests", ...BACKEND_TASK_TYPES]);
 export function validateSupportedTask(task: AgentTask) { if (!SUPPORTED_IMPLEMENTATION_TASK_TYPES.has(task.taskType) || (task.taskType === "implement-form" && !task.allowedTools.includes("shadcn-registry-read"))) throw new ImplementationError("IMPLEMENTATION_TASK_TYPE_UNSUPPORTED", "This Implementation Agent foundation does not support the requested task type without the relevant UI reference permission."); }
 export function validateTaskResult(task: AgentTask, proposal: ImplementationChangeProposal, backendPlans: BackendPlans = {}) {
   if (BACKEND_TASK_TYPES.has(task.taskType)) validateBackendProposal(task, proposal, backendPlans);

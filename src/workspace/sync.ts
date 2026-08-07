@@ -7,7 +7,8 @@ import { WorkspaceSlugSchema, versionDirectoryName } from "./schemas";
 import type { ProjectMemorySyncPort } from "../persistence/sync";
 
 export class FilesystemProjectMemorySyncPort implements ProjectMemorySyncPort {
-  constructor(private readonly projectRoot: string, slug: string) { WorkspaceSlugSchema.parse(slug); }
+  private readonly projectRoot: string;
+  constructor(workspaceRoot: string, slug: string) { this.projectRoot = path.join(path.resolve(workspaceRoot), WorkspaceSlugSchema.parse(slug)); }
   private store(projectVersion: number) { return new ProjectMemoryStore(path.join(this.projectRoot, versionDirectoryName(projectVersion), ".factory")); }
   async writeVersionSnapshot(_projectId: string, projectVersion: number, documents: Record<string, unknown>) {
     const store = await this.store(projectVersion).initialize();

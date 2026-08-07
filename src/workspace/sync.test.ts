@@ -10,12 +10,24 @@ describe("filesystem Project Memory synchronization", () => {
     try {
       const sync = new FilesystemProjectMemorySyncPort(root, "project");
       await sync.writeVersionSnapshot("11111111-1111-4111-8111-111111111111", 1, { "original-prompt.md": "Build a bicycle repair site" });
-      const memoryRoot = path.join(root, "v1", ".factory");
+      const memoryRoot = path.join(root, "project", "v1", ".factory");
       const manifest = JSON.parse(await readFile(path.join(memoryRoot, "manifest.json"), "utf8")) as { documents: Array<{ relativePath: string }>; schemaVersion: number };
       expect(manifest.schemaVersion).toBe(1);
       expect(manifest.documents.map((entry) => entry.relativePath)).toEqual(["original-prompt.md"]);
       expect(await readdir(memoryRoot)).toEqual(expect.arrayContaining(["manifest.json", "original-prompt.md"]));
       expect(await readdir(memoryRoot)).not.toContain("codebase-memory.json");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps snapshots inside the owning project workspace", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "factory-memory-sync-isolation-"));
+    try {
+      const sync = new FilesystemProjectMemorySyncPort(root, "owned-project");
+      await sync.writeVersionSnapshot("22222222-2222-4222-8222-222222222222", 1, { "original-prompt.md": "Owned project" });
+      await expect(readFile(path.join(root, "v1", ".factory", "original-prompt.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(readFile(path.join(root, "owned-project", "v1", ".factory", "original-prompt.md"), "utf8")).resolves.toBe("Owned project");
     } finally {
       await rm(root, { recursive: true, force: true });
     }
