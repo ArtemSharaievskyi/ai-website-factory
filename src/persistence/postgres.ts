@@ -19,8 +19,8 @@ const normalizeVersionRow = (row: ProjectVersionRow) => ({
   releasedAt: isoTimestamp(row.releasedAt),
 });
 
-export function createPostgresPool() {
-  const environment = readServerEnvironment();
+export function createPostgresPool(input: Record<string, string | undefined> = process.env) {
+  const environment = readServerEnvironment(input);
   if (!environment.DATABASE_URL) throw new Error("DATABASE_URL is required for the Postgres persistence adapter.");
   return new Pool({ connectionString: requireDatabaseSsl(environment.DATABASE_URL), ssl: { rejectUnauthorized: false }, max: 5, connectionTimeoutMillis: 5000, idleTimeoutMillis: 10000 });
 }

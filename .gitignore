@@ -19,6 +19,7 @@
 
 # production
 /build
+/.factory-generated/
 
 # misc
 .DS_Store
