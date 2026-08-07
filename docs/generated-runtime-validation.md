@@ -9,3 +9,6 @@ The real generated-project smoke test is opt-in: `ALLOW_GENERATED_RUNTIME_SMOKE=
 Functional QA may start only after this report is passed and its package/lockfile checksums remain current.
 
 Full execution routes runtime validation tasks to these fixed operations and reruns only invalidated gates after targeted repair.
+# Production composition
+
+In `REAL_E2E`, `GeneratedRuntimeValidator` is composed with the real `NodeRuntimeProcessRunner`; test compositions inject their fake runner explicitly.

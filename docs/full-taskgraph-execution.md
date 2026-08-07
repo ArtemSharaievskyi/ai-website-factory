@@ -5,3 +5,5 @@ The full executor is a deterministic scheduler, not an agent. It loads one accep
 It stops at the pre-release boundary. `releaseEligible` means mandatory technical gates passed; it does not create Git/GitHub repositories, tags, deployments, Preview environments, or customer migrations.
 
 The explicit real-chain smoke is governed by [`real-factory-e2e-smoke.md`](real-factory-e2e-smoke.md) and requires real provider, npm, and Chromium prerequisites.
+
+The production composition creates the existing `FullTaskGraphExecutor` with injected production adapters; it does not duplicate scheduler logic.

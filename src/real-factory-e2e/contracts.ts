@@ -15,6 +15,8 @@ export const RealFactoryE2EReportSchema = z.object({
   projectId: z.string().uuid().optional(), projectVersion: z.number().int().positive().optional(),
   projectPathReference: z.string().max(500).optional(), startedAt: z.string().datetime(), completedAt: z.string().datetime().optional(),
   overallStatus: RealFactoryE2EStatusSchema, optIn: z.boolean(), preflightPassed: z.boolean(),
+  adapterIdentity: z.object({ leadProviderMode: z.string(), plannerProviderMode: z.string(), designProviderMode: z.string(), implementationProviderMode: z.string(), processRunnerMode: z.string(), browserRunnerMode: z.string(), fullExecutorMode: z.string() }).strict(),
+  realStageEvidence: z.object({ leadRequest: z.boolean(), plannerRequest: z.boolean(), designRequest: z.boolean(), implementationRequest: z.boolean(), npmExecution: z.boolean(), browserExecution: z.boolean() }).strict(),
   stages: z.array(RealFactoryE2EStageSchema).max(30), provider: z.object({ status: RealFactoryE2EIntegrationStatusSchema, modelLabel: z.string().max(100).optional(), requestCount: z.number().int().nonnegative(), inputTokens: z.number().int().nonnegative(), outputTokens: z.number().int().nonnegative() }).strict(),
   context7: z.object({ status: RealFactoryE2EIntegrationStatusSchema, requestCount: z.number().int().nonnegative() }).strict(),
   shadcn: z.object({ status: RealFactoryE2EIntegrationStatusSchema, requestCount: z.number().int().nonnegative() }).strict(),
@@ -26,4 +28,3 @@ export const RealFactoryE2EReportSchema = z.object({
   releaseEligible: z.boolean(), prohibitedActions: z.object({ deployment: z.boolean(), gitMutation: z.boolean(), customerDatabaseMigration: z.boolean(), customerDataAccess: z.boolean(), arbitraryBrowsing: z.boolean(), screenshots: z.boolean() }).strict(),
 }).strict();
 export type RealFactoryE2EReport = z.infer<typeof RealFactoryE2EReportSchema>;
-

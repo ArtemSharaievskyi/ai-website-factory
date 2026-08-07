@@ -5,3 +5,6 @@ Playwright is restricted to functional behavior in a mutable generated staging w
 There is no screenshot review, visual regression, pixel comparison, accessibility stage, deployment, production browsing, customer Git automation, or full TaskGraph execution.
 
 Full execution may invoke this QA service only after the build/runtime prerequisites and QA readiness checks pass.
+# Production composition
+
+In `REAL_E2E`, `FunctionalQaService` is composed with `NodeLocalTestServer` and `PlaywrightBrowserRunner`. No screenshot or visual-QA path is enabled.
