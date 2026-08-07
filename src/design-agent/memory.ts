@@ -7,10 +7,10 @@ import { versionDirectoryName } from "../workspace/schemas";
 import type { DesignMemoryPort } from "./ports";
 
 export class DesignMemoryAdapter implements DesignMemoryPort {
-  constructor(private readonly sync: ProjectMemorySyncPort, private readonly decisions: { append(projectId: string, version: number, decision: DecisionRecord): Promise<unknown> }, private readonly projectRoot?: string) {}
+  constructor(private readonly sync: ProjectMemorySyncPort, _decisions: { append(projectId: string, version: number, decision: DecisionRecord): Promise<unknown> }, private readonly projectRoot?: string) {}
   async writeSnapshot(projectId: string, version: number, documents: Record<string, unknown>) { await this.sync.writeVersionSnapshot(projectId, version, documents); }
   async removeDocument(projectId: string, version: number, documentName: string) { const candidate = this.sync as ProjectMemorySyncPort & { removeVersionDocument?: (projectId: string, version: number, documentName: string) => Promise<void> }; if (candidate.removeVersionDocument) await candidate.removeVersionDocument(projectId, version, documentName); }
-  async appendDecision(projectId: string, version: number, decision: DecisionRecord) { if (this.projectRoot) await new ProjectMemoryStore(path.join(this.projectRoot, versionDirectoryName(version), ".factory")).appendDecision(decision); await this.decisions.append(projectId, version, decision); }
+  async appendDecision(_projectId: string, _version: number, decision: DecisionRecord) { if (this.projectRoot) await new ProjectMemoryStore(path.join(this.projectRoot, versionDirectoryName(_version), ".factory")).appendDecision(decision); }
   async checksums(_projectId: string, version: number) { const candidate = this.sync as ProjectMemorySyncPort & { filesystemChecksums?: (version: number) => Promise<Record<string, string>> }; return candidate.filesystemChecksums ? candidate.filesystemChecksums(version) : {}; }
 }
 export class FakeDesignMemoryPort implements DesignMemoryPort {

@@ -15,6 +15,11 @@ export type VeloFixSmokeFacts = {
   formValidation: "Client and server validation";
   noExternalDatabase: "No real database persistence";
   noRealEmail: "No real email";
+  pageContent: "Home introduces VeloFix Werkstatt and bicycle repairs; services explains bicycle repair; appointment explains requesting an appointment and presents the exact appointment form. Placeholder copy may be generated from these supplied facts without unsupported business claims.";
+  submissionBehavior: "After valid client and server validation, show a German success message; do not send an email and do not persist the submitted data.";
+  validationRuntime: "Client and server validation through the existing Next.js server boundary; hosting and deployment are outside this smoke scenario.";
+  validationRules: "All four fields are required and the E-Mail field uses standard email-format validation; no additional length rules are required.";
+  routeNames: "`/` titled Startseite, `/leistungen` titled Leistungen, and `/termin` titled Termin vereinbaren.";
   formFields: readonly [{ name: "Name"; required: true }, { name: "E-Mail"; required: true }, { name: "Fahrradtyp"; required: true }, { name: "Beschreibung des Problems"; required: true }];
 };
 
@@ -33,6 +38,11 @@ export const VELOFIX_SMOKE_FACTS: VeloFixSmokeFacts = {
   formValidation: "Client and server validation",
   noExternalDatabase: "No real database persistence",
   noRealEmail: "No real email",
+  pageContent: "Home introduces VeloFix Werkstatt and bicycle repairs; services explains bicycle repair; appointment explains requesting an appointment and presents the exact appointment form. Placeholder copy may be generated from these supplied facts without unsupported business claims.",
+  submissionBehavior: "After valid client and server validation, show a German success message; do not send an email and do not persist the submitted data.",
+  validationRuntime: "Client and server validation through the existing Next.js server boundary; hosting and deployment are outside this smoke scenario.",
+  validationRules: "All four fields are required and the E-Mail field uses standard email-format validation; no additional length rules are required.",
+  routeNames: "`/` titled Startseite, `/leistungen` titled Leistungen, and `/termin` titled Termin vereinbaren.",
   formFields: [
     { name: "Name", required: true },
     { name: "E-Mail", required: true },
@@ -77,6 +87,16 @@ export function resolveVeloFixClarification(question: Pick<ClarificationQuestion
     case "appointmentPersistence":
     case "dataPersistence": return { answer: `${facts.noExternalDatabase}; local/mock smoke behavior only.`, intent: "customer-data-storage" };
     case "services.detail": return { answer: facts.service, intent: "service-list" };
+    case "pageContent": return { answer: facts.pageContent, intent: "page-content" };
+    case "forms.appointment.validSubmissionBehavior": return { answer: facts.submissionBehavior, intent: "form-success-behavior" };
+    case "database.appointmentStorage": return { answer: facts.noExternalDatabase, intent: "customer-data-storage" };
+    case "forms.appointment.validation": return { answer: `${facts.formValidation}; ${facts.validationRuntime}`, intent: "form-validation" };
+    case "forms.validationRules": return { answer: facts.validationRules, intent: "form-validation" };
+    case "pages.routeNames": return { answer: facts.routeNames, intent: "pages" };
+    case "workflow.briefPrerequisite": return { answer: "The finalized Project Brief is explicitly approved in the Brief Approval stage before Planner runs.", intent: "workflow-brief-approval" };
+    case "briefApproval": return { answer: "The finalized Project Brief is explicitly approved in the Brief Approval stage before Planner runs.", intent: "workflow-brief-approval" };
+    case "workflow.briefApproval": return { answer: "The finalized Project Brief is explicitly approved in the Brief Approval stage before Planner runs.", intent: "workflow-brief-approval" };
+    case "projectBriefApproval": return { answer: "The finalized Project Brief is explicitly approved in the Brief Approval stage before Planner runs.", intent: "workflow-brief-approval" };
     case "primary-action":
     case "primaryAction":
     case "primary_action": return { answer: facts.primaryAction, intent: "primary-action" };
