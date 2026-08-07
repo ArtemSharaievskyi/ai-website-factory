@@ -56,11 +56,14 @@ export function resolveVeloFixClarification(question: Pick<ClarificationQuestion
     case "appointment_form_validation": return { answer: facts.formValidation, intent: "form-validation" };
     case "serverValidationRules": return { answer: facts.formValidation, intent: "form-validation" };
     case "appointmentEmailDelivery": return { answer: facts.noRealEmail, intent: "form-notifications" };
-    case "notificationEmail": return { answer: facts.noRealEmail, intent: "form-notifications" };
+    case "notificationEmail":
+    case "appointment-response-and-confirmation": return { answer: facts.noRealEmail, intent: "form-notifications" };
+    case "appointmentSubmissionDelivery": return { answer: facts.noRealEmail, intent: "form-notifications" };
     case "appointmentForm.submissionDestination": return { answer: `${facts.noExternalDatabase}; ${facts.noRealEmail}.`, intent: "form-submission-destination" };
     case "appointmentSubmissionDestination": return { answer: `Local/mock smoke submission only; ${facts.noExternalDatabase}; ${facts.noRealEmail}.`, intent: "form-submission-destination" };
     case "appointmentForm.submissionHandling": return { answer: `Local/mock smoke submission only; ${facts.noExternalDatabase}; ${facts.noRealEmail}.`, intent: "form-submission-destination" };
-    case "appointmentSubmissionHandling": return { answer: `Local/mock smoke submission only; ${facts.noExternalDatabase}; ${facts.noRealEmail}.`, intent: "form-submission-destination" };
+    case "appointmentSubmissionHandling":
+    case "appointment-submission-handling": return { answer: `Local/mock smoke submission only; ${facts.noExternalDatabase}; ${facts.noRealEmail}.`, intent: "form-submission-destination" };
     case "submissionHandling": return { answer: `Local/mock smoke submission only; ${facts.noExternalDatabase}; ${facts.noRealEmail}.`, intent: "form-submission-destination" };
     case "appointmentRequestHandling":
     case "submissionDelivery": return { answer: `Local/mock smoke submission only; ${facts.noExternalDatabase}; ${facts.noRealEmail}.`, intent: "form-submission-destination" };
@@ -70,6 +73,8 @@ export function resolveVeloFixClarification(question: Pick<ClarificationQuestion
     case "appointmentDataPersistence":
     case "appointmentForm.persistence":
     case "appointmentStorage":
+    case "submissionStorage":
+    case "appointmentPersistence":
     case "dataPersistence": return { answer: `${facts.noExternalDatabase}; local/mock smoke behavior only.`, intent: "customer-data-storage" };
     case "services.detail": return { answer: facts.service, intent: "service-list" };
     case "primary-action":
