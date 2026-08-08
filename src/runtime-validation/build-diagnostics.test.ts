@@ -1,0 +1,16 @@
+import { describe, expect, it } from "vitest";
+import { normalizeBuildDiagnostics } from "./build-diagnostics";
+
+const input = (stdout = "", stderr = "") => ({ workspacePath: "C:/generated/project", stdout, stderr });
+
+describe("build diagnostic normalizer", () => {
+  it("extracts module-not-found importer and module", () => { const [d] = normalizeBuildDiagnostics(input("./src/app/page.tsx: Module not found: Can't resolve '@/components/foo'")); expect(d).toMatchObject({ category: "MODULE_NOT_FOUND", relativePath: "src/app/page.tsx", module: "@/components/foo" }); });
+  it("normalizes TypeScript file, line, column and code", () => { const [d] = normalizeBuildDiagnostics(input("Type error: src/app/page.tsx:12:7 - error TS2322: Type mismatch")); expect(d).toMatchObject({ category: "TYPESCRIPT_BUILD_ERROR", relativePath: "src/app/page.tsx", line: 12, column: 7, code: "TS2322" }); });
+  it("extracts server/client boundary source", () => { const [d] = normalizeBuildDiagnostics(input("You're importing a server-only module from src/components/form.tsx:8:2 in a Client Component")); expect(d).toMatchObject({ category: "SERVER_CLIENT_BOUNDARY", relativePath: "src/components/form.tsx", line: 8, column: 2 }); });
+  it("maps a deterministic route prerender failure", () => { const [d] = normalizeBuildDiagnostics(input("Error occurred prerendering page \"/contact\"")); expect(d).toMatchObject({ category: "ROUTE_PRERENDER_ERROR", relativePath: "src/app/contact/page.tsx", route: "/contact" }); });
+  it("extracts CSS and config files", () => { expect(normalizeBuildDiagnostics(input("PostCSS error in src/app/globals.css:4:3"))[0]).toMatchObject({ category: "CSS_POSTCSS_ERROR", relativePath: "src/app/globals.css" }); expect(normalizeBuildDiagnostics(input("Invalid next.config.js:2:1"))[0]).toMatchObject({ category: "CONFIG_ERROR", relativePath: "next.config.js" }); });
+  it("normalizes Windows paths and rejects unsafe paths", () => { expect(normalizeBuildDiagnostics(input("C:\\generated\\project\\src\\app\\page.tsx:3:4 error TS7006"))[0]).toMatchObject({ relativePath: "src/app/page.tsx" }); expect(normalizeBuildDiagnostics(input("C:\\other\\secret\\src\\page.tsx:3:4 error TS7006"))).toEqual([]); expect(normalizeBuildDiagnostics(input("node_modules/foo/index.js:1:1 error"))).toEqual([]); expect(normalizeBuildDiagnostics(input(".next/server/app/page.js:1:1 error"))).toEqual([]); });
+  it("deduplicates and bounds diagnostics", () => { const line = "src/app/page.tsx:1:1 error TS2322"; const result = normalizeBuildDiagnostics(input(Array.from({ length: 100 }, () => line).join("\n"))); expect(result).toHaveLength(1); expect(normalizeBuildDiagnostics(input(Array.from({ length: 100 }, (_, i) => `src/app/p${i}.tsx:1:1 error TS2322`).join("\n"))).length).toBeLessThanOrEqual(50); });
+  it("redacts secrets and reads both output channels", () => { const result = normalizeBuildDiagnostics(input("", "src/app/page.tsx:2:1 error TS2322 DATABASE_URL=postgres://secret")); expect(result[0]?.safeMessage).not.toContain("postgres://"); expect(result[0]?.relativePath).toBe("src/app/page.tsx"); });
+  it("keeps infrastructure failures non-targetable", () => { expect(normalizeBuildDiagnostics(input("npm ERR! network timeout"))).toEqual([]); });
+});
