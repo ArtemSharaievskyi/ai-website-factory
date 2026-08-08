@@ -7,7 +7,7 @@ import { ProjectRepository, ProjectVersionRepository, DocumentRepository } from 
 import { FactoryProjectSchema } from "../domain/project/schema";
 import { TaskGraphSchema } from "../domain/tasks/schema";
 import { checksumPersistedDocument } from "../persistence/serialization";
-import { ProductionExecutionStateAdapter, ProductionTaskExecutorAdapter } from "./production-adapters";
+import { ProductionExecutionStateAdapter, ProductionTaskExecutorAdapter, formatUnresolvedRepairSummary } from "./production-adapters";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
 const timestamp = "2026-01-01T00:00:00.000Z";
@@ -24,4 +24,5 @@ describe("production FullTaskGraph adapters", () => {
   it("exposes only Factory-owned executor routes and handles policy validation", async () => {
     const adapter = new ProductionTaskExecutorAdapter(new InMemoryPersistenceDatabase(), { projectId, projectVersion: 1, workspacePath: "C:\\generated\\fixture", generatedProjectsRoot: "C:\\generated", workspaceReservationId: "reservation", sourceDocumentChecksums: {}, toolPolicyVersion: "tools-v1", orchestrationPolicyVersion: "orchestrator-v1" }, {} as never, {} as never, {} as never); const outcome = await adapter.dispatch({ runId: "55555555-5555-4555-8555-555555555555", projectId, projectVersion: 1, task: { id: "66666666-6666-4666-8666-666666666666", projectId, projectVersion: 1, role: "qa-release", taskType: "validate-security", title: "Security", objective: "Validate security.", inputs: [], expectedOutputs: [], allowedSkills: [], allowedTools: [], fileScopes: [], dependencies: [], status: "ready", attempt: 0, maxAttempts: 1, createdAt: timestamp }, graph: graph(), signal: new AbortController().signal }); expect(outcome.status).toBe("passed");
   });
+  it("preserves run-level non-targetable failure attribution without inventing repair scope", () => { const failedTask = graph().tasks[0]!; const summary = formatUnresolvedRepairSummary({ failedTask, failure: { safeFailureCode: "QA_BROWSER_LAUNCH_FAILED", safeFailureSummary: "The browser launch failed safely.", diagnostics: [] }, resolution: { targetable: false, code: "REPAIR_TARGET_NOT_FOUND", reason: "The validation result contains no bounded file or route reference.", diagnostics: [] } }); expect(summary).toContain("failureCode=QA_BROWSER_LAUNCH_FAILED"); expect(summary).toContain("failureSummary=The browser launch failed safely."); expect(summary).toContain("diagnostics=0"); expect(summary).toContain("files=none"); expect(summary).not.toContain("*"); });
 });
