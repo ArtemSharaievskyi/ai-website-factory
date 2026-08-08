@@ -28,6 +28,16 @@ export const FOUNDATION_PACKAGE_POLICY = {
   },
 } as const;
 
+export const FOUNDATION_PACKAGE_JSON = JSON.stringify({
+  name: "generated-project",
+  version: "0.1.0",
+  private: true,
+  packageManager: "npm",
+  dependencies: FOUNDATION_PACKAGE_POLICY.dependencies,
+  devDependencies: FOUNDATION_PACKAGE_POLICY.devDependencies,
+  scripts: FOUNDATION_PACKAGE_POLICY.scripts,
+}, null, 2) + "\n";
+
 export const FOUNDATION_REQUIRED_ARTIFACTS = ["package.json", "package-lock.json", "eslint.config.mjs", "next.config.mjs"] as const;
 export const FOUNDATION_ESLINT_CONFIG_PATH = "eslint.config.mjs";
 export const FOUNDATION_NEXT_CONFIG_PATH = "next.config.mjs";
