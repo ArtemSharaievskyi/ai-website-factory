@@ -1,0 +1,23 @@
+import path from "node:path";
+import type { RuntimeDiagnosticReference } from "../runtime-validation/contracts";
+import { ownershipForTask } from "../domain/tasks/ownership";
+import type { AgentTask, TaskGraph } from "../domain/tasks/schema";
+
+export type RepairScopeResolution = { targetable: true; scopes: string[]; ownerTaskIds: string[]; diagnostics: RuntimeDiagnosticReference[] } | { targetable: false; code: "REPAIR_SCOPE_UNRESOLVED" | "REPAIR_TARGET_NOT_FOUND" | "VALIDATION_FAILURE_NOT_TARGETABLE"; reason: string; diagnostics: RuntimeDiagnosticReference[] };
+
+const forbidden = ["node_modules", ".next", ".git", ".factory"];
+const safePath = (value: string) => { const normalized = value.replaceAll("\\", "/"); return Boolean(normalized) && !normalized.startsWith("/") && !/^[A-Za-z]:\//.test(normalized) && !normalized.includes("..") && !normalized.includes("*") && !forbidden.some((name) => normalized === name || normalized.startsWith(`${name}/`)); };
+const matches = (pattern: string, value: string) => { const normalized = pattern.replaceAll("\\", "/"); if (normalized === value) return true; if (normalized.endsWith("/**")) return value.startsWith(normalized.slice(0, -2)); if (normalized.endsWith(".*")) return path.posix.dirname(value) === path.posix.dirname(normalized) && path.posix.basename(value).startsWith(path.posix.basename(normalized).slice(0, -2)); return false; };
+const implementationTasks = (graph: TaskGraph) => graph.tasks.filter((task) => task.role === "implementation" && !task.taskType.startsWith("validate-") && task.taskType !== "repair-targeted-failure");
+
+export function deriveRepairScope(input: { failedTask: AgentTask; failure: { diagnostics?: RuntimeDiagnosticReference[]; safeFailureSummary?: string }; graph: TaskGraph }): RepairScopeResolution {
+  const diagnostics = (input.failure.diagnostics ?? []).slice(0, 50); const validation = input.failedTask.taskType.startsWith("validate-"); if (!validation) return { targetable: false, code: "VALIDATION_FAILURE_NOT_TARGETABLE", reason: "Only supported validation failures are eligible for diagnostic repair mapping.", diagnostics };
+  const references = diagnostics.filter((diagnostic) => safePath(diagnostic.relativePath)); if (diagnostics.length && references.length !== diagnostics.length) return { targetable: false, code: "REPAIR_SCOPE_UNRESOLVED", reason: "At least one diagnostic reference failed canonical workspace-path validation.", diagnostics };
+  const routes = diagnostics.flatMap((diagnostic) => diagnostic.route ? [diagnostic.route] : []); const candidates = routes.length ? implementationTasks(input.graph).filter((task) => routes.some((route) => task.fileScopes.some((scope) => matches(scope, `src/app${route === "/" ? "" : route}/page.tsx`)))) : implementationTasks(input.graph).filter((task) => references.some((diagnostic) => task.fileScopes.some((scope) => matches(scope, diagnostic.relativePath))));
+  if (!references.length && !routes.length) return { targetable: false, code: "REPAIR_TARGET_NOT_FOUND", reason: "The validation result contains no bounded file or route reference.", diagnostics };
+  if (!candidates.length) return { targetable: false, code: "REPAIR_TARGET_NOT_FOUND", reason: "No implementation task owns the validated diagnostic target.", diagnostics };
+  const ownerTaskIds = [...new Set(candidates.map((task) => task.id))]; if (ownerTaskIds.length > 1) return { targetable: false, code: "REPAIR_SCOPE_UNRESOLVED", reason: "The diagnostics cross multiple implementation owners and the current repair architecture cannot safely split them.", diagnostics };
+  const scopes = [...new Set(references.map((diagnostic) => diagnostic.relativePath))]; if (!scopes.length) return { targetable: false, code: "REPAIR_TARGET_NOT_FOUND", reason: "The route did not resolve to a concrete implementation file.", diagnostics };
+  const owner = candidates[0]!; const routeScopes = routes.filter((route) => route !== "/").map((route) => `src/app${route}/page.tsx`); const resolvedScopes = scopes.length ? scopes : routeScopes; if (!resolvedScopes.length) return { targetable: false, code: "REPAIR_TARGET_NOT_FOUND", reason: "The route did not resolve to a concrete implementation file.", diagnostics }; const ownership = ownershipForTask(owner.taskType); if (ownership && !resolvedScopes.every((scope) => owner.fileScopes.some((pattern) => matches(pattern, scope)))) return { targetable: false, code: "REPAIR_SCOPE_UNRESOLVED", reason: "The derived diagnostic path is outside the owning implementation task scope.", diagnostics };
+  return { targetable: true, scopes: resolvedScopes, ownerTaskIds, diagnostics };
+}
