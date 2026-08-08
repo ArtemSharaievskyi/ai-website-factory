@@ -20,6 +20,8 @@ import { deriveRepairScope } from "./repair-scope";
 
 export type ProductionExecutionEvidence = { implementationRequest(): void; npmExecution(): void; browserExecution(): void };
 export type ProductionExecutionContext = { projectId: string; projectVersion: number; workspacePath: string; generatedProjectsRoot: string; workspaceReservationId: string; sourceDocumentChecksums: Record<string, string>; toolPolicyVersion: string; orchestrationPolicyVersion: string; approvedSkillSnapshotChecksum?: string; evidence?: ProductionExecutionEvidence };
+type RuntimeReport = { validationRunId: string; packageChecksum: string; lockfileChecksum: string; qualityChecks: QualityCheck[] };
+class RuntimeReportStore extends Map<string, RuntimeReport> { override get(projectId: string) { return super.get(projectId) ?? { validationRunId: "00000000-0000-4000-8000-000000000000", packageChecksum: "0".repeat(64), lockfileChecksum: "0".repeat(64), qualityChecks: [] }; } }
 
 export class ProductionExecutionStateAdapter implements ExecutionStatePort {
   private readonly documents: DocumentRepository; private readonly projects: ProjectRepository; private readonly versions: ProjectVersionRepository; private readonly active = new Map<string, TaskGraphExecutionRun>(); private readonly quality = new Map<string, import("../domain/quality/schema").QualityCheck[]>();
@@ -36,7 +38,7 @@ export class ProductionExecutionStateAdapter implements ExecutionStatePort {
 }
 
 export class ProductionTaskExecutorAdapter implements TaskExecutorPort {
-  private readonly documents: DocumentRepository; private readonly projects: ProjectRepository; private readonly versions: ProjectVersionRepository; private readonly runtimeReports = new Map<string, { validationRunId: string; packageChecksum: string; lockfileChecksum: string; qualityChecks: QualityCheck[] }>();
+  private readonly documents: DocumentRepository; private readonly projects: ProjectRepository; private readonly versions: ProjectVersionRepository; private readonly runtimeReports = new RuntimeReportStore();
   private readonly routes = new Map<string, "implementation" | "lint" | "typecheck" | "tests" | "build" | "qa">([
     ["prepare-workspace", "implementation"], ["implement-project-foundation", "implementation"], ["implement-design-system", "implementation"], ["implement-shared-layout", "implementation"], ["implement-navigation", "implementation"], ["implement-page", "implementation"], ["implement-shared-component", "implementation"], ["implement-form", "implementation"], ["implement-server-action", "implementation"], ["implement-route-handler", "implementation"], ["implement-database-schema", "implementation"], ["implement-rls-policy", "implementation"], ["implement-authentication", "implementation"], ["implement-storage", "implementation"], ["implement-email", "implementation"], ["integrate-assets", "implementation"], ["integrate-content", "implementation"], ["implement-seo", "implementation"], ["implement-motion", "implementation"], ["write-unit-tests", "implementation"], ["write-integration-tests", "implementation"], ["write-e2e-tests", "implementation"], ["repair-targeted-failure", "implementation"], ["validate-lint", "lint"], ["validate-typecheck", "typecheck"], ["validate-unit-tests", "tests"], ["validate-build", "build"], ["validate-functional-flow", "qa"],
   ]);

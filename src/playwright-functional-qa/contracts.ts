@@ -9,6 +9,7 @@ const Uuid = z.string().uuid();
 const Iso = z.string().datetime();
 const Ref = z.string().min(1).max(200);
 const Route = z.string().regex(/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/);
+export const FUNCTIONAL_QA_DIAGNOSTIC_POLICY_VERSION = "functional-qa-diagnostics-v2";
 
 export const FunctionalQaActionSchema = z.enum(["navigate", "fill", "click", "submit", "select", "check", "waitFor", "assertText", "assertVisible", "assertUrl", "assertStatus"]);
 export type FunctionalQaAction = z.infer<typeof FunctionalQaActionSchema>;
