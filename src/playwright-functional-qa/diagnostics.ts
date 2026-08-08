@@ -16,21 +16,21 @@ export function deriveFunctionalQaDiagnostics(input: { plan: { scenarios: Functi
     const failed = result.evidence.find((item) => item.result === "failed");
     const category = result.safeFailureCode ?? scenario.failureCategory;
     const route = failed?.route ?? scenario.startRoute;
-    const owners = ownershipFor(scenario, result);
+    const owners = scenario.ownershipCandidates.length ? scenario.ownershipCandidates : ownershipFor(scenario, result);
     diagnostics.push(FunctionalQaDiagnosticSchema.parse({
-      category, scenarioId: scenario.scenarioId, route, ...(failed ? { stepIndex: failed.stepIndex, action: failed.action } : {}),
+      category, scenarioId: scenario.scenarioId, scenarioType: scenario.scenarioType, route, ...(failed ? { stepId: scenario.steps[failed.stepIndex]?.stepId, stepIndex: failed.stepIndex, action: failed.action } : {}),
       assertion: scenario.assertions[0]?.category, selectorRole: failed?.action === "fill" || failed?.action === "submit" ? "approved-form-selector" : undefined,
       safeMessage: "Functional QA failed at an approved scenario step.",
       requirementReferences: [...new Set([...scenario.requirementReferences, ...scenario.acceptanceCriteriaReferences])].slice(0, 20),
-      planningReferences: [...new Set([...scenario.userFlowReferences, scenario.scenarioId])].slice(0, 20),
+      planningReferences: [...new Set([...scenario.planningReferences, ...scenario.userFlowReferences, scenario.scenarioId])].slice(0, 20), artifactReferences: scenario.artifactReferences.slice(0, 20),
       candidateOwnership: [...owners], sourceHints: ["SCENARIO_TRACEABILITY", "CANONICAL_ROUTE"],
-      runtimeReference: { relativePath: pagePath(route), category, route, candidateOwnership: [...owners], requirementReferences: scenario.requirementReferences.slice(0, 20), planningReferences: [...scenario.userFlowReferences, scenario.scenarioId].slice(0, 20), classification: "IMPLEMENTATION_DEFECT", safeMessage: "Bounded functional QA failure." },
+      runtimeReference: { relativePath: pagePath(route), category, route, candidateOwnership: [...owners], requirementReferences: scenario.requirementReferences.slice(0, 20), planningReferences: [...scenario.planningReferences, ...scenario.userFlowReferences, scenario.scenarioId].slice(0, 20), classification: "IMPLEMENTATION_DEFECT", safeMessage: "Bounded functional QA failure." },
     }));
   }
   if (!diagnostics.length && input.browserErrors.some((error) => !error.approvedNoise)) {
     const error = input.browserErrors.find((candidate) => !candidate.approvedNoise)!;
     const scenario = input.plan.scenarios[0];
-    if (scenario) diagnostics.push(FunctionalQaDiagnosticSchema.parse({ category: error.safeErrorCode ?? "QA_BROWSER_RUNTIME_ERROR", scenarioId: scenario.scenarioId, route: error.route ?? scenario.startRoute, safeMessage: error.safeSummary, requirementReferences: scenario.requirementReferences.slice(0, 20), planningReferences: [...scenario.userFlowReferences, scenario.scenarioId].slice(0, 20), candidateOwnership: ["implement-page"], sourceHints: ["BROWSER_SAFE_ERROR", "CANONICAL_ROUTE"], runtimeReference: { relativePath: pagePath(error.route ?? scenario.startRoute), category: error.safeErrorCode, route: error.route ?? scenario.startRoute, candidateOwnership: ["implement-page"], requirementReferences: scenario.requirementReferences.slice(0, 20), planningReferences: [...scenario.userFlowReferences, scenario.scenarioId].slice(0, 20), classification: "IMPLEMENTATION_DEFECT", safeMessage: "Bounded browser runtime failure." } }));
+    if (scenario) diagnostics.push(FunctionalQaDiagnosticSchema.parse({ category: error.safeErrorCode ?? "QA_BROWSER_RUNTIME_ERROR", scenarioId: scenario.scenarioId, scenarioType: scenario.scenarioType, route: error.route ?? scenario.startRoute, safeMessage: error.safeSummary, requirementReferences: scenario.requirementReferences.slice(0, 20), planningReferences: [...scenario.planningReferences, ...scenario.userFlowReferences, scenario.scenarioId].slice(0, 20), artifactReferences: scenario.artifactReferences.slice(0, 20), candidateOwnership: scenario.ownershipCandidates.length ? scenario.ownershipCandidates : ["implement-page"], sourceHints: ["BROWSER_SAFE_ERROR", "CANONICAL_ROUTE"], runtimeReference: { relativePath: pagePath(error.route ?? scenario.startRoute), category: error.safeErrorCode, route: error.route ?? scenario.startRoute, candidateOwnership: scenario.ownershipCandidates.length ? scenario.ownershipCandidates : ["implement-page"], requirementReferences: scenario.requirementReferences.slice(0, 20), planningReferences: [...scenario.planningReferences, ...scenario.userFlowReferences, scenario.scenarioId].slice(0, 20), classification: "IMPLEMENTATION_DEFECT", safeMessage: "Bounded browser runtime failure." } }));
   }
   return diagnostics.slice(0, 50);
 }
