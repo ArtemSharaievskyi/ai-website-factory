@@ -45,12 +45,13 @@ export class NodeLocalTestServer implements LocalServerLauncher {
   async isRunning(handle: LocalServerHandle) { const child = this.processes.get(handle.pid); return Boolean(child && child.exitCode === null && !child.killed); }
 }
 
-export async function waitForLocalReadiness(baseUrl: string, port: number, route = "/", timeoutMs = 30000, signal?: AbortSignal) {
-  const deadline = Date.now() + timeoutMs; let lastError: unknown;
+export async function waitForLocalReadinessWithMetadata(baseUrl: string, port: number, route = "/", timeoutMs = 30000, signal?: AbortSignal) {
+  const deadline = Date.now() + timeoutMs; let lastError: unknown; let attempts = 0;
   while (Date.now() < deadline) {
     if (signal?.aborted) throw new FunctionalQaError("QA_CANCELLED", "QA was cancelled while waiting for the local server.");
-    try { const response = await fetch(`${baseUrl}${route}`, { signal }); if (response.status < 500) return response.status; } catch (error) { lastError = error; }
+    attempts += 1; try { const response = await fetch(`${baseUrl}${route}`, { signal }); if (response.status < 500) return { status: response.status, attempts }; } catch (error) { lastError = error; }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new FunctionalQaError("QA_SERVER_READY_TIMEOUT", "The local test server did not become ready in time.", lastError);
 }
+export async function waitForLocalReadiness(baseUrl: string, port: number, route = "/", timeoutMs = 30000, signal?: AbortSignal) { return (await waitForLocalReadinessWithMetadata(baseUrl, port, route, timeoutMs, signal)).status; }
