@@ -5,7 +5,7 @@ import { OpenAiStructuredClient } from "./client";
 import { AiProviderError } from "./errors";
 import { FifoConcurrencyLimiter } from "./limiter";
 import { zodResponseFormat } from "openai/helpers/zod";
-import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, PlanningPackageStructuredOutputSchema } from "./adapters";
+import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, PlanningPackageStructuredOutputSchema, isWorkflowApprovalBlocker } from "./adapters";
 import { readAiProviderConfig } from "./config";
 
 const config = { apiKey: "test", model: "test-model", modelLabel: "GPT-5.6 Luna", maxRetries: 1, maxConcurrentRequests: 1 };
@@ -16,6 +16,11 @@ const validExecutor = async <T>() => ({ value: { ok: true, summary: "bounded" } 
 describe("production AI provider boundary", () => {
   it("uses a strict Brief transport schema while preserving nullable optional domain values", () => {
     expect(() => zodResponseFormat(BriefDraftStructuredOutputSchema, "brief-draft")).not.toThrow();
+  });
+  it("does not treat approval as a Brief validation blocker", () => {
+    expect(isWorkflowApprovalBlocker("Explicit Project Brief approval has not yet been recorded.")).toBe(true);
+    expect(isWorkflowApprovalBlocker("The finalized Project Brief has not yet been explicitly approved before Planner runs.")).toBe(true);
+    expect(isWorkflowApprovalBlocker("The finalized Brief is ready for the explicit approval stage.")).toBe(false);
   });
   it("uses a strict Planner transport schema without weakening the canonical package", () => {
     expect(() => zodResponseFormat(PlanningPackageStructuredOutputSchema, "planning-package")).not.toThrow();
