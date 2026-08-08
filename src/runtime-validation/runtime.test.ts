@@ -45,6 +45,7 @@ describe("generated runtime validation", () => {
     await expect(readRuntimeFiles({ projectId, projectVersion: 1, workspacePath: unsafe.workspace, generatedProjectsRoot: unsafe.root, mutable: true })).rejects.toThrow("npm lockfiles");
     await Promise.all([rm(good.root, { recursive: true, force: true }), rm(unsafe.root, { recursive: true, force: true })]);
   });
+  it("prepares a lockfile only through the fixed npm lockfile command", async () => { const f = await fixture(); await rm(path.join(f.workspace, "package-lock.json")); const runner = new FakeRunner(); const validator = new GeneratedRuntimeValidator(runner); const result = await validator.prepareNpmLockfile({ projectId, projectVersion: 1, workspacePath: f.workspace, generatedProjectsRoot: f.root, mutable: true }); expect(result.passed).toBe(true); expect(runner.requests[0]).toMatchObject({ executable: "npm", args: ["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"], cwd: f.workspace, commandType: "npm-lockfile" }); await rm(f.root, { recursive: true, force: true }); });
 
   it("strips factory secrets and passes only approved environment variables", () => {
     const env = buildRuntimeEnvironment({ projectId, projectVersion: 1, workspacePath: "x", generatedProjectsRoot: "y", environmentPlan: [{ name: "PUBLIC_FLAG", serverOnly: true, secret: false }, { name: "SECRET_FLAG", serverOnly: true, secret: true }] }, { PATH: "path", PUBLIC_FLAG: "yes", SECRET_FLAG: "no", OPENAI_API_KEY: "secret", DATABASE_URL: "db" } as unknown as NodeJS.ProcessEnv);

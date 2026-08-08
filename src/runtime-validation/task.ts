@@ -17,6 +17,7 @@ export function commandForValidationTask(taskType: string): RuntimeCommandType {
 
 export function repairCategoryForCommand(command: RuntimeCommandType): string {
   return {
+    "npm-lockfile": "FOUNDATION_DEPENDENCY_REPAIR",
     "npm-ci": "FOUNDATION_DEPENDENCY_REPAIR",
     lint: "TARGETED_SOURCE_STYLE_REPAIR",
     typecheck: "TARGETED_TYPESCRIPT_API_REPAIR",
