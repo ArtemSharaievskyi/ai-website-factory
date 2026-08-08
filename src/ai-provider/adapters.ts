@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { LeadAnalysisProvider } from "../lead/ports";
 import { BriefDraftSchema, ClarificationPlanSchema, LeadAgentAnalysisSchema, type BriefDraft, type ClarificationPlan, type LeadAgentAnalysis } from "../lead/contracts";
 import type { PlannerArchitectureProvider } from "../planner/ports";
-import { PlanningPackageSchema, type PlanningPackage } from "../planner/contracts";
+import { FormFieldSchema, FormPlanSchema, FormSchema, PlanningPackageSchema, type PlanningPackage } from "../planner/contracts";
 import type { DesignDirectionProvider } from "../design-agent/ports";
 import { DesignDirectionSchema, DesignDirectionSetSchema, type DesignDirectionSet } from "../domain/design/schema";
 import type { ImplementationProvider, ImplementationContext, ImplementationChangeProposal } from "../implementation-agent/contracts";
@@ -52,13 +52,15 @@ const StrictFlowSchema = z.object({ id: NonEmptyStringSchema, requirementReferen
 const StrictArchitectureSchema = z.object({ ...TechnicalArchitectureSchema.shape, backendPriority: z.array(z.enum(["server-actions", "route-handlers", "supabase-services"])).min(3), npmScripts: z.array(z.object({ name: NonEmptyStringSchema, command: NonEmptyStringSchema }).strict()), acceptance: z.object({ accepted: z.boolean(), acceptedAt: IsoDateTimeSchema.nullable(), acceptedBy: NonEmptyStringSchema.nullable() }).strict() }).strict();
 const StrictPlanningAcceptanceSchema = z.object({ acceptedAt: IsoDateTimeSchema.nullable(), acceptedBy: NonEmptyStringSchema.nullable(), checksum: z.string().regex(/^[a-f0-9]{64}$/).nullable() }).strict();
 const StrictAssetManifestSchema = z.object({ ...AssetManifestSchema.shape, entries: z.array(z.object({ ...AssetManifestEntrySchema.shape, consistencyGroup: NonEmptyStringSchema.nullable() }).strict()) }).strict();
+const StrictFormSchema = FormSchema.extend({ fields: z.array(FormFieldSchema) });
+const StrictFormPlanSchema = z.object({ ...FormPlanSchema.shape, forms: z.array(StrictFormSchema), traceability: z.array(StrictTraceabilitySchema) }).strict();
 export const PlanningPackageStructuredOutputSchema = PlanningPackageSchema.extend({
   productScope: PlanningPackageSchema.shape.productScope.extend({ traceability: z.array(StrictTraceabilitySchema) }),
   sitemap: SitemapPlanSchema.extend({ routes: z.array(StrictRouteSchema), traceability: z.array(StrictTraceabilitySchema) }),
   navigation: PlanningPackageSchema.shape.navigation.extend({ traceability: z.array(StrictTraceabilitySchema) }),
   pages: PlanningPackageSchema.shape.pages.extend({ traceability: z.array(StrictTraceabilitySchema) }),
   userFlows: UserFlowPlanSchema.extend({ flows: z.array(StrictFlowSchema), traceability: z.array(StrictTraceabilitySchema) }),
-  forms: PlanningPackageSchema.shape.forms.extend({ traceability: z.array(StrictTraceabilitySchema) }),
+  forms: StrictFormPlanSchema,
   dataModel: PlanningPackageSchema.shape.dataModel.extend({ traceability: z.array(StrictTraceabilitySchema) }),
   authentication: PlanningPackageSchema.shape.authentication.extend({ traceability: z.array(StrictTraceabilitySchema) }),
   supabase: PlanningPackageSchema.shape.supabase.extend({ traceability: z.array(StrictTraceabilitySchema) }),
@@ -108,7 +110,7 @@ export class OpenAiLeadProvider implements LeadAnalysisProvider {
 }
 export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
   constructor(private readonly ai: OpenAiStructuredClient) {}
-  async plan(input: Parameters<PlannerArchitectureProvider["plan"]>[0]): Promise<PlanningPackage> { const prompt = rolePrompt("planner", input); const result = await this.ai.request<z.infer<typeof PlanningPackageStructuredOutputSchema>>({ ...prompt, role: "planner", schema: PlanningPackageStructuredOutputSchema, schemaName: "planning-package", idempotencyKey: input.idempotencyKey }); return normalizePlanningPackage(result.value, input.approvedBriefChecksum, input.approvedBrief); }
+  async plan(input: Parameters<PlannerArchitectureProvider["plan"]>[0]): Promise<PlanningPackage> { const prompt = rolePrompt("planner", input); const languageInstruction = `The generated website locale is the approved Brief localization.defaultLocale: ${input.approvedBrief.localization.defaultLocale}. For every planned form field, output an explicit English machine fieldId independent of that locale and a separate user-facing label in the requested locale. Never derive fieldId from label.`; const result = await this.ai.request<z.infer<typeof PlanningPackageStructuredOutputSchema>>({ ...prompt, system: `${prompt.system}\n${languageInstruction}`, role: "planner", schema: PlanningPackageStructuredOutputSchema, schemaName: "planning-package", idempotencyKey: input.idempotencyKey }); return normalizePlanningPackage(result.value, input.approvedBriefChecksum, input.approvedBrief); }
 }
 export class OpenAiDesignProvider implements DesignDirectionProvider {
   constructor(private readonly ai: OpenAiStructuredClient) {}
