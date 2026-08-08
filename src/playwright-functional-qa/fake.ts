@@ -3,10 +3,10 @@ import { FunctionalQaError } from "./errors";
 
 export class DeterministicFakeBrowserRunner implements PlaywrightFunctionalRunner {
   readonly operations: string[] = []; private launched = false; private route = "/"; private readonly errors: Awaited<ReturnType<PlaywrightFunctionalRunner["readConsoleErrors"]>> = [];
-  constructor(private readonly behavior: { failingAction?: string; externalRequest?: boolean } = {}) {}
+  constructor(private readonly behavior: { failingAction?: string; externalRequest?: boolean; navigationStatus?: number } = {}) {}
   async launch() { this.launched = true; this.operations.push("launch"); if (this.behavior.externalRequest) this.errors.push({ kind: "external-request", safeSummary: "External browser request blocked.", safeErrorCode: "QA_EXTERNAL_REQUEST_BLOCKED", approvedNoise: false }); }
   private act(name: string) { if (!this.launched) throw new Error("fake browser not launched"); this.operations.push(name); if (this.behavior.failingAction === name) throw new FunctionalQaError("QA_ASSERTION_FAILED", `Fake action ${name} failed.`); }
-  async navigate(route: string) { this.act(`navigate:${route}`); this.route = route; return 200; }
+  async navigate(route: string) { this.act(`navigate:${route}`); this.route = route; const status = this.behavior.navigationStatus ?? 200; if (status === 404) throw new FunctionalQaError("QA_ROUTE_MISSING", "The approved local route returned HTTP 404."); return status; }
   async fill(selector: string) { this.act(`fill:${selector}`); }
   async click(selector: string) { this.act(`click:${selector}`); }
   async submit(selector: string) { this.act(`submit:${selector}`); }
