@@ -8,5 +8,5 @@ function safeCauseReference(cause: unknown): string | undefined {
   if (cause instanceof Error && /^[A-Za-z]+Error$/.test(cause.name)) return cause.name;
   return undefined;
 }
-export class ImplementationError extends Error { constructor(readonly code: ImplementationErrorCode, message: string, readonly cause?: unknown) { super(message + (safeCauseReference(cause) ? ` [cause=${safeCauseReference(cause)}]` : "")); this.name = "ImplementationError"; } }
+export class ImplementationError extends Error { constructor(readonly code: ImplementationErrorCode, message: string, readonly cause?: unknown, readonly details?: Record<string, unknown>) { super(message + (safeCauseReference(cause) ? ` [cause=${safeCauseReference(cause)}]` : "")); this.name = "ImplementationError"; } }
 export const serializeImplementationError = (error: unknown) => error instanceof ImplementationError ? { code: error.code, message: error.message } : { code: "IMPLEMENTATION_INPUT_INVALID" as const, message: "Implementation execution could not be completed." };
