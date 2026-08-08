@@ -21,6 +21,7 @@ describe("production AI provider boundary", () => {
     expect(isWorkflowApprovalBlocker("Explicit Project Brief approval has not yet been recorded.")).toBe(true);
     expect(isWorkflowApprovalBlocker("The finalized Project Brief has not yet been explicitly approved before Planner runs.")).toBe(true);
     expect(isWorkflowApprovalBlocker("The finalized Brief is ready for the explicit approval stage.")).toBe(false);
+    expect(isWorkflowApprovalBlocker("The Project Brief has not been explicitly approved.")).toBe(true);
   });
   it("uses a strict Planner transport schema without weakening the canonical package", () => {
     expect(() => zodResponseFormat(PlanningPackageStructuredOutputSchema, "planning-package")).not.toThrow();
