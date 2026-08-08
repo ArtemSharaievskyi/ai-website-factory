@@ -7,7 +7,8 @@ export const ClarificationQuestionSchema = z.object({ id: z.string().uuid(), cat
 export const ClarificationAnswerSchema = z.object({ questionId: z.string().uuid(), status: AnswerStatusSchema, answer: z.string().optional(), answeredAt: IsoDateTimeSchema, answeredBy: NonEmptyStringSchema }).strict().superRefine((value, context) => {
   if (value.status === "answered" && !value.answer?.trim()) context.addIssue({ code: "custom", path: ["answer"], message: "Answered questions require an answer" });
 });
-export const ClarificationSessionSchema = DocumentBaseSchema.extend({ documentType: z.literal("clarification-log"), questions: z.array(ClarificationQuestionSchema), answers: z.array(ClarificationAnswerSchema) }).strict();
+export const ClarificationSupersededQuestionSchema = z.object({ question: ClarificationQuestionSchema, supersededAt: IsoDateTimeSchema, reason: NonEmptyStringSchema }).strict();
+export const ClarificationSessionSchema = DocumentBaseSchema.extend({ documentType: z.literal("clarification-log"), clarificationPolicyVersion: z.number().int().positive().optional(), questions: z.array(ClarificationQuestionSchema), answers: z.array(ClarificationAnswerSchema), supersededQuestions: z.array(ClarificationSupersededQuestionSchema).optional() }).strict();
 
 const DecisionSchema = z.enum(["no-authentication-guest-first", "authentication-required", "pending"]);
 const ImageSourceSchema = z.enum(["ai-generated", "user-supplied", "ai-plus-user-supplied", "placeholders", "custom", "pending"]);

@@ -18,6 +18,7 @@ import { resolveLogoPolicy } from "../domain/requirements/logo-policy";
 import { AssetManifestEntrySchema, AssetManifestSchema } from "../domain/assets/schema";
 import { TechnicalArchitectureSchema } from "../domain/architecture/schema";
 import { SitemapPlanSchema, UserFlowPlanSchema, TraceabilitySchema } from "../planner/contracts";
+import { isWorkflowRequirement } from "../lead/clarification-policy";
 const OrchestrationPlanSchema = z.object({ tasks: z.array(z.unknown()) }).strict();
 const checksumText = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
 
@@ -38,9 +39,10 @@ function normalizeBriefDraft(value: z.infer<typeof BriefDraftStructuredOutputSch
   const { projectTitle, analysisMetadata, briefApprovalNote, ...canonicalFields } = requirements;
   const normalizedRequirements = { ...canonicalFields, briefStatus: "draft" as const, approval: { approved: false }, ...(projectTitle === null ? {} : { projectTitle }), ...(analysisMetadata === null ? {} : { analysisMetadata }), ...(briefApprovalNote === null ? {} : { briefApprovalNote }) };
   normalizedRequirements.brandFacts = normalizedRequirements.brandFacts.filter((fact) => !/^(project name:|business name:|no supplied|no (palette|typography|logo|layout)|no prescribed (palette|typography|logo|layout)|no (logo|brand|palette|typography|layout) (was )?(provided|supplied)|(?:logo|brand|palette|typography|layout) (was )?not (provided|supplied)|(?:use|propose) a neutral .* (?:visual )?design direction|.*is the project name)/i.test(fact.trim()));
-  const unresolvedItems = value.unresolvedItems.filter((item) => !(item.key === "briefApproval" || item.key === "approval.project-brief" || item.key === "approval.projectBrief" || item.key === "approval.required" || item.key === "workflow.briefApproval" || item.key === "workflow.brief_approval" || item.key === "workflow.brief-approval" || (/brief/i.test(item.key) && /approval|approve/i.test(item.key)) || isWorkflowApprovalBlocker(item.description)));
+  const unresolvedItems = value.unresolvedItems.filter((item) => !isWorkflowRequirement(item));
+  const normalizedRequirementItems = requirements.unresolvedItems.filter((item) => !isWorkflowRequirement({ description: item.description }));
   const blockingReasons = value.blockingReasons.filter((reason) => !isWorkflowApprovalBlocker(reason) && !/no blocking confirmation is required.*brief draft/i.test(reason));
-  return BriefDraftSchema.parse({ ...value, requirements: normalizedRequirements, unresolvedItems, blockingReasons, readyForApproval: blockingReasons.length === 0 && unresolvedItems.every((item) => !item.blocking) });
+  return BriefDraftSchema.parse({ ...value, requirements: { ...normalizedRequirements, unresolvedItems: normalizedRequirementItems }, unresolvedItems, blockingReasons, readyForApproval: blockingReasons.length === 0 && unresolvedItems.every((item) => !item.blocking) });
 }
 
 const StrictTraceabilitySchema = TraceabilitySchema.extend({ unresolvedDependency: z.string().nullable() });

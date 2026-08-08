@@ -8,6 +8,7 @@ import { ReleaseReportSchema } from "../domain/release/schema";
 import { DecisionRecordSchema, type DecisionRecord } from "../domain/workflow/decision";
 import { transitionWorkflow, type TransitionContext } from "../domain/workflow/engine";
 import { PersistenceError } from "./errors";
+import { CLARIFICATION_POLICY_VERSION, isWorkflowRequirement } from "../lead/clarification-policy";
 import { mapDocumentToRow, mapProjectToRow, mapRowToDocument, mapRowToProject } from "./mapping";
 import { documentPayloadHash, newWorkflowEvent } from "./fake";
 import type { PersistenceDatabase, PersistenceTransaction, ProjectVersionRow, StoredDocument, WorkflowEvent, CostRecord } from "./types";
@@ -51,7 +52,7 @@ export class DesignRepository extends DocumentRepository {
 }
 
 export class ClarificationRepository extends DocumentRepository {
-  async saveSession(session: ClarificationSession, idempotencyKey?: string) { return this.save(parse(ClarificationSessionSchema, session, "Clarification session is invalid."), idempotencyKey); }
+  async saveSession(session: ClarificationSession, idempotencyKey?: string) { const parsed = parse(ClarificationSessionSchema, session, "Clarification session is invalid."); const superseded = parsed.questions.filter((question) => isWorkflowRequirement(question)).map((question) => ({ question, supersededAt: new Date().toISOString(), reason: "Workflow requirement excluded from active user clarification." })); const sanitized = ClarificationSessionSchema.parse({ ...parsed, clarificationPolicyVersion: CLARIFICATION_POLICY_VERSION, questions: parsed.questions.filter((question) => !isWorkflowRequirement(question)), ...(superseded.length || parsed.supersededQuestions ? { supersededQuestions: [...(parsed.supersededQuestions ?? []), ...superseded] } : {}) }); return this.save(sanitized, idempotencyKey); }
   async getSession(projectId: string, version: number) { const document = await this.get(projectId, version, "clarification-log"); return document?.documentType === "clarification-log" ? document : null; }
   async hasBlockingUnresolved(projectId: string, version: number) { const session = await this.getSession(projectId, version); return session?.questions.some((question) => question.blocking && question.answerStatus === "unresolved") ?? false; }
 }
