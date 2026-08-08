@@ -5,6 +5,11 @@ import { BACKEND_TASK_TYPES, validateBackendProposal, type BackendPlans } from "
 export const SUPPORTED_IMPLEMENTATION_TASK_TYPES = new Set(["prepare-workspace", "implement-project-foundation", "implement-design-system", "implement-shared-layout", "implement-navigation", "implement-page", "implement-shared-component", "integrate-content", "integrate-assets", "implement-seo", "write-unit-tests", "write-integration-tests", "write-e2e-tests", ...BACKEND_TASK_TYPES]);
 export function validateSupportedTask(task: AgentTask) { if (!SUPPORTED_IMPLEMENTATION_TASK_TYPES.has(task.taskType) || (task.taskType === "implement-form" && !task.allowedTools.includes("shadcn-registry-read"))) throw new ImplementationError("IMPLEMENTATION_TASK_TYPE_UNSUPPORTED", "This Implementation Agent foundation does not support the requested task type without the relevant UI reference permission."); }
 export function validateTaskResult(task: AgentTask, proposal: ImplementationChangeProposal, backendPlans: BackendPlans = {}) {
+  if (task.taskType === "implement-project-foundation" && task.fileScopes.some((scope) => /package\.json|package-lock\.json/i.test(scope))) {
+    const paths = new Set(proposal.operations.map((operation) => operation.relativePath.replaceAll("\\", "/")));
+    const missing = ["package.json", "package-lock.json"].filter((path) => !paths.has(path));
+    if (missing.length) throw new ImplementationError("IMPLEMENTATION_EXPECTED_FILE_MISSING", `Project foundation is missing required runtime artifacts: ${missing.join(", ")}.`);
+  }
   if (BACKEND_TASK_TYPES.has(task.taskType)) validateBackendProposal(task, proposal, backendPlans);
   if (task.taskType === "implement-navigation" && proposal.operations.some((operation) => operation.relativePath.includes("/unplanned/"))) throw new ImplementationError("IMPLEMENTATION_REQUIREMENT_VIOLATION", "Navigation proposal references an unplanned route.");
   if (task.taskType === "integrate-content" && proposal.operations.some((operation) => /TODO|TBD|unknown fact/i.test("content" in operation ? operation.content : "newText" in operation ? operation.newText : ""))) throw new ImplementationError("IMPLEMENTATION_UNSUPPORTED_BUSINESS_FACT", "Content proposal contains unresolved factual markers.");
