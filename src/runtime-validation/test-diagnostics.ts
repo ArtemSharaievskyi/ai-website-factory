@@ -19,5 +19,6 @@ export function normalizeTestDiagnostics(input: TestDiagnosticInput): RuntimeDia
     const primary = sourceFrame?.file ?? testFrame?.file ?? frames[0]?.file; if (!primary) continue;
     add({ category: missing ? "MODULE_NOT_FOUND" : timeout ? "TEST_TIMEOUT" : boundary ? "SERVER_CLIENT_BOUNDARY" : config ? "TEST_CONFIGURATION" : assertion ? "ASSERTION_FAILURE" : "TEST_RUNTIME_FAILURE", code: missing ? "MODULE_NOT_FOUND" : undefined, relativePath: primary, ...(testFrame ? { testFile: testFrame.file } : {}), ...(sourceFrame ? { sourceFile: sourceFrame.file, classification: "IMPLEMENTATION_DEFECT" as const } : {}), ...(name ? { testName: name } : {}), ...(missing ? { module: clean(missing[1]!) } : {}), ...(sourceFrame ? { line: sourceFrame.line, column: sourceFrame.column } : testFrame ? { line: testFrame.line, column: testFrame.column } : {}), safeMessage: clean(line || context) });
   }
+  if (!result.length && /(?:^|\n)>\s*test\s*\n>\s*vitest\s+run(?:\s+--run)?\s*$/m.test(`${input.stdout}\n${input.stderr}`)) add({ category: "TEST_SUITE_MISSING", relativePath: "tests", classification: "NON_TARGETABLE", safeMessage: "The approved Vitest command found no generated test files." });
   return result.slice(0, 50);
 }
