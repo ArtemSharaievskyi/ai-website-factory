@@ -10,6 +10,8 @@ The server-only production composition root is [`production-factory-runtime.ts`]
 
 The composed FullTaskGraph adapters are production-owned and preserve optional Context7/shadcn `not-needed` behavior.
 
+To resume the same disposable smoke after a Factory fix, set `REAL_FACTORY_E2E_RESUME=true` and provide the exact `REAL_FACTORY_E2E_SMOKE_ID` from the persisted report under `_smoke/`. Resume validates the report identity, canonical persisted project state, approvals, selected design, TaskGraph checksum/policy, workspace staging reservation, and reconciliation state before execution. It reuses validated earlier stages without new Lead, Planner, or Design requests. A missing, stale, ambiguous, or cross-project checkpoint fails safely; the default command remains a fresh smoke.
+
 REAL_E2E invokes one concrete production stage runner. Explicit Brief approval, planning acceptance, and design selection precede Orchestrator graph creation and FullTaskGraph execution; adapter-owned real-stage evidence is mandatory for success.
 # Codebase Memory boundary
 

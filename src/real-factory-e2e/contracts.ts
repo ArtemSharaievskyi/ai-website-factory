@@ -2,10 +2,12 @@ import { z } from "zod";
 
 export const RealFactoryE2EStatusSchema = z.enum(["pending", "running", "passed", "failed"]);
 export const RealFactoryE2EStageStatusSchema = z.enum(["not-run", "passed", "failed", "blocked"]);
+export const RealFactoryE2EStageExecutionModeSchema = z.enum(["EXECUTED", "REUSED_VALIDATED", "RESUMED", "NOT_REACHED"]);
 export const RealFactoryE2EIntegrationStatusSchema = z.enum(["configured", "not-needed", "blocked", "not-configured"]);
 
 export const RealFactoryE2EStageSchema = z.object({
   name: z.string().min(1).max(80), status: RealFactoryE2EStageStatusSchema,
+  executionMode: RealFactoryE2EStageExecutionModeSchema.default("EXECUTED"),
   startedAt: z.string().datetime().optional(), completedAt: z.string().datetime().optional(),
   safeFailureCode: z.string().regex(/^[A-Z0-9_]+$/).optional(), summary: z.string().max(500),
 }).strict();
