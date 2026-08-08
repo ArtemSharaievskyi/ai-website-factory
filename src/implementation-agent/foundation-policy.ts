@@ -27,7 +27,21 @@ export const FOUNDATION_PACKAGE_POLICY = {
   },
 } as const;
 
-export const FOUNDATION_REQUIRED_ARTIFACTS = ["package.json", "package-lock.json"] as const;
+export const FOUNDATION_REQUIRED_ARTIFACTS = ["package.json", "package-lock.json", "eslint.config.mjs", "next.config.mjs"] as const;
+export const FOUNDATION_ESLINT_CONFIG_PATH = "eslint.config.mjs";
+export const FOUNDATION_NEXT_CONFIG_PATH = "next.config.mjs";
+export const FOUNDATION_NEXT_CONFIG = `const nextConfig = { turbopack: { root: process.cwd() } };
+
+export default nextConfig;
+`;
+export const FOUNDATION_ESLINT_CONFIG = `import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+
+export default defineConfig([
+  ...nextVitals,
+  globalIgnores([".next/**", "out/**", "build/**", "dist/**", "node_modules/**"]),
+]);
+`;
 
 export function foundationPolicySummary() {
   return JSON.stringify({ ...FOUNDATION_PACKAGE_POLICY, requiredArtifacts: FOUNDATION_REQUIRED_ARTIFACTS });

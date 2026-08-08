@@ -30,13 +30,14 @@ export function normalizeBuildDiagnostics(input: BuildDiagnosticInput): RuntimeD
   const add = (value: RuntimeDiagnosticReference) => { const parsed = RuntimeDiagnosticReferenceSchema.parse(value); const key = `${parsed.category ?? ""}:${parsed.relativePath}:${parsed.line ?? ""}:${parsed.column ?? ""}:${parsed.code ?? ""}`; if (!seen.has(key)) { seen.add(key); output.push(parsed); } };
   for (let index = 0; index < lines.length && output.length < 50; index++) {
     const line = lines[index]!; const context = [lines[index - 1] ?? "", line, lines[index + 1] ?? ""].join(" "); const source = sourceFromLine(line, input.workspacePath) ?? sourceFromLine(context, input.workspacePath); const route = routeFromLine(context);
-    const missing = line.match(/Module not found:\s*Can't resolve\s+["']?([^"'\s]+)|Cannot find module\s+["']([^"']+)["']/i);
+    const pathLength = /path length for file|exceeds max length of filesystem|os error 3/i.test(context); const missing = line.match(/Module not found:\s*Can't resolve\s+["']?([^"'\s]+)|Cannot find module\s+["']([^"']+)["']/i);
     const exportError = /(?:is not exported from|has no exported member|attempted import error)/i.test(line);
     const boundary = /server-only|client component|client-only|server component/i.test(line) && /import|cannot|you're importing/i.test(line);
     const css = /postcss|css syntax|sass|stylesheet/i.test(line) && Boolean(source);
     const config = /next\.config|postcss\.config|tsconfig|eslint\.config/i.test(line) && Boolean(source);
     const typeError = /TS\d{3,5}|Type error|TypeScript/i.test(line) && Boolean(source);
-    if (missing) add({ category: "MODULE_NOT_FOUND", code: "MODULE_NOT_FOUND", relativePath: source?.relativePath ?? "package.json", ...(source?.line ? { line: source.line, column: source.column } : {}), module: clean(missing[1] ?? missing[2]), safeMessage: clean(line), ...(source ? {} : {}) });
+    if (pathLength) add({ category: "WINDOWS_PATH_LENGTH", code: "WINDOWS_PATH_LENGTH", relativePath: "package.json", safeMessage: "Windows filesystem path length exceeded during generated build." });
+    else if (missing) add({ category: "MODULE_NOT_FOUND", code: "MODULE_NOT_FOUND", relativePath: source?.relativePath ?? "package.json", ...(source?.line ? { line: source.line, column: source.column } : {}), module: clean(missing[1] ?? missing[2]), safeMessage: clean(line), ...(source ? {} : {}) });
     else if (exportError) add({ category: "IMPORT_EXPORT_MISMATCH", code: "IMPORT_EXPORT_MISMATCH", relativePath: source?.relativePath ?? "package.json", ...(source?.line ? { line: source.line, column: source.column } : {}), safeMessage: clean(line) });
     else if (boundary) add({ category: "SERVER_CLIENT_BOUNDARY", code: "SERVER_CLIENT_BOUNDARY", relativePath: source?.relativePath ?? "package.json", ...(source?.line ? { line: source.line, column: source.column } : {}), safeMessage: clean(line) });
     else if (typeError) add({ category: "TYPESCRIPT_BUILD_ERROR", code: line.match(/TS\d{3,5}/)?.[0], relativePath: source?.relativePath ?? "tsconfig.json", ...(source?.line ? { line: source.line, column: source.column } : {}), safeMessage: clean(line) });

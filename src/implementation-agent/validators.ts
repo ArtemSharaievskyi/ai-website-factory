@@ -4,7 +4,7 @@ import path from "node:path";
 import type { ImplementationChangeProposal } from "./contracts";
 import { ImplementationError } from "./errors";
 import { BACKEND_TASK_TYPES, validateBackendProposal, type BackendPlans } from "./backend";
-import { FOUNDATION_PACKAGE_POLICY } from "./foundation-policy";
+import { FOUNDATION_ESLINT_CONFIG_PATH, FOUNDATION_NEXT_CONFIG_PATH, FOUNDATION_PACKAGE_POLICY } from "./foundation-policy";
 import { isWithinTaskScope } from "./scope";
 export const SUPPORTED_IMPLEMENTATION_TASK_TYPES = new Set(["prepare-workspace", "implement-project-foundation", "implement-design-system", "implement-shared-layout", "implement-navigation", "implement-page", "implement-shared-component", "integrate-content", "integrate-assets", "implement-seo", "write-unit-tests", "write-integration-tests", "write-e2e-tests", ...BACKEND_TASK_TYPES]);
 export function validateSupportedTask(task: AgentTask) { if (!SUPPORTED_IMPLEMENTATION_TASK_TYPES.has(task.taskType) || (task.taskType === "implement-form" && !task.allowedTools.includes("shadcn-registry-read"))) throw new ImplementationError("IMPLEMENTATION_TASK_TYPE_UNSUPPORTED", "This Implementation Agent foundation does not support the requested task type without the relevant UI reference permission."); }
@@ -25,6 +25,12 @@ export function validateTaskResult(task: AgentTask, proposal: ImplementationChan
     if (missing.length) throw new ImplementationError("IMPLEMENTATION_EXPECTED_FILE_MISSING", `Project foundation is missing required runtime artifacts: ${missing.join(", ")}.`);
     const packageOperation = proposal.operations.find((operation) => operation.relativePath.replaceAll("\\", "/") === "package.json" && "content" in operation);
     if (!packageOperation || !("content" in packageOperation)) throw new ImplementationError("IMPLEMENTATION_EXPECTED_FILE_MISSING", "Project foundation must propose package.json content.");
+    const eslintOperation = proposal.operations.find((operation) => operation.relativePath.replaceAll("\\", "/") === FOUNDATION_ESLINT_CONFIG_PATH && "content" in operation);
+    if (!eslintOperation || !("content" in eslintOperation)) throw new ImplementationError("IMPLEMENTATION_EXPECTED_FILE_MISSING", "Project foundation must propose the canonical flat ESLint configuration.");
+    if (!/eslint-config-next\/core-web-vitals/.test(eslintOperation.content) || !/defineConfig/.test(eslintOperation.content)) throw new ImplementationError("IMPLEMENTATION_FOUNDATION_CONFIG_INVALID", "The foundation ESLint configuration must use the approved Next.js flat configuration.");
+    const nextOperation = proposal.operations.find((operation) => operation.relativePath.replaceAll("\\", "/") === FOUNDATION_NEXT_CONFIG_PATH && "content" in operation);
+    if (!nextOperation || !("content" in nextOperation) || !/turbopack/.test(nextOperation.content)) throw new ImplementationError("IMPLEMENTATION_FOUNDATION_CONFIG_INVALID", "The foundation Next.js config must pin the project filesystem root.");
+    if (workspacePath && (!lstatSync(path.join(path.resolve(workspacePath), FOUNDATION_ESLINT_CONFIG_PATH), { throwIfNoEntry: false }) || !lstatSync(path.join(path.resolve(workspacePath), FOUNDATION_NEXT_CONFIG_PATH), { throwIfNoEntry: false }))) throw new ImplementationError("IMPLEMENTATION_EXPECTED_FILE_MISSING", "The applied foundation is missing a canonical runtime configuration.");
     let packageJson: { packageManager?: unknown; scripts?: Record<string, unknown>; dependencies?: Record<string, unknown>; devDependencies?: Record<string, unknown> };
     try { packageJson = JSON.parse(packageOperation.content) as typeof packageJson; } catch (error) { throw new ImplementationError("PACKAGE_JSON_INVALID", "Foundation package.json is invalid JSON.", error); }
     if (packageJson.packageManager !== undefined && (typeof packageJson.packageManager !== "string" || !/^npm(?:@|$)/i.test(packageJson.packageManager))) throw new ImplementationError("PACKAGE_MANAGER_POLICY_VIOLATION", "Foundation package.json must use npm.");

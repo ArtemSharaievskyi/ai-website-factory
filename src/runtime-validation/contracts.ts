@@ -2,7 +2,7 @@ import { z } from "zod";
 import { QualityCheckSchema } from "../domain/quality/schema";
 export const RuntimeCommandTypeSchema = z.enum(["npm-lockfile", "npm-ci", "lint", "typecheck", "tests", "build"]);
 export type RuntimeCommandType = z.infer<typeof RuntimeCommandTypeSchema>;
-export const RUNTIME_DIAGNOSTIC_POLICY_VERSION = "runtime-diagnostics-v4";
+export const RUNTIME_DIAGNOSTIC_POLICY_VERSION = "runtime-diagnostics-v5";
 export const RuntimeCommandSpecSchema = z.object({ commandType: RuntimeCommandTypeSchema, executable: z.literal("npm"), args: z.array(z.string()), timeoutMs: z.number().int().positive(), exclusive: z.boolean() }).strict();
 export type RuntimeCommandSpec = z.infer<typeof RuntimeCommandSpecSchema>;
 export const RuntimeDiagnosticReferenceSchema = z.object({ category: z.string().regex(/^[A-Z0-9_]+$/).max(80).optional(), relativePath: z.string().min(1).max(300), testFile: z.string().min(1).max(300).optional(), sourceFile: z.string().min(1).max(300).optional(), testName: z.string().min(1).max(240).optional(), classification: z.enum(["IMPLEMENTATION_DEFECT", "TEST_DEFECT", "TEST_INFRASTRUCTURE_DEFECT", "NON_TARGETABLE"]).optional(), line: z.number().int().positive().optional(), column: z.number().int().positive().optional(), code: z.string().regex(/^[A-Z0-9_-]+$/).max(80).optional(), module: z.string().min(1).max(200).optional(), safeMessage: z.string().min(1).max(500).optional(), relatedFiles: z.array(z.string().min(1).max(300)).max(8).optional(), route: z.string().regex(/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/).optional() }).strict();
