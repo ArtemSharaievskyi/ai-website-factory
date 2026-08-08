@@ -12,10 +12,15 @@
 
 # testing
 /coverage
+**/coverage/
+/.qa-foundation-*/
 
 # next.js
 /.next/
+**/.next/
 /out/
+**/dist/
+**/node_modules/
 
 # production
 /build
