@@ -64,7 +64,7 @@ function resolveSemanticClarification(question: Pick<ClarificationQuestion, "req
   if (has(/field|felder|angab|information|daten|required|pflicht|form|formular|appointment|termin|repair.?request|reparatur/) && has(/name|e-mail|email|fahrrad|problem|beschreibung|field|felder|angab|formular|form/)) return { answer: facts.formFields.map((field) => `${field.name} (required)`).join(", "), intent: "form-fields" };
   if (has(/validation|validierung|validate|prüf|email.?format|server|client/)) return { answer: `${facts.formValidation}; ${facts.validationRuntime}`, intent: "form-validation" };
   if (has(/submission|submit|send|delivery|notification|benachrichtig|persist|speicher|database|datenbank|email|e-mail/)) return { answer: `${facts.submissionBehavior} ${facts.noExternalDatabase}; ${facts.noRealEmail}.`, intent: "form-submission-destination" };
-  if (has(/logo|brand|branding|marke/)) return { answer: `${facts.logo}; do not generate a logo.`, intent: "logo-treatment" };
+  if (has(/logo|brand|branding|marke/)) return { answer: `${facts.logo}; use the text wordmark \"${facts.businessName}\"; do not generate a logo.`, intent: "logo-treatment" };
   if (has(/language|sprache|localiz|lokalis|german|deutsch/)) return { answer: facts.language, intent: "language" };
   if (has(/route|routes|page|pages|seite|seiten|navigation|nav/)) return { answer: facts.routeNames, intent: "pages" };
   if (has(/service|bicycle|bike|repair|fahrrad|reparatur/)) return { answer: facts.service, intent: "service-list" };
@@ -136,7 +136,7 @@ export function resolveVeloFixClarification(question: Pick<ClarificationQuestion
     case "required_pages": return { answer: facts.pages, intent: "pages" };
     case "appointmentForm.validation": return { answer: facts.formValidation, intent: "form-validation" };
     case "appointmentForm.privacy": return { intent: "form-privacy", safeReason: "FIXTURE_FACT_MISSING" };
-    case "brand.visualDirection": return { answer: `${facts.logo}; do not generate a logo.`, intent: "logo-treatment" };
+    case "brand.visualDirection": return { answer: `${facts.logo}; use the text wordmark \"${facts.businessName}\"; do not generate a logo.`, intent: "logo-treatment" };
     default: return { intent: question.requirementKey ?? question.category, safeReason: "UNSUPPORTED_REQUIREMENT_KEY" };
   }
 }

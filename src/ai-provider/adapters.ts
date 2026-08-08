@@ -14,6 +14,7 @@ import type { OrchestrationPlanningProvider } from "../orchestrator/service";
 import { z } from "zod";
 import { IsoDateTimeSchema, NonEmptyStringSchema } from "../domain/shared/schemas";
 import { RequirementSpecificationSchema } from "../domain/requirements/schema";
+import { resolveLogoPolicy } from "../domain/requirements/logo-policy";
 import { AssetManifestEntrySchema, AssetManifestSchema } from "../domain/assets/schema";
 import { TechnicalArchitectureSchema } from "../domain/architecture/schema";
 import { SitemapPlanSchema, UserFlowPlanSchema, TraceabilitySchema } from "../planner/contracts";
@@ -108,7 +109,7 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
 }
 export class OpenAiDesignProvider implements DesignDirectionProvider {
   constructor(private readonly ai: OpenAiStructuredClient) {}
-  async proposeDesignDirections(input: Parameters<DesignDirectionProvider["proposeDesignDirections"]>[0]): Promise<DesignDirectionSet> { const prompt = rolePrompt("design", input); const result = await this.ai.request<z.infer<typeof DesignDirectionStructuredOutputSchema>>({ ...prompt, role: "design", schema: DesignDirectionStructuredOutputSchema, schemaName: "design-direction-set", idempotencyKey: input.idempotencyKey }); return normalizeDesignDirectionSet(result.value); }
+  async proposeDesignDirections(input: Parameters<DesignDirectionProvider["proposeDesignDirections"]>[0]): Promise<DesignDirectionSet> { const prompt = rolePrompt("design", input); const logoPolicy = resolveLogoPolicy(input.approvedBrief); const logoInstruction = logoPolicy.mode === "TEXT_WORDMARK" ? `Use the text wordmark "${logoPolicy.wordmarkText}" as text; do not create, redraw, or substitute a logo file.` : logoPolicy.mode === "NO_LOGO" ? "No logo treatment is required; do not create, redraw, or substitute a logo file." : "Use only the supplied user logo and never redraw or replace it."; const result = await this.ai.request<z.infer<typeof DesignDirectionStructuredOutputSchema>>({ ...prompt, system: `${prompt.system}\nLogo policy: ${logoInstruction}`, role: "design", schema: DesignDirectionStructuredOutputSchema, schemaName: "design-direction-set", idempotencyKey: input.idempotencyKey }); return normalizeDesignDirectionSet(result.value); }
 }
 export class OpenAiImplementationProvider implements ImplementationProvider {
   constructor(private readonly ai: OpenAiStructuredClient) {}
