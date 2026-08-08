@@ -1,0 +1,2 @@
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+export function isWithinTaskScope(pattern: string, value: string) { const normalized = pattern.replaceAll("\\", "/"); let expression = ""; for (let index = 0; index < normalized.length; index++) { if (normalized[index] === "*" && normalized[index + 1] === "*") { expression += ".*"; index++; } else if (normalized[index] === "*") expression += "[^/]*"; else expression += escapeRegex(normalized[index]!); } return new RegExp(`^${expression}$`, "i").test(value.replaceAll("\\", "/")); }

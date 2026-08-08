@@ -55,7 +55,7 @@ describe("generated runtime validation", () => {
   it("runs the five fixed commands in order and emits quality checks", async () => {
     const f = await fixture(); const runner = new FakeRunner(); const validator = new GeneratedRuntimeValidator(runner);
     const report = await validator.runValidationSequence({ projectId, projectVersion: 1, workspacePath: f.workspace, generatedProjectsRoot: f.root, mutable: true });
-    expect(runner.requests.map((request) => [request.executable, ...request.args])).toEqual([["npm", "ci"], ["npm", "run", "lint"], ["npm", "run", "typecheck"], ["npm", "test", "--", "--run"], ["npm", "run", "build"]]);
+    expect(runner.requests.map((request) => [request.executable, ...request.args])).toEqual([["npm", "ci"], ["npm", "run", "lint"], ["npm", "run", "typecheck"], ["npm", "test"], ["npm", "run", "build"]]);
     expect(report.overallStatus).toBe("passed");
     expect(report.qualityChecks.map((check) => check.status)).toEqual(["passed", "passed", "passed", "passed", "passed"]);
     await rm(f.root, { recursive: true, force: true });

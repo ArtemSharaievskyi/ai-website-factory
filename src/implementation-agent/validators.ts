@@ -1,11 +1,24 @@
 import type { AgentTask } from "../domain/tasks/schema";
+import { lstatSync, readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import type { ImplementationChangeProposal } from "./contracts";
 import { ImplementationError } from "./errors";
 import { BACKEND_TASK_TYPES, validateBackendProposal, type BackendPlans } from "./backend";
 import { FOUNDATION_PACKAGE_POLICY } from "./foundation-policy";
+import { isWithinTaskScope } from "./scope";
 export const SUPPORTED_IMPLEMENTATION_TASK_TYPES = new Set(["prepare-workspace", "implement-project-foundation", "implement-design-system", "implement-shared-layout", "implement-navigation", "implement-page", "implement-shared-component", "integrate-content", "integrate-assets", "implement-seo", "write-unit-tests", "write-integration-tests", "write-e2e-tests", ...BACKEND_TASK_TYPES]);
 export function validateSupportedTask(task: AgentTask) { if (!SUPPORTED_IMPLEMENTATION_TASK_TYPES.has(task.taskType) || (task.taskType === "implement-form" && !task.allowedTools.includes("shadcn-registry-read"))) throw new ImplementationError("IMPLEMENTATION_TASK_TYPE_UNSUPPORTED", "This Implementation Agent foundation does not support the requested task type without the relevant UI reference permission."); }
-export function validateTaskResult(task: AgentTask, proposal: ImplementationChangeProposal, backendPlans: BackendPlans = {}) {
+const matches = (pattern: string, candidate: string) => { const escaped = pattern.replaceAll("\\", "/").replace(/\*\*/g, "§§").replace(/\*/g, "[^/]*").replace(/[.+?^${}()|[\]\\]/g, "\\$&").replaceAll("§§", ".*"); return new RegExp(`^${escaped}$`, "i").test(candidate.replaceAll("\\", "/")); };
+const testArtifactPath = (task: AgentTask, relativePath: string) => task.fileScopes.some((scope) => isWithinTaskScope(scope, relativePath)) && /^src\/.*\.test\.(?:ts|tsx)$/i.test(relativePath);
+const isPlaceholder = (content: string) => /expect\s*\(\s*true\s*\)/.test(content);
+function discoverTestArtifacts(root: string, task: AgentTask) { const result: Array<{ relativePath: string; content: string }> = []; const walk = (directory: string) => { for (const entry of readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) { const full = path.join(directory, entry.name); const relative = path.relative(root, full).replaceAll("\\", "/"); if ([".git", ".factory", "node_modules", ".next", "dist", "coverage"].some((name) => relative === name || relative.startsWith(`${name}/`))) continue; if (lstatSync(full).isDirectory()) walk(full); else if (testArtifactPath(task, relative)) result.push({ relativePath: relative, content: readFileSync(full, "utf8") }); } }; walk(root); return result; }
+export function validateTaskResult(task: AgentTask, proposal: ImplementationChangeProposal, backendPlans: BackendPlans = {}, workspacePath?: string) {
+  if (task.taskType === "write-unit-tests") {
+    const proposedPaths = proposal.operations.filter((operation) => operation.type !== "delete-file").map((operation) => operation.relativePath.replaceAll("\\", "/"));
+    if (!proposedPaths.some((relativePath) => testArtifactPath(task, relativePath))) throw new ImplementationError("IMPLEMENTATION_EXPECTED_TEST_MISSING", "The unit-test task proposal contains no canonical Vitest test artifact.");
+    if (proposedPaths.some((relativePath) => relativePath.includes("/spec.") || (relativePath.startsWith("src/") && !/^src\/.*\.test\.(?:ts|tsx)$/i.test(relativePath)))) throw new ImplementationError("IMPLEMENTATION_TEST_SCOPE_INVALID", "Unit tests must use the canonical src/**/*.test.ts or src/**/*.test.tsx layout.");
+    if (workspacePath) { const artifacts = discoverTestArtifacts(workspacePath, task); if (artifacts.length < (task.requiredArtifactCount ?? 1)) throw new ImplementationError("IMPLEMENTATION_EXPECTED_TEST_MISSING", `The unit-test task requires at least ${task.requiredArtifactCount ?? 1} real test artifact.`); if (artifacts.some((artifact) => isPlaceholder(artifact.content))) throw new ImplementationError("IMPLEMENTATION_TEST_PLACEHOLDER", "A generated unit-test artifact is an obvious placeholder rather than an application behavior test."); }
+  }
   if (task.taskType === "implement-project-foundation" && task.requiredArtifacts?.length) {
     const paths = new Set(proposal.operations.map((operation) => operation.relativePath.replaceAll("\\", "/")));
     const missing = task.requiredArtifacts.filter((path) => path !== "package-lock.json" && !paths.has(path));
