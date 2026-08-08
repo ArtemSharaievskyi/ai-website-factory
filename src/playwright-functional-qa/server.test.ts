@@ -5,7 +5,7 @@ import { FOUNDATION_PACKAGE_JSON } from "../implementation-agent/foundation-poli
 import { PlaywrightBrowserRunner } from "./browser";
 import { FunctionalQaPlanSchema } from "./contracts";
 import { FunctionalQaService } from "./service";
-import { NodeLocalTestServer, chooseLoopbackPort, waitForLocalReadiness } from "./server";
+import { NodeLocalTestServer, chooseLoopbackPort, waitForLocalReadiness, waitForLocalReadinessWithMetadata } from "./server";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
 const taskId = "22222222-2222-4222-8222-222222222222";
@@ -25,6 +25,7 @@ describe("generated foundation to local QA server contract", () => {
     try {
       expect(handle.pid).toBeGreaterThan(0);
       expect(handle.port).toBe(port);
+      expect(handle.lifecycle).toMatchObject({ commandIdentity: `npm run start:test -- --hostname 127.0.0.1 --port ${port}`, hostname: "127.0.0.1", cliPort: port, envPort: port, readinessRoute: "/" });
       expect(await waitForLocalReadiness(handle.baseUrl, handle.port, "/", 30000)).toBeLessThan(500);
     } finally {
       await server.stop(handle);
@@ -54,4 +55,7 @@ describe("generated foundation to local QA server contract", () => {
       await rm(root, { recursive: true, force: true });
     }
   }, 60000);
+  it("classifies an exited launcher before HTTP readiness instead of waiting for the deadline", async () => { await expect(waitForLocalReadinessWithMetadata("http://127.0.0.1:1", 1, "/", 5000, undefined, { isAlive: async () => false })).rejects.toMatchObject({ code: "QA_SERVER_RUNTIME_FAILED" }); });
+  it("rejects a QA workspace without a production build before spawning", async () => { const root = await mkdtemp(path.join(process.cwd(), ".qa-foundation-")); try { await mkdir(path.join(root, "project"), { recursive: true }); await writeFile(path.join(root, "project", "package.json"), FOUNDATION_PACKAGE_JSON); await expect(new NodeLocalTestServer().start({ workspacePath: path.join(root, "project"), port: await chooseLoopbackPort() })).rejects.toMatchObject({ code: "QA_SERVER_BUILD_NOT_FOUND" }); } finally { await rm(root, { recursive: true, force: true }); } });
+  it("keeps readiness bounded when an alive process never answers", async () => { const started = Date.now(); await expect(waitForLocalReadinessWithMetadata("http://127.0.0.1:1", 1, "/", 250, undefined, { isAlive: async () => true })).rejects.toMatchObject({ code: "QA_SERVER_READY_TIMEOUT" }); expect(Date.now() - started).toBeLessThan(2000); });
 });
