@@ -20,6 +20,7 @@ export const FOUNDATION_PACKAGE_POLICY = {
     vitest: "^3.2.4",
   },
   scripts: {
+    "start:test": "next start",
     lint: "eslint",
     typecheck: "tsc --noEmit",
     test: "vitest run",
