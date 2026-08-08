@@ -3,6 +3,7 @@ import { TaskGraphSchema, type AgentTask, type TaskGraph } from "../domain/tasks
 import { OrchestratorError } from "./errors";
 import { validateToolPolicy } from "./tools";
 import type { OrchestratorInput, OrchestrationPolicy } from "./contracts";
+import { validateExecutionCapabilities } from "../full-execution/capabilities";
 
 const infrastructure = new Set(["prepare-workspace", "implement-project-foundation", "validate-lint", "validate-typecheck", "validate-unit-tests", "validate-build", "validate-database", "validate-security", "validate-functional-flow", "prepare-release", "write-unit-tests", "write-integration-tests", "write-e2e-tests"]);
 const scope = (value: string) => value.replaceAll("\\", "/").replace(/^\.\//, "");
@@ -35,6 +36,7 @@ export function validateImplementationTaskGraph(graph: TaskGraph, input?: Orches
     if (task.taskType.startsWith("validate-") && task.dependencies.length === 0) errors.push("ORCHESTRATOR_GRAPH_INVALID");
   }
   const release = graph.tasks.find((task) => task.taskType === "prepare-release"); if (!release || !release.dependencies.every((dependency) => graph.tasks.find((task) => task.id === dependency)?.taskType.startsWith("validate-") || graph.tasks.find((task) => task.id === dependency)?.taskType === "validate-security")) errors.push("ORCHESTRATOR_GRAPH_INVALID");
+  for (const missing of validateExecutionCapabilities(graph.tasks.map((task) => task.taskType))) errors.push(`ORCHESTRATOR_EXECUTOR_MISSING:${missing}`);
   if (input) {
     const skillIds = new Set(input.approvedSkillRegistrySnapshot.skills.filter((skill) => skill.status === "approved").map((skill) => skill.id));
     for (const task of graph.tasks) for (const skill of task.allowedSkills) if (!skillIds.has(skill)) errors.push("TASK_SKILL_NOT_APPROVED");

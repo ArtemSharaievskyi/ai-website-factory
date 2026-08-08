@@ -2,6 +2,8 @@ import { checksumPersistedDocument } from "../persistence/serialization";
 import { validateImplementationTaskGraph } from "../orchestrator/validation";
 import { FullExecutionError } from "./errors";
 import { DEFAULT_FULL_EXECUTION_POLICY, type FullExecutionPolicy, type FullExecutionStartInput } from "./contracts";
+export { taskExecutionCapability, validateExecutionCapabilities, PRODUCTION_EXECUTION_CAPABILITIES } from "./capabilities";
+export type { ExecutionCapability } from "./capabilities";
 
 export function graphChecksum(graph: FullExecutionStartInput["graph"]) { const value = { ...graph }; delete value.graphChecksum; return checksumPersistedDocument(value); }
 export function validateFullExecutionReadiness(input: FullExecutionStartInput, policy: FullExecutionPolicy = DEFAULT_FULL_EXECUTION_POLICY) {
