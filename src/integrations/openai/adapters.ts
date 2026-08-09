@@ -14,6 +14,9 @@ import type { OrchestrationPlanningProvider } from "@/orchestration/orchestrator
 import { ArchitectureReviewProviderOutputSchema, type ArchitectureReviewResult } from "@/domain/review/schema";
 import type { ArchitectureReviewInput } from "@/agents/reviewers/architecture/contracts";
 import type { ArchitectureReviewProvider } from "@/agents/reviewers/architecture/ports";
+import type { ContractAuditProvider } from "@/agents/reviewers/contracts/ports";
+import type { ContractAuditInput } from "@/agents/reviewers/contracts/contracts";
+import { ContractAuditProviderOutputSchema, type ContractAuditResult } from "@/domain/review/schema";
 import { z } from "zod";
 import { IsoDateTimeSchema, NonEmptyStringSchema } from "@/domain/shared/schemas";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
@@ -132,5 +135,10 @@ export class OpenAiArchitectureReviewerProvider implements ArchitectureReviewPro
   constructor(private readonly ai: OpenAiStructuredClient) {}
   async review(input: ArchitectureReviewInput, signal?: AbortSignal): Promise<ArchitectureReviewResult> { const prompt = rolePrompt("architecture-reviewer", input); return (await this.ai.request({ ...prompt, role: "architecture-reviewer", schema: ArchitectureReviewProviderOutputSchema, schemaName: "architecture-review-result", signal, idempotencyKey: input.idempotencyKey })).value as ArchitectureReviewResult; }
 }
-export function createProviderAdapters(ai: OpenAiStructuredClient) { return { lead: new OpenAiLeadProvider(ai), planner: new OpenAiPlannerProvider(ai), design: new OpenAiDesignProvider(ai), implementation: new OpenAiImplementationProvider(ai), architectureReviewer: new OpenAiArchitectureReviewerProvider(ai), orchestrator: new OpenAiOrchestrationProvider(ai) }; }
+export class OpenAiContractAuditorProvider implements ContractAuditProvider {
+  readonly promptVersion = "contract-auditor.v1";
+  constructor(private readonly ai: OpenAiStructuredClient) {}
+  async review(input: ContractAuditInput, signal?: AbortSignal): Promise<ContractAuditResult> { const prompt = rolePrompt("contract-auditor", input); return (await this.ai.request({ ...prompt, role: "contract-auditor", schema: ContractAuditProviderOutputSchema, schemaName: "contract-audit-result", signal, idempotencyKey: input.idempotencyKey })).value as ContractAuditResult; }
+}
+export function createProviderAdapters(ai: OpenAiStructuredClient) { return { lead: new OpenAiLeadProvider(ai), planner: new OpenAiPlannerProvider(ai), design: new OpenAiDesignProvider(ai), implementation: new OpenAiImplementationProvider(ai), architectureReviewer: new OpenAiArchitectureReviewerProvider(ai), contractAuditor: new OpenAiContractAuditorProvider(ai), orchestrator: new OpenAiOrchestrationProvider(ai) }; }
 export type { ProviderUsageSink };

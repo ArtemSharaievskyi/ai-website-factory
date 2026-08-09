@@ -39,3 +39,17 @@ export const ArchitectureReviewRecordSchema = z.object({
 }).strict();
 export type ArchitectureReviewRecord = z.infer<typeof ArchitectureReviewRecordSchema>;
 export const ArchitectureReviewHistorySchema = z.object({ schemaVersion: z.literal(1), documentType: z.literal("architecture-review-history"), projectId: z.string().uuid(), projectVersion: z.number().int().positive(), createdAt: IsoDateTimeSchema, updatedAt: IsoDateTimeSchema, records: z.array(ArchitectureReviewRecordSchema) }).strict();
+export const ContractFindingCategorySchema = z.enum(["REQUIREMENT_NOT_TRACED", "REQUIREMENT_CONTRADICTION", "ARTIFACT_NOT_OWNED", "ARTIFACT_MULTIPLE_OWNERS", "TASK_REQUIREMENT_MISSING", "TASK_CAPABILITY_MISSING", "EXECUTOR_MISSING", "VALIDATION_NOT_SCHEDULED", "IDENTITY_MISMATCH", "REFERENCE_NOT_FOUND", "DESIGN_CONTRACT_MISMATCH", "FORM_CONTRACT_MISMATCH", "DATA_CONTRACT_MISMATCH", "ROUTE_CONTRACT_MISMATCH", "SCOPE_CONTRACT_MISMATCH", "DEPENDENCY_CONTRACT_MISMATCH"]);
+export const ContractCorrectionTargetSchema = z.enum(["PLANNING", "DESIGN", "TASKGRAPH", "WORKFLOW_CONTRACT"]);
+export const ContractAuditFindingSchema = ReviewFindingSchema.extend({ category: ContractFindingCategorySchema, correctionTarget: ContractCorrectionTargetSchema.optional() });
+export const ContractAuditResultSchema = ReviewResultSchema.safeExtend({ findings: z.array(ContractAuditFindingSchema) }).strict();
+export type ContractAuditFinding = z.infer<typeof ContractAuditFindingSchema>;
+export type ContractAuditResult = z.infer<typeof ContractAuditResultSchema>;
+export const ContractAuditProviderOutputSchema = z.object({ verdict: ReviewVerdictSchema, findings: z.array(ContractAuditFindingSchema), reviewedArtifactRefs: z.array(ReviewEvidenceReferenceSchema).min(1), policyVersion: z.string().min(1), blockedReason: z.string().min(1).optional() }).strict();
+export const ContractAuditRecordSchema = z.object({
+  schemaVersion: z.literal(1), documentType: z.literal("contract-audit"), projectId: z.string().uuid(), projectVersion: z.number().int().positive(), createdAt: IsoDateTimeSchema, updatedAt: IsoDateTimeSchema,
+  auditId: z.string().uuid(), auditorAgentId: z.literal("contract-auditor"), auditorVersion: z.string().min(1), capability: z.literal("review.contracts"), policyVersion: z.literal("contract-audit-v1"), promptVersion: z.string().min(1),
+  briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), planningChecksum: z.string().regex(/^[a-f0-9]{64}$/), architectureReviewId: z.string().uuid(), architectureReviewChecksum: z.string().regex(/^[a-f0-9]{64}$/), designChecksum: z.string().regex(/^[a-f0-9]{64}$/), taskGraphChecksum: z.string().regex(/^[a-f0-9]{64}$/), resultChecksum: z.string().regex(/^[a-f0-9]{64}$/), result: ContractAuditResultSchema,
+}).strict();
+export type ContractAuditRecord = z.infer<typeof ContractAuditRecordSchema>;
+export const ContractAuditHistorySchema = z.object({ schemaVersion: z.literal(1), documentType: z.literal("contract-audit-history"), projectId: z.string().uuid(), projectVersion: z.number().int().positive(), createdAt: IsoDateTimeSchema, updatedAt: IsoDateTimeSchema, records: z.array(ContractAuditRecordSchema) }).strict();

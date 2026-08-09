@@ -1,14 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { AgentDefinitionSchema } from "@/domain/agents/schema";
-import { agentCatalog, AGENT_CAPABILITY_IDS, AGENT_TOOL_IDS, assertAgentSupportsCapability, findAgentById, findAgentsByCapability, implementationAgentDefinition, architectureReviewerAgentDefinition, leadAgentDefinition, plannerAgentDefinition, designAgentDefinition, resolveApprovedSkillIds, validateAgentCatalog, AgentCatalogError } from "./catalog";
+import { agentCatalog, AGENT_CAPABILITY_IDS, AGENT_TOOL_IDS, assertAgentSupportsCapability, findAgentById, findAgentsByCapability, implementationAgentDefinition, architectureReviewerAgentDefinition, contractAuditorAgentDefinition, leadAgentDefinition, plannerAgentDefinition, designAgentDefinition, resolveApprovedSkillIds, validateAgentCatalog, AgentCatalogError } from "./catalog";
 import { LeadAgentService } from "./lead/service";
 import { PlannerArchitectService } from "./planner/service";
 import { DesignAgentService } from "./design/service";
 import { ImplementationAgentService } from "./implementation/service";
 import { ArchitectureReviewService } from "./reviewers/architecture/service";
+import { ContractAuditService } from "./reviewers/contracts/service";
 
 describe("typed agent catalog", () => {
-  it("contains exactly the five current agents", () => expect(agentCatalog.map((agent) => agent.agentId)).toEqual(["lead", "planner", "design", "implementation", "architecture-reviewer"]));
+  it("contains exactly the six current agents", () => expect(agentCatalog.map((agent) => agent.agentId)).toEqual(["lead", "planner", "design", "implementation", "architecture-reviewer", "contract-auditor"]));
   it("has unique identities and exclusive current capabilities", () => {
     expect(new Set(agentCatalog.map((agent) => agent.agentId)).size).toBe(agentCatalog.length);
     expect(new Set(agentCatalog.flatMap((agent) => agent.capabilities)).size).toBe(AGENT_CAPABILITY_IDS.length);
@@ -50,5 +51,6 @@ describe("typed agent catalog", () => {
     expect(Object.create(DesignAgentService.prototype).getAgentDefinition()).toBe(designAgentDefinition);
     expect(Object.create(ImplementationAgentService.prototype).getAgentDefinition()).toBe(implementationAgentDefinition);
     expect(Object.create(ArchitectureReviewService.prototype).getAgentDefinition()).toBe(architectureReviewerAgentDefinition);
+    expect(Object.create(ContractAuditService.prototype).getAgentDefinition()).toBe(contractAuditorAgentDefinition);
   });
 });
