@@ -12,6 +12,7 @@ import { PlannerAgentInputSchema, PlanningPackageSchema, type PlannerAgentInput,
 import { EmptyPlannerSkillSelectionPort, type PlannerArchitectureProvider, type PlannerDocumentationPort, type PlannerMemoryPort, type PlannerSkillSelectionPort } from "./ports";
 import { requestPlannerDocumentation } from "../../integrations/context7/planner";
 import { isPlaceholderImageApprovalBlocker } from "../../integrations/openai/adapters";
+import { plannerAgentDefinition } from "@/agents/catalog";
 
 const now = () => new Date().toISOString();
 export type PlannerServiceDependencies = { database: PersistenceDatabase; memory: PlannerMemoryPort; provider?: PlannerArchitectureProvider; skills?: PlannerSkillSelectionPort; context7?: PlannerDocumentationPort };
@@ -20,6 +21,7 @@ export class PlannerArchitectService {
   private readonly projects; private readonly documents; private readonly decisions; private readonly provider: PlannerArchitectureProvider; private readonly skills: PlannerSkillSelectionPort;
   private readonly packages = new Map<string, PlanningPackage>(); private readonly inputKeys = new Map<string, string>();
   constructor(private readonly dependencies: PlannerServiceDependencies) { this.projects = new ProjectRepository(dependencies.database); this.documents = new DocumentRepository(dependencies.database); this.decisions = new DecisionRepository(dependencies.database); this.provider = dependencies.provider ?? { plan: async (input) => buildPlanningPackage(input) }; this.skills = dependencies.skills ?? new EmptyPlannerSkillSelectionPort(); }
+  getAgentDefinition() { return plannerAgentDefinition; }
   private packageKey(projectId: string, version: number) { return `${projectId}:${version}`; }
   private parseInput(input: PlannerAgentInput) { try { return PlannerAgentInputSchema.parse(input); } catch (error) { throw new PlannerError("PLANNER_INPUT_INVALID", "Planner input did not match the strict contract.", error); } }
   private validateBrief(input: PlannerAgentInput) {

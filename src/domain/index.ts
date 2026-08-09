@@ -1,4 +1,5 @@
 export * from "./architecture/schema";
+export * from "./agents/schema";
 export * from "./assets/schema";
 export * from "./content/schema";
 export * from "./design/schema";
@@ -7,6 +8,7 @@ export * from "./project/schema";
 export * from "./quality/schema";
 export * from "./release/schema";
 export * from "./requirements/schema";
+export * from "./review/schema";
 export * from "./shared/errors";
 export * from "./shared/schemas";
 export * from "./tasks/schema";
