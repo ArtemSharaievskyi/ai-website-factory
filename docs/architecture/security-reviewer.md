@@ -1,0 +1,11 @@
+# Security Reviewer
+
+The Security Reviewer is a read-only semantic reviewer for contextual security properties of the generated application. It runs after an approved Code / Integration Review and deterministic security evidence. It receives a bounded global security summary plus relevant source slices, never the full repository, secrets, `.env` contents, raw prompts, or chain-of-thought.
+
+Deterministic guards own mechanically provable facts: unsafe paths, restricted files, secret-like source patterns, privileged environment use in client context, npm audit evidence, stale checksums, missing required authentication/RLS/storage responsibilities, and missing review prerequisites. The AI reviewer handles contextual questions such as whether validated input is actually used, whether authorization is enforced at the server boundary, whether RLS semantics match ownership, whether admin behavior relies only on UI hiding, or whether sensitive errors cross the user boundary.
+
+The derived security surface is intentionally small: `NONE`, `FORM_INPUT`, `SERVER_ACTION`, `ROUTE_HANDLER`, `AUTH`, `DATABASE`, `STORAGE`, `UPLOAD`, `ADMIN`, `EMAIL`, and `EXTERNAL_API`. A policy-driven `NONE` surface may skip semantic AI review after deterministic checks pass; the skip and surface classification are persisted. Any meaningful security surface requires the bounded semantic review.
+
+Source context is sanitized before the OpenAI adapter. Secret-like values are redacted while safe variable names and relative evidence references remain available. Findings reuse `ReviewResult` and `ReviewFinding`, use compact security categories, and identify implementation ownership or `UPSTREAM_SECURITY_CONTRACT`. The reviewer cannot create ChangeProposals, mutate source/database/RLS/TaskGraph, or invoke Implementation. Corrections are orchestrated as bounded implementation work and limited to two cycles.
+
+Records are immutable and bound to Brief, Planning, Architecture Review, selected Design, Contract Audit, TaskGraph, Code / Integration Review, source, and deterministic security evidence checksums, plus agent/prompt/policy versions. Any relevant change makes approval stale. The quality flow is `CODE_INTEGRATION_REVIEW -> SECURITY_REVIEW -> VALIDATING`; Security and Test/Quality Reviewers remain distinct capabilities, and no external skills are assigned.

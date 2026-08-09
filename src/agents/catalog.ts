@@ -4,10 +4,10 @@ import { z } from "zod";
 
 export const AGENT_TOOL_IDS = ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read"] as const satisfies readonly z.infer<typeof AgentToolIdSchema>[];
 export type AgentToolId = (typeof AGENT_TOOL_IDS)[number];
-export const AGENT_CAPABILITY_IDS = ["requirements.clarify", "requirements.brief", "planning.architecture", "planning.content", "planning.assets", "design.directions", "design.selection", "implementation.code", "implementation.backend", "review.architecture", "review.contracts", "review.integration"] as const satisfies readonly z.infer<typeof CapabilityIdSchema>[];
+export const AGENT_CAPABILITY_IDS = ["requirements.clarify", "requirements.brief", "planning.architecture", "planning.content", "planning.assets", "design.directions", "design.selection", "implementation.code", "implementation.backend", "review.architecture", "review.contracts", "review.integration", "review.security"] as const satisfies readonly z.infer<typeof CapabilityIdSchema>[];
 export type AgentCapabilityId = (typeof AGENT_CAPABILITY_IDS)[number];
 
-const CONTRACT_REFERENCES = new Set(["lead.input", "lead.output", "planner.input", "planner.output", "design.input", "design.output", "implementation.input", "implementation.output", "architecture-reviewer.input", "contract-auditor.input", "code-integration-reviewer.input", "review.output"]);
+const CONTRACT_REFERENCES = new Set(["lead.input", "lead.output", "planner.input", "planner.output", "design.input", "design.output", "implementation.input", "implementation.output", "architecture-reviewer.input", "contract-auditor.input", "code-integration-reviewer.input", "security-reviewer.input", "review.output"]);
 const CURRENT_TASK_TYPES = new Set<string>([
   ...ImplementationTaskTypeSchema.options,
   "clarify-requirements",
@@ -19,6 +19,7 @@ const CURRENT_TASK_TYPES = new Set<string>([
   "review-architecture",
   "review-contracts",
   "review-code-integration",
+  "review-security",
 ]);
 const IMPLEMENTATION_TASK_TYPES = ["prepare-workspace", "implement-project-foundation", "implement-design-system", "implement-shared-layout", "implement-navigation", "implement-page", "implement-shared-component", "implement-form", "implement-server-action", "implement-route-handler", "implement-database-schema", "implement-rls-policy", "implement-authentication", "implement-storage", "implement-email", "integrate-assets", "integrate-content", "implement-seo", "implement-motion", "write-unit-tests", "write-integration-tests", "write-e2e-tests", "repair-targeted-failure"];
 
@@ -83,8 +84,14 @@ export const codeIntegrationReviewerAgentDefinition = definition({
   contextPolicy: { version: "code-integration-review-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "TASK_SLICE", "CODEBASE_CONTEXT", "PREVIOUS_FINDINGS"], maxBytes: 180000, maxItems: 120 },
   inputContract: { schemaId: "code-integration-reviewer.input", version: "1" }, outputContract: { schemaId: "review.output", version: "1" }, promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "code-integration-reviewer.v1", policyVersions: { context: "code-integration-review-context-v1", execution: "code-integration-review-execution-v1" }, executionPolicy: { aiGenerationAllowed: true, retryClass: "bounded-provider", cancellationSupported: true, concurrencyClass: "single-flight", requiresExplicitApprovalBeforeTransition: false }, readOnly: true,
 });
+export const securityReviewerAgentDefinition = definition({
+  agentId: "security-reviewer", displayName: "Security Reviewer", role: "review", version: "1.0.0",
+  capabilities: ["review.security"], supportedTaskTypes: ["review-security"], allowedTools: ["openai-generation"], allowedSkillIds: [],
+  contextPolicy: { version: "security-review-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "TASK_SLICE", "CODEBASE_CONTEXT", "PREVIOUS_FINDINGS"], maxBytes: 180000, maxItems: 120 },
+  inputContract: { schemaId: "security-reviewer.input", version: "1" }, outputContract: { schemaId: "review.output", version: "1" }, promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "security-reviewer.v1", policyVersions: { context: "security-review-context-v1", execution: "security-review-execution-v1" }, executionPolicy: { aiGenerationAllowed: true, retryClass: "bounded-provider", cancellationSupported: true, concurrencyClass: "single-flight", requiresExplicitApprovalBeforeTransition: false }, readOnly: true,
+});
 
-export const agentCatalog = [leadAgentDefinition, plannerAgentDefinition, designAgentDefinition, implementationAgentDefinition, architectureReviewerAgentDefinition, contractAuditorAgentDefinition, codeIntegrationReviewerAgentDefinition] as const satisfies readonly AgentDefinition[];
+export const agentCatalog = [leadAgentDefinition, plannerAgentDefinition, designAgentDefinition, implementationAgentDefinition, architectureReviewerAgentDefinition, contractAuditorAgentDefinition, codeIntegrationReviewerAgentDefinition, securityReviewerAgentDefinition] as const satisfies readonly AgentDefinition[];
 
 export class AgentCatalogError extends Error { constructor(readonly code: "DUPLICATE_AGENT_ID" | "DUPLICATE_CAPABILITY" | "UNKNOWN_CONTRACT" | "UNKNOWN_TASK_TYPE" | "UNKNOWN_SKILL" | "AGENT_NOT_FOUND" | "CAPABILITY_NOT_SUPPORTED", message: string) { super(message); this.name = "AgentCatalogError"; } }
 

@@ -6,7 +6,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Repository boundaries
 
-- AI agents live under `src/agents/`: Lead, Planner, Design, Implementation, the read-only Architecture Reviewer, Contract Auditor, and Code / Integration Reviewer under `src/agents/reviewers/code-integration/`.
+- AI agents live under `src/agents/`: Lead, Planner, Design, Implementation, the read-only Architecture Reviewer, Contract Auditor, Code / Integration Reviewer, and Security Reviewer under `src/agents/reviewers/security/`.
 - Orchestration lives under `src/orchestration/`; it coordinates lifecycle, TaskGraph execution, retry, repair, and reconciliation.
 - Shared domain contracts live under `src/domain/`.
 - External adapters live under `src/integrations/`.
@@ -17,8 +17,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## Typed agent contracts
 
 - `src/domain/agents/schema.ts` defines the shared `AgentDefinition` contract: identity, role, capabilities, task types, tools, approved skills, bounded context categories, input/output contracts, prompt ownership, policy versions, and execution metadata.
-- `src/agents/catalog.ts` is the authoritative catalog for the seven current agents. Capabilities are explicit and exclusive; routing resolves a capability to a catalog entry before a service runs.
+- `src/agents/catalog.ts` is the authoritative catalog for the eight current agents. Capabilities are explicit and exclusive; routing resolves a capability to a catalog entry before a service runs.
 - Tools are typed integration permissions. Skills are separate reviewed content references and are resolved only when explicitly approved. No wildcard permissions are valid.
 - AI agents may propose or transform typed artifacts; deterministic validators and runtime QA remain outside the AI catalog. Architecture Reviewer owns architecture quality; Contract Auditor owns cross-artifact traceability. Both use read-only review contracts and have no source, Brief, Planning, Design, TaskGraph, shell, or arbitrary database mutation path.
 
-Architecture Reviewer, Contract Auditor, and Code / Integration Reviewer are implemented in the reviewer family. Security and Test/Quality reviewers remain planned and have no placeholder directories. Code / Integration Reviewer is read-only, requires structural validation/lint/typecheck evidence, and reviews bounded source semantics rather than compiler, security, or test strategy concerns.
+Architecture Reviewer, Contract Auditor, Code / Integration Reviewer, and Security Reviewer are implemented in the reviewer family. Test/Quality reviewer remains planned and has no placeholder directory. Code / Integration Reviewer is read-only, requires structural validation/lint/typecheck evidence, and reviews bounded source semantics rather than compiler, security, or test strategy concerns. Security Reviewer is read-only, requires current Code / Integration approval and deterministic security evidence, sanitizes source context, and reviews contextual security rather than general code integration or test strategy.
