@@ -27,6 +27,7 @@ async function main() {
   console.log(
     JSON.stringify({
       searches: result.searchQueries.length,
+      availability: result.availability,
       details: result.detailCandidatesFetched,
       evaluations: result.evaluations.length,
       shortlisted: result.evaluations.filter(

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -40,6 +40,7 @@ const transportFor = (body: unknown, statuses: number[] = []) => {
 };
 const roots: string[] = [];
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await Promise.all(
     roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
   );
@@ -64,11 +65,14 @@ describe("skills.sh source adapter", () => {
           slug: "review",
           name: "Review",
           source: "vercel-labs/skills",
+          installUrl: null,
           url: "https://skills.sh/vercel-labs/skills/review",
         },
       ],
       query: "review",
       count: 1,
+      searchType: "semantic",
+      durationMs: 42,
     });
     const adapter = new SkillsShSourceAdapter({ transport: fixture.transport });
     const result = await adapter.searchSkills("review", { limit: 200 });
@@ -110,6 +114,89 @@ describe("skills.sh source adapter", () => {
     await expect(missing.getSkillAudit(detail.id)).resolves.toMatchObject({
       available: false,
     });
+  });
+  it("fails before transport when administrative authentication is missing", async () => {
+    vi.stubEnv("VERCEL_OIDC_TOKEN", "");
+    const fixture = transportFor({ data: [] });
+    const adapter = new SkillsShSourceAdapter({
+      transport: fixture.transport,
+      requireAuthentication: true,
+    });
+    await expect(adapter.searchSkills("review")).rejects.toMatchObject({
+      code: "SKILLS_SH_AUTH_REQUIRED",
+    });
+    expect(fixture.calls()).toBe(0);
+  });
+  it("adds a bearer token only inside the transport and never exposes it in an auth error", async () => {
+    const token = "test-oidc-token-not-a-real-secret";
+    let observedHeaders: Record<string, string> | undefined;
+    const adapter = new SkillsShSourceAdapter({
+      requireAuthentication: true,
+      credentialProvider: () => token,
+      transport: async (_url, input) => {
+        observedHeaders = input.headers;
+        return response({}, 401);
+      },
+    });
+    const failure = await adapter.searchSkills("review").catch((error) => error);
+    expect(failure.code).toBe("SKILLS_SH_AUTH_INVALID");
+    expect(observedHeaders?.Authorization).toBe(`Bearer ${token}`);
+    expect(String(failure)).not.toContain(token);
+  });
+  it.each([
+    [401, "SKILLS_SH_AUTH_REQUIRED"],
+    [403, "SKILLS_SH_ACCESS_FORBIDDEN"],
+    [404, "SKILLS_SH_API_CONTRACT_MISMATCH"],
+    [400, "SKILLS_SH_API_CONTRACT_MISMATCH"],
+    [422, "SKILLS_SH_API_CONTRACT_MISMATCH"],
+  ] as const)("classifies HTTP %s without retrying", async (status, code) => {
+    const fixture = transportFor({}, [status, 200]);
+    const adapter = new SkillsShSourceAdapter({
+      transport: fixture.transport,
+      requireAuthentication: false,
+    });
+    await expect(adapter.searchSkills("review")).rejects.toMatchObject({ code });
+    expect(fixture.calls()).toBe(1);
+  });
+  it("retries 429 only within the configured bound", async () => {
+    const fixture = transportFor({ data: [] }, [429, 429, 200]);
+    const adapter = new SkillsShSourceAdapter({
+      transport: fixture.transport,
+      requireAuthentication: false,
+    });
+    await expect(adapter.searchSkills("review")).resolves.toEqual([]);
+    expect(fixture.calls()).toBe(3);
+  });
+  it("classifies timeout and network failures safely", async () => {
+    const timeout = new SkillsShSourceAdapter({
+      source: {
+        ...DEFAULT_SKILLS_SH_SOURCE,
+        fetchPolicy: { ...DEFAULT_SKILLS_SH_SOURCE.fetchPolicy, timeoutMs: 1, maxRetries: 1 },
+      },
+      requireAuthentication: false,
+      transport: async (_url, input) =>
+        await new Promise<never>((_resolve, reject) =>
+          input.signal.addEventListener("abort", () => reject(new DOMException("timeout", "AbortError")), { once: true }),
+        ),
+    });
+    await expect(timeout.searchSkills("review")).rejects.toMatchObject({ code: "SKILLS_SH_REQUEST_TIMEOUT" });
+    const network = new SkillsShSourceAdapter({
+      requireAuthentication: false,
+      transport: async () => { throw new Error("network unavailable"); },
+    });
+    await expect(network.searchSkills("review")).rejects.toMatchObject({ code: "SKILLS_SH_NETWORK_FAILED" });
+  });
+  it("keeps malformed JSON and schema mismatch as response errors", async () => {
+    const malformed = new SkillsShSourceAdapter({
+      requireAuthentication: false,
+      transport: async () => response("{"),
+    });
+    await expect(malformed.searchSkills("review")).rejects.toMatchObject({ code: "SKILLS_SH_RESPONSE_INVALID" });
+    const mismatch = new SkillsShSourceAdapter({
+      requireAuthentication: false,
+      transport: async () => response({ data: "not-an-array" }),
+    });
+    await expect(mismatch.searchSkills("review")).rejects.toMatchObject({ code: "SKILLS_SH_RESPONSE_INVALID" });
   });
   it("rejects malformed identifiers and unsafe content paths", async () => {
     const fixture = transportFor({

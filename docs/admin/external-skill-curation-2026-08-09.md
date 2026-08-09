@@ -1,17 +1,21 @@
 # External Skill Curation Report
 
-Generated: 2026-08-09T14:20:22.464Z
+Generated: 2026-08-09T14:40:38.192Z
 
 Policy version: `external-skill-curation-v1`
 
 This is an administrative discovery/evaluation report. External content remains untrusted. No candidate was approved, assigned to an agent, executed, rewritten, or used to change Factory runtime behavior. External audit results are advisory metadata only.
 
+Availability state: **AUTH_REQUIRED**
+
+Official skills.sh API authentication is required for live discovery.
+
 ## Session summary
 
-- Live search queries: 5
-- Search queries: `software architecture review module boundaries`, `requirements traceability acceptance criteria API contract`, `React Next.js TypeScript code integration review`, `Next.js Supabase PostgreSQL RLS authorization security review`, `Playwright Vitest webapp test strategy quality review`
+- Live search queries: 1
+- Search queries attempted: `software architecture review module boundaries`
 - Detail candidates fetched: 0
-- Source retrieval issues: 5 (all five controlled search calls reported the skills.sh source as unavailable)
+- Source retrieval issues: 1 (architecture-reviewer: AUTH_REQUIRED)
 - Evaluations persisted: 0
 - Shortlisted: 0
 - Rejected: 0

@@ -6,6 +6,14 @@ The supported read-only endpoints are the public search endpoint and explicit sk
 
 The lifecycle is: `search -> explicit candidate selection -> bounded detail fetch -> normalized descriptor/provenance -> existing STAGING registry -> deterministic parser/security review -> explicit manual approval -> checksum-bound immutable APPROVED copy`.
 
+The official API currently requires a Vercel OIDC bearer credential for live
+administrative requests. The adapter reads `VERCEL_OIDC_TOKEN` only when an
+administrative request is made and sends it as `Authorization: Bearer <token>`.
+Missing credentials fail fast as `SKILLS_SH_AUTH_REQUIRED`; 401, 403, 429, and
+transient/network failures receive distinct safe classifications. The token is
+never included in errors, reports, provenance, checksums, skill content, or
+runtime/AI context. Local approved-skill loading does not use this credential.
+
 Discovery and fetching never approve or assign a skill. Staged candidates retain the external ID, canonical source reference, retrieval timestamp, retrieved content checksum, normalized checksum, and existing registry manifest checksum. Upstream changes produce a new candidate and require new approval; approved historical copies are never overwritten.
 
 External content is untrusted text. Shell, install, prompt-injection, authority-override, secret-exfiltration, privilege, destructive, obfuscated, and similar instructions are statically quarantined where detected. Code examples are not executable. No imported script is run, no package is installed, and no agent definition is modified. Skill text cannot grant tools or permissions: `AgentDefinition` remains authoritative, wildcard skill permissions are rejected, and runtime loading can require an explicit allowed-skill snapshot.

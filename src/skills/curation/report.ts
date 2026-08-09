@@ -3,6 +3,17 @@ import {
   type SkillCandidateEvaluation,
 } from "./contracts";
 
+export type CurationAvailability =
+  | "AVAILABLE"
+  | "AUTH_REQUIRED"
+  | "AUTH_INVALID"
+  | "ACCESS_FORBIDDEN"
+  | "RATE_LIMITED"
+  | "UNAVAILABLE"
+  | "NETWORK_ERROR"
+  | "TIMEOUT"
+  | "API_ERROR";
+
 const reviewerLabels: Record<CurationReviewer, string> = {
   "architecture-reviewer": "Architecture Reviewer",
   "contract-auditor": "Contract Auditor",
@@ -18,6 +29,7 @@ const auditLabel = (evaluation: SkillCandidateEvaluation) =>
 
 export type CurationReportInput = {
   generatedAt: string;
+  availability: CurationAvailability;
   searchQueries: string[];
   detailCandidatesFetched: number;
   sourceIssues: readonly string[];
@@ -56,10 +68,14 @@ Policy version: \`external-skill-curation-v1\`
 
 This is an administrative discovery/evaluation report. External content remains untrusted. No candidate was approved, assigned to an agent, executed, rewritten, or used to change Factory runtime behavior. External audit results are advisory metadata only.
 
+Availability state: **${input.availability}**
+
+${input.availability === "AUTH_REQUIRED" ? "Official skills.sh API authentication is required for live discovery." : ""}
+
 ## Session summary
 
 - Live search queries: ${input.searchQueries.length}
-- Search queries: ${input.searchQueries.map((query) => `\`${query}\``).join(", ")}
+- Search queries attempted: ${input.searchQueries.map((query) => `\`${query}\``).join(", ") || "none"}
 - Detail candidates fetched: ${input.detailCandidatesFetched}
 - Source retrieval issues: ${input.sourceIssues.length}${input.sourceIssues.length ? ` (${input.sourceIssues.join("; ")})` : ""}
 - Evaluations persisted: ${evaluations.length}

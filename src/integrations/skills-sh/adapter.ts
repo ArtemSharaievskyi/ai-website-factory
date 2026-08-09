@@ -87,14 +87,14 @@ export function validateSkillsShUrl(
 
 async function defaultTransport(
   url: string,
-  input: { signal: AbortSignal },
+  input: { signal: AbortSignal; headers?: Record<string, string> },
   maxResponseBytes = DEFAULT_SKILLS_SH_SOURCE.fetchPolicy.maxResponseBytes,
 ): Promise<SkillsShHttpResponse> {
   const response = await fetch(url, {
     method: "GET",
     redirect: "manual",
     signal: input.signal,
-    headers: { accept: "application/json" },
+    headers: { accept: "application/json", ...input.headers },
   });
   const contentLength = Number(response.headers.get("content-length") ?? 0);
     if (contentLength > maxResponseBytes)
@@ -139,18 +139,30 @@ async function defaultTransport(
   };
 }
 
+export type SkillsShCredentialProvider = () => string | undefined;
+export const readSkillsShCredential: SkillsShCredentialProvider = () => {
+  const token = process.env.VERCEL_OIDC_TOKEN?.trim();
+  return token || undefined;
+};
+
 export class SkillsShSourceAdapter {
   readonly source: SkillsShSource;
   constructor(
     options: {
       source?: SkillsShSource;
       transport?: SkillsShHttpTransport;
+      credentialProvider?: SkillsShCredentialProvider;
+      requireAuthentication?: boolean;
     } = {},
   ) {
     this.source = SkillsShSourceSchema.parse(options.source ?? DEFAULT_SKILLS_SH_SOURCE);
+    this.credentialProvider = options.credentialProvider ?? readSkillsShCredential;
+    this.requireAuthentication = options.requireAuthentication ?? !options.transport;
     this.transport = options.transport ?? ((url, input) => defaultTransport(url, input, this.source.fetchPolicy.maxResponseBytes));
   }
   private readonly transport: SkillsShHttpTransport;
+  private readonly credentialProvider: SkillsShCredentialProvider;
+  private readonly requireAuthentication: boolean;
   private urlFor(pathname: string) {
     const url = validateSkillsShUrl(`${SKILLS_SH_ORIGIN}${pathname}`);
     return url.toString();
@@ -167,14 +179,26 @@ export class SkillsShSourceAdapter {
         "SKILLS_SH_SOURCE_UNAVAILABLE",
         "The skills.sh request was cancelled.",
       );
+    const credential = this.requireAuthentication
+      ? this.credentialProvider()?.trim()
+      : undefined;
+    if (this.requireAuthentication && !credential)
+      throw new SkillsShError(
+        "SKILLS_SH_AUTH_REQUIRED",
+        "Official skills.sh API authentication is required for this administrative request.",
+      );
     for (
       let attempt = 0;
       attempt <= this.source.fetchPolicy.maxRetries;
       attempt += 1
     ) {
       const timeout = new AbortController();
+      let timedOut = false;
       const timer = setTimeout(
-        () => timeout.abort(),
+        () => {
+          timedOut = true;
+          timeout.abort();
+        },
         this.source.fetchPolicy.timeoutMs,
       );
       const onAbort = () => timeout.abort();
@@ -182,6 +206,9 @@ export class SkillsShSourceAdapter {
       try {
         const result = await this.transport(target.toString(), {
           signal: timeout.signal,
+          headers: credential
+            ? { Authorization: `Bearer ${credential}` }
+            : undefined,
         });
         const contentType = Object.entries(result.headers).find(
           ([key]) => key.toLowerCase() === "content-type",
@@ -197,19 +224,49 @@ export class SkillsShSourceAdapter {
             "Redirects are not permitted for skills.sh retrieval.",
           );
         if (options.allowedStatuses?.includes(result.status)) return result;
+        if (result.status === 401)
+          throw new SkillsShError(
+            credential ? "SKILLS_SH_AUTH_INVALID" : "SKILLS_SH_AUTH_REQUIRED",
+            credential
+              ? "The supplied skills.sh API credential was rejected."
+              : "Official skills.sh API authentication is required for this administrative request.",
+          );
+        if (result.status === 403)
+          throw new SkillsShError(
+            "SKILLS_SH_ACCESS_FORBIDDEN",
+            "The skills.sh API denied this administrative request.",
+          );
+        if (result.status === 400 || result.status === 422)
+          throw new SkillsShError(
+            "SKILLS_SH_API_CONTRACT_MISMATCH",
+            "The skills.sh API rejected the request parameters.",
+          );
+        if (result.status === 404)
+          throw new SkillsShError(
+            "SKILLS_SH_API_CONTRACT_MISMATCH",
+            "The requested skills.sh API resource was not found.",
+          );
         if (result.status === 429 || result.status >= 500) {
           if (attempt < this.source.fetchPolicy.maxRetries) {
-            await sleep(25 * (attempt + 1), external);
+            const retryAfter = this.header(result.headers, "retry-after");
+            const retryMs = retryAfter
+              ? Math.min(10_000, Math.max(25, Number(retryAfter) * 1000 || 25))
+              : 25 * (attempt + 1);
+            await sleep(retryMs, external);
             continue;
           }
           throw new SkillsShError(
-            "SKILLS_SH_SOURCE_UNAVAILABLE",
-            "The skills.sh source is temporarily unavailable.",
+            result.status === 429
+              ? "SKILLS_SH_RATE_LIMITED"
+              : "SKILLS_SH_SOURCE_UNAVAILABLE",
+            result.status === 429
+              ? "The skills.sh API rate limit was reached."
+              : "The skills.sh source is temporarily unavailable.",
           );
         }
         if (result.status < 200 || result.status >= 300)
           throw new SkillsShError(
-            "SKILLS_SH_SOURCE_UNAVAILABLE",
+            "SKILLS_SH_API_CONTRACT_MISMATCH",
             "The skills.sh source could not be read.",
           );
         if (
@@ -228,12 +285,19 @@ export class SkillsShSourceAdapter {
             "SKILLS_SH_SOURCE_UNAVAILABLE",
             "The skills.sh request was cancelled.",
           );
+        if (timedOut) {
+          if (attempt >= this.source.fetchPolicy.maxRetries)
+            throw new SkillsShError(
+              "SKILLS_SH_REQUEST_TIMEOUT",
+              "The skills.sh request timed out.",
+            );
+          await sleep(25 * (attempt + 1), external);
+          continue;
+        }
         if (attempt >= this.source.fetchPolicy.maxRetries)
           throw new SkillsShError(
-            "SKILLS_SH_SOURCE_UNAVAILABLE",
+            "SKILLS_SH_NETWORK_FAILED",
             "The skills.sh source could not be reached.",
-            undefined,
-            error,
           );
         await sleep(25 * (attempt + 1), external);
       } finally {
@@ -245,6 +309,11 @@ export class SkillsShSourceAdapter {
       "SKILLS_SH_SOURCE_UNAVAILABLE",
       "The skills.sh source could not be reached.",
     );
+  }
+  private header(headers: Record<string, string | undefined>, name: string) {
+    return Object.entries(headers).find(
+      ([key]) => key.toLowerCase() === name.toLowerCase(),
+    )?.[1];
   }
   async searchSkills(
     query: string,
@@ -315,10 +384,10 @@ export class SkillsShSourceAdapter {
             .slice(0, 60) || "skill",
         summary: undefined,
         source: detail.source,
-        sourceVersion: detail.hash,
+        sourceVersion: detail.hash ?? undefined,
         canonicalSourceRef: `${SKILLS_SH_ORIGIN}/${detail.id}`,
         discoveredAt: new Date().toISOString(),
-        metadata: { fileCount: detail.files.length },
+        metadata: { fileCount: detail.files?.length ?? 0 },
       });
     } catch (error) {
       if (error instanceof SkillsShError) throw error;
@@ -392,6 +461,11 @@ export class SkillsShSourceAdapter {
         error,
       );
     }
+    if (!detail.files)
+      throw new SkillsShError(
+        "SKILLS_SH_CONTENT_INVALID",
+        "The skills.sh candidate has no available file snapshot.",
+      );
     const files = detail.files.map((file) => ({
       path: pathSafe(file.path),
       contents: file.contents,

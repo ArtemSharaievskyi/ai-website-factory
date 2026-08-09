@@ -52,13 +52,15 @@ export const SkillsShSearchResponseSchema = z
           source: z.string().min(1),
           installs: z.number().int().nonnegative().optional(),
           sourceType: z.string().optional(),
-          installUrl: z.string().url().optional(),
-          url: z.string().url().optional(),
+          installUrl: z.string().url().nullable().optional(),
+          url: z.string().url().nullable().optional(),
         })
         .strict(),
     ),
     query: z.string().optional(),
     count: z.number().int().nonnegative().optional(),
+    searchType: z.enum(["fuzzy", "semantic"]).optional(),
+    durationMs: z.number().nonnegative().optional(),
   })
   .strict();
 export const SkillsShFileSchema = z
@@ -69,8 +71,8 @@ export const SkillsShDetailResponseSchema = z
     id: ExternalId,
     source: z.string().min(1),
     slug: z.string().min(1),
-    hash: z.string().min(1).optional(),
-    files: z.array(SkillsShFileSchema).min(1),
+    hash: z.string().min(1).nullable().optional(),
+    files: z.array(SkillsShFileSchema).nullable(),
   })
   .strict();
 export type SkillsShDetailResponse = z.infer<
@@ -127,7 +129,7 @@ export type SkillsShHttpResponse = {
 };
 export type SkillsShHttpTransport = (
   url: string,
-  input: { signal: AbortSignal },
+  input: { signal: AbortSignal; headers?: Record<string, string> },
 ) => Promise<SkillsShHttpResponse>;
 export const DEFAULT_SKILLS_SH_SOURCE = SkillsShSourceSchema.parse({
   sourceId: SKILLS_SH_SOURCE_ID,

@@ -4,6 +4,7 @@ import {
   SkillsShSourceAdapter,
   type SkillsShSourceAdapter as SkillsShSourceAdapterType,
 } from "@/integrations/skills-sh/adapter";
+import { SkillsShError } from "@/integrations/skills-sh/errors";
 import type {
   SkillsShCandidate,
   SkillsShAuditResult,
@@ -16,7 +17,10 @@ import {
   type SkillCandidateEvaluation,
 } from "./contracts";
 import { evaluateSkillCandidate } from "./evaluator";
-import { renderCurationReport } from "./report";
+import {
+  renderCurationReport,
+  type CurationAvailability,
+} from "./report";
 import { SkillCurationEvaluationStore } from "./store";
 
 export const CURATION_TARGETS = [
@@ -59,6 +63,29 @@ export type CurationSessionOptions = {
   now?: string;
 };
 
+const classifyAvailability = (error: unknown): CurationAvailability => {
+  if (!(error instanceof SkillsShError)) return "NETWORK_ERROR";
+  switch (error.code) {
+    case "SKILLS_SH_AUTH_REQUIRED":
+      return "AUTH_REQUIRED";
+    case "SKILLS_SH_AUTH_INVALID":
+      return "AUTH_INVALID";
+    case "SKILLS_SH_ACCESS_FORBIDDEN":
+      return "ACCESS_FORBIDDEN";
+    case "SKILLS_SH_RATE_LIMITED":
+      return "RATE_LIMITED";
+    case "SKILLS_SH_NETWORK_FAILED":
+      return "NETWORK_ERROR";
+    case "SKILLS_SH_REQUEST_TIMEOUT":
+      return "TIMEOUT";
+    case "SKILLS_SH_API_CONTRACT_MISMATCH":
+    case "SKILLS_SH_RESPONSE_INVALID":
+      return "API_ERROR";
+    default:
+      return "UNAVAILABLE";
+  }
+};
+
 export async function runCurationSession(options: CurationSessionOptions) {
   const adapter = options.adapter ?? new SkillsShSourceAdapter();
   const registry = options.registry ?? new SkillRegistry(path.join(process.cwd(), "skills"));
@@ -68,13 +95,17 @@ export async function runCurationSession(options: CurationSessionOptions) {
   let detailCandidatesFetched = 0;
   let stagedExternalSkills = 0;
   const sourceIssues: string[] = [];
+  const attemptedQueries: string[] = [];
+  let availability: CurationAvailability = "AVAILABLE";
   for (const target of CURATION_TARGETS) {
+    attemptedQueries.push(target.query);
     let searchResults;
     try {
       searchResults = await adapter.searchSkills(target.query, { limit: 5 });
-    } catch {
-      sourceIssues.push(`${target.reviewer}: search unavailable`);
-      continue;
+    } catch (error) {
+      availability = classifyAvailability(error);
+      sourceIssues.push(`${target.reviewer}: ${availability}`);
+      break;
     }
     for (const result of searchResults.slice(0, 5)) {
       if (seen.has(result.id)) continue;
@@ -83,9 +114,10 @@ export async function runCurationSession(options: CurationSessionOptions) {
       try {
         candidate = await adapter.fetchSkillCandidate(result.id);
         detailCandidatesFetched += 1;
-      } catch {
-        sourceIssues.push(`${target.reviewer}/${result.id}: detail unavailable`);
-        continue;
+      } catch (error) {
+        availability = classifyAvailability(error);
+        sourceIssues.push(`${target.reviewer}/${result.id}: ${availability}`);
+        break;
       }
       candidate = {
         ...candidate,
@@ -136,10 +168,12 @@ export async function runCurationSession(options: CurationSessionOptions) {
         content: candidate.files.map((file) => file.contents).join("\n"),
       });
     }
+    if (availability !== "AVAILABLE") break;
   }
   const report = renderCurationReport({
     generatedAt: options.now ?? new Date().toISOString(),
-    searchQueries: CURATION_TARGETS.map((target) => target.query),
+    availability,
+    searchQueries: attemptedQueries,
     detailCandidatesFetched,
     sourceIssues,
     stagedExternalSkills,
@@ -152,7 +186,8 @@ export async function runCurationSession(options: CurationSessionOptions) {
     detailCandidatesFetched,
     stagedExternalSkills,
     reportPath: path.resolve(options.reportPath),
-    searchQueries: CURATION_TARGETS.map((target) => target.query),
+    searchQueries: attemptedQueries,
+    availability,
     sourceIssues,
   };
 }
