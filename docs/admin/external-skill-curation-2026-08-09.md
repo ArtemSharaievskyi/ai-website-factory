@@ -582,15 +582,15 @@ Reasons:
 
 ## Selected candidate evidence status
 
-Evidence was refreshed on 2026-08-09 through the existing authenticated official skills.sh adapter for only the three explicitly selected external IDs. The refreshed normalized checksums match the staged and historical evaluation checksums. The API descriptor exposes source, revision, and file-count metadata, but no authoritative license field. This evidence refresh does not change the historical curation recommendations and does not request approval.
+On 2026-08-09, the human supplied exact MIT license evidence for the three selected candidates. Each record is bound to the exact candidate checksum, external ID, canonical repository provenance, evidence type `CANONICAL_SOURCE_LICENSE`, `suppliedBy: HUMAN`, and policy `external-skill-curation-v1`. Purpose and steps are indexed from the immutable local staged `SKILL.md`; no skill content was changed. Historical curation recommendations remain unchanged, and this evidence does not request approval.
 
 | Target reviewer | Exact external ID | Candidate checksum | Metadata | License evidence | Local static security | External audit | Upstream | Approval readiness | Blocking reason |
 |---|---|---|---|---|---|---|---|---|---|
-| Architecture Reviewer | `codybrom/clairvoyance/module-boundaries` | `5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff` | INCOMPLETE: `purpose`, `steps` | MISSING: not provided by official descriptor | PASS | PASS | CURRENT | `METADATA_INCOMPLETE` | unresolved metadata; explicit license evidence missing |
-| Contract Auditor | `masanao-ohba/claude-manifests/acceptance-criteria` | `2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec` | INCOMPLETE: `purpose`, `steps` | MISSING: not provided by official descriptor | PASS | PASS | CURRENT | `METADATA_INCOMPLETE` | unresolved metadata; explicit license evidence missing |
-| Security Reviewer | `sarmakska/slipstream/supabase-rls` | `87bc57e597d3eb2e6ec8d4c099684cf4685da84ef45076b14083a7fcc7100877` | INCOMPLETE: `purpose` | MISSING: not provided by official descriptor | PASS | PASS | CURRENT | `METADATA_INCOMPLETE` | unresolved metadata; explicit license evidence missing |
+| Architecture Reviewer | `codybrom/clairvoyance/module-boundaries` | `5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff` | COMPLETE: frontmatter purpose; ordered procedure steps | MIT, human canonical-source evidence | PASS | PASS | CURRENT | `APPROVAL_ELIGIBLE` | none; registry remains `under-review` until separate approval |
+| Contract Auditor | `masanao-ohba/claude-manifests/acceptance-criteria` | `2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec` | COMPLETE: frontmatter purpose; sequenced headings/checklist | MIT, human canonical-source evidence | PASS | PASS | CURRENT | `APPROVAL_ELIGIBLE` | none; registry remains `under-review` until separate approval |
+| Security Reviewer | `sarmakska/slipstream/supabase-rls` | `87bc57e597d3eb2e6ec8d4c099684cf4685da84ef45076b14083a7fcc7100877` | COMPLETE: frontmatter purpose; ordered steps | MIT, human canonical-source evidence | PASS | PASS | CURRENT | `APPROVAL_ELIGIBLE` | none; registry remains `under-review` until separate approval |
 
-The corrected Security ID is preserved exactly as `sarmakska/slipstream/supabase-rls`; `sarmaks/slipstream/supabase-rls` is not an alias. The three staged records remain `under-review`. No license was guessed, no skill text was rewritten or executed, and all three remain ineligible for the existing approval function.
+The corrected Security ID is preserved exactly as `sarmakska/slipstream/supabase-rls`; `sarmaks/slipstream/supabase-rls` is not an alias. GitHub URLs are human evidence provenance only; skills.sh remains the sole skill-content source. The three staged records remain `under-review`, and approval remains a separate later action. No skill text was rewritten or executed.
 
 ## Hard-stop verification
 

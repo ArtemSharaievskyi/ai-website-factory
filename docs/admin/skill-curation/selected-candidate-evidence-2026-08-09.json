@@ -1,11 +1,10 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "policyVersion": "external-skill-curation-v1",
   "evidenceKind": "selected-candidate-approval-readiness",
+  "skillContentSource": "skills.sh",
   "sourceAdapter": "skills.sh-official-api",
-  "refreshedAt": "2026-08-09T16:19:22.2873343Z",
-  "candidateFetches": 3,
-  "auditFetches": 3,
+  "refreshedAt": "2026-08-09T16:43:49.5560529Z",
   "approvalCalled": false,
   "assignmentsChanged": false,
   "candidates": [
@@ -13,46 +12,112 @@
       "targetReviewer": "architecture-reviewer",
       "externalSkillId": "codybrom/clairvoyance/module-boundaries",
       "stagedSkillId": "module-boundaries-fb20497b5c35",
+      "sourceRepository": "codybrom/clairvoyance",
+      "sourceRef": "https://github.com/codybrom/clairvoyance",
       "candidateChecksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff",
-      "metadataStatus": "INCOMPLETE",
-      "metadataUnresolved": ["purpose", "steps"],
-      "licenseEvidenceStatus": "MISSING",
-      "licenseEvidenceSource": "Official skills.sh descriptor did not provide license metadata.",
+      "licenseEvidence": {
+        "evidenceId": "license-5ff94ca54b67",
+        "evidenceType": "CANONICAL_SOURCE_LICENSE",
+        "licenseId": "MIT",
+        "assertedValue": "MIT",
+        "sourceRef": "https://github.com/codybrom/clairvoyance",
+        "suppliedBy": "HUMAN",
+        "recordedAt": "2026-08-09T16:43:49.5560529Z",
+        "policyVersion": "external-skill-curation-v1"
+      },
+      "licenseEvidenceStatus": "PRESENT",
+      "metadataStatus": "COMPLETE",
+      "purposeEvidence": {
+        "source": "frontmatter-description",
+        "lineStart": 3,
+        "lineEnd": 3,
+        "fragmentChecksum": "bf0787a86362e1ece55d03da0e94d3b36892ec05621fd5eda9bd251481a6f9af"
+      },
+      "stepsEvidence": [
+        { "source": "ordered-procedure", "heading": "Core Principles", "lineStart": 52, "lineEnd": 79, "fragmentChecksum": "3dfbd758578e30a0812e7d484ad4a56418a60f961e45d4c35ab3f3ac056ffdb7" },
+        { "source": "ordered-procedure", "heading": "The Third Option", "lineStart": 52, "lineEnd": 55, "fragmentChecksum": "4627363199748cdd607b89500e69e2838d68823d24c438d877c4beaeb7fef613" },
+        { "source": "ordered-procedure", "heading": "Method Splitting", "lineStart": 77, "lineEnd": 79, "fragmentChecksum": "f5a97a637cf9c552a51f2d6fb3b67581173cc932f20eac88dec54fb20a53159d" },
+        { "source": "ordered-procedure", "heading": "Review Process", "lineStart": 89, "lineEnd": 94, "fragmentChecksum": "80826d0741791f1d829196dbbdf0f762530a0598a7d763d2fafc395e23f93f25" }
+      ],
       "localStaticSecurity": "PASS",
       "externalAudit": "PASS",
       "upstreamStatus": "CURRENT",
-      "approvalReadiness": "METADATA_INCOMPLETE",
-      "blockers": ["unresolved metadata: purpose, steps", "explicit license evidence is missing"]
+      "approvalReadiness": "APPROVAL_ELIGIBLE",
+      "registryStatus": "under-review",
+      "blockers": []
     },
     {
       "targetReviewer": "contract-auditor",
       "externalSkillId": "masanao-ohba/claude-manifests/acceptance-criteria",
       "stagedSkillId": "acceptance-criteria-80493e317476",
+      "sourceRepository": "masanao-ohba/claude-manifests",
+      "sourceRef": "https://github.com/masanao-ohba/claude-manifests",
       "candidateChecksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec",
-      "metadataStatus": "INCOMPLETE",
-      "metadataUnresolved": ["purpose", "steps"],
-      "licenseEvidenceStatus": "MISSING",
-      "licenseEvidenceSource": "Official skills.sh descriptor did not provide license metadata.",
+      "licenseEvidence": {
+        "evidenceId": "license-2f522f9ef2d1",
+        "evidenceType": "CANONICAL_SOURCE_LICENSE",
+        "licenseId": "MIT",
+        "assertedValue": "MIT",
+        "sourceRef": "https://github.com/masanao-ohba/claude-manifests",
+        "suppliedBy": "HUMAN",
+        "recordedAt": "2026-08-09T16:43:49.5560529Z",
+        "policyVersion": "external-skill-curation-v1"
+      },
+      "licenseEvidenceStatus": "PRESENT",
+      "metadataStatus": "COMPLETE",
+      "purposeEvidence": {
+        "source": "frontmatter-description",
+        "lineStart": 3,
+        "lineEnd": 3,
+        "fragmentChecksum": "1bfaef0b24e7e0f4e10ad332a3855f568998c3dfe84deae28de16f74c27f6c47"
+      },
+      "stepsEvidence": [
+        { "source": "sequenced-heading", "heading": "Step 1: Extract Requirements", "lineStart": 127, "lineEnd": 139, "fragmentChecksum": "64e6d81bc17b3f24b2a7fd18f5a6ccb875db641fcaf148fda76cad122da24ae4" },
+        { "source": "sequenced-heading", "heading": "Step 2: Transform to Criteria", "lineStart": 140, "lineEnd": 149, "fragmentChecksum": "d44ad1eb7ec42adea6b5781c985e229f2aa580f1c01e9d871f1e369c57245a67" },
+        { "source": "sequenced-heading", "heading": "Step 3: Validate Criteria", "lineStart": 150, "lineEnd": 160, "fragmentChecksum": "9ad1afdddf6b1e079ebace5468ee90ffd4b3c4fa1809128304781134ec0e68a2" },
+        { "source": "checklist", "heading": "Criteria Generation Process", "lineStart": 154, "lineEnd": 158, "fragmentChecksum": "8137a48ebbd1200025e4307da43a7d9a6a1e4c46f6f3cfeb7dddd525a94a38cb" }
+      ],
       "localStaticSecurity": "PASS",
       "externalAudit": "PASS",
       "upstreamStatus": "CURRENT",
-      "approvalReadiness": "METADATA_INCOMPLETE",
-      "blockers": ["unresolved metadata: purpose, steps", "explicit license evidence is missing"]
+      "approvalReadiness": "APPROVAL_ELIGIBLE",
+      "registryStatus": "under-review",
+      "blockers": []
     },
     {
       "targetReviewer": "security-reviewer",
       "externalSkillId": "sarmakska/slipstream/supabase-rls",
       "stagedSkillId": "supabase-rls-1e36b217c969",
+      "sourceRepository": "sarmakska/slipstream",
+      "sourceRef": "https://github.com/sarmakska/slipstream",
       "candidateChecksum": "87bc57e597d3eb2e6ec8d4c099684cf4685da84ef45076b14083a7fcc7100877",
-      "metadataStatus": "INCOMPLETE",
-      "metadataUnresolved": ["purpose"],
-      "licenseEvidenceStatus": "MISSING",
-      "licenseEvidenceSource": "Official skills.sh descriptor did not provide license metadata.",
+      "licenseEvidence": {
+        "evidenceId": "license-87bc57e597d3",
+        "evidenceType": "CANONICAL_SOURCE_LICENSE",
+        "licenseId": "MIT",
+        "assertedValue": "MIT",
+        "sourceRef": "https://github.com/sarmakska/slipstream",
+        "suppliedBy": "HUMAN",
+        "recordedAt": "2026-08-09T16:43:49.5560529Z",
+        "policyVersion": "external-skill-curation-v1"
+      },
+      "licenseEvidenceStatus": "PRESENT",
+      "metadataStatus": "COMPLETE",
+      "purposeEvidence": {
+        "source": "frontmatter-description",
+        "lineStart": 3,
+        "lineEnd": 5,
+        "fragmentChecksum": "0633717123b5eb5b11174e81fef8111aee00a7f51a711e3a700a35b2c7a9f45a"
+      },
+      "stepsEvidence": [
+        { "source": "ordered-procedure", "heading": "Steps", "lineStart": 27, "lineEnd": 29, "fragmentChecksum": "969e5f7fba92b5f736953b6af9fccceae9536c47769caedb7f5438132996de39" }
+      ],
       "localStaticSecurity": "PASS",
       "externalAudit": "PASS",
       "upstreamStatus": "CURRENT",
-      "approvalReadiness": "METADATA_INCOMPLETE",
-      "blockers": ["unresolved metadata: purpose", "explicit license evidence is missing"]
+      "approvalReadiness": "APPROVAL_ELIGIBLE",
+      "registryStatus": "under-review",
+      "blockers": []
     }
   ]
 }

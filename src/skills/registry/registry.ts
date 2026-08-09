@@ -16,6 +16,7 @@ import { z } from "zod";
 import {
   SkillAuditEventSchema,
   SkillApprovalRecordSchema,
+  SkillCurationEvidenceSchema,
   SkillDefinitionSchema,
   SkillLoadRequestSchema,
   SkillManifestSchema,
@@ -74,6 +75,7 @@ const RecordSchema = z
     definition: SkillDefinitionSchema,
     source: SkillSourceRecordSchema,
     review: z.unknown(),
+    curationEvidence: SkillCurationEvidenceSchema.optional(),
     approval: SkillApprovalRecordSchema.optional(),
     approvedDirectory: z.string().optional(),
     stagedDirectory: z.string(),
@@ -453,6 +455,70 @@ export class SkillRegistry {
   async getReview(skillId: string) {
     const record = await this.read(skillId);
     return record.review as SkillReview;
+  }
+  async recordCurationEvidence(
+    skillId: string,
+    input: {
+      evidence: z.input<typeof SkillCurationEvidenceSchema>;
+      expectedExternalSkillId: string;
+      expectedNormalizedChecksum: string;
+      expectedSourceRepository: string;
+    },
+  ) {
+    const record = await this.read(skillId);
+    const evidence = SkillCurationEvidenceSchema.parse(input.evidence);
+    const license = evidence.license;
+    if (
+      record.source.externalSkillId !== input.expectedExternalSkillId ||
+      license.externalSkillId !== input.expectedExternalSkillId ||
+      license.candidateChecksum !== input.expectedNormalizedChecksum ||
+      record.source.normalizedContentChecksum !== input.expectedNormalizedChecksum ||
+      license.sourceRepository !== input.expectedSourceRepository ||
+      license.sourceRef !== `https://github.com/${input.expectedSourceRepository}`
+    )
+      throw new SkillError(
+        "SKILL_CHECKSUM_MISMATCH",
+        "Curation evidence does not match the exact staged candidate provenance.",
+      );
+    if (evidence.metadata.unresolved.length)
+      throw new SkillError(
+        "SKILL_APPROVAL_REQUIRED",
+        "Curation metadata remains unresolved.",
+      );
+    if (record.curationEvidence) {
+      if (JSON.stringify(record.curationEvidence) !== JSON.stringify(evidence))
+        throw new SkillError(
+          "SKILL_IMMUTABLE",
+          "Existing curation evidence cannot be overwritten.",
+        );
+      return record;
+    }
+    const next: RegistryRecord = {
+      ...record,
+      curationEvidence: evidence,
+      source: {
+        ...record.source,
+        licenseEvidenceRecord: license,
+      },
+      definition: {
+        ...record.definition,
+        license: license.assertedValue,
+      },
+      review: {
+        ...(record.review as SkillReview),
+        metadataUnresolved: [],
+      },
+    };
+    await this.save(next);
+    await this.audit({
+      skillId,
+      sourceChecksum: record.definition.sourceChecksum,
+      actor: license.suppliedBy,
+      action: "evidence-recorded",
+      summary:
+        "Checksum-bound human curation evidence recorded; approval remains separate.",
+    });
+    return next;
   }
   async createApproval(
     skillId: string,

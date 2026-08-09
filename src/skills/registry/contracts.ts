@@ -97,6 +97,21 @@ export const SkillDefinitionSchema = z
   })
   .strict();
 export type SkillDefinition = z.infer<typeof SkillDefinitionSchema>;
+export const SkillLicenseEvidenceSchema = z
+  .object({
+    evidenceId: z.string().min(1),
+    evidenceType: z.literal("CANONICAL_SOURCE_LICENSE"),
+    externalSkillId: z.string().min(1),
+    candidateChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+    sourceRepository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
+    sourceRef: z.string().url(),
+    assertedValue: z.literal("MIT"),
+    suppliedBy: z.literal("HUMAN"),
+    recordedAt: z.string().datetime(),
+    policyVersion: z.string().min(1),
+  })
+  .strict();
+export type SkillLicenseEvidence = z.infer<typeof SkillLicenseEvidenceSchema>;
 export const SkillApprovalRecordSchema = z
   .object({
     id: z.string().min(1),
@@ -150,9 +165,43 @@ export const SkillSourceRecordSchema = z
       .string()
       .regex(/^[a-f0-9]{64}$/)
       .optional(),
+    licenseEvidenceRecord: SkillLicenseEvidenceSchema.optional(),
   })
   .strict();
 export type SkillSourceRecord = z.infer<typeof SkillSourceRecordSchema>;
+export const SkillMetadataEvidenceReferenceSchema = z
+  .object({
+    field: z.enum(["purpose", "steps"]),
+    source: z.enum([
+      "frontmatter-description",
+      "purpose-section",
+      "overview-section",
+      "ordered-procedure",
+      "sequenced-heading",
+      "checklist",
+    ]),
+    heading: z.string().max(160).optional(),
+    lineStart: z.number().int().positive(),
+    lineEnd: z.number().int().positive(),
+    fragmentChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+    summary: z.string().min(1).max(500),
+  })
+  .strict();
+export const SkillMetadataEvidenceSchema = z
+  .object({
+    purpose: SkillMetadataEvidenceReferenceSchema.optional(),
+    steps: z.array(SkillMetadataEvidenceReferenceSchema),
+    unresolved: z.array(z.enum(["purpose", "steps"])),
+  })
+  .strict();
+export type SkillMetadataEvidence = z.infer<typeof SkillMetadataEvidenceSchema>;
+export const SkillCurationEvidenceSchema = z
+  .object({
+    license: SkillLicenseEvidenceSchema,
+    metadata: SkillMetadataEvidenceSchema,
+  })
+  .strict();
+export type SkillCurationEvidence = z.infer<typeof SkillCurationEvidenceSchema>;
 export const SkillAuditEventSchema = z
   .object({
     id: z.string().min(1),
@@ -172,6 +221,7 @@ export const SkillAuditEventSchema = z
       "load-permitted",
       "load-denied",
       "integrity-failure",
+      "evidence-recorded",
     ]),
     summary: z.string().max(500),
     approvalId: z.string().optional(),
