@@ -115,6 +115,29 @@ export const SkillDefinitionSchema = z
   })
   .strict();
 export type SkillDefinition = z.infer<typeof SkillDefinitionSchema>;
+export const SkillLicenseIdentifierSchema = z.enum([
+  "MIT",
+  "Elastic-2.0",
+  "CC-BY-4.0",
+]);
+export type SkillLicenseIdentifier = z.infer<
+  typeof SkillLicenseIdentifierSchema
+>;
+export const SkillLicenseScopeSchema = z.enum([
+  "repository",
+  "repository-inherited-no-narrower-local-evidence",
+  "path-specific",
+  "unknown",
+]);
+export type SkillLicenseScope = z.infer<typeof SkillLicenseScopeSchema>;
+export const SkillLicensePolicyStatusSchema = z.enum([
+  "LICENSE_ALLOWED_FOR_FACTORY_USE",
+  "LICENSE_POLICY_REVIEW_REQUIRED",
+  "LICENSE_SCOPE_REVIEW_REQUIRED",
+]);
+export type SkillLicensePolicyStatus = z.infer<
+  typeof SkillLicensePolicyStatusSchema
+>;
 export const SkillLicenseEvidenceSchema = z
   .object({
     evidenceId: z.string().min(1),
@@ -123,7 +146,14 @@ export const SkillLicenseEvidenceSchema = z
     candidateChecksum: z.string().regex(/^[a-f0-9]{64}$/),
     sourceRepository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
     sourceRef: z.string().url(),
-    assertedValue: z.literal("MIT"),
+    assertedValue: SkillLicenseIdentifierSchema,
+    licenseScope: SkillLicenseScopeSchema.default("repository"),
+    licensePolicyStatus: SkillLicensePolicyStatusSchema.default(
+      "LICENSE_ALLOWED_FOR_FACTORY_USE",
+    ),
+    attributionObligations: z
+      .array(z.literal("ATTRIBUTION_REQUIRED"))
+      .default([]),
     suppliedBy: z.literal("HUMAN"),
     recordedAt: z.string().datetime(),
     policyVersion: z.string().min(1),
@@ -211,6 +241,7 @@ export const SkillMetadataEvidenceReferenceSchema = z
       "ordered-procedure",
       "sequenced-heading",
       "checklist",
+      "review-process",
     ]),
     heading: z.string().max(160).optional(),
     lineStart: z.number().int().positive(),

@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { CURATION_POLICY_VERSION } from "./contracts";
 import {
+  SkillLicenseIdentifierSchema,
+  SkillLicensePolicyStatusSchema,
+  SkillLicenseScopeSchema,
   SkillLicenseEvidenceSchema,
   SkillMetadataEvidenceReferenceSchema,
   SkillMetadataEvidenceSchema,
@@ -21,6 +24,10 @@ export function createHumanLicenseEvidence(input: {
   candidateChecksum: string;
   sourceRepository: string;
   recordedAt: string;
+  licenseId?: z.input<typeof SkillLicenseIdentifierSchema>;
+  licenseScope?: z.input<typeof SkillLicenseScopeSchema>;
+  licensePolicyStatus?: z.input<typeof SkillLicensePolicyStatusSchema>;
+  attributionObligations?: Array<"ATTRIBUTION_REQUIRED">;
 }) {
   return ExternalSkillEvidenceSchema.parse({
     evidenceId: `license-${input.candidateChecksum.slice(0, 12)}`,
@@ -29,7 +36,11 @@ export function createHumanLicenseEvidence(input: {
     candidateChecksum: input.candidateChecksum,
     sourceRepository: input.sourceRepository,
     sourceRef: `https://github.com/${input.sourceRepository}`,
-    assertedValue: "MIT",
+    assertedValue: input.licenseId ?? "MIT",
+    licenseScope: input.licenseScope ?? "repository",
+    licensePolicyStatus:
+      input.licensePolicyStatus ?? "LICENSE_ALLOWED_FOR_FACTORY_USE",
+    attributionObligations: input.attributionObligations ?? [],
     suppliedBy: "HUMAN",
     recordedAt: input.recordedAt,
     policyVersion: CURATION_POLICY_VERSION,
@@ -159,7 +170,7 @@ export function extractMetadataEvidence(text: string): ExtractedMetadataEvidence
 
   const steps: MetadataEvidenceReference[] = [];
   const stepHeadingGroups = headings.filter((item) =>
-    /^step\s+\d+\s*:/i.test(item.match[2]),
+    /^step\s+\d+[a-z]?\s*(?::|[—–-])/i.test(item.match[2]),
   );
   for (const item of stepHeadingGroups) {
     const [, end] = sectionRange(lines, item.index);
@@ -190,6 +201,40 @@ export function extractMetadataEvidence(text: string): ExtractedMetadataEvidence
     const last = start + selected[selected.length - 1].offset;
     steps.push(reference("steps", source, lines, first, last, item.match[2]));
   }
+  const reviewProcessHeadings = headings.filter((item) =>
+    /^(?:what to look for|how to comment|severity|review process|process|checklist)$/i.test(
+      item.match[2],
+    ),
+  );
+  for (const item of reviewProcessHeadings) {
+    const [start, end] = sectionRange(lines, item.index);
+    const body = lines
+      .slice(start - 1, end)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("```"));
+    if (body.length < 2) continue;
+    if (
+      body.some((line) => /^\d+[.)]\s+/.test(line)) ||
+      body.some((line) => /^[-*]\s+\[[ xX]\]\s+/.test(line))
+    )
+      continue;
+    if (
+      steps.some(
+        (step) => step.lineStart === start && step.lineEnd === end,
+      )
+    )
+      continue;
+    steps.push(
+      reference(
+        "steps",
+        "review-process",
+        lines,
+        start,
+        end,
+        item.match[2],
+      ),
+    );
+  }
   const uniqueSteps = steps.filter(
     (item, index, all) =>
       all.findIndex(
@@ -212,6 +257,12 @@ export const CandidateApprovalReadinessSchema = z.enum([
   "APPROVAL_ELIGIBLE",
   "METADATA_INCOMPLETE",
   "LICENSE_EVIDENCE_MISSING",
+  "LICENSE_POLICY_REVIEW_REQUIRED",
+  "LICENSE_SCOPE_REVIEW_REQUIRED",
+  "TOOL_INCOMPATIBLE",
+  "ROLE_MISMATCH",
+  "OVERLAP_NO_LONGER_JUSTIFIED",
+  "CANDIDATE_CHECKSUM_CHANGED",
   "UPSTREAM_CHANGED",
   "SECURITY_BLOCKED",
   "SOURCE_UNAVAILABLE",
@@ -231,9 +282,15 @@ export const CandidateEvidenceStatusSchema = z.object({
   metadataEvidence: ExtractedMetadataEvidenceSchema.optional(),
   licenseEvidenceStatus: z.enum(["PRESENT", "MISSING", "MALFORMED"]),
   licenseEvidence: ExternalSkillEvidenceSchema.optional(),
+  licensePolicyStatus: SkillLicensePolicyStatusSchema.optional(),
+  licenseScope: SkillLicenseScopeSchema.optional(),
+  attributionObligations: z.array(z.literal("ATTRIBUTION_REQUIRED")),
   upstreamStatus: z.enum(["CURRENT", "STALE", "NOT_VERIFIED"]),
   localSecurityStatus: z.enum(["PASS", "BLOCKED"]),
   externalAuditStatus: z.enum(["PASS", "WARN", "FAIL", "UNAVAILABLE"]),
+  toolCompatibility: z.enum(["COMPATIBLE", "OPTIONAL_ONLY", "INCOMPATIBLE"]),
+  roleFit: z.enum(["VALID", "MISMATCH"]),
+  overlapStatus: z.enum(["JUSTIFIED", "NOT_JUSTIFIED"]),
   readiness: CandidateApprovalReadinessSchema,
   blockers: z.array(z.string()),
 });
@@ -246,6 +303,7 @@ export type CandidateEvidenceInput = {
   expectedExternalSkillId: string;
   expectedChecksum: string;
   expectedSourceRepository?: string;
+  expectedSourceRef?: string;
   stagedExternalSkillId?: string;
   stagedChecksum?: string;
   evaluationChecksum?: string;
@@ -257,6 +315,9 @@ export type CandidateEvidenceInput = {
   hasApprovalBlockingFinding: boolean;
   externalAuditStatus: "pass" | "warn" | "fail" | "unavailable";
   contradictoryLicenseEvidence?: boolean;
+  toolCompatibility?: "COMPATIBLE" | "OPTIONAL_ONLY" | "INCOMPATIBLE";
+  roleFit?: "VALID" | "MISMATCH";
+  overlapStatus?: "JUSTIFIED" | "NOT_JUSTIFIED";
 };
 
 const auditStatus = (
@@ -274,6 +335,8 @@ function readLicenseEvidence(input: CandidateEvidenceInput) {
     input.expectedSourceRepository &&
     parsed.data.sourceRepository !== input.expectedSourceRepository
   )
+    return undefined;
+  if (input.expectedSourceRef && parsed.data.sourceRef !== input.expectedSourceRef)
     return undefined;
   return parsed.data;
 }
@@ -326,6 +389,17 @@ export function assessCandidateEvidence(
   }
   if (input.hasApprovalBlockingFinding)
     blockers.push("local static security review has an approval-blocking finding");
+  if (input.roleFit === "MISMATCH") blockers.push("candidate role fit is invalid");
+  if (input.overlapStatus === "NOT_JUSTIFIED")
+    blockers.push("candidate overlap contribution is no longer justified");
+  if (input.toolCompatibility === "INCOMPATIBLE")
+    blockers.push("candidate requires a tool outside the target agent boundary");
+  if (
+    licenseEvidence?.licensePolicyStatus === "LICENSE_POLICY_REVIEW_REQUIRED"
+  )
+    blockers.push("license policy compatibility requires explicit Factory review");
+  if (licenseEvidence?.licensePolicyStatus === "LICENSE_SCOPE_REVIEW_REQUIRED")
+    blockers.push("license scope requires explicit Factory review");
 
   const upstreamStatus =
     input.upstreamChecksum === undefined
@@ -356,6 +430,15 @@ export function assessCandidateEvidence(
   else if (hasMalformedLicenseEvidence) readiness = "EVIDENCE_CONFLICT";
   else if (upstreamStatus === "NOT_VERIFIED") readiness = "SOURCE_UNAVAILABLE";
   else if (input.hasApprovalBlockingFinding) readiness = "SECURITY_BLOCKED";
+  else if (input.roleFit === "MISMATCH") readiness = "ROLE_MISMATCH";
+  else if (input.overlapStatus === "NOT_JUSTIFIED")
+    readiness = "OVERLAP_NO_LONGER_JUSTIFIED";
+  else if (input.toolCompatibility === "INCOMPATIBLE")
+    readiness = "TOOL_INCOMPATIBLE";
+  else if (licenseEvidence?.licensePolicyStatus === "LICENSE_POLICY_REVIEW_REQUIRED")
+    readiness = "LICENSE_POLICY_REVIEW_REQUIRED";
+  else if (licenseEvidence?.licensePolicyStatus === "LICENSE_SCOPE_REVIEW_REQUIRED")
+    readiness = "LICENSE_SCOPE_REVIEW_REQUIRED";
   else if (metadataStatus === "INCOMPLETE") readiness = "METADATA_INCOMPLETE";
   else if (licenseEvidenceStatus !== "PRESENT")
     readiness = "LICENSE_EVIDENCE_MISSING";
@@ -372,9 +455,15 @@ export function assessCandidateEvidence(
     metadataEvidence: input.metadataEvidence,
     licenseEvidenceStatus,
     licenseEvidence,
+    licensePolicyStatus: licenseEvidence?.licensePolicyStatus,
+    licenseScope: licenseEvidence?.licenseScope,
+    attributionObligations: licenseEvidence?.attributionObligations ?? [],
     upstreamStatus,
     localSecurityStatus: input.hasApprovalBlockingFinding ? "BLOCKED" : "PASS",
     externalAuditStatus: auditStatus(input.externalAuditStatus),
+    toolCompatibility: input.toolCompatibility ?? "COMPATIBLE",
+    roleFit: input.roleFit ?? "VALID",
+    overlapStatus: input.overlapStatus ?? "JUSTIFIED",
     readiness,
     blockers,
   });

@@ -551,6 +551,15 @@ export class SkillRegistry {
         "Manual metadata and explicit license evidence are required before approval.",
       );
     if (
+      record.curationEvidence?.license.licensePolicyStatus !== undefined &&
+      record.curationEvidence.license.licensePolicyStatus !==
+        "LICENSE_ALLOWED_FOR_FACTORY_USE"
+    )
+      throw new SkillError(
+        "SKILL_APPROVAL_REQUIRED",
+        "The asserted license requires explicit Factory license-policy review before approval.",
+      );
+    if (
       input.candidateChecksum &&
       input.candidateChecksum !== record.source.normalizedContentChecksum
     )

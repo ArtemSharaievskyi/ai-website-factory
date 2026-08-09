@@ -29,6 +29,7 @@
     "taskgraph:smoke": "tsx scripts/taskgraph-smoke.ts",
     "skills:curate": "tsx scripts/skills-curation.ts",
     "skills:portfolio-plan": "tsx scripts/skill-portfolio-plan.ts",
+    "skills:external-evidence": "tsx scripts/external-advance-evidence.ts",
     "factory:e2e-smoke": "tsx scripts/factory-e2e-smoke.ts",
     "codebase-memory:smoke": "tsx scripts/codebase-memory-smoke.ts"
   },

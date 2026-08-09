@@ -1,0 +1,669 @@
+{
+  "schemaVersion": 1,
+  "phase": "4D2",
+  "generatedAt": "2026-08-09T18:25:49.583Z",
+  "discoverySearches": 0,
+  "githubRequests": 0,
+  "approvalCalled": false,
+  "assignmentsChanged": false,
+  "approvedExternalSkillCount": 3,
+  "assignedExternalSkillCount": 3,
+  "approvedInternalSkillCount": 0,
+  "assignedInternalSkillCount": 0,
+  "candidates": [
+    {
+      "externalSkillId": "fr-e-d/gaai-framework/ambiguity-detector",
+      "targetAgent": "lead",
+      "targetCapability": "requirements.clarify",
+      "coverageKeys": [
+        "requirements-ambiguity"
+      ],
+      "sourceId": "skills-sh",
+      "source": "fr-e-d/gaai-framework",
+      "slug": "ambiguity-detector",
+      "stagedSkillId": "ambiguity-detector-9f8de8233fb3",
+      "candidateChecksum": "421b7a8270a82b26ce7a2bfa2172d1833880a6accedcc1ab28249df5e7e1a0e6",
+      "normalizedContentChecksum": "421b7a8270a82b26ce7a2bfa2172d1833880a6accedcc1ab28249df5e7e1a0e6",
+      "retrievedContentChecksum": "eb148cd6f21fd0d1f7a16691f4af66c469e9947be41a7f9b471464b1fc49811f",
+      "retrievedContent": "LOCAL_STAGED_CONTENT",
+      "evaluation": {
+        "policyVersion": "external-skill-curation-v1",
+        "procedureFit": "high",
+        "roleFit": "strong",
+        "toolAssumptionCompatibility": "read-only-compatible",
+        "overlapAssessment": "low",
+        "localSecurityAssessment": "pass",
+        "recommendedDisposition": "NEEDS_HUMAN_REVIEW"
+      },
+      "provenance": {
+        "canonicalSource": "https://github.com/Fr-e-d/GAAI-framework",
+        "sourceRepository": "fr-e-d/gaai-framework",
+        "sourceCommit": "eb148cd6f21fd0d1f7a16691f4af66c469e9947be41a7f9b471464b1fc49811f",
+        "sourceRef": "https://github.com/fr-e-d/gaai-framework",
+        "targetRole": "lead"
+      },
+      "licenseEvidence": {
+        "evidenceId": "license-421b7a8270a8",
+        "evidenceType": "CANONICAL_SOURCE_LICENSE",
+        "externalSkillId": "fr-e-d/gaai-framework/ambiguity-detector",
+        "candidateChecksum": "421b7a8270a82b26ce7a2bfa2172d1833880a6accedcc1ab28249df5e7e1a0e6",
+        "sourceRepository": "fr-e-d/gaai-framework",
+        "sourceRef": "https://github.com/fr-e-d/gaai-framework",
+        "assertedValue": "Elastic-2.0",
+        "licenseScope": "repository",
+        "licensePolicyStatus": "LICENSE_POLICY_REVIEW_REQUIRED",
+        "attributionObligations": [],
+        "suppliedBy": "HUMAN",
+        "recordedAt": "2026-08-09T18:25:49.583Z",
+        "policyVersion": "external-skill-curation-v1"
+      },
+      "canonicalLicenseSource": {
+        "canonicalRepository": "https://github.com/Fr-e-d/GAAI-framework",
+        "normalizedRepository": "fr-e-d/gaai-framework",
+        "suppliedBy": "HUMAN"
+      },
+      "licenseId": "Elastic-2.0",
+      "licenseEvidenceType": "CANONICAL_SOURCE_LICENSE",
+      "licenseScope": "repository",
+      "licensePolicyStatus": "LICENSE_POLICY_REVIEW_REQUIRED",
+      "attributionObligations": [],
+      "purposeEvidence": {
+        "status": "COMPLETE",
+        "reference": {
+          "field": "purpose",
+          "source": "frontmatter-description",
+          "lineStart": 3,
+          "lineEnd": 3,
+          "fragmentChecksum": "16e3629f714842158e531c7da8725316ba25205615c34017a2ec596df4246736",
+          "summary": "description: Takes surface scan results, optional LLM synthesis open-question entries, and optional tree-sitter AST signals to score project ambiguities (1-10). Outputs structured ambiguity_feed for smart-question-generator. Pure heuristic — no LLM calls. Designed for Stage 3.5 of the /gaai:bootstrap pipeline (between LLM synthesis and Q&A)."
+        }
+      },
+      "stepsEvidence": [
+        {
+          "field": "steps",
+          "source": "sequenced-heading",
+          "heading": "Step 1 — Heuristic analysis from surface_scan_result",
+          "lineStart": 72,
+          "lineEnd": 164,
+          "fragmentChecksum": "70558f97702763257e86164f0c9af5bd26480e1ff969d2f245a84da326fb382a",
+          "summary": "### Step 1 — Heuristic analysis from surface_scan_result #### Step 1a — Language distribution analysis Compute the ratio of each detected language over total language-attributed files: total_lang_files = sum(l.file_count for l in surface_scan_result.languages) if total_lang_files == 0: skip language heuristics # no language data — not an error log: \"[ambiguity-detector] no language data in surface_scan_result — skipping language heuristics\" else: lang_ratios = [ { language: l.language, ratio: l."
+        },
+        {
+          "field": "steps",
+          "source": "sequenced-heading",
+          "heading": "Step 1a — Language distribution analysis",
+          "lineStart": 74,
+          "lineEnd": 126,
+          "fragmentChecksum": "d13d3aa0f7d9f45b8cc9abcd93363c663163cd858a0d6de69e3ffe155077f2a6",
+          "summary": "#### Step 1a — Language distribution analysis Compute the ratio of each detected language over total language-attributed files: total_lang_files = sum(l.file_count for l in surface_scan_result.languages) if total_lang_files == 0: skip language heuristics # no language data — not an error log: \"[ambiguity-detector] no language data in surface_scan_result — skipping language heuristics\" else: lang_ratios = [ { language: l.language, ratio: l.file_count / total_lang_files, count: l.file_count } for "
+        },
+        {
+          "field": "steps",
+          "source": "sequenced-heading",
+          "heading": "Step 1b — Framework conflict detection",
+          "lineStart": 127,
+          "lineEnd": 164,
+          "fragmentChecksum": "4b4762f9e035de1ecc85d885da2fe46fd2b4ff44bdbc4b6bb7eedb74f2dcc119",
+          "summary": "#### Step 1b — Framework conflict detection Detect framework markers from `ext_counts`: vue_count = surface_scan_result.ext_counts[\".vue\"] ?? 0 jsx_count = surface_scan_result.ext_counts[\".jsx\"] ?? 0 tsx_count = surface_scan_result.ext_counts[\".tsx\"] ?? 0 react_count = jsx_count + tsx_count Framework conflict scoring: if vue_count > 0 AND react_count > 0: # Both Vue (.vue files) and React (.jsx/.tsx) detected simultaneously score = 8 topic = \"frontend_framework\" evidence_pro = [ { source: \"ext_c"
+        },
+        {
+          "field": "steps",
+          "source": "sequenced-heading",
+          "heading": "Step 2 — AST signal analysis (skipped if ast_signals is null)",
+          "lineStart": 165,
+          "lineEnd": 233,
+          "fragmentChecksum": "7bf7e2089af193039b9b4c04d62251220fa20932eaab025f9ed774804b55c456",
+          "summary": "### Step 2 — AST signal analysis (skipped if ast_signals is null) if ast_signals == null: log: \"[ambiguity-detector] ast_signals not available — skipping AST heuristics (E107a stories not yet delivered)\" skip to Step 3 #### Step 2a — Module system conflict if ast_signals.import_patterns.has_esm AND ast_signals.import_patterns.has_commonjs: conflict_count = ast_signals.import_patterns.conflict_count total_files = surface_scan_result.total_file_count conflict_ratio = conflict_count / max(1, total_"
+        },
+        {
+          "field": "steps",
+          "source": "sequenced-heading",
+          "heading": "Step 2a — Module system conflict",
+          "lineStart": 173,
+          "lineEnd": 200,
+          "fragmentChecksum": "5f1fa75324b21c644b1aca784875ae6892490144bad9c1f85575e85af4b91151",
+          "summary": "#### Step 2a — Module system conflict if ast_signals.import_patterns.has_esm AND ast_signals.import_patterns.has_commonjs: conflict_count = ast_signals.import_patterns.conflict_count total_files = surface_scan_result.total_file_count conflict_ratio = conflict_count / max(1, total_files) # Score: base 5, +1 per 5% of conflicting files, capped at 8 score = min(8, 5 + round(conflict_ratio * 20)) topic = \"module_system\" evidence_pro = [ { source: \"ast_signals.import_patterns\", snippet: \"ESM (import/"
+        },
+        {
+          "field": "steps",
+          "source": "sequenced-heading",
+          "heading": "Step 2b — Directory structure conflict",
+          "lineStart": 201,
+          "lineEnd": 233,
+          "fragmentChecksum": "c24a62469fc820e9c1c88c51c8aa8c91b88434e63c6e498cfb5886ca0a99a2e5",
+          "summary": "#### Step 2b — Directory structure conflict d = ast_signals.directory_signals if d.has_src_dir AND d.has_app_dir: src_count = d.src_file_count ?? 0 app_count = d.app_file_count ?? 0 if src_count > 5 AND app_count > 5: # Both directories are substantive — potential layout ambiguity ratio_diff = abs(src_count - app_count) / max(src_count, app_count) if ratio_diff < 0.25: score = 6 # nearly equal counts — genuinely ambiguous elif ratio_diff < 0.50: score = 4 # one is larger but both active else: sc"
+        },
+        {
+          "field": "steps",
+          "source": "sequenced-heading",
+          "heading": "Step 3 — Score synthesis open-question entries",
+          "lineStart": 234,
+          "lineEnd": 302,
+          "fragmentChecksum": "71a274483d4b46da23dfe096d8ac3eb2aacd17bc00492010d4cca5e1b60946a3",
+          "summary": "### Step 3 — Score synthesis open-question entries For each entry in `synthesis_entries` (skip if null or empty): for entry in (synthesis_entries ?? []): topic_key = derive_topic_key(entry.topic) # Normalization: lowercase, replace spaces/special chars with underscores, max 30 chars # e.g. \"What framework is this project using?\" → \"framework\" # e.g. \"Is this a SaaS or a CLI tool?\" → \"project_type\" # Simple approach: take significant nouns from the question if it's a question, # or use the conten"
+        },
+        {
+          "field": "steps",
+          "source": "sequenced-heading",
+          "heading": "Step 4 — Merge, deduplicate, and finalize",
+          "lineStart": 303,
+          "lineEnd": 336,
+          "fragmentChecksum": "f5eaa46e96d22fbb25a01d06097870b27bc0575d9f12c073eaf5c2ea51b22699",
+          "summary": "### Step 4 — Merge, deduplicate, and finalize Merge all topic sources: all_topics = heuristic_topics + ast_topics + synthesis_topics Deduplicate by topic key (keep the entry with the highest `ambiguity_score` when duplicates exist): deduped = {} for t in all_topics: if t.topic in deduped: if t.ambiguity_score > deduped[t.topic].ambiguity_score: deduped[t.topic] = t else: # Merge evidence from lower-score duplicate into winner deduped[t.topic].evidence_pro += t.evidence_pro deduped[t.topic].evide"
+        },
+        {
+          "field": "steps",
+          "source": "sequenced-heading",
+          "heading": "Step 5 — Observability (AC4)",
+          "lineStart": 337,
+          "lineEnd": 361,
+          "fragmentChecksum": "4e99d7582ba70cb2aba1dabab9cc33ffcc5db97baabdeee4b733d8e220fa38ad",
+          "summary": "### Step 5 — Observability (AC4) Log score distribution to stdout: high_count = ambiguity_feed.filter(t => t.ambiguity_score >= 7).length medium_count = ambiguity_feed.filter(t => t.ambiguity_score >= 4 AND t.ambiguity_score <= 6).length low_count = ambiguity_feed.filter(t => t.ambiguity_score <= 3).length log (stdout): [ambiguity-detector] analysis complete topics: {ambiguity_feed.length} total heuristic: {heuristic_count} (language: {lang_count}, framework: {fw_count}) AST-derived: {ast_count}"
+        },
+        {
+          "field": "steps",
+          "source": "review-process",
+          "heading": "Process",
+          "lineStart": 70,
+          "lineEnd": 361,
+          "fragmentChecksum": "4d46861094856b2d52125ee4f9ff8b4194bb94431ccf7c8f6d4a455748e622e9",
+          "summary": "## Process ### Step 1 — Heuristic analysis from surface_scan_result #### Step 1a — Language distribution analysis Compute the ratio of each detected language over total language-attributed files: total_lang_files = sum(l.file_count for l in surface_scan_result.languages) if total_lang_files == 0: skip language heuristics # no language data — not an error log: \"[ambiguity-detector] no language data in surface_scan_result — skipping language heuristics\" else: lang_ratios = [ { language: l.language"
+        }
+      ],
+      "toolAssumptions": [
+        {
+          "category": "python",
+          "essential": false,
+          "evidence": [
+            "snippet: \"Python: 42%\""
+          ]
+        }
+      ],
+      "toolCompatibility": "OPTIONAL_ONLY",
+      "staticSecurity": {
+        "status": "PASS",
+        "approvalBlockingFinding": false
+      },
+      "externalAudit": {
+        "status": "PASS",
+        "advisory": true,
+        "source": "existing-checksum-bound-evaluation",
+        "records": [
+          {
+            "provider": "Gen Agent Trust Hub",
+            "status": "pass",
+            "auditedAt": "2026-06-18T07:49:00.803Z",
+            "summary": "The skill is a heuristic-based logic description for analyzing project ambiguity. It contains no executable code, makes no network requests, and does not access sensitive files."
+          },
+          {
+            "provider": "Socket",
+            "status": "pass",
+            "auditedAt": "2026-06-18T07:49:55.339Z",
+            "summary": "No alerts"
+          },
+          {
+            "provider": "Snyk",
+            "status": "pass",
+            "auditedAt": "2026-06-18T07:49:04.761872+00:00",
+            "summary": "Risk: LOW · No issues"
+          }
+        ]
+      },
+      "overlapStatus": "JUSTIFIED",
+      "currentness": {
+        "status": "CURRENT",
+        "expectedCandidateChecksum": "421b7a8270a82b26ce7a2bfa2172d1833880a6accedcc1ab28249df5e7e1a0e6",
+        "evaluationCandidateChecksum": "421b7a8270a82b26ce7a2bfa2172d1833880a6accedcc1ab28249df5e7e1a0e6",
+        "stagedRecordCandidateChecksum": "421b7a8270a82b26ce7a2bfa2172d1833880a6accedcc1ab28249df5e7e1a0e6",
+        "stagedContentManifestVerified": true,
+        "upstreamNetworkChecked": false
+      },
+      "approvalReadiness": "LICENSE_POLICY_REVIEW_REQUIRED",
+      "blockers": [
+        "license policy compatibility requires explicit Factory review"
+      ],
+      "evidencePolicyVersion": "external-skill-curation-v1",
+      "recordedAt": "2026-08-09T18:25:49.583Z"
+    },
+    {
+      "externalSkillId": "bradyhazell/brady-plugins/review-maintainability",
+      "targetAgent": "architecture-reviewer",
+      "targetCapability": "review.architecture",
+      "coverageKeys": [
+        "evolution-maintainability"
+      ],
+      "sourceId": "skills-sh",
+      "source": "bradyhazell/brady-plugins",
+      "slug": "review-maintainability",
+      "stagedSkillId": "review-maintainability-d9faf7cb9775",
+      "candidateChecksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9",
+      "normalizedContentChecksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9",
+      "retrievedContentChecksum": "51138c77d91fad5bf31f9d693b91e1d74a194245c79399f660bb5dfa504d6089",
+      "retrievedContent": "LOCAL_STAGED_CONTENT",
+      "evaluation": {
+        "policyVersion": "external-skill-curation-v1",
+        "procedureFit": "medium",
+        "roleFit": "strong",
+        "toolAssumptionCompatibility": "compatible",
+        "overlapAssessment": "low",
+        "localSecurityAssessment": "pass",
+        "recommendedDisposition": "NEEDS_HUMAN_REVIEW"
+      },
+      "provenance": {
+        "canonicalSource": "https://github.com/BradyHazell/brady-plugins",
+        "sourceRepository": "bradyhazell/brady-plugins",
+        "sourceCommit": "51138c77d91fad5bf31f9d693b91e1d74a194245c79399f660bb5dfa504d6089",
+        "sourceRef": "https://github.com/bradyhazell/brady-plugins",
+        "targetRole": "architecture-reviewer"
+      },
+      "licenseEvidence": {
+        "evidenceId": "license-4d178cfce774",
+        "evidenceType": "CANONICAL_SOURCE_LICENSE",
+        "externalSkillId": "bradyhazell/brady-plugins/review-maintainability",
+        "candidateChecksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9",
+        "sourceRepository": "bradyhazell/brady-plugins",
+        "sourceRef": "https://github.com/bradyhazell/brady-plugins",
+        "assertedValue": "MIT",
+        "licenseScope": "repository",
+        "licensePolicyStatus": "LICENSE_ALLOWED_FOR_FACTORY_USE",
+        "attributionObligations": [],
+        "suppliedBy": "HUMAN",
+        "recordedAt": "2026-08-09T18:25:49.583Z",
+        "policyVersion": "external-skill-curation-v1"
+      },
+      "canonicalLicenseSource": {
+        "canonicalRepository": "https://github.com/BradyHazell/brady-plugins",
+        "normalizedRepository": "bradyhazell/brady-plugins",
+        "suppliedBy": "HUMAN"
+      },
+      "licenseId": "MIT",
+      "licenseEvidenceType": "CANONICAL_SOURCE_LICENSE",
+      "licenseScope": "repository",
+      "licensePolicyStatus": "LICENSE_ALLOWED_FOR_FACTORY_USE",
+      "attributionObligations": [],
+      "purposeEvidence": {
+        "status": "COMPLETE",
+        "reference": {
+          "field": "purpose",
+          "source": "frontmatter-description",
+          "lineStart": 3,
+          "lineEnd": 3,
+          "fragmentChecksum": "c5680c1a0daa3f82d574b4a0576ff7eb16261839f1d0c68a0e0cc46a87077954",
+          "summary": "description: Review a PR for maintainability, repo conventions, best practices, unnecessary abstractions, dependency choices, and avoidable complexity without nitpicking style."
+        }
+      },
+      "stepsEvidence": [
+        {
+          "field": "steps",
+          "source": "review-process",
+          "heading": "What To Look For",
+          "lineStart": 11,
+          "lineEnd": 24,
+          "fragmentChecksum": "a9081b9726ea09a8674a6227af1b7167694c6e2cfe878fa0da8245900f8f1146",
+          "summary": "## What To Look For - New code that bypasses existing helpers, patterns, or abstractions without a clear reason - Duplicate logic that will drift - Overly broad abstractions for one call site - Tight coupling between modules that are otherwise separate - Business logic hidden in UI, handlers, config, or migration scripts - Hard-coded values that should be named, configured, or derived - Error messages or names that obscure the real behavior - Large functions where a small extraction would clarif"
+        },
+        {
+          "field": "steps",
+          "source": "review-process",
+          "heading": "How To Comment",
+          "lineStart": 25,
+          "lineEnd": 52,
+          "fragmentChecksum": "92325ad062749af349c0b5eb1ccf57c08a11dcf039fe931473a8e7fd20a88c63",
+          "summary": "## How To Comment Point to the repo pattern or maintenance cost. Good: Could we reuse `parseDateRange` here instead of adding a second parser? Keeping one path should make the timezone edge cases easier to maintain. Good: I might be missing the reason for the new dependency, but this looks like it only replaces a small amount of existing helper logic. Could we avoid adding it unless we need more of the library? Good: Could we keep the mapping close to the API adapter instead of the component? Th"
+        },
+        {
+          "field": "steps",
+          "source": "review-process",
+          "heading": "Severity",
+          "lineStart": 53,
+          "lineEnd": 58,
+          "fragmentChecksum": "a3c98ddfb87faf4e77301bc704ddf71810abdd542b63bc085dc86a8a9fb895c1",
+          "summary": "## Severity - `concern` for maintainability issues that will likely cause bugs or churn - `suggestion` for simpler structure or stronger alignment with local patterns - `question` when the author may have had a good trade-off in mind"
+        }
+      ],
+      "toolAssumptions": [],
+      "toolCompatibility": "COMPATIBLE",
+      "staticSecurity": {
+        "status": "PASS",
+        "approvalBlockingFinding": false
+      },
+      "externalAudit": {
+        "status": "PASS",
+        "advisory": true,
+        "source": "existing-checksum-bound-evaluation",
+        "records": [
+          {
+            "provider": "Gen Agent Trust Hub",
+            "status": "pass",
+            "auditedAt": "2026-06-18T01:53:05.331Z",
+            "summary": "The skill provides instructions for reviewing code maintainability and contains no security risks or executable code."
+          },
+          {
+            "provider": "Socket",
+            "status": "pass",
+            "auditedAt": "2026-06-18T01:53:21.285Z",
+            "summary": "No alerts"
+          },
+          {
+            "provider": "Snyk",
+            "status": "pass",
+            "auditedAt": "2026-06-18T01:52:51.713279+00:00",
+            "summary": "Risk: LOW · No issues"
+          }
+        ]
+      },
+      "overlapStatus": "JUSTIFIED",
+      "currentness": {
+        "status": "CURRENT",
+        "expectedCandidateChecksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9",
+        "evaluationCandidateChecksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9",
+        "stagedRecordCandidateChecksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9",
+        "stagedContentManifestVerified": true,
+        "upstreamNetworkChecked": false
+      },
+      "approvalReadiness": "APPROVAL_ELIGIBLE",
+      "blockers": [],
+      "evidencePolicyVersion": "external-skill-curation-v1",
+      "recordedAt": "2026-08-09T18:25:49.583Z"
+    },
+    {
+      "externalSkillId": "owasp/secure-agent-playbook/web-security-review",
+      "targetAgent": "security-reviewer",
+      "targetCapability": "review.security",
+      "coverageKeys": [
+        "web-security"
+      ],
+      "sourceId": "skills-sh",
+      "source": "owasp/secure-agent-playbook",
+      "slug": "web-security-review",
+      "stagedSkillId": "web-security-review-cb64887a561c",
+      "candidateChecksum": "8b280a3ab13567cadde2c114fffe5c5a00dd2841c229114abf14ddf0880e8012",
+      "normalizedContentChecksum": "8b280a3ab13567cadde2c114fffe5c5a00dd2841c229114abf14ddf0880e8012",
+      "retrievedContentChecksum": "70d7b6f3c17951e3d94b1a25d31dce1f7170d43a11fe016e4a9b403c7a044b90",
+      "retrievedContent": "LOCAL_STAGED_CONTENT",
+      "evaluation": {
+        "policyVersion": "external-skill-curation-v1",
+        "procedureFit": "high",
+        "roleFit": "strong",
+        "toolAssumptionCompatibility": "compatible",
+        "overlapAssessment": "low",
+        "localSecurityAssessment": "pass",
+        "recommendedDisposition": "NEEDS_HUMAN_REVIEW"
+      },
+      "provenance": {
+        "canonicalSource": "https://github.com/OWASP/secure-agent-playbook",
+        "sourceRepository": "owasp/secure-agent-playbook",
+        "sourceCommit": "70d7b6f3c17951e3d94b1a25d31dce1f7170d43a11fe016e4a9b403c7a044b90",
+        "sourceRef": "https://github.com/owasp/secure-agent-playbook",
+        "targetRole": "security-reviewer"
+      },
+      "licenseEvidence": {
+        "evidenceId": "license-8b280a3ab135",
+        "evidenceType": "CANONICAL_SOURCE_LICENSE",
+        "externalSkillId": "owasp/secure-agent-playbook/web-security-review",
+        "candidateChecksum": "8b280a3ab13567cadde2c114fffe5c5a00dd2841c229114abf14ddf0880e8012",
+        "sourceRepository": "owasp/secure-agent-playbook",
+        "sourceRef": "https://github.com/owasp/secure-agent-playbook",
+        "assertedValue": "CC-BY-4.0",
+        "licenseScope": "repository",
+        "licensePolicyStatus": "LICENSE_POLICY_REVIEW_REQUIRED",
+        "attributionObligations": [
+          "ATTRIBUTION_REQUIRED"
+        ],
+        "suppliedBy": "HUMAN",
+        "recordedAt": "2026-08-09T18:25:49.583Z",
+        "policyVersion": "external-skill-curation-v1"
+      },
+      "canonicalLicenseSource": {
+        "canonicalRepository": "https://github.com/OWASP/secure-agent-playbook",
+        "normalizedRepository": "owasp/secure-agent-playbook",
+        "suppliedBy": "HUMAN"
+      },
+      "licenseId": "CC-BY-4.0",
+      "licenseEvidenceType": "CANONICAL_SOURCE_LICENSE",
+      "licenseScope": "repository",
+      "licensePolicyStatus": "LICENSE_POLICY_REVIEW_REQUIRED",
+      "attributionObligations": [
+        "ATTRIBUTION_REQUIRED"
+      ],
+      "purposeEvidence": {
+        "status": "COMPLETE",
+        "reference": {
+          "field": "purpose",
+          "source": "frontmatter-description",
+          "lineStart": 3,
+          "lineEnd": 3,
+          "fragmentChecksum": "b6564c183b3dff9cf23c15ad8d5705e4807e9e194ead61188c70f70ec58997e4",
+          "summary": "description: Review web applications against the OWASP Top 10 for Web Applications (2021). Use when auditing web apps, reviewing server-side code, or assessing web frameworks for the classic OWASP Top 10 risks including injection, broken auth, and XSS."
+        }
+      },
+      "stepsEvidence": [
+        {
+          "field": "steps",
+          "source": "ordered-procedure",
+          "heading": "Steps",
+          "lineStart": 13,
+          "lineEnd": 29,
+          "fragmentChecksum": "5370cf482f2204568f845cd2a15bf2917149f88a96ec634f4ff3664489edf096",
+          "summary": "1. **Application Mapping** — Identify framework/language, deployment model (monolith/microservices), trust boundaries (internet/internal/local), data sensitivity (PII, financial, health), and authentication mechanisms. 2. **Assess Each OWASP Top 10 Risk**: - **A01 Broken Access Control** — Missing authz checks, IDOR, privilege escalation, path traversal, CORS misconfigurations - **A02 Cryptographic Failures** — Weak algorithms, missing TLS, hardcoded keys, improper key management, cleartext stor"
+        }
+      ],
+      "toolAssumptions": [],
+      "toolCompatibility": "COMPATIBLE",
+      "staticSecurity": {
+        "status": "PASS",
+        "approvalBlockingFinding": false
+      },
+      "externalAudit": {
+        "status": "PASS",
+        "advisory": true,
+        "source": "existing-checksum-bound-evaluation",
+        "records": [
+          {
+            "provider": "Gen Agent Trust Hub",
+            "status": "pass",
+            "auditedAt": "2026-04-13T23:51:30.694Z",
+            "summary": "The skill provides a structured framework for auditing web applications against the OWASP Top 10 (2021) risks. It consists entirely of instructional text and documentation, with no executable code, network operations, or security risks identified."
+          },
+          {
+            "provider": "Socket",
+            "status": "pass",
+            "auditedAt": "2026-04-13T23:52:24.277Z",
+            "summary": "No alerts"
+          },
+          {
+            "provider": "Snyk",
+            "status": "pass",
+            "auditedAt": "2026-04-13T23:51:31.319361+00:00",
+            "summary": "Risk: LOW · No issues"
+          }
+        ]
+      },
+      "overlapStatus": "JUSTIFIED",
+      "currentness": {
+        "status": "CURRENT",
+        "expectedCandidateChecksum": "8b280a3ab13567cadde2c114fffe5c5a00dd2841c229114abf14ddf0880e8012",
+        "evaluationCandidateChecksum": "8b280a3ab13567cadde2c114fffe5c5a00dd2841c229114abf14ddf0880e8012",
+        "stagedRecordCandidateChecksum": "8b280a3ab13567cadde2c114fffe5c5a00dd2841c229114abf14ddf0880e8012",
+        "stagedContentManifestVerified": true,
+        "upstreamNetworkChecked": false
+      },
+      "approvalReadiness": "LICENSE_POLICY_REVIEW_REQUIRED",
+      "blockers": [
+        "license policy compatibility requires explicit Factory review"
+      ],
+      "evidencePolicyVersion": "external-skill-curation-v1",
+      "recordedAt": "2026-08-09T18:25:49.583Z"
+    },
+    {
+      "externalSkillId": "djankies/claude-configs/reviewing-test-quality",
+      "targetAgent": "test-quality-reviewer",
+      "targetCapability": "review.test-quality",
+      "coverageKeys": [
+        "meaningful-assertions"
+      ],
+      "sourceId": "skills-sh",
+      "source": "djankies/claude-configs",
+      "slug": "reviewing-test-quality",
+      "stagedSkillId": "reviewing-test-quality-1251b8187af0",
+      "candidateChecksum": "7678ee0541450cce390b5a8b5bdacc93d2878451c087969856ccb250b4f38a08",
+      "normalizedContentChecksum": "7678ee0541450cce390b5a8b5bdacc93d2878451c087969856ccb250b4f38a08",
+      "retrievedContentChecksum": "b98d3ce2406cdb89a532e5c9f0bfc7de8713b445a799153aa53b070e51ccc46a",
+      "retrievedContent": "LOCAL_STAGED_CONTENT",
+      "evaluation": {
+        "policyVersion": "external-skill-curation-v1",
+        "procedureFit": "high",
+        "roleFit": "strong",
+        "toolAssumptionCompatibility": "compatible",
+        "overlapAssessment": "low",
+        "localSecurityAssessment": "pass",
+        "recommendedDisposition": "NEEDS_HUMAN_REVIEW"
+      },
+      "provenance": {
+        "canonicalSource": "https://github.com/djankies/claude-configs",
+        "sourceRepository": "djankies/claude-configs",
+        "sourceCommit": "b98d3ce2406cdb89a532e5c9f0bfc7de8713b445a799153aa53b070e51ccc46a",
+        "sourceRef": "https://github.com/djankies/claude-configs",
+        "targetRole": "test-quality-reviewer"
+      },
+      "licenseEvidence": {
+        "evidenceId": "license-7678ee054145",
+        "evidenceType": "CANONICAL_SOURCE_LICENSE",
+        "externalSkillId": "djankies/claude-configs/reviewing-test-quality",
+        "candidateChecksum": "7678ee0541450cce390b5a8b5bdacc93d2878451c087969856ccb250b4f38a08",
+        "sourceRepository": "djankies/claude-configs",
+        "sourceRef": "https://github.com/djankies/claude-configs",
+        "assertedValue": "MIT",
+        "licenseScope": "repository-inherited-no-narrower-local-evidence",
+        "licensePolicyStatus": "LICENSE_SCOPE_REVIEW_REQUIRED",
+        "attributionObligations": [],
+        "suppliedBy": "HUMAN",
+        "recordedAt": "2026-08-09T18:25:49.583Z",
+        "policyVersion": "external-skill-curation-v1"
+      },
+      "canonicalLicenseSource": {
+        "canonicalRepository": "https://github.com/djankies/claude-configs",
+        "normalizedRepository": "djankies/claude-configs",
+        "suppliedBy": "HUMAN"
+      },
+      "licenseId": "MIT",
+      "licenseEvidenceType": "CANONICAL_SOURCE_LICENSE",
+      "licenseScope": "repository-inherited-no-narrower-local-evidence",
+      "licensePolicyStatus": "LICENSE_SCOPE_REVIEW_REQUIRED",
+      "attributionObligations": [],
+      "purposeEvidence": {
+        "status": "COMPLETE",
+        "reference": {
+          "field": "purpose",
+          "source": "frontmatter-description",
+          "lineStart": 3,
+          "lineEnd": 3,
+          "fragmentChecksum": "885097a2458ef80d243366bee919943069a245050e08fc2db2987060a2b8c56e",
+          "summary": "description: Review React 19 test quality including coverage, patterns, and React 19 API testing. Use when reviewing tests or test coverage."
+        }
+      },
+      "stepsEvidence": [
+        {
+          "field": "steps",
+          "source": "checklist",
+          "heading": "Checklist",
+          "lineStart": 16,
+          "lineEnd": 48,
+          "fragmentChecksum": "393eb5d8e4ef8cbc24660e7bcb81f4889478f50e2bd3a716b8c5cb88b5a5ac7f",
+          "summary": "- [ ] Components have tests for user interactions - [ ] Forms test both success and error paths - [ ] Server Actions tested in isolation - [ ] Custom hooks tested with `renderHook` - [ ] Edge cases covered (empty states, errors, loading) ### React 19 APIs - [ ] Forms using `useActionState` have tests - [ ] `useOptimistic` updates tested for immediate feedback - [ ] `useFormStatus` tested within form component context - [ ] Server Actions tested with mocked auth/database - [ ] `use()` hook tested"
+        },
+        {
+          "field": "steps",
+          "source": "checklist",
+          "heading": "Test Coverage",
+          "lineStart": 16,
+          "lineEnd": 20,
+          "fragmentChecksum": "337ac2ee589e4b641eaf67784d532deac1bd60de587989db07ce3eb1c410d832",
+          "summary": "- [ ] Components have tests for user interactions - [ ] Forms test both success and error paths - [ ] Server Actions tested in isolation - [ ] Custom hooks tested with `renderHook` - [ ] Edge cases covered (empty states, errors, loading)"
+        },
+        {
+          "field": "steps",
+          "source": "checklist",
+          "heading": "React 19 APIs",
+          "lineStart": 23,
+          "lineEnd": 27,
+          "fragmentChecksum": "7fbf73ce12f3fcaf9a99b05cf4d27df3af0c9238054c004bb85680ed81a2afaa",
+          "summary": "- [ ] Forms using `useActionState` have tests - [ ] `useOptimistic` updates tested for immediate feedback - [ ] `useFormStatus` tested within form component context - [ ] Server Actions tested with mocked auth/database - [ ] `use()` hook tested with Promises and Context"
+        },
+        {
+          "field": "steps",
+          "source": "checklist",
+          "heading": "Testing Patterns",
+          "lineStart": 30,
+          "lineEnd": 34,
+          "fragmentChecksum": "f9745dc0e2048e620c26d360f1f71ed892434fecf08b8b7867601d0547386d29",
+          "summary": "- [ ] Using `@testing-library/react` and `@testing-library/user-event` - [ ] Queries prefer accessibility (`getByRole`, `getByLabelText`) - [ ] `waitFor` used for async assertions - [ ] Mocking external dependencies (API, database) - [ ] Tests are isolated and don't depend on each other"
+        },
+        {
+          "field": "steps",
+          "source": "checklist",
+          "heading": "Anti-Patterns",
+          "lineStart": 37,
+          "lineEnd": 41,
+          "fragmentChecksum": "e806afa3fe11a9dc0b47211b440b82fedc8a187727097e241f4b04d911de2f06",
+          "summary": "- [ ] ❌ Testing implementation details (internal state, methods) - [ ] ❌ Querying by class names or data-testid when role available - [ ] ❌ Not waiting for async updates (`waitFor`) - [ ] ❌ Testing components without user interactions - [ ] ❌ Missing error case tests"
+        },
+        {
+          "field": "steps",
+          "source": "checklist",
+          "heading": "Server Action Testing",
+          "lineStart": 44,
+          "lineEnd": 48,
+          "fragmentChecksum": "cb64496de3ba248f35f6f4d7bb20d54f142b3adda456ad3f855c54a13424e195",
+          "summary": "- [ ] Server Actions tested as functions (not through UI) - [ ] Input validation tested - [ ] Authentication/authorization tested - [ ] Database operations mocked - [ ] Error handling tested"
+        }
+      ],
+      "toolAssumptions": [],
+      "toolCompatibility": "COMPATIBLE",
+      "staticSecurity": {
+        "status": "PASS",
+        "approvalBlockingFinding": false
+      },
+      "externalAudit": {
+        "status": "PASS",
+        "advisory": true,
+        "source": "existing-checksum-bound-evaluation",
+        "records": [
+          {
+            "provider": "Gen Agent Trust Hub",
+            "status": "pass",
+            "auditedAt": "2026-02-17T18:45:43.633Z",
+            "summary": "The skill is a purely instructional review checklist for React 19 testing standards. It does not include executable code or access sensitive system resources, and its authorized tools are limited to passive reading and searching of files."
+          },
+          {
+            "provider": "Socket",
+            "status": "pass",
+            "auditedAt": "2026-02-16T13:11:27.449Z",
+            "summary": "No alerts"
+          },
+          {
+            "provider": "Snyk",
+            "status": "pass",
+            "auditedAt": "2026-02-16T13:10:57.187998+00:00",
+            "summary": "Risk: LOW · No issues"
+          }
+        ]
+      },
+      "overlapStatus": "JUSTIFIED",
+      "currentness": {
+        "status": "CURRENT",
+        "expectedCandidateChecksum": "7678ee0541450cce390b5a8b5bdacc93d2878451c087969856ccb250b4f38a08",
+        "evaluationCandidateChecksum": "7678ee0541450cce390b5a8b5bdacc93d2878451c087969856ccb250b4f38a08",
+        "stagedRecordCandidateChecksum": "7678ee0541450cce390b5a8b5bdacc93d2878451c087969856ccb250b4f38a08",
+        "stagedContentManifestVerified": true,
+        "upstreamNetworkChecked": false
+      },
+      "approvalReadiness": "LICENSE_SCOPE_REVIEW_REQUIRED",
+      "blockers": [
+        "license scope requires explicit Factory review"
+      ],
+      "evidencePolicyVersion": "external-skill-curation-v1",
+      "recordedAt": "2026-08-09T18:25:49.583Z"
+    }
+  ]
+}
