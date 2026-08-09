@@ -1,0 +1,504 @@
+{
+  "schemaVersion": 1,
+  "phase": "4D5",
+  "auditDate": "2026-08-09",
+  "baselineCommit": "b724f0a",
+  "agentCount": 9,
+  "agentIds": [
+    "lead",
+    "planner",
+    "design",
+    "implementation",
+    "architecture-reviewer",
+    "contract-auditor",
+    "code-integration-reviewer",
+    "security-reviewer",
+    "test-quality-reviewer"
+  ],
+  "approvedArtifactCounts": {
+    "external": 4,
+    "internal": 13,
+    "total": 17
+  },
+  "assignmentReferenceCount": 18,
+  "perAgentAssignments": {
+    "lead": [
+      "lead-requirements-completeness"
+    ],
+    "planner": [
+      "project-data-model-planning",
+      "technical-risk-planning"
+    ],
+    "design": [
+      "responsive-form-ux-design"
+    ],
+    "implementation": [
+      "nextjs-server-client-implementation",
+      "typed-form-implementation",
+      "supabase-application-integration",
+      "maintainable-performance-implementation"
+    ],
+    "architecture-reviewer": [
+      "module-boundaries-fb20497b5c35",
+      "review-maintainability-d9faf7cb9775",
+      "architecture-tradeoff-review"
+    ],
+    "contract-auditor": [
+      "acceptance-criteria-80493e317476",
+      "requirements-evidence-traceability"
+    ],
+    "code-integration-reviewer": [
+      "react-nextjs-integration-review"
+    ],
+    "security-reviewer": [
+      "supabase-rls-1e36b217c969",
+      "auth-storage-security-review"
+    ],
+    "test-quality-reviewer": [
+      "requirements-evidence-traceability",
+      "behavioral-test-quality-review"
+    ]
+  },
+  "checksumIntegrity": {
+    "checked": 17,
+    "exactMatches": 17,
+    "results": {
+      "acceptance-criteria-80493e317476": {
+        "expected": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec",
+        "actual": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec",
+        "matches": true
+      },
+      "architecture-tradeoff-review": {
+        "expected": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd",
+        "actual": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd",
+        "matches": true
+      },
+      "auth-storage-security-review": {
+        "expected": "069ffa33fec764ce1e19ff853d21b00d091e5f0eb874e0278de7a774e344dd25",
+        "actual": "069ffa33fec764ce1e19ff853d21b00d091e5f0eb874e0278de7a774e344dd25",
+        "matches": true
+      },
+      "behavioral-test-quality-review": {
+        "expected": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09",
+        "actual": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09",
+        "matches": true
+      },
+      "lead-requirements-completeness": {
+        "expected": "315aa899708b9d7dd5da09c061e3a9f1b8367fa3a617fa6022223157a64afff5",
+        "actual": "315aa899708b9d7dd5da09c061e3a9f1b8367fa3a617fa6022223157a64afff5",
+        "matches": true
+      },
+      "maintainable-performance-implementation": {
+        "expected": "f996bde1493bc2d0b6246b2e5e098aea28e43b07b1dd148da8dffff5a3af33f6",
+        "actual": "f996bde1493bc2d0b6246b2e5e098aea28e43b07b1dd148da8dffff5a3af33f6",
+        "matches": true
+      },
+      "module-boundaries-fb20497b5c35": {
+        "expected": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff",
+        "actual": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff",
+        "matches": true
+      },
+      "nextjs-server-client-implementation": {
+        "expected": "7781dc0f003aef30c6d3bebc5ba72bac8f2b2f4de58812488a9273f2d6c36f4c",
+        "actual": "7781dc0f003aef30c6d3bebc5ba72bac8f2b2f4de58812488a9273f2d6c36f4c",
+        "matches": true
+      },
+      "project-data-model-planning": {
+        "expected": "57f5c9aac801058ea0bc3e8b06e06fd33a60cffb86a2ee658977d8f445256856",
+        "actual": "57f5c9aac801058ea0bc3e8b06e06fd33a60cffb86a2ee658977d8f445256856",
+        "matches": true
+      },
+      "react-nextjs-integration-review": {
+        "expected": "acd9276249146013c41cdbf0d53463232124c7f50f360014729266c798cd737b",
+        "actual": "acd9276249146013c41cdbf0d53463232124c7f50f360014729266c798cd737b",
+        "matches": true
+      },
+      "requirements-evidence-traceability": {
+        "expected": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26",
+        "actual": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26",
+        "matches": true
+      },
+      "responsive-form-ux-design": {
+        "expected": "769b395263c7e0b5fd67d355b4b49a9e88d113df0e6a83e6c8d07714bca31fee",
+        "actual": "769b395263c7e0b5fd67d355b4b49a9e88d113df0e6a83e6c8d07714bca31fee",
+        "matches": true
+      },
+      "review-maintainability-d9faf7cb9775": {
+        "expected": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9",
+        "actual": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9",
+        "matches": true
+      },
+      "supabase-application-integration": {
+        "expected": "c819bba97e69bcaf4a3d3b4c40e2476251387e623dc698113a20e919a74f1b78",
+        "actual": "c819bba97e69bcaf4a3d3b4c40e2476251387e623dc698113a20e919a74f1b78",
+        "matches": true
+      },
+      "supabase-rls-1e36b217c969": {
+        "expected": "87bc57e597d3eb2e6ec8d4c099684cf4685da84ef45076b14083a7fcc7100877",
+        "actual": "87bc57e597d3eb2e6ec8d4c099684cf4685da84ef45076b14083a7fcc7100877",
+        "matches": true
+      },
+      "technical-risk-planning": {
+        "expected": "19b8469b5e4dc7fed92a41b1c4974183aa676e4968b70d7eec7c25306c595826",
+        "actual": "19b8469b5e4dc7fed92a41b1c4974183aa676e4968b70d7eec7c25306c595826",
+        "matches": true
+      },
+      "typed-form-implementation": {
+        "expected": "f72ea7786e203908691e52e59932af2ba68cf13cf9f2ea453eb3b47d91b41182",
+        "actual": "f72ea7786e203908691e52e59932af2ba68cf13cf9f2ea453eb3b47d91b41182",
+        "matches": true
+      }
+    }
+  },
+  "sharedSkillIntegrity": {
+    "skillId": "requirements-evidence-traceability",
+    "registryArtifacts": 1,
+    "assignmentReferences": 2,
+    "uniqueChecksums": 1
+  },
+  "deferredLeakStatus": {
+    "authoritativeRuntimeLeakCount": 0,
+    "runtimeResolvable": false,
+    "historicalReferencesAllowed": true
+  },
+  "selectionMatrixSummary": {
+    "lead": [
+      {
+        "scenario": "incomplete-brief",
+        "selected": [
+          "lead-requirements-completeness"
+        ],
+        "totalBytes": 2808,
+        "excluded": []
+      }
+    ],
+    "planner": [
+      {
+        "scenario": "data-and-risk",
+        "selected": [
+          "project-data-model-planning",
+          "technical-risk-planning"
+        ],
+        "totalBytes": 4902,
+        "excluded": []
+      },
+      {
+        "scenario": "static-site",
+        "selected": [],
+        "totalBytes": 0,
+        "excluded": [
+          {
+            "skillId": "project-data-model-planning",
+            "reason": "NOT_RELEVANT"
+          },
+          {
+            "skillId": "technical-risk-planning",
+            "reason": "NOT_RELEVANT"
+          }
+        ]
+      }
+    ],
+    "design": [
+      {
+        "scenario": "responsive-form",
+        "selected": [
+          "responsive-form-ux-design"
+        ],
+        "totalBytes": 2410,
+        "excluded": []
+      }
+    ],
+    "implementation": [
+      {
+        "scenario": "nextjs",
+        "selected": [
+          "nextjs-server-client-implementation"
+        ],
+        "totalBytes": 2627,
+        "excluded": [
+          {
+            "skillId": "maintainable-performance-implementation",
+            "reason": "NOT_RELEVANT"
+          },
+          {
+            "skillId": "supabase-application-integration",
+            "reason": "CAPABILITY_MISMATCH"
+          },
+          {
+            "skillId": "typed-form-implementation",
+            "reason": "NOT_RELEVANT"
+          }
+        ]
+      },
+      {
+        "scenario": "typed-form",
+        "selected": [
+          "typed-form-implementation"
+        ],
+        "totalBytes": 2457,
+        "excluded": [
+          {
+            "skillId": "maintainable-performance-implementation",
+            "reason": "NOT_RELEVANT"
+          },
+          {
+            "skillId": "nextjs-server-client-implementation",
+            "reason": "NOT_RELEVANT"
+          },
+          {
+            "skillId": "supabase-application-integration",
+            "reason": "CAPABILITY_MISMATCH"
+          }
+        ]
+      },
+      {
+        "scenario": "supabase",
+        "selected": [
+          "supabase-application-integration"
+        ],
+        "totalBytes": 2502,
+        "excluded": [
+          {
+            "skillId": "maintainable-performance-implementation",
+            "reason": "CAPABILITY_MISMATCH"
+          },
+          {
+            "skillId": "nextjs-server-client-implementation",
+            "reason": "CAPABILITY_MISMATCH"
+          },
+          {
+            "skillId": "typed-form-implementation",
+            "reason": "CAPABILITY_MISMATCH"
+          }
+        ]
+      },
+      {
+        "scenario": "performance",
+        "selected": [
+          "maintainable-performance-implementation"
+        ],
+        "totalBytes": 2464,
+        "excluded": [
+          {
+            "skillId": "nextjs-server-client-implementation",
+            "reason": "NOT_RELEVANT"
+          },
+          {
+            "skillId": "supabase-application-integration",
+            "reason": "CAPABILITY_MISMATCH"
+          },
+          {
+            "skillId": "typed-form-implementation",
+            "reason": "NOT_RELEVANT"
+          }
+        ]
+      },
+      {
+        "scenario": "form-and-supabase",
+        "selected": [
+          "typed-form-implementation"
+        ],
+        "totalBytes": 2457,
+        "excluded": [
+          {
+            "skillId": "maintainable-performance-implementation",
+            "reason": "NOT_RELEVANT"
+          },
+          {
+            "skillId": "nextjs-server-client-implementation",
+            "reason": "NOT_RELEVANT"
+          },
+          {
+            "skillId": "supabase-application-integration",
+            "reason": "CAPABILITY_MISMATCH"
+          }
+        ]
+      },
+      {
+        "scenario": "unrelated",
+        "selected": [],
+        "totalBytes": 0,
+        "excluded": [
+          {
+            "skillId": "maintainable-performance-implementation",
+            "reason": "NOT_RELEVANT"
+          },
+          {
+            "skillId": "nextjs-server-client-implementation",
+            "reason": "NOT_RELEVANT"
+          },
+          {
+            "skillId": "supabase-application-integration",
+            "reason": "CAPABILITY_MISMATCH"
+          },
+          {
+            "skillId": "typed-form-implementation",
+            "reason": "NOT_RELEVANT"
+          }
+        ]
+      }
+    ],
+    "architecture-reviewer": [
+      {
+        "scenario": "combined-architecture",
+        "selected": [
+          "module-boundaries-fb20497b5c35",
+          "review-maintainability-d9faf7cb9775",
+          "architecture-tradeoff-review"
+        ],
+        "totalBytes": 10495,
+        "excluded": []
+      }
+    ],
+    "contract-auditor": [
+      {
+        "scenario": "combined-contract",
+        "selected": [
+          "acceptance-criteria-80493e317476",
+          "requirements-evidence-traceability"
+        ],
+        "totalBytes": 7161,
+        "excluded": []
+      }
+    ],
+    "code-integration-reviewer": [
+      {
+        "scenario": "react-next",
+        "selected": [
+          "react-nextjs-integration-review"
+        ],
+        "totalBytes": 2404,
+        "excluded": []
+      }
+    ],
+    "security-reviewer": [
+      {
+        "scenario": "supabase-auth-storage",
+        "selected": [
+          "supabase-rls-1e36b217c969",
+          "auth-storage-security-review"
+        ],
+        "totalBytes": 3492,
+        "excluded": []
+      }
+    ],
+    "test-quality-reviewer": [
+      {
+        "scenario": "traceability-and-behavior",
+        "selected": [
+          "requirements-evidence-traceability",
+          "behavioral-test-quality-review"
+        ],
+        "totalBytes": 5204,
+        "excluded": []
+      }
+    ]
+  },
+  "contextBudgetStatus": {
+    "reservedContextFirst": true,
+    "assignedBytes": {
+      "lead": 2808,
+      "planner": 4902,
+      "design": 2410,
+      "implementation": 10050,
+      "architecture-reviewer": 10495,
+      "contract-auditor": 7161,
+      "code-integration-reviewer": 2404,
+      "security-reviewer": 3492,
+      "test-quality-reviewer": 5204
+    }
+  },
+  "promptAssemblyStatus": {
+    "boundaryPresent": true,
+    "productionWiring": {
+      "architecture": true,
+      "contract": true,
+      "code": false,
+      "security": true,
+      "testQuality": false,
+      "generation": false
+    }
+  },
+  "authorityStatus": {
+    "approvedToolGrantsEmpty": true,
+    "reviewerCatalogReadOnly": true
+  },
+  "offlineStatus": {
+    "localApprovedCopies": 17,
+    "runtimeSkillsShCalls": 0,
+    "externalNetworkCallsForLoading": 0,
+    "runtimeVercelOidcTokenRequired": false
+  },
+  "identityStatus": {
+    "selectedChecksumsIncluded": true,
+    "unselectedRegistryGrowthNonInvalidating": true,
+    "productionReviewerCoverage": "Architecture/Contract/Security only"
+  },
+  "stalenessStatus": {
+    "resolverChecksumGate": true,
+    "productionReviewerCoverage": "Architecture/Contract/Security only",
+    "blockedByProductionWiringGap": true
+  },
+  "immutabilityStatus": {
+    "approvedCopiesChecked": 17,
+    "productionRewritePath": false
+  },
+  "deferredHistoryStatus": {
+    "retained": true,
+    "runtimeResolvable": false
+  },
+  "loggingSafetyStatus": {
+    "metadataOnly": true
+  },
+  "errorContainmentStatus": {
+    "checksumMismatchDenied": true,
+    "upstreamFallback": false,
+    "preciseExclusionReasons": true
+  },
+  "portfolioCoverageStatus": {
+    "lead": "SUFFICIENT",
+    "planner": "SUFFICIENT",
+    "design": "SUFFICIENT",
+    "implementation": "SUFFICIENT",
+    "architecture-reviewer": "SUFFICIENT",
+    "contract-auditor": "SUFFICIENT",
+    "code-integration-reviewer": "SUFFICIENT",
+    "security-reviewer": "SUFFICIENT",
+    "test-quality-reviewer": "SUFFICIENT"
+  },
+  "findings": [
+    {
+      "id": "production-prompt-integration-unwired",
+      "severity": "CRITICAL",
+      "blocking": true,
+      "status": "OPEN",
+      "summary": "Only Architecture, Contract, and Security receive resolved skill contexts in the production runtime. Code / Integration and Test / Quality have no resolver dependency, and Lead, Planner, Design, and Implementation provider calls do not pass resolved procedural contexts.",
+      "evidence": [
+        "src/runtime/production-factory-runtime-core.ts",
+        "src/agents/reviewers/code-integration/service.ts",
+        "src/agents/reviewers/test-quality/service.ts",
+        "src/integrations/openai/adapters.ts"
+      ]
+    },
+    {
+      "id": "qa-foundation-temp-directories",
+      "severity": "INFO",
+      "blocking": false,
+      "status": "OBSERVED",
+      "summary": "Nine .qa-foundation-* directories exist; none are tracked or required by the skill audit.",
+      "evidence": [
+        "workspace"
+      ]
+    }
+  ],
+  "phase4ClosureCriteria": {
+    "passed": 13,
+    "total": 15
+  },
+  "phase4ClosureStatus": "BLOCKED",
+  "noNewSkills": true,
+  "noNewApprovals": true,
+  "noNewAgentsOrchestratorsMcp": true,
+  "noBroadResolverRedesign": true,
+  "noProductionWebsiteE2E": true
+}
