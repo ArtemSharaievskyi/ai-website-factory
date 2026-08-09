@@ -10,6 +10,8 @@ import {
   SKILLS_SH_ORIGIN,
   SKILLS_SH_SOURCE_ID,
   SkillsShDetailResponseSchema,
+  SkillsShAuditResponseSchema,
+  SkillsShAuditResultSchema,
   SkillsShDescriptorSchema,
   SkillsShSearchResponseSchema,
   SkillsShCandidateSchema,
@@ -153,7 +155,11 @@ export class SkillsShSourceAdapter {
     const url = validateSkillsShUrl(`${SKILLS_SH_ORIGIN}${pathname}`);
     return url.toString();
   }
-  private async request(url: string, signal?: AbortSignal) {
+  private async request(
+    url: string,
+    signal?: AbortSignal,
+    options: { allowedStatuses?: number[] } = {},
+  ) {
     const target = validateSkillsShUrl(url);
     const external = signal ?? new AbortController().signal;
     if (external.aborted)
@@ -190,6 +196,7 @@ export class SkillsShSourceAdapter {
             "SKILLS_SH_UNSAFE_REDIRECT",
             "Redirects are not permitted for skills.sh retrieval.",
           );
+        if (options.allowedStatuses?.includes(result.status)) return result;
         if (result.status === 429 || result.status >= 500) {
           if (attempt < this.source.fetchPolicy.maxRetries) {
             await sleep(25 * (attempt + 1), external);
@@ -321,6 +328,46 @@ export class SkillsShSourceAdapter {
         undefined,
         error,
       );
+    }
+  }
+  async getSkillAudit(
+    externalSkillId: string,
+    signal?: AbortSignal,
+  ) {
+    const id = sourceIdSafe(externalSkillId);
+    let response: SkillsShHttpResponse;
+    try {
+      response = await this.request(
+        this.urlFor(
+          `/api/v1/skills/audit/${id.split("/").map(encodeURIComponent).join("/")}`,
+        ),
+        signal,
+        { allowedStatuses: [404] },
+      );
+    } catch (error) {
+      return SkillsShAuditResultSchema.parse({
+        available: false,
+        reason:
+          error instanceof SkillsShError
+            ? error.message
+            : "The external audit source could not be reached.",
+      });
+    }
+    if (response.status === 404)
+      return SkillsShAuditResultSchema.parse({
+        available: false,
+        reason: "No external audit metadata is available.",
+      });
+    try {
+      return SkillsShAuditResultSchema.parse({
+        available: true,
+        response: SkillsShAuditResponseSchema.parse(JSON.parse(response.body)),
+      });
+    } catch {
+      return SkillsShAuditResultSchema.parse({
+        available: false,
+        reason: "The external audit response was invalid.",
+      });
     }
   }
   async fetchSkillCandidate(

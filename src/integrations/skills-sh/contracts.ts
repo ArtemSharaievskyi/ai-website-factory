@@ -76,6 +76,39 @@ export const SkillsShDetailResponseSchema = z
 export type SkillsShDetailResponse = z.infer<
   typeof SkillsShDetailResponseSchema
 >;
+export const SkillsShAuditEntrySchema = z
+  .object({
+    provider: z.string().min(1),
+    slug: z.string().min(1),
+    status: z.enum(["pass", "warn", "fail"]),
+    summary: z.string().max(2000),
+    auditedAt: z.string().datetime(),
+    riskLevel: z
+      .enum(["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"])
+      .optional(),
+    categories: z.array(z.string()).optional(),
+  })
+  .strict();
+export type SkillsShAuditEntry = z.infer<typeof SkillsShAuditEntrySchema>;
+export const SkillsShAuditResponseSchema = z
+  .object({
+    id: ExternalId,
+    source: z.string().min(1),
+    slug: z.string().min(1),
+    audits: z.array(SkillsShAuditEntrySchema),
+  })
+  .strict();
+export type SkillsShAuditResponse = z.infer<
+  typeof SkillsShAuditResponseSchema
+>;
+export const SkillsShAuditResultSchema = z
+  .object({
+    available: z.boolean(),
+    response: SkillsShAuditResponseSchema.optional(),
+    reason: z.string().max(500).optional(),
+  })
+  .strict();
+export type SkillsShAuditResult = z.infer<typeof SkillsShAuditResultSchema>;
 export const SkillsShCandidateSchema = z
   .object({
     descriptor: SkillsShDescriptorSchema,

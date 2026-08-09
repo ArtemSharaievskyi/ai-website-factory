@@ -11,3 +11,10 @@ Discovery and fetching never approve or assign a skill. Staged candidates retain
 External content is untrusted text. Shell, install, prompt-injection, authority-override, secret-exfiltration, privilege, destructive, obfuscated, and similar instructions are statically quarantined where detected. Code examples are not executable. No imported script is run, no package is installed, and no agent definition is modified. Skill text cannot grant tools or permissions: `AgentDefinition` remains authoritative, wildcard skill permissions are rejected, and runtime loading can require an explicit allowed-skill snapshot.
 
 Approved runtime loading is local-only. Existing approved copies continue to work when skills.sh is unavailable, and runtime never refetches upstream content. Phase 4A deliberately assigns no external skills to any of the nine agents; deliberate curation and assignment belong to Phase 4B.
+
+## Advisory audit metadata
+
+The administrative curation layer may also call the documented
+`/api/v1/skills/audit/{source}/{skill}` endpoint. Audit results are stored as
+advisory metadata only: a PASS is not Factory approval, a FAIL is surfaced for
+human review, and a 404/no-audit result does not fail a locally safe candidate.

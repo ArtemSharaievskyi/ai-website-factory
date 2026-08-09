@@ -27,6 +27,7 @@
     "generated:runtime-smoke": "tsx scripts/generated-runtime-smoke.ts",
     "playwright:smoke": "tsx scripts/playwright-smoke.ts",
     "taskgraph:smoke": "tsx scripts/taskgraph-smoke.ts",
+    "skills:curate": "tsx scripts/skills-curation.ts",
     "factory:e2e-smoke": "tsx scripts/factory-e2e-smoke.ts",
     "codebase-memory:smoke": "tsx scripts/codebase-memory-smoke.ts"
   },

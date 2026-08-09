@@ -86,6 +86,31 @@ describe("skills.sh source adapter", () => {
     expect(first.normalizedContentChecksum).toMatch(/^[a-f0-9]{64}$/);
     expect(first.files.some((file) => file.path === "SKILL.md")).toBe(true);
   });
+  it("retrieves advisory audit metadata and treats a missing audit as unavailable", async () => {
+    const audit = {
+      id: detail.id,
+      source: detail.source,
+      slug: detail.slug,
+      audits: [
+        {
+          provider: "Socket",
+          slug: "socket",
+          status: "fail",
+          summary: "Risk detected",
+          auditedAt: new Date().toISOString(),
+          riskLevel: "HIGH",
+        },
+      ],
+    };
+    const available = new SkillsShSourceAdapter({ transport: transportFor(audit).transport });
+    const result = await available.getSkillAudit(detail.id);
+    expect(result.available).toBe(true);
+    expect(result.response?.audits[0].status).toBe("fail");
+    const missing = new SkillsShSourceAdapter({ transport: async () => response({}, 404) });
+    await expect(missing.getSkillAudit(detail.id)).resolves.toMatchObject({
+      available: false,
+    });
+  });
   it("rejects malformed identifiers and unsafe content paths", async () => {
     const fixture = transportFor({
       ...detail,
