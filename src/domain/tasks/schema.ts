@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RuntimeDiagnosticReferenceSchema } from "../../runtime-validation/contracts";
+import { RuntimeDiagnosticReferenceSchema } from "@/runtime/validation/contracts";
 import { DocumentBaseSchema, IsoDateTimeSchema, NonEmptyStringSchema, ProjectVersionSchema, UuidSchema } from "../shared/schemas";
 
 export const TaskRoleSchema = z.enum(["lead", "planner-architect", "design", "implementation", "qa-release"]);

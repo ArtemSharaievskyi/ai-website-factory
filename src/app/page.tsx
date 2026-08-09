@@ -1,4 +1,4 @@
-import { foundationSummary } from "@/lib/foundation";
+import { foundationSummary } from "@/shared/foundation/foundation";
 
 export default function Home() {
   return (

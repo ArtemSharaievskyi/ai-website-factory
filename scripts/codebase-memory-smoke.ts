@@ -3,9 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { loadFactoryCliEnv } from "./cli-env";
-import { readCodebaseMemoryConfig } from "../src/codebase-memory/config";
-import { CodebaseMemoryService } from "../src/codebase-memory/service";
-import { createProcessTransport } from "../src/codebase-memory/transport";
+import { readCodebaseMemoryConfig } from "../src/integrations/codebase-memory/config";
+import { CodebaseMemoryService } from "../src/integrations/codebase-memory/service";
+import { createProcessTransport } from "../src/integrations/codebase-memory/transport";
 
 loadFactoryCliEnv();
 

@@ -27,7 +27,7 @@ describe("Factory Git hygiene", () => {
     expect(gitignore).not.toContain("**/.factory/");
   });
   it("keeps QA fixture cleanup in a finally block", () => {
-    const source = readFileSync(path.join(root, "src/playwright-functional-qa/server.test.ts"), "utf8");
+    const source = readFileSync(path.join(root, "src/runtime/qa/server.test.ts"), "utf8");
     expect(source).toContain("finally");
     expect(source).toContain("rm(root, { recursive: true, force: true })");
   });

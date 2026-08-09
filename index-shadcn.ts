@@ -1,1 +1,1 @@
-export * from "./src/shadcn-registry";
+export * from "./src/integrations/shadcn";

@@ -3,8 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { AgentTaskSchema } from "../src/domain/tasks/schema";
-import { ImplementationChangeProposalSchema } from "../src/implementation-agent/contracts";
-import { validateBackendProposal } from "../src/implementation-agent/backend";
+import { ImplementationChangeProposalSchema } from "../src/agents/implementation/contracts";
+import { validateBackendProposal } from "../src/agents/implementation/backend";
 
 async function main() {
   const root = await mkdtemp(path.join(os.tmpdir(), "backend-smoke-"));

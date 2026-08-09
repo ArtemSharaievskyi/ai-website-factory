@@ -9,7 +9,7 @@ The Workspace Manager now creates safe, versioned project roots and `.factory` m
 
 The old `ai-website-factory-preview-prototype` repository is a separate legacy reference and is intentionally not imported or modified. This repository contains no customer-site Preview system.
 
-See [AI provider architecture](docs/ai-provider.md), [security](docs/ai-provider-security.md), and [manual smoke test](docs/ai-smoke-test.md) for the production OpenAI foundation. Real AI is opt-in and deterministic tests remain network-free.
+See [AI provider architecture](docs/integrations/ai-provider.md), [security](docs/integrations/ai-provider-security.md), and [manual smoke test](docs/operations/ai-smoke-test.md) for the production OpenAI foundation. Real AI is opt-in and deterministic tests remain network-free.
 
 The opt-in `factory:e2e-smoke` flow uses one production stage runner for the approved workflow and delegates implementation/runtime/QA execution to `FullTaskGraphExecutor`. Raw external transports are not available to the runner; adapter evidence is required for success.
 
@@ -69,19 +69,32 @@ The shadcn Registry is optional and read-only; see `docs/shadcn-registry-integra
 
 Backend task handlers are plan-bound and static-validation-only; see `docs/backend-implementation.md`.
 
-Generated project runtime validation is npm-only, bounded, secret-stripped, and opt-in for real smoke execution; see [`docs/generated-runtime-validation.md`](docs/generated-runtime-validation.md).
+Generated project runtime validation is npm-only, bounded, secret-stripped, and opt-in for real smoke execution; see [`docs/operations/generated-runtime-validation.md`](docs/operations/generated-runtime-validation.md).
 
-Playwright is reserved for functional localhost QA only; screenshot and visual review are explicitly excluded. See [`docs/playwright-functional-qa.md`](docs/playwright-functional-qa.md).
+Playwright is reserved for functional localhost QA only; screenshot and visual review are explicitly excluded. See [`docs/operations/playwright-functional-qa.md`](docs/operations/playwright-functional-qa.md).
 
-Controlled full TaskGraph execution is fake-smoke tested and stops at pre-release eligibility; see [`docs/full-taskgraph-execution.md`](docs/full-taskgraph-execution.md).
+Controlled full TaskGraph execution is fake-smoke tested and stops at pre-release eligibility; see [`docs/operations/full-taskgraph-execution.md`](docs/operations/full-taskgraph-execution.md).
 
-The real Factory chain is an explicit opt-in smoke only: set `ALLOW_REAL_FACTORY_E2E=true` and run `npm run factory:e2e-smoke`. Without opt-in it prints `REAL_FACTORY_E2E_PENDING`; see [`docs/real-factory-e2e-smoke.md`](docs/real-factory-e2e-smoke.md).
+The real Factory chain is an explicit opt-in smoke only: set `ALLOW_REAL_FACTORY_E2E=true` and run `npm run factory:e2e-smoke`. Without opt-in it prints `REAL_FACTORY_E2E_PENDING`; see [`docs/operations/real-factory-e2e-smoke.md`](docs/operations/real-factory-e2e-smoke.md).
 
-Production wiring is centralized in [`docs/production-factory-runtime.md`](docs/production-factory-runtime.md); automated tests use an explicit deterministic composition.
+Production wiring is centralized in [`docs/operations/production-factory-runtime.md`](docs/operations/production-factory-runtime.md); automated tests use an explicit deterministic composition.
 
-Production FullTaskGraph adapters are documented in [`docs/production-execution-state-adapter.md`](docs/production-execution-state-adapter.md).
+Production FullTaskGraph adapters are documented in [`docs/operations/production-execution-state-adapter.md`](docs/operations/production-execution-state-adapter.md).
 # Optional Codebase Memory
 
-Project Memory is canonical workflow memory; Codebase Memory is optional read-only structural intelligence for generated project versions. It is disabled by default, never indexes the Factory repository, and is available only to authorized implementation/repair/reconciliation context. See [`docs/codebase-memory-integration.md`](docs/codebase-memory-integration.md).
+Project Memory is canonical workflow memory; Codebase Memory is optional read-only structural intelligence for generated project versions. It is disabled by default, never indexes the Factory repository, and is available only to authorized implementation/repair/reconciliation context. See [`docs/integrations/codebase-memory-integration.md`](docs/integrations/codebase-memory-integration.md).
+
+## Repository Structure
+
+- `src/app/` contains the Next.js application routes and UI.
+- `src/agents/` contains the Lead, Planner, Design, and Implementation AI roles.
+- `src/domain/` contains shared workflow and product contracts.
+- `src/orchestration/` coordinates TaskGraph planning and execution.
+- `src/integrations/` contains OpenAI, Context7, shadcn Registry, and Codebase Memory adapters.
+- `src/persistence/` contains database persistence and Project Memory.
+- `src/runtime/` contains workspace, validation, QA, and production E2E mechanics.
+- `src/skills/registry/` contains the Approved Skills Registry implementation; skill content remains in root `skills/`.
+- `docs/` is organized into architecture, contracts, integrations, operations, and ADRs.
+- `scripts/` contains smoke checks and database utilities; `supabase/` contains migrations.
 
 Run `npm run codebase-memory:smoke` for the opt-in real adapter smoke. Without explicit opt-in it reports `REAL_CODEBASE_MEMORY_SMOKE_PENDING`.

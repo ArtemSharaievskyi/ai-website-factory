@@ -23,13 +23,13 @@ describe("runtime module boundaries", () => {
 
   it("retains server-only guards on Next server entrypoints", async () => {
     await expect(source("production-factory-runtime.ts")).resolves.toContain('import "server-only"');
-    await expect(readFile(path.resolve(__dirname, "../ai-provider/server.ts"), "utf8")).resolves.toContain('import "server-only"');
-    await expect(readFile(path.resolve(__dirname, "../persistence/server.ts"), "utf8")).resolves.toContain('import "server-only"');
-    await expect(readFile(path.resolve(__dirname, "../workspace/server.ts"), "utf8")).resolves.toContain('import "server-only"');
+    await expect(readFile(path.resolve(__dirname, "../integrations/openai/server.ts"), "utf8")).resolves.toContain('import "server-only"');
+    await expect(readFile(path.resolve(__dirname, "../persistence/database/server.ts"), "utf8")).resolves.toContain('import "server-only"');
+    await expect(readFile(path.resolve(__dirname, "workspace/server.ts"), "utf8")).resolves.toContain('import "server-only"');
   });
 
   it("keeps provider credentials out of the client implementation", async () => {
-    const client = await readFile(path.resolve(__dirname, "../ai-provider/client.ts"), "utf8");
+    const client = await readFile(path.resolve(__dirname, "../integrations/openai/client.ts"), "utf8");
     expect(client).not.toContain("process.env");
     expect(client).not.toContain("NEXT_PUBLIC_OPENAI_API_KEY");
   });

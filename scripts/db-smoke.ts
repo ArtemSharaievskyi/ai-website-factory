@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createConfiguredPool } from "./db-common.mjs";
-import { ClarificationRepository, DecisionRepository, DocumentRepository, ProjectRepository, ProjectVersionRepository, WorkflowPersistenceService, CostRepository } from "../src/persistence/repositories";
+import { ClarificationRepository, DecisionRepository, DocumentRepository, ProjectRepository, ProjectVersionRepository, WorkflowPersistenceService, CostRepository } from "../src/persistence/database/repositories";
 import { FactoryProjectSchema } from "../src/domain/project/schema";
 import { RequirementSpecificationSchema } from "../src/domain/requirements/schema";
 import { ClarificationSessionSchema } from "../src/domain/requirements/schema";
@@ -21,7 +21,7 @@ const pool = createConfiguredPool();
 let currentStep = "start";
 async function main() {
 try {
-  currentStep = "adapter-import"; const db = new (await import("../src/persistence/postgres")).PostgresPersistenceDatabase(pool);
+  currentStep = "adapter-import"; const db = new (await import("../src/persistence/database/postgres")).PostgresPersistenceDatabase(pool);
   const projects = new ProjectRepository(db); const versions = new ProjectVersionRepository(db); const documents = new DocumentRepository(db); const clarifications = new ClarificationRepository(db); const workflow = new WorkflowPersistenceService(db); const decisions = new DecisionRepository(db); const costs = new CostRepository(db);
   currentStep = "project-idempotency"; const created = await projects.create(project, `smoke-project-${runId}`); const retried = await projects.create(project, `smoke-project-${runId}`); const readProject = await projects.get(id); if (created.id !== retried.id || readProject?.id !== id) throw new Error("SMOKE_IDEMPOTENCY_RESULT_MISMATCH");
   currentStep = "version-idempotency"; await versions.create(version, `smoke-version-${runId}`); await versions.create(version, `smoke-version-${runId}`);

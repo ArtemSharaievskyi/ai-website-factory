@@ -1,9 +1,9 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadFactoryCliEnv } from "./cli-env";
-import { runRealFactoryE2EPreflight } from "../src/real-factory-e2e/preflight";
-import { runRealFactoryE2E } from "../src/real-factory-e2e/harness";
-import { RealFactoryE2EReportSchema } from "../src/real-factory-e2e/contracts";
+import { runRealFactoryE2EPreflight } from "../src/runtime/e2e/preflight";
+import { runRealFactoryE2E } from "../src/runtime/e2e/harness";
+import { RealFactoryE2EReportSchema } from "../src/runtime/e2e/contracts";
 
 loadFactoryCliEnv();
 
@@ -15,7 +15,7 @@ async function main() {
   const root = path.resolve(process.env.GENERATED_PROJECTS_ROOT ?? path.resolve(".factory-generated"));
   const runtime = createProductionFactoryRuntime({ context7: preflight.integrations.context7 === "configured" ? "configured" : "not-needed", shadcn: preflight.integrations.shadcn === "configured" ? "configured" : "not-needed", generatedProjectsRoot: root });
   validateProductionFactoryRuntime(runtime);
-  let resume: { smokeId: string; report: import("../src/real-factory-e2e/contracts").RealFactoryE2EReport } | undefined;
+  let resume: { smokeId: string; report: import("../src/runtime/e2e/contracts").RealFactoryE2EReport } | undefined;
   if (process.env.REAL_FACTORY_E2E_RESUME === "true") {
     const smokeId = process.env.REAL_FACTORY_E2E_SMOKE_ID;
     if (!smokeId) throw new Error("REAL_E2E_RESUME_SMOKE_ID_REQUIRED");

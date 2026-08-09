@@ -25,6 +25,7 @@
 # production
 /build
 /.factory-generated*/
+/.factory/
 
 # misc
 .DS_Store

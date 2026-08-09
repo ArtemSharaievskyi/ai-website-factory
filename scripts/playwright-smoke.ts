@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { loadFactoryCliEnv } from "./cli-env";
-import { chooseLoopbackPort, NodeLocalTestServer, PlaywrightBrowserRunner, waitForLocalReadiness } from "../src/playwright-functional-qa";
+import { chooseLoopbackPort, NodeLocalTestServer, PlaywrightBrowserRunner, waitForLocalReadiness } from "../src/runtime/qa";
 
 loadFactoryCliEnv();
 

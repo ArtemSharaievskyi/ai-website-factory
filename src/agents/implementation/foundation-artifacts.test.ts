@@ -1,0 +1,29 @@
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import { AgentTaskSchema } from "@/domain/tasks/schema";
+import { ImplementationChangeProposalSchema } from "./contracts";
+import { FOUNDATION_ESLINT_CONFIG, FOUNDATION_NEXT_CONFIG, FOUNDATION_PACKAGE_JSON, FOUNDATION_PACKAGE_POLICY } from "./foundation-policy";
+import { DeterministicImplementationProvider } from "./provider";
+import { validateTaskResult } from "./validators";
+
+const task = (overrides: Record<string, unknown> = {}) => AgentTaskSchema.parse({ id: "11111111-1111-4111-8111-111111111111", projectId: "22222222-2222-4222-8222-222222222222", projectVersion: 1, role: "implementation", taskType: "implement-project-foundation", title: "Foundation", objective: "Prepare foundation", requirementReferences: [], planningReferences: [], selectedDesignReferences: [], inputs: [], expectedOutputs: [], acceptanceCriteria: [], allowedSkills: [], allowedTools: ["filesystem-read", "filesystem-write"], deniedTools: [], fileScopes: ["package.json", "package-lock.json", "eslint.config.mjs", "next.config.mjs", "src/app/**"], dependencies: [], status: "ready", priority: "high", executionMode: "exclusive-write", attempt: 0, maxAttempts: 3, createdAt: "2026-01-01T00:00:00.000Z", blockingFailure: true, estimatedContextBytes: 1000, requiredArtifacts: ["package.json", "package-lock.json", "eslint.config.mjs", "next.config.mjs"], ...overrides });
+const content = JSON.stringify({ dependencies: {}, devDependencies: {}, scripts: { "start:test": "next start", lint: "eslint", typecheck: "tsc --noEmit", test: "vitest run", build: "next build" } });
+const proposal = (includeConfig = true, legacy = false) => { const t = task(); const operations = [{ type: "create-file" as const, relativePath: "package.json", expectedResultChecksum: "0".repeat(64), encoding: "utf-8" as const, reason: "manifest", requirementReferences: [], planningReferences: [], selectedDesignReferences: [], content }, { type: "create-file" as const, relativePath: "src/app/layout.tsx", expectedResultChecksum: "0".repeat(64), encoding: "utf-8" as const, reason: "layout", requirementReferences: [], planningReferences: [], selectedDesignReferences: [], content: "export default function Layout({ children }: { children: React.ReactNode }) { return children; }" }, ...(includeConfig ? [{ type: "create-file" as const, relativePath: "eslint.config.mjs", expectedResultChecksum: "0".repeat(64), encoding: "utf-8" as const, reason: "lint", requirementReferences: [], planningReferences: [], selectedDesignReferences: [], content: legacy ? "module.exports = {};" : FOUNDATION_ESLINT_CONFIG }, { type: "create-file" as const, relativePath: "next.config.mjs", expectedResultChecksum: "0".repeat(64), encoding: "utf-8" as const, reason: "runtime", requirementReferences: [], planningReferences: [], selectedDesignReferences: [], content: FOUNDATION_NEXT_CONFIG }] : [])]; return ImplementationChangeProposalSchema.parse({ proposalId: "33333333-3333-4333-8333-333333333333", projectId: t.projectId, projectVersion: 1, taskId: t.id, taskAttempt: 1, summary: "foundation", operations, expectedChangedFiles: operations.map((operation) => operation.relativePath), expectedCreatedFiles: operations.map((operation) => operation.relativePath), expectedDeletedFiles: [], validationPlan: ["foundation"], requirementReferences: [], planningReferences: [], selectedDesignReferences: [], providerMetadata: { provider: "test" }, generatedAt: "2026-01-01T00:00:00.000Z" }); };
+
+describe("generated foundation artifacts", () => {
+  it("emits the canonical package manifest from the production foundation provider", async () => {
+    const generated = await new DeterministicImplementationProvider().proposeTaskChanges({ task: task(), acceptanceCriteria: [], requirementReferences: [], planningReferences: [], selectedDesignReferences: [], architectureExcerpt: {}, contentExcerpt: {}, assetExcerpt: {}, files: [], skills: [], allowedTools: [], conventions: [], contextChecksum: "a".repeat(64) });
+    const manifestOperation = generated.operations.find((operation) => operation.relativePath === "package.json");
+    const manifest = JSON.parse(manifestOperation && "content" in manifestOperation ? manifestOperation.content : "{}");
+    expect(manifest.scripts).toEqual(FOUNDATION_PACKAGE_POLICY.scripts);
+    expect(manifest.scripts["start:test"]).toBe("next start");
+    expect(manifestOperation && "content" in manifestOperation ? manifestOperation.content : undefined).toBe(FOUNDATION_PACKAGE_JSON);
+  });
+  it("owns the canonical flat ESLint and Next runtime configs", () => expect(task().requiredArtifacts).toEqual(["package.json", "package-lock.json", "eslint.config.mjs", "next.config.mjs"]));
+  it("rejects a foundation with no ESLint config", () => expect(() => validateTaskResult(task(), proposal(false))).toThrow());
+  it("rejects legacy ESLint configuration", () => expect(() => validateTaskResult(task(), proposal(true, true))).toThrow());
+  it("accepts the approved flat config and approved scripts", () => expect(validateTaskResult(task(), proposal())[0]?.status).toBe("passed"));
+  it("requires the applied configs after proposal application", async () => { const root = await mkdtemp(path.join(os.tmpdir(), "factory-foundation-")); try { await mkdir(path.join(root, "src", "app"), { recursive: true }); await writeFile(path.join(root, "package.json"), content); await writeFile(path.join(root, "eslint.config.mjs"), FOUNDATION_ESLINT_CONFIG); await writeFile(path.join(root, "next.config.mjs"), FOUNDATION_NEXT_CONFIG); expect(validateTaskResult(task(), proposal(), {}, root)[0]?.status).toBe("passed"); } finally { await rm(root, { recursive: true, force: true }); } });
+});

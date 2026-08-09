@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { loadFactoryCliEnv } from "./cli-env";
-import { GeneratedRuntimeValidator } from "../src/runtime-validation";
+import { GeneratedRuntimeValidator } from "../src/runtime/validation";
 
 loadFactoryCliEnv();
 

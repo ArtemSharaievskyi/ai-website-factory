@@ -2,9 +2,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { loadFactoryCliEnv } from "./cli-env";
-import { Context7Cache } from "../src/context7/cache";
-import { readContext7Config } from "../src/context7/config";
-import { Context7Service, syntheticContext7Transport } from "../src/context7/service";
+import { Context7Cache } from "../src/integrations/context7/cache";
+import { readContext7Config } from "../src/integrations/context7/config";
+import { Context7Service, syntheticContext7Transport } from "../src/integrations/context7/service";
 
 loadFactoryCliEnv();
 

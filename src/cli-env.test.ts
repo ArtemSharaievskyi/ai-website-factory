@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
-import { runRealFactoryE2EPreflight } from "./real-factory-e2e/preflight";
+import { runRealFactoryE2EPreflight } from "@/runtime/e2e/preflight";
 
 async function project() { return mkdtemp(path.join(os.tmpdir(), "factory-cli-env-")); }
 function runLoader(root: string, values: Record<string, string | undefined> = {}) { const env = { ...process.env, ...values, TEST_ROOT: root }; const result = spawnSync(process.execPath, [path.resolve("node_modules/tsx/dist/cli.mjs"), "-e", "import { loadFactoryCliEnv } from './scripts/cli-env.ts'; loadFactoryCliEnv(process.env.TEST_ROOT); process.stdout.write(process.env.ALLOW_REAL_FACTORY_E2E ?? '')"], { cwd: path.resolve(__dirname, ".."), env, encoding: "utf8" }); return { output: result.stdout, error: result.stderr }; }
