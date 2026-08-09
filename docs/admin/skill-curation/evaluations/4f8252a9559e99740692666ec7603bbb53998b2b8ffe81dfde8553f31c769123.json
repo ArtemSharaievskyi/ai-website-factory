@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "freedomportal/ccgs-technica-edition/test-evidence-review",
+  "sourceId": "skills-sh",
+  "externalSkillId": "freedomportal/ccgs-technica-edition/test-evidence-review",
+  "canonicalSourceRef": "https://www.skills.sh/freedomportal/ccgs-technica-edition/test-evidence-review",
+  "targetReviewer": "test-quality-reviewer",
+  "targetCapability": "review.test-quality",
+  "coverageKeys": [
+    "traceability-evidence"
+  ],
+  "candidateChecksum": "4f8252a9559e99740692666ec7603bbb53998b2b8ffe81dfde8553f31c769123",
+  "retrievedContentChecksum": "5c21da4d26e747b408f865e19d8843befa60f037eafeeacfbd1999ac97121bb3",
+  "source": "freedomportal/ccgs-technica-edition",
+  "displayName": "test-evidence-review",
+  "installs": 1,
+  "contentBytes": 8987,
+  "estimatedInjectionBytes": 8978,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "unavailable",
+  "externalAudit": {
+    "available": false,
+    "reason": "No external audit metadata is available."
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "No external audit metadata is available; local review remains authoritative."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "test-evidence-review-446d42cde6aa",
+  "evaluatedAt": "2026-08-09T17:33:47.009Z"
+}

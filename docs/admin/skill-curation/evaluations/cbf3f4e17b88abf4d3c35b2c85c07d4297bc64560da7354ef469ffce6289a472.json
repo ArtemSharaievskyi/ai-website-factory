@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "nzaidev/ai-security-skills/review-data-security",
+  "sourceId": "skills-sh",
+  "externalSkillId": "nzaidev/ai-security-skills/review-data-security",
+  "canonicalSourceRef": "https://www.skills.sh/nzaidev/ai-security-skills/review-data-security",
+  "targetReviewer": "security-reviewer",
+  "targetCapability": "review.security",
+  "coverageKeys": [
+    "storage-upload-security"
+  ],
+  "candidateChecksum": "cbf3f4e17b88abf4d3c35b2c85c07d4297bc64560da7354ef469ffce6289a472",
+  "retrievedContentChecksum": "562dcea687e1431fae299fa0857db2cdc9d0830ab7c066c9a96b41b30aa1d2e3",
+  "source": "nzaidev/ai-security-skills",
+  "displayName": "review-data-security",
+  "installs": 1,
+  "contentBytes": 11590,
+  "estimatedInjectionBytes": 11581,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "nzaidev/ai-security-skills/review-data-security",
+      "source": "nzaidev/ai-security-skills",
+      "slug": "review-data-security",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill is a comprehensive security review guide for data protection, database security, and file uploads. It provides structured checks for identifying vulnerabilities like insecure storage, missing encryption, and improper access controls in a codebase. No malicious patterns, obfuscation, or unauthorized data operations were detected.",
+          "auditedAt": "2026-08-02T18:18:47.658Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-08-02T18:19:37.391Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-08-02T18:18:42.746267+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "- The anon key appears only in client-facing code paths; the service-role key (which bypasses RLS) appears only in trusted server code, never shipped to a browser or used in request paths acting for a user"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 2,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:33:26.868Z"
+}

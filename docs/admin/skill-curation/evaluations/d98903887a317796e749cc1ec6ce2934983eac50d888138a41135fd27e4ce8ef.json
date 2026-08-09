@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "terraphim/terraphim-skills/requirements-traceability",
+  "sourceId": "skills-sh",
+  "externalSkillId": "terraphim/terraphim-skills/requirements-traceability",
+  "canonicalSourceRef": "https://www.skills.sh/terraphim/terraphim-skills/requirements-traceability",
+  "targetReviewer": "contract-auditor",
+  "targetCapability": "review.contracts",
+  "coverageKeys": [
+    "requirements-traceability-review"
+  ],
+  "candidateChecksum": "d98903887a317796e749cc1ec6ce2934983eac50d888138a41135fd27e4ce8ef",
+  "retrievedContentChecksum": "63ccb29a56ab8ecfd4882bfabc8ab591d8a26f04c589621c649a43be9a819d7b",
+  "source": "terraphim/terraphim-skills",
+  "displayName": "requirements-traceability",
+  "installs": 57,
+  "contentBytes": 5566,
+  "estimatedInjectionBytes": 5557,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "terraphim/terraphim-skills/requirements-traceability",
+      "source": "terraphim/terraphim-skills",
+      "slug": "requirements-traceability",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill is a documentation and auditing tool designed to create traceability matrices between requirements, design artifacts, and implementation code. It functions by analyzing local project files and generating markdown reports. No malicious behaviors such as data exfiltration, remote code execution, or credential harvesting were detected.",
+          "auditedAt": "2026-05-13T08:57:24.933Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-05-13T08:57:26.282Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-05-13T08:56:57.090915+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "1/1 file flagged",
+          "auditedAt": "2026-02-22T04:41:59.642Z",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "- Implementation scope: changed files, modules, or commit range"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 1,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:46.595Z"
+}

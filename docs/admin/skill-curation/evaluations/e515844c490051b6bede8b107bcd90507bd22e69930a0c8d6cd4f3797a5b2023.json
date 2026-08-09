@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "melodic-software/claude-code-plugins/test-strategy-planning",
+  "sourceId": "skills-sh",
+  "externalSkillId": "melodic-software/claude-code-plugins/test-strategy-planning",
+  "canonicalSourceRef": "https://www.skills.sh/melodic-software/claude-code-plugins/test-strategy-planning",
+  "targetReviewer": "test-quality-reviewer",
+  "targetCapability": "review.test-quality",
+  "coverageKeys": [
+    "test-strategy"
+  ],
+  "candidateChecksum": "e515844c490051b6bede8b107bcd90507bd22e69930a0c8d6cd4f3797a5b2023",
+  "retrievedContentChecksum": "fdc1836c5234f53854190377482e0c25cec904c5a93d229f6cd92d017fdf5189",
+  "source": "melodic-software/claude-code-plugins",
+  "displayName": "test-strategy-planning",
+  "installs": 12,
+  "contentBytes": 8551,
+  "estimatedInjectionBytes": 8542,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "melodic-software/claude-code-plugins/test-strategy-planning",
+      "source": "melodic-software/claude-code-plugins",
+      "slug": "test-strategy-planning",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides a structured framework and templates for developing IEEE 829-compliant test strategy documents. It contains no executable scripts. It is identified as having a surface for indirect prompt injection because it is designed to ingest and process external project data, such as requirements and architecture documents, to generate its outputs.",
+          "auditedAt": "2026-03-02T05:06:53.930Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "PROMPT_INJECTION",
+            "NO_CODE"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T22:58:50.256Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-03-02T05:06:29.514948+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "1/1 file flagged",
+          "auditedAt": "2026-03-02T05:06:23.977Z",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "- Pre-commit: Linting, unit tests",
+        "| Code coverage (branch) | ≥70% | Coverage tool output |"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "| System | End-to-end workflows | QA | Playwright |"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "test-strategy-planning-4168dcd855e8",
+  "evaluatedAt": "2026-08-09T17:33:30.996Z"
+}

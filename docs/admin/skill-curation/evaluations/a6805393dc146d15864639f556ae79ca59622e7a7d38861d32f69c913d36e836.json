@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "s3nex-com/sdlc-skills-library/technical-risk-management",
+  "sourceId": "skills-sh",
+  "externalSkillId": "s3nex-com/sdlc-skills-library/technical-risk-management",
+  "canonicalSourceRef": "https://www.skills.sh/s3nex-com/sdlc-skills-library/technical-risk-management",
+  "targetReviewer": "planner",
+  "targetCapability": "planning.architecture",
+  "coverageKeys": [
+    "technical-risk-planning"
+  ],
+  "candidateChecksum": "a6805393dc146d15864639f556ae79ca59622e7a7d38861d32f69c913d36e836",
+  "retrievedContentChecksum": "321f1b46f4ab628b7a4820b7f67583a43abf1f47ae58ae62326ac90f240abcbd",
+  "source": "s3nex-com/sdlc-skills-library",
+  "displayName": "technical-risk-management",
+  "installs": 2,
+  "contentBytes": 43505,
+  "estimatedInjectionBytes": 35882,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "s3nex-com/sdlc-skills-library/technical-risk-management",
+      "source": "s3nex-com/sdlc-skills-library",
+      "slug": "technical-risk-management",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "Technical risk management skill that identifies, tracks, and reports project risks. It uses a bundled Python script for reporting and maintains a local risk register and execution log. No security issues were detected.",
+          "auditedAt": "2026-06-23T10:26:28.264Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "COMMAND_EXECUTION",
+            "PROMPT_INJECTION"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-06-23T10:26:28.200Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-06-23T10:26:03.628111+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "- API keys are stored in a git repository (even a private one)",
+        "- Secrets management policy enforced with automated pre-commit hooks"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "#!/usr/bin/env python3",
+        "python risk_report.py --input risk-register.json --output risk-report.md",
+        "python risk_report.py --input risk-register.csv --output risk-report.md"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 1,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:31:56.668Z"
+}

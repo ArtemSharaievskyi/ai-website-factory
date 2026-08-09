@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "smithery.ai/reviewing-authentication-and-authorization-security",
+  "sourceId": "skills-sh",
+  "externalSkillId": "smithery.ai/reviewing-authentication-and-authorization-security",
+  "canonicalSourceRef": "https://www.skills.sh/site/smithery.ai/reviewing-authentication-and-authorization-security",
+  "targetReviewer": "security-reviewer",
+  "targetCapability": "review.security",
+  "coverageKeys": [
+    "auth-security"
+  ],
+  "candidateChecksum": "5da812d65bccaccf3d30f4ffd7048a9b6369f29795665538eee6b44a8f318f9d",
+  "retrievedContentChecksum": "96a7883ec360a638c4fe2cfa62fcce296e3af0697bd095d8f5cea8143fc6f094",
+  "source": "smithery.ai",
+  "displayName": "reviewing authentication and authorization security",
+  "installs": 1,
+  "contentBytes": 8075,
+  "estimatedInjectionBytes": 8066,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "incompatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "unavailable",
+  "externalAudit": {
+    "available": false,
+    "reason": "No external audit metadata is available."
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "```python",
+        "```python",
+        "```python"
+      ]
+    },
+    {
+      "category": "mcp",
+      "essential": true,
+      "evidence": [
+        "description: Use when reviewing authentication or authorization code. Provides comprehensive security guidance on JWT validation, token exchange, OAuth 2.0/2.1 compliance, PKCE, Resource Indicators, MCP authorization, session management, an",
+        "This skill provides comprehensive security guidance for reviewing authentication and authorization code, with deep expertise in JWT tokens and MCP (Model Context Protocol) servers.",
+        "- MCP server implementations",
+        "### 2. MCP Server Security"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 3
+  },
+  "reasons": [
+    "The candidate requires a tool that this reviewer does not possess; no permission is granted.",
+    "No external audit metadata is available; local review remains authoritative."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:33:18.839Z"
+}

@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "jackspace/claudeskillz/react-hook-form-zod",
+  "sourceId": "skills-sh",
+  "externalSkillId": "jackspace/claudeskillz/react-hook-form-zod",
+  "canonicalSourceRef": "https://www.skills.sh/jackspace/claudeskillz/react-hook-form-zod",
+  "targetReviewer": "implementation",
+  "targetCapability": "implementation.code",
+  "coverageKeys": [
+    "forms-validation"
+  ],
+  "candidateChecksum": "6fac72a3c13794d99cb49afbd3c0d2fd7f4f857d9d4f8f18677ec4f0fb49a2ad",
+  "retrievedContentChecksum": "33d6b8d55e8ab895fe262351ae226d5de2065c7beabce86779081245150f4ed1",
+  "source": "jackspace/claudeskillz",
+  "displayName": "react-hook-form-zod",
+  "installs": 55,
+  "contentBytes": 128207,
+  "estimatedInjectionBytes": 38918,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "jackspace/claudeskillz/react-hook-form-zod",
+      "source": "jackspace/claudeskillz",
+      "slug": "react-hook-form-zod",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill provides documentation and templates for React Hook Form and Zod validation. It contains no malicious code, obfuscation, or unauthorized network activity. It recommends standard development packages.",
+          "auditedAt": "2026-02-17T18:06:55.477Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T17:36:51.217Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-15T21:48:51.105249+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "warn",
+          "summary": "4/4 files flagged",
+          "auditedAt": "2026-02-23T04:06:57.824Z",
+          "riskLevel": "MEDIUM"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash",
+        "\"Quick Start (10 Minutes)\": \"### 1. Install Packages\\r\\n\\r\\n```bash\\r\\nnpm install react-hook-form@7.65.0 zod@4.1.12 @hookform/resolvers@5.2.2\\r\\n```\\r\\n\\r\\n**Why These Packages**:\\r\\n- **react-hook-form**: Performant, flexible form library",
+        "```bash",
+        "```bash"
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "| Zod v4 type inference errors | [#13109](https://github.com/react-hook-form/react-hook-form/issues/13109) | Correct type patterns for Zod v4 |",
+        "https://github.com/jezweb/claude-skills/issues",
+        "**Repository**: https://github.com/jezweb/claude-skills",
+        "\"Known Issues Prevention\": \"This skill prevents **12** documented issues:\\r\\n\\r\\n### Issue #1: Zod v4 Type Inference Errors\\r\\n**Error**: Type inference doesn't work correctly with Zod v4\\r\\n**Source**: [GitHub Issue #13109](https://github."
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "\"Core Concepts\": \"### useForm Hook Anatomy\\r\\n\\r\\n```typescript\\r\\nconst {\\r\\n  register,           // Register input fields\\r\\n  handleSubmit,       // Wrap onSubmit handler\\r\\n  watch,              // Watch field values\\r\\n  formState,   ",
+        "\"Error Handling\": \"### Displaying Errors\\r\\n\\r\\n```typescript\\r\\nfunction FormWithErrors() {\\r\\n  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({\\r\\n    resolver: zodResolver(schema),\\r\\n  })\\r\\n\\r\\n  return (\\",
+        "\"Quick Start (10 Minutes)\": \"### 1. Install Packages\\r\\n\\r\\n```bash\\r\\nnpm install react-hook-form@7.65.0 zod@4.1.12 @hookform/resolvers@5.2.2\\r\\n```\\r\\n\\r\\n**Why These Packages**:\\r\\n- **react-hook-form**: Performant, flexible form library",
+        "\"Advanced Patterns\": \"### Dynamic Form Fields (useFieldArray)\\r\\n\\r\\n```typescript\\r\\nimport { useForm, useFieldArray } from 'react-hook-form'\\r\\nimport { zodResolver } from '@hookform/resolvers/zod'\\r\\nimport { z } from 'zod'\\r\\n\\r\\nconst "
+      ]
+    },
+    {
+      "category": "package-install",
+      "essential": false,
+      "evidence": [
+        "npm install react-hook-form@7.65.0 zod@4.1.12 @hookform/resolvers@5.2.2",
+        "\"Advanced Patterns\": \"### Dynamic Form Fields (useFieldArray)\\r\\n\\r\\n```typescript\\r\\nimport { useForm, useFieldArray } from 'react-hook-form'\\r\\nimport { zodResolver } from '@hookform/resolvers/zod'\\r\\nimport { z } from 'zod'\\r\\n\\r\\nconst ",
+        "npm install react-hook-form@7.65.0 zod@4.1.12 @hookform/resolvers@5.2.2",
+        "import { useDebouncedCallback } from 'use-debounce' // npm install use-debounce"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 22,
+    "externalLinksDetected": 18
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:18.276Z"
+}

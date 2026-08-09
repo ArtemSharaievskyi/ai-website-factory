@@ -3,9 +3,14 @@ import {
   SkillsShAuditResultSchema,
   SkillsShCandidateSchema,
 } from "@/integrations/skills-sh/contracts";
+import { AGENT_CAPABILITY_IDS } from "@/agents/catalog";
 
 export const CURATION_POLICY_VERSION = "external-skill-curation-v1" as const;
 export const CurationReviewerSchema = z.enum([
+  "lead",
+  "planner",
+  "design",
+  "implementation",
   "architecture-reviewer",
   "contract-auditor",
   "code-integration-reviewer",
@@ -13,13 +18,7 @@ export const CurationReviewerSchema = z.enum([
   "test-quality-reviewer",
 ]);
 export type CurationReviewer = z.infer<typeof CurationReviewerSchema>;
-export const CurationCapabilitySchema = z.enum([
-  "review.architecture",
-  "review.contracts",
-  "review.integration",
-  "review.security",
-  "review.test-quality",
-]);
+export const CurationCapabilitySchema = z.enum(AGENT_CAPABILITY_IDS);
 export type CurationCapability = z.infer<typeof CurationCapabilitySchema>;
 export const CurationDimensionSchema = z.enum([
   "strong",
@@ -70,6 +69,8 @@ export const HumanRecommendationSchema = z.enum([
   "OPTIONAL",
   "DO_NOT_USE",
 ]);
+export const CurationMetadataReadinessSchema = z.enum(["COMPLETE", "INCOMPLETE"]);
+export const CurationLicenseEvidenceStatusSchema = z.enum(["PRESENT", "MISSING"]);
 export const ToolAssumptionCategorySchema = z.enum([
   "agent-or-subagent",
   "shell",
@@ -101,6 +102,7 @@ export const SkillCandidateEvaluationSchema = z
     canonicalSourceRef: z.string().url(),
     targetReviewer: CurationReviewerSchema,
     targetCapability: CurationCapabilitySchema,
+    coverageKeys: z.array(z.string().min(1)).max(20).optional(),
     candidateChecksum: z.string().regex(/^[a-f0-9]{64}$/),
     retrievedContentChecksum: z.string().regex(/^[a-f0-9]{64}$/),
     source: z.string().min(1),
@@ -118,6 +120,8 @@ export const SkillCandidateEvaluationSchema = z
     localSecurityAssessment: LocalSecurityAssessmentSchema,
     externalAuditStatus: ExternalAuditStatusSchema,
     externalAudit: SkillsShAuditResultSchema,
+    metadataReadiness: CurationMetadataReadinessSchema.optional(),
+    licenseEvidenceStatus: CurationLicenseEvidenceStatusSchema.optional(),
     toolAssumptions: z.array(ToolAssumptionSchema),
     deterministicChecks: z
       .object({
@@ -152,6 +156,7 @@ export type CurationInput = {
   candidate: z.input<typeof SkillsShCandidateSchema>;
   targetReviewer: CurationReviewer;
   targetCapability: CurationCapability;
+  coverageKeys?: readonly string[];
   audit?: z.input<typeof SkillsShAuditResultSchema>;
   existingCandidates?: readonly ExistingCurationCandidate[];
   now?: string;

@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "jacob-balslev/skills/client-server-boundary",
+  "sourceId": "skills-sh",
+  "externalSkillId": "jacob-balslev/skills/client-server-boundary",
+  "canonicalSourceRef": "https://www.skills.sh/jacob-balslev/skills/client-server-boundary",
+  "targetReviewer": "implementation",
+  "targetCapability": "implementation.code",
+  "coverageKeys": [
+    "server-client-boundaries"
+  ],
+  "candidateChecksum": "e6db1e3f641e17dd90910eb114eb49c35460508424550b57c7d1ba43064c60b7",
+  "retrievedContentChecksum": "a3e6bb56e63c2ca78841db7de4fefedaf7431eb37bce4624cdc0ab7348aa41f8",
+  "source": "jacob-balslev/skills",
+  "displayName": "client-server-boundary",
+  "installs": 5,
+  "contentBytes": 76694,
+  "estimatedInjectionBytes": 37012,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "incompatible",
+  "contextEfficiency": "large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "jacob-balslev/skills/client-server-boundary",
+      "source": "jacob-balslev/skills",
+      "slug": "client-server-boundary",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides educational guidelines and evaluation criteria for managing the security boundary between client and server environments in modern web frameworks. It contains no executable code, network requests, or malicious patterns.",
+          "auditedAt": "2026-06-18T07:38:59.778Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-06-18T07:40:50.776Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-06-18T07:39:01.029149+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "playwright-or-browser",
+      "essential": true,
+      "evidence": [
+        "\"scenario\": \"A component imports `fs` (and a `pg.Client`) at the top, then adds 'use client' to use a useState hook. The dev build throws 'Module not found: fs' at runtime in the browser.\",",
+        "\"A server-only API (fs/pg) cannot live in a 'use client' module — its import graph ships to the browser\",",
+        "\"Do not try to polyfill server modules in the browser\"",
+        "\"statement\": \"Surfaces this expected flag: A server-only API (fs/pg) cannot live in a 'use client' module — its import graph ships to the browser.\""
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 4,
+    "externalLinksDetected": 19
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate requires a tool that this reviewer does not possess; no permission is granted.",
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:10.083Z"
+}

@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "thulr/informed-skills/ux-audit",
+  "sourceId": "skills-sh",
+  "externalSkillId": "thulr/informed-skills/ux-audit",
+  "canonicalSourceRef": "https://www.skills.sh/thulr/informed-skills/ux-audit",
+  "targetReviewer": "design",
+  "targetCapability": "design.directions",
+  "coverageKeys": [
+    "form-ux"
+  ],
+  "candidateChecksum": "c0256ce0c905965df930fb8191dc7690a816ac52184a3f6104e3a035f791f83f",
+  "retrievedContentChecksum": "bf22b4a7ee65dc59beb5d94f2d396033f2e97d12f39a239a2e6f53966c4317ed",
+  "source": "thulr/informed-skills",
+  "displayName": "ux-audit",
+  "installs": 16,
+  "contentBytes": 48683,
+  "estimatedInjectionBytes": 21352,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "thulr/informed-skills/ux-audit",
+      "source": "thulr/informed-skills",
+      "slug": "ux-audit",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The 'ux-audit' skill is a comprehensive toolkit for auditing user interfaces for usability and accessibility issues. It utilizes established heuristics and WCAG standards to generate structured reports. The analysis found no evidence of malicious behavior, data exfiltration, or unauthorized code execution. The skill's file-writing operations are limited to generating reports and tracking findings within the project directory.",
+          "auditedAt": "2026-06-26T02:21:58.987Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-06-26T02:21:58.745Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-06-26T02:21:30.642317+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash",
+        "bash skills/ux-audit/evals/run-static-checks.sh",
+        "#!/usr/bin/env bash"
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "workflow-state, PR, branch, or `UX-*` ID, read saved state first; update"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "{\"query\": \"prototype a new onboarding screen flow in react with tailwind so i can click through it in the browser\", \"should_activate\": false, \"expected_route\": null, \"category\": \"negative\"},"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "done < <(python3 - \"$router\" <<'PYEOF'"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 2
+  },
+  "reasons": [
+    "The candidate provides limited reusable review methodology.",
+    "Candidate passed curation but could not be staged for human review."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:08.031Z"
+}

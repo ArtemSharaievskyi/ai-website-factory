@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "brandondees/code-quality-atlas/reviewing-test-quality",
+  "sourceId": "skills-sh",
+  "externalSkillId": "brandondees/code-quality-atlas/reviewing-test-quality",
+  "canonicalSourceRef": "https://www.skills.sh/brandondees/code-quality-atlas/reviewing-test-quality",
+  "targetReviewer": "test-quality-reviewer",
+  "targetCapability": "review.test-quality",
+  "coverageKeys": [
+    "meaningful-assertions"
+  ],
+  "candidateChecksum": "0e1d07a5e076d293425fb436a7eb876d6e0d017db39b178c81f9970cbb43b9e8",
+  "retrievedContentChecksum": "c043c7e63bcdbbfd46f261e9f52f26748063d8d6d77399ae94533925bdcafe1f",
+  "source": "brandondees/code-quality-atlas",
+  "displayName": "reviewing-test-quality",
+  "installs": 2,
+  "contentBytes": 24016,
+  "estimatedInjectionBytes": 6646,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "brandondees/code-quality-atlas/reviewing-test-quality",
+      "source": "brandondees/code-quality-atlas",
+      "slug": "reviewing-test-quality",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill is a collection of Markdown documentation and heuristics for reviewing test quality. It contains no executable scripts, hardcoded credentials, or malicious patterns. All external references point to well-known technology resources and established testing tools.",
+          "auditedAt": "2026-07-06T23:23:48.248Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "NO_CODE"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-07-06T23:24:09.584Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-07-06T23:24:13.862397+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "\"Flags Conditional Test Logic: the if/else and loop inside the test mean a branch can silently not run and a failure does not identify which case broke\",",
+        "- **Coverage:** coverage.py (Python), Istanbul/nyc & V8 (JS), JaCoCo (Java), SimpleCov (Ruby), `go test -cover`, **cargo-llvm-cov / cargo-tarpaulin** (Rust). Lift: track **branch** coverage and the coverage **delta on the diff**, not a glob",
+        "meaningful branch/edge coverage on the diff, regression tests for bug fixes, isolation",
+        "Reviews tests for quality: behavior vs implementation coupling, over-mocking, meaningful branch/edge coverage on the diff, regression tests for bug fixes, isolation and determinism (no shared state, real clocks, or unseeded randomness), rig"
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "- **Kent Beck — \"Test Desiderata\" (2019)** — https://kentbeck.github.io/TestDesiderata/ → mine: twelve properties a good test balances — isolated, composable, deterministic, fast, writable, readable, **behavioral**, **structure-insensitive*"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "\"query\": \"Review this change:\\n```python\\ndef test_parse_quantity_rejects_zero():\\n    with pytest.raises(InvalidQuantity):\\n        parse_quantity(\\\"0\\\")\\n\\ndef test_parse_quantity_accepts_minimum():\\n    assert parse_quantity(\\\"1\\\") == Qu",
+        "\"query\": \"Review this change:\\n```python\\ndef test_report():\\n    data = load_fixture(\\\"sample_report.csv\\\")   # fixture defined elsewhere\\n    r = build_report(data)\\n    assert r.total == 1500\\n    assert r.currency == \\\"USD\\\"\\n    assert",
+        "```python",
+        "```python"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 7
+  },
+  "reasons": [
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "reviewing-test-quality-3dde406aa434",
+  "evaluatedAt": "2026-08-09T17:33:42.555Z"
+}

@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "quality-max/free-qa-skills/test-quality-review",
+  "sourceId": "skills-sh",
+  "externalSkillId": "quality-max/free-qa-skills/test-quality-review",
+  "canonicalSourceRef": "https://www.skills.sh/quality-max/free-qa-skills/test-quality-review",
+  "targetReviewer": "test-quality-reviewer",
+  "targetCapability": "review.test-quality",
+  "coverageKeys": [
+    "meaningful-assertions"
+  ],
+  "candidateChecksum": "135e36724e9cdd8ca20ccf183b0fe8259f6cc48bb1b3885a6b0f02daaf16f7e4",
+  "retrievedContentChecksum": "36fc3ed4a2d099924fa3462d38ae7162cec4b38cca675b787cf4a50a3b33b4fd",
+  "source": "quality-max/free-qa-skills",
+  "displayName": "test-quality-review",
+  "installs": 3,
+  "contentBytes": 2605,
+  "estimatedInjectionBytes": 2596,
+  "roleFit": "strong",
+  "procedureFit": "medium",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "quality-max/free-qa-skills/test-quality-review",
+      "source": "quality-max/free-qa-skills",
+      "slug": "test-quality-review",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill is safe. It performs static analysis of local test files to identify quality issues like weak assertions or skipped tests. It does not execute code, access sensitive credentials, or perform unauthorized network operations.",
+          "auditedAt": "2026-07-02T16:06:49.346Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-07-02T16:07:10.662Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-07-02T16:07:02.353906+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "mcp",
+      "essential": false,
+      "evidence": [
+        "- **None.** Pure Claude Code — reads the test files directly, no MCP required."
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Candidate passed deterministic curation checks and adds focused review procedure."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "test-quality-review-e13ceded651c",
+  "evaluatedAt": "2026-08-09T17:33:41.212Z"
+}

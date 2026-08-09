@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "cognitedata/builder-skills/flows-code-review",
+  "sourceId": "skills-sh",
+  "externalSkillId": "cognitedata/builder-skills/flows-code-review",
+  "canonicalSourceRef": "https://www.skills.sh/cognitedata/builder-skills/flows-code-review",
+  "targetReviewer": "code-integration-reviewer",
+  "targetCapability": "review.integration",
+  "coverageKeys": [
+    "react-review"
+  ],
+  "candidateChecksum": "54d1b1eba29e9e1f426d5bef8c2a9aeed8ebc0d993d7ca6d1da81eed29432a9c",
+  "retrievedContentChecksum": "8bcd4e5c8194f900f101b4465ccde4ca730dbc61947d4c7e0fd999cf1a098cc4",
+  "source": "cognitedata/builder-skills",
+  "displayName": "flows-code-review",
+  "installs": 1561,
+  "contentBytes": 19379,
+  "estimatedInjectionBytes": 19370,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "cognitedata/builder-skills/flows-code-review",
+      "source": "cognitedata/builder-skills",
+      "slug": "flows-code-review",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill automates technical code reviews for Flows applications by auditing dependencies, running tests, and evaluating code quality. It uses standard developer tools and package managers to gather data. A potential indirect prompt injection surface exists as the skill processes application source code and local configuration files without explicit boundary markers, which is common for automated analysis tools.",
+          "auditedAt": "2026-06-16T11:13:22.849Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "COMMAND_EXECUTION",
+            "PROMPT_INJECTION"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-06-16T11:13:17.396Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-06-16T11:12:43.018028+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "allowed-tools: Read, Glob, Grep, Bash, Write",
+        "```bash",
+        "```bash",
+        "npx vitest run --coverage   # Vite/Vitest projects"
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "- We are inside a git repository (`git rev-parse --git-dir`)",
+        "Record the output: framework, pass/fail counts, statement/branch/function/line percentages. If the test suite fails to run or no framework is configured, note explicitly — **absence of a working test setup is itself a finding for criterion ",
+        "### Reviewed commit"
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "| example-pkg | High | Prototype pollution | >=2.1.0 | https://github.com/advisories/GHSA-xxxx |"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "**Check:** Filters, limits, and projections applied in the API request — not by downloading large result sets and filtering in the browser."
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "**Check:** All traffic to CDF goes through the official Cognite SDK. Flag any `fetch`/`axios`/raw REST to CDF-like URLs that bypasses the SDK.",
+        "| 4 | Minor over-fetch; easy to tighten. |",
+        "5. Verify that no `gh api` calls or `curl` to `raw.githubusercontent.com` were made during this skill run — all guidance should have come from local skill reads (Step 1) and the inlined rubric above."
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 4,
+    "externalLinksDetected": 1
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:55.491Z"
+}

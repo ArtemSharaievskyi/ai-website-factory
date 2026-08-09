@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "poletron/custom-rules/supabase-auth",
+  "sourceId": "skills-sh",
+  "externalSkillId": "poletron/custom-rules/supabase-auth",
+  "canonicalSourceRef": "https://www.skills.sh/poletron/custom-rules/supabase-auth",
+  "targetReviewer": "implementation",
+  "targetCapability": "implementation.code",
+  "coverageKeys": [
+    "supabase-implementation"
+  ],
+  "candidateChecksum": "0299ca330f5ac6ead7b4470397d3ffac71e0d753a0fc5778f93ed7fbb929b0bb",
+  "retrievedContentChecksum": "df84fe4c2b5ebf6acac6e3d331ce76c47f3ac65a632d65c9e791e815007e84c1",
+  "source": "poletron/custom-rules",
+  "displayName": "supabase-auth",
+  "installs": 7,
+  "contentBytes": 5362,
+  "estimatedInjectionBytes": 5353,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "poletron/custom-rules/supabase-auth",
+      "source": "poletron/custom-rules",
+      "slug": "supabase-auth",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides secure and modern guidelines for implementing Supabase authentication in Next.js applications, correctly emphasizing the use of environment variables and modern session management patterns while explicitly deprecating insecure or broken alternatives.",
+          "auditedAt": "2026-02-17T18:39:17.248Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-02-16T22:57:24.535Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-16T22:56:53.595210+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "### Browser Client (REQUIRED)",
+        "Need browser client?       → Use createBrowserClient from @supabase/ssr"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 6,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:21.852Z"
+}

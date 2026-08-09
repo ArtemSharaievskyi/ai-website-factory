@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "hyhmrright/brooks-lint/brooks-harness",
+  "sourceId": "skills-sh",
+  "externalSkillId": "hyhmrright/brooks-lint/brooks-harness",
+  "canonicalSourceRef": "https://www.skills.sh/hyhmrright/brooks-lint/brooks-harness",
+  "targetReviewer": "contract-auditor",
+  "targetCapability": "review.contracts",
+  "coverageKeys": [
+    "cross-stage-consistency"
+  ],
+  "candidateChecksum": "22874b3c2546d8b7826a952e049cbf5956d037c7eb62e7272e122d7f15b94ccd",
+  "retrievedContentChecksum": "57ffa0152fd5d99663b50659168f92fae4b25b0982aae6dfaf47813f0d22f5f1",
+  "source": "hyhmrright/brooks-lint",
+  "displayName": "brooks-harness",
+  "installs": 93,
+  "contentBytes": 7378,
+  "estimatedInjectionBytes": 7369,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "hyhmrright/brooks-lint/brooks-harness",
+      "source": "hyhmrright/brooks-lint",
+      "slug": "brooks-harness",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The 'brooks-harness' skill is a maintenance orchestrator designed to automate the development lifecycle of the 'brooks-lint' plugin. It manages a sequential pipeline of specialized subagents for authoring, testing, quality assurance, and release management. The skill facilitates repository-level operations such as running npm scripts and git commands, incorporating structured QA gates and manual authorization checkpoints for high-risk actions. No malicious behavior or security violations were detected.",
+          "auditedAt": "2026-08-04T14:56:47.292Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-08-04T14:57:13.845Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-08-04T14:56:29.625561+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "agent-or-subagent",
+      "essential": false,
+      "evidence": [
+        "subagent pipeline — author → eval → QA → trigger-audit → release — to add or",
+        "subagent pipeline: each stage is a dedicated agent defined in `.claude/agents/`. Spawn",
+        "Spawn each selected stage as a subagent in order. Pass each agent (a) the task"
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "global simplify→review→commit gate still applies to non-doc edits, but skill/guide",
+        "- High-risk git ops (`--no-verify`, `--force`, history rewrites) require explicit"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "brooks-harness-c05674d2bfc8",
+  "evaluatedAt": "2026-08-09T17:32:53.100Z"
+}

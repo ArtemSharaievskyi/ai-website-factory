@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "bbeierle12/skill-mcp-claude/form-accessibility",
+  "sourceId": "skills-sh",
+  "externalSkillId": "bbeierle12/skill-mcp-claude/form-accessibility",
+  "canonicalSourceRef": "https://www.skills.sh/bbeierle12/skill-mcp-claude/form-accessibility",
+  "targetReviewer": "design",
+  "targetCapability": "design.directions",
+  "coverageKeys": [
+    "form-ux"
+  ],
+  "candidateChecksum": "e92c6ab18caaa191219364ffd06498781941bad94ce140ef1b3a5fabfa64b21e",
+  "retrievedContentChecksum": "8f5511e90e7fd66c458d8a102ef12ddc8be4b6f638ec0e4af68d975b59492b51",
+  "source": "bbeierle12/skill-mcp-claude",
+  "displayName": "form-accessibility",
+  "installs": 66,
+  "contentBytes": 44848,
+  "estimatedInjectionBytes": 13345,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "bbeierle12/skill-mcp-claude/form-accessibility",
+      "source": "bbeierle12/skill-mcp-claude",
+      "slug": "form-accessibility",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill provides comprehensive patterns and utilities for implementing accessible web forms according to WCAG 2.2 AA standards. No security risks were identified.",
+          "auditedAt": "2026-03-06T10:01:36.303Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T17:11:18.080Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-03-06T10:01:30.458973+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "4 files scanned · No issues",
+          "auditedAt": "2026-03-15T22:19:02.183Z",
+          "riskLevel": "NONE"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "Score: 93/100 · 2 sections analyzed",
+          "auditedAt": "2026-04-16T14:44:54.461Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "/* Browser should scroll input into view above sticky elements */",
+        "3. **Zoom 200%**: Is the form usable at 200% browser zoom?"
+      ]
+    },
+    {
+      "category": "package-install",
+      "essential": false,
+      "evidence": [
+        "npm install @axe-core/react"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 4,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:05.201Z"
+}

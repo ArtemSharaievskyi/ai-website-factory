@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "tome-kota/agent-skill-catalog/software-design-review-router",
+  "sourceId": "skills-sh",
+  "externalSkillId": "tome-kota/agent-skill-catalog/software-design-review-router",
+  "canonicalSourceRef": "https://www.skills.sh/tome-kota/agent-skill-catalog/software-design-review-router",
+  "targetReviewer": "architecture-reviewer",
+  "targetCapability": "review.architecture",
+  "coverageKeys": [
+    "architecture-tradeoffs"
+  ],
+  "candidateChecksum": "2ae0bdbda83a95cb5c365292874e149963a5d683975e4266e4ef31807ca0845d",
+  "retrievedContentChecksum": "dc9f13d28a50af1965b0e034e5e78d09c69556b583307fb7c3194fc8ff6eed01",
+  "source": "tome-kota/agent-skill-catalog",
+  "displayName": "software-design-review-router",
+  "installs": 7,
+  "contentBytes": 77474,
+  "estimatedInjectionBytes": 51098,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "tome-kota/agent-skill-catalog/software-design-review-router",
+      "source": "tome-kota/agent-skill-catalog",
+      "slug": "software-design-review-router",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill is a collection of analytical frameworks and guidelines for performing software design reviews. It contains no executable scripts, external dependencies, or network-enabled tools. The logic is entirely based on natural language instructions for evaluating architectural tradeoffs, and no security risks were identified.",
+          "auditedAt": "2026-06-16T00:06:35.161Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-06-16T00:06:59.124Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-06-16T00:09:05.119053+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "- browser to backend"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "\"query\": \"Write a Python script that reads rows from a CSV and uploads them to Postgres.\","
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "software-design-review-router-707496e1cfec",
+  "evaluatedAt": "2026-08-09T17:32:31.182Z"
+}

@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "openai/openai-agents-python/maintainer-review",
+  "sourceId": "skills-sh",
+  "externalSkillId": "openai/openai-agents-python/maintainer-review",
+  "canonicalSourceRef": "https://www.skills.sh/openai/openai-agents-python/maintainer-review",
+  "targetReviewer": "architecture-reviewer",
+  "targetCapability": "review.architecture",
+  "coverageKeys": [
+    "evolution-maintainability"
+  ],
+  "candidateChecksum": "9d8ff1553dfd7e5d78561bfde442242e1f15479200245b812a421d565fc67c72",
+  "retrievedContentChecksum": "6cca9f24ca382d611e0b7887413a7526e3572992de2b625151934e00d1839de5",
+  "source": "openai/openai-agents-python",
+  "displayName": "maintainer-review",
+  "installs": 22,
+  "contentBytes": 52937,
+  "estimatedInjectionBytes": 52019,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "openai/openai-agents-python/maintainer-review",
+      "source": "openai/openai-agents-python",
+      "slug": "maintainer-review",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill facilitates GitHub maintainer reviews by analyzing issues and pull requests. It contains security considerations regarding the processing of untrusted external content, though these are addressed through a structured review process and mandatory approval gates for code execution.",
+          "auditedAt": "2026-07-07T20:22:56.690Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "EXTERNAL_DOWNLOADS",
+            "COMMAND_EXECUTION"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-07-07T20:23:34.330Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "warn",
+          "summary": "Risk: MEDIUM · 1 issue",
+          "auditedAt": "2026-07-07T20:22:37.679575+00:00",
+          "riskLevel": "MEDIUM"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "These changes are needed because <concise contract, lifecycle, compatibility, or test reason>. Once they are covered with a regression test that fails on the base and passes on the updated branch, the PR should be ready for another review.",
+        "- For a PR, inspect the current remote base and head, full patch, commit history when relevant, tests, linked issue, and review discussion. Do not substitute the current local checkout for the remote change under review.",
+        "Respect repository instructions for remote access and mutation. A review does not authorize comments, labels, branch changes, pushes, or other remote writes.",
+        "4. A comparison with the released version, base branch, or known-good control."
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "default_prompt: \"Use $maintainer-review with this GitHub issue or PR URL. Before evaluating implementation quality, verify that linked evidence matches the exact runtime variant and assign Need evidence as Demonstrated, Plausible but unprov",
+        "description: Review a GitHub issue or pull request URL as an openai-agents-python maintainer, with a staged assessment of whether the claim is real, practically important, already solvable with supported functionality, correctly scoped, bet",
+        "- Accept a GitHub issue or PR URL as the primary input. Resolve its owner, repository, item type, and number before reviewing it.",
+        "Do not infer the assessment language from the GitHub URL, contributor, code, or browser locale. Maintainer comment drafts remain English regardless of the assessment language. Keep the report decision-oriented and compact. Use no more than "
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "Do not infer the assessment language from the GitHub URL, contributor, code, or browser locale. Maintainer comment drafts remain English regardless of the assessment language. Keep the report decision-oriented and compact. Use no more than "
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "description: Review a GitHub issue or pull request URL as an openai-agents-python maintainer, with a staged assessment of whether the claim is real, practically important, already solvable with supported functionality, correctly scoped, bet"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 1,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:40.871Z"
+}

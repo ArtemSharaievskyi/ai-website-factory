@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "bbeierle12/skill-mcp-claude/forms-router",
+  "sourceId": "skills-sh",
+  "externalSkillId": "bbeierle12/skill-mcp-claude/forms-router",
+  "canonicalSourceRef": "https://www.skills.sh/bbeierle12/skill-mcp-claude/forms-router",
+  "targetReviewer": "design",
+  "targetCapability": "design.directions",
+  "coverageKeys": [
+    "form-ux"
+  ],
+  "candidateChecksum": "eb83dfd2941b7cdb7614cce22d8b1f5c29f7b8c8af496e5c45d52188537ffcf9",
+  "retrievedContentChecksum": "b7cc133e29cdd25ad565f51f7c1c2742519abd31e92a1ddce1741c1db90a0cc2",
+  "source": "bbeierle12/skill-mcp-claude",
+  "displayName": "forms-router",
+  "installs": 51,
+  "contentBytes": 53509,
+  "estimatedInjectionBytes": 51480,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "bbeierle12/skill-mcp-claude/forms-router",
+      "source": "bbeierle12/skill-mcp-claude",
+      "slug": "forms-router",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill is a documentation and routing utility designed to help developers build secure, accessible, and validated web forms. It provides architectural patterns and code examples for React, Vue, and vanilla JavaScript without any executable risks or malicious patterns.",
+          "auditedAt": "2026-03-06T10:13:56.278Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T17:34:55.495Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-03-06T10:13:56.369097+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "3 files scanned · No issues",
+          "auditedAt": "2026-03-06T10:13:51.745Z",
+          "riskLevel": "NONE"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "Score: 93/100 · 2 sections analyzed",
+          "auditedAt": "2026-04-16T14:44:54.832Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "const response = await fetch(url, {"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 2,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:06.520Z"
+}

@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "existential-birds/beagle/react-flow-code-review",
+  "sourceId": "skills-sh",
+  "externalSkillId": "existential-birds/beagle/react-flow-code-review",
+  "canonicalSourceRef": "https://www.skills.sh/existential-birds/beagle/react-flow-code-review",
+  "targetReviewer": "code-integration-reviewer",
+  "targetCapability": "review.integration",
+  "coverageKeys": [
+    "react-review"
+  ],
+  "candidateChecksum": "5c9bbd296c68d0e6170cc4c3aececa200dc4f59aa46b3ebe11525da07c6fdf62",
+  "retrievedContentChecksum": "911d32586cd74cd03c604aa92a6ff940e45596d19006dcdcd7c40db744fd2dbc",
+  "source": "existential-birds/beagle",
+  "displayName": "react-flow-code-review",
+  "installs": 283,
+  "contentBytes": 6738,
+  "estimatedInjectionBytes": 6729,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "existential-birds/beagle/react-flow-code-review",
+      "source": "existential-birds/beagle",
+      "slug": "react-flow-code-review",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides helpful guidelines and best practices for reviewing React Flow code. It contains no executable code, network requests, or security risks.",
+          "auditedAt": "2026-05-04T06:37:52.575Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-05-04T06:38:20.573Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-05-04T06:37:52.062953+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "warn",
+          "summary": "1/1 file flagged",
+          "auditedAt": "2026-02-23T17:55:18.308Z",
+          "riskLevel": "MEDIUM"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 8,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:56.460Z"
+}

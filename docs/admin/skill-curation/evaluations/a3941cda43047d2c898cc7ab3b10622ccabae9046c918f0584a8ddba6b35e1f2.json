@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "secondsky/claude-skills/react-hook-form-zod",
+  "sourceId": "skills-sh",
+  "externalSkillId": "secondsky/claude-skills/react-hook-form-zod",
+  "canonicalSourceRef": "https://www.skills.sh/secondsky/claude-skills/react-hook-form-zod",
+  "targetReviewer": "implementation",
+  "targetCapability": "implementation.code",
+  "coverageKeys": [
+    "forms-validation"
+  ],
+  "candidateChecksum": "a3941cda43047d2c898cc7ab3b10622ccabae9046c918f0584a8ddba6b35e1f2",
+  "retrievedContentChecksum": "31971aaba21c1aa8942ed9da7a3588a8bb515bb33b3bc46dd3a00a2e7a6d1f15",
+  "source": "secondsky/claude-skills",
+  "displayName": "react-hook-form-zod",
+  "installs": 254,
+  "contentBytes": 161171,
+  "estimatedInjectionBytes": 74078,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "large",
+  "overlapAssessment": "high",
+  "nearDuplicateDetected": true,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "secondsky/claude-skills/react-hook-form-zod",
+      "source": "secondsky/claude-skills",
+      "slug": "react-hook-form-zod",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill is a comprehensive documentation and template library for building type-safe forms using React Hook Form and Zod. No security issues or malicious patterns were detected.",
+          "auditedAt": "2026-05-08T13:26:16.722Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-05-08T13:28:13.988Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-05-08T13:26:41.714554+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash",
+        "```bash",
+        "```bash",
+        "```bash"
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "- **Main Docs**: https://github.com/react-hook-form/resolvers",
+        "- **zodResolver**: https://github.com/react-hook-form/resolvers#zod",
+        "- **All Resolvers**: https://github.com/react-hook-form/resolvers#api",
+        "- **GitHub**: https://github.com/react-hook-form/react-hook-form"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "- **axe DevTools** - Browser extension"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "{['React', 'TypeScript', 'Node.js', 'Python', 'SQL'].map((skill) => ("
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "const response = await fetch('/api/submit', {",
+        "fetch('/api/check', { signal: abortControllerRef.current.signal })",
+        "const response = await fetch('/api/submit', {",
+        "// OR fetch and use reset"
+      ]
+    },
+    {
+      "category": "package-install",
+      "essential": false,
+      "evidence": [
+        "npm install @hookform/resolvers",
+        "npm install react-hook-form zod @hookform/resolvers",
+        "pnpm add react-hook-form zod @hookform/resolvers",
+        "yarn add react-hook-form zod @hookform/resolvers"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": true,
+    "unsafeFindingCount": 10,
+    "externalLinksDetected": 95
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology.",
+    "The candidate substantially overlaps another evaluated procedure."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:15.381Z"
+}

@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "skills.volces.com/react-flow-code-review",
+  "sourceId": "skills-sh",
+  "externalSkillId": "skills.volces.com/react-flow-code-review",
+  "canonicalSourceRef": "https://www.skills.sh/site/skills.volces.com/react-flow-code-review",
+  "targetReviewer": "code-integration-reviewer",
+  "targetCapability": "review.integration",
+  "coverageKeys": [
+    "react-review"
+  ],
+  "candidateChecksum": "0e7054cf2f0c0fd53155324e28c0cbc1bc1fbb697505323ff2099e5ab5731ae2",
+  "retrievedContentChecksum": "66a675d248e214173a97956b57c8983cdc57cb3398c73bec85f81000f6e2a858",
+  "source": "skills.volces.com",
+  "displayName": "react-flow-code-review",
+  "installs": 2,
+  "contentBytes": 6737,
+  "estimatedInjectionBytes": 6728,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "high",
+  "nearDuplicateDetected": true,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "unavailable",
+  "externalAudit": {
+    "available": false,
+    "reason": "No external audit metadata is available."
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": true,
+    "unsafeFindingCount": 8,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate substantially overlaps another evaluated procedure.",
+    "No external audit metadata is available; local review remains authoritative."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:33:02.025Z"
+}

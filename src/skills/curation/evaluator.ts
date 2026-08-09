@@ -134,6 +134,15 @@ const detectToolAssumptions = (content: string) =>
   ].filter((item): item is ToolAssumption => Boolean(item));
 
 const capabilityKeywords: Record<CurationCapability, RegExp> = {
+  "requirements.clarify": /requirements?|elicitation|ambiguity|clarif|intent|scope|brief|acceptance/i,
+  "requirements.brief": /requirements?|elicitation|ambiguity|clarif|intent|scope|brief|acceptance/i,
+  "planning.architecture": /architecture|decomposition|data model|Next\.js|Supabase|PostgreSQL|dependency|risk|traceability/i,
+  "planning.content": /content|information architecture|copy|editorial|requirements?/i,
+  "planning.assets": /asset|imagery|media|content|design direction/i,
+  "design.directions": /design|UX|responsive|typography|spacing|layout|interaction|motion|accessib/i,
+  "design.selection": /design|UX|responsive|typography|spacing|layout|interaction|motion|accessib/i,
+  "implementation.code": /implement|React|Next\.js|TypeScript|Server Component|client component|form|Zod|performance|maintain/i,
+  "implementation.backend": /Supabase|PostgreSQL|auth|storage|server action|route handler|database|RLS|security/i,
   "review.architecture":
     /architecture|module boundaries?|domain model|cohesion|coupling|source of truth|architecture decision/i,
   "review.contracts":
@@ -146,6 +155,10 @@ const capabilityKeywords: Record<CurationCapability, RegExp> = {
     /test strategy|Playwright|Vitest|assertions?|coverage|quality engineering|user flow/i,
 };
 const responsibilityKeywords: Record<CurationReviewer, RegExp> = {
+  lead: /requirements?|elicitation|ambiguity|clarif|intent|scope|brief/i,
+  planner: /planning|architecture|decomposition|data model|Next\.js|Supabase|PostgreSQL|dependency|risk|traceability/i,
+  design: /design|UX|responsive|typography|spacing|layout|interaction|motion|accessib/i,
+  implementation: /implement|React|Next\.js|TypeScript|Server Component|client component|form|Zod|Supabase|PostgreSQL|auth|storage|performance/i,
   "architecture-reviewer": /architecture|module boundaries?|cohesion|coupling|domain model/i,
   "contract-auditor": /requirements?|acceptance criteria|traceability|schema|API contract|specification/i,
   "code-integration-reviewer": /code review|React|Next\.js|TypeScript|integration|server.?client/i,
@@ -153,6 +166,10 @@ const responsibilityKeywords: Record<CurationReviewer, RegExp> = {
   "test-quality-reviewer": /test|Playwright|Vitest|assertions?|coverage|quality/i,
 };
 const otherResponsibilityKeywords: Record<CurationReviewer, RegExp> = {
+  lead: /architecture|React|Next\.js|TypeScript|security|Playwright|Vitest/i,
+  planner: /Playwright|Vitest|RLS|security review|implementation code/i,
+  design: /shell|npm|database|server action|route handler/i,
+  implementation: /acceptance criteria|architecture review|Playwright strategy/i,
   "architecture-reviewer": /security|Playwright|Vitest|acceptance criteria/i,
   "contract-auditor": /architecture|Playwright|Vitest|RLS|Supabase/i,
   "code-integration-reviewer": /Playwright|Vitest|RLS|Supabase|acceptance criteria/i,
@@ -376,6 +393,9 @@ export async function evaluateSkillCandidate(
     localSecurityAssessment,
     externalAuditStatus: ExternalAuditStatusSchema.parse(externalStatus),
     externalAudit: audit,
+    metadataReadiness: parsed.unresolved.length === 0 ? "COMPLETE" : "INCOMPLETE",
+    licenseEvidenceStatus: "MISSING",
+    coverageKeys: input.coverageKeys,
     toolAssumptions: assumptions,
     deterministicChecks: {
       metadataValid: parsed.unresolved.length === 0,

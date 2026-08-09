@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "devfellowship/skills/supabase-upload",
+  "sourceId": "skills-sh",
+  "externalSkillId": "devfellowship/skills/supabase-upload",
+  "canonicalSourceRef": "https://www.skills.sh/devfellowship/skills/supabase-upload",
+  "targetReviewer": "security-reviewer",
+  "targetCapability": "review.security",
+  "coverageKeys": [
+    "storage-upload-security"
+  ],
+  "candidateChecksum": "973e678e8725e18d27c452ac89c11d314e6e209bcd9712069c82419c7965ea41",
+  "retrievedContentChecksum": "0b442806dcd1d5dbc038333a76e030f621e073d503d107b474ac4e1d33c86754",
+  "source": "devfellowship/skills",
+  "displayName": "supabase-upload",
+  "installs": 1,
+  "contentBytes": 8386,
+  "estimatedInjectionBytes": 4471,
+  "roleFit": "strong",
+  "procedureFit": "none",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "devfellowship/skills/supabase-upload",
+      "source": "devfellowship/skills",
+      "slug": "supabase-upload",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides a utility to upload local files to a public S3 bucket via a Supabase Edge Function. It is a legitimate tool for the devfellowship environment, featuring clear documentation regarding its public-read nature and safety warnings to avoid uploading sensitive information.",
+          "auditedAt": "2026-06-26T19:38:43.367Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "DATA_EXFILTRATION",
+            "CREDENTIALS_UNSAFE",
+            "COMMAND_EXECUTION"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "warn",
+          "summary": "1 alert: gptSecurity",
+          "auditedAt": "2026-06-26T19:38:39.446Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-06-26T19:38:16.093180+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "#!/usr/bin/env bash",
+        "ANON_KEY=$(bash \"$CREDS_FETCH\" get DFL_MCP_SUPABASE_ANON_KEY 2>/dev/null || echo \"\")",
+        "# Unset secrets in this shell asap",
+        "description: Upload a local file (screenshot, chart, PDF, audio, transcript, diagram, any asset) to the public `devfellowship` S3 bucket via the `upload-file` Supabase Edge Function — returns the public URL. **Use this skill instead of call"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "CREDS_FETCH=\"${SKILL_DIR}/../credentials-lookup/fetch.sh\"",
+        "# ── 3. Fetch anon key inline (never persisted) ───────────────────────────────",
+        "echo \"ERROR: failed to fetch DFL_MCP_SUPABASE_ANON_KEY from Infisical.\" >&2",
+        "HTTP_CODE=$(curl -sS -o \"$HTTP_OUT\" -w \"%{http_code}\" \\"
+      ]
+    },
+    {
+      "category": "mcp",
+      "essential": false,
+      "evidence": [
+        "JWT_FILE=\"${HOME}/.dfl-mcp/credentials.json\"",
+        "description: Upload a local file (screenshot, chart, PDF, audio, transcript, diagram, any asset) to the public `devfellowship` S3 bucket via the `upload-file` Supabase Edge Function — returns the public URL. **Use this skill instead of call",
+        "2. Reads the access token from `~/.dfl-mcp/credentials.json`. If `expires_at` (ms epoch) is in the past, exits with a hint to run `dfl-auth refresh`.",
+        "- Bearer JWT comes from `~/.dfl-mcp/credentials.json` (written by `packages/dfl-auth/` CLI)."
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 3,
+    "externalLinksDetected": 3
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:33:24.946Z"
+}

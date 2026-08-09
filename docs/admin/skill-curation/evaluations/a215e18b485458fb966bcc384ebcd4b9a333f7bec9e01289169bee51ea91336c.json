@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "kw12121212/auto-spec-driven/spec-driven-resync-code-mapping",
+  "sourceId": "skills-sh",
+  "externalSkillId": "kw12121212/auto-spec-driven/spec-driven-resync-code-mapping",
+  "canonicalSourceRef": "https://www.skills.sh/kw12121212/auto-spec-driven/spec-driven-resync-code-mapping",
+  "targetReviewer": "test-quality-reviewer",
+  "targetCapability": "review.test-quality",
+  "coverageKeys": [
+    "traceability-evidence"
+  ],
+  "candidateChecksum": "a215e18b485458fb966bcc384ebcd4b9a333f7bec9e01289169bee51ea91336c",
+  "retrievedContentChecksum": "32ad6c4cc38f8e59c155061d883ca6995ee24ee1c185c7dbe49e25446fc24444",
+  "source": "kw12121212/auto-spec-driven",
+  "displayName": "spec-driven-resync-code-mapping",
+  "installs": 16,
+  "contentBytes": 7743,
+  "estimatedInjectionBytes": 7734,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "kw12121212/auto-spec-driven/spec-driven-resync-code-mapping",
+      "source": "kw12121212/auto-spec-driven",
+      "slug": "spec-driven-resync-code-mapping",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill is a development utility for managing code-to-specification mappings by executing local Node.js scripts and analyzing repository files. Security findings are limited to standard command execution and a potential surface for indirect prompt injection from the codebase content it processes.",
+          "auditedAt": "2026-04-12T13:19:03.480Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "COMMAND_EXECUTION",
+            "PROMPT_INJECTION"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-04-12T13:19:25.268Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-04-12T13:18:32.116547+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 5,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:33:48.384Z"
+}

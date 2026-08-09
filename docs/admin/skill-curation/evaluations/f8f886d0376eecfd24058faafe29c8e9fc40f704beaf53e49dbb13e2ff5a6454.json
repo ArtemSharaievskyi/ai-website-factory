@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "e-t-y-b/etyb-skills/database-architect",
+  "sourceId": "skills-sh",
+  "externalSkillId": "e-t-y-b/etyb-skills/database-architect",
+  "canonicalSourceRef": "https://www.skills.sh/e-t-y-b/etyb-skills/database-architect",
+  "targetReviewer": "planner",
+  "targetCapability": "planning.architecture",
+  "coverageKeys": [
+    "data-modeling"
+  ],
+  "candidateChecksum": "f8f886d0376eecfd24058faafe29c8e9fc40f704beaf53e49dbb13e2ff5a6454",
+  "retrievedContentChecksum": "068abc1015c5d94fbf8b8d34cdbee7e1133fd958f4f0f2a65ec48e634e74e801",
+  "source": "e-t-y-b/etyb-skills",
+  "displayName": "database-architect",
+  "installs": 6,
+  "contentBytes": 282049,
+  "estimatedInjectionBytes": 276774,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "boundary-compatible",
+  "toolAssumptionCompatibility": "incompatible",
+  "contextEfficiency": "too-large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "e-t-y-b/etyb-skills/database-architect",
+      "source": "e-t-y-b/etyb-skills",
+      "slug": "database-architect",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The database-architect skill is a legitimate, high-quality technical resource for database design and optimization. It contains no malicious code, prompt injections, or data exfiltration patterns. All provided files are standard documentation and technical references for database technologies.",
+          "auditedAt": "2026-04-18T15:12:51.124Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-04-18T15:13:08.167Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "warn",
+          "summary": "Risk: MEDIUM · 1 issue",
+          "auditedAt": "2026-04-18T15:12:48.714782+00:00",
+          "riskLevel": "MEDIUM"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "Score: 93/100 · 2 sections analyzed",
+          "auditedAt": "2026-04-15T19:49:22.144Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash",
+        "```bash",
+        "**InnoDB Cluster** = Group Replication + MySQL Router + MySQL Shell. Provides automatic failover, data consistency, and node failure detection."
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "| Acknowledgment | Offset commit (batch) | Per-record acknowledgment |",
+        "2. **Two-phase commit sinks**: Kafka sink, JDBC sink support exactly-once",
+        "- Sub-second latency from commit to event",
+        "│ COMMIT                                    │"
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "- **New in 2025-2026**: AI-generated migration descriptions in Flyway Desktop 8, SARIF 2.1.0 report generation for GitHub Code Scanning / Azure DevOps, SQLite native connectors, Postgres 18 / SQL Server 2025 / Oracle 26ai support",
+        "- **CI/CD integrations**: GitHub Actions, GitLab CI, Kubernetes Operator, Terraform Provider, ArgoCD",
+        "| **gh-ost** (GitHub) | Binlog tailing (triggerless) | No FK support | Yes, dynamic via Unix socket | Atomic rename | Large tables where you need runtime control |",
+        "#### gh-ost (GitHub)"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "# Private user data (browser cache only, not CDN)"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "```python",
+        "```python",
+        "```python",
+        "```python"
+      ]
+    },
+    {
+      "category": "filesystem-write",
+      "essential": true,
+      "evidence": [
+        "Remove old column and dual-write code after verification period (1-2 weeks typical)."
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "value = db.query(...)  # Fetch from DB",
+        "3. Request coalescing: Single-flight pattern (one fetch per key, share result)",
+        "└── Register/validate schema ──→ Schema ←── Fetch schema",
+        "\"index.search.slowlog.threshold.fetch.warn\": \"1s\","
+      ]
+    },
+    {
+      "category": "mcp",
+      "essential": false,
+      "evidence": [
+        "- **New in 5.0**: Integrated Liquibase Package Manager (LPM) via `liquibase lpm`, validate `--strict` mode, SensitiveInfo policy check scanning for PII/PHI in changelogs, AI Changelog Generator via MCP Server",
+        "- **LLM integration**: Works with LangChain and MCP (Model Context Protocol) out of the box",
+        "| **Conversational search** | Built-in RAG | Via LangChain/MCP integration |"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 32,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The procedure is mutation-oriented and is a poor fit for a read-only reviewer.",
+    "The candidate requires a tool that this reviewer does not possess; no permission is granted.",
+    "The candidate provides limited reusable review methodology.",
+    "The estimated reviewer injection footprint exceeds the context policy.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:31:53.048Z"
+}

@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "arabelatso/skills-4-se/ambiguity-detector",
+  "sourceId": "skills-sh",
+  "externalSkillId": "arabelatso/skills-4-se/ambiguity-detector",
+  "canonicalSourceRef": "https://www.skills.sh/arabelatso/skills-4-se/ambiguity-detector",
+  "targetReviewer": "lead",
+  "targetCapability": "requirements.clarify",
+  "coverageKeys": [
+    "requirements-ambiguity"
+  ],
+  "candidateChecksum": "97a4b4b0aab7b1fbe2876ce4947cc3b8ff673cd56938cecd8cf9c47bfe79cf99",
+  "retrievedContentChecksum": "7730e36ed58909c64b513f84ce99f9a84c7b02a8a1465fe63f851ea397d31793",
+  "source": "arabelatso/skills-4-se",
+  "displayName": "ambiguity-detector",
+  "installs": 3,
+  "contentBytes": 36901,
+  "estimatedInjectionBytes": 33583,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "arabelatso/skills-4-se/ambiguity-detector",
+      "source": "arabelatso/skills-4-se",
+      "slug": "ambiguity-detector",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill is a collection of instructional templates for requirement analysis. It contains no executable code or external dependencies and poses no security risk.",
+          "auditedAt": "2026-03-06T22:20:07.206Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "NO_CODE"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-06T22:20:23.918Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-03-06T22:19:53.580809+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 1
+  },
+  "reasons": [
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "ambiguity-detector-7ab6d1a952e3",
+  "evaluatedAt": "2026-08-09T17:31:32.189Z"
+}

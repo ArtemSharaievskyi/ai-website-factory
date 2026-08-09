@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "ratacat/claude-skills/data-systems-architecture",
+  "sourceId": "skills-sh",
+  "externalSkillId": "ratacat/claude-skills/data-systems-architecture",
+  "canonicalSourceRef": "https://www.skills.sh/ratacat/claude-skills/data-systems-architecture",
+  "targetReviewer": "planner",
+  "targetCapability": "planning.architecture",
+  "coverageKeys": [
+    "data-modeling"
+  ],
+  "candidateChecksum": "899a534d478c57718e12fabb4d559efeeaf65638c4e7a22c01a0a9e898690f26",
+  "retrievedContentChecksum": "db62ae826294d0df4ea3d9c2ecf02a57b7c46c0980d4aea7d1d73c56b2f0a079",
+  "source": "ratacat/claude-skills",
+  "displayName": "data-systems-architecture",
+  "installs": 57,
+  "contentBytes": 115975,
+  "estimatedInjectionBytes": 5400,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "ratacat/claude-skills/data-systems-architecture",
+      "source": "ratacat/claude-skills",
+      "slug": "data-systems-architecture",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill is a technical reference for database architecture and PostgreSQL optimization. It contains no code, shell commands, or network activity, making it entirely safe to use.",
+          "auditedAt": "2026-02-17T18:04:22.658Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "NO_CODE"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T17:55:57.037Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-15T21:23:50.956412+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "7/8 files flagged",
+          "auditedAt": "2026-02-27T16:30:45.691Z",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash"
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "COMMIT;",
+        "**Implementation:** Write-ahead log (WAL) — changes written to durable log before commit confirmed.",
+        "T2: UPDATE balance = 500; COMMIT",
+        "T2: INSERT INTO employees (dept = 'A'); COMMIT"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "INSERT INTO users (name, skills) VALUES ('Jane', 'python,sql,java');",
+        "```python",
+        "```python",
+        "```python"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "**Implication:** Large columns are expensive to fetch; avoid SELECT *.",
+        "Read index → For each match, fetch table row → Return",
+        "| `Bitmap Heap Scan` | Index → bitmap → fetch blocks |",
+        "# GOOD: Fetch only what you need"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 11,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:31:50.686Z"
+}

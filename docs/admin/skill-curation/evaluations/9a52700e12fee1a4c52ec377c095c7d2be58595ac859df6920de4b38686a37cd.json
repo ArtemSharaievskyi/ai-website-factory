@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "udecode/plate/maintainability-reviewer",
+  "sourceId": "skills-sh",
+  "externalSkillId": "udecode/plate/maintainability-reviewer",
+  "canonicalSourceRef": "https://www.skills.sh/udecode/plate/maintainability-reviewer",
+  "targetReviewer": "architecture-reviewer",
+  "targetCapability": "review.architecture",
+  "coverageKeys": [
+    "evolution-maintainability"
+  ],
+  "candidateChecksum": "9a52700e12fee1a4c52ec377c095c7d2be58595ac859df6920de4b38686a37cd",
+  "retrievedContentChecksum": "dd266956ec531af1ff37f503cc86caa64bead3d2dbec418fef5560f879393828",
+  "source": "udecode/plate",
+  "displayName": "maintainability-reviewer",
+  "installs": 14,
+  "contentBytes": 3915,
+  "estimatedInjectionBytes": 3906,
+  "roleFit": "strong",
+  "procedureFit": "medium",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "udecode/plate/maintainability-reviewer",
+      "source": "udecode/plate",
+      "slug": "maintainability-reviewer",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The maintainability-reviewer skill is a specialized tool for code quality analysis, focusing on identifying structural issues like unnecessary indirection and dead code. It uses standard file-system tools and follows a strictly defined output format. No security risks or malicious patterns were detected.",
+          "auditedAt": "2026-04-04T01:31:25.518Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-04-04T01:31:53.934Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-04-04T01:31:01.731067+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "tools: Read, Grep, Glob, Bash"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Candidate passed deterministic curation checks and adds focused review procedure."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "maintainability-reviewer-50d4a784634b",
+  "evaluatedAt": "2026-08-09T17:32:34.689Z"
+}

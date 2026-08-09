@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "vudovn/antigravity-kit/nextjs-react-expert",
+  "sourceId": "skills-sh",
+  "externalSkillId": "vudovn/antigravity-kit/nextjs-react-expert",
+  "canonicalSourceRef": "https://www.skills.sh/vudovn/antigravity-kit/nextjs-react-expert",
+  "targetReviewer": "implementation",
+  "targetCapability": "implementation.code",
+  "coverageKeys": [
+    "maintainable-performance"
+  ],
+  "candidateChecksum": "483398ac6549e4efe8a7faa6242e91494748650786eec5cd9e172468443f390d",
+  "retrievedContentChecksum": "f4ab08d1f6730a108a20ff728cc345b84da43223fdbd62f4508c215a9b43d878",
+  "source": "vudovn/antigravity-kit",
+  "displayName": "nextjs-react-expert",
+  "installs": 12,
+  "contentBytes": 113948,
+  "estimatedInjectionBytes": 10500,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "fail",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "vudovn/antigravity-kit/nextjs-react-expert",
+      "source": "vudovn/antigravity-kit",
+      "slug": "nextjs-react-expert",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "fail",
+          "summary": "This skill performs performance audits on React and Next.js codebases. It is assigned a HIGH risk verdict because it possesses high-privilege capabilities including command execution (Bash) and file modification (Write, Edit) while processing untrusted external code. This creates a significant surface for Indirect Prompt Injection, where instructions hidden in the reviewed code could compromise the system. Additionally, it relies on an unprovided Python script.",
+          "auditedAt": "2026-02-16T05:07:10.710Z",
+          "riskLevel": "HIGH",
+          "categories": [
+            "PROMPT_INJECTION",
+            "COMMAND_EXECUTION"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-02-16T01:24:50.287Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-16T01:21:11.005494+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash",
+        "npx svgo --precision=1 --multipass icon.svg",
+        "allowed-tools: Read, Write, Edit, Glob, Grep, Bash"
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "// Only this branch uses userData",
+        "This optimization is especially valuable when the skipped branch is frequently taken, or when the deferred operation is expensive.",
+        "\".git\", \".next\", \".agents\", \"node_modules\", \"dist\", \"build\","
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "Reference: [https://github.com/shuding/better-all](https://github.com/shuding/better-all)",
+        "Reference: [https://github.com/isaacs/node-lru-cache](https://github.com/isaacs/node-lru-cache)",
+        "See [this gist](https://gist.github.com/paulirish/5d52fb081b3570c81e3a) and [CSS Triggers](https://csstriggers.com/) for more information on layout-forcing operations."
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "> **Focus:** Optimizing the rendering process reduces the work the browser needs to do.",
+        "For 1000 messages, the browser skips layout/paint for ~990 off-screen items, cutting initial render work substantially.",
+        "Avoid interleaving style writes with layout reads. When you read a layout property (like `offsetWidth`, `getBoundingClientRect()`, or `getComputedStyle()`) between style changes, the browser is forced to trigger a synchronous reflow.",
+        "**This is OK (browser batches style changes):**"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "#!/usr/bin/env python3",
+        "#!/usr/bin/env python3",
+        "| `scripts/react_performance_checker.py` | Automated performance audit | `python scripts/react_performance_checker.py <project_path>` |"
+      ]
+    },
+    {
+      "category": "filesystem-write",
+      "essential": false,
+      "evidence": [
+        "# Write file"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "// Fetch only when needed",
+        "// Start fetch immediately, but don't await",
+        "Both components share the same promise, so only one fetch occurs. Layout renders immediately while both components wait together.",
+        "**Incorrect (Sidebar waits for Page's fetch to complete):**"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 17,
+    "externalLinksDetected": 24
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "An external audit reports a failure; this advisory result requires human attention."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:25.917Z"
+}

@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "akillness/jeo-skills/responsive-design",
+  "sourceId": "skills-sh",
+  "externalSkillId": "akillness/jeo-skills/responsive-design",
+  "canonicalSourceRef": "https://www.skills.sh/akillness/jeo-skills/responsive-design",
+  "targetReviewer": "design",
+  "targetCapability": "design.directions",
+  "coverageKeys": [
+    "responsive-design"
+  ],
+  "candidateChecksum": "ae53865c8a0552311a2102078f143daa2465f937e31f3b69160ff8738ab0b6d7",
+  "retrievedContentChecksum": "293f74303b4142e12bfdc743ff3622c08a0dd1b84d7983fad6ea84d2a2144ec2",
+  "source": "akillness/jeo-skills",
+  "displayName": "responsive-design",
+  "installs": 77,
+  "contentBytes": 22719,
+  "estimatedInjectionBytes": 17999,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "high",
+  "nearDuplicateDetected": true,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "akillness/jeo-skills/responsive-design",
+      "source": "akillness/jeo-skills",
+      "slug": "responsive-design",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The responsive-design skill is a strategy-oriented tool for managing web interface layout adaptations. It contains no malicious code, obfuscated content, or unauthorized network operations. The skill primarily provides instructions and reference documentation for the agent to classify responsive design failures and generate strategy packets.",
+          "auditedAt": "2026-07-28T13:51:28.523Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-07-28T13:52:58.064Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-07-28T13:52:10.687057+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "| `page-layout` | The page shell, nav, sidebar, grid, or section density changes with viewport width | mobile-first baseline, intrinsic grid/flex rules, minimal viewport breakpoints | `web-accessibility` for broad launch review, `design-sys",
+        "2. If both page-shell and component-slot work are involved, choose whichever change is blocked right now and list the other as follow-up.",
+        "- Use viewport queries for page-shell shifts and container queries for reusable slot behavior.",
+        "when the main job is classifying whether the failure is page-shell adaptation,"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "signal_source: bug-report | screenshot | browser-resize | qa-review | design-review | a11y-review | mixed | unknown"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": true,
+    "unsafeFindingCount": 3,
+    "externalLinksDetected": 6
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology.",
+    "The candidate substantially overlaps another evaluated procedure."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:02.773Z"
+}

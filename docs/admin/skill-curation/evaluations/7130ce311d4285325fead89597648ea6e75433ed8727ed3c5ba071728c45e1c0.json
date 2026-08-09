@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "giuseppe-trisciuoglio/developer-kit/nextjs-code-review",
+  "sourceId": "skills-sh",
+  "externalSkillId": "giuseppe-trisciuoglio/developer-kit/nextjs-code-review",
+  "canonicalSourceRef": "https://www.skills.sh/giuseppe-trisciuoglio/developer-kit/nextjs-code-review",
+  "targetReviewer": "implementation",
+  "targetCapability": "implementation.code",
+  "coverageKeys": [
+    "server-client-boundaries"
+  ],
+  "candidateChecksum": "7130ce311d4285325fead89597648ea6e75433ed8727ed3c5ba071728c45e1c0",
+  "retrievedContentChecksum": "3c6bb2a46c28dc23ca34faf0d9016c975707654f152efda234b81218d922837b",
+  "source": "giuseppe-trisciuoglio/developer-kit",
+  "displayName": "nextjs-code-review",
+  "installs": 1845,
+  "contentBytes": 28431,
+  "estimatedInjectionBytes": 28327,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "giuseppe-trisciuoglio/developer-kit/nextjs-code-review",
+      "source": "giuseppe-trisciuoglio/developer-kit",
+      "slug": "nextjs-code-review",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill provides comprehensive instructions and reference material for performing code reviews on Next.js App Router applications. It promotes security best practices and does not contain any malicious code or behavior.",
+          "auditedAt": "2026-03-25T03:36:23.869Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-25T03:36:52.657Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-03-25T03:35:54.807819+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "4 files scanned · No issues",
+          "auditedAt": "2026-02-28T21:53:03.516Z",
+          "riskLevel": "NONE"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "Score: 93/100 · 2 sections analyzed",
+          "auditedAt": "2026-04-16T15:34:54.926Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "allowed-tools: Read, Edit, Grep, Glob, Bash"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "ssr: false, // Client-only if uses browser APIs",
+        "- Browser-only APIs (`window`, `document`, `localStorage`)",
+        "- Third-party libraries that use React hooks or browser APIs"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "Fetch data directly in Server Components — no `useEffect` needed.",
+        "const res = await fetch('https://api.example.com/products', {",
+        "if (!res.ok) throw new Error('Failed to fetch products');",
+        "const res = await fetch(`https://api.example.com/products/${id}`, {"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 1,
+    "externalLinksDetected": 5
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:10.799Z"
+}

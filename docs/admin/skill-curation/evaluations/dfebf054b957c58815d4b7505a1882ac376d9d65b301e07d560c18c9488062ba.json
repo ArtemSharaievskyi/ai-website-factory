@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "alimanjotho/open-reviewer/cross-section-consistency",
+  "sourceId": "skills-sh",
+  "externalSkillId": "alimanjotho/open-reviewer/cross-section-consistency",
+  "canonicalSourceRef": "https://www.skills.sh/alimanjotho/open-reviewer/cross-section-consistency",
+  "targetReviewer": "contract-auditor",
+  "targetCapability": "review.contracts",
+  "coverageKeys": [
+    "cross-stage-consistency"
+  ],
+  "candidateChecksum": "dfebf054b957c58815d4b7505a1882ac376d9d65b301e07d560c18c9488062ba",
+  "retrievedContentChecksum": "929e7476e5175e33451091268b512dd37d6632182e5f48161bbdddf1f30260f4",
+  "source": "alimanjotho/open-reviewer",
+  "displayName": "cross-section-consistency",
+  "installs": 2,
+  "contentBytes": 274,
+  "estimatedInjectionBytes": 265,
+  "roleFit": "strong",
+  "procedureFit": "none",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "alimanjotho/open-reviewer/cross-section-consistency",
+      "source": "alimanjotho/open-reviewer",
+      "slug": "cross-section-consistency",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill is a simple set of natural language instructions for an AI agent to perform consistency checks. It contains no code, external dependencies, or network operations.",
+          "auditedAt": "2026-04-22T07:32:16.421Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "NO_CODE"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-04-22T07:33:47.150Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-04-22T07:32:12.229055+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:50.500Z"
+}

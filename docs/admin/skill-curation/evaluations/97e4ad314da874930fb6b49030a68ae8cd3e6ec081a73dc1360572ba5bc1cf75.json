@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "cr0wg4n/dev-skills/ts-code-review",
+  "sourceId": "skills-sh",
+  "externalSkillId": "cr0wg4n/dev-skills/ts-code-review",
+  "canonicalSourceRef": "https://www.skills.sh/cr0wg4n/dev-skills/ts-code-review",
+  "targetReviewer": "code-integration-reviewer",
+  "targetCapability": "review.integration",
+  "coverageKeys": [
+    "maintainability-review"
+  ],
+  "candidateChecksum": "97e4ad314da874930fb6b49030a68ae8cd3e6ec081a73dc1360572ba5bc1cf75",
+  "retrievedContentChecksum": "824a4ed3aed73d8e6e331e0bdc7e419de2078bf5952f44712c87eeb83b120ac8",
+  "source": "cr0wg4n/dev-skills",
+  "displayName": "ts-code-review",
+  "installs": 9,
+  "contentBytes": 4825,
+  "estimatedInjectionBytes": 4816,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "cr0wg4n/dev-skills/ts-code-review",
+      "source": "cr0wg4n/dev-skills",
+      "slug": "ts-code-review",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill is a TypeScript code review tool that fetches guidelines from the author's GitHub repository and generates a local analysis report. No malicious behaviors were detected.",
+          "auditedAt": "2026-06-18T13:25:07.395Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "EXTERNAL_DOWNLOADS",
+            "COMMAND_EXECUTION",
+            "PROMPT_INJECTION"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-06-18T13:25:46.234Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "warn",
+          "summary": "Risk: MEDIUM · 2 issues",
+          "auditedAt": "2026-06-18T13:24:45.611972+00:00",
+          "riskLevel": "MEDIUM"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "2. Check the latest commit or the current staged changes for TypeScript files; the user should provide the scope, or if not available or ambiguous, you can ask for the relevant code and scope to analyze."
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "1. Before anything fetch the latest guidelines (`typescript-code-guidelines.md` file) from the URL provided in section 3, Guidelines, use it later as context for providing recommendations and best practices.",
+        "Fetch the `typescript-code-guidelines.md` which is a must-have knowledge base for this skill. This document should be used as a reference for providing recommendations and best practices when assisting with building TypeScript applications."
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 3,
+    "externalLinksDetected": 1
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:33:13.539Z"
+}

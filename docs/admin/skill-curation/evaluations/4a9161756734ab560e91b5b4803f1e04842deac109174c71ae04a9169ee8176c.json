@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "akillness/oh-my-skills/responsive-design",
+  "sourceId": "skills-sh",
+  "externalSkillId": "akillness/oh-my-skills/responsive-design",
+  "canonicalSourceRef": "https://www.skills.sh/akillness/oh-my-skills/responsive-design",
+  "targetReviewer": "design",
+  "targetCapability": "design.directions",
+  "coverageKeys": [
+    "responsive-design"
+  ],
+  "candidateChecksum": "4a9161756734ab560e91b5b4803f1e04842deac109174c71ae04a9169ee8176c",
+  "retrievedContentChecksum": "f4e83b9900bbc4bf6720a3e00d7e0645e60dc838e581433181afb93d1efa301d",
+  "source": "akillness/oh-my-skills",
+  "displayName": "responsive-design",
+  "installs": 314,
+  "contentBytes": 22719,
+  "estimatedInjectionBytes": 17999,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "akillness/oh-my-skills/responsive-design",
+      "source": "akillness/oh-my-skills",
+      "slug": "responsive-design",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides a comprehensive framework for planning and implementing responsive web design, focusing on mobile-first strategies, container queries, and layout verification without any security risks.",
+          "auditedAt": "2026-04-19T02:13:47.460Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-04-19T02:14:39.909Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-04-19T02:14:05.130608+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "Score: 93/100 · 2 sections analyzed",
+          "auditedAt": "2026-04-16T07:59:35.922Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "| `page-layout` | The page shell, nav, sidebar, grid, or section density changes with viewport width | mobile-first baseline, intrinsic grid/flex rules, minimal viewport breakpoints | `web-accessibility` for broad launch review, `design-sys",
+        "2. If both page-shell and component-slot work are involved, choose whichever change is blocked right now and list the other as follow-up.",
+        "- Use viewport queries for page-shell shifts and container queries for reusable slot behavior.",
+        "when the main job is classifying whether the failure is page-shell adaptation,"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "signal_source: bug-report | screenshot | browser-resize | qa-review | design-review | a11y-review | mixed | unknown"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 3,
+    "externalLinksDetected": 6
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:31:59.665Z"
+}

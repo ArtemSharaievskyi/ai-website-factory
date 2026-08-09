@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "45ck/hci-review-skill/consistency-audit",
+  "sourceId": "skills-sh",
+  "externalSkillId": "45ck/hci-review-skill/consistency-audit",
+  "canonicalSourceRef": "https://www.skills.sh/45ck/hci-review-skill/consistency-audit",
+  "targetReviewer": "contract-auditor",
+  "targetCapability": "review.contracts",
+  "coverageKeys": [
+    "cross-stage-consistency"
+  ],
+  "candidateChecksum": "6c58e1cef30659fb4040d93ba4084314799b9cd5eafcebf3f72712e392cf241c",
+  "retrievedContentChecksum": "346319499fd0386fa2f7921c55aa1d93ea2537ec934af263ec9cef1b397aaba6",
+  "source": "45ck/hci-review-skill",
+  "displayName": "consistency-audit",
+  "installs": 1,
+  "contentBytes": 1804,
+  "estimatedInjectionBytes": 1496,
+  "roleFit": "strong",
+  "procedureFit": "medium",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "45ck/hci-review-skill/consistency-audit",
+      "source": "45ck/hci-review-skill",
+      "slug": "consistency-audit",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill is designed to audit user interface prototypes for design consistency and generate a report. No malicious patterns, data exfiltration risks, or security vulnerabilities were detected.",
+          "auditedAt": "2026-05-19T16:52:37.225Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-05-19T16:53:48.013Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-05-19T16:52:14.392505+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Candidate passed deterministic curation checks and adds focused review procedure."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "consistency-audit-716c7e9dc8f8",
+  "evaluatedAt": "2026-08-09T17:32:52.024Z"
+}

@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "borghei/claude-skills/playwright-pro",
+  "sourceId": "skills-sh",
+  "externalSkillId": "borghei/claude-skills/playwright-pro",
+  "canonicalSourceRef": "https://www.skills.sh/borghei/claude-skills/playwright-pro",
+  "targetReviewer": "test-quality-reviewer",
+  "targetCapability": "review.test-quality",
+  "coverageKeys": [
+    "playwright-quality"
+  ],
+  "candidateChecksum": "86d536d7f84dcf3ff9f0ce29e1f782a4f4bb0c9ca4d709bc3f1d452454bc40c1",
+  "retrievedContentChecksum": "141ccc0b4ab6916b2e18ac1e22c321eb1b95106cae623f01c13eea0aa38d8f6e",
+  "source": "borghei/claude-skills",
+  "displayName": "playwright-pro",
+  "installs": 128,
+  "contentBytes": 126219,
+  "estimatedInjectionBytes": 29074,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "incompatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "borghei/claude-skills/playwright-pro",
+      "source": "borghei/claude-skills",
+      "slug": "playwright-pro",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill provides a comprehensive environment for Playwright end-to-end testing, including utilities for code generation and test analysis. No security issues, malicious patterns, or suspicious activities were detected in the instructions or the accompanying scripts.",
+          "auditedAt": "2026-04-05T00:46:28.076Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-04-05T00:47:39.913Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-04-05T00:46:11.172170+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "warn",
+          "summary": "1/1 file flagged",
+          "auditedAt": "2026-03-11T16:47:24.731Z",
+          "riskLevel": "MEDIUM"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "Score: 93/100 · 2 sections analyzed",
+          "auditedAt": "2026-04-16T18:35:40.338Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": true,
+      "evidence": [
+        "```bash",
+        "npx playwright test --trace on",
+        "for i in $(seq 1 10); do npx playwright test tests/e2e/checkout.spec.ts; done",
+        "npx playwright test --trace on"
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "| `toHaveScreenshot()` throws \"missing baseline\" | Snapshot file not committed to version control | Run `npx playwright test --update-snapshots` and commit the generated files under the `__screenshots__` directory |",
+        "1. Run cloud tests on a schedule (nightly) or for release candidates, not every commit",
+        "5. Tag builds with commit SHA for traceability"
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "? [['html'], ['github'], ['json', { outputFile: 'test-results.json' }]]",
+        "### GitHub Actions",
+        "- **CI integration** — GitHub Actions, sharding, conditional browser installs, trace/screenshot artifacts.",
+        "- **[references/diagnosis-migration-and-ci.md](references/diagnosis-migration-and-ci.md)** — flaky-test causes/fixes and diagnosis commands, Cypress→Playwright migration table, GitHub Actions CI, visual regression, accessibility testing, co"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": true,
+      "evidence": [
+        "### playwright.config.ts",
+        "import { defineConfig, devices } from '@playwright/test';",
+        "import { type Page, type Locator, expect } from '@playwright/test';",
+        "await this.page.goto('/login');"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "#!/usr/bin/env python3",
+        "python coverage_mapper.py --tests ./tests/e2e/ --flows flows.json",
+        "python coverage_mapper.py --tests ./tests/e2e/ --flows flows.json --json",
+        "python coverage_mapper.py --tests ./tests/e2e/ --flows flows.json --gaps-only"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "| `cy.visit('/path')` | `await page.goto('/path')` |",
+        "const response = await route.fetch();",
+        "- `cy.visit()` -> `page.goto()`"
+      ]
+    },
+    {
+      "category": "package-install",
+      "essential": false,
+      "evidence": [
+        "- run: pnpm install --frozen-lockfile",
+        "pnpm add -D browserstack-node-sdk",
+        "pnpm add -D @playwright/test",
+        "pnpm add -D playwright-testrail-reporter"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 37,
+    "externalLinksDetected": 5
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate requires a tool that this reviewer does not possess; no permission is granted.",
+    "The candidate provides limited reusable review methodology.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:33:45.333Z"
+}

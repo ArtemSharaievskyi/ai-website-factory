@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "jst-well-dan/skill-box/supabase-postgres-best-practices",
+  "sourceId": "skills-sh",
+  "externalSkillId": "jst-well-dan/skill-box/supabase-postgres-best-practices",
+  "canonicalSourceRef": "https://www.skills.sh/jst-well-dan/skill-box/supabase-postgres-best-practices",
+  "targetReviewer": "implementation",
+  "targetCapability": "implementation.code",
+  "coverageKeys": [
+    "supabase-implementation"
+  ],
+  "candidateChecksum": "762ac79b0708e824b88d25131cbaf7a372ce0ad6ef510f0e393b51954401184d",
+  "retrievedContentChecksum": "83a202d678394a19e39c60b37210cf37c7553a0361b5ca9088f2b500868631a4",
+  "source": "jst-well-dan/skill-box",
+  "displayName": "supabase-postgres-best-practices",
+  "installs": 17,
+  "contentBytes": 61740,
+  "estimatedInjectionBytes": 15319,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "incompatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "jst-well-dan/skill-box/supabase-postgres-best-practices",
+      "source": "jst-well-dan/skill-box",
+      "slug": "supabase-postgres-best-practices",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill is a comprehensive collection of Postgres performance best practices and optimization guidelines maintained by Supabase. It provides 38 documentation files with detailed SQL examples covering query optimization, connection management, security, and schema design. No malicious patterns, executable code, or security risks were detected.",
+          "auditedAt": "2026-02-27T19:23:53.495Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T22:46:09.066Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-27T19:23:20.227029+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "9/38 files flagged",
+          "auditedAt": "2026-02-27T19:23:26.751Z",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash",
+        "```bash",
+        "```bash"
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "-- Transaction-level lock (released on commit/rollback)",
+        "commit;  -- Lock automatically released",
+        "commit;",
+        "commit;"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "- `python` - Application code (when needed)"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": true,
+      "evidence": [
+        "2. Browse `references/` for detailed documentation on specific topics",
+        "**Incorrect (index scan + heap fetch):**",
+        "-- Must fetch name and created_at from table heap"
+      ]
+    },
+    {
+      "category": "package-install",
+      "essential": false,
+      "evidence": [
+        "npm install"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 10,
+    "externalLinksDetected": 44
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate requires a tool that this reviewer does not possess; no permission is granted.",
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:19.978Z"
+}

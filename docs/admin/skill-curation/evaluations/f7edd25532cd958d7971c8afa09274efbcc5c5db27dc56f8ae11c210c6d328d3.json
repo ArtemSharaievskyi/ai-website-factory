@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "ovachiever/droid-tings/react-hook-form-zod",
+  "sourceId": "skills-sh",
+  "externalSkillId": "ovachiever/droid-tings/react-hook-form-zod",
+  "canonicalSourceRef": "https://www.skills.sh/ovachiever/droid-tings/react-hook-form-zod",
+  "targetReviewer": "implementation",
+  "targetCapability": "implementation.code",
+  "coverageKeys": [
+    "forms-validation"
+  ],
+  "candidateChecksum": "f7edd25532cd958d7971c8afa09274efbcc5c5db27dc56f8ae11c210c6d328d3",
+  "retrievedContentChecksum": "5d1a887a122999cff1f094017138c49114abc54d67d86dc690d922f682d473d3",
+  "source": "ovachiever/droid-tings",
+  "displayName": "react-hook-form-zod",
+  "installs": 666,
+  "contentBytes": 188767,
+  "estimatedInjectionBytes": 93039,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "ovachiever/droid-tings/react-hook-form-zod",
+      "source": "ovachiever/droid-tings",
+      "slug": "react-hook-form-zod",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill provides a comprehensive set of templates and reference documentation for building validated forms in React using React Hook Form and Zod. It includes best practices for accessibility, performance, and server-side integration. All scripts and templates are benign and serve educational purposes.",
+          "auditedAt": "2026-02-17T17:27:07.150Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T16:49:26.558Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-15T20:42:14.055936+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "warn",
+          "summary": "21/21 files flagged",
+          "auditedAt": "2026-02-23T06:53:22.764Z",
+          "riskLevel": "MEDIUM"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "Score: 93/100 · 2 sections analyzed",
+          "auditedAt": "2026-04-16T08:41:16.665Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash",
+        "```bash",
+        "```bash",
+        "```bash"
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "\"repository\": \"https://github.com/jezweb/claude-skills\",",
+        "| Zod v4 type inference errors | [#13109](https://github.com/react-hook-form/react-hook-form/issues/13109) (Closed) | Correct type patterns for Zod v4; resolved in v7.66.x+ |",
+        "https://github.com/jezweb/claude-skills/issues",
+        "**Repository**: https://github.com/jezweb/claude-skills"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "- **axe DevTools** - Browser extension"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "{['React', 'TypeScript', 'Node.js', 'Python', 'SQL'].map((skill) => ("
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "const response = await fetch('/api/submit', {",
+        "fetch('/api/check', { signal: abortControllerRef.current.signal })",
+        "const response = await fetch('/api/submit', {",
+        "// OR fetch and use reset"
+      ]
+    },
+    {
+      "category": "package-install",
+      "essential": false,
+      "evidence": [
+        "npm install react-hook-form@7.66.1 zod@4.1.12 @hookform/resolvers@5.2.2",
+        "npm install @hookform/resolvers",
+        "npm install react-hook-form zod @hookform/resolvers",
+        "pnpm add react-hook-form zod @hookform/resolvers"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 18,
+    "externalLinksDetected": 98
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:14.488Z"
+}

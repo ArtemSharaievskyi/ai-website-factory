@@ -1,0 +1,923 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "generatedAt": "2026-08-09T17:35:50.447Z",
+  "approvalCalled": false,
+  "assignmentsChanged": false,
+  "agents": [
+    {
+      "agent": "lead",
+      "capabilities": [
+        "requirements.clarify",
+        "requirements.brief"
+      ],
+      "existingApprovedSkillIds": [],
+      "coverage": [
+        {
+          "area": "requirements-elicitation",
+          "coverageState": "PROMPT_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        },
+        {
+          "area": "requirements-ambiguity",
+          "coverageState": "PARTIALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "arabelatso/skills-4-se/ambiguity-detector",
+            "fr-e-d/gaai-framework/ambiguity-detector",
+            "bendourthe/devai-hub/ambiguity-detector"
+          ],
+          "candidateChecksums": [
+            "97a4b4b0aab7b1fbe2876ce4947cc3b8ff673cd56938cecd8cf9c47bfe79cf99",
+            "421b7a8270a82b26ce7a2bfa2172d1833880a6accedcc1ab28249df5e7e1a0e6",
+            "2836130c234fa3bd86d8768720e2d604e0ea9432f954b0439cc3905c696dfdf6"
+          ],
+          "recommendations": [
+            "NEEDS_HUMAN_REVIEW",
+            "NEEDS_HUMAN_REVIEW",
+            "NEEDS_HUMAN_REVIEW"
+          ],
+          "blockingReasons": [
+            "The candidate provides limited reusable review methodology.",
+            "Candidate passed deterministic curation checks and adds focused review procedure.",
+            "The candidate provides limited reusable review methodology."
+          ]
+        },
+        {
+          "area": "requirements-completeness",
+          "coverageState": "PARTIALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "bewatermyfriend7/skill-project/requirements-review",
+            "dauquangthanh/hanoi-rainbow/requirement-review",
+            "aliyun/alibabacloud-aiops-skills/alibabacloud-dts-task-query"
+          ],
+          "candidateChecksums": [
+            "211f16e3d782614fd84d02ae6f10e1a62cb3a787e00ae590d2af13d694cf59ae",
+            "3422b7bdd82c844322cc8f7042cf7d056dd3a5653d085043e9efaec4b5b368f7",
+            "1301b829d1595c2687206134b825718251655173112c6bda9b815b6bbd5d2659"
+          ],
+          "recommendations": [
+            "NEEDS_HUMAN_REVIEW",
+            "NEEDS_HUMAN_REVIEW",
+            "NEEDS_HUMAN_REVIEW"
+          ],
+          "blockingReasons": [
+            "Candidate passed deterministic curation checks and adds focused review procedure.",
+            "The candidate provides limited reusable review methodology.",
+            "An external audit reports a warning; the result is advisory only.",
+            "An external audit reports a failure; this advisory result requires human attention."
+          ]
+        },
+        {
+          "area": "intent-to-brief",
+          "coverageState": "DETERMINISTICALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        },
+        {
+          "area": "non-invention",
+          "coverageState": "PROMPT_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        }
+      ]
+    },
+    {
+      "agent": "planner",
+      "capabilities": [
+        "planning.architecture",
+        "planning.content",
+        "planning.assets"
+      ],
+      "existingApprovedSkillIds": [],
+      "coverage": [
+        {
+          "area": "software-planning",
+          "coverageState": "PROMPT_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        },
+        {
+          "area": "nextjs-architecture",
+          "coverageState": "PROMPT_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        },
+        {
+          "area": "data-modeling",
+          "coverageState": "PARTIALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "j4flmao/agent-skills/data-modeling",
+            "ratacat/claude-skills/data-systems-architecture",
+            "e-t-y-b/etyb-skills/database-architect"
+          ],
+          "candidateChecksums": [
+            "08b6820778dbeb3ba2a2e21b0161b867c37071ea3f6597171c3c398f1c5f877d",
+            "899a534d478c57718e12fabb4d559efeeaf65638c4e7a22c01a0a9e898690f26",
+            "f8f886d0376eecfd24058faafe29c8e9fc40f704beaf53e49dbb13e2ff5a6454"
+          ],
+          "recommendations": [
+            "REJECT",
+            "REJECT",
+            "REJECT"
+          ],
+          "blockingReasons": [
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology.",
+            "The estimated reviewer injection footprint exceeds the context policy.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The procedure is mutation-oriented and is a poor fit for a read-only reviewer.",
+            "The candidate requires a tool that this reviewer does not possess; no permission is granted.",
+            "The candidate provides limited reusable review methodology.",
+            "The estimated reviewer injection footprint exceeds the context policy.",
+            "An external audit reports a warning; the result is advisory only."
+          ]
+        },
+        {
+          "area": "auth-storage-architecture",
+          "coverageState": "PROMPT_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        },
+        {
+          "area": "technical-risk-planning",
+          "coverageState": "PARTIALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "ragnarok22/agent-skills/dependency-risk-audit",
+            "s3nex-com/sdlc-skills-library/technical-risk-management"
+          ],
+          "candidateChecksums": [
+            "3891f25a39ae72094ffc6d27835d6752456bc37ed974720c537678a0a611e805",
+            "a6805393dc146d15864639f556ae79ca59622e7a7d38861d32f69c913d36e836"
+          ],
+          "recommendations": [
+            "REJECT",
+            "REJECT"
+          ],
+          "blockingReasons": [
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate requires a tool that this reviewer does not possess; no permission is granted.",
+            "An external audit reports a warning; the result is advisory only.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology."
+          ]
+        },
+        {
+          "area": "requirements-traceability",
+          "coverageState": "PROMPT_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        }
+      ]
+    },
+    {
+      "agent": "design",
+      "capabilities": [
+        "design.directions",
+        "design.selection"
+      ],
+      "existingApprovedSkillIds": [],
+      "coverage": [
+        {
+          "area": "web-ux",
+          "coverageState": "PROMPT_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        },
+        {
+          "area": "responsive-design",
+          "coverageState": "PARTIALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "canatufkansu/claude-skills/responsive-mobile-first",
+            "akillness/oh-my-skills/responsive-design",
+            "akillness/jeo-skills/responsive-design"
+          ],
+          "candidateChecksums": [
+            "2d154fcb5e45cd2be0572dc4a2fa3698e98352b0515adfa9e9edb6efbba2977b",
+            "4a9161756734ab560e91b5b4803f1e04842deac109174c71ae04a9169ee8176c",
+            "ae53865c8a0552311a2102078f143daa2465f937e31f3b69160ff8738ab0b6d7"
+          ],
+          "recommendations": [
+            "REJECT",
+            "REJECT",
+            "REJECT"
+          ],
+          "blockingReasons": [
+            "The candidate provides limited reusable review methodology.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology.",
+            "The candidate substantially overlaps another evaluated procedure."
+          ]
+        },
+        {
+          "area": "design-systems",
+          "coverageState": "PROMPT_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        },
+        {
+          "area": "form-ux",
+          "coverageState": "PARTIALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "bbeierle12/skill-mcp-claude/form-accessibility",
+            "bbeierle12/skill-mcp-claude/forms-router",
+            "thulr/informed-skills/ux-audit"
+          ],
+          "candidateChecksums": [
+            "e92c6ab18caaa191219364ffd06498781941bad94ce140ef1b3a5fabfa64b21e",
+            "eb83dfd2941b7cdb7614cce22d8b1f5c29f7b8c8af496e5c45d52188537ffcf9",
+            "c0256ce0c905965df930fb8191dc7690a816ac52184a3f6104e3a035f791f83f"
+          ],
+          "recommendations": [
+            "REJECT",
+            "REJECT",
+            "NEEDS_HUMAN_REVIEW"
+          ],
+          "blockingReasons": [
+            "Local static review found an approval-blocking unsafe instruction.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology.",
+            "Candidate passed curation but could not be staged for human review."
+          ]
+        },
+        {
+          "area": "purposeful-motion",
+          "coverageState": "PROMPT_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        }
+      ]
+    },
+    {
+      "agent": "implementation",
+      "capabilities": [
+        "implementation.code",
+        "implementation.backend"
+      ],
+      "existingApprovedSkillIds": [],
+      "coverage": [
+        {
+          "area": "deterministic-change-safety",
+          "coverageState": "DETERMINISTICALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        },
+        {
+          "area": "nextjs-implementation",
+          "coverageState": "PROMPT_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        },
+        {
+          "area": "react-typescript",
+          "coverageState": "PROMPT_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        },
+        {
+          "area": "server-client-boundaries",
+          "coverageState": "PARTIALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "jacob-balslev/skills/client-server-boundary",
+            "giuseppe-trisciuoglio/developer-kit/nextjs-code-review",
+            "gohypergiant/agent-skills/accelint-nextjs-best-practices"
+          ],
+          "candidateChecksums": [
+            "e6db1e3f641e17dd90910eb114eb49c35460508424550b57c7d1ba43064c60b7",
+            "7130ce311d4285325fead89597648ea6e75433ed8727ed3c5ba071728c45e1c0",
+            "9cc2da20a3c73a5445f9ba0f612747570045610016ec60caeb84964e68cb3c2b"
+          ],
+          "recommendations": [
+            "REJECT",
+            "REJECT",
+            "REJECT"
+          ],
+          "blockingReasons": [
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate requires a tool that this reviewer does not possess; no permission is granted.",
+            "The candidate provides limited reusable review methodology.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology.",
+            "An external audit reports a warning; the result is advisory only."
+          ]
+        },
+        {
+          "area": "forms-validation",
+          "coverageState": "PARTIALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "ovachiever/droid-tings/react-hook-form-zod",
+            "secondsky/claude-skills/react-hook-form-zod",
+            "jackspace/claudeskillz/react-hook-form-zod"
+          ],
+          "candidateChecksums": [
+            "f7edd25532cd958d7971c8afa09274efbcc5c5db27dc56f8ae11c210c6d328d3",
+            "a3941cda43047d2c898cc7ab3b10622ccabae9046c918f0584a8ddba6b35e1f2",
+            "6fac72a3c13794d99cb49afbd3c0d2fd7f4f857d9d4f8f18677ec4f0fb49a2ad"
+          ],
+          "recommendations": [
+            "REJECT",
+            "REJECT",
+            "REJECT"
+          ],
+          "blockingReasons": [
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology.",
+            "An external audit reports a warning; the result is advisory only.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology.",
+            "The candidate substantially overlaps another evaluated procedure.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "An external audit reports a warning; the result is advisory only."
+          ]
+        },
+        {
+          "area": "supabase-implementation",
+          "coverageState": "PARTIALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "jst-well-dan/skill-box/supabase-postgres-best-practices",
+            "openai/plugins/supabase-postgres-best-practices",
+            "poletron/custom-rules/supabase-auth"
+          ],
+          "candidateChecksums": [
+            "762ac79b0708e824b88d25131cbaf7a372ce0ad6ef510f0e393b51954401184d",
+            "89ba68dfec725dff1685ee6504a4089686c9e5656d9c333da6ae4c815e1aac10",
+            "0299ca330f5ac6ead7b4470397d3ffac71e0d753a0fc5778f93ed7fbb929b0bb"
+          ],
+          "recommendations": [
+            "REJECT",
+            "REJECT",
+            "REJECT"
+          ],
+          "blockingReasons": [
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate requires a tool that this reviewer does not possess; no permission is granted.",
+            "The candidate provides limited reusable review methodology.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate requires a tool that this reviewer does not possess; no permission is granted.",
+            "The candidate provides limited reusable review methodology.",
+            "The candidate substantially overlaps another evaluated procedure.",
+            "Local static review found an approval-blocking unsafe instruction."
+          ]
+        },
+        {
+          "area": "maintainable-performance",
+          "coverageState": "PARTIALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "jgamaraalv/ts-dev-kit/react-best-practices",
+            "vudovn/antigravity-kit/nextjs-react-expert",
+            "dokhacgiakhoa/antigravity-ide/nextjs-react-expert"
+          ],
+          "candidateChecksums": [
+            "3320a8fa2ad4ff89faa2987f00b72c9dab96b624de0d3694ced03c9e7602b952",
+            "483398ac6549e4efe8a7faa6242e91494748650786eec5cd9e172468443f390d",
+            "8089ed1f6069761ecee7437c35369afd85537688548110bd1bcac40e651c67cd"
+          ],
+          "recommendations": [
+            "REJECT",
+            "REJECT",
+            "REJECT"
+          ],
+          "blockingReasons": [
+            "Local static review found an approval-blocking unsafe instruction.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "An external audit reports a failure; this advisory result requires human attention.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate substantially overlaps another evaluated procedure."
+          ]
+        },
+        {
+          "area": "test-aware-implementation",
+          "coverageState": "PROMPT_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        }
+      ]
+    },
+    {
+      "agent": "architecture-reviewer",
+      "capabilities": [
+        "review.architecture"
+      ],
+      "existingApprovedSkillIds": [
+        "module-boundaries-fb20497b5c35"
+      ],
+      "coverage": [
+        {
+          "area": "module-boundaries",
+          "coverageState": "APPROVED_SKILL_COVERED",
+          "existingApprovedSkillIds": [
+            "module-boundaries-fb20497b5c35"
+          ],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        },
+        {
+          "area": "architecture-tradeoffs",
+          "coverageState": "PARTIALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "tome-kota/agent-skill-catalog/software-design-review-router",
+            "gracefullight/stock-checker/oma-architecture"
+          ],
+          "candidateChecksums": [
+            "2ae0bdbda83a95cb5c365292874e149963a5d683975e4266e4ef31807ca0845d",
+            "c40282a83a740e9898af83fbcd1e6060a4c82725b1a61cf25bb091c590995936"
+          ],
+          "recommendations": [
+            "NEEDS_HUMAN_REVIEW",
+            "REJECT"
+          ],
+          "blockingReasons": [
+            "The candidate provides limited reusable review methodology.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology."
+          ]
+        },
+        {
+          "area": "evolution-maintainability",
+          "coverageState": "MISSING",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "udecode/plate/maintainability-reviewer",
+            "bradyhazell/brady-plugins/review-maintainability",
+            "openai/openai-agents-python/maintainer-review"
+          ],
+          "candidateChecksums": [
+            "9a52700e12fee1a4c52ec377c095c7d2be58595ac859df6920de4b38686a37cd",
+            "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9",
+            "9d8ff1553dfd7e5d78561bfde442242e1f15479200245b812a421d565fc67c72"
+          ],
+          "recommendations": [
+            "NEEDS_HUMAN_REVIEW",
+            "NEEDS_HUMAN_REVIEW",
+            "REJECT"
+          ],
+          "blockingReasons": [
+            "Candidate passed deterministic curation checks and adds focused review procedure.",
+            "Candidate passed deterministic curation checks and adds focused review procedure.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology.",
+            "An external audit reports a warning; the result is advisory only."
+          ]
+        }
+      ]
+    },
+    {
+      "agent": "contract-auditor",
+      "capabilities": [
+        "review.contracts"
+      ],
+      "existingApprovedSkillIds": [
+        "acceptance-criteria-80493e317476"
+      ],
+      "coverage": [
+        {
+          "area": "acceptance-criteria",
+          "coverageState": "APPROVED_SKILL_COVERED",
+          "existingApprovedSkillIds": [
+            "acceptance-criteria-80493e317476"
+          ],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        },
+        {
+          "area": "requirements-traceability-review",
+          "coverageState": "PARTIALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "terraphim/terraphim-skills/requirements-traceability",
+            "nahisaho/musubi/traceability-auditor",
+            "nahisaho/codegraphmcpserver/traceability-auditor"
+          ],
+          "candidateChecksums": [
+            "d98903887a317796e749cc1ec6ce2934983eac50d888138a41135fd27e4ce8ef",
+            "c04a0e5b3f094ec2f6b3a7dcef60dd745e66118c4b6c9a76af8d880dcc9e3236",
+            "06ac9d4788a8797a1cb25f5c68abcda69757c093839a9ca6a50555d6b943dc68"
+          ],
+          "recommendations": [
+            "REJECT",
+            "REJECT",
+            "NEEDS_HUMAN_REVIEW"
+          ],
+          "blockingReasons": [
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology.",
+            "The candidate requires a tool that this reviewer does not possess; no permission is granted.",
+            "The candidate provides limited reusable review methodology.",
+            "An external audit reports a failure; this advisory result requires human attention.",
+            "The candidate provides limited reusable review methodology.",
+            "An external audit reports a failure; this advisory result requires human attention."
+          ]
+        },
+        {
+          "area": "cross-stage-consistency",
+          "coverageState": "MISSING",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "alimanjotho/open-reviewer/cross-section-consistency",
+            "45ck/hci-review-skill/consistency-audit",
+            "hyhmrright/brooks-lint/brooks-harness"
+          ],
+          "candidateChecksums": [
+            "dfebf054b957c58815d4b7505a1882ac376d9d65b301e07d560c18c9488062ba",
+            "6c58e1cef30659fb4040d93ba4084314799b9cd5eafcebf3f72712e392cf241c",
+            "22874b3c2546d8b7826a952e049cbf5956d037c7eb62e7272e122d7f15b94ccd"
+          ],
+          "recommendations": [
+            "REJECT",
+            "NEEDS_HUMAN_REVIEW",
+            "NEEDS_HUMAN_REVIEW"
+          ],
+          "blockingReasons": [
+            "The candidate provides limited reusable review methodology.",
+            "Candidate passed deterministic curation checks and adds focused review procedure.",
+            "The candidate provides limited reusable review methodology."
+          ]
+        }
+      ]
+    },
+    {
+      "agent": "code-integration-reviewer",
+      "capabilities": [
+        "review.integration"
+      ],
+      "existingApprovedSkillIds": [],
+      "coverage": [
+        {
+          "area": "deterministic-structural-gates",
+          "coverageState": "DETERMINISTICALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        },
+        {
+          "area": "react-review",
+          "coverageState": "MISSING",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "cognitedata/builder-skills/flows-code-review",
+            "existential-birds/beagle/react-flow-code-review",
+            "skills.volces.com/react-flow-code-review"
+          ],
+          "candidateChecksums": [
+            "54d1b1eba29e9e1f426d5bef8c2a9aeed8ebc0d993d7ca6d1da81eed29432a9c",
+            "5c9bbd296c68d0e6170cc4c3aececa200dc4f59aa46b3ebe11525da07c6fdf62",
+            "0e7054cf2f0c0fd53155324e28c0cbc1bc1fbb697505323ff2099e5ab5731ae2"
+          ],
+          "recommendations": [
+            "REJECT",
+            "REJECT",
+            "REJECT"
+          ],
+          "blockingReasons": [
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "An external audit reports a warning; the result is advisory only.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate substantially overlaps another evaluated procedure.",
+            "No external audit metadata is available; local review remains authoritative."
+          ]
+        },
+        {
+          "area": "nextjs-review",
+          "coverageState": "MISSING",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "wsimmonds/claude-nextjs-skills/nextjs-server-client-components",
+            "alpoxdev/hypercore/nextjs-architecture"
+          ],
+          "candidateChecksums": [
+            "947f5f299032949c97cfea09337c308b0a339d3d7e8a259a21b7756af9eec792",
+            "a04526365b2a02b018a42ffd6accdef810c948792bcaf0244f188d9fa486a6c1"
+          ],
+          "recommendations": [
+            "REJECT",
+            "REJECT"
+          ],
+          "blockingReasons": [
+            "Local static review found an approval-blocking unsafe instruction.",
+            "An external audit reports a warning; the result is advisory only.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology."
+          ]
+        },
+        {
+          "area": "maintainability-review",
+          "coverageState": "PARTIALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "anyproto/anytype-ts/typescript-code-review",
+            "exploration-labs/typescript-code-review/typescript-code-review",
+            "cr0wg4n/dev-skills/ts-code-review"
+          ],
+          "candidateChecksums": [
+            "93a905f92c8962ded53021de9c7f3ee124f781bca6e7f44013863576e42cd224",
+            "e891d4854c6f595568b57ff9f71a524e8da77af097853f654654e0a7c1cc30b8",
+            "97e4ad314da874930fb6b49030a68ae8cd3e6ec081a73dc1360572ba5bc1cf75"
+          ],
+          "recommendations": [
+            "NEEDS_HUMAN_REVIEW",
+            "REJECT",
+            "REJECT"
+          ],
+          "blockingReasons": [
+            "The candidate provides limited reusable review methodology.",
+            "An external audit reports a failure; this advisory result requires human attention.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology.",
+            "An external audit reports a failure; this advisory result requires human attention.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology.",
+            "An external audit reports a warning; the result is advisory only."
+          ]
+        }
+      ]
+    },
+    {
+      "agent": "security-reviewer",
+      "capabilities": [
+        "review.security"
+      ],
+      "existingApprovedSkillIds": [
+        "supabase-rls-1e36b217c969"
+      ],
+      "coverage": [
+        {
+          "area": "rls-security",
+          "coverageState": "APPROVED_SKILL_COVERED",
+          "existingApprovedSkillIds": [
+            "supabase-rls-1e36b217c969"
+          ],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        },
+        {
+          "area": "web-security",
+          "coverageState": "MISSING",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "owasp/secure-agent-playbook/web-security-review",
+            "ahmedhamadto/software-forge/web-app-security-audit",
+            "shipshitdev/library/security-audit"
+          ],
+          "candidateChecksums": [
+            "8b280a3ab13567cadde2c114fffe5c5a00dd2841c229114abf14ddf0880e8012",
+            "5f2379d53288aa64e8d4774542f6b555324730133c0d3b94b2afac87d1cb8708",
+            "bc0dfe730f480beadbea3a9535c43bd71fe55748ac45c39007a51733d020770c"
+          ],
+          "recommendations": [
+            "NEEDS_HUMAN_REVIEW",
+            "REJECT",
+            "REJECT"
+          ],
+          "blockingReasons": [
+            "Candidate passed deterministic curation checks and adds focused review procedure.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "An external audit reports a failure; this advisory result requires human attention.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "An external audit reports a warning; the result is advisory only."
+          ]
+        },
+        {
+          "area": "auth-security",
+          "coverageState": "PARTIALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "smithery.ai/reviewing-authentication-and-authorization-security",
+            "crtvrffnrt/skills/pentest-authentication-authorization-review",
+            "cosai-oasis/project-codeguard/software-security"
+          ],
+          "candidateChecksums": [
+            "5da812d65bccaccf3d30f4ffd7048a9b6369f29795665538eee6b44a8f318f9d",
+            "c7f043d7eb72a10df43e65848135bd4e1f82479dd9e5de04028d9a30fe89167a",
+            "75ea7dc09aa632b100e0d103418cdb3661ad128120f77ea4694c8543b6f1333f"
+          ],
+          "recommendations": [
+            "REJECT",
+            "NEEDS_HUMAN_REVIEW",
+            "REJECT"
+          ],
+          "blockingReasons": [
+            "The candidate requires a tool that this reviewer does not possess; no permission is granted.",
+            "No external audit metadata is available; local review remains authoritative.",
+            "An external audit reports a warning; the result is advisory only.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology.",
+            "An external audit reports a failure; this advisory result requires human attention."
+          ]
+        },
+        {
+          "area": "storage-upload-security",
+          "coverageState": "MISSING",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "smithery.ai/supabase-storage",
+            "devfellowship/skills/supabase-upload",
+            "nzaidev/ai-security-skills/review-data-security"
+          ],
+          "candidateChecksums": [
+            "d748a47f303fb34f54cc2685562964c512f099664948279e8a50b36768d2cf98",
+            "973e678e8725e18d27c452ac89c11d314e6e209bcd9712069c82419c7965ea41",
+            "cbf3f4e17b88abf4d3c35b2c85c07d4297bc64560da7354ef469ffce6289a472"
+          ],
+          "recommendations": [
+            "REJECT",
+            "REJECT",
+            "REJECT"
+          ],
+          "blockingReasons": [
+            "The candidate provides limited reusable review methodology.",
+            "No external audit metadata is available; local review remains authoritative.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology.",
+            "An external audit reports a warning; the result is advisory only.",
+            "Local static review found an approval-blocking unsafe instruction."
+          ]
+        }
+      ]
+    },
+    {
+      "agent": "test-quality-reviewer",
+      "capabilities": [
+        "review.test-quality"
+      ],
+      "existingApprovedSkillIds": [],
+      "coverage": [
+        {
+          "area": "deterministic-quality-gates",
+          "coverageState": "DETERMINISTICALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [],
+          "candidateChecksums": [],
+          "recommendations": [],
+          "blockingReasons": []
+        },
+        {
+          "area": "test-strategy",
+          "coverageState": "MISSING",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "wojons/skills/testing-level-selector",
+            "melodic-software/claude-code-plugins/test-strategy-planning",
+            "cosmicstack-labs/mercury-agent-skills/test-strategy"
+          ],
+          "candidateChecksums": [
+            "0fa4c491a27eba774a236bf57e00ff89abfbc61b34ac4a1eb4897f8a1a0cddf8",
+            "e515844c490051b6bede8b107bcd90507bd22e69930a0c8d6cd4f3797a5b2023",
+            "eb6ab4a6cb70625948ee7f58fad4ca69efa3d5e1f367c71c30a85f03a206dd68"
+          ],
+          "recommendations": [
+            "REJECT",
+            "NEEDS_HUMAN_REVIEW",
+            "REJECT"
+          ],
+          "blockingReasons": [
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology.",
+            "The candidate provides limited reusable review methodology.",
+            "The candidate provides limited reusable review methodology."
+          ]
+        },
+        {
+          "area": "meaningful-assertions",
+          "coverageState": "MISSING",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "djankies/claude-configs/reviewing-test-quality",
+            "quality-max/free-qa-skills/test-quality-review",
+            "brandondees/code-quality-atlas/reviewing-test-quality"
+          ],
+          "candidateChecksums": [
+            "7678ee0541450cce390b5a8b5bdacc93d2878451c087969856ccb250b4f38a08",
+            "135e36724e9cdd8ca20ccf183b0fe8259f6cc48bb1b3885a6b0f02daaf16f7e4",
+            "0e1d07a5e076d293425fb436a7eb876d6e0d017db39b178c81f9970cbb43b9e8"
+          ],
+          "recommendations": [
+            "NEEDS_HUMAN_REVIEW",
+            "NEEDS_HUMAN_REVIEW",
+            "NEEDS_HUMAN_REVIEW"
+          ],
+          "blockingReasons": [
+            "Candidate passed deterministic curation checks and adds focused review procedure.",
+            "Candidate passed deterministic curation checks and adds focused review procedure.",
+            "The candidate provides limited reusable review methodology."
+          ]
+        },
+        {
+          "area": "playwright-quality",
+          "coverageState": "PARTIALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "alirezarezvani/claude-skills/review",
+            "borghei/claude-skills/playwright-pro"
+          ],
+          "candidateChecksums": [
+            "19df6603409642a94c74648e244fd3646cb8510de668851c202f9d45afef6760",
+            "86d536d7f84dcf3ff9f0ce29e1f782a4f4bb0c9ca4d709bc3f1d452454bc40c1"
+          ],
+          "recommendations": [
+            "REJECT",
+            "REJECT"
+          ],
+          "blockingReasons": [
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate requires a tool that this reviewer does not possess; no permission is granted.",
+            "The candidate provides limited reusable review methodology.",
+            "An external audit reports a warning; the result is advisory only."
+          ]
+        },
+        {
+          "area": "traceability-evidence",
+          "coverageState": "PARTIALLY_COVERED",
+          "existingApprovedSkillIds": [],
+          "candidateIds": [
+            "freedomportal/ccgs-technica-edition/test-evidence-review",
+            "kw12121212/auto-spec-driven/spec-driven-resync-code-mapping"
+          ],
+          "candidateChecksums": [
+            "4f8252a9559e99740692666ec7603bbb53998b2b8ffe81dfde8553f31c769123",
+            "a215e18b485458fb966bcc384ebcd4b9a333f7bec9e01289169bee51ea91336c"
+          ],
+          "recommendations": [
+            "NEEDS_HUMAN_REVIEW",
+            "REJECT"
+          ],
+          "blockingReasons": [
+            "No external audit metadata is available; local review remains authoritative.",
+            "Local static review found an approval-blocking unsafe instruction.",
+            "The candidate provides limited reusable review methodology."
+          ]
+        }
+      ]
+    }
+  ]
+}

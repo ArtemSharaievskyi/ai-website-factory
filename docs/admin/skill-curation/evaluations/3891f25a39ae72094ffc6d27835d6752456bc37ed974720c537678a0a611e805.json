@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "ragnarok22/agent-skills/dependency-risk-audit",
+  "sourceId": "skills-sh",
+  "externalSkillId": "ragnarok22/agent-skills/dependency-risk-audit",
+  "canonicalSourceRef": "https://www.skills.sh/ragnarok22/agent-skills/dependency-risk-audit",
+  "targetReviewer": "planner",
+  "targetCapability": "planning.architecture",
+  "coverageKeys": [
+    "technical-risk-planning"
+  ],
+  "candidateChecksum": "3891f25a39ae72094ffc6d27835d6752456bc37ed974720c537678a0a611e805",
+  "retrievedContentChecksum": "607696c25ddfd1a867d86836163d422341c548360c0742bc7f3ff15af23cacc0",
+  "source": "ragnarok22/agent-skills",
+  "displayName": "dependency-risk-audit",
+  "installs": 6,
+  "contentBytes": 5553,
+  "estimatedInjectionBytes": 4560,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "incompatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "ragnarok22/agent-skills/dependency-risk-audit",
+      "source": "ragnarok22/agent-skills",
+      "slug": "dependency-risk-audit",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill performs security audits on Python dependency files by leveraging the pip-audit utility. It identifies vulnerabilities, stale package versions, and upgrade risks within standard project files like requirements.txt and lockfiles. No malicious patterns or security risks were identified.",
+          "auditedAt": "2026-02-25T03:30:13.920Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "COMMAND_EXECUTION"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-02-25T03:30:19.944Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-25T03:29:45.464084+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "warn",
+          "summary": "3/3 files flagged",
+          "auditedAt": "2026-02-25T03:29:46.613Z",
+          "riskLevel": "MEDIUM"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": true,
+      "evidence": [
+        "short_description: \"Audit Python deps for security and upgrade risk\"",
+        "default_prompt: \"Use $dependency-risk-audit to review this Python project for dependency advisories, stale pins, and unsafe upgrade paths.\"",
+        "Audit Python dependencies for security advisories, stale pins, and unsafe upgrade paths.",
+        "description: Review Python dependencies for known security advisories, stale version pins, and unsafe upgrade paths. Use when users ask for dependency security reviews, requirements or lockfile audits, upgrade planning, pre-release risk che"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 4,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate requires a tool that this reviewer does not possess; no permission is granted.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:31:54.858Z"
+}

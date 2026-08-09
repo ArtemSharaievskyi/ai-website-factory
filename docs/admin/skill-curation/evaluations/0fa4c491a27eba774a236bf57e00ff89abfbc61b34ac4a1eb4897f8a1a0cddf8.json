@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "wojons/skills/testing-level-selector",
+  "sourceId": "skills-sh",
+  "externalSkillId": "wojons/skills/testing-level-selector",
+  "canonicalSourceRef": "https://www.skills.sh/wojons/skills/testing-level-selector",
+  "targetReviewer": "test-quality-reviewer",
+  "targetCapability": "review.test-quality",
+  "coverageKeys": [
+    "test-strategy"
+  ],
+  "candidateChecksum": "0fa4c491a27eba774a236bf57e00ff89abfbc61b34ac4a1eb4897f8a1a0cddf8",
+  "retrievedContentChecksum": "2ba2147e7e0469a1e77a19138ecf0a9cdfd97c3d2f3f0aac54c00ecd3c917769",
+  "source": "wojons/skills",
+  "displayName": "testing-level-selector",
+  "installs": 28,
+  "contentBytes": 4977,
+  "estimatedInjectionBytes": 4245,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "wojons/skills/testing-level-selector",
+      "source": "wojons/skills",
+      "slug": "testing-level-selector",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill provides strategic guidance for software testing strategies and contains no executable logic or external dependencies beyond a benign example script.",
+          "auditedAt": "2026-04-08T14:45:33.973Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-04-08T14:45:38.389Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-04-08T14:45:48.151929+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "3 files scanned · No issues",
+          "auditedAt": "2026-03-07T03:47:11.922Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash",
+        "npx skills add wojons/skills --skill testing-level-selector",
+        "#!/bin/bash",
+        "```bash"
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "See the [skills repository](https://github.com/wojons/skills) for all available skills."
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "⚠️ Cross-Browser Testing: Top 3 browsers",
+        "🔄 Compatibility Testing: Older browser support"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 1,
+    "externalLinksDetected": 1
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:33:29.132Z"
+}

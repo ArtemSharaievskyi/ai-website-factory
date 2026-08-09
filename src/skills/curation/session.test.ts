@@ -7,6 +7,7 @@ import {
 } from "@/integrations/skills-sh/adapter";
 import { SkillsShError } from "@/integrations/skills-sh/errors";
 import { runCurationSession } from "./session";
+import { CURATION_TARGETS } from "./session";
 import { SkillCurationEvaluationStore } from "./store";
 
 const roots: string[] = [];
@@ -51,7 +52,7 @@ describe("curation session source availability", () => {
       reportPath: path.join(root, "report.md"),
     });
     expect(result.availability).toBe("AVAILABLE");
-    expect(result.searchQueries).toHaveLength(5);
+    expect(result.searchQueries).toHaveLength(CURATION_TARGETS.length);
     expect(result.sourceIssues[0]).toContain("SKILLS_SH_RESPONSE_TOO_LARGE");
     expect(result.evaluations).toHaveLength(0);
   });

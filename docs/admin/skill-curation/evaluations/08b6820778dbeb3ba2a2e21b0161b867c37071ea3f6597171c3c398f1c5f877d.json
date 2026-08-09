@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "j4flmao/agent-skills/data-modeling",
+  "sourceId": "skills-sh",
+  "externalSkillId": "j4flmao/agent-skills/data-modeling",
+  "canonicalSourceRef": "https://www.skills.sh/j4flmao/agent-skills/data-modeling",
+  "targetReviewer": "planner",
+  "targetCapability": "planning.architecture",
+  "coverageKeys": [
+    "data-modeling"
+  ],
+  "candidateChecksum": "08b6820778dbeb3ba2a2e21b0161b867c37071ea3f6597171c3c398f1c5f877d",
+  "retrievedContentChecksum": "d4c4506462be120d12c7756e893827113b35280de10501a970bad004ac4455df",
+  "source": "j4flmao/agent-skills",
+  "displayName": "data-modeling",
+  "installs": 9,
+  "contentBytes": 1086260,
+  "estimatedInjectionBytes": 539172,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "too-large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "j4flmao/agent-skills/data-modeling",
+      "source": "j4flmao/agent-skills",
+      "slug": "data-modeling",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This data modeling skill is functionally safe and provides accurate technical advice for database design. However, it employs a deceptive documentation style where several reference files contain hundreds of repetitive, copy-pasted blocks of text and code. This context bloating increases token consumption and can interfere with the agent's reasoning efficiency.",
+          "auditedAt": "2026-07-20T14:06:30.666Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "PROMPT_INJECTION"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-07-20T14:05:06.478Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-07-20T14:04:43.936712+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "- Data models versioned alongside application code in Git",
+        "Check commit → lint SQL (sqlfluff) → run on ephemeral DB → verify schema → run migration test → run integration tests → deploy to staging. Use tools like pgTAP, Sqitch, or custom scripts."
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "```python",
+        "```python",
+        "```python",
+        "```python"
+      ]
+    },
+    {
+      "category": "filesystem-write",
+      "essential": false,
+      "evidence": [
+        "Phase 1 (Expand): Add new schema alongside existing. Create new tables, columns, or databases. Write to both old and new. Phase 2 (Migrate): Backfill data from old to new. Phase 3 (Contract): Remove old schema, drop old tables, remove dual-"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "async def fetch(url):",
+        "return await asyncio.gather(*(fetch(u) for u in urls))",
+        "async def fetch(url):",
+        "return await asyncio.gather(*(fetch(u) for u in urls))"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 1,
+    "externalLinksDetected": 5
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology.",
+    "The estimated reviewer injection footprint exceeds the context policy."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:31:49.424Z"
+}

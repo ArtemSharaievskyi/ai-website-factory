@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "bewatermyfriend7/skill-project/requirements-review",
+  "sourceId": "skills-sh",
+  "externalSkillId": "bewatermyfriend7/skill-project/requirements-review",
+  "canonicalSourceRef": "https://www.skills.sh/bewatermyfriend7/skill-project/requirements-review",
+  "targetReviewer": "lead",
+  "targetCapability": "requirements.clarify",
+  "coverageKeys": [
+    "requirements-completeness"
+  ],
+  "candidateChecksum": "211f16e3d782614fd84d02ae6f10e1a62cb3a787e00ae590d2af13d694cf59ae",
+  "retrievedContentChecksum": "e862cfd25d515a9a46cec28416174b25cd44deb29d5d282df6512aac0cddb0a5",
+  "source": "bewatermyfriend7/skill-project",
+  "displayName": "requirements-review",
+  "installs": 11,
+  "contentBytes": 1111,
+  "estimatedInjectionBytes": 1102,
+  "roleFit": "strong",
+  "procedureFit": "medium",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "bewatermyfriend7/skill-project/requirements-review",
+      "source": "bewatermyfriend7/skill-project",
+      "slug": "requirements-review",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill is designed to review and rewrite requirement documents locally. It reads from and writes to a designated local folder without any network access or high-risk command execution. No malicious patterns were identified.",
+          "auditedAt": "2026-03-05T02:53:59.610Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "PROMPT_INJECTION"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-05T02:53:49.109Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-03-05T02:53:21.410242+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "1 file scanned · No issues",
+          "auditedAt": "2026-03-05T02:53:16.661Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Candidate passed deterministic curation checks and adds focused review procedure."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "requirements-review-0d7139e88ab1",
+  "evaluatedAt": "2026-08-09T17:31:39.457Z"
+}

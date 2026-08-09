@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "alirezarezvani/claude-skills/review",
+  "sourceId": "skills-sh",
+  "externalSkillId": "alirezarezvani/claude-skills/review",
+  "canonicalSourceRef": "https://www.skills.sh/alirezarezvani/claude-skills/review",
+  "targetReviewer": "test-quality-reviewer",
+  "targetCapability": "review.test-quality",
+  "coverageKeys": [
+    "playwright-quality"
+  ],
+  "candidateChecksum": "19df6603409642a94c74648e244fd3646cb8510de668851c202f9d45afef6760",
+  "retrievedContentChecksum": "b6a35fea7f0b2953bbf06263b1624ea79a82ffc97c59056150031ced4532ac26",
+  "source": "alirezarezvani/claude-skills",
+  "displayName": "review",
+  "installs": 1675,
+  "contentBytes": 7412,
+  "estimatedInjectionBytes": 3091,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "alirezarezvani/claude-skills/review",
+      "source": "alirezarezvani/claude-skills",
+      "slug": "review",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The 'review' skill is designed to audit Playwright test files for quality and adherence to best practices. It operates locally, analyzing configuration and test scripts to provide scoring and actionable feedback. The skill is safe as it requires user consent before making any file changes and does not engage in network activity or other suspicious behaviors.",
+          "auditedAt": "2026-03-10T05:35:23.919Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T16:49:37.272Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-03-10T05:34:57.086583+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "2 files scanned · No issues",
+          "auditedAt": "2026-03-10T05:34:59.072Z",
+          "riskLevel": "NONE"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "Score: 93/100 · 2 sections analyzed",
+          "auditedAt": "2026-04-16T18:16:09.648Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "agent-or-subagent",
+      "essential": false,
+      "evidence": [
+        "- Spawn sub-agents per file for parallel review (up to 5 concurrent)"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "# Playwright Anti-Patterns Reference",
+        "await page.goto('http://localhost:3000/login');",
+        "await page.goto('/login');",
+        "page.goto('/dashboard');"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 7,
+    "externalLinksDetected": 1
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:33:44.076Z"
+}

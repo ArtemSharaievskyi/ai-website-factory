@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "smithery.ai/supabase-storage",
+  "sourceId": "skills-sh",
+  "externalSkillId": "smithery.ai/supabase-storage",
+  "canonicalSourceRef": "https://www.skills.sh/site/smithery.ai/supabase-storage",
+  "targetReviewer": "security-reviewer",
+  "targetCapability": "review.security",
+  "coverageKeys": [
+    "storage-upload-security"
+  ],
+  "candidateChecksum": "d748a47f303fb34f54cc2685562964c512f099664948279e8a50b36768d2cf98",
+  "retrievedContentChecksum": "5d2679751f393b5dd36db039b5be781e578339e81fffedc79fac2b5f1a4aa661",
+  "source": "smithery.ai",
+  "displayName": "supabase-storage",
+  "installs": 2,
+  "contentBytes": 5902,
+  "estimatedInjectionBytes": 5893,
+  "roleFit": "strong",
+  "procedureFit": "none",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "unavailable",
+  "externalAudit": {
+    "available": false,
+    "reason": "No external audit metadata is available."
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "The candidate provides limited reusable review methodology.",
+    "No external audit metadata is available; local review remains authoritative."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:33:23.303Z"
+}

@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "aliyun/alibabacloud-aiops-skills/alibabacloud-dts-task-query",
+  "sourceId": "skills-sh",
+  "externalSkillId": "aliyun/alibabacloud-aiops-skills/alibabacloud-dts-task-query",
+  "canonicalSourceRef": "https://www.skills.sh/aliyun/alibabacloud-aiops-skills/alibabacloud-dts-task-query",
+  "targetReviewer": "lead",
+  "targetCapability": "requirements.clarify",
+  "coverageKeys": [
+    "requirements-completeness"
+  ],
+  "candidateChecksum": "1301b829d1595c2687206134b825718251655173112c6bda9b815b6bbd5d2659",
+  "retrievedContentChecksum": "b0068b3bc20d107cb8987308cfda8e09338a37b5d0934d96527255131208de0d",
+  "source": "aliyun/alibabacloud-aiops-skills",
+  "displayName": "alibabacloud-dts-task-query",
+  "installs": 123,
+  "contentBytes": 30498,
+  "estimatedInjectionBytes": 13642,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "fail",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "aliyun/alibabacloud-aiops-skills/alibabacloud-dts-task-query",
+      "source": "aliyun/alibabacloud-aiops-skills",
+      "slug": "alibabacloud-dts-task-query",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides tools to query Alibaba Cloud Data Transmission Service (DTS) tasks across various regions. It follows security best practices, including input validation, safe command execution, and clear documentation of required permissions.",
+          "auditedAt": "2026-05-06T02:10:21.162Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "COMMAND_EXECUTION"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-05-06T02:11:43.569Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "fail",
+          "summary": "Risk: CRITICAL · 1 issue",
+          "auditedAt": "2026-05-06T02:10:20.373126+00:00",
+          "riskLevel": "CRITICAL"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash",
+        "#!/bin/bash",
+        "```bash",
+        "```bash"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "#!/usr/bin/env python3",
+        "python scripts/query_dts_tasks.py [--region <id>] [--instance-id <id>] [--job-name <name>] [--workers <N>]"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 2
+  },
+  "reasons": [
+    "An external audit reports a failure; this advisory result requires human attention."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "alibabacloud-dts-task-query-d3da51006b28",
+  "evaluatedAt": "2026-08-09T17:31:41.566Z"
+}

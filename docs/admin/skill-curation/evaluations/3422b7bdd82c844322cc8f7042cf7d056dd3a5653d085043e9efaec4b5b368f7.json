@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "dauquangthanh/hanoi-rainbow/requirement-review",
+  "sourceId": "skills-sh",
+  "externalSkillId": "dauquangthanh/hanoi-rainbow/requirement-review",
+  "canonicalSourceRef": "https://www.skills.sh/dauquangthanh/hanoi-rainbow/requirement-review",
+  "targetReviewer": "lead",
+  "targetCapability": "requirements.clarify",
+  "coverageKeys": [
+    "requirements-completeness"
+  ],
+  "candidateChecksum": "3422b7bdd82c844322cc8f7042cf7d056dd3a5653d085043e9efaec4b5b368f7",
+  "retrievedContentChecksum": "2801b72e5796711f292a420f81faa496964192a75f5777c6b7ac3a7ddcedb4c6",
+  "source": "dauquangthanh/hanoi-rainbow",
+  "displayName": "requirement-review",
+  "installs": 113,
+  "contentBytes": 67101,
+  "estimatedInjectionBytes": 67002,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "dauquangthanh/hanoi-rainbow/requirement-review",
+      "source": "dauquangthanh/hanoi-rainbow",
+      "slug": "requirement-review",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides structured guidance for performing requirement reviews. It contains no code, scripts, or network capabilities, posing no security risk.",
+          "auditedAt": "2026-02-17T18:10:28.542Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "NO_CODE"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T17:55:57.135Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-15T21:40:00.594489+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "warn",
+          "summary": "4/4 files flagged",
+          "auditedAt": "2026-02-21T23:17:14.534Z",
+          "riskLevel": "MEDIUM"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "Score: 93/100 · 2 sections analyzed",
+          "auditedAt": "2026-04-16T00:57:07.122Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "- Pass Prettier formatting checks (automated in pre-commit hook)",
+        "- Automated: SonarQube analysis on every commit, build fails if thresholds not met"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "The system shall meet the following response time targets measured from user browser:",
+        "- Device: Desktop with modern browser (Chrome, Firefox, Safari latest versions)"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "- System suggests: (1) Check spelling, (2) Try different keywords, (3) Browse categories"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "The candidate provides limited reusable review methodology.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "requirement-review-3e3adf5ad67f",
+  "evaluatedAt": "2026-08-09T17:31:40.487Z"
+}

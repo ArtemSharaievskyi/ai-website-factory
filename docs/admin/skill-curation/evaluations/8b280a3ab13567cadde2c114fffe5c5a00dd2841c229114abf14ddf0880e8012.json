@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "owasp/secure-agent-playbook/web-security-review",
+  "sourceId": "skills-sh",
+  "externalSkillId": "owasp/secure-agent-playbook/web-security-review",
+  "canonicalSourceRef": "https://www.skills.sh/owasp/secure-agent-playbook/web-security-review",
+  "targetReviewer": "security-reviewer",
+  "targetCapability": "review.security",
+  "coverageKeys": [
+    "web-security"
+  ],
+  "candidateChecksum": "8b280a3ab13567cadde2c114fffe5c5a00dd2841c229114abf14ddf0880e8012",
+  "retrievedContentChecksum": "70d7b6f3c17951e3d94b1a25d31dce1f7170d43a11fe016e4a9b403c7a044b90",
+  "source": "owasp/secure-agent-playbook",
+  "displayName": "web-security-review",
+  "installs": 56,
+  "contentBytes": 2705,
+  "estimatedInjectionBytes": 2696,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "owasp/secure-agent-playbook/web-security-review",
+      "source": "owasp/secure-agent-playbook",
+      "slug": "web-security-review",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill provides a structured framework for auditing web applications against the OWASP Top 10 (2021) risks. It consists entirely of instructional text and documentation, with no executable code, network operations, or security risks identified.",
+          "auditedAt": "2026-04-13T23:51:30.694Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-04-13T23:52:24.277Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-04-13T23:51:31.319361+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Candidate passed deterministic curation checks and adds focused review procedure."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "web-security-review-cb64887a561c",
+  "evaluatedAt": "2026-08-09T17:33:15.257Z"
+}

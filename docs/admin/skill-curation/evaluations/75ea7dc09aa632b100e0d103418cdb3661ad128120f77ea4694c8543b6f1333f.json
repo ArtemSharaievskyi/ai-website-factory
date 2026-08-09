@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "cosai-oasis/project-codeguard/software-security",
+  "sourceId": "skills-sh",
+  "externalSkillId": "cosai-oasis/project-codeguard/software-security",
+  "canonicalSourceRef": "https://www.skills.sh/cosai-oasis/project-codeguard/software-security",
+  "targetReviewer": "security-reviewer",
+  "targetCapability": "review.security",
+  "coverageKeys": [
+    "auth-security"
+  ],
+  "candidateChecksum": "75ea7dc09aa632b100e0d103418cdb3661ad128120f77ea4694c8543b6f1333f",
+  "retrievedContentChecksum": "2ee0bfe5f541321622eca3b52cca27bb6fadebd825b22ec17eda6cce8d885a52",
+  "source": "cosai-oasis/project-codeguard",
+  "displayName": "software-security",
+  "installs": 241,
+  "contentBytes": 113076,
+  "estimatedInjectionBytes": 9677,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "fail",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "cosai-oasis/project-codeguard/software-security",
+      "source": "cosai-oasis/project-codeguard",
+      "slug": "software-security",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill is a comprehensive collection of security guidelines and best practices designed to help AI agents write and review code securely. It contains no executable code and focuses on providing instructional rules for various security domains across multiple programming languages.",
+          "auditedAt": "2026-03-12T07:00:19.658Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T16:51:23.478Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-03-12T06:59:51.900062+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "fail",
+          "summary": "20/24 files flagged",
+          "auditedAt": "2026-03-12T07:00:35.688Z",
+          "riskLevel": "HIGH"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "- powershell",
+        "- shell",
+        "- Avoid leading hyphens or spaces for safer shell script processing.",
+        "- powershell"
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "- JAAS: configure `LoginModule` stanzas; implement `initialize/login/commit/abort/logout`; avoid exposing credentials; segregate public/private credentials; manage subject principals properly.",
+        "- Use two-stage commit for high-impact actions: draft/preview first, explicit commit with confirmation second",
+        "- [ ] Add pre-commit hooks to scan for banned functions"
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "- GitHub Tokens: Start with `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "- Avoid browser HPKP. Consider pinning only for controlled clients (e.g., mobile) and when you own both ends.",
+        "Protect browser clients against code injection, request forgery, UI redress, cross‑site leaks, and unsafe third‑party scripts with layered, context‑aware controls.",
+        "- SQL Server: Disable xp_cmdshell, CLR execution, SQL Browser service, Mixed Mode Authentication (unless required)."
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "- python",
+        "- python",
+        "- python",
+        "- python"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "- Adopt Fetch Metadata protections to block suspicious cross‑site requests.",
+        "- Frame protections set; XS‑Leak mitigations enabled (Fetch Metadata, COOP/COEP/CORP).",
+        "- Secrets: never hardcode; fetch at runtime from vault/KMS; mask in logs."
+      ]
+    },
+    {
+      "category": "mcp",
+      "essential": false,
+      "evidence": [
+        "rules/codeguard-0-mcp-security.md",
+        "description: MCP (Model Context Protocol) Security based on CoSAI MCP Security guidelines",
+        "rule_id: codeguard-0-mcp-security",
+        "# MCP (Model Context Protocol) Security Guidelines"
+      ]
+    },
+    {
+      "category": "package-install",
+      "essential": false,
+      "evidence": [
+        "- Use deterministic builds: `npm ci` (not `npm install`) in CI/CD; maintain lockfile consistency."
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 12,
+    "externalLinksDetected": 6
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology.",
+    "An external audit reports a failure; this advisory result requires human attention."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:33:20.661Z"
+}

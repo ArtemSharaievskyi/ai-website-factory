@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "jgamaraalv/ts-dev-kit/react-best-practices",
+  "sourceId": "skills-sh",
+  "externalSkillId": "jgamaraalv/ts-dev-kit/react-best-practices",
+  "canonicalSourceRef": "https://www.skills.sh/jgamaraalv/ts-dev-kit/react-best-practices",
+  "targetReviewer": "implementation",
+  "targetCapability": "implementation.code",
+  "coverageKeys": [
+    "maintainable-performance"
+  ],
+  "candidateChecksum": "3320a8fa2ad4ff89faa2987f00b72c9dab96b624de0d3694ced03c9e7602b952",
+  "retrievedContentChecksum": "34bedfa40c26007401cae543ce0fb31f48ab3b8302f9e2bf21b6392b62adb61d",
+  "source": "jgamaraalv/ts-dev-kit",
+  "displayName": "react-best-practices",
+  "installs": 24,
+  "contentBytes": 48883,
+  "estimatedInjectionBytes": 48607,
+  "roleFit": "strong",
+  "procedureFit": "medium",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "jgamaraalv/ts-dev-kit/react-best-practices",
+      "source": "jgamaraalv/ts-dev-kit",
+      "slug": "react-best-practices",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill provides a set of performance optimization guidelines and code patterns for React and Next.js applications based on industry best practices. It references official documentation and reputable open-source libraries without introducing any security vulnerabilities or malicious code.",
+          "auditedAt": "2026-02-28T23:05:09.021Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T22:21:17.699Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-28T23:04:44.802597+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "9 files scanned · No issues",
+          "auditedAt": "2026-02-28T23:05:15.962Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "This optimization is especially valuable when the skipped branch is frequently taken, or when the deferred operation is expensive."
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "Reference: [better-all](https://github.com/shuding/better-all)",
+        "Prefer CSS classes over inline styles. See [layout-forcing properties gist](https://gist.github.com/paulirish/5d52fb081b3570c81e3a) for more information.",
+        "Reference: [node-lru-cache](https://github.com/isaacs/node-lru-cache)"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "For 1000 messages, browser skips layout/paint for ~990 off-screen items (10x faster initial render).",
+        "Use an inline `<script>` tag with a self-executing function that reads localStorage synchronously and sets the className on the wrapper element before React hydrates. The script runs before the browser paints, ensuring correct initial rende"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "fetch(\"/api/users\")",
+        "**Next.js note:** `fetch` is automatically deduplicated within a single request. `React.cache()` is still essential for database queries, auth checks, heavy computations, and any non-fetch async work.",
+        "**Incorrect (Sidebar waits for Page's fetch):**",
+        "**Correct (both fetch simultaneously):**"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 8,
+    "externalLinksDetected": 14
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:23.746Z"
+}

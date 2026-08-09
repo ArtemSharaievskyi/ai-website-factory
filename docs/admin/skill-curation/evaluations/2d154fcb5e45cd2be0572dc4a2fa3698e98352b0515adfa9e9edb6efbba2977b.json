@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "canatufkansu/claude-skills/responsive-mobile-first",
+  "sourceId": "skills-sh",
+  "externalSkillId": "canatufkansu/claude-skills/responsive-mobile-first",
+  "canonicalSourceRef": "https://www.skills.sh/canatufkansu/claude-skills/responsive-mobile-first",
+  "targetReviewer": "design",
+  "targetCapability": "design.directions",
+  "coverageKeys": [
+    "responsive-design"
+  ],
+  "candidateChecksum": "2d154fcb5e45cd2be0572dc4a2fa3698e98352b0515adfa9e9edb6efbba2977b",
+  "retrievedContentChecksum": "06f4b909cdb903e77d8c84a436b16bc9bb04599f537976c96786532c2821445f",
+  "source": "canatufkansu/claude-skills",
+  "displayName": "responsive-mobile-first",
+  "installs": 17,
+  "contentBytes": 8275,
+  "estimatedInjectionBytes": 8266,
+  "roleFit": "strong",
+  "procedureFit": "none",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "canatufkansu/claude-skills/responsive-mobile-first",
+      "source": "canatufkansu/claude-skills",
+      "slug": "responsive-mobile-first",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides front-end UI patterns and components for mobile-first responsive web development using React and Tailwind CSS. It focuses exclusively on layout, styling, and basic client-side interactions, with no security risks detected.",
+          "auditedAt": "2026-02-17T18:40:07.948Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-02-16T03:24:28.989Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-16T03:06:50.215563+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "1 file scanned · No issues",
+          "auditedAt": "2026-03-13T20:58:23.986Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:31:58.456Z"
+}

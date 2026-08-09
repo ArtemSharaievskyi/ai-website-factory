@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "bradyhazell/brady-plugins/review-maintainability",
+  "sourceId": "skills-sh",
+  "externalSkillId": "bradyhazell/brady-plugins/review-maintainability",
+  "canonicalSourceRef": "https://www.skills.sh/bradyhazell/brady-plugins/review-maintainability",
+  "targetReviewer": "architecture-reviewer",
+  "targetCapability": "review.architecture",
+  "coverageKeys": [
+    "evolution-maintainability"
+  ],
+  "candidateChecksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9",
+  "retrievedContentChecksum": "51138c77d91fad5bf31f9d693b91e1d74a194245c79399f660bb5dfa504d6089",
+  "source": "bradyhazell/brady-plugins",
+  "displayName": "review-maintainability",
+  "installs": 2,
+  "contentBytes": 2065,
+  "estimatedInjectionBytes": 2056,
+  "roleFit": "strong",
+  "procedureFit": "medium",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "bradyhazell/brady-plugins/review-maintainability",
+      "source": "bradyhazell/brady-plugins",
+      "slug": "review-maintainability",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill provides instructions for reviewing code maintainability and contains no security risks or executable code.",
+          "auditedAt": "2026-06-18T01:53:05.331Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "NO_CODE"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-06-18T01:53:21.285Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-06-18T01:52:51.713279+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Candidate passed deterministic curation checks and adds focused review procedure."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "review-maintainability-d9faf7cb9775",
+  "evaluatedAt": "2026-08-09T17:32:40.017Z"
+}

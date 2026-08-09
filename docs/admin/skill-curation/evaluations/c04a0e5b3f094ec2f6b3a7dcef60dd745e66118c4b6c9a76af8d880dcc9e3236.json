@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "nahisaho/musubi/traceability-auditor",
+  "sourceId": "skills-sh",
+  "externalSkillId": "nahisaho/musubi/traceability-auditor",
+  "canonicalSourceRef": "https://www.skills.sh/nahisaho/musubi/traceability-auditor",
+  "targetReviewer": "contract-auditor",
+  "targetCapability": "review.contracts",
+  "coverageKeys": [
+    "requirements-traceability-review"
+  ],
+  "candidateChecksum": "c04a0e5b3f094ec2f6b3a7dcef60dd745e66118c4b6c9a76af8d880dcc9e3236",
+  "retrievedContentChecksum": "9d557cf16d0d79d1f3ee09f6083d2571061fa5a2af882f79d129b83b5c9d1185",
+  "source": "nahisaho/musubi",
+  "displayName": "traceability-auditor",
+  "installs": 13,
+  "contentBytes": 20424,
+  "estimatedInjectionBytes": 12004,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "incompatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "fail",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "nahisaho/musubi/traceability-auditor",
+      "source": "nahisaho/musubi",
+      "slug": "traceability-auditor",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "fail",
+          "summary": "The skill provides templates and utility scripts for managing software traceability and gap detection. Analysis of the code and markdown files reveals no malicious behaviors, security bypasses, or data exfiltration risks. The automated scanner alert for 'requirements.md' is a false positive, as the string refers to a local file path used by the scripts rather than a remote URL.",
+          "auditedAt": "2026-02-17T18:40:04.747Z",
+          "riskLevel": "CRITICAL"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-02-16T03:30:06.979Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-16T03:05:44.014825+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash",
+        "#!/bin/bash",
+        "```bash",
+        "#!/bin/bash"
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "# .github/workflows/traceability.yml"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": true,
+      "evidence": [
+        "```python",
+        "```python",
+        "```python",
+        "```python"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "The candidate requires a tool that this reviewer does not possess; no permission is granted.",
+    "The candidate provides limited reusable review methodology.",
+    "An external audit reports a failure; this advisory result requires human attention."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:47.450Z"
+}

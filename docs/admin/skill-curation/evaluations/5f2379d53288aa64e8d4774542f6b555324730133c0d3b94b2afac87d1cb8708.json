@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "ahmedhamadto/software-forge/web-app-security-audit",
+  "sourceId": "skills-sh",
+  "externalSkillId": "ahmedhamadto/software-forge/web-app-security-audit",
+  "canonicalSourceRef": "https://www.skills.sh/ahmedhamadto/software-forge/web-app-security-audit",
+  "targetReviewer": "security-reviewer",
+  "targetCapability": "review.security",
+  "coverageKeys": [
+    "web-security"
+  ],
+  "candidateChecksum": "5f2379d53288aa64e8d4774542f6b555324730133c0d3b94b2afac87d1cb8708",
+  "retrievedContentChecksum": "3933bd0dcfab098649ae10b9e9d7e077613e4c3de112da76d59cce728f0efd97",
+  "source": "ahmedhamadto/software-forge",
+  "displayName": "web-app-security-audit",
+  "installs": 58,
+  "contentBytes": 20349,
+  "estimatedInjectionBytes": 20340,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "fail",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "ahmedhamadto/software-forge/web-app-security-audit",
+      "source": "ahmedhamadto/software-forge",
+      "slug": "web-app-security-audit",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides a comprehensive 10-phase methodology for web application security auditing. It instructs the agent to use standard tools like grep and curl to identify vulnerabilities. No malicious patterns were detected.",
+          "auditedAt": "2026-04-21T15:22:34.528Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "COMMAND_EXECUTION",
+            "PROMPT_INJECTION"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "warn",
+          "summary": "1 alert: gptSecurity",
+          "auditedAt": "2026-04-21T15:24:21.518Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "warn",
+          "summary": "Risk: MEDIUM · 1 issue",
+          "auditedAt": "2026-04-21T15:22:28.634386+00:00",
+          "riskLevel": "MEDIUM"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "fail",
+          "summary": "1/1 file flagged",
+          "auditedAt": "2026-03-02T04:11:12.554Z",
+          "riskLevel": "HIGH"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "1 finding · Score: 86/100",
+          "auditedAt": "2026-04-16T10:39:03.379Z",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash",
+        "```bash",
+        "```bash",
+        "```bash"
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "- Check for exposed files: `robots.txt`, `sitemap.xml`, `.env`, `.git/`, `package.json`",
+        "- Check for exposed `.git/`, `.env`, source maps, backup files"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "- Check if reset tokens are in URLs (logged in server logs, browser history)"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "# Python",
+        "pip-audit  # or safety check"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "3. **Suggest and execute** concrete tests (grep patterns in source code, curl commands, Burp Suite steps, automated scripts)",
+        "grep -rn \"fetch(\\|axios\\|request(\\|urllib\\|http\\.get\\|https\\.get\\|curl\\|wget\" --include=\"*.ts\" --include=\"*.js\" --include=\"*.py\"",
+        "curl -X OPTIONS <target-url> -i",
+        "curl -s -I <target-url>"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 5,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "An external audit reports a failure; this advisory result requires human attention."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:33:16.119Z"
+}

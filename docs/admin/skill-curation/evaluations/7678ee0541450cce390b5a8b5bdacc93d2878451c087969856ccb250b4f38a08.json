@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "djankies/claude-configs/reviewing-test-quality",
+  "sourceId": "skills-sh",
+  "externalSkillId": "djankies/claude-configs/reviewing-test-quality",
+  "canonicalSourceRef": "https://www.skills.sh/djankies/claude-configs/reviewing-test-quality",
+  "targetReviewer": "test-quality-reviewer",
+  "targetCapability": "review.test-quality",
+  "coverageKeys": [
+    "meaningful-assertions"
+  ],
+  "candidateChecksum": "7678ee0541450cce390b5a8b5bdacc93d2878451c087969856ccb250b4f38a08",
+  "retrievedContentChecksum": "b98d3ce2406cdb89a532e5c9f0bfc7de8713b445a799153aa53b070e51ccc46a",
+  "source": "djankies/claude-configs",
+  "displayName": "reviewing-test-quality",
+  "installs": 5,
+  "contentBytes": 1970,
+  "estimatedInjectionBytes": 1961,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "djankies/claude-configs/reviewing-test-quality",
+      "source": "djankies/claude-configs",
+      "slug": "reviewing-test-quality",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill is a purely instructional review checklist for React 19 testing standards. It does not include executable code or access sensitive system resources, and its authorized tools are limited to passive reading and searching of files.",
+          "auditedAt": "2026-02-17T18:45:43.633Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-02-16T13:11:27.449Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-16T13:10:57.187998+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Candidate passed deterministic curation checks and adds focused review procedure."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "reviewing-test-quality-1251b8187af0",
+  "evaluatedAt": "2026-08-09T17:33:40.013Z"
+}

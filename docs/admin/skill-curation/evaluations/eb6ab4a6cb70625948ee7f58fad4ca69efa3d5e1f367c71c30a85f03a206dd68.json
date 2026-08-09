@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "cosmicstack-labs/mercury-agent-skills/test-strategy",
+  "sourceId": "skills-sh",
+  "externalSkillId": "cosmicstack-labs/mercury-agent-skills/test-strategy",
+  "canonicalSourceRef": "https://www.skills.sh/cosmicstack-labs/mercury-agent-skills/test-strategy",
+  "targetReviewer": "test-quality-reviewer",
+  "targetCapability": "review.test-quality",
+  "coverageKeys": [
+    "test-strategy"
+  ],
+  "candidateChecksum": "eb6ab4a6cb70625948ee7f58fad4ca69efa3d5e1f367c71c30a85f03a206dd68",
+  "retrievedContentChecksum": "084482956f9a64be73c64ff840ac83a1663c89072c4121dde04770907510bdd8",
+  "source": "cosmicstack-labs/mercury-agent-skills",
+  "displayName": "test-strategy",
+  "installs": 10,
+  "contentBytes": 1713,
+  "estimatedInjectionBytes": 1704,
+  "roleFit": "strong",
+  "procedureFit": "none",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "cosmicstack-labs/mercury-agent-skills/test-strategy",
+      "source": "cosmicstack-labs/mercury-agent-skills",
+      "slug": "test-strategy",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill is a documentation-only resource providing guidelines for software testing strategies. No executable code or security risks were identified.",
+          "auditedAt": "2026-08-04T19:28:27.318Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-08-04T19:30:15.991Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-08-04T19:29:08.044714+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "| Branch coverage | >75% |"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:33:33.527Z"
+}

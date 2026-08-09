@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "exploration-labs/typescript-code-review/typescript-code-review",
+  "sourceId": "skills-sh",
+  "externalSkillId": "exploration-labs/typescript-code-review/typescript-code-review",
+  "canonicalSourceRef": "https://www.skills.sh/exploration-labs/typescript-code-review/typescript-code-review",
+  "targetReviewer": "code-integration-reviewer",
+  "targetCapability": "review.integration",
+  "coverageKeys": [
+    "maintainability-review"
+  ],
+  "candidateChecksum": "e891d4854c6f595568b57ff9f71a524e8da77af097853f654654e0a7c1cc30b8",
+  "retrievedContentChecksum": "d157574bbb6cf7f5c6ce25b5ec4cceed8fc813e4211b43146944f6d8a6536905",
+  "source": "exploration-labs/typescript-code-review",
+  "displayName": "typescript-code-review",
+  "installs": 13,
+  "contentBytes": 104757,
+  "estimatedInjectionBytes": 73061,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "fail",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "exploration-labs/typescript-code-review/typescript-code-review",
+      "source": "exploration-labs/typescript-code-review",
+      "slug": "typescript-code-review",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "fail",
+          "summary": "This skill facilitates TypeScript code reviews but presents a high risk due to the presence of hardcoded dummy credentials and its inherent exposure to indirect prompt injection from untrusted code. It encourages the use of CLI tools and grep based on potentially malicious input.",
+          "auditedAt": "2026-02-16T04:36:45.409Z",
+          "riskLevel": "HIGH",
+          "categories": [
+            "CREDENTIALS_UNSAFE",
+            "PROMPT_INJECTION",
+            "COMMAND_EXECUTION"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T22:59:02.687Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-16T01:13:35.048324+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "1/9 files flagged",
+          "auditedAt": "2026-02-28T15:57:56.576Z",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash"
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "### ✅ Don't Commit Secrets to Git"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "const response = await fetch(`/api/users/${id}`);",
+        "throw new Error(`Failed to fetch user: ${response.statusText}`);",
+        "return fetch(`https://api.example.com${endpoint}`, {",
+        "const response = await fetch(`/api/users/${id}`);"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 49,
+    "externalLinksDetected": 21
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology.",
+    "An external audit reports a failure; this advisory result requires human attention."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:33:10.192Z"
+}

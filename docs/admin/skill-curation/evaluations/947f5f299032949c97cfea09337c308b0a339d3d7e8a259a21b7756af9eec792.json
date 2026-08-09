@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "wsimmonds/claude-nextjs-skills/nextjs-server-client-components",
+  "sourceId": "skills-sh",
+  "externalSkillId": "wsimmonds/claude-nextjs-skills/nextjs-server-client-components",
+  "canonicalSourceRef": "https://www.skills.sh/wsimmonds/claude-nextjs-skills/nextjs-server-client-components",
+  "targetReviewer": "code-integration-reviewer",
+  "targetCapability": "review.integration",
+  "coverageKeys": [
+    "nextjs-review"
+  ],
+  "candidateChecksum": "947f5f299032949c97cfea09337c308b0a339d3d7e8a259a21b7756af9eec792",
+  "retrievedContentChecksum": "5acb7779a392a8c0b0676153f69ea7adc9ce3b146f321a86f81215f5197447ab",
+  "source": "wsimmonds/claude-nextjs-skills",
+  "displayName": "nextjs-server-client-components",
+  "installs": 328,
+  "contentBytes": 23973,
+  "estimatedInjectionBytes": 23964,
+  "roleFit": "strong",
+  "procedureFit": "medium",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "wsimmonds/claude-nextjs-skills/nextjs-server-client-components",
+      "source": "wsimmonds/claude-nextjs-skills",
+      "slug": "nextjs-server-client-components",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The analysis found no files or content to evaluate. As there is no code, metadata, or instructions provided, no security threats are present.",
+          "auditedAt": "2026-02-17T17:16:32.792Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "NO_CODE"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T16:50:41.580Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-15T20:34:36.725350+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "warn",
+          "summary": "1/1 file flagged",
+          "auditedAt": "2026-02-23T04:12:44.883Z",
+          "riskLevel": "MEDIUM"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "Score: 93/100 · 2 sections analyzed",
+          "auditedAt": "2026-04-15T20:59:23.226Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "allowed-tools: Read, Write, Edit, Glob, Grep, Bash"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "- Browser-only APIs (window, localStorage, navigator)",
+        "- Third-party libraries requiring browser environment",
+        "### 3. Browser-Only Features",
+        "Need browser APIs? (window, localStorage, etc.)"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "const products = await fetch('https://api.example.com/products');",
+        "// Fetch in parallel",
+        "fetch('/api/products')",
+        "const response = await fetch('https://api.example.com/products');"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 10,
+    "externalLinksDetected": 2
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:33:03.727Z"
+}

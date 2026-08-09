@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "alpoxdev/hypercore/nextjs-architecture",
+  "sourceId": "skills-sh",
+  "externalSkillId": "alpoxdev/hypercore/nextjs-architecture",
+  "canonicalSourceRef": "https://www.skills.sh/alpoxdev/hypercore/nextjs-architecture",
+  "targetReviewer": "code-integration-reviewer",
+  "targetCapability": "review.integration",
+  "coverageKeys": [
+    "nextjs-review"
+  ],
+  "candidateChecksum": "a04526365b2a02b018a42ffd6accdef810c948792bcaf0244f188d9fa486a6c1",
+  "retrievedContentChecksum": "8c93004a847ec3f664430ede51a8b73dc386fde383fc24c3a1acb7d28cc11ee8",
+  "source": "alpoxdev/hypercore",
+  "displayName": "nextjs-architecture",
+  "installs": 42,
+  "contentBytes": 204038,
+  "estimatedInjectionBytes": 50096,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "alpoxdev/hypercore/nextjs-architecture",
+      "source": "alpoxdev/hypercore",
+      "slug": "nextjs-architecture",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The nextjs-architecture skill is a comprehensive set of instructions for enforcing official Next.js architecture and security best practices. It includes project validation steps and a local script for self-verification, all focusing on safe development patterns.",
+          "auditedAt": "2026-05-12T08:41:42.006Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-05-12T08:44:01.954Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-05-12T08:41:32.150506+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "- Next.js 16은 old `middleware` file convention을 `proxy.ts` / `proxy.js`로 대체하며 deprecate합니다. official codemod는 `npx @next/codemod@latest middleware-to-proxy .`입니다.",
+        "- Next.js 16 deprecates the old `middleware` file convention in favor of `proxy.ts` / `proxy.js`. The official codemod is `npx @next/codemod@latest middleware-to-proxy .`.",
+        "```bash",
+        "```bash"
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "- repo가 codebase-first migrations를 따른다면 generated SQL migrations를 commit합니다.",
+        "- Commit generated SQL migrations when the repo follows codebase-first migrations.",
+        "Default all user-facing deliverables, saved artifacts, reports, plans, generated docs, summaries, handoff notes, commit/message drafts, and validation notes to Korean, even when this canonical skill file is written in English."
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "source_priority: Context7를 통한 official Next.js docs. `https://github.com/vercel/next.js/blob/v16.2.2/docs/...` 및 canonical `https://nextjs.org/docs/...` page 기반.",
+        "source_priority: official Next.js docs via Context7, backed by `https://github.com/vercel/next.js/blob/v16.2.2/docs/...` and canonical `https://nextjs.org/docs/...` pages."
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "- App Router에서 Server Components가 기본입니다. interactivity, browser APIs, client hooks가 필요한 client entry point에만 `'use client'`를 추가합니다.",
+        "| Client Components and hooks | Official client boundary + Hypercore convention | interactivity, browser APIs, UI state, client orchestration only |",
+        "- Server Components are the default in App Router; add `'use client'` only at client entry points that need interactivity, browser APIs, or client hooks.",
+        "| Client Components and hooks | Official client boundary + Hypercore convention | Interactivity, browser APIs, UI state, client orchestration only |"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "- 최신 App Router docs 기준 `fetch` requests는 기본 cached가 아니지만, routes는 여전히 prerender되고 HTML이 cached될 수 있습니다. cache intent는 명시해야 합니다.",
+        "- In modern App Router docs, `fetch` requests are not cached by default, while routes may still be prerendered and HTML cached. Cache intent must be explicit.",
+        "Use for: `fetch` cache options, `cacheTag`, `revalidateTag`, `updateTag`, `revalidatePath`, `unstable_cache` legacy status.",
+        "Use for: `fetch` cache options, `cacheTag`, `revalidateTag`, `updateTag`, `revalidatePath`, and `unstable_cache` legacy status."
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 47,
+    "externalLinksDetected": 120
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:33:06.392Z"
+}

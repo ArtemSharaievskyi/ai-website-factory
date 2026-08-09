@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "fr-e-d/gaai-framework/ambiguity-detector",
+  "sourceId": "skills-sh",
+  "externalSkillId": "fr-e-d/gaai-framework/ambiguity-detector",
+  "canonicalSourceRef": "https://www.skills.sh/fr-e-d/gaai-framework/ambiguity-detector",
+  "targetReviewer": "lead",
+  "targetCapability": "requirements.clarify",
+  "coverageKeys": [
+    "requirements-ambiguity"
+  ],
+  "candidateChecksum": "421b7a8270a82b26ce7a2bfa2172d1833880a6accedcc1ab28249df5e7e1a0e6",
+  "retrievedContentChecksum": "eb148cd6f21fd0d1f7a16691f4af66c469e9947be41a7f9b471464b1fc49811f",
+  "source": "fr-e-d/gaai-framework",
+  "displayName": "ambiguity-detector",
+  "installs": 1,
+  "contentBytes": 18282,
+  "estimatedInjectionBytes": 18273,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "fr-e-d/gaai-framework/ambiguity-detector",
+      "source": "fr-e-d/gaai-framework",
+      "slug": "ambiguity-detector",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill is a heuristic-based logic description for analyzing project ambiguity. It contains no executable code, makes no network requests, and does not access sensitive files.",
+          "auditedAt": "2026-06-18T07:49:00.803Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-06-18T07:49:55.339Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-06-18T07:49:04.761872+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "snippet: \"Python: 42%\""
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Candidate passed deterministic curation checks and adds focused review procedure."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "ambiguity-detector-9f8de8233fb3",
+  "evaluatedAt": "2026-08-09T17:31:33.269Z"
+}

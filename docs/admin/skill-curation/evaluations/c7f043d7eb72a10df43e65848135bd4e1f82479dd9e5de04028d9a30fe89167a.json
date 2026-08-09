@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "crtvrffnrt/skills/pentest-authentication-authorization-review",
+  "sourceId": "skills-sh",
+  "externalSkillId": "crtvrffnrt/skills/pentest-authentication-authorization-review",
+  "canonicalSourceRef": "https://www.skills.sh/crtvrffnrt/skills/pentest-authentication-authorization-review",
+  "targetReviewer": "security-reviewer",
+  "targetCapability": "review.security",
+  "coverageKeys": [
+    "auth-security"
+  ],
+  "candidateChecksum": "c7f043d7eb72a10df43e65848135bd4e1f82479dd9e5de04028d9a30fe89167a",
+  "retrievedContentChecksum": "c7ae42bb90ab9065ff687237b55f55d5a8c260e1403f5d734333654f732e110a",
+  "source": "crtvrffnrt/skills",
+  "displayName": "pentest-authentication-authorization-review",
+  "installs": 42,
+  "contentBytes": 2410,
+  "estimatedInjectionBytes": 2401,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "crtvrffnrt/skills/pentest-authentication-authorization-review",
+      "source": "crtvrffnrt/skills",
+      "slug": "pentest-authentication-authorization-review",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill consists entirely of markdown instructions for a security review task. It contains no executable code, script files, or network-enabled operations, and therefore presents no security risk.",
+          "auditedAt": "2026-02-19T15:06:08.212Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "NO_CODE"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T22:36:55.132Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-19T15:05:59.525102+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "warn",
+          "summary": "1/1 file flagged",
+          "auditedAt": "2026-02-24T09:17:19.150Z",
+          "riskLevel": "MEDIUM"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "pentest-authentication-authorization-review-cfde0f1d1177",
+  "evaluatedAt": "2026-08-09T17:33:19.498Z"
+}

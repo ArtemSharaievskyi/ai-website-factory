@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "gohypergiant/agent-skills/accelint-nextjs-best-practices",
+  "sourceId": "skills-sh",
+  "externalSkillId": "gohypergiant/agent-skills/accelint-nextjs-best-practices",
+  "canonicalSourceRef": "https://www.skills.sh/gohypergiant/agent-skills/accelint-nextjs-best-practices",
+  "targetReviewer": "implementation",
+  "targetCapability": "implementation.code",
+  "coverageKeys": [
+    "server-client-boundaries"
+  ],
+  "candidateChecksum": "9cc2da20a3c73a5445f9ba0f612747570045610016ec60caeb84964e68cb3c2b",
+  "retrievedContentChecksum": "7c79c7bf1058ff99ec0becff89db24a30f188ace92256b576b631cc75f66170e",
+  "source": "gohypergiant/agent-skills",
+  "displayName": "accelint-nextjs-best-practices",
+  "installs": 329,
+  "contentBytes": 102757,
+  "estimatedInjectionBytes": 43711,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "gohypergiant/agent-skills/accelint-nextjs-best-practices",
+      "source": "gohypergiant/agent-skills",
+      "slug": "accelint-nextjs-best-practices",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides educational documentation and local helper scripts for optimizing Next.js App Router applications. It covers security best practices for Server Actions and performance patterns for data fetching. No malicious behaviors, obfuscation, or remote code execution risks were detected.",
+          "auditedAt": "2026-03-20T17:14:27.932Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-20T17:15:12.977Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-03-20T17:14:27.889198+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "warn",
+          "summary": "12/21 files flagged",
+          "auditedAt": "2026-02-23T19:52:26.659Z",
+          "riskLevel": "MEDIUM"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "Score: 93/100 · 2 sections analyzed",
+          "auditedAt": "2026-04-16T15:32:26.448Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "#!/bin/bash",
+        "#!/bin/bash",
+        "#!/bin/bash",
+        "```bash"
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "### Pre-commit Hook",
+        "Add to `.git/hooks/pre-commit`:",
+        "# Don't fail commit, just warn",
+        "echo \"✅ Pre-commit checks passed\""
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "- https://github.com/wsimmonds/claude-nextjs-skills",
+        "- https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices",
+        "- https://github.com/sickn33/antigravity-awesome-skills/blob/main/skills/nextjs-best-practices/SKILL.md",
+        "### GitHub Actions"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "Decision tree: Server Components are DEFAULT. Only use 'use client' when you need hooks, events, or browser APIs.",
+        "- [ ] Only add when you need: hooks, events, or browser APIs",
+        "- From browser DevTools or custom scripts",
+        "Need browser APIs? (window, localStorage, etc.)"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "Restructure Server Component tree so siblings fetch data in parallel, not sequentially.",
+        "2. **Reference [AGENTS.md](AGENTS.md)** - Browse all patterns with detailed examples",
+        "- Understand Next.js fetch auto-deduplication",
+        "// 2.4: Sibling components fetch in parallel"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 3,
+    "externalLinksDetected": 36
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:11.810Z"
+}

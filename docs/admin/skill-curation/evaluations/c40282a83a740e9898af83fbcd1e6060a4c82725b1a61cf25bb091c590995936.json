@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "gracefullight/stock-checker/oma-architecture",
+  "sourceId": "skills-sh",
+  "externalSkillId": "gracefullight/stock-checker/oma-architecture",
+  "canonicalSourceRef": "https://www.skills.sh/gracefullight/stock-checker/oma-architecture",
+  "targetReviewer": "architecture-reviewer",
+  "targetCapability": "review.architecture",
+  "coverageKeys": [
+    "architecture-tradeoffs"
+  ],
+  "candidateChecksum": "c40282a83a740e9898af83fbcd1e6060a4c82725b1a61cf25bb091c590995936",
+  "retrievedContentChecksum": "d829c853658b4ee1502d1d013eedbd2f305d73f8a8359c67ad825668f0b62a01",
+  "source": "gracefullight/stock-checker",
+  "displayName": "oma-architecture",
+  "installs": 25,
+  "contentBytes": 18966,
+  "estimatedInjectionBytes": 8474,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "gracefullight/stock-checker/oma-architecture",
+      "source": "gracefullight/stock-checker",
+      "slug": "oma-architecture",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill acts as a software architecture specialist that analyzes codebase structures and generates design documentation. It operates entirely locally, utilizing standard search tools to identify relevant architectural patterns and writing results to a designated local directory. No malicious behaviors, external connections, or safety overrides were detected.",
+          "auditedAt": "2026-06-13T12:18:39.500Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-06-13T12:18:55.719Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-06-13T12:18:28.962279+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 6,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:33.072Z"
+}

@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "anyproto/anytype-ts/typescript-code-review",
+  "sourceId": "skills-sh",
+  "externalSkillId": "anyproto/anytype-ts/typescript-code-review",
+  "canonicalSourceRef": "https://www.skills.sh/anyproto/anytype-ts/typescript-code-review",
+  "targetReviewer": "code-integration-reviewer",
+  "targetCapability": "review.integration",
+  "coverageKeys": [
+    "maintainability-review"
+  ],
+  "candidateChecksum": "93a905f92c8962ded53021de9c7f3ee124f781bca6e7f44013863576e42cd224",
+  "retrievedContentChecksum": "a7b81b7f86e51b1d1f35bc1f2bb519a892dc1ef605d3e708ea0dd42e534bba4c",
+  "source": "anyproto/anytype-ts",
+  "displayName": "typescript-code-review",
+  "installs": 65,
+  "contentBytes": 9913,
+  "estimatedInjectionBytes": 9904,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "fail",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "anyproto/anytype-ts/typescript-code-review",
+      "source": "anyproto/anytype-ts",
+      "slug": "typescript-code-review",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides structured instructions for an AI agent to perform TypeScript code reviews. It contains no executable code, network operations, or malicious patterns, focusing entirely on providing best practices and review guidelines.",
+          "auditedAt": "2026-02-25T11:13:56.761Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T15:45:59.218Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "fail",
+          "summary": "Risk: HIGH · No issues",
+          "auditedAt": "2026-02-25T11:13:59.718360+00:00",
+          "riskLevel": "HIGH"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "warn",
+          "summary": "1/1 file flagged",
+          "auditedAt": "2026-02-25T11:13:45.920Z",
+          "riskLevel": "MEDIUM"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "Score: 93/100 · 2 sections analyzed",
+          "auditedAt": "2026-04-16T11:48:19.707Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "The candidate provides limited reusable review methodology.",
+    "An external audit reports a failure; this advisory result requires human attention."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "typescript-code-review-4b82b42e729e",
+  "evaluatedAt": "2026-08-09T17:33:08.772Z"
+}

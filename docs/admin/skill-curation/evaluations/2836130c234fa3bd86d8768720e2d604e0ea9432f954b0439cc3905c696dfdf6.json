@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "bendourthe/devai-hub/ambiguity-detector",
+  "sourceId": "skills-sh",
+  "externalSkillId": "bendourthe/devai-hub/ambiguity-detector",
+  "canonicalSourceRef": "https://www.skills.sh/bendourthe/devai-hub/ambiguity-detector",
+  "targetReviewer": "lead",
+  "targetCapability": "requirements.clarify",
+  "coverageKeys": [
+    "requirements-ambiguity"
+  ],
+  "candidateChecksum": "2836130c234fa3bd86d8768720e2d604e0ea9432f954b0439cc3905c696dfdf6",
+  "retrievedContentChecksum": "65d4ffc2ec392965a54bd51765ec2e71af48fc1d7caa24945851c019a568c10d",
+  "source": "bendourthe/devai-hub",
+  "displayName": "ambiguity-detector",
+  "installs": 1,
+  "contentBytes": 23414,
+  "estimatedInjectionBytes": 23113,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "bendourthe/devai-hub/ambiguity-detector",
+      "source": "bendourthe/devai-hub",
+      "slug": "ambiguity-detector",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The Ambiguity Detector skill is an analytical utility designed to identify unclear, incomplete, or contradictory software requirements. It provides a classification framework, heuristic patterns for common ambiguities, and example code snippets for static text analysis. Technical review confirms the skill contains no malicious code, data exfiltration patterns, or vulnerabilities.",
+          "auditedAt": "2026-05-10T17:21:59.561Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-05-10T17:22:58.090Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-05-10T17:22:12.532217+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "#### Python Example: Automated Ambiguity Scanner",
+        "```python"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "ambiguity-detector-525a7c1a0fc9",
+  "evaluatedAt": "2026-08-09T17:31:34.211Z"
+}

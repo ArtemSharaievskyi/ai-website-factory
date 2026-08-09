@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "shipshitdev/library/security-audit",
+  "sourceId": "skills-sh",
+  "externalSkillId": "shipshitdev/library/security-audit",
+  "canonicalSourceRef": "https://www.skills.sh/shipshitdev/library/security-audit",
+  "targetReviewer": "security-reviewer",
+  "targetCapability": "review.security",
+  "coverageKeys": [
+    "web-security"
+  ],
+  "candidateChecksum": "bc0dfe730f480beadbea3a9535c43bd71fe55748ac45c39007a51733d020770c",
+  "retrievedContentChecksum": "a8872b6cb4da9a8379c7e10e21dbea55dfbdd5c8a459d12bb431aec82372f5bc",
+  "source": "shipshitdev/library",
+  "displayName": "security-audit",
+  "installs": 44,
+  "contentBytes": 5254,
+  "estimatedInjectionBytes": 4904,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "shipshitdev/library/security-audit",
+      "source": "shipshitdev/library",
+      "slug": "security-audit",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill is a collection of Markdown-based guidelines for performing a security audit. It contains no executable code, dependencies, or network operations.",
+          "auditedAt": "2026-04-22T07:31:15.930Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "NO_CODE"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "warn",
+          "summary": "1 alert: gptSecurity",
+          "auditedAt": "2026-04-22T07:33:39.340Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-04-22T07:31:07.657594+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 3,
+    "externalLinksDetected": 1
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:33:16.981Z"
+}

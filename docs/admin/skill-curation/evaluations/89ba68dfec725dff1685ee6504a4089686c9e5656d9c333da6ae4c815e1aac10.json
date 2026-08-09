@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "openai/plugins/supabase-postgres-best-practices",
+  "sourceId": "skills-sh",
+  "externalSkillId": "openai/plugins/supabase-postgres-best-practices",
+  "canonicalSourceRef": "https://www.skills.sh/openai/plugins/supabase-postgres-best-practices",
+  "targetReviewer": "implementation",
+  "targetCapability": "implementation.code",
+  "coverageKeys": [
+    "supabase-implementation"
+  ],
+  "candidateChecksum": "89ba68dfec725dff1685ee6504a4089686c9e5656d9c333da6ae4c815e1aac10",
+  "retrievedContentChecksum": "8693ba50b69cf946a24311fb5fe900193476e82d0ff1d85ee055784db9f484b1",
+  "source": "openai/plugins",
+  "displayName": "supabase-postgres-best-practices",
+  "installs": 11,
+  "contentBytes": 61816,
+  "estimatedInjectionBytes": 15318,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "incompatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "high",
+  "nearDuplicateDetected": true,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "openai/plugins/supabase-postgres-best-practices",
+      "source": "openai/plugins",
+      "slug": "supabase-postgres-best-practices",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides a comprehensive and educational guide for Postgres performance optimization. It utilizes clear, actionable SQL examples and references official documentation to assist in database management tasks.",
+          "auditedAt": "2026-05-14T02:30:21.823Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-05-14T02:30:11.164Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-05-14T02:29:35.595117+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "Score: 93/100 · 2 sections analyzed",
+          "auditedAt": "2026-04-16T06:19:30.904Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "metadataReadiness": "INCOMPLETE",
+  "licenseEvidenceStatus": "MISSING",
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash",
+        "```bash",
+        "```bash"
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "-- Transaction-level lock (released on commit/rollback)",
+        "commit;  -- Lock automatically released",
+        "commit;",
+        "commit;"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "- `python` - Application code (when needed)"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": true,
+      "evidence": [
+        "2. Browse `references/` for detailed documentation on specific topics",
+        "**Incorrect (index scan + heap fetch):**",
+        "-- Must fetch name and created_at from table heap"
+      ]
+    },
+    {
+      "category": "package-install",
+      "essential": false,
+      "evidence": [
+        "npm install"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": true,
+    "unsafeFindingCount": 10,
+    "externalLinksDetected": 44
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate requires a tool that this reviewer does not possess; no permission is granted.",
+    "The candidate provides limited reusable review methodology.",
+    "The candidate substantially overlaps another evaluated procedure."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T17:32:20.921Z"
+}
