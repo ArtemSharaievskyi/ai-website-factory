@@ -1,0 +1,1653 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-09T18:02:37.258Z",
+  "phase": "4D1",
+  "discoverySearches": 0,
+  "approvalCalled": false,
+  "assignmentsChanged": false,
+  "currentApprovedExternalSkillCount": 3,
+  "currentAssignedExternalSkillCount": 3,
+  "currentApprovedInternalSkillCount": 0,
+  "currentAssignedInternalSkillCount": 0,
+  "agents": [
+    {
+      "agentId": "lead",
+      "responsibilityCoverage": [
+        "requirements-elicitation:PROMPT_COVERED",
+        "requirements-ambiguity:PARTIALLY_COVERED",
+        "requirements-completeness:PARTIALLY_COVERED",
+        "intent-to-brief:DETERMINISTICALLY_COVERED",
+        "non-invention:PROMPT_COVERED"
+      ],
+      "existingApprovedSkillIds": [],
+      "externalAdvanceCandidateIds": [
+        "fr-e-d/gaai-framework/ambiguity-detector"
+      ],
+      "externalOptionalCandidateIds": [],
+      "rejectedCandidateIds": [
+        "aliyun/alibabacloud-aiops-skills/alibabacloud-dts-task-query",
+        "bendourthe/devai-hub/ambiguity-detector",
+        "dauquangthanh/hanoi-rainbow/requirement-review",
+        "arabelatso/skills-4-se/ambiguity-detector"
+      ],
+      "proposedInternalSkills": [
+        "lead-requirements-completeness"
+      ],
+      "remainingIntentionalGaps": [],
+      "portfolioRationale": "Generation agent for clarification and an approved structured Brief. is covered by existing deterministic/prompt behavior plus the proposed focused procedures; no fixed skill count is used.",
+      "completeness": "PORTFOLIO_PLANNED_COMPLETE"
+    },
+    {
+      "agentId": "planner",
+      "responsibilityCoverage": [
+        "software-planning:PROMPT_COVERED",
+        "nextjs-architecture:PROMPT_COVERED",
+        "data-modeling:PARTIALLY_COVERED",
+        "auth-storage-architecture:PROMPT_COVERED",
+        "technical-risk-planning:PARTIALLY_COVERED",
+        "requirements-traceability:PROMPT_COVERED"
+      ],
+      "existingApprovedSkillIds": [],
+      "externalAdvanceCandidateIds": [],
+      "externalOptionalCandidateIds": [],
+      "rejectedCandidateIds": [],
+      "proposedInternalSkills": [
+        "project-data-model-planning",
+        "technical-risk-planning"
+      ],
+      "remainingIntentionalGaps": [],
+      "portfolioRationale": "Generation agent for technical architecture, content planning, and asset planning. is covered by existing deterministic/prompt behavior plus the proposed focused procedures; no fixed skill count is used.",
+      "completeness": "PORTFOLIO_PLANNED_COMPLETE"
+    },
+    {
+      "agentId": "design",
+      "responsibilityCoverage": [
+        "web-ux:PROMPT_COVERED",
+        "responsive-design:PARTIALLY_COVERED",
+        "design-systems:PROMPT_COVERED",
+        "form-ux:PARTIALLY_COVERED",
+        "purposeful-motion:PROMPT_COVERED"
+      ],
+      "existingApprovedSkillIds": [],
+      "externalAdvanceCandidateIds": [],
+      "externalOptionalCandidateIds": [],
+      "rejectedCandidateIds": [
+        "thulr/informed-skills/ux-audit"
+      ],
+      "proposedInternalSkills": [
+        "responsive-form-ux-design"
+      ],
+      "remainingIntentionalGaps": [],
+      "portfolioRationale": "Generation agent for design directions and selected design contracts. is covered by existing deterministic/prompt behavior plus the proposed focused procedures; no fixed skill count is used.",
+      "completeness": "PORTFOLIO_PLANNED_COMPLETE"
+    },
+    {
+      "agentId": "implementation",
+      "responsibilityCoverage": [
+        "deterministic-change-safety:DETERMINISTICALLY_COVERED",
+        "nextjs-implementation:PROMPT_COVERED",
+        "react-typescript:PROMPT_COVERED",
+        "server-client-boundaries:PARTIALLY_COVERED",
+        "forms-validation:PARTIALLY_COVERED",
+        "supabase-implementation:PARTIALLY_COVERED",
+        "maintainable-performance:PARTIALLY_COVERED",
+        "test-aware-implementation:PROMPT_COVERED"
+      ],
+      "existingApprovedSkillIds": [],
+      "externalAdvanceCandidateIds": [],
+      "externalOptionalCandidateIds": [],
+      "rejectedCandidateIds": [],
+      "proposedInternalSkills": [
+        "nextjs-server-client-implementation",
+        "typed-form-implementation",
+        "supabase-application-integration",
+        "maintainable-performance-implementation"
+      ],
+      "remainingIntentionalGaps": [],
+      "portfolioRationale": "Implementation agent for bounded source changes, backend work, and tests. is covered by existing deterministic/prompt behavior plus the proposed focused procedures; no fixed skill count is used.",
+      "completeness": "PORTFOLIO_PLANNED_COMPLETE"
+    },
+    {
+      "agentId": "architecture-reviewer",
+      "responsibilityCoverage": [
+        "module-boundaries:APPROVED_SKILL_COVERED",
+        "architecture-tradeoffs:PARTIALLY_COVERED",
+        "evolution-maintainability:MISSING"
+      ],
+      "existingApprovedSkillIds": [
+        "module-boundaries-fb20497b5c35"
+      ],
+      "externalAdvanceCandidateIds": [
+        "bradyhazell/brady-plugins/review-maintainability"
+      ],
+      "externalOptionalCandidateIds": [
+        "udecode/plate/maintainability-reviewer"
+      ],
+      "rejectedCandidateIds": [
+        "tome-kota/agent-skill-catalog/software-design-review-router"
+      ],
+      "proposedInternalSkills": [
+        "architecture-tradeoff-review"
+      ],
+      "remainingIntentionalGaps": [],
+      "portfolioRationale": "Read-only architecture quality reviewer. is covered by existing deterministic/prompt behavior plus the proposed focused procedures; no fixed skill count is used.",
+      "completeness": "PORTFOLIO_PLANNED_COMPLETE"
+    },
+    {
+      "agentId": "contract-auditor",
+      "responsibilityCoverage": [
+        "acceptance-criteria:APPROVED_SKILL_COVERED",
+        "requirements-traceability-review:PARTIALLY_COVERED",
+        "cross-stage-consistency:MISSING"
+      ],
+      "existingApprovedSkillIds": [
+        "acceptance-criteria-80493e317476"
+      ],
+      "externalAdvanceCandidateIds": [],
+      "externalOptionalCandidateIds": [],
+      "rejectedCandidateIds": [
+        "nahisaho/codegraphmcpserver/traceability-auditor",
+        "hyhmrright/brooks-lint/brooks-harness",
+        "45ck/hci-review-skill/consistency-audit"
+      ],
+      "proposedInternalSkills": [
+        "requirements-evidence-traceability"
+      ],
+      "remainingIntentionalGaps": [],
+      "portfolioRationale": "Read-only cross-artifact contract and traceability auditor. is covered by existing deterministic/prompt behavior plus the proposed focused procedures; no fixed skill count is used.",
+      "completeness": "PORTFOLIO_PLANNED_COMPLETE"
+    },
+    {
+      "agentId": "code-integration-reviewer",
+      "responsibilityCoverage": [
+        "deterministic-structural-gates:DETERMINISTICALLY_COVERED",
+        "react-review:MISSING",
+        "nextjs-review:MISSING",
+        "maintainability-review:PARTIALLY_COVERED"
+      ],
+      "existingApprovedSkillIds": [],
+      "externalAdvanceCandidateIds": [],
+      "externalOptionalCandidateIds": [],
+      "rejectedCandidateIds": [
+        "anyproto/anytype-ts/typescript-code-review"
+      ],
+      "proposedInternalSkills": [
+        "react-nextjs-integration-review"
+      ],
+      "remainingIntentionalGaps": [],
+      "portfolioRationale": "Read-only semantic code and integration reviewer after deterministic gates. is covered by existing deterministic/prompt behavior plus the proposed focused procedures; no fixed skill count is used.",
+      "completeness": "PORTFOLIO_PLANNED_COMPLETE"
+    },
+    {
+      "agentId": "security-reviewer",
+      "responsibilityCoverage": [
+        "rls-security:APPROVED_SKILL_COVERED",
+        "web-security:MISSING",
+        "auth-security:PARTIALLY_COVERED",
+        "storage-upload-security:MISSING"
+      ],
+      "existingApprovedSkillIds": [
+        "supabase-rls-1e36b217c969"
+      ],
+      "externalAdvanceCandidateIds": [
+        "owasp/secure-agent-playbook/web-security-review"
+      ],
+      "externalOptionalCandidateIds": [],
+      "rejectedCandidateIds": [
+        "crtvrffnrt/skills/pentest-authentication-authorization-review"
+      ],
+      "proposedInternalSkills": [
+        "auth-storage-security-review"
+      ],
+      "remainingIntentionalGaps": [],
+      "portfolioRationale": "Read-only contextual application security reviewer. is covered by existing deterministic/prompt behavior plus the proposed focused procedures; no fixed skill count is used.",
+      "completeness": "PORTFOLIO_PLANNED_COMPLETE"
+    },
+    {
+      "agentId": "test-quality-reviewer",
+      "responsibilityCoverage": [
+        "deterministic-quality-gates:DETERMINISTICALLY_COVERED",
+        "test-strategy:MISSING",
+        "meaningful-assertions:MISSING",
+        "playwright-quality:PARTIALLY_COVERED",
+        "traceability-evidence:PARTIALLY_COVERED"
+      ],
+      "existingApprovedSkillIds": [],
+      "externalAdvanceCandidateIds": [
+        "djankies/claude-configs/reviewing-test-quality"
+      ],
+      "externalOptionalCandidateIds": [
+        "quality-max/free-qa-skills/test-quality-review"
+      ],
+      "rejectedCandidateIds": [
+        "brandondees/code-quality-atlas/reviewing-test-quality"
+      ],
+      "proposedInternalSkills": [
+        "requirements-evidence-traceability",
+        "behavioral-test-quality-review"
+      ],
+      "remainingIntentionalGaps": [],
+      "portfolioRationale": "Read-only semantic test and quality evidence reviewer after deterministic gates. is covered by existing deterministic/prompt behavior plus the proposed focused procedures; no fixed skill count is used.",
+      "completeness": "PORTFOLIO_PLANNED_COMPLETE"
+    }
+  ],
+  "humanReviewCandidatesConsidered": [
+    {
+      "externalSkillId": "fr-e-d/gaai-framework/ambiguity-detector",
+      "source": "fr-e-d/gaai-framework",
+      "targetAgents": [
+        "lead"
+      ],
+      "candidateChecksum": "421b7a8270a82b26ce7a2bfa2172d1833880a6accedcc1ab28249df5e7e1a0e6",
+      "normalizedContentBytes": 18282,
+      "estimatedInjectionBytes": 18273,
+      "coverageKeys": [
+        "requirements-ambiguity"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [
+        "python"
+      ],
+      "contextCost": "18273 bytes (bounded)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "EXTERNAL_ADVANCE",
+      "rationale": "The strongest ambiguity-specific procedure: bounded, heuristic, technology-independent, and directly useful to Lead clarification.",
+      "uniqueCoverageContribution": "Adds structured ambiguity scoring above the Lead policy.",
+      "internalSkillIds": [],
+      "phase4d2Action": "Complete exact license and metadata evidence, then request explicit human approval; do not auto-approve."
+    },
+    {
+      "externalSkillId": "bradyhazell/brady-plugins/review-maintainability",
+      "source": "bradyhazell/brady-plugins",
+      "targetAgents": [
+        "architecture-reviewer"
+      ],
+      "candidateChecksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9",
+      "normalizedContentBytes": 2065,
+      "estimatedInjectionBytes": 2056,
+      "coverageKeys": [
+        "evolution-maintainability"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [],
+      "contextCost": "2056 bytes (compact)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "EXTERNAL_ADVANCE",
+      "rationale": "Compact maintainability/evolution lens adds a distinct architecture-quality perspective without repeating module-boundaries.",
+      "uniqueCoverageContribution": "Adds review of avoidable coupling, abstraction, and maintenance cost.",
+      "internalSkillIds": [],
+      "phase4d2Action": "Complete exact license and metadata evidence, then request explicit human approval; do not auto-approve."
+    },
+    {
+      "externalSkillId": "owasp/secure-agent-playbook/web-security-review",
+      "source": "owasp/secure-agent-playbook",
+      "targetAgents": [
+        "security-reviewer"
+      ],
+      "candidateChecksum": "8b280a3ab13567cadde2c114fffe5c5a00dd2841c229114abf14ddf0880e8012",
+      "normalizedContentBytes": 2705,
+      "estimatedInjectionBytes": 2696,
+      "coverageKeys": [
+        "web-security"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [],
+      "contextCost": "2696 bytes (compact)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "EXTERNAL_ADVANCE",
+      "rationale": "Compact, broadly professional OWASP review procedure with strong role fit and no required execution tool.",
+      "uniqueCoverageContribution": "Adds general web-security coverage outside RLS.",
+      "internalSkillIds": [],
+      "phase4d2Action": "Complete exact license and metadata evidence, then request explicit human approval; do not auto-approve."
+    },
+    {
+      "externalSkillId": "djankies/claude-configs/reviewing-test-quality",
+      "source": "djankies/claude-configs",
+      "targetAgents": [
+        "test-quality-reviewer"
+      ],
+      "candidateChecksum": "7678ee0541450cce390b5a8b5bdacc93d2878451c087969856ccb250b4f38a08",
+      "normalizedContentBytes": 1970,
+      "estimatedInjectionBytes": 1961,
+      "coverageKeys": [
+        "meaningful-assertions"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [],
+      "contextCost": "1961 bytes (compact)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "EXTERNAL_ADVANCE",
+      "rationale": "Compact, read-only, high-procedure-value test-quality checklist focused on meaningful assertions and behavioral evidence.",
+      "uniqueCoverageContribution": "Adds a focused assertion-quality lens to the Test Reviewer.",
+      "internalSkillIds": [],
+      "phase4d2Action": "Complete exact license and metadata evidence, then request explicit human approval; do not auto-approve."
+    },
+    {
+      "externalSkillId": "udecode/plate/maintainability-reviewer",
+      "source": "udecode/plate",
+      "targetAgents": [
+        "architecture-reviewer"
+      ],
+      "candidateChecksum": "9a52700e12fee1a4c52ec377c095c7d2be58595ac859df6920de4b38686a37cd",
+      "normalizedContentBytes": 3915,
+      "estimatedInjectionBytes": 3906,
+      "coverageKeys": [
+        "evolution-maintainability"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [
+        "shell"
+      ],
+      "contextCost": "3906 bytes (compact)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "EXTERNAL_OPTIONAL",
+      "rationale": "Useful compact alternative maintainability lens, but redundant once Brady's focused procedure is advanced.",
+      "uniqueCoverageContribution": "Alternative evolution/maintainability framing.",
+      "internalSkillIds": [],
+      "phase4d2Action": "Keep staged for optional later evidence review only."
+    },
+    {
+      "externalSkillId": "quality-max/free-qa-skills/test-quality-review",
+      "source": "quality-max/free-qa-skills",
+      "targetAgents": [
+        "test-quality-reviewer"
+      ],
+      "candidateChecksum": "135e36724e9cdd8ca20ccf183b0fe8259f6cc48bb1b3885a6b0f02daaf16f7e4",
+      "normalizedContentBytes": 2605,
+      "estimatedInjectionBytes": 2596,
+      "coverageKeys": [
+        "meaningful-assertions"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [
+        "mcp"
+      ],
+      "contextCost": "2596 bytes (compact)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "EXTERNAL_OPTIONAL",
+      "rationale": "Compact and safe, but overlaps the stronger Djankies test-quality procedure.",
+      "uniqueCoverageContribution": "Additional weak-assertion and edge-case reminders.",
+      "internalSkillIds": [],
+      "phase4d2Action": "Keep staged for optional later evidence review only."
+    },
+    {
+      "externalSkillId": "bewatermyfriend7/skill-project/requirements-review",
+      "source": "bewatermyfriend7/skill-project",
+      "targetAgents": [
+        "lead"
+      ],
+      "candidateChecksum": "211f16e3d782614fd84d02ae6f10e1a62cb3a787e00ae590d2af13d694cf59ae",
+      "normalizedContentBytes": 1111,
+      "estimatedInjectionBytes": 1102,
+      "coverageKeys": [
+        "requirements-completeness"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [],
+      "contextCost": "1102 bytes (compact)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "PREFER_INTERNAL_SKILL",
+      "rationale": "The subject is useful but the Factory's fixed Brief and clarification contracts need a project-owned completeness method.",
+      "uniqueCoverageContribution": "Requirements completeness.",
+      "internalSkillIds": [
+        "lead-requirements-completeness"
+      ],
+      "phase4d2Action": "No Phase 4D2 evidence work; use the stated internal/rejection rationale."
+    },
+    {
+      "externalSkillId": "freedomportal/ccgs-technica-edition/test-evidence-review",
+      "source": "freedomportal/ccgs-technica-edition",
+      "targetAgents": [
+        "test-quality-reviewer"
+      ],
+      "candidateChecksum": "4f8252a9559e99740692666ec7603bbb53998b2b8ffe81dfde8553f31c769123",
+      "normalizedContentBytes": 8987,
+      "estimatedInjectionBytes": 8978,
+      "coverageKeys": [
+        "traceability-evidence"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [],
+      "contextCost": "8978 bytes (bounded)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "PREFER_INTERNAL_SKILL",
+      "rationale": "Evidence review is relevant, but its workflow/output assumptions should follow Factory contracts rather than an external QA handoff model.",
+      "uniqueCoverageContribution": "Test evidence sufficiency and traceability.",
+      "internalSkillIds": [
+        "requirements-evidence-traceability",
+        "behavioral-test-quality-review"
+      ],
+      "phase4d2Action": "No Phase 4D2 evidence work; use the stated internal/rejection rationale."
+    },
+    {
+      "externalSkillId": "melodic-software/claude-code-plugins/test-strategy-planning",
+      "source": "melodic-software/claude-code-plugins",
+      "targetAgents": [
+        "test-quality-reviewer"
+      ],
+      "candidateChecksum": "e515844c490051b6bede8b107bcd90507bd22e69930a0c8d6cd4f3797a5b2023",
+      "normalizedContentBytes": 8551,
+      "estimatedInjectionBytes": 8542,
+      "coverageKeys": [
+        "test-strategy"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [
+        "git",
+        "playwright-or-browser"
+      ],
+      "contextCost": "8542 bytes (bounded)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "PREFER_INTERNAL_SKILL",
+      "rationale": "IEEE-style planning and Web/Task-oriented assumptions are broader than this read-only reviewer; a Factory-specific strategy is more precise.",
+      "uniqueCoverageContribution": "Requirement-based test strategy.",
+      "internalSkillIds": [
+        "behavioral-test-quality-review"
+      ],
+      "phase4d2Action": "No Phase 4D2 evidence work; use the stated internal/rejection rationale."
+    },
+    {
+      "externalSkillId": "nahisaho/codegraphmcpserver/traceability-auditor",
+      "source": "nahisaho/codegraphmcpserver",
+      "targetAgents": [
+        "contract-auditor"
+      ],
+      "candidateChecksum": "06ac9d4788a8797a1cb25f5c68abcda69757c093839a9ca6a50555d6b943dc68",
+      "normalizedContentBytes": 12023,
+      "estimatedInjectionBytes": 12014,
+      "coverageKeys": [
+        "requirements-traceability-review"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [
+        "shell",
+        "python"
+      ],
+      "contextCost": "12014 bytes (bounded)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "REJECT_LOW_INCREMENTAL_VALUE",
+      "rationale": "External audit failed and the low-procedure-value traceability lens adds little beyond deterministic Factory evidence plus the planned internal traceability method.",
+      "uniqueCoverageContribution": "Traceability.",
+      "internalSkillIds": [
+        "requirements-evidence-traceability"
+      ],
+      "phase4d2Action": "No Phase 4D2 evidence work; use the stated internal/rejection rationale."
+    },
+    {
+      "externalSkillId": "aliyun/alibabacloud-aiops-skills/alibabacloud-dts-task-query",
+      "source": "aliyun/alibabacloud-aiops-skills",
+      "targetAgents": [
+        "lead"
+      ],
+      "candidateChecksum": "1301b829d1595c2687206134b825718251655173112c6bda9b815b6bbd5d2659",
+      "normalizedContentBytes": 30498,
+      "estimatedInjectionBytes": 13642,
+      "coverageKeys": [
+        "requirements-completeness"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [
+        "shell",
+        "python"
+      ],
+      "contextCost": "13642 bytes (bounded)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "REJECT_ROLE_MISMATCH",
+      "rationale": "Alibaba DTS task-query content is technology/domain-specific and does not provide Lead requirements completeness methodology.",
+      "uniqueCoverageContribution": "Requirements completeness.",
+      "internalSkillIds": [
+        "lead-requirements-completeness"
+      ],
+      "phase4d2Action": "No Phase 4D2 evidence work; use the stated internal/rejection rationale."
+    },
+    {
+      "externalSkillId": "brandondees/code-quality-atlas/reviewing-test-quality",
+      "source": "brandondees/code-quality-atlas",
+      "targetAgents": [
+        "test-quality-reviewer"
+      ],
+      "candidateChecksum": "0e1d07a5e076d293425fb436a7eb876d6e0d017db39b178c81f9970cbb43b9e8",
+      "normalizedContentBytes": 24016,
+      "estimatedInjectionBytes": 6646,
+      "coverageKeys": [
+        "meaningful-assertions"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [
+        "git",
+        "github",
+        "python"
+      ],
+      "contextCost": "6646 bytes (compact)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "REJECT_LOW_INCREMENTAL_VALUE",
+      "rationale": "Procedure fit is low and it is redundant with the stronger compact test-quality candidate and internal Factory review.",
+      "uniqueCoverageContribution": "Test assertions.",
+      "internalSkillIds": [
+        "behavioral-test-quality-review"
+      ],
+      "phase4d2Action": "No Phase 4D2 evidence work; use the stated internal/rejection rationale."
+    },
+    {
+      "externalSkillId": "hyhmrright/brooks-lint/brooks-harness",
+      "source": "hyhmrright/brooks-lint",
+      "targetAgents": [
+        "contract-auditor"
+      ],
+      "candidateChecksum": "22874b3c2546d8b7826a952e049cbf5956d037c7eb62e7272e122d7f15b94ccd",
+      "normalizedContentBytes": 7378,
+      "estimatedInjectionBytes": 7369,
+      "coverageKeys": [
+        "cross-stage-consistency"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [
+        "agent-or-subagent",
+        "git"
+      ],
+      "contextCost": "7369 bytes (compact)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "REJECT_ROLE_MISMATCH",
+      "rationale": "Harness/tool-oriented consistency content does not fit a read-only semantic Contract Auditor procedure.",
+      "uniqueCoverageContribution": "Cross-stage consistency.",
+      "internalSkillIds": [
+        "requirements-evidence-traceability"
+      ],
+      "phase4d2Action": "No Phase 4D2 evidence work; use the stated internal/rejection rationale."
+    },
+    {
+      "externalSkillId": "bendourthe/devai-hub/ambiguity-detector",
+      "source": "bendourthe/devai-hub",
+      "targetAgents": [
+        "lead"
+      ],
+      "candidateChecksum": "2836130c234fa3bd86d8768720e2d604e0ea9432f954b0439cc3905c696dfdf6",
+      "normalizedContentBytes": 23414,
+      "estimatedInjectionBytes": 23113,
+      "coverageKeys": [
+        "requirements-ambiguity"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [
+        "python"
+      ],
+      "contextCost": "23113 bytes (bounded)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "REJECT_LOW_INCREMENTAL_VALUE",
+      "rationale": "Its ambiguity method is less focused than the advanced Fr-e-d candidate and has low evaluated procedure fit.",
+      "uniqueCoverageContribution": "Requirements ambiguity.",
+      "internalSkillIds": [],
+      "phase4d2Action": "No Phase 4D2 evidence work; use the stated internal/rejection rationale."
+    },
+    {
+      "externalSkillId": "tome-kota/agent-skill-catalog/software-design-review-router",
+      "source": "tome-kota/agent-skill-catalog",
+      "targetAgents": [
+        "architecture-reviewer"
+      ],
+      "candidateChecksum": "2ae0bdbda83a95cb5c365292874e149963a5d683975e4266e4ef31807ca0845d",
+      "normalizedContentBytes": 77474,
+      "estimatedInjectionBytes": 51098,
+      "coverageKeys": [
+        "architecture-tradeoffs"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [
+        "playwright-or-browser",
+        "python"
+      ],
+      "contextCost": "51098 bytes (large)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "REJECT_CONTEXT_COST",
+      "rationale": "The 51 KB injection footprint and broad routing bundle are disproportionate to the architecture trade-off gap.",
+      "uniqueCoverageContribution": "Architecture trade-offs.",
+      "internalSkillIds": [
+        "architecture-tradeoff-review"
+      ],
+      "phase4d2Action": "No Phase 4D2 evidence work; use the stated internal/rejection rationale."
+    },
+    {
+      "externalSkillId": "dauquangthanh/hanoi-rainbow/requirement-review",
+      "source": "dauquangthanh/hanoi-rainbow",
+      "targetAgents": [
+        "lead"
+      ],
+      "candidateChecksum": "3422b7bdd82c844322cc8f7042cf7d056dd3a5653d085043e9efaec4b5b368f7",
+      "normalizedContentBytes": 67101,
+      "estimatedInjectionBytes": 67002,
+      "coverageKeys": [
+        "requirements-completeness"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [
+        "git",
+        "playwright-or-browser",
+        "network-fetch"
+      ],
+      "contextCost": "67002 bytes (large)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "REJECT_CONTEXT_COST",
+      "rationale": "The 67 KB footprint and audit warning make it unsuitable for bounded Lead context.",
+      "uniqueCoverageContribution": "Requirements completeness.",
+      "internalSkillIds": [
+        "lead-requirements-completeness"
+      ],
+      "phase4d2Action": "No Phase 4D2 evidence work; use the stated internal/rejection rationale."
+    },
+    {
+      "externalSkillId": "45ck/hci-review-skill/consistency-audit",
+      "source": "45ck/hci-review-skill",
+      "targetAgents": [
+        "contract-auditor"
+      ],
+      "candidateChecksum": "6c58e1cef30659fb4040d93ba4084314799b9cd5eafcebf3f72712e392cf241c",
+      "normalizedContentBytes": 1804,
+      "estimatedInjectionBytes": 1496,
+      "coverageKeys": [
+        "cross-stage-consistency"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [],
+      "contextCost": "1496 bytes (compact)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "REJECT_ROLE_MISMATCH",
+      "rationale": "The HCI consistency lens is not the cross-stage contract consistency procedure this Factory requires.",
+      "uniqueCoverageContribution": "Cross-stage consistency.",
+      "internalSkillIds": [
+        "requirements-evidence-traceability"
+      ],
+      "phase4d2Action": "No Phase 4D2 evidence work; use the stated internal/rejection rationale."
+    },
+    {
+      "externalSkillId": "anyproto/anytype-ts/typescript-code-review",
+      "source": "anyproto/anytype-ts",
+      "targetAgents": [
+        "code-integration-reviewer"
+      ],
+      "candidateChecksum": "93a905f92c8962ded53021de9c7f3ee124f781bca6e7f44013863576e42cd224",
+      "normalizedContentBytes": 9913,
+      "estimatedInjectionBytes": 9904,
+      "coverageKeys": [
+        "maintainability-review"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [],
+      "contextCost": "9904 bytes (bounded)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "REJECT_LOW_INCREMENTAL_VALUE",
+      "rationale": "External audit failed, procedure fit is low, and the substantive TypeScript checks overlap deterministic gates; it does not fill React/Next integration review.",
+      "uniqueCoverageContribution": "Maintainability review.",
+      "internalSkillIds": [
+        "react-nextjs-integration-review"
+      ],
+      "phase4d2Action": "No Phase 4D2 evidence work; use the stated internal/rejection rationale."
+    },
+    {
+      "externalSkillId": "arabelatso/skills-4-se/ambiguity-detector",
+      "source": "arabelatso/skills-4-se",
+      "targetAgents": [
+        "lead"
+      ],
+      "candidateChecksum": "97a4b4b0aab7b1fbe2876ce4947cc3b8ff673cd56938cecd8cf9c47bfe79cf99",
+      "normalizedContentBytes": 36901,
+      "estimatedInjectionBytes": 33583,
+      "coverageKeys": [
+        "requirements-ambiguity"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [],
+      "contextCost": "33583 bytes (large)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "REJECT_CONTEXT_COST",
+      "rationale": "The 33.6 KB footprint is too large for a duplicate ambiguity lens when a smaller stronger candidate is available.",
+      "uniqueCoverageContribution": "Requirements ambiguity.",
+      "internalSkillIds": [],
+      "phase4d2Action": "No Phase 4D2 evidence work; use the stated internal/rejection rationale."
+    },
+    {
+      "externalSkillId": "thulr/informed-skills/ux-audit",
+      "source": "thulr/informed-skills",
+      "targetAgents": [
+        "design"
+      ],
+      "candidateChecksum": "c0256ce0c905965df930fb8191dc7690a816ac52184a3f6104e3a035f791f83f",
+      "normalizedContentBytes": 48683,
+      "estimatedInjectionBytes": 21352,
+      "coverageKeys": [
+        "form-ux"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [
+        "shell",
+        "git",
+        "playwright-or-browser",
+        "python"
+      ],
+      "contextCost": "21352 bytes (bounded)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "REJECT_ROLE_MISMATCH",
+      "rationale": "An audit procedure does not help the Design Agent create directions as directly as a Factory-owned responsive/form design contract.",
+      "uniqueCoverageContribution": "Form UX.",
+      "internalSkillIds": [
+        "responsive-form-ux-design"
+      ],
+      "phase4d2Action": "No Phase 4D2 evidence work; use the stated internal/rejection rationale."
+    },
+    {
+      "externalSkillId": "crtvrffnrt/skills/pentest-authentication-authorization-review",
+      "source": "crtvrffnrt/skills",
+      "targetAgents": [
+        "security-reviewer"
+      ],
+      "candidateChecksum": "c7f043d7eb72a10df43e65848135bd4e1f82479dd9e5de04028d9a30fe89167a",
+      "normalizedContentBytes": 2410,
+      "estimatedInjectionBytes": 2401,
+      "coverageKeys": [
+        "auth-security"
+      ],
+      "purposeProcedureEvidence": "INCOMPLETE",
+      "localSecurity": "pass",
+      "toolAssumptions": [],
+      "contextCost": "2401 bytes (compact)",
+      "roleFit": "strong",
+      "overlap": "low",
+      "licenseStatus": "MISSING",
+      "metadataReadiness": "INCOMPLETE",
+      "recommendation": "REJECT_TOOL_DEPENDENT",
+      "rationale": "The pentest framing conflicts with the read-only Security Reviewer boundary and must not introduce offensive execution.",
+      "uniqueCoverageContribution": "Auth security.",
+      "internalSkillIds": [
+        "auth-storage-security-review"
+      ],
+      "phase4d2Action": "No Phase 4D2 evidence work; use the stated internal/rejection rationale."
+    }
+  ],
+  "proposedInternalSkills": [
+    {
+      "skillId": "lead-requirements-completeness",
+      "title": "Requirements Completeness and Clarification Lens",
+      "targetAgents": [
+        "lead"
+      ],
+      "targetCapabilities": [
+        "requirements.clarify",
+        "requirements.brief"
+      ],
+      "coverageKeys": [
+        "requirements-completeness"
+      ],
+      "purpose": "Turn clarified user intent into a complete, uncertainty-labeled requirement set without inventing business facts.",
+      "scope": [
+        "derive actors, outcomes, constraints, edge cases, and open questions",
+        "separate missing facts from optional Factory gates",
+        "preserve evidence back to the user prompt and clarification session"
+      ],
+      "nonGoals": [
+        "replace the typed Brief schema",
+        "perform deterministic checksum or reference validation",
+        "approve a product requirement"
+      ],
+      "prerequisites": [
+        "original prompt",
+        "clarification session",
+        "Lead input/output contracts"
+      ],
+      "proceduralSteps": [
+        "inventory explicit and implied requirements",
+        "classify ambiguity, contradiction, omission, and assumption",
+        "ask only business-facing clarification questions",
+        "emit completeness rationale and unresolved uncertainty"
+      ],
+      "deterministicInputs": [
+        "lead.input",
+        "lead.output",
+        "clarification policy",
+        "Project Brief schema"
+      ],
+      "forbiddenAuthorityTools": [
+        "no shell, browser, network, package installation, filesystem mutation, or workflow-gate authority"
+      ],
+      "expectedContribution": "More systematic completeness reasoning above the existing clarification policy.",
+      "overlapNotes": [
+        "Does not duplicate deterministic Brief parsing or the approved acceptance-criteria skill."
+      ],
+      "conflictNotes": [],
+      "targetContextSize": "4–8 KB",
+      "version": "0.1.0",
+      "approvalRequirements": [
+        "typed internal metadata",
+        "static authority review",
+        "checksum",
+        "explicit registry approval and Lead allowlist assignment"
+      ],
+      "provenance": "ai-website-factory-project-owned",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion"
+    },
+    {
+      "skillId": "project-data-model-planning",
+      "title": "Project Data Model Planning",
+      "targetAgents": [
+        "planner"
+      ],
+      "targetCapabilities": [
+        "planning.architecture"
+      ],
+      "coverageKeys": [
+        "data-modeling"
+      ],
+      "purpose": "Derive a minimal Factory-compatible data model from approved requirements and access patterns.",
+      "scope": [
+        "entities and ownership",
+        "relationships and cardinality",
+        "constraints and access patterns",
+        "RLS and migration implications"
+      ],
+      "nonGoals": [
+        "write migrations",
+        "implement repositories or RLS",
+        "invent persistence when the Brief does not require it"
+      ],
+      "prerequisites": [
+        "approved Brief",
+        "planning package",
+        "persistence mode"
+      ],
+      "proceduralSteps": [
+        "extract domain nouns and ownership",
+        "map relationships, cardinality, lifecycle, and constraints",
+        "derive read/write access patterns and RLS implications",
+        "trace each model decision to requirements and implementation tasks"
+      ],
+      "deterministicInputs": [
+        "planner.input",
+        "domain schemas",
+        "database and RLS policies"
+      ],
+      "forbiddenAuthorityTools": [
+        "no source mutation, database execution, shell, package installation, or approval authority"
+      ],
+      "expectedContribution": "A repeatable data-model planning method precise to the fixed stack.",
+      "overlapNotes": [
+        "Planner creates the model; Implementation and Security later execute or review it."
+      ],
+      "conflictNotes": [],
+      "targetContextSize": "5–9 KB",
+      "version": "0.1.0",
+      "approvalRequirements": [
+        "typed internal metadata",
+        "architecture review",
+        "checksum",
+        "explicit Planner approval and assignment"
+      ],
+      "provenance": "ai-website-factory-project-owned",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion"
+    },
+    {
+      "skillId": "technical-risk-planning",
+      "title": "Technical Risk and Dependency Planning",
+      "targetAgents": [
+        "planner"
+      ],
+      "targetCapabilities": [
+        "planning.architecture"
+      ],
+      "coverageKeys": [
+        "technical-risk-planning"
+      ],
+      "purpose": "Identify actionable technical risks, dependencies, assumptions, and mitigations before TaskGraph creation.",
+      "scope": [
+        "risk identification",
+        "dependency sequencing",
+        "assumption validation",
+        "mitigation and evidence planning"
+      ],
+      "nonGoals": [
+        "execute validation",
+        "rewrite architecture by preference",
+        "create implementation tasks without approved requirements"
+      ],
+      "prerequisites": [
+        "approved Brief",
+        "architecture and planning contracts",
+        "known Factory stack"
+      ],
+      "proceduralSteps": [
+        "scan each planned boundary for failure and uncertainty",
+        "classify impact, likelihood, owner, and detection evidence",
+        "order dependencies and identify blocking assumptions",
+        "attach the smallest mitigation or follow-up evidence to the plan"
+      ],
+      "deterministicInputs": [
+        "planner output",
+        "TaskGraph schema",
+        "known tool and stack policies"
+      ],
+      "forbiddenAuthorityTools": [
+        "no shell, network, browser, source mutation, or workflow transition authority"
+      ],
+      "expectedContribution": "Professional risk reasoning without duplicating TaskGraph state validation.",
+      "overlapNotes": [
+        "Deterministic dependencies remain authoritative."
+      ],
+      "conflictNotes": [],
+      "targetContextSize": "4–7 KB",
+      "version": "0.1.0",
+      "approvalRequirements": [
+        "typed internal metadata",
+        "architecture review",
+        "checksum",
+        "explicit Planner approval and assignment"
+      ],
+      "provenance": "ai-website-factory-project-owned",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion"
+    },
+    {
+      "skillId": "responsive-form-ux-design",
+      "title": "Responsive and Form UX Design Contract",
+      "targetAgents": [
+        "design"
+      ],
+      "targetCapabilities": [
+        "design.directions",
+        "design.selection"
+      ],
+      "coverageKeys": [
+        "responsive-design",
+        "form-ux"
+      ],
+      "purpose": "Specify responsive layouts and usable form interaction states as part of a design direction, without implementing code.",
+      "scope": [
+        "breakpoints and layout transitions",
+        "hierarchy, density, typography, and touch targets",
+        "form states, validation feedback, loading, error, and success behavior"
+      ],
+      "nonGoals": [
+        "write React/CSS",
+        "run accessibility tools",
+        "audit an implemented website"
+      ],
+      "prerequisites": [
+        "Brief",
+        "planning package",
+        "selected or candidate design direction"
+      ],
+      "proceduralSteps": [
+        "identify content priority and layout invariants",
+        "define mobile, intermediate, and wide behavior",
+        "specify form states and recovery paths",
+        "record accessibility and interaction intent in the design contract"
+      ],
+      "deterministicInputs": [
+        "design.input/output",
+        "design direction schema",
+        "anti-template and design tool boundaries"
+      ],
+      "forbiddenAuthorityTools": [
+        "no code mutation, design-tool integration, browser, shell, or external network authority"
+      ],
+      "expectedContribution": "A concrete generation procedure beyond broad visual-quality prompts.",
+      "overlapNotes": [
+        "Does not become a visual reviewer or implementation skill."
+      ],
+      "conflictNotes": [],
+      "targetContextSize": "5–8 KB",
+      "version": "0.1.0",
+      "approvalRequirements": [
+        "typed internal metadata",
+        "Design boundary review",
+        "checksum",
+        "explicit Design approval and assignment"
+      ],
+      "provenance": "ai-website-factory-project-owned",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion"
+    },
+    {
+      "skillId": "architecture-tradeoff-review",
+      "title": "Architecture Trade-off Review",
+      "targetAgents": [
+        "architecture-reviewer"
+      ],
+      "targetCapabilities": [
+        "review.architecture"
+      ],
+      "coverageKeys": [
+        "architecture-tradeoffs"
+      ],
+      "purpose": "Review architectural alternatives and evolution risk after the existing module-boundaries lens has been applied.",
+      "scope": [
+        "trade-off framing",
+        "minimal sufficient decomposition",
+        "data/application boundary consequences",
+        "evolution and reversibility"
+      ],
+      "nonGoals": [
+        "repeat module-boundary heuristics",
+        "create a plan",
+        "demand optional infrastructure"
+      ],
+      "prerequisites": [
+        "approved Brief",
+        "Planning package",
+        "module-boundaries findings"
+      ],
+      "proceduralSteps": [
+        "state the decision and viable alternatives",
+        "compare coupling, cohesion, operational cost, and reversibility",
+        "identify the smallest material risk",
+        "return an evidence-backed recommendation with ownership"
+      ],
+      "deterministicInputs": [
+        "architecture review contract",
+        "module-boundaries evidence",
+        "planning schemas"
+      ],
+      "forbiddenAuthorityTools": [
+        "read-only; no source mutation, shell, browser, network, or workflow mutation"
+      ],
+      "expectedContribution": "Factory-specific architecture judgment not covered by boundary checks alone.",
+      "overlapNotes": [
+        "Complements module-boundaries; does not replace it."
+      ],
+      "conflictNotes": [
+        "Must not become Planner or Implementation guidance."
+      ],
+      "targetContextSize": "5–8 KB",
+      "version": "0.1.0",
+      "approvalRequirements": [
+        "typed internal metadata",
+        "Architecture policy review",
+        "checksum",
+        "explicit approval and assignment"
+      ],
+      "provenance": "ai-website-factory-project-owned",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion"
+    },
+    {
+      "skillId": "requirements-evidence-traceability",
+      "title": "Requirements and Evidence Traceability",
+      "targetAgents": [
+        "contract-auditor",
+        "test-quality-reviewer"
+      ],
+      "targetCapabilities": [
+        "review.contracts",
+        "review.test-quality"
+      ],
+      "coverageKeys": [
+        "requirements-traceability-review",
+        "cross-stage-consistency",
+        "traceability-evidence"
+      ],
+      "purpose": "Semantically audit preservation from approved requirements through planning, tasks, implementation evidence, and quality evidence.",
+      "scope": [
+        "information preservation",
+        "semantic cross-stage consistency",
+        "requirement-to-test evidence mapping",
+        "orphan and unsupported outcome reasoning"
+      ],
+      "nonGoals": [
+        "repeat deterministic ID/checksum/reference checks",
+        "write tasks or tests",
+        "declare a numeric coverage target"
+      ],
+      "prerequisites": [
+        "Brief",
+        "Planning",
+        "TaskGraph",
+        "derived quality evidence"
+      ],
+      "proceduralSteps": [
+        "build the bounded semantic trace",
+        "identify information loss, drift, or unsupported behavior",
+        "separate deterministic facts from judgment",
+        "return role-specific findings for Contract or Test review"
+      ],
+      "deterministicInputs": [
+        "contract review evidence",
+        "TaskGraph relationships",
+        "quality evidence",
+        "requirement-traceability contract"
+      ],
+      "forbiddenAuthorityTools": [
+        "read-only; no source mutation, test execution, browser, shell, network, or approval authority"
+      ],
+      "expectedContribution": "One reusable traceability method with role-specific outputs instead of duplicate auditor skills.",
+      "overlapNotes": [
+        "Shared procedure is intentional; Contract audits preservation, Test audits evidence sufficiency."
+      ],
+      "conflictNotes": [
+        "Cannot authorize Planner redesign or Implementation changes."
+      ],
+      "targetContextSize": "5–9 KB",
+      "version": "0.1.0",
+      "approvalRequirements": [
+        "typed metadata",
+        "both reviewer-boundary reviews",
+        "checksum",
+        "explicit approval and both allowlist assignments"
+      ],
+      "provenance": "ai-website-factory-project-owned",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion"
+    },
+    {
+      "skillId": "nextjs-server-client-implementation",
+      "title": "Next.js Server and Client Implementation",
+      "targetAgents": [
+        "implementation"
+      ],
+      "targetCapabilities": [
+        "implementation.code"
+      ],
+      "coverageKeys": [
+        "nextjs-implementation",
+        "server-client-boundaries"
+      ],
+      "purpose": "Implement bounded Next.js App Router slices using deliberate Server/Client, Action, and Handler boundaries.",
+      "scope": [
+        "component boundary decisions",
+        "data ownership and serialization",
+        "Server Actions preferred over Route Handlers where appropriate",
+        "error and loading flow"
+      ],
+      "nonGoals": [
+        "deployment",
+        "architecture planning",
+        "repeat deterministic file safety"
+      ],
+      "prerequisites": [
+        "approved task slice",
+        "Planning package",
+        "selected Design",
+        "fixed stack"
+      ],
+      "proceduralSteps": [
+        "locate the canonical owner and data flow",
+        "choose server or client execution from interaction and data needs",
+        "choose Server Action or Route Handler according to the policy",
+        "implement the smallest slice and preserve validation evidence"
+      ],
+      "deterministicInputs": [
+        "implementation task contract",
+        "server/client policy",
+        "applier and validators"
+      ],
+      "forbiddenAuthorityTools": [
+        "only task-scoped implementation authority; no deployment, package installation, or unrestricted filesystem access"
+      ],
+      "expectedContribution": "Stack-specific implementation judgment above deterministic proposal application.",
+      "overlapNotes": [
+        "Does not duplicate runtime scope, TypeScript, or ESLint gates."
+      ],
+      "conflictNotes": [
+        "Must not become Planner or Code Reviewer."
+      ],
+      "targetContextSize": "6–10 KB",
+      "version": "0.1.0",
+      "approvalRequirements": [
+        "typed metadata",
+        "Implementation policy review",
+        "checksum",
+        "explicit approval and assignment"
+      ],
+      "provenance": "ai-website-factory-project-owned",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion"
+    },
+    {
+      "skillId": "typed-form-implementation",
+      "title": "Typed Form and Validation Implementation",
+      "targetAgents": [
+        "implementation"
+      ],
+      "targetCapabilities": [
+        "implementation.code"
+      ],
+      "coverageKeys": [
+        "forms-validation"
+      ],
+      "purpose": "Implement forms with explicit schemas, user-visible states, and server-side validation while keeping the smallest justified client surface.",
+      "scope": [
+        "Zod schema placement",
+        "React Hook Form only when justified",
+        "field and form errors",
+        "pending, retry, success, and accessibility states"
+      ],
+      "nonGoals": [
+        "choose product requirements",
+        "perform security review",
+        "install packages by default"
+      ],
+      "prerequisites": [
+        "form task slice",
+        "Design form contract",
+        "Zod and fixed-stack policy"
+      ],
+      "proceduralSteps": [
+        "derive fields and states from the approved contract",
+        "define one canonical validation schema",
+        "connect client feedback to authoritative server validation",
+        "test success and failure behavior at the task-appropriate level"
+      ],
+      "deterministicInputs": [
+        "implementation validators",
+        "form/task contracts",
+        "quality gates"
+      ],
+      "forbiddenAuthorityTools": [
+        "no package install, browser automation, deployment, or unrestricted source mutation"
+      ],
+      "expectedContribution": "Consistent typed form behavior without generic frontend advice.",
+      "overlapNotes": [
+        "Complements deterministic proposal validation."
+      ],
+      "conflictNotes": [
+        "Does not replace Security Reviewer input-handling review."
+      ],
+      "targetContextSize": "5–8 KB",
+      "version": "0.1.0",
+      "approvalRequirements": [
+        "typed metadata",
+        "Implementation and Security boundary review",
+        "checksum",
+        "explicit approval and assignment"
+      ],
+      "provenance": "ai-website-factory-project-owned",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion"
+    },
+    {
+      "skillId": "supabase-application-integration",
+      "title": "Supabase Application Integration",
+      "targetAgents": [
+        "implementation"
+      ],
+      "targetCapabilities": [
+        "implementation.backend"
+      ],
+      "coverageKeys": [
+        "supabase-implementation"
+      ],
+      "purpose": "Integrate Supabase/Postgres/Auth/Storage into bounded tasks while preserving Factory ownership and security handoffs.",
+      "scope": [
+        "server-side data access",
+        "migrations and generated types",
+        "Auth and Storage boundaries",
+        "RLS handoff and error behavior"
+      ],
+      "nonGoals": [
+        "replace the Security Reviewer RLS procedure",
+        "run database commands autonomously",
+        "invent persistence"
+      ],
+      "prerequisites": [
+        "accepted architecture",
+        "backend task slice",
+        "Supabase policies and contracts"
+      ],
+      "proceduralSteps": [
+        "map the task to the approved persistence surface",
+        "keep secrets and privileged operations server-side",
+        "connect data, auth, or storage behavior to canonical contracts",
+        "record RLS/security follow-up and deterministic validation evidence"
+      ],
+      "deterministicInputs": [
+        "backend implementation contracts",
+        "database schema/policies",
+        "supabase integration policy"
+      ],
+      "forbiddenAuthorityTools": [
+        "no unbounded database, network, shell, secret, or deployment authority"
+      ],
+      "expectedContribution": "Coherent fixed-stack backend integration judgment.",
+      "overlapNotes": [
+        "Planner plans data; Implementation integrates; Security reviews consequences."
+      ],
+      "conflictNotes": [
+        "Must not grant database execution or security approval."
+      ],
+      "targetContextSize": "6–10 KB",
+      "version": "0.1.0",
+      "approvalRequirements": [
+        "typed metadata",
+        "backend and security review",
+        "checksum",
+        "explicit approval and assignment"
+      ],
+      "provenance": "ai-website-factory-project-owned",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion"
+    },
+    {
+      "skillId": "maintainable-performance-implementation",
+      "title": "Maintainable and Performant Incremental Implementation",
+      "targetAgents": [
+        "implementation"
+      ],
+      "targetCapabilities": [
+        "implementation.code"
+      ],
+      "coverageKeys": [
+        "maintainable-performance"
+      ],
+      "purpose": "Choose maintainable local solutions and avoid avoidable runtime, bundle, and complexity costs during bounded implementation.",
+      "scope": [
+        "reuse of existing helpers and conventions",
+        "minimal abstraction",
+        "Server Component and bundle discipline",
+        "measured performance-sensitive choices"
+      ],
+      "nonGoals": [
+        "replace lint/typecheck/build",
+        "optimize without evidence",
+        "subjective style enforcement"
+      ],
+      "prerequisites": [
+        "task slice",
+        "codebase context",
+        "validation diagnostics"
+      ],
+      "proceduralSteps": [
+        "identify the existing source of truth",
+        "prefer the smallest local change",
+        "check boundary, bundle, and data-flow consequences",
+        "validate and record only material residual risks"
+      ],
+      "deterministicInputs": [
+        "codebase memory",
+        "implementation policy",
+        "validation diagnostics"
+      ],
+      "forbiddenAuthorityTools": [
+        "no deployment, network benchmarking, package installation, or unrestricted mutation"
+      ],
+      "expectedContribution": "Professional maintainability and performance reasoning above mechanical gates.",
+      "overlapNotes": [
+        "Related reviewer skills are not injected into Implementation; this is an implementation procedure."
+      ],
+      "conflictNotes": [
+        "Must not become Architecture or Code Review."
+      ],
+      "targetContextSize": "5–8 KB",
+      "version": "0.1.0",
+      "approvalRequirements": [
+        "typed metadata",
+        "Implementation policy review",
+        "checksum",
+        "explicit approval and assignment"
+      ],
+      "provenance": "ai-website-factory-project-owned",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion"
+    },
+    {
+      "skillId": "react-nextjs-integration-review",
+      "title": "React and Next.js Integration Review",
+      "targetAgents": [
+        "code-integration-reviewer"
+      ],
+      "targetCapabilities": [
+        "review.integration"
+      ],
+      "coverageKeys": [
+        "react-review",
+        "nextjs-review",
+        "maintainability-review"
+      ],
+      "purpose": "Review semantic React/Next.js integration behavior after deterministic structural gates.",
+      "scope": [
+        "component and data flow",
+        "Server/Client boundaries",
+        "forms and handlers",
+        "source-of-truth and maintainability consequences"
+      ],
+      "nonGoals": [
+        "write code",
+        "repeat TypeScript/ESLint",
+        "perform Security or Test Review"
+      ],
+      "prerequisites": [
+        "current code/integration evidence",
+        "approved contracts",
+        "direct integration neighbors"
+      ],
+      "proceduralSteps": [
+        "map the bounded change and canonical owner",
+        "trace data and event flow across components and handlers",
+        "check Server/Client and API boundary correctness",
+        "return evidence-backed findings with implementation ownership"
+      ],
+      "deterministicInputs": [
+        "lint/typecheck evidence",
+        "code integration contract",
+        "TaskGraph slice"
+      ],
+      "forbiddenAuthorityTools": [
+        "read-only; no source mutation, shell, browser, network, package installation, or approval authority"
+      ],
+      "expectedContribution": "The missing review-oriented React/Next procedure without compiler duplication.",
+      "overlapNotes": [
+        "Any external TypeScript review candidate is rejected as low incremental value."
+      ],
+      "conflictNotes": [
+        "Must remain separate from Architecture, Security, and Test Review."
+      ],
+      "targetContextSize": "6–10 KB",
+      "version": "0.1.0",
+      "approvalRequirements": [
+        "typed metadata",
+        "all reviewer-boundary checks",
+        "checksum",
+        "explicit approval and assignment"
+      ],
+      "provenance": "ai-website-factory-project-owned",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion"
+    },
+    {
+      "skillId": "auth-storage-security-review",
+      "title": "Authentication and Storage Security Review",
+      "targetAgents": [
+        "security-reviewer"
+      ],
+      "targetCapabilities": [
+        "review.security"
+      ],
+      "coverageKeys": [
+        "auth-security",
+        "storage-upload-security"
+      ],
+      "purpose": "Review authentication, authorization, secrets, storage, and upload trust boundaries without offensive execution.",
+      "scope": [
+        "authn versus authz",
+        "server/client secret exposure",
+        "storage policies and upload constraints",
+        "admin and external-input boundaries"
+      ],
+      "nonGoals": [
+        "penetration testing",
+        "generate exploits",
+        "repeat RLS-only checks",
+        "run browsers or network probes"
+      ],
+      "prerequisites": [
+        "current Code/Integration approval",
+        "deterministic security evidence",
+        "implemented source context"
+      ],
+      "proceduralSteps": [
+        "identify principals, assets, and trust boundaries",
+        "trace authentication and authorization decisions",
+        "inspect validation, storage/upload, secret, and error paths",
+        "return contextual findings with evidence and owner"
+      ],
+      "deterministicInputs": [
+        "security deterministic evidence",
+        "auth/storage policies",
+        "sanitized source context"
+      ],
+      "forbiddenAuthorityTools": [
+        "read-only; no shell, browser, network, exploit, package, database, or secret access"
+      ],
+      "expectedContribution": "Factory-specific security coverage beyond RLS and broad OWASP categories.",
+      "overlapNotes": [
+        "OWASP external methodology covers broad web risks; this covers Factory auth/storage surfaces."
+      ],
+      "conflictNotes": [
+        "Offensive pentest candidates are explicitly excluded."
+      ],
+      "targetContextSize": "5–8 KB",
+      "version": "0.1.0",
+      "approvalRequirements": [
+        "typed metadata",
+        "Security policy review",
+        "checksum",
+        "explicit approval and assignment"
+      ],
+      "provenance": "ai-website-factory-project-owned",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion"
+    },
+    {
+      "skillId": "behavioral-test-quality-review",
+      "title": "Behavioral Test Quality Review",
+      "targetAgents": [
+        "test-quality-reviewer"
+      ],
+      "targetCapabilities": [
+        "review.test-quality"
+      ],
+      "coverageKeys": [
+        "test-strategy",
+        "meaningful-assertions",
+        "playwright-quality"
+      ],
+      "purpose": "Judge whether the smallest meaningful test strategy and evidence validate approved behavior and regression risk.",
+      "scope": [
+        "requirement-based happy/error paths",
+        "meaningful assertions",
+        "test isolation and fragility",
+        "Vitest, integration, and Playwright evidence quality"
+      ],
+      "nonGoals": [
+        "write or run tests",
+        "invent coverage percentages",
+        "operate a browser",
+        "repeat deterministic pass/fail output"
+      ],
+      "prerequisites": [
+        "approved requirements",
+        "derived quality evidence",
+        "test artifacts and diagnostics"
+      ],
+      "proceduralSteps": [
+        "map approved behavior to evidence",
+        "check assertions and boundary/error paths",
+        "assess isolation, determinism, and test level",
+        "report semantic gaps with the smallest sufficient remedy"
+      ],
+      "deterministicInputs": [
+        "test diagnostics",
+        "quality-gate results",
+        "review output contract"
+      ],
+      "forbiddenAuthorityTools": [
+        "read-only; no test execution, browser, shell, network, source mutation, or workflow authority"
+      ],
+      "expectedContribution": "A Factory-specific review strategy rather than an execution workflow or generic QA bundle.",
+      "overlapNotes": [
+        "Shared traceability is supplied by requirements-evidence-traceability."
+      ],
+      "conflictNotes": [
+        "Must not become Test Writer, QA executor, or Security Reviewer."
+      ],
+      "targetContextSize": "6–10 KB",
+      "version": "0.1.0",
+      "approvalRequirements": [
+        "typed metadata",
+        "Test/Quality policy review",
+        "checksum",
+        "explicit approval and assignment"
+      ],
+      "provenance": "ai-website-factory-project-owned",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion"
+    }
+  ],
+  "crossAgentReusableSkills": [
+    "requirements-evidence-traceability"
+  ],
+  "runtimeResolverRedesigned": false
+}
