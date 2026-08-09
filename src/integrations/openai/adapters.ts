@@ -34,6 +34,7 @@ import { AssetManifestEntrySchema, AssetManifestSchema } from "@/domain/assets/s
 import { TechnicalArchitectureSchema } from "@/domain/architecture/schema";
 import { SitemapPlanSchema, UserFlowPlanSchema, TraceabilitySchema } from "@/agents/planner/contracts";
 import { isWorkflowRequirement } from "@/agents/lead/clarification-policy";
+import type { ApprovedProceduralSkillPromptContext } from "./prompts";
 const OrchestrationPlanSchema = z.object({ tasks: z.array(z.unknown()) }).strict();
 const checksumText = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
 
@@ -142,27 +143,27 @@ export class OpenAiOrchestrationProvider implements OrchestrationPlanningProvide
 export class OpenAiArchitectureReviewerProvider implements ArchitectureReviewProvider {
   readonly promptVersion = "architecture-reviewer.v1";
   constructor(private readonly ai: OpenAiStructuredClient) {}
-  async review(input: ArchitectureReviewInput, signal?: AbortSignal): Promise<ArchitectureReviewResult> { const prompt = rolePrompt("architecture-reviewer", input); return (await this.ai.request({ ...prompt, role: "architecture-reviewer", schema: ArchitectureReviewProviderOutputSchema, schemaName: "architecture-review-result", signal, idempotencyKey: input.idempotencyKey })).value as ArchitectureReviewResult; }
+  async review(input: ArchitectureReviewInput, signal?: AbortSignal, approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = []): Promise<ArchitectureReviewResult> { const prompt = rolePrompt("architecture-reviewer", input, false, approvedSkills); return (await this.ai.request({ ...prompt, role: "architecture-reviewer", schema: ArchitectureReviewProviderOutputSchema, schemaName: "architecture-review-result", signal, idempotencyKey: input.idempotencyKey })).value as ArchitectureReviewResult; }
 }
 export class OpenAiContractAuditorProvider implements ContractAuditProvider {
   readonly promptVersion = "contract-auditor.v1";
   constructor(private readonly ai: OpenAiStructuredClient) {}
-  async review(input: ContractAuditInput, signal?: AbortSignal): Promise<ContractAuditResult> { const prompt = rolePrompt("contract-auditor", input); return (await this.ai.request({ ...prompt, role: "contract-auditor", schema: ContractAuditProviderOutputSchema, schemaName: "contract-audit-result", signal, idempotencyKey: input.idempotencyKey })).value as ContractAuditResult; }
+  async review(input: ContractAuditInput, signal?: AbortSignal, approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = []): Promise<ContractAuditResult> { const prompt = rolePrompt("contract-auditor", input, false, approvedSkills); return (await this.ai.request({ ...prompt, role: "contract-auditor", schema: ContractAuditProviderOutputSchema, schemaName: "contract-audit-result", signal, idempotencyKey: input.idempotencyKey })).value as ContractAuditResult; }
 }
 export class OpenAiCodeIntegrationReviewProvider implements CodeIntegrationReviewProvider {
   readonly promptVersion = "code-integration-reviewer.v1";
   constructor(private readonly ai: OpenAiStructuredClient) {}
-  async review(input: CodeIntegrationReviewInput, signal?: AbortSignal): Promise<CodeIntegrationReviewResult> { const prompt = rolePrompt("code-integration-reviewer", input); return (await this.ai.request({ ...prompt, role: "code-integration-reviewer", schema: CodeIntegrationReviewProviderOutputSchema, schemaName: "code-integration-review-result", signal, idempotencyKey: input.idempotencyKey })).value as CodeIntegrationReviewResult; }
+  async review(input: CodeIntegrationReviewInput, signal?: AbortSignal, approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = []): Promise<CodeIntegrationReviewResult> { const prompt = rolePrompt("code-integration-reviewer", input, false, approvedSkills); return (await this.ai.request({ ...prompt, role: "code-integration-reviewer", schema: CodeIntegrationReviewProviderOutputSchema, schemaName: "code-integration-review-result", signal, idempotencyKey: input.idempotencyKey })).value as CodeIntegrationReviewResult; }
 }
 export class OpenAiSecurityReviewProvider implements SecurityReviewProvider {
   readonly promptVersion = "security-reviewer.v1";
   constructor(private readonly ai: OpenAiStructuredClient) {}
-  async review(input: SecurityReviewInput, signal?: AbortSignal): Promise<SecurityReviewResult> { const prompt = rolePrompt("security-reviewer", input); return (await this.ai.request({ ...prompt, role: "security-reviewer", schema: SecurityReviewProviderOutputSchema, schemaName: "security-review-result", signal, idempotencyKey: input.idempotencyKey })).value as SecurityReviewResult; }
+  async review(input: SecurityReviewInput, signal?: AbortSignal, approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = []): Promise<SecurityReviewResult> { const prompt = rolePrompt("security-reviewer", input, false, approvedSkills); return (await this.ai.request({ ...prompt, role: "security-reviewer", schema: SecurityReviewProviderOutputSchema, schemaName: "security-review-result", signal, idempotencyKey: input.idempotencyKey })).value as SecurityReviewResult; }
 }
 export class OpenAiTestQualityReviewProvider implements TestQualityReviewProvider {
   readonly promptVersion = "test-quality-reviewer.v1";
   constructor(private readonly ai: OpenAiStructuredClient) {}
-  async review(input: TestQualityReviewInput, signal?: AbortSignal): Promise<TestQualityReviewResult> { const prompt = rolePrompt("test-quality-reviewer", input); return (await this.ai.request({ ...prompt, role: "test-quality-reviewer", schema: TestQualityReviewProviderOutputSchema, schemaName: "test-quality-review-result", signal, idempotencyKey: input.idempotencyKey })).value as TestQualityReviewResult; }
+  async review(input: TestQualityReviewInput, signal?: AbortSignal, approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = []): Promise<TestQualityReviewResult> { const prompt = rolePrompt("test-quality-reviewer", input, false, approvedSkills); return (await this.ai.request({ ...prompt, role: "test-quality-reviewer", schema: TestQualityReviewProviderOutputSchema, schemaName: "test-quality-review-result", signal, idempotencyKey: input.idempotencyKey })).value as TestQualityReviewResult; }
 }
 export function createProviderAdapters(ai: OpenAiStructuredClient) { return { lead: new OpenAiLeadProvider(ai), planner: new OpenAiPlannerProvider(ai), design: new OpenAiDesignProvider(ai), implementation: new OpenAiImplementationProvider(ai), architectureReviewer: new OpenAiArchitectureReviewerProvider(ai), contractAuditor: new OpenAiContractAuditorProvider(ai), codeIntegrationReviewer: new OpenAiCodeIntegrationReviewProvider(ai), securityReviewer: new OpenAiSecurityReviewProvider(ai), testQualityReviewer: new OpenAiTestQualityReviewProvider(ai), orchestrator: new OpenAiOrchestrationProvider(ai) }; }
 export type { ProviderUsageSink };

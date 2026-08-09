@@ -4,7 +4,7 @@ The production provider foundation is now available behind existing ports; real 
 
 1. Foundation: this single application, npm, Docker, hygiene, and decisions.
 2. Durable workflow state: define approved Supabase schema, repositories, state transitions, and versioned Workspace Manager output.
-3. Approved skills: implement isolated import, static review, manual approval, immutable copies, permissions, and bounded loading. The registry is currently empty.
+3. Approved skills: implement isolated import, static review, manual approval, immutable copies, permissions, bounded loading, and Phase 4B2 reviewer activation. Exactly three curated reviewer procedures are approved; future assignments remain Phase 4C.
 4. Requirements: implement Lead Agent clarification and brief approval.
 5. Design: implement three-direction proposal and selection freeze.
 6. Generation: add project workspace, planning, and controlled single-task Implementation Agent execution. The Orchestrator provides deterministic TaskGraph planning; full graph execution and customer website generation remain future work.

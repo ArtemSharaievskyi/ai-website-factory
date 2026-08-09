@@ -64,7 +64,7 @@ export const implementationAgentDefinition = definition({
 export const architectureReviewerAgentDefinition = definition({
   agentId: "architecture-reviewer", displayName: "Architecture Reviewer", role: "review", version: "1.0.0",
   capabilities: ["review.architecture"], supportedTaskTypes: ["review-architecture"],
-  allowedTools: ["openai-generation"], allowedSkillIds: [],
+  allowedTools: ["openai-generation"], allowedSkillIds: ["module-boundaries-fb20497b5c35"],
   contextPolicy: { version: "architecture-review-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "PREVIOUS_FINDINGS"], maxBytes: 140000, maxItems: 60 },
   inputContract: { schemaId: "architecture-reviewer.input", version: "1" }, outputContract: { schemaId: "review.output", version: "1" },
   promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "architecture-reviewer.v1", policyVersions: { context: "architecture-review-context-v1", execution: "architecture-review-execution-v1" },
@@ -73,7 +73,7 @@ export const architectureReviewerAgentDefinition = definition({
 export const contractAuditorAgentDefinition = definition({
   agentId: "contract-auditor", displayName: "Contract Auditor", role: "review", version: "1.0.0",
   capabilities: ["review.contracts"], supportedTaskTypes: ["review-contracts"],
-  allowedTools: ["openai-generation"], allowedSkillIds: [],
+  allowedTools: ["openai-generation"], allowedSkillIds: ["acceptance-criteria-80493e317476"],
   contextPolicy: { version: "contract-audit-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "PREVIOUS_FINDINGS"], maxBytes: 160000, maxItems: 80 },
   inputContract: { schemaId: "contract-auditor.input", version: "1" }, outputContract: { schemaId: "review.output", version: "1" },
   promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "contract-auditor.v1", policyVersions: { context: "contract-audit-context-v1", execution: "contract-audit-execution-v1" },
@@ -87,7 +87,7 @@ export const codeIntegrationReviewerAgentDefinition = definition({
 });
 export const securityReviewerAgentDefinition = definition({
   agentId: "security-reviewer", displayName: "Security Reviewer", role: "review", version: "1.0.0",
-  capabilities: ["review.security"], supportedTaskTypes: ["review-security"], allowedTools: ["openai-generation"], allowedSkillIds: [],
+  capabilities: ["review.security"], supportedTaskTypes: ["review-security"], allowedTools: ["openai-generation"], allowedSkillIds: ["supabase-rls-1e36b217c969"],
   contextPolicy: { version: "security-review-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "TASK_SLICE", "CODEBASE_CONTEXT", "PREVIOUS_FINDINGS"], maxBytes: 180000, maxItems: 120 },
   inputContract: { schemaId: "security-reviewer.input", version: "1" }, outputContract: { schemaId: "review.output", version: "1" }, promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "security-reviewer.v1", policyVersions: { context: "security-review-context-v1", execution: "security-review-execution-v1" }, executionPolicy: { aiGenerationAllowed: true, retryClass: "bounded-provider", cancellationSupported: true, concurrencyClass: "single-flight", requiresExplicitApprovalBeforeTransition: false }, readOnly: true,
 });

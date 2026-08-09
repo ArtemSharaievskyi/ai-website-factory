@@ -8,11 +8,11 @@ import { SecurityEnvironmentDeclarationSchema } from "./contracts";
 import { SecuritySurfaceSchema } from "@/domain/review/schema";
 
 describe("Security Reviewer", () => {
-  it("is read-only, least privileged, and skill-free", () => {
+  it("is read-only, least privileged, and explicitly assigned its RLS procedure", () => {
     expect(securityReviewerAgentDefinition.agentId).toBe("security-reviewer");
     expect(securityReviewerAgentDefinition.capabilities).toEqual(["review.security"]);
     expect(securityReviewerAgentDefinition.allowedTools).toEqual(["openai-generation"]);
-    expect(securityReviewerAgentDefinition.allowedSkillIds).toEqual([]);
+    expect(securityReviewerAgentDefinition.allowedSkillIds).toEqual(["supabase-rls-1e36b217c969"]);
     expect(securityReviewerAgentDefinition.readOnly).toBe(true);
     expect(securityReviewerAgentDefinition.contextPolicy.maxBytes).toBeLessThan(250000);
   });

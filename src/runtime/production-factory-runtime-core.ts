@@ -1,3 +1,4 @@
+import path from "node:path";
 import { createProductionProviderBundle } from "@/integrations/openai/production";
 import {
   createLeadAgentService,
@@ -63,6 +64,10 @@ import {
   CodebaseMemoryService,
 } from "@/integrations/codebase-memory";
 import { createProcessTransport } from "@/integrations/codebase-memory/transport";
+import { SkillRegistry } from "@/skills/registry/registry";
+import { resolveApprovedSkillContext, toReviewerSkillSelection } from "@/skills/runtime/resolver";
+import { architectureReviewerAgentDefinition, contractAuditorAgentDefinition, securityReviewerAgentDefinition } from "@/agents/catalog";
+import { classifySecuritySurface } from "@/agents/reviewers/security/deterministic";
 export const RUNTIME_MODES = ["DETERMINISTIC_TEST", "REAL_E2E"] as const;
 export type FactoryRuntimeMode = (typeof RUNTIME_MODES)[number];
 export type ProductionAdapterIdentity = {
@@ -181,6 +186,10 @@ export function createProductionFactoryRuntime(
     ...options,
     codebaseMemory: codebaseConfig.enabled ? "configured" : "not-needed",
   });
+  const skillRegistry = new SkillRegistry(path.join(process.cwd(), "skills"));
+  const resolveArchitectureSkills = async (input: import("@/agents/reviewers/architecture/contracts").ArchitectureReviewInput) => toReviewerSkillSelection(await resolveApprovedSkillContext(skillRegistry, { agent: architectureReviewerAgentDefinition, capability: "review.architecture", taskType: "review-architecture", projectSurfaces: ["architecture", "modules"], requiredCoverage: ["module-boundaries", "architecture-review"], requestedTools: [], contextBudgetBytes: architectureReviewerAgentDefinition.contextPolicy.maxBytes, reservedContextBytes: Buffer.byteLength(JSON.stringify(input), "utf8") }));
+  const resolveContractSkills = async (input: import("@/agents/reviewers/contracts/contracts").ContractAuditInput) => toReviewerSkillSelection(await resolveApprovedSkillContext(skillRegistry, { agent: contractAuditorAgentDefinition, capability: "review.contracts", taskType: "review-contracts", projectSurfaces: ["requirements", "contracts", "traceability"], requiredCoverage: ["acceptance-criteria", "requirements-contracts", "traceability"], requestedTools: [], contextBudgetBytes: contractAuditorAgentDefinition.contextPolicy.maxBytes, reservedContextBytes: Buffer.byteLength(JSON.stringify(input), "utf8") }));
+  const resolveSecuritySkills = async (input: import("@/agents/reviewers/security/contracts").SecurityReviewInput) => { const securitySurfaces = classifySecuritySurface(input); const projectSurfaces = input.acceptedPlanningPackage.supabase.postgres ? ["supabase", "postgres", "user-scoped-data"] : input.sourceManifest.some((file) => /rls/i.test(file.relativePath)) ? ["rls"] : ["NONE"]; return toReviewerSkillSelection(await resolveApprovedSkillContext(skillRegistry, { agent: securityReviewerAgentDefinition, capability: "review.security", taskType: "review-security", projectSurfaces, requiredCoverage: ["supabase-rls", "row-level-authorization", "user-scoped-data"], requestedTools: [], contextBudgetBytes: securityReviewerAgentDefinition.contextPolicy.maxBytes, reservedContextBytes: Buffer.byteLength(JSON.stringify({ input, securitySurfaces }), "utf8") })); };
   return {
     mode: "REAL_E2E",
     identity,
@@ -216,11 +225,12 @@ export function createProductionFactoryRuntime(
         database,
         new ArchitectureReviewService(database, {
           provider: ai.architectureReviewer,
+          resolveSkills: resolveArchitectureSkills,
         }),
       );
       const contractAuditor = new ContractAuditOrchestrationService(
         database,
-        new ContractAuditService(database, { provider: ai.contractAuditor }),
+        new ContractAuditService(database, { provider: ai.contractAuditor, resolveSkills: resolveContractSkills }),
       );
       const codeIntegrationReviewer =
         new CodeIntegrationReviewOrchestrationService(
@@ -231,7 +241,7 @@ export function createProductionFactoryRuntime(
         );
       const securityReviewer = new SecurityReviewOrchestrationService(
         database,
-        new SecurityReviewService(database, { provider: ai.securityReviewer }),
+        new SecurityReviewService(database, { provider: ai.securityReviewer, resolveSkills: resolveSecuritySkills }),
       );
       const testQualityReviewer = new TestQualityReviewOrchestrationService(
         database,

@@ -24,4 +24,4 @@ Results are persisted as `contract-audit` records plus history documents, with u
 
 TaskGraph-only regeneration, when separately authorized by the Orchestrator, is bounded to one cycle; the changed checksum makes the prior audit stale and requires a fresh audit. Planning and Design findings return `CHANGES_REQUIRED` without silently mutating those artifacts.
 
-The auditor is read-only: it cannot modify Brief, Planning, Architecture Review, Design, TaskGraph, task state, source files, migrations, or the filesystem. Skills remain empty and no external skills are installed.
+The auditor is read-only: it cannot modify Brief, Planning, Architecture Review, Design, TaskGraph, task state, source files, migrations, or the filesystem. It may receive the approved `acceptance-criteria-80493e317476` procedure as supplemental, checksum-bound guidance; that skill grants no tools or authority.

@@ -1,3 +1,4 @@
 import type { ArchitectureReviewInput, ArchitectureReviewOutput } from "./contracts";
+import type { ApprovedProceduralSkillContext } from "@/skills/runtime/resolver";
 
-export interface ArchitectureReviewProvider { readonly promptVersion: string; review(input: ArchitectureReviewInput, signal?: AbortSignal): Promise<ArchitectureReviewOutput>; }
+export interface ArchitectureReviewProvider { readonly promptVersion: string; review(input: ArchitectureReviewInput, signal?: AbortSignal, approvedSkills?: readonly ApprovedProceduralSkillContext[]): Promise<ArchitectureReviewOutput>; }

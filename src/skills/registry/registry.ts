@@ -15,6 +15,7 @@ import path from "node:path";
 import { z } from "zod";
 import {
   SkillAuditEventSchema,
+  SkillApplicabilitySchema,
   SkillApprovalRecordSchema,
   SkillCurationEvidenceSchema,
   SkillDefinitionSchema,
@@ -534,6 +535,7 @@ export class SkillRegistry {
       allowedFiles?: string[];
       excludedFiles?: string[];
       maxContextBytes?: number;
+      applicability?: z.input<typeof SkillApplicabilitySchema>;
     },
   ) {
     const record = await this.read(skillId);
@@ -547,6 +549,14 @@ export class SkillRegistry {
       throw new SkillError(
         "SKILL_APPROVAL_REQUIRED",
         "Manual metadata and explicit license evidence are required before approval.",
+      );
+    if (
+      input.candidateChecksum &&
+      input.candidateChecksum !== record.source.normalizedContentChecksum
+    )
+      throw new SkillError(
+        "SKILL_CHECKSUM_MISMATCH",
+        "Approval candidate checksum does not match staged provenance.",
       );
     const allowedFiles =
       input.allowedFiles ??
@@ -563,6 +573,9 @@ export class SkillRegistry {
       excludedFiles: input.excludedFiles ?? [],
       maxContextBytes:
         input.maxContextBytes ?? record.definition.maxContextBytes,
+      ...(input.applicability
+        ? { applicability: SkillApplicabilitySchema.parse(input.applicability) }
+        : {}),
     });
     if (
       approval.decision === "approved" &&
@@ -589,6 +602,9 @@ export class SkillRegistry {
         reviewedAt: approval.reviewedAt,
         reviewer: approval.reviewedBy,
         approvalRecordId: approval.id,
+        ...(approval.applicability
+          ? { applicability: approval.applicability }
+          : {}),
       },
     };
     await this.save(next);
@@ -613,6 +629,8 @@ export class SkillRegistry {
       );
     if (
       approval.sourceChecksum !== record.definition.sourceChecksum ||
+      (approval.candidateChecksum &&
+        approval.candidateChecksum !== record.source.normalizedContentChecksum) ||
       approval.manifestChecksum !==
         digest(JSON.stringify(record.definition.manifest.files))
     )
@@ -656,6 +674,9 @@ export class SkillRegistry {
         allowedRoles: approval.allowedRoles,
         allowedTaskTypes: approval.allowedTaskTypes,
         maxContextBytes: approval.maxContextBytes,
+        ...(approval.applicability
+          ? { applicability: approval.applicability }
+          : {}),
       },
     };
     await this.save(next);
@@ -689,6 +710,15 @@ export class SkillRegistry {
       approvalId: record.approval?.id,
     });
     return next.definition;
+  }
+  async getRuntimeMetadata(skillId: string) {
+    const record = await this.read(skillId);
+    return {
+      definition: record.definition,
+      approval: record.approval,
+      normalizedContentChecksum: record.source.normalizedContentChecksum,
+      retrievedContentChecksum: record.source.retrievedContentChecksum,
+    };
   }
   async load(request: SkillLoadRequest): Promise<SkillLoadResult> {
     const parsed = SkillLoadRequestSchema.parse(request);

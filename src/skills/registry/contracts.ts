@@ -20,6 +20,7 @@ export const SkillRoleSchema = z.enum([
   "design",
   "implementation",
   "qa-release",
+  "review",
 ]);
 export const SkillTaskTypeSchema = z.enum([
   "clarify-requirements",
@@ -37,6 +38,11 @@ export const SkillTaskTypeSchema = z.enum([
   "validate-security",
   "run-functional-tests",
   "prepare-release",
+  "review-architecture",
+  "review-contracts",
+  "review-code-integration",
+  "review-security",
+  "review-test-quality",
 ]);
 export const SkillFormatVersionSchema = z.literal(1);
 export const SkillFileSchema = z
@@ -94,6 +100,18 @@ export const SkillDefinitionSchema = z
     manifest: SkillManifestSchema,
     summary: z.record(z.string(), z.unknown()).optional(),
     review: z.unknown().optional(),
+    applicability: z
+      .object({
+        capability: z.string().min(1),
+        taskType: SkillTaskTypeSchema,
+        coverageKeys: z.array(z.string().min(1)),
+        projectSurfaces: z.array(z.string().min(1)),
+        conflictsWithSkillIds: z.array(z.string().min(1)),
+        overlapsWithSkillIds: z.array(z.string().min(1)),
+        priority: z.number().int(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export type SkillDefinition = z.infer<typeof SkillDefinitionSchema>;
@@ -112,11 +130,24 @@ export const SkillLicenseEvidenceSchema = z
   })
   .strict();
 export type SkillLicenseEvidence = z.infer<typeof SkillLicenseEvidenceSchema>;
+export const SkillApplicabilitySchema = z
+  .object({
+    capability: z.string().min(1),
+    taskType: SkillTaskTypeSchema,
+    coverageKeys: z.array(z.string().min(1)),
+    projectSurfaces: z.array(z.string().min(1)),
+    conflictsWithSkillIds: z.array(z.string().min(1)),
+    overlapsWithSkillIds: z.array(z.string().min(1)),
+    priority: z.number().int(),
+  })
+  .strict();
+export type SkillApplicability = z.infer<typeof SkillApplicabilitySchema>;
 export const SkillApprovalRecordSchema = z
   .object({
     id: z.string().min(1),
     skillId: z.string().min(1),
     sourceChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+    candidateChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     manifestChecksum: z.string().regex(/^[a-f0-9]{64}$/),
     reviewedBy: z.string().min(1),
     reviewedAt: z.string().datetime(),
@@ -135,6 +166,7 @@ export const SkillApprovalRecordSchema = z
     notes: z.string(),
     expiresAt: z.string().datetime().optional(),
     supersedesApprovalId: z.string().optional(),
+    applicability: SkillApplicabilitySchema.optional(),
   })
   .strict();
 export type SkillApprovalRecord = z.infer<typeof SkillApprovalRecordSchema>;

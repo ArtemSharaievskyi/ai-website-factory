@@ -38,7 +38,7 @@ describe("typed agent catalog", () => {
   });
   it("keeps tool, skill, contract, and policy permissions explicit", () => {
     expect(AGENT_TOOL_IDS).toEqual(["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read"]);
-    expect(agentCatalog.every((agent) => agent.allowedSkillIds.length === 0)).toBe(true);
+    expect(agentCatalog.filter((agent) => agent.allowedSkillIds.length > 0).map((agent) => agent.agentId)).toEqual(["architecture-reviewer", "contract-auditor", "security-reviewer"]);
     expect(agentCatalog.every((agent) => agent.inputContract.schemaId.endsWith(".input") && agent.outputContract.schemaId.endsWith(".output"))).toBe(true);
     expect(agentCatalog.every((agent) => agent.contextPolicy.maxBytes > 0 && agent.executionPolicy.retryClass)).toBe(true);
     expect(leadAgentDefinition.promptVersion).not.toBe(leadAgentDefinition.policyVersions.context);

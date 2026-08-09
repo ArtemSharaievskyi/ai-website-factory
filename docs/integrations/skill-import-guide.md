@@ -4,4 +4,4 @@ External skills may be discovered through the dedicated read-only skills.sh adap
 
 The service must be allowed to finish staging and review before any approval decision. Review the original `SKILL.md`, all findings, commands, scripts, references, license evidence, source commit/tag, and requested permissions. Approve only the smallest file, role, task, and tool set needed. Never use `npx skills add`; agents will not install skills or packages.
 
-Staging is unavailable to loaders. Approval is checksum-bound, version-pinned, and immutable. No external skill is currently approved.
+Staging is unavailable to loaders. Approval is checksum-bound, version-pinned, and immutable. Phase 4B2 has exactly three approved reviewer procedures; their internal IDs and checksums are documented in [skills-runtime.md](skills-runtime.md).

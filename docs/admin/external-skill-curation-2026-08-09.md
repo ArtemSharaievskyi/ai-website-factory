@@ -4,7 +4,7 @@ Generated: 2026-08-09T15:47:29.579Z
 
 Policy version: `external-skill-curation-v1`
 
-This is an administrative discovery/evaluation report. External content remains untrusted. No candidate was approved, assigned to an agent, executed, rewritten, or used to change Factory runtime behavior. External audit results are advisory metadata only.
+This is an administrative discovery/evaluation report. External content remains untrusted. The subsequent Phase 4B2 action approved and assigned exactly the three candidates listed in the checksum-bound decision table; no other candidate was approved, assigned, executed, or rewritten. External audit results remain advisory metadata only.
 
 Availability state: **AVAILABLE**
 
@@ -21,8 +21,8 @@ Availability state: **AVAILABLE**
 - Rejected: 17
 - Needing human review: 7
 - External skills staged: 7
-- External skills approved: **0**
-- Active assigned external skills: **0**
+- External skills approved: **3**
+- Active assigned external skills: **3**
 
 ## Human decision table
 
@@ -586,16 +586,16 @@ On 2026-08-09, the human supplied exact MIT license evidence for the three selec
 
 | Target reviewer | Exact external ID | Candidate checksum | Metadata | License evidence | Local static security | External audit | Upstream | Approval readiness | Blocking reason |
 |---|---|---|---|---|---|---|---|---|---|
-| Architecture Reviewer | `codybrom/clairvoyance/module-boundaries` | `5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff` | COMPLETE: frontmatter purpose; ordered procedure steps | MIT, human canonical-source evidence | PASS | PASS | CURRENT | `APPROVAL_ELIGIBLE` | none; registry remains `under-review` until separate approval |
-| Contract Auditor | `masanao-ohba/claude-manifests/acceptance-criteria` | `2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec` | COMPLETE: frontmatter purpose; sequenced headings/checklist | MIT, human canonical-source evidence | PASS | PASS | CURRENT | `APPROVAL_ELIGIBLE` | none; registry remains `under-review` until separate approval |
-| Security Reviewer | `sarmakska/slipstream/supabase-rls` | `87bc57e597d3eb2e6ec8d4c099684cf4685da84ef45076b14083a7fcc7100877` | COMPLETE: frontmatter purpose; ordered steps | MIT, human canonical-source evidence | PASS | PASS | CURRENT | `APPROVAL_ELIGIBLE` | none; registry remains `under-review` until separate approval |
+| Architecture Reviewer | `codybrom/clairvoyance/module-boundaries` | `5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff` | COMPLETE: frontmatter purpose; ordered procedure steps | MIT, human canonical-source evidence | PASS | PASS | CURRENT | `APPROVED` | promoted immutable copy; assigned to `architecture-reviewer` |
+| Contract Auditor | `masanao-ohba/claude-manifests/acceptance-criteria` | `2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec` | COMPLETE: frontmatter purpose; sequenced headings/checklist | MIT, human canonical-source evidence | PASS | PASS | CURRENT | `APPROVED` | promoted immutable copy; assigned to `contract-auditor` |
+| Security Reviewer | `sarmakska/slipstream/supabase-rls` | `87bc57e597d3eb2e6ec8d4c099684cf4685da84ef45076b14083a7fcc7100877` | COMPLETE: frontmatter purpose; ordered steps | MIT, human canonical-source evidence | PASS | PASS | CURRENT | `APPROVED` | promoted immutable copy; assigned to `security-reviewer` when relevant |
 
-The corrected Security ID is preserved exactly as `sarmakska/slipstream/supabase-rls`; `sarmaks/slipstream/supabase-rls` is not an alias. GitHub URLs are human evidence provenance only; skills.sh remains the sole skill-content source. The three staged records remain `under-review`, and approval remains a separate later action. No skill text was rewritten or executed.
+The corrected Security ID is preserved exactly as `sarmakska/slipstream/supabase-rls`; `sarmaks/slipstream/supabase-rls` is not an alias. GitHub URLs are human evidence provenance only; skills.sh remains the sole skill-content source. The three records are now approved through the existing registry mechanism and have immutable local copies. No skill text was rewritten or executed.
 
 ## Hard-stop verification
 
-- Approved Skills Registry approval function was not called.
-- Reviewer `allowedSkillIds` remain unchanged and empty.
+- Approved Skills Registry approval and promotion were called exactly three times for the decision-table candidates.
+- Reviewer `allowedSkillIds` assign only the three exact internal IDs; the other six remain empty.
 - No external skill content was executed.
 - No external links in skill text were followed.
 - No dependencies were installed.

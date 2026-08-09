@@ -13,11 +13,12 @@ import { ARCHITECTURE_REVIEW_POLICY_VERSION, ArchitectureReviewInputSchema, type
 import { canonicalArchitectureEvidence } from "./deterministic";
 import { DeterministicArchitectureReviewProvider } from "./deterministic";
 import type { ArchitectureReviewProvider } from "./ports";
+import type { ReviewerSkillSelection } from "@/skills/runtime/resolver";
 
 const now = () => new Date().toISOString();
 const exactFindingKey = (finding: ArchitectureReviewResult["findings"][number]) => JSON.stringify(finding);
 
-export type ArchitectureReviewServiceDependencies = { provider?: ArchitectureReviewProvider };
+export type ArchitectureReviewServiceDependencies = { provider?: ArchitectureReviewProvider; resolveSkills?: (input: ArchitectureReviewInput) => Promise<ReviewerSkillSelection> };
 
 export class ArchitectureReviewService {
   private readonly documents: DocumentRepository;
@@ -25,7 +26,8 @@ export class ArchitectureReviewService {
   private readonly provider: ArchitectureReviewProvider;
   private readonly idempotency = new Map<string, { inputHash: string; result: ArchitectureReviewResult }>();
   private readonly correctionCycles = new Map<string, number>();
-  constructor(private readonly database: PersistenceDatabase, dependencies: ArchitectureReviewServiceDependencies = {}) { this.documents = new DocumentRepository(database); this.projects = new ProjectRepository(database); this.provider = dependencies.provider ?? new DeterministicArchitectureReviewProvider(); }
+  private readonly resolveSkills?: ArchitectureReviewServiceDependencies["resolveSkills"];
+  constructor(private readonly database: PersistenceDatabase, dependencies: ArchitectureReviewServiceDependencies = {}) { this.documents = new DocumentRepository(database); this.projects = new ProjectRepository(database); this.provider = dependencies.provider ?? new DeterministicArchitectureReviewProvider(); this.resolveSkills = dependencies.resolveSkills; }
   getAgentDefinition() { return architectureReviewerAgentDefinition; }
   getCorrectionCycle(projectId: string, projectVersion: number) { return this.correctionCycles.get(`${projectId}:${projectVersion}`) ?? 0; }
   assertCorrectionAvailable(projectId: string, projectVersion: number) { if (this.getCorrectionCycle(projectId, projectVersion) >= 2) throw new ArchitectureReviewError("ARCHITECTURE_REVIEW_EXHAUSTED", "The maximum architecture review correction cycles has been reached."); }
@@ -35,11 +37,12 @@ export class ArchitectureReviewService {
     const input = this.parseAndPrecheck(rawInput);
     const project = await this.projects.getWithVersion(input.projectId);
     if (!project || project.project.currentVersion !== input.projectVersion || project.project.workflowState !== "ARCHITECTURE_REVIEW") throw new ArchitectureReviewError("ARCHITECTURE_REVIEW_WORKFLOW_INVALID", "Architecture review is only available in the ARCHITECTURE_REVIEW workflow stage.");
-    const inputHash = checksumPersistedDocument({ projectId: input.projectId, projectVersion: input.projectVersion, approvedBriefChecksum: input.approvedBriefChecksum, acceptedPlanningChecksum: input.acceptedPlanningChecksum, policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION, promptVersion: this.provider.promptVersion });
+    const skillSelection = this.resolveSkills ? await this.resolveSkills(input) : { contexts: [], identityChecksum: "none" };
+    const inputHash = checksumPersistedDocument({ projectId: input.projectId, projectVersion: input.projectVersion, approvedBriefChecksum: input.approvedBriefChecksum, acceptedPlanningChecksum: input.acceptedPlanningChecksum, skillContextChecksum: skillSelection.identityChecksum, policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION, promptVersion: this.provider.promptVersion });
     const prior = this.idempotency.get(input.idempotencyKey);
     if (prior) { if (prior.inputHash !== inputHash) throw new ArchitectureReviewError("ARCHITECTURE_REVIEW_IDEMPOTENCY_CONFLICT", "Architecture review idempotency key was reused with different canonical inputs."); return prior.result; }
     try {
-      const providerResult = await this.provider.review(input, signal);
+      const providerResult = await this.provider.review(input, signal, skillSelection.contexts);
       const result = this.normalizeResult(providerResult, input);
       const record = ArchitectureReviewRecordSchema.parse({ schemaVersion: 1, documentType: "architecture-review", projectId: input.projectId, projectVersion: input.projectVersion, createdAt: now(), updatedAt: now(), reviewId: randomUUID(), reviewerAgentId: architectureReviewerAgentDefinition.agentId, reviewerVersion: architectureReviewerAgentDefinition.version, capability: "review.architecture", policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION, promptVersion: this.provider.promptVersion, approvedBriefChecksum: input.approvedBriefChecksum, acceptedPlanningChecksum: input.acceptedPlanningChecksum, resultChecksum: checksumPersistedDocument(result), result });
       const priorRecord = await this.documents.get(input.projectId, input.projectVersion, "architecture-review"); const priorHistory = await this.documents.get(input.projectId, input.projectVersion, "architecture-review-history"); const historicalRecords = [...(priorHistory?.documentType === "architecture-review-history" ? priorHistory.records : []), ...(priorRecord?.documentType === "architecture-review" ? [ArchitectureReviewRecordSchema.parse(priorRecord)] : []), record]; await this.documents.save(ArchitectureReviewHistorySchema.parse({ schemaVersion: 1, documentType: "architecture-review-history", projectId: input.projectId, projectVersion: input.projectVersion, createdAt: historicalRecords[0]!.createdAt, updatedAt: now(), records: historicalRecords }), `architecture-review-history:${input.idempotencyKey}`); await this.documents.save(record, `architecture-review:${input.idempotencyKey}`);

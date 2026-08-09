@@ -25,11 +25,10 @@ Install counts and maintainer/framework signals are metadata only. Popularity is
 
 ## Context and reviewer boundaries
 
-The normal target is zero or one highly relevant skill per review task. Candidates are measured against the existing bounded injection policy and are not silently truncated. A reviewer skill must remain a reviewer procedure: architecture, contracts, integration, security, and test-quality responsibilities remain separate. No curation candidate may become a tool, executor, subagent framework, orchestrator, mutable state store, or alternative change-proposal model.
+The resolver may select zero, one, or multiple complementary procedures for a review task. Candidates are measured against the shared bounded injection policy and are never silently truncated; selection uses explicit coverage, project surfaces, overlap/conflict rules, and deterministic priority/ID ordering without a fixed maximum or top-K quota. A reviewer skill must remain a reviewer procedure: architecture, contracts, integration, security, and test-quality responsibilities remain separate. No curation candidate may become a tool, executor, subagent framework, orchestrator, mutable state store, or alternative change-proposal model.
 
 ## Lifecycle and human boundary
 
-Only `SHORTLIST` and `NEEDS_HUMAN_REVIEW` candidates may be staged. `REJECT` candidates are not staged. Staging means `under-review`; it is not approval and cannot be loaded by runtime. Human approval is a separate explicit action requiring exact checksum, license evidence, narrowed role/task/tool permissions, and the existing Approved Skills Registry approval path. During the curation phase the approved external skill count and active assigned external skill count remain zero.
+Only `SHORTLIST` and `NEEDS_HUMAN_REVIEW` candidates may be staged. `REJECT` candidates are not staged. Staging means `under-review`; it is not approval and cannot be loaded by runtime. Human approval is a separate explicit action requiring exact checksum, license evidence, narrowed role/task/tool permissions, and the existing Approved Skills Registry approval path. Phase 4B2 explicitly approves and assigns three checksum-bound curated procedures; all other agents remain unassigned pending Phase 4C. No approval is implied for any other discovered or staged candidate.
 
 Evaluation records are persisted separately under the admin curation output and are never overwritten across candidate checksums. If the external content changes, the prior record is stale and cannot be reused for the new candidate.
-
