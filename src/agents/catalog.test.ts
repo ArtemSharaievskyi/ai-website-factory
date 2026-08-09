@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AgentDefinitionSchema } from "@/domain/agents/schema";
-import { agentCatalog, AGENT_CAPABILITY_IDS, AGENT_TOOL_IDS, assertAgentSupportsCapability, findAgentById, findAgentsByCapability, implementationAgentDefinition, architectureReviewerAgentDefinition, contractAuditorAgentDefinition, codeIntegrationReviewerAgentDefinition, securityReviewerAgentDefinition, leadAgentDefinition, plannerAgentDefinition, designAgentDefinition, resolveApprovedSkillIds, validateAgentCatalog, AgentCatalogError } from "./catalog";
+import { agentCatalog, AGENT_CAPABILITY_IDS, AGENT_TOOL_IDS, assertAgentSupportsCapability, findAgentById, findAgentsByCapability, implementationAgentDefinition, architectureReviewerAgentDefinition, contractAuditorAgentDefinition, codeIntegrationReviewerAgentDefinition, securityReviewerAgentDefinition, testQualityReviewerAgentDefinition, leadAgentDefinition, plannerAgentDefinition, designAgentDefinition, resolveApprovedSkillIds, validateAgentCatalog, AgentCatalogError } from "./catalog";
 import { LeadAgentService } from "./lead/service";
 import { PlannerArchitectService } from "./planner/service";
 import { DesignAgentService } from "./design/service";
@@ -9,9 +9,10 @@ import { ArchitectureReviewService } from "./reviewers/architecture/service";
 import { ContractAuditService } from "./reviewers/contracts/service";
 import { CodeIntegrationReviewService } from "./reviewers/code-integration/service";
 import { SecurityReviewService } from "./reviewers/security/service";
+import { TestQualityReviewService } from "./reviewers/test-quality/service";
 
 describe("typed agent catalog", () => {
-  it("contains exactly the eight current agents", () => expect(agentCatalog.map((agent) => agent.agentId)).toEqual(["lead", "planner", "design", "implementation", "architecture-reviewer", "contract-auditor", "code-integration-reviewer", "security-reviewer"]));
+  it("contains exactly the nine current agents", () => expect(agentCatalog.map((agent) => agent.agentId)).toEqual(["lead", "planner", "design", "implementation", "architecture-reviewer", "contract-auditor", "code-integration-reviewer", "security-reviewer", "test-quality-reviewer"]));
   it("has unique identities and exclusive current capabilities", () => {
     expect(new Set(agentCatalog.map((agent) => agent.agentId)).size).toBe(agentCatalog.length);
     expect(new Set(agentCatalog.flatMap((agent) => agent.capabilities)).size).toBe(AGENT_CAPABILITY_IDS.length);
@@ -56,5 +57,6 @@ describe("typed agent catalog", () => {
     expect(Object.create(ContractAuditService.prototype).getAgentDefinition()).toBe(contractAuditorAgentDefinition);
     expect(Object.create(CodeIntegrationReviewService.prototype).getAgentDefinition()).toBe(codeIntegrationReviewerAgentDefinition);
     expect(Object.create(SecurityReviewService.prototype).getAgentDefinition()).toBe(securityReviewerAgentDefinition);
+    expect(Object.create(TestQualityReviewService.prototype).getAgentDefinition()).toBe(testQualityReviewerAgentDefinition);
   });
 });

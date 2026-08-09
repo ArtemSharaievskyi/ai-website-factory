@@ -6,7 +6,7 @@ The current typed flow is:
 
 `user/workflow requirement -> capability -> AgentDefinition -> bounded context/tools/approved skills -> typed result`
 
-The catalog currently contains exactly these eight definitions:
+The catalog currently contains exactly these nine definitions:
 
 | Agent | Role | Current capabilities | Write authority |
 | --- | --- | --- | --- |
@@ -18,6 +18,7 @@ The catalog currently contains exactly these eight definitions:
 | Contract Auditor | review | `review.contracts` | read-only review result only |
 | Code / Integration Reviewer | review | `review.integration` | read-only review result only |
 | Security Reviewer | review | `review.security` | read-only review result only |
+| Test / Quality Reviewer | review | `review.test-quality` | read-only review result only |
 
 The role boundaries are:
 
@@ -28,7 +29,7 @@ The role boundaries are:
 5. **Architecture Reviewer** reviews an approved Brief and accepted PlanningPackage before Design. It combines deterministic prechecks with bounded AI architectural reasoning, returns an evidence-backed `ReviewResult`, and cannot modify project artifacts.
 6. **Contract Auditor** reviews the final Brief → Planning → approved Architecture Review → selected Design → TaskGraph chain before implementation. It checks traceability, ownership, capabilities, executors, dependencies, and mandatory quality responsibilities; it does not re-review architecture taste or mutate any artifact.
 
-The workflow gates are `Planning Acceptance -> ARCHITECTURE_REVIEW -> Design -> Design Selection -> Orchestrator/TaskGraph -> CONTRACT_AUDIT -> START_IMPLEMENTATION`, followed by `CODE_INTEGRATION_REVIEW -> SECURITY_REVIEW -> VALIDATING`. An approved Architecture Review unlocks Design; an approved current Contract Audit, checksum-consistent with all upstream artifacts, unlocks implementation; current Code / Integration and Security approvals are required before downstream qualification. Reviewers return findings and correction targets; orchestration owns transitions and remediation.
+The workflow gates are `Planning Acceptance -> ARCHITECTURE_REVIEW -> Design -> Design Selection -> Orchestrator/TaskGraph -> CONTRACT_AUDIT -> START_IMPLEMENTATION`, followed by `CODE_INTEGRATION_REVIEW -> SECURITY_REVIEW -> VALIDATING -> TEST_QUALITY_REVIEW -> release qualification`. An approved Architecture Review unlocks Design; an approved current Contract Audit, checksum-consistent with all upstream artifacts, unlocks implementation; current Code / Integration, Security, deterministic quality, and Test / Quality approvals are required before release. Reviewers return findings and correction targets; orchestration owns transitions and remediation.
 
 ## Permissions and policy
 
@@ -36,11 +37,13 @@ Agent tools are explicit integration IDs: `openai-generation`, `context7-read`, 
 
 Each definition declares a versioned context policy with allowed categories, item and byte limits, plus an execution policy covering AI-generation permission, retry class, cancellation, concurrency, approval gates, and read-only status. Input and output contracts reference the existing typed agent schemas, while prompt versioning is tracked independently from context and execution policy versions. The Architecture Reviewer receives only the approved Brief, accepted PlanningPackage, fixed architecture policy, and bounded constraints.
 
-The current review capabilities are `review.architecture`, `review.contracts`, `review.integration`, and `review.security`; Test/Quality capability remains intentionally absent.
+The current review capabilities are `review.architecture`, `review.contracts`, `review.integration`, `review.security`, and `review.test-quality`.
 
 Skills provide reviewed specialization to roles; they do not replace the Orchestrator. In the current milestone no external skill is required. Agents must not install arbitrary skills, change requirements, invent facts, or broaden infrastructure.
 Context7 is a replaceable documentation port at the Planner and Implementation context seams, not an Orchestrator or general MCP layer.
 
 The Code / Integration Reviewer is a read-only semantic gate after implementation structural validation, lint, and typecheck. It receives only bounded source manifests/slices and canonical contract checksums, persists evidence-backed findings, and never writes source or invokes Implementation.
+
+The Test / Quality Reviewer is documented in [test-quality-reviewer.md](test-quality-reviewer.md). It runs after current lint, typecheck, unit-test, build, and Functional QA evidence exists. Its bounded `QualityEvidenceSummary` traces approved requirements to implementation responsibility and executed evidence. Deterministic prerequisites establish currentness and pass/fail facts; semantic review considers meaningful assertions, important flows, success/error outcomes, risk-scaled coverage, and Playwright scenario sufficiency. It does not write tests, run validators, invent requirements, or demand numeric coverage. Corrections route to existing test/QA or implementation ownership, with at most two bounded cycles. Application-source changes stale source-bound quality and semantic reviews; test-only changes preserve unchanged application reviews when checksums prove that boundary.
 
 The shadcn Registry is a replaceable implementation-reference port, not a Design Agent, Orchestrator, installer, or general remote executor.
