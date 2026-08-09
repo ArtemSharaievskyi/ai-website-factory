@@ -17,8 +17,9 @@ import { PersistenceError } from "./errors";
 import { PlanningPackageSchema } from "../../agents/planner/contracts";
 import { ImplementationRunsSchema } from "@/domain/implementation/schema";
 import { ExecutionSummarySchema } from "@/orchestration/execution/contracts";
+import { ArchitectureReviewHistorySchema, ArchitectureReviewRecordSchema } from "@/domain/review/schema";
 
-export const PersistedDocumentSchema = z.union([ClarificationSessionSchema, RequirementSpecificationSchema, DesignDirectionSetSchema, SelectedDesignSchema, TechnicalArchitectureSchema, ContentPlanSchema, AssetManifestSchema, PlanningPackageSchema, TaskGraphSchema, ImplementationRunsSchema, QualityReportSchema, ReleaseReportSchema, ExecutionSummarySchema]);
+export const PersistedDocumentSchema = z.union([ClarificationSessionSchema, RequirementSpecificationSchema, DesignDirectionSetSchema, SelectedDesignSchema, TechnicalArchitectureSchema, ContentPlanSchema, AssetManifestSchema, PlanningPackageSchema, TaskGraphSchema, ImplementationRunsSchema, QualityReportSchema, ReleaseReportSchema, ExecutionSummarySchema, ArchitectureReviewRecordSchema, ArchitectureReviewHistorySchema]);
 export type PersistedDocument = z.infer<typeof PersistedDocumentSchema>;
 
 export type DocumentRow = { projectId: string; projectVersion: number; documentType: string; schemaVersion: number; checksum: string; payload: unknown; createdAt: string; updatedAt: string; rowVersion: number };

@@ -11,6 +11,9 @@ import { OpenAiStructuredClient } from "./client";
 import { rolePrompt } from "./prompts";
 import type { ProviderUsageSink } from "./usage";
 import type { OrchestrationPlanningProvider } from "@/orchestration/orchestrator/service";
+import { ArchitectureReviewProviderOutputSchema, type ArchitectureReviewResult } from "@/domain/review/schema";
+import type { ArchitectureReviewInput } from "@/agents/reviewers/architecture/contracts";
+import type { ArchitectureReviewProvider } from "@/agents/reviewers/architecture/ports";
 import { z } from "zod";
 import { IsoDateTimeSchema, NonEmptyStringSchema } from "@/domain/shared/schemas";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
@@ -124,5 +127,10 @@ export class OpenAiOrchestrationProvider implements OrchestrationPlanningProvide
   constructor(private readonly ai: OpenAiStructuredClient) {}
   async plan(input: unknown, signal?: AbortSignal) { const prompt = rolePrompt("orchestrator", input); return (await this.ai.request({ ...prompt, role: "orchestrator", schema: OrchestrationPlanSchema, schemaName: "orchestration-plan", signal })).value as { tasks: unknown[] }; }
 }
-export function createProviderAdapters(ai: OpenAiStructuredClient) { return { lead: new OpenAiLeadProvider(ai), planner: new OpenAiPlannerProvider(ai), design: new OpenAiDesignProvider(ai), implementation: new OpenAiImplementationProvider(ai), orchestrator: new OpenAiOrchestrationProvider(ai) }; }
+export class OpenAiArchitectureReviewerProvider implements ArchitectureReviewProvider {
+  readonly promptVersion = "architecture-reviewer.v1";
+  constructor(private readonly ai: OpenAiStructuredClient) {}
+  async review(input: ArchitectureReviewInput, signal?: AbortSignal): Promise<ArchitectureReviewResult> { const prompt = rolePrompt("architecture-reviewer", input); return (await this.ai.request({ ...prompt, role: "architecture-reviewer", schema: ArchitectureReviewProviderOutputSchema, schemaName: "architecture-review-result", signal, idempotencyKey: input.idempotencyKey })).value as ArchitectureReviewResult; }
+}
+export function createProviderAdapters(ai: OpenAiStructuredClient) { return { lead: new OpenAiLeadProvider(ai), planner: new OpenAiPlannerProvider(ai), design: new OpenAiDesignProvider(ai), implementation: new OpenAiImplementationProvider(ai), architectureReviewer: new OpenAiArchitectureReviewerProvider(ai), orchestrator: new OpenAiOrchestrationProvider(ai) }; }
 export type { ProviderUsageSink };
