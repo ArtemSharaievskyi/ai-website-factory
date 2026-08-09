@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "lleewwiiss/codex-agents/review-and-simplify-changes",
+  "sourceId": "skills-sh",
+  "externalSkillId": "lleewwiiss/codex-agents/review-and-simplify-changes",
+  "canonicalSourceRef": "https://www.skills.sh/lleewwiiss/codex-agents/review-and-simplify-changes",
+  "targetReviewer": "architecture-reviewer",
+  "targetCapability": "review.architecture",
+  "candidateChecksum": "b7d749579c296e8dd607968115246e7b5574c99fac67dd98cfed9ee7e92b7841",
+  "retrievedContentChecksum": "585454d8d468734abc47815b28a91b4f85f45444688337749b940a20397365be",
+  "source": "lleewwiiss/codex-agents",
+  "displayName": "review-and-simplify-changes",
+  "installs": 15,
+  "contentBytes": 11070,
+  "estimatedInjectionBytes": 10414,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "incompatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "lleewwiiss/codex-agents/review-and-simplify-changes",
+      "source": "lleewwiiss/codex-agents",
+      "slug": "review-and-simplify-changes",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill provides a structured framework for code review and simplification using multiple subagents. It uses standard development tools and follows common software engineering practices. A low-severity risk of indirect prompt injection exists because the skill processes untrusted code changes, though this is inherent to its purpose.",
+          "auditedAt": "2026-07-13T07:52:04.911Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "PROMPT_INJECTION"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-07-13T07:52:06.083Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-07-13T07:51:43.132074+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [
+    {
+      "category": "agent-or-subagent",
+      "essential": false,
+      "evidence": [
+        "description: \"Use when reviewing or simplifying a commit, PR, branch, or WIP diff. Requires exactly eight fresh read-only track subagents unless the user explicitly requests one findings-only track. Not for unscoped codebase redesign.\"",
+        "Every non-single-track review pass must use brand-new subagents: exactly eight, one assigned to each track below. This is a hard rule.",
+        "- Discover active subagent capacity before dispatch. Start all eight together when at least eight slots are available; otherwise run waves until all eight distinct agents finish.",
+        "- Limited concurrency is not a reason to merge, omit, or replace tracks. If subagents are entirely unavailable, stop and report the blocked invariant."
+      ]
+    },
+    {
+      "category": "git",
+      "essential": true,
+      "evidence": [
+        "description: \"Use when reviewing or simplifying a commit, PR, branch, or WIP diff. Requires exactly eight fresh read-only track subagents unless the user explicitly requests one findings-only track. Not for unscoped codebase redesign.\"",
+        "Use this after a commit, PR, branch, or WIP diff to improve code quality without speculative churn.",
+        "- Reviewing or simplifying changes after a commit, PR, branch, or work-in-progress diff",
+        "- Checking changed code against repo Standards and change Intent from the prompt, explicit spec, plan, task notes, issue, or commit message"
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "2. Pin the review scope: commit, PR, branch, fixed point, or WIP diff. If the user says WIP, always inspect `git status --short` before choosing the diff. Prefer `git diff <fixed-point>...HEAD` and `git log <fixed-point>..HEAD --oneline` wh"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "The candidate requires a tool that this reviewer does not possess; no permission is granted.",
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T15:46:54.968Z"
+}

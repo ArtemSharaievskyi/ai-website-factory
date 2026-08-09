@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "andresnator/agents-orchestrator/prd",
+  "sourceId": "skills-sh",
+  "externalSkillId": "andresnator/agents-orchestrator/prd",
+  "canonicalSourceRef": "https://www.skills.sh/andresnator/agents-orchestrator/prd",
+  "targetReviewer": "contract-auditor",
+  "targetCapability": "review.contracts",
+  "candidateChecksum": "f8743a1b82970674f8a25d7c6121d594e20aa904994f7772b0aba9441f8873f8",
+  "retrievedContentChecksum": "f49480283c418a5e814d3ec8069fcd5223cfa70cb3849dc6fc13f786344fb933",
+  "source": "andresnator/agents-orchestrator",
+  "displayName": "prd",
+  "installs": 26,
+  "contentBytes": 9773,
+  "estimatedInjectionBytes": 5494,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "andresnator/agents-orchestrator/prd",
+      "source": "andresnator/agents-orchestrator",
+      "slug": "prd",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides a guided interactive process to create technical Product Requirements Documents (PRDs). It uses a local markdown template to structure user input and validates the quality of requirements. No security issues were detected; the skill performs standard document generation tasks without external dependencies or risky command execution.",
+          "auditedAt": "2026-05-16T05:09:17.088Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-05-16T05:09:37.890Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-05-16T05:09:13.924873+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Candidate passed deterministic curation checks and adds focused review procedure."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "prd-46ce9266c41c",
+  "evaluatedAt": "2026-08-09T15:46:59.136Z"
+}

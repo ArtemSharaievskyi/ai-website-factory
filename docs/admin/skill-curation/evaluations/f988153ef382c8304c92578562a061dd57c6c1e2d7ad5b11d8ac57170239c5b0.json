@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "vamseeachanta/workspace-hub/webapp-testing",
+  "sourceId": "skills-sh",
+  "externalSkillId": "vamseeachanta/workspace-hub/webapp-testing",
+  "canonicalSourceRef": "https://www.skills.sh/vamseeachanta/workspace-hub/webapp-testing",
+  "targetReviewer": "test-quality-reviewer",
+  "targetCapability": "review.test-quality",
+  "candidateChecksum": "f988153ef382c8304c92578562a061dd57c6c1e2d7ad5b11d8ac57170239c5b0",
+  "retrievedContentChecksum": "32f444905c4a48da44a8328be5c8f1ebdf5f6c8c7885b8189a6694bcbe1810df",
+  "source": "vamseeachanta/workspace-hub",
+  "displayName": "webapp-testing",
+  "installs": 25,
+  "contentBytes": 2666,
+  "estimatedInjectionBytes": 2657,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "vamseeachanta/workspace-hub/webapp-testing",
+      "source": "vamseeachanta/workspace-hub",
+      "slug": "webapp-testing",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "No files were provided for analysis. This empty skill does not contain any executable code, prompts, or configurations that could pose a security risk.",
+          "auditedAt": "2026-02-20T16:02:12.233Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T22:04:34.450Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-20T16:02:12.904967+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "warn",
+          "summary": "1/1 file flagged",
+          "auditedAt": "2026-02-21T20:59:10.044Z",
+          "riskLevel": "MEDIUM"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "description: Web application testing toolkit using Playwright with Python. Use for",
+        "verifying frontend functionality, debugging UI behavior, capturing browser screenshots,",
+        "viewing browser logs, and automating web interactions.",
+        "This toolkit enables testing local web applications using Playwright with Python for frontend verification, UI debugging, screenshot capture, and browser automation."
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "description: Web application testing toolkit using Playwright with Python. Use for",
+        "This toolkit enables testing local web applications using Playwright with Python for frontend verification, UI debugging, screenshot capture, and browser automation.",
+        "pip install playwright pytest requests",
+        "```python"
+      ]
+    },
+    {
+      "category": "package-install",
+      "essential": false,
+      "evidence": [
+        "pip install playwright pytest requests"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 1,
+    "externalLinksDetected": 1
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T15:47:28.017Z"
+}

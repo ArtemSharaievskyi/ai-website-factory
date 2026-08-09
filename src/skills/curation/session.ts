@@ -86,6 +86,23 @@ const classifyAvailability = (error: unknown): CurationAvailability => {
   }
 };
 
+const sourceIssue = (prefix: string, availability: CurationAvailability, error: unknown) => {
+  const code = error instanceof SkillsShError ? error.code : availability;
+  const path = error instanceof SkillsShError ? error.details?.path : undefined;
+  return prefix + ": " + code + (path ? " path=" + String(path) : "");
+};
+const isFatalSourceError = (error: unknown) =>
+  error instanceof SkillsShError &&
+  [
+    "SKILLS_SH_AUTH_REQUIRED",
+    "SKILLS_SH_AUTH_INVALID",
+    "SKILLS_SH_ACCESS_FORBIDDEN",
+    "SKILLS_SH_RATE_LIMITED",
+    "SKILLS_SH_NETWORK_FAILED",
+    "SKILLS_SH_REQUEST_TIMEOUT",
+    "SKILLS_SH_SOURCE_UNAVAILABLE",
+  ].includes(error.code);
+
 export async function runCurationSession(options: CurationSessionOptions) {
   const adapter = options.adapter ?? new SkillsShSourceAdapter();
   const registry = options.registry ?? new SkillRegistry(path.join(process.cwd(), "skills"));
@@ -104,7 +121,7 @@ export async function runCurationSession(options: CurationSessionOptions) {
       searchResults = await adapter.searchSkills(target.query, { limit: 5 });
     } catch (error) {
       availability = classifyAvailability(error);
-      sourceIssues.push(`${target.reviewer}: ${availability}`);
+      sourceIssues.push(sourceIssue(target.reviewer, availability, error));
       break;
     }
     for (const result of searchResults.slice(0, 5)) {
@@ -115,19 +132,27 @@ export async function runCurationSession(options: CurationSessionOptions) {
         candidate = await adapter.fetchSkillCandidate(result.id);
         detailCandidatesFetched += 1;
       } catch (error) {
-        availability = classifyAvailability(error);
-        sourceIssues.push(`${target.reviewer}/${result.id}: ${availability}`);
-        break;
+        const candidateAvailability = classifyAvailability(error);
+        sourceIssues.push(sourceIssue(target.reviewer + "/" + result.id, candidateAvailability, error));
+        if (isFatalSourceError(error)) {
+          availability = candidateAvailability;
+          break;
+        }
+        continue;
       }
       candidate = {
         ...candidate,
         descriptor: {
           ...candidate.descriptor,
           name: result.name,
+          canonicalSourceRef: result.canonicalSourceRef,
           metadata: {
             ...candidate.descriptor.metadata,
             installs: result.installs,
             sourceType: result.sourceType,
+            installUrl: result.installUrl,
+            url: result.url,
+            isDuplicate: result.isDuplicate,
           },
         },
       };

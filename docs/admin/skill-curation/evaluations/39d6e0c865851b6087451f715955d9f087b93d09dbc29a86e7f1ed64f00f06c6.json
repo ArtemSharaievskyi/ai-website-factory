@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "4444j99/a-i--skills/testing-patterns",
+  "sourceId": "skills-sh",
+  "externalSkillId": "4444j99/a-i--skills/testing-patterns",
+  "canonicalSourceRef": "https://www.skills.sh/4444j99/a-i--skills/testing-patterns",
+  "targetReviewer": "test-quality-reviewer",
+  "targetCapability": "review.test-quality",
+  "candidateChecksum": "39d6e0c865851b6087451f715955d9f087b93d09dbc29a86e7f1ed64f00f06c6",
+  "retrievedContentChecksum": "961864fd708f927403500d20449b083557fc1bcca0bb3e229cb771df06fa1268",
+  "source": "4444j99/a-i--skills",
+  "displayName": "testing-patterns",
+  "installs": 13,
+  "contentBytes": 36565,
+  "estimatedInjectionBytes": 36427,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "4444j99/a-i--skills/testing-patterns",
+      "source": "4444j99/a-i--skills",
+      "slug": "testing-patterns",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides comprehensive documentation and code patterns for software testing across different levels of the stack. It includes examples for unit, integration, and E2E testing using industry-standard tools. No security risks were identified.",
+          "auditedAt": "2026-04-19T03:24:41.183Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-04-19T03:25:53.664Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-04-19T03:24:49.108629+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "// Update screenshots: npx playwright test --update-snapshots",
+        "| `npx playwright test --ui` | Interactive UI mode |",
+        "| `npx playwright test --debug` | Step-through debugger |",
+        "| `npx playwright show-report` | Open HTML report |"
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "| Branch | 70-80% | 90%+ |"
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "| External API (Stripe, GitHub) | Yes (MSW) | In dedicated integration tests |",
+        "# .github/workflows/test.yml"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "references/playwright-patterns.md",
+        "# Playwright E2E Patterns",
+        "Configuration, patterns, and recipes for end-to-end testing with Playwright.",
+        "// playwright.config.ts"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "## API Calls with fetch",
+        "### Basic fetch mock",
+        "global.fetch = mockFetch;",
+        "it('handles fetch failure', async () => {"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 20,
+    "externalLinksDetected": 3
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T15:47:28.737Z"
+}

@@ -27,6 +27,13 @@ export class SkillCurationEvaluationStore {
         existing.policyVersion !== CURATION_POLICY_VERSION
       )
         throw new Error("Evaluation checksum collision or policy mismatch.");
+      if (!existing.externalAudit.available && parsed.externalAudit.available) {
+        await writeFile(target, `${JSON.stringify(parsed, null, 2)}\n`, {
+          flag: "w",
+          mode: 0o600,
+        });
+        return parsed;
+      }
       return existing;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
@@ -71,4 +78,3 @@ export class SkillCurationEvaluationStore {
     };
   }
 }
-

@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "borghei/claude-skills/senior-frontend",
+  "sourceId": "skills-sh",
+  "externalSkillId": "borghei/claude-skills/senior-frontend",
+  "canonicalSourceRef": "https://www.skills.sh/borghei/claude-skills/senior-frontend",
+  "targetReviewer": "code-integration-reviewer",
+  "targetCapability": "review.integration",
+  "candidateChecksum": "96f731dfaa2dda2728a057bacb04e4fd9bae4e49752835886909dd3739751ae6",
+  "retrievedContentChecksum": "0e374f3a1c364db80d6aa91ebe3ed2b1d800165350b1046c88678cf875fecb54",
+  "source": "borghei/claude-skills",
+  "displayName": "senior-frontend",
+  "installs": 296,
+  "contentBytes": 127353,
+  "estimatedInjectionBytes": 77080,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "borghei/claude-skills/senior-frontend",
+      "source": "borghei/claude-skills",
+      "slug": "senior-frontend",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The senior-frontend skill provides a suite of automation tools for React and Next.js development. It includes scripts for project scaffolding, component generation, and bundle size analysis. The skill follows industry-standard security practices for local development tools.",
+          "auditedAt": "2026-03-30T23:56:16.082Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-30T23:57:39.968Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-03-30T23:55:45.733307+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "warn",
+          "summary": "1/1 file flagged",
+          "auditedAt": "2026-02-22T03:03:55.344Z",
+          "riskLevel": "MEDIUM"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "Score: 93/100 · 2 sections analyzed",
+          "auditedAt": "2026-04-16T18:35:42.949Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash",
+        "```bash",
+        "```bash",
+        "```bash"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "- Browser APIs",
+        "### E2E Testing with Playwright",
+        "import { test, expect } from '@playwright/test';",
+        "await page.goto('/');"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "python scripts/frontend_scaffolder.py my-app --template nextjs",
+        "python scripts/frontend_scaffolder.py dashboard --template nextjs --features auth,api",
+        "python scripts/component_generator.py Button --dir src/components/ui",
+        "python scripts/component_generator.py ProductCard --type server"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "fetch(url).then(r => r.json()).then(setData).finally(() => setLoading(false));",
+        "const product = await getProduct(params.id);  // Server-side fetch",
+        "const response = await fetch('https://api.example.com/data', {",
+        "### Fetch Cache Options"
+      ]
+    },
+    {
+      "category": "package-install",
+      "essential": false,
+      "evidence": [
+        "npm install @next/bundle-analyzer",
+        "cd my-app && npm install",
+        "\"next_steps\": [\"cd dashboard\", \"npm install\", \"npm run dev\"]",
+        "\"npm install\","
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 36,
+    "externalLinksDetected": 9
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T15:47:08.098Z"
+}

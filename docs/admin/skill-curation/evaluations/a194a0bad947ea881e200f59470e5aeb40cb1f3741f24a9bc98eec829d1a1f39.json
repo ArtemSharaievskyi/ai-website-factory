@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "dapasa/skillforge/security-review-nextjs-supabase",
+  "sourceId": "skills-sh",
+  "externalSkillId": "dapasa/skillforge/security-review-nextjs-supabase",
+  "canonicalSourceRef": "https://www.skills.sh/dapasa/skillforge/security-review-nextjs-supabase",
+  "targetReviewer": "security-reviewer",
+  "targetCapability": "review.security",
+  "candidateChecksum": "a194a0bad947ea881e200f59470e5aeb40cb1f3741f24a9bc98eec829d1a1f39",
+  "retrievedContentChecksum": "88429ec5d0f1f2d7e708cab92da2f0bd0ed92d49fd3346e4d26c9dabe81baa14",
+  "source": "dapasa/skillforge",
+  "displayName": "security-review-nextjs-supabase",
+  "installs": 1,
+  "contentBytes": 44651,
+  "estimatedInjectionBytes": 44493,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "dapasa/skillforge/security-review-nextjs-supabase",
+      "source": "dapasa/skillforge",
+      "slug": "security-review-nextjs-supabase",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill is a security auditing tool designed to review Next.js and Supabase applications for common vulnerabilities. It performs static analysis of the local codebase using standard shell utilities to identify configuration errors, exposed secrets, and Row Level Security (RLS) issues. The skill follows security best practices by requiring user confirmation before interacting with external services like GitHub and uses local persistence tools for session management.",
+          "auditedAt": "2026-04-24T09:36:38.913Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "COMMAND_EXECUTION",
+            "PROMPT_INJECTION"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "warn",
+          "summary": "1 alert: gptSecurity",
+          "auditedAt": "2026-04-24T09:38:17.078Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-04-24T09:36:22.987142+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash",
+        "```bash",
+        "```bash",
+        "```bash"
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "grep -v node_modules | grep -v .next | grep -v .git | head -100",
+        "--exclude-dir={node_modules,.next,.git}",
+        "--exclude-dir={node_modules,.next,.git}",
+        "--exclude-dir={node_modules,.next,.git}"
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "## Fase 10 (Opcional): Crear GitHub Issues",
+        "gh issue create \\",
+        "- [ ] Las variables de CI/CD (GitHub Actions/Secrets) están marcadas como secretas"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "4. El cliente Supabase en browser tiene el `anon` key — toda la seguridad real descansa en RLS",
+        "// El token queda en logs del servidor, historial del browser y headers Referer",
+        "| `NEXT_PUBLIC_SUPABASE_URL` | Pública (browser) | Ninguno — es la URL del proyecto |",
+        "| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Pública (browser) | Alto si RLS está mal — Bajo si RLS es correcto |"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "curl -I https://tuapp.com | grep -E \"x-frame|x-content|strict-transport|content-security\"",
+        "// ❌ SSRF — el usuario controla la URL del fetch",
+        "const response = await fetch(url!) // atacante puede apuntar a servicios internos",
+        "const response = await fetch(url)"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 32,
+    "externalLinksDetected": 4
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T15:47:24.160Z"
+}

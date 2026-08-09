@@ -1,4 +1,5 @@
 import path from "node:path";
+import { loadFactoryCliEnv } from "./cli-env";
 import { runCurationSession } from "@/skills/curation/session";
 import { SkillCurationEvaluationStore } from "@/skills/curation/store";
 import { SkillRegistry } from "@/skills/registry/registry";
@@ -17,6 +18,8 @@ const evaluationRoot = path.join(
   "skill-curation",
   "evaluations",
 );
+
+loadFactoryCliEnv(root);
 
 async function main() {
   const result = await runCurationSession({

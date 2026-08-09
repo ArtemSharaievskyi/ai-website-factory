@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "mindrally/skills/nextjs-react-typescript",
+  "sourceId": "skills-sh",
+  "externalSkillId": "mindrally/skills/nextjs-react-typescript",
+  "canonicalSourceRef": "https://www.skills.sh/mindrally/skills/nextjs-react-typescript",
+  "targetReviewer": "code-integration-reviewer",
+  "targetCapability": "review.integration",
+  "candidateChecksum": "c2e86e637604e6729cce4353b570fa9be538ddd824a96263722fbe267c1c4f6e",
+  "retrievedContentChecksum": "06ef3d259a7fc71fc3c6d339987697135dc168739e931edef71a0dd0a7263ee7",
+  "source": "mindrally/skills",
+  "displayName": "nextjs-react-typescript",
+  "installs": 4538,
+  "contentBytes": 1892,
+  "estimatedInjectionBytes": 1883,
+  "roleFit": "strong",
+  "procedureFit": "none",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "mindrally/skills/nextjs-react-typescript",
+      "source": "mindrally/skills",
+      "slug": "nextjs-react-typescript",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides standard coding guidelines and best practices for Next.js, React, and TypeScript development. No malicious patterns or security vulnerabilities were detected.",
+          "auditedAt": "2026-02-15T20:38:07.469Z",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T16:48:26.262Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-15T20:08:38.917854+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "warn",
+          "summary": "1/1 file flagged",
+          "auditedAt": "2026-02-21T15:50:32.294Z",
+          "riskLevel": "MEDIUM"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "Score: 93/100 · 2 sections analyzed",
+          "auditedAt": "2026-04-16T03:43:54.595Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "The candidate provides limited reusable review methodology.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T15:47:07.156Z"
+}

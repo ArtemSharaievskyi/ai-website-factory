@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "mdhb2/lean-coding-skills/lcs-tosrs",
+  "sourceId": "skills-sh",
+  "externalSkillId": "mdhb2/lean-coding-skills/lcs-tosrs",
+  "canonicalSourceRef": "https://www.skills.sh/mdhb2/lean-coding-skills/lcs-tosrs",
+  "targetReviewer": "contract-auditor",
+  "targetCapability": "review.contracts",
+  "candidateChecksum": "b0d64a3ba3c37ade80e1a932ac05b44dc2ea3da0e64dbd0963cd906ba68b7879",
+  "retrievedContentChecksum": "3277391ddf530476bd1b144594d8921222878efda7fc9d364721089bb470bc13",
+  "source": "mdhb2/lean-coding-skills",
+  "displayName": "lcs-tosrs",
+  "installs": 16,
+  "contentBytes": 8958,
+  "estimatedInjectionBytes": 8949,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "mdhb2/lean-coding-skills/lcs-tosrs",
+      "source": "mdhb2/lean-coding-skills",
+      "slug": "lcs-tosrs",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The lcs-tosrs skill is a documentation utility designed to transform Product Requirement Documents (PRD) into Software Requirement Specifications (SRS). It uses structured markdown templates and strictly defined file paths within a project's work-item directory. The skill does not perform any network operations, code execution, or sensitive data access.",
+          "auditedAt": "2026-05-28T05:45:30.146Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-05-28T05:45:42.631Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "warn",
+          "summary": "Risk: MEDIUM · 1 issue",
+          "auditedAt": "2026-05-28T05:45:10.095288+00:00",
+          "riskLevel": "MEDIUM"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 1,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T15:47:00.621Z"
+}

@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "yuniorglez/gemini-elite-core/supabase-expert",
+  "sourceId": "skills-sh",
+  "externalSkillId": "yuniorglez/gemini-elite-core/supabase-expert",
+  "canonicalSourceRef": "https://www.skills.sh/yuniorglez/gemini-elite-core/supabase-expert",
+  "targetReviewer": "security-reviewer",
+  "targetCapability": "review.security",
+  "candidateChecksum": "311c628ae0ac8678dcdbb54ba2fe7f01b4c93ba98e2cc09d34c83006ed7fab10",
+  "retrievedContentChecksum": "a0a3e4267fd61d6f8b1c4f1b42277ca332b575e2865c091a54a336de687c1299",
+  "source": "yuniorglez/gemini-elite-core",
+  "displayName": "supabase-expert",
+  "installs": 16,
+  "contentBytes": 12240,
+  "estimatedInjectionBytes": 12116,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "yuniorglez/gemini-elite-core/supabase-expert",
+      "source": "yuniorglez/gemini-elite-core",
+      "slug": "supabase-expert",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill is a documentation-based guide focused on security best practices for Supabase, Row Level Security (RLS), and Next.js architecture. It contains no executable scripts, hardcoded secrets, or malicious instructions.",
+          "auditedAt": "2026-02-17T18:21:25.129Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "NO_CODE"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T22:51:44.000Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-16T01:24:55.843443+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "2/5 files flagged",
+          "auditedAt": "2026-03-03T20:40:59.472Z",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash",
+        "```bash"
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "5.  **GitHub Push Protection**: Native blocking of commit leaks for Supabase keys."
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "Native GitHub Actions will now verify your migrations against your RLS policies before allowing a push to production.",
+        "3.  **Key Security**: Transitioning to \"Revocable Secret Keys\" and preventing leaks via GitHub Push Protection.",
+        "5.  **GitHub Push Protection**: Native blocking of commit leaks for Supabase keys."
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "**Best Practice**: Never broadcast large data objects. Broadcast the `id` of the changed item and let clients fetch the full data via the standard API (which is cached by the edge)."
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 6,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T15:47:18.433Z"
+}

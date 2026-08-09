@@ -12,6 +12,7 @@ export type CurationAvailability =
   | "UNAVAILABLE"
   | "NETWORK_ERROR"
   | "TIMEOUT"
+  | "API_CONTRACT_MISMATCH"
   | "API_ERROR";
 
 const reviewerLabels: Record<CurationReviewer, string> = {

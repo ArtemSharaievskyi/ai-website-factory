@@ -41,28 +41,50 @@ export const SkillsShDescriptorSchema = z
   })
   .strict();
 export type SkillsShDescriptor = z.infer<typeof SkillsShDescriptorSchema>;
-export const SkillsShSearchResponseSchema = z
+export const SkillsShSkillSummarySchema = z
   .object({
-    data: z.array(
-      z
-        .object({
-          id: ExternalId,
-          slug: z.string().min(1),
-          name: z.string().min(1),
-          source: z.string().min(1),
-          installs: z.number().int().nonnegative().optional(),
-          sourceType: z.string().optional(),
-          installUrl: z.string().url().nullable().optional(),
-          url: z.string().url().nullable().optional(),
-        })
-        .strict(),
-    ),
-    query: z.string().optional(),
-    count: z.number().int().nonnegative().optional(),
-    searchType: z.enum(["fuzzy", "semantic"]).optional(),
-    durationMs: z.number().nonnegative().optional(),
+    id: ExternalId,
+    slug: z.string().min(1).max(120),
+    name: z.string().min(1).max(200),
+    source: z.string().min(1).max(300),
+    installs: z.number().int().nonnegative(),
+    sourceType: z.enum(["github", "well-known"]),
+    installUrl: z.string().url().nullable(),
+    url: z.string().url(),
+    isDuplicate: z.boolean().optional(),
+    installsYesterday: z.number().int().nonnegative().optional(),
+    change: z.number().int().optional(),
   })
   .strict();
+export type SkillsShSkillSummary = z.infer<typeof SkillsShSkillSummarySchema>;
+export const SkillsShPaginationSchema = z
+  .object({
+    page: z.number().int().nonnegative(),
+    perPage: z.number().int().positive(),
+    total: z.number().int().nonnegative(),
+    hasMore: z.boolean(),
+  })
+  .strict();
+export type SkillsShPagination = z.infer<typeof SkillsShPaginationSchema>;
+export const SkillsShListResponseSchema = z
+  .object({
+    data: z.array(SkillsShSkillSummarySchema),
+    pagination: SkillsShPaginationSchema,
+  })
+  .strict();
+export type SkillsShListResponse = z.infer<typeof SkillsShListResponseSchema>;
+export const SkillsShSearchResponseSchema = z
+  .object({
+    data: z.array(SkillsShSkillSummarySchema),
+    query: z.string(),
+    count: z.number().int().nonnegative(),
+    searchType: z.enum(["fuzzy", "semantic"]),
+    durationMs: z.number().nonnegative(),
+  })
+  .strict();
+export type SkillsShSearchResponse = z.infer<
+  typeof SkillsShSearchResponseSchema
+>;
 export const SkillsShFileSchema = z
   .object({ path: z.string().min(1).max(500), contents: z.string() })
   .strict();
@@ -71,7 +93,8 @@ export const SkillsShDetailResponseSchema = z
     id: ExternalId,
     source: z.string().min(1),
     slug: z.string().min(1),
-    hash: z.string().min(1).nullable().optional(),
+    installs: z.number().int().nonnegative(),
+    hash: z.string().min(1).nullable(),
     files: z.array(SkillsShFileSchema).nullable(),
   })
   .strict();
@@ -84,9 +107,10 @@ export const SkillsShAuditEntrySchema = z
     slug: z.string().min(1),
     status: z.enum(["pass", "warn", "fail"]),
     summary: z.string().max(2000),
-    auditedAt: z.string().datetime(),
+    auditedAt: z.string().datetime({ offset: true, local: true }),
     riskLevel: z
-      .enum(["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"])
+      .enum(["SAFE", "NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"])
+      .nullable()
       .optional(),
     categories: z.array(z.string()).optional(),
   })

@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "milad-alizadeh/argo/setup-module-boundaries",
+  "sourceId": "skills-sh",
+  "externalSkillId": "milad-alizadeh/argo/setup-module-boundaries",
+  "canonicalSourceRef": "https://www.skills.sh/site/milad-alizadeh.argo/setup-module-boundaries",
+  "targetReviewer": "architecture-reviewer",
+  "targetCapability": "review.architecture",
+  "candidateChecksum": "75a6fb8e01233b410fd7dc43f51f171915c28b8683dac524e79eb9b46675676e",
+  "retrievedContentChecksum": "1c2c8fb242f9220ffe1261131b4da2568432e9012d69e147de10c4195d93d6e2",
+  "source": "milad-alizadeh/argo",
+  "displayName": "setup-module-boundaries",
+  "installs": 20,
+  "contentBytes": 14943,
+  "estimatedInjectionBytes": 9123,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "milad-alizadeh/argo/setup-module-boundaries",
+      "source": "milad-alizadeh/argo",
+      "slug": "setup-module-boundaries",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill automates the setup of module boundary enforcement using dependency-cruiser. It performs standard development tasks like installing dev dependencies and creating configuration files. No malicious patterns or security risks were identified.",
+          "auditedAt": "2026-07-22T01:50:57.888Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "COMMAND_EXECUTION",
+            "EXTERNAL_DOWNLOADS"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-07-22T01:51:31.997Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "warn",
+          "summary": "Risk: MEDIUM · 1 issue",
+          "auditedAt": "2026-07-22T01:50:39.003515+00:00",
+          "riskLevel": "MEDIUM"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "*runs* depcruise, so force the bun runtime instead of letting the `node` shebang shell out"
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "violations and commit it (in `scripts/`, beside the config), so *new* leaks still fail while",
+        "Optionally add it to a pre-commit hook (if the repo uses husky/lint-staged from the",
+        "`setup-pre-commit` skill) so leaks are caught before push — but CI is the backstop that"
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "Copy `templates/module-boundaries.yml` → `.github/workflows/module-boundaries.yml`. Swap the"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "'(^|/)(vite|vitest|electron\\\\.vite|playwright|tailwind|postcss)\\\\.config\\\\.',"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 2,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T15:46:57.871Z"
+}

@@ -239,6 +239,18 @@ describe("external skill curation", () => {
       await store.save(value);
       const current = await store.getCurrent(value.externalSkillId, value.candidateChecksum);
       expect(current.evaluation?.candidateChecksum).toBe(value.candidateChecksum);
+      const unavailableAudit = {
+        ...value,
+        externalAudit: { available: false, reason: "temporarily unavailable" },
+        externalAuditStatus: "unavailable" as const,
+      };
+      await store.save(unavailableAudit);
+      const refreshedAudit = await store.save({
+        ...value,
+        externalAudit: { available: true },
+        externalAuditStatus: "pass" as const,
+      });
+      expect(refreshedAudit.externalAudit.available).toBe(true);
       const changed = candidate(`${architectureMarkdown}\nChanged content.`, { id: value.externalSkillId });
       const stale = await store.getCurrent(value.externalSkillId, changed.normalizedContentChecksum);
       expect(stale.evaluation).toBeUndefined();

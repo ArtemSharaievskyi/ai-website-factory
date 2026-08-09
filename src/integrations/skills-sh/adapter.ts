@@ -13,8 +13,11 @@ import {
   SkillsShAuditResponseSchema,
   SkillsShAuditResultSchema,
   SkillsShDescriptorSchema,
+  SkillsShListResponseSchema,
   SkillsShSearchResponseSchema,
   SkillsShCandidateSchema,
+  type SkillsShListResponse,
+  type SkillsShSkillSummary,
   SkillsShSourceSchema,
   type SkillsShCandidate,
   type SkillsShDescriptor,
@@ -59,6 +62,60 @@ const sourceIdSafe = (value: string) => {
     );
   return value;
 };
+const receivedType = (value: unknown) => {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "array";
+  return typeof value;
+};
+const schemaIssueDetails = (endpoint: string, error: unknown) => {
+  const issues = (error as { issues?: unknown }).issues;
+  if (!Array.isArray(issues))
+    return {
+      endpoint,
+      path: "<root>",
+      expected: "valid JSON object",
+      received: "unknown",
+    };
+  const issue = (issues[0] ?? {}) as {
+    code?: string;
+    path?: PropertyKey[];
+    expected?: unknown;
+    input?: unknown;
+    keys?: string[];
+    message?: string;
+  };
+  const path = issue.path?.length
+    ? issue.path.map((part) => String(part)).join(".")
+    : "<root>";
+  const expected =
+    issue.code === "unrecognized_keys"
+      ? "known fields only"
+      : typeof issue.expected === "string"
+        ? issue.expected
+        : issue.code || "valid value";
+  const received =
+    issue.input !== undefined
+      ? receivedType(issue.input)
+      : issue.message?.match(/received ([A-Za-z]+)/i)?.[1]?.toLowerCase() ||
+        (issue.code === "unrecognized_keys" ? "object" : "unknown");
+  return {
+    endpoint,
+    path,
+    expected,
+    received,
+  };
+};
+const contractError = (endpoint: string, error: unknown) =>
+  new SkillsShError(
+    "SKILLS_SH_API_CONTRACT_MISMATCH",
+    "The skills.sh " + endpoint + " response failed strict schema validation.",
+    schemaIssueDetails(endpoint, error),
+  );
+const normalizeSkillSummary = (item: SkillsShSkillSummary) => ({
+  ...item,
+  sourceId: SKILLS_SH_SOURCE_ID,
+  canonicalSourceRef: item.url,
+});
 export function validateSkillsShUrl(
   raw: string,
   code:
@@ -315,6 +372,49 @@ export class SkillsShSourceAdapter {
       ([key]) => key.toLowerCase() === name.toLowerCase(),
     )?.[1];
   }
+  async listSkills(
+    options: {
+      view?: "all-time" | "trending" | "hot";
+      page?: number;
+      perPage?: number;
+      signal?: AbortSignal;
+    } = {},
+  ) {
+    const page = options.page ?? 0;
+    const perPage = options.perPage ?? 10;
+    if (!Number.isInteger(page) || page < 0)
+      throw new SkillsShError(
+        "SKILLS_SH_RESPONSE_INVALID",
+        "The skills.sh page must be a non-negative integer.",
+      );
+    if (!Number.isInteger(perPage) || perPage < 1 || perPage > 500)
+      throw new SkillsShError(
+        "SKILLS_SH_RESPONSE_INVALID",
+        "The skills.sh per_page value must be between 1 and 500.",
+      );
+    const params = new URLSearchParams({
+      view: options.view ?? "all-time",
+      page: String(page),
+      per_page: String(perPage),
+    });
+    const response = await this.request(
+      this.urlFor("/api/v1/skills?" + params.toString()),
+      options.signal,
+    );
+    let parsed: SkillsShListResponse;
+    try {
+      parsed = SkillsShListResponseSchema.parse(JSON.parse(response.body));
+    } catch (error) {
+      if (error instanceof SyntaxError)
+        throw new SkillsShError(
+          "SKILLS_SH_RESPONSE_INVALID",
+          "The skills.sh list response is not valid JSON.",
+          { endpoint: "list" },
+        );
+      throw contractError("list", error);
+    }
+    return { ...parsed, data: parsed.data.map(normalizeSkillSummary) };
+  }
   async searchSkills(
     query: string,
     options: { limit?: number; owner?: string; signal?: AbortSignal } = {},
@@ -325,7 +425,7 @@ export class SkillsShSourceAdapter {
         "SKILLS_SH_RESPONSE_INVALID",
         "Skill search queries must contain 2-200 characters.",
       );
-    const limit = Math.max(1, Math.min(50, options.limit ?? 10));
+    const limit = Math.max(1, Math.min(200, options.limit ?? 10));
     const params = new URLSearchParams({ q, limit: String(limit) });
     if (options.owner) {
       if (!/^[A-Za-z0-9_.-]+$/.test(options.owner))
@@ -340,21 +440,16 @@ export class SkillsShSourceAdapter {
       options.signal,
     );
     try {
-      return SkillsShSearchResponseSchema.parse(
-        JSON.parse(response.body),
-      ).data.map((item) => ({
-        ...item,
-        sourceId: SKILLS_SH_SOURCE_ID,
-        canonicalSourceRef: item.url ?? `${SKILLS_SH_ORIGIN}/${item.id}`,
-      }));
+      return SkillsShSearchResponseSchema.parse(JSON.parse(response.body)).data.map(normalizeSkillSummary);
     } catch (error) {
       if (error instanceof SkillsShError) throw error;
-      throw new SkillsShError(
-        "SKILLS_SH_RESPONSE_INVALID",
-        "The skills.sh search response is invalid.",
-        undefined,
-        error,
-      );
+      if (error instanceof SyntaxError)
+        throw new SkillsShError(
+          "SKILLS_SH_RESPONSE_INVALID",
+          "The skills.sh search response is not valid JSON.",
+          { endpoint: "search" },
+        );
+      throw contractError("search", error);
     }
   }
   async getSkillDescriptor(
@@ -391,12 +486,13 @@ export class SkillsShSourceAdapter {
       });
     } catch (error) {
       if (error instanceof SkillsShError) throw error;
-      throw new SkillsShError(
-        "SKILLS_SH_RESPONSE_INVALID",
-        "The skills.sh skill descriptor is invalid.",
-        undefined,
-        error,
-      );
+      if (error instanceof SyntaxError)
+        throw new SkillsShError(
+          "SKILLS_SH_RESPONSE_INVALID",
+          "The skills.sh skill descriptor is not valid JSON.",
+          { endpoint: "detail" },
+        );
+      throw contractError("detail", error);
     }
   }
   async getSkillAudit(
@@ -454,12 +550,13 @@ export class SkillsShSourceAdapter {
     try {
       detail = SkillsShDetailResponseSchema.parse(JSON.parse(response.body));
     } catch (error) {
-      throw new SkillsShError(
-        "SKILLS_SH_RESPONSE_INVALID",
-        "The skills.sh skill content response is invalid.",
-        undefined,
-        error,
-      );
+      if (error instanceof SyntaxError)
+        throw new SkillsShError(
+          "SKILLS_SH_RESPONSE_INVALID",
+          "The skills.sh skill content response is not valid JSON.",
+          { endpoint: "detail" },
+        );
+      throw contractError("detail", error);
     }
     if (!detail.files)
       throw new SkillsShError(

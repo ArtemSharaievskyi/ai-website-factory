@@ -3,7 +3,10 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { SkillRegistry } from "@/skills/registry/registry";
-import { DEFAULT_SKILLS_SH_SOURCE, SKILLS_SH_ORIGIN } from "./contracts";
+import {
+  DEFAULT_SKILLS_SH_SOURCE,
+  SKILLS_SH_ORIGIN,
+} from "./contracts";
 import { SkillsShError } from "./errors";
 import { SkillsShSourceAdapter, validateSkillsShUrl } from "./adapter";
 
@@ -11,6 +14,7 @@ const detail = {
   id: "vercel-labs/skills/review",
   source: "vercel-labs/skills",
   slug: "review",
+  installs: 42,
   hash: "revision-a",
   files: [
     {
@@ -28,6 +32,13 @@ const response = (
     "content-type": "application/json",
   },
 ) => ({ status, headers, body: JSON.stringify(body) });
+const emptySearchResponse = {
+  data: [],
+  query: "review",
+  count: 0,
+  searchType: "fuzzy" as const,
+  durationMs: 0,
+};
 const transportFor = (body: unknown, statuses: number[] = []) => {
   let calls = 0;
   const transport = async (_url: string, input: { signal: AbortSignal }) => {
@@ -65,6 +76,8 @@ describe("skills.sh source adapter", () => {
           slug: "review",
           name: "Review",
           source: "vercel-labs/skills",
+          installs: 42,
+          sourceType: "github",
           installUrl: null,
           url: "https://skills.sh/vercel-labs/skills/review",
         },
@@ -78,6 +91,125 @@ describe("skills.sh source adapter", () => {
     const result = await adapter.searchSkills("review", { limit: 200 });
     expect(result[0].sourceId).toBe("skills-sh");
     expect(result[0].canonicalSourceRef).toContain("skills.sh/");
+    expect(result[0].source).not.toBe(result[0].slug);
+    expect(result[0].installs).toBe(42);
+  });
+  it("parses the official paginated list response with zero-based page semantics", async () => {
+    let requestedUrl = "";
+    const adapter = new SkillsShSourceAdapter({
+      transport: async (url) => {
+        requestedUrl = url;
+        return response({
+          data: [
+            {
+              id: "vercel-labs/skills/find-skills",
+              slug: "find-skills",
+              name: "find-skills",
+              source: "vercel-labs/skills",
+              installs: 2879230,
+              sourceType: "github",
+              installUrl: "https://github.com/vercel-labs/skills",
+              url: "https://www.skills.sh/vercel-labs/skills/find-skills",
+            },
+          ],
+          pagination: { page: 0, perPage: 1, total: 9311, hasMore: true },
+        });
+      },
+    });
+    const result = await adapter.listSkills({ page: 0, perPage: 1 });
+    expect(new URL(requestedUrl).searchParams.get("page")).toBe("0");
+    expect(new URL(requestedUrl).searchParams.get("per_page")).toBe("1");
+    expect(result.pagination).toEqual({
+      page: 0,
+      perPage: 1,
+      total: 9311,
+      hasMore: true,
+    });
+    expect(result.data[0]?.id).toBe("vercel-labs/skills/find-skills");
+    expect(result.data[0]?.canonicalSourceRef).toBe(
+      "https://www.skills.sh/vercel-labs/skills/find-skills",
+    );
+  });
+  it("rejects malformed summary and pagination fields with safe contract diagnostics", async () => {
+    const missingSummaryField = new SkillsShSourceAdapter({
+      transport: async () =>
+        response({
+          data: [
+            {
+              id: "vercel-labs/skills/review",
+              slug: "review",
+              name: "Review",
+              source: "vercel-labs/skills",
+              sourceType: "github",
+              installUrl: null,
+              url: "https://skills.sh/vercel-labs/skills/review",
+            },
+          ],
+          pagination: { page: 0, perPage: 1, total: 1, hasMore: false },
+        }),
+    });
+    await expect(missingSummaryField.listSkills()).rejects.toMatchObject({
+      code: "SKILLS_SH_API_CONTRACT_MISMATCH",
+    });
+    const malformedPagination = new SkillsShSourceAdapter({
+      transport: async () =>
+        response({
+          data: [],
+          pagination: { page: "0", perPage: 1, total: 0, hasMore: false },
+        }),
+    });
+    const error = await malformedPagination.listSkills().catch((value) => value);
+    expect(error.code).toBe("SKILLS_SH_API_CONTRACT_MISMATCH");
+    expect(error.details).toMatchObject({
+      endpoint: "list",
+      path: "pagination.page",
+      received: "string",
+    });
+    expect(JSON.stringify(error)).not.toContain("Authorization");
+  });
+  it("accepts legitimate nullable metadata and rejects malformed numeric and URL fields", async () => {
+    const nullable = new SkillsShSourceAdapter({
+      transport: async () =>
+        response({
+          data: [
+            {
+              id: "vercel-labs/skills/review",
+              slug: "review",
+              name: "Review",
+              source: "vercel-labs/skills",
+              installs: 0,
+              sourceType: "github",
+              installUrl: null,
+              url: "https://skills.sh/vercel-labs/skills/review",
+            },
+          ],
+          pagination: { page: 0, perPage: 1, total: 0, hasMore: false },
+        }),
+    });
+    await expect(nullable.listSkills()).resolves.toMatchObject({
+      data: [{ installUrl: null, installs: 0 }],
+    });
+    const malformed = new SkillsShSourceAdapter({
+      transport: async () =>
+        response({
+          data: [
+            {
+              id: "vercel-labs/skills/review",
+              slug: "review",
+              name: "Review",
+              source: "vercel-labs/skills",
+              installs: "popular",
+              sourceType: "github",
+              installUrl: null,
+              url: "not-a-url",
+            },
+          ],
+          pagination: { page: 0, perPage: 1, total: 1, hasMore: false },
+        }),
+    });
+    await expect(malformed.listSkills()).rejects.toMatchObject({
+      code: "SKILLS_SH_API_CONTRACT_MISMATCH",
+    });
   });
   it("fetches a bounded candidate and produces deterministic checksums", async () => {
     const fixture = transportFor(detail);
@@ -89,6 +221,25 @@ describe("skills.sh source adapter", () => {
     );
     expect(first.normalizedContentChecksum).toMatch(/^[a-f0-9]{64}$/);
     expect(first.files.some((file) => file.path === "SKILL.md")).toBe(true);
+  });
+  it("accepts nullable detail snapshot fields while retaining strict installs validation", async () => {
+    const adapter = new SkillsShSourceAdapter({
+      transport: transportFor({
+        id: detail.id,
+        source: detail.source,
+        slug: detail.slug,
+        installs: 0,
+        hash: null,
+        files: null,
+      }).transport,
+    });
+    await expect(adapter.getSkillDescriptor(detail.id)).resolves.toMatchObject({
+      externalSkillId: detail.id,
+      metadata: { fileCount: 0 },
+    });
+    await expect(adapter.fetchSkillCandidate(detail.id)).rejects.toMatchObject({
+      code: "SKILLS_SH_CONTENT_INVALID",
+    });
   });
   it("retrieves advisory audit metadata and treats a missing audit as unavailable", async () => {
     const audit = {
@@ -103,6 +254,22 @@ describe("skills.sh source adapter", () => {
           summary: "Risk detected",
           auditedAt: new Date().toISOString(),
           riskLevel: "HIGH",
+        },
+        {
+          provider: "Snyk",
+          slug: "snyk",
+          status: "pass",
+          summary: "No issues detected",
+          auditedAt: "2026-08-09T12:00:00",
+          riskLevel: "SAFE",
+        },
+        {
+          provider: "Runlayer",
+          slug: "runlayer",
+          status: "warn",
+          summary: "No normalized risk level",
+          auditedAt: "2026-08-09T12:00:00",
+          riskLevel: null,
         },
       ],
     };
@@ -159,7 +326,7 @@ describe("skills.sh source adapter", () => {
     expect(fixture.calls()).toBe(1);
   });
   it("retries 429 only within the configured bound", async () => {
-    const fixture = transportFor({ data: [] }, [429, 429, 200]);
+    const fixture = transportFor(emptySearchResponse, [429, 429, 200]);
     const adapter = new SkillsShSourceAdapter({
       transport: fixture.transport,
       requireAuthentication: false,
@@ -189,14 +356,20 @@ describe("skills.sh source adapter", () => {
   it("keeps malformed JSON and schema mismatch as response errors", async () => {
     const malformed = new SkillsShSourceAdapter({
       requireAuthentication: false,
-      transport: async () => response("{"),
+      transport: async () => ({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: "{",
+      }),
     });
     await expect(malformed.searchSkills("review")).rejects.toMatchObject({ code: "SKILLS_SH_RESPONSE_INVALID" });
     const mismatch = new SkillsShSourceAdapter({
       requireAuthentication: false,
       transport: async () => response({ data: "not-an-array" }),
     });
-    await expect(mismatch.searchSkills("review")).rejects.toMatchObject({ code: "SKILLS_SH_RESPONSE_INVALID" });
+    await expect(mismatch.searchSkills("review")).rejects.toMatchObject({ code: "SKILLS_SH_API_CONTRACT_MISMATCH" });
+    const contractError = await mismatch.searchSkills("review").catch((error) => error);
+    expect(contractError.details).toMatchObject({ endpoint: "search", path: "data" });
   });
   it("rejects malformed identifiers and unsafe content paths", async () => {
     const fixture = transportFor({
@@ -241,7 +414,7 @@ describe("skills.sh source adapter", () => {
     });
   });
   it("retries bounded transient failures and supports cancellation", async () => {
-    const fixture = transportFor({ data: [] }, [503, 503, 200]);
+    const fixture = transportFor(emptySearchResponse, [503, 503, 200]);
     const adapter = new SkillsShSourceAdapter({ transport: fixture.transport });
     await expect(adapter.searchSkills("safe")).resolves.toEqual([]);
     expect(fixture.calls()).toBe(3);

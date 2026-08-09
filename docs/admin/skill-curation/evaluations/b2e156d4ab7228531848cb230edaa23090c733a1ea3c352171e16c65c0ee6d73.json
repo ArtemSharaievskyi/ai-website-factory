@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "pixel-process-ug/superkit-agents/testing-strategy",
+  "sourceId": "skills-sh",
+  "externalSkillId": "pixel-process-ug/superkit-agents/testing-strategy",
+  "canonicalSourceRef": "https://www.skills.sh/pixel-process-ug/superkit-agents/testing-strategy",
+  "targetReviewer": "test-quality-reviewer",
+  "targetCapability": "review.test-quality",
+  "candidateChecksum": "b2e156d4ab7228531848cb230edaa23090c733a1ea3c352171e16c65c0ee6d73",
+  "retrievedContentChecksum": "d66680771ea28d06c04468cbcc01719b3ea3731ec6c05ed2eccbf1b2ff2747ac",
+  "source": "pixel-process-ug/superkit-agents",
+  "displayName": "testing-strategy",
+  "installs": 67,
+  "contentBytes": 8743,
+  "estimatedInjectionBytes": 8734,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "pixel-process-ug/superkit-agents/testing-strategy",
+      "source": "pixel-process-ug/superkit-agents",
+      "slug": "testing-strategy",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides a structured framework for analyzing project testing needs and generating appropriate configurations. It includes commands for project discovery and templates for various testing levels. No security risks or malicious patterns were identified.",
+          "auditedAt": "2026-04-02T00:43:07.640Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-04-02T00:44:57.871Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-04-02T00:43:16.014359+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash"
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "cat .github/workflows/*.yml 2>/dev/null | head -50"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "| **Node.js/TS** | Vitest | Vitest + Supertest | Playwright |",
+        "| **React/Next.js** | Vitest + Testing Library | Vitest + MSW | Playwright/Cypress |",
+        "| **Python** | pytest | pytest + httpx | Playwright |",
+        "| **Go** | testing + testify | testing + testcontainers | Playwright |"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "| **Python** | pytest | pytest + httpx | Playwright |"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 1,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T15:47:27.264Z"
+}

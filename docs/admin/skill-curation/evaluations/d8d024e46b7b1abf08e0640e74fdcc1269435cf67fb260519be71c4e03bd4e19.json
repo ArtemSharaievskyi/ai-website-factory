@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "jpoutrin/product-forge/typescript-code-review",
+  "sourceId": "skills-sh",
+  "externalSkillId": "jpoutrin/product-forge/typescript-code-review",
+  "canonicalSourceRef": "https://www.skills.sh/jpoutrin/product-forge/typescript-code-review",
+  "targetReviewer": "code-integration-reviewer",
+  "targetCapability": "review.integration",
+  "candidateChecksum": "d8d024e46b7b1abf08e0640e74fdcc1269435cf67fb260519be71c4e03bd4e19",
+  "retrievedContentChecksum": "1a7fda93b0faa864e535d1227e1ed47485668f5ce3f53f123b2622fa70fe238b",
+  "source": "jpoutrin/product-forge",
+  "displayName": "typescript-code-review",
+  "installs": 6,
+  "contentBytes": 10994,
+  "estimatedInjectionBytes": 10985,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "jpoutrin/product-forge/typescript-code-review",
+      "source": "jpoutrin/product-forge",
+      "slug": "typescript-code-review",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill is empty and contains no files. It poses no security risk in its current state.",
+          "auditedAt": "2026-02-16T09:19:21.917Z",
+          "riskLevel": "LOW",
+          "categories": [
+            "NO_CODE"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-02-16T04:22:47.302Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-16T03:54:35.485802+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "1/1 file flagged",
+          "auditedAt": "2026-03-14T07:37:29.492Z",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "fetch('/api/delete', { method: 'POST', body: data });",
+        "fetch('/api/delete', {",
+        "const response = await fetch(url);",
+        "return response.json();  // What if fetch fails?"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 2,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T15:47:09.760Z"
+}

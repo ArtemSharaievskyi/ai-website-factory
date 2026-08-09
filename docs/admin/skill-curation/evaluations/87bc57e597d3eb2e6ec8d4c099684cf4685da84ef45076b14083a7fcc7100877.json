@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "sarmakska/slipstream/supabase-rls",
+  "sourceId": "skills-sh",
+  "externalSkillId": "sarmakska/slipstream/supabase-rls",
+  "canonicalSourceRef": "https://www.skills.sh/sarmakska/slipstream/supabase-rls",
+  "targetReviewer": "security-reviewer",
+  "targetCapability": "review.security",
+  "candidateChecksum": "87bc57e597d3eb2e6ec8d4c099684cf4685da84ef45076b14083a7fcc7100877",
+  "retrievedContentChecksum": "1032608d95cec1e3b43a9664b847b1b02d8db33d52a80bcebdcb3e96e3ba9bca",
+  "source": "sarmakska/slipstream",
+  "displayName": "supabase-rls",
+  "installs": 1,
+  "contentBytes": 896,
+  "estimatedInjectionBytes": 887,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "sarmakska/slipstream/supabase-rls",
+      "source": "sarmakska/slipstream",
+      "slug": "supabase-rls",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides standard architectural patterns and SQL commands for implementing Row Level Security (RLS) within Supabase environments. It follows security best practices for data isolation.",
+          "auditedAt": "2026-06-22T00:44:27.766Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-06-22T00:44:54.885Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-06-22T00:44:25.680970+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Candidate passed deterministic curation checks and adds focused review procedure."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "supabase-rls-1e36b217c969",
+  "evaluatedAt": "2026-08-09T15:47:22.669Z"
+}

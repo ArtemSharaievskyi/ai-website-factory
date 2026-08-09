@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "brunofaust/claude-all/requirements-ears",
+  "sourceId": "skills-sh",
+  "externalSkillId": "brunofaust/claude-all/requirements-ears",
+  "canonicalSourceRef": "https://www.skills.sh/brunofaust/claude-all/requirements-ears",
+  "targetReviewer": "contract-auditor",
+  "targetCapability": "review.contracts",
+  "candidateChecksum": "eb41c2a8ea0263772ab55114a2eb1244a433b953374e86b699d7623e924122d4",
+  "retrievedContentChecksum": "317d616e51d593e92a3f7d0dd57a2dadb389486ae258e1e475cd212eed1da786",
+  "source": "brunofaust/claude-all",
+  "displayName": "requirements-ears",
+  "installs": 1,
+  "contentBytes": 5134,
+  "estimatedInjectionBytes": 5125,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "brunofaust/claude-all/requirements-ears",
+      "source": "brunofaust/claude-all",
+      "slug": "requirements-ears",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill is purely instructional and provides a framework for converting business requirements into testable acceptance criteria using EARS notation. It does not contain any executable code, scripts, or network operations.",
+          "auditedAt": "2026-06-16T23:01:00.108Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-06-16T23:01:58.205Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-06-16T23:01:05.475285+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "behavior is still unknown. EARS is for behavior you can commit to."
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "requirements-ears-9b7398087f3c",
+  "evaluatedAt": "2026-08-09T15:47:02.607Z"
+}

@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "diegosouzapw/awesome-omni-skill/supabase-expert",
+  "sourceId": "skills-sh",
+  "externalSkillId": "diegosouzapw/awesome-omni-skill/supabase-expert",
+  "canonicalSourceRef": "https://www.skills.sh/diegosouzapw/awesome-omni-skill/supabase-expert",
+  "targetReviewer": "security-reviewer",
+  "targetCapability": "review.security",
+  "candidateChecksum": "01e5fed306d5176c23dd2250556737ecfb745652253e70b721cadb8705b74d5d",
+  "retrievedContentChecksum": "768fe598c6317eec8a08cdc68082fa43369974401efc0fc95d06ba5f84cb64c6",
+  "source": "diegosouzapw/awesome-omni-skill",
+  "displayName": "supabase-expert",
+  "installs": 6,
+  "contentBytes": 46355,
+  "estimatedInjectionBytes": 44476,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "large",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "diegosouzapw/awesome-omni-skill/supabase-expert",
+      "source": "diegosouzapw/awesome-omni-skill",
+      "slug": "supabase-expert",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill serves as a comprehensive integration specialist for Supabase, providing advanced implementation patterns for database, authentication, and edge functions. It utilizes local documentation and project file searches to contextually assist developers. No malicious behaviors, obfuscation, or data exfiltration attempts were detected. The skill follows standard development practices for interacting with the Supabase ecosystem.",
+          "auditedAt": "2026-03-17T05:56:36.533Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "COMMAND_EXECUTION",
+            "EXTERNAL_DOWNLOADS",
+            "PROMPT_INJECTION"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-17T05:58:37.031Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "warn",
+          "summary": "Risk: MEDIUM · 2 issues",
+          "auditedAt": "2026-03-17T05:57:17.489134+00:00",
+          "riskLevel": "MEDIUM"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "1 finding · Score: 82/100",
+          "auditedAt": "2026-04-16T07:10:50.468Z",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "allowed-tools: Read, Write, Edit, Bash, Grep, Glob",
+        "```bash",
+        "```bash",
+        "```bash"
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "\"repository_url\": \"https://github.com/heyflouai/ikf-central-dashboard\",",
+        "\"author_avatar\": \"https://github.com/heyflouai.png\","
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "\"install_command\": \"mkdir -p .claude/skills/supabase-expert && curl -sL \\\"https://raw.githubusercontent.com/heyflouai/ikf-central-dashboard/main/.claude/skills/supabase-expert/SKILL.md\\\" > .claude/skills/supabase-expert/SKILL.md\",",
+        "if (error.message.includes('Failed to fetch')) {"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 41,
+    "externalLinksDetected": 9
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T15:47:22.158Z"
+}

@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "sickn33/antigravity-awesome-skills/testing-qa",
+  "sourceId": "skills-sh",
+  "externalSkillId": "sickn33/antigravity-awesome-skills/testing-qa",
+  "canonicalSourceRef": "https://www.skills.sh/sickn33/antigravity-awesome-skills/testing-qa",
+  "targetReviewer": "test-quality-reviewer",
+  "targetCapability": "review.test-quality",
+  "candidateChecksum": "565315633daba978b05ce3ff50b339b952049d1d9f758f4d11d12de4690e2661",
+  "retrievedContentChecksum": "77d64561233d0e9ef3ce2bd3b6bb6f7310e70d20c0404a3aac4f3f19d1b21ee1",
+  "source": "sickn33/antigravity-awesome-skills",
+  "displayName": "testing-qa",
+  "installs": 145,
+  "contentBytes": 5198,
+  "estimatedInjectionBytes": 5189,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "warn",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "sickn33/antigravity-awesome-skills/testing-qa",
+      "source": "sickn33/antigravity-awesome-skills",
+      "slug": "testing-qa",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill is a documentation-based workflow guide for testing and quality assurance. It provides instructions and prompts for using various testing tools and other AI agent skills. It contains no executable code, network operations, or malicious patterns.",
+          "auditedAt": "2026-04-14T07:41:45.616Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "warn",
+          "summary": "1 alert: gptAnomaly",
+          "auditedAt": "2026-04-14T07:43:43.883Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-04-14T07:42:20.336968+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "1 file scanned · No issues",
+          "auditedAt": "2026-02-28T14:34:32.310Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [
+    {
+      "category": "playwright-or-browser",
+      "essential": false,
+      "evidence": [
+        "description: \"Comprehensive testing and QA workflow covering unit testing, integration testing, E2E testing, browser automation, and quality assurance.\"",
+        "Comprehensive testing and quality assurance workflow covering unit tests, integration tests, E2E tests, browser automation, and quality gates for production-ready software.",
+        "- Automating browser testing",
+        "- `playwright-skill` - Playwright testing"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "- `python-testing-patterns` - pytest",
+        "Use @python-testing-patterns to write pytest tests"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "The candidate provides limited reusable review methodology.",
+    "An external audit reports a warning; the result is advisory only."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "testing-qa-42bade14b7bb",
+  "evaluatedAt": "2026-08-09T15:47:25.856Z"
+}

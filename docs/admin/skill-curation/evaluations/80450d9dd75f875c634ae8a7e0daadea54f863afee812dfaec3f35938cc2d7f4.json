@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "pjt222/development-guides/review-software-architecture",
+  "sourceId": "skills-sh",
+  "externalSkillId": "pjt222/development-guides/review-software-architecture",
+  "canonicalSourceRef": "https://www.skills.sh/pjt222/development-guides/review-software-architecture",
+  "targetReviewer": "architecture-reviewer",
+  "targetCapability": "review.architecture",
+  "candidateChecksum": "80450d9dd75f875c634ae8a7e0daadea54f863afee812dfaec3f35938cc2d7f4",
+  "retrievedContentChecksum": "e716dee390c8338ab64b15e9280c3809e5d4ae6edc28807b961a43f0ae60d5b2",
+  "source": "pjt222/development-guides",
+  "displayName": "review-software-architecture",
+  "installs": 40,
+  "contentBytes": 11939,
+  "estimatedInjectionBytes": 11930,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "pjt222/development-guides/review-software-architecture",
+      "source": "pjt222/development-guides",
+      "slug": "review-software-architecture",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill allows for automated software architecture reviews using shell tools. It uses npx madge to check for circular dependencies, which involves downloading from the npm registry. While these tools are standard, the skill is susceptible to indirect prompt injection because it processes untrusted codebase files and possesses shell execution capabilities.",
+          "auditedAt": "2026-02-27T22:52:14.903Z",
+          "riskLevel": "SAFE",
+          "categories": [
+            "EXTERNAL_DOWNLOADS",
+            "COMMAND_EXECUTION",
+            "PROMPT_INJECTION"
+          ]
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T21:54:12.162Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-02-27T22:52:41.868315+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "1 file scanned · No issues",
+          "auditedAt": "2026-03-04T10:58:44.072Z",
+          "riskLevel": "NONE"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "Score: 93/100 · 2 sections analyzed",
+          "auditedAt": "2026-04-16T14:25:50.447Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "allowed-tools: Read Grep Glob Bash WebFetch",
+        "```bash",
+        "npx madge --circular src/"
+      ]
+    },
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "- `configure-git-repository` — repository structure and conventions"
+      ]
+    },
+    {
+      "category": "github",
+      "essential": false,
+      "evidence": [
+        "| No CI/CD pipeline | High | Manual deployment prone to errors | 1 sprint | Set up GitHub Actions |"
+      ]
+    },
+    {
+      "category": "python",
+      "essential": false,
+      "evidence": [
+        "# Detect import patterns (Python)"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 3,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T15:46:52.444Z"
+}

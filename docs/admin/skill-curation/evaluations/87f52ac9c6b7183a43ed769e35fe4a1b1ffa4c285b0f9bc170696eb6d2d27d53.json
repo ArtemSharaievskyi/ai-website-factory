@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "billschumacher/claude_stuff/acceptance-criteria",
+  "sourceId": "skills-sh",
+  "externalSkillId": "billschumacher/claude_stuff/acceptance-criteria",
+  "canonicalSourceRef": "https://www.skills.sh/billschumacher/claude_stuff/acceptance-criteria",
+  "targetReviewer": "contract-auditor",
+  "targetCapability": "review.contracts",
+  "candidateChecksum": "87f52ac9c6b7183a43ed769e35fe4a1b1ffa4c285b0f9bc170696eb6d2d27d53",
+  "retrievedContentChecksum": "495db53be16d27ab763179947cd00bc2bd78b65316780d70f0231fedc7134e79",
+  "source": "billschumacher/claude_stuff",
+  "displayName": "acceptance-criteria",
+  "installs": 1,
+  "contentBytes": 4120,
+  "estimatedInjectionBytes": 4111,
+  "roleFit": "strong",
+  "procedureFit": "none",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "unavailable",
+  "externalAudit": {
+    "available": false,
+    "reason": "No external audit metadata is available."
+  },
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 3
+  },
+  "reasons": [
+    "The candidate provides limited reusable review methodology.",
+    "No external audit metadata is available; local review remains authoritative."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T15:37:11.569Z"
+}

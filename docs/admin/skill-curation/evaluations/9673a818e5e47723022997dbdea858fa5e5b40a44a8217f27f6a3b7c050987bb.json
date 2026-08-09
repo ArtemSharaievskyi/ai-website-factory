@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "frankxai/ai-and-web3/webapp-testing",
+  "sourceId": "skills-sh",
+  "externalSkillId": "frankxai/ai-and-web3/webapp-testing",
+  "canonicalSourceRef": "https://www.skills.sh/frankxai/ai-and-web3/webapp-testing",
+  "targetReviewer": "test-quality-reviewer",
+  "targetCapability": "review.test-quality",
+  "candidateChecksum": "9673a818e5e47723022997dbdea858fa5e5b40a44a8217f27f6a3b7c050987bb",
+  "retrievedContentChecksum": "4b74a8647358b55db19e5c9414d9c918f36ffa79f41e5d032d42950874aa26aa",
+  "source": "frankxai/ai-and-web3",
+  "displayName": "webapp testing",
+  "installs": 1,
+  "contentBytes": 6956,
+  "estimatedInjectionBytes": 6947,
+  "roleFit": "strong",
+  "procedureFit": "medium",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "incompatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "frankxai/ai-and-web3/webapp-testing",
+      "source": "frankxai/ai-and-web3",
+      "slug": "webapp-testing",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides a comprehensive guide and code templates for performing automated end-to-end web application testing using Playwright. It includes configurations, page object models, and various testing scenarios like accessibility and visual regression. No security issues or malicious patterns were detected.",
+          "auditedAt": "2026-04-02T21:41:30.329Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-04-02T21:43:58.213Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-04-02T21:42:03.923863+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [
+    {
+      "category": "shell",
+      "essential": false,
+      "evidence": [
+        "```bash",
+        "npx playwright test --trace on",
+        "npx playwright show-trace trace.zip",
+        "```bash"
+      ]
+    },
+    {
+      "category": "playwright-or-browser",
+      "essential": true,
+      "evidence": [
+        "description: Test web applications with Playwright for UI verification and debugging",
+        "# Webapp Testing with Playwright",
+        "Test local web applications using Playwright for:",
+        "- Cross-browser compatibility"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 11,
+    "externalLinksDetected": 2
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate requires a tool that this reviewer does not possess; no permission is granted."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T15:47:29.577Z"
+}

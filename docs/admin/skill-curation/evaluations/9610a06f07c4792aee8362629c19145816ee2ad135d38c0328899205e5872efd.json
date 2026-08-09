@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "diamondt/skills/nextjs-react-conventions",
+  "sourceId": "skills-sh",
+  "externalSkillId": "diamondt/skills/nextjs-react-conventions",
+  "canonicalSourceRef": "https://www.skills.sh/diamondt/skills/nextjs-react-conventions",
+  "targetReviewer": "code-integration-reviewer",
+  "targetCapability": "review.integration",
+  "candidateChecksum": "9610a06f07c4792aee8362629c19145816ee2ad135d38c0328899205e5872efd",
+  "retrievedContentChecksum": "582acfa029667d860687d1a7f48431d37f72c966eb94e98d60039e6ddc17b12f",
+  "source": "diamondt/skills",
+  "displayName": "nextjs-react-conventions",
+  "installs": 5,
+  "contentBytes": 11173,
+  "estimatedInjectionBytes": 10083,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "read-only-compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "diamondt/skills/nextjs-react-conventions",
+      "source": "diamondt/skills",
+      "slug": "nextjs-react-conventions",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "The skill provides a set of coding, data-fetching, and testing conventions for Next.js, React, and TypeScript projects. It focuses on maintaining consistency, type safety, and testing quality. No malicious behavior or security risks were detected.",
+          "auditedAt": "2026-05-11T08:20:58.146Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-05-11T08:22:22.460Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-05-11T08:20:56.138148+00:00",
+          "riskLevel": "LOW"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [
+    {
+      "category": "git",
+      "essential": false,
+      "evidence": [
+        "- ensure condition (branch) coverage, i.e. test all conditions",
+        "data-fetching, branch coverage). Use whenever you write, edit, refactor, review, or test",
+        "Every new component, hook, utility, and bug fix gets at least one test. Before declaring work done, run the project's test command (typically `npm test` / `pnpm test` / `yarn test`) and confirm the suite is green. Do not commit failing test",
+        "### 2. Cover every condition (branch coverage)"
+      ]
+    },
+    {
+      "category": "network-fetch",
+      "essential": false,
+      "evidence": [
+        "- if you need to fetch data in a client component utilize the `use` or `useSWR` hooks",
+        "### 1. Fetch data in server components by default",
+        "When a route, page, or layout needs data, fetch it in a server component (`async` component, no `'use client'`). Pass the resolved data down as props. Why: zero client-side waterfall, no loading flicker for the initial render, no exposure o",
+        "If a component genuinely needs to fetch from the client (interactive filters, polling, user-driven refetches), reach for one of:"
+      ]
+    }
+  ],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 4,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction.",
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T15:47:11.698Z"
+}

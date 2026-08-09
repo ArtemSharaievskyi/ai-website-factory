@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "ontoledgy/ol_ai_context_library/ob-architect",
+  "sourceId": "skills-sh",
+  "externalSkillId": "ontoledgy/ol_ai_context_library/ob-architect",
+  "canonicalSourceRef": "https://www.skills.sh/ontoledgy/ol_ai_context_library/ob-architect",
+  "targetReviewer": "architecture-reviewer",
+  "targetCapability": "review.architecture",
+  "candidateChecksum": "67e9439c291835097a07be9c3c094f256b18eccdbf5d1c04b89bf3e38af80af7",
+  "retrievedContentChecksum": "cc6180442b35a9b089f3016d01a47270ad7a0cef4acf90cee84cd9170849410b",
+  "source": "ontoledgy/ol_ai_context_library",
+  "displayName": "ob-architect",
+  "installs": 34,
+  "contentBytes": 15521,
+  "estimatedInjectionBytes": 15438,
+  "roleFit": "strong",
+  "procedureFit": "high",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "bounded",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "fail",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "ontoledgy/ol_ai_context_library/ob-architect",
+      "source": "ontoledgy/ol_ai_context_library",
+      "slug": "ob-architect",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill is a software architecture assistant that helps design and review systems using BORO and Ontoledgy coding principles. It analyzes project dependencies to suggest appropriate platform libraries and architectural patterns. No malicious patterns or security risks were detected.",
+          "auditedAt": "2026-04-24T12:41:33.846Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-04-24T12:42:50.216Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-04-24T12:41:13.936785+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "Score: 93/100 · 2 sections analyzed",
+          "auditedAt": "2026-04-16T12:01:03.697Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 1,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Local static review found an approval-blocking unsafe instruction."
+  ],
+  "recommendedDisposition": "REJECT",
+  "recommendation": "DO_NOT_USE",
+  "semanticEvaluationUsed": false,
+  "evaluatedAt": "2026-08-09T15:46:53.645Z"
+}

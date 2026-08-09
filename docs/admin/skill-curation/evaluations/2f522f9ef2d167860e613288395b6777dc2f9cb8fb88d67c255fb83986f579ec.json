@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "masanao-ohba/claude-manifests/acceptance-criteria",
+  "sourceId": "skills-sh",
+  "externalSkillId": "masanao-ohba/claude-manifests/acceptance-criteria",
+  "canonicalSourceRef": "https://www.skills.sh/masanao-ohba/claude-manifests/acceptance-criteria",
+  "targetReviewer": "contract-auditor",
+  "targetCapability": "review.contracts",
+  "candidateChecksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec",
+  "retrievedContentChecksum": "830c404b46cbd65a49600f9bfc093b6cd201ca91f64e9ce89265837cb5a319f7",
+  "source": "masanao-ohba/claude-manifests",
+  "displayName": "acceptance-criteria",
+  "installs": 10,
+  "contentBytes": 4478,
+  "estimatedInjectionBytes": 4469,
+  "roleFit": "strong",
+  "procedureFit": "low",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "masanao-ohba/claude-manifests/acceptance-criteria",
+      "source": "masanao-ohba/claude-manifests",
+      "slug": "acceptance-criteria",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides templates and guidelines for defining software acceptance criteria using SMART and Given-When-Then formats. It contains no executable code, network operations, or sensitive data access, and presents no security risks.",
+          "auditedAt": "2026-03-16T01:12:53.392Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-18T23:07:09.680Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-03-16T01:12:50.321624+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "1 file scanned · No issues",
+          "auditedAt": "2026-03-16T01:12:47.802Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "The candidate provides limited reusable review methodology."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "acceptance-criteria-80493e317476",
+  "evaluatedAt": "2026-08-09T15:46:59.669Z"
+}

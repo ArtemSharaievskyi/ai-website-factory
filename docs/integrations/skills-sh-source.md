@@ -26,3 +26,28 @@ The administrative curation layer may also call the documented
 `/api/v1/skills/audit/{source}/{skill}` endpoint. Audit results are stored as
 advisory metadata only: a PASS is not Factory approval, a FAIL is surfaced for
 human review, and a 404/no-audit result does not fail a locally safe candidate.
+
+## API response boundary
+
+The adapter supports the paginated leaderboard at /api/v1/skills, the search
+endpoint at /api/v1/skills/search, and the detail endpoint at
+/api/v1/skills/{source}/{skill}. Leaderboard pagination is zero-based and uses
+bounded page and per_page values. Search uses q, limit, and optional owner
+parameters.
+
+Transport schemas validate the current summary fields: id, slug, name, source,
+installs, sourceType, nullable installUrl, url, and optional duplicate metadata.
+Detail snapshots validate installs plus nullable hash and files fields. The
+external response schemas remain separate from the internal descriptor and
+candidate contracts.
+
+A valid HTTP 200 response that fails strict parsing raises
+SKILLS_SH_API_CONTRACT_MISMATCH with only endpoint, field path, expected type,
+and received type diagnostics. The raw response and bearer credential are not
+retained. installUrl, url, sourceType, and installs are metadata only: they
+never trigger link following, GitHub access, CLI execution, dependency
+installation, or trust/permission changes.
+
+The standalone skills:curate script reuses the existing Next environment
+loader, allowing .env.local to override .env while explicit process.env values
+remain highest priority. Local environment files remain uncommitted.

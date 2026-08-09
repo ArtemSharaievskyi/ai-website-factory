@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "skillId": "codybrom/clairvoyance/module-boundaries",
+  "sourceId": "skills-sh",
+  "externalSkillId": "codybrom/clairvoyance/module-boundaries",
+  "canonicalSourceRef": "https://www.skills.sh/codybrom/clairvoyance/module-boundaries",
+  "targetReviewer": "architecture-reviewer",
+  "targetCapability": "review.architecture",
+  "candidateChecksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff",
+  "retrievedContentChecksum": "f3f1687ecbd0068de0bd3ca40a745ac8f00f5a5bf39ce7b5b47156641574b7fb",
+  "source": "codybrom/clairvoyance",
+  "displayName": "module-boundaries",
+  "installs": 13,
+  "contentBytes": 5968,
+  "estimatedInjectionBytes": 5959,
+  "roleFit": "strong",
+  "procedureFit": "medium",
+  "architectureCompatibility": "compatible",
+  "toolAssumptionCompatibility": "compatible",
+  "contextEfficiency": "compact",
+  "overlapAssessment": "low",
+  "nearDuplicateDetected": false,
+  "localSecurityAssessment": "pass",
+  "externalAuditStatus": "pass",
+  "externalAudit": {
+    "available": true,
+    "response": {
+      "id": "codybrom/clairvoyance/module-boundaries",
+      "source": "codybrom/clairvoyance",
+      "slug": "module-boundaries",
+      "audits": [
+        {
+          "provider": "Gen Agent Trust Hub",
+          "slug": "agent-trust-hub",
+          "status": "pass",
+          "summary": "This skill provides architectural guidance for reviewing software module boundaries and contains no executable code, network operations, or security risks.",
+          "auditedAt": "2026-03-20T17:05:49.296Z",
+          "riskLevel": "SAFE"
+        },
+        {
+          "provider": "Socket",
+          "slug": "socket",
+          "status": "pass",
+          "summary": "No alerts",
+          "auditedAt": "2026-03-20T17:06:08.274Z"
+        },
+        {
+          "provider": "Snyk",
+          "slug": "snyk",
+          "status": "pass",
+          "summary": "Risk: LOW · No issues",
+          "auditedAt": "2026-03-20T17:05:38.405508+00:00",
+          "riskLevel": "LOW"
+        },
+        {
+          "provider": "Runlayer",
+          "slug": "runlayer",
+          "status": "pass",
+          "summary": "1 file scanned · No issues",
+          "auditedAt": "2026-02-27T21:50:01.973Z",
+          "riskLevel": "NONE"
+        },
+        {
+          "provider": "ZeroLeaks",
+          "slug": "zeroleaks",
+          "status": "pass",
+          "summary": "Score: 93/100 · 2 sections analyzed",
+          "auditedAt": "2026-04-16T20:30:49.288Z",
+          "riskLevel": "NONE"
+        }
+      ]
+    }
+  },
+  "toolAssumptions": [],
+  "deterministicChecks": {
+    "metadataValid": false,
+    "exactChecksumKnown": true,
+    "duplicateDetected": false,
+    "nearDuplicateDetected": false,
+    "unsafeFindingCount": 0,
+    "externalLinksDetected": 0
+  },
+  "reasons": [
+    "Candidate passed deterministic curation checks and adds focused review procedure."
+  ],
+  "recommendedDisposition": "NEEDS_HUMAN_REVIEW",
+  "recommendation": "OPTIONAL",
+  "semanticEvaluationUsed": false,
+  "stagedSkillId": "module-boundaries-fb20497b5c35",
+  "evaluatedAt": "2026-08-09T15:46:55.780Z"
+}
