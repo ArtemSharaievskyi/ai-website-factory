@@ -31,6 +31,7 @@
     "skills:portfolio-plan": "tsx scripts/skill-portfolio-plan.ts",
     "skills:external-evidence": "tsx scripts/external-advance-evidence.ts",
     "skills:internal-evidence": "tsx scripts/author-internal-skills.ts",
+    "skills:initial-policy": "tsx scripts/initial-portfolio-license-decisions.ts",
     "factory:e2e-smoke": "tsx scripts/factory-e2e-smoke.ts",
     "codebase-memory:smoke": "tsx scripts/codebase-memory-smoke.ts"
   },
