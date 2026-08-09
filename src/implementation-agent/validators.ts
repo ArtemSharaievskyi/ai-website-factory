@@ -18,6 +18,10 @@ export function validateTaskResult(task: AgentTask, proposal: ImplementationChan
     if (writable.length === 0) throw new ImplementationError("IMPLEMENTATION_REPAIR_NOOP", "A targeted repair must contain a non-empty correction proposal.");
     if (writable.some((operation) => !task.fileScopes.some((scope) => isWithinTaskScope(scope, operation.relativePath.replaceAll("\\", "/"))))) throw new ImplementationError("IMPLEMENTATION_REPAIR_SCOPE_INVALID", "A targeted repair proposal modified a file outside its canonical repair scope.");
   }
+  if (task.taskType === "prepare-workspace") {
+    const marker = proposal.operations.find((operation) => operation.relativePath.replaceAll("\\", "/") === "src/app/factory-prepared.ts");
+    if (!marker || !("content" in marker) || !/^export const factoryWorkspacePrepared = true;\s*$/.test(marker.content)) throw new ImplementationError("IMPLEMENTATION_EXPECTED_FILE_MISSING", "The workspace preparation marker must be valid TypeScript and export factoryWorkspacePrepared as true.");
+  }
   if (task.taskType === "write-unit-tests") {
     const proposedPaths = proposal.operations.filter((operation) => operation.type !== "delete-file").map((operation) => operation.relativePath.replaceAll("\\", "/"));
     if (!proposedPaths.some((relativePath) => testArtifactPath(task, relativePath))) throw new ImplementationError("IMPLEMENTATION_EXPECTED_TEST_MISSING", "The unit-test task proposal contains no canonical Vitest test artifact.");
