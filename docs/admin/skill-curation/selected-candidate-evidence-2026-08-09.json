@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "external-skill-curation-v1",
+  "evidenceKind": "selected-candidate-approval-readiness",
+  "sourceAdapter": "skills.sh-official-api",
+  "refreshedAt": "2026-08-09T16:19:22.2873343Z",
+  "candidateFetches": 3,
+  "auditFetches": 3,
+  "approvalCalled": false,
+  "assignmentsChanged": false,
+  "candidates": [
+    {
+      "targetReviewer": "architecture-reviewer",
+      "externalSkillId": "codybrom/clairvoyance/module-boundaries",
+      "stagedSkillId": "module-boundaries-fb20497b5c35",
+      "candidateChecksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff",
+      "metadataStatus": "INCOMPLETE",
+      "metadataUnresolved": ["purpose", "steps"],
+      "licenseEvidenceStatus": "MISSING",
+      "licenseEvidenceSource": "Official skills.sh descriptor did not provide license metadata.",
+      "localStaticSecurity": "PASS",
+      "externalAudit": "PASS",
+      "upstreamStatus": "CURRENT",
+      "approvalReadiness": "METADATA_INCOMPLETE",
+      "blockers": ["unresolved metadata: purpose, steps", "explicit license evidence is missing"]
+    },
+    {
+      "targetReviewer": "contract-auditor",
+      "externalSkillId": "masanao-ohba/claude-manifests/acceptance-criteria",
+      "stagedSkillId": "acceptance-criteria-80493e317476",
+      "candidateChecksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec",
+      "metadataStatus": "INCOMPLETE",
+      "metadataUnresolved": ["purpose", "steps"],
+      "licenseEvidenceStatus": "MISSING",
+      "licenseEvidenceSource": "Official skills.sh descriptor did not provide license metadata.",
+      "localStaticSecurity": "PASS",
+      "externalAudit": "PASS",
+      "upstreamStatus": "CURRENT",
+      "approvalReadiness": "METADATA_INCOMPLETE",
+      "blockers": ["unresolved metadata: purpose, steps", "explicit license evidence is missing"]
+    },
+    {
+      "targetReviewer": "security-reviewer",
+      "externalSkillId": "sarmakska/slipstream/supabase-rls",
+      "stagedSkillId": "supabase-rls-1e36b217c969",
+      "candidateChecksum": "87bc57e597d3eb2e6ec8d4c099684cf4685da84ef45076b14083a7fcc7100877",
+      "metadataStatus": "INCOMPLETE",
+      "metadataUnresolved": ["purpose"],
+      "licenseEvidenceStatus": "MISSING",
+      "licenseEvidenceSource": "Official skills.sh descriptor did not provide license metadata.",
+      "localStaticSecurity": "PASS",
+      "externalAudit": "PASS",
+      "upstreamStatus": "CURRENT",
+      "approvalReadiness": "METADATA_INCOMPLETE",
+      "blockers": ["unresolved metadata: purpose", "explicit license evidence is missing"]
+    }
+  ]
+}

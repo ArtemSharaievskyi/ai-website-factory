@@ -580,6 +580,18 @@ Reasons:
 - Local static review found an approval-blocking unsafe instruction.
 - The candidate requires a tool that this reviewer does not possess; no permission is granted.
 
+## Selected candidate evidence status
+
+Evidence was refreshed on 2026-08-09 through the existing authenticated official skills.sh adapter for only the three explicitly selected external IDs. The refreshed normalized checksums match the staged and historical evaluation checksums. The API descriptor exposes source, revision, and file-count metadata, but no authoritative license field. This evidence refresh does not change the historical curation recommendations and does not request approval.
+
+| Target reviewer | Exact external ID | Candidate checksum | Metadata | License evidence | Local static security | External audit | Upstream | Approval readiness | Blocking reason |
+|---|---|---|---|---|---|---|---|---|---|
+| Architecture Reviewer | `codybrom/clairvoyance/module-boundaries` | `5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff` | INCOMPLETE: `purpose`, `steps` | MISSING: not provided by official descriptor | PASS | PASS | CURRENT | `METADATA_INCOMPLETE` | unresolved metadata; explicit license evidence missing |
+| Contract Auditor | `masanao-ohba/claude-manifests/acceptance-criteria` | `2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec` | INCOMPLETE: `purpose`, `steps` | MISSING: not provided by official descriptor | PASS | PASS | CURRENT | `METADATA_INCOMPLETE` | unresolved metadata; explicit license evidence missing |
+| Security Reviewer | `sarmakska/slipstream/supabase-rls` | `87bc57e597d3eb2e6ec8d4c099684cf4685da84ef45076b14083a7fcc7100877` | INCOMPLETE: `purpose` | MISSING: not provided by official descriptor | PASS | PASS | CURRENT | `METADATA_INCOMPLETE` | unresolved metadata; explicit license evidence missing |
+
+The corrected Security ID is preserved exactly as `sarmakska/slipstream/supabase-rls`; `sarmaks/slipstream/supabase-rls` is not an alias. The three staged records remain `under-review`. No license was guessed, no skill text was rewritten or executed, and all three remain ineligible for the existing approval function.
+
 ## Hard-stop verification
 
 - Approved Skills Registry approval function was not called.
