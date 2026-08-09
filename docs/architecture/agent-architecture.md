@@ -6,7 +6,7 @@ The current typed flow is:
 
 `user/workflow requirement -> capability -> AgentDefinition -> bounded context/tools/approved skills -> typed result`
 
-The catalog currently contains exactly these six definitions:
+The catalog currently contains exactly these seven definitions:
 
 | Agent | Role | Current capabilities | Write authority |
 | --- | --- | --- | --- |
@@ -16,6 +16,7 @@ The catalog currently contains exactly these six definitions:
 | Implementation | implementation | `implementation.code`, `implementation.backend` | one reservation-owned implementation task at a time |
 | Architecture Reviewer | review | `review.architecture` | read-only review result only |
 | Contract Auditor | review | `review.contracts` | read-only review result only |
+| Code / Integration Reviewer | review | `review.integration` | read-only review result only |
 
 The role boundaries are:
 
@@ -34,9 +35,11 @@ Agent tools are explicit integration IDs: `openai-generation`, `context7-read`, 
 
 Each definition declares a versioned context policy with allowed categories, item and byte limits, plus an execution policy covering AI-generation permission, retry class, cancellation, concurrency, approval gates, and read-only status. Input and output contracts reference the existing typed agent schemas, while prompt versioning is tracked independently from context and execution policy versions. The Architecture Reviewer receives only the approved Brief, accepted PlanningPackage, fixed architecture policy, and bounded constraints.
 
-The current review capabilities are `review.architecture` and `review.contracts`; Code/Integration, Security, and Test/Quality capabilities are intentionally not catalog entries until their contracts and services exist.
+The current review capabilities are `review.architecture`, `review.contracts`, and `review.integration`; Security and Test/Quality capabilities remain intentionally absent.
 
 Skills provide reviewed specialization to roles; they do not replace the Orchestrator. In the current milestone no external skill is required. Agents must not install arbitrary skills, change requirements, invent facts, or broaden infrastructure.
 Context7 is a replaceable documentation port at the Planner and Implementation context seams, not an Orchestrator or general MCP layer.
+
+The Code / Integration Reviewer is a read-only semantic gate after implementation structural validation, lint, and typecheck. It receives only bounded source manifests/slices and canonical contract checksums, persists evidence-backed findings, and never writes source or invokes Implementation.
 
 The shadcn Registry is a replaceable implementation-reference port, not a Design Agent, Orchestrator, installer, or general remote executor.

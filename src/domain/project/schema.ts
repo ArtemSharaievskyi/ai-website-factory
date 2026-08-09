@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { DocumentBaseSchema, IsoDateTimeSchema, NonEmptyStringSchema, ProjectSlugSchema, ProjectVersionSchema, UuidSchema } from "../shared/schemas";
 
-export const WorkflowStateSchema = z.enum(["DRAFT", "CLARIFYING", "AWAITING_BRIEF_APPROVAL", "AWAITING_DESIGN_SELECTION", "ARCHITECTURE_REVIEW", "READY_FOR_IMPLEMENTATION", "CONTRACT_AUDIT", "IMPLEMENTING", "VALIDATING", "REPAIRING", "PROJECT_READY", "FAILED"]);
+export const WorkflowStateSchema = z.enum(["DRAFT", "CLARIFYING", "AWAITING_BRIEF_APPROVAL", "AWAITING_DESIGN_SELECTION", "ARCHITECTURE_REVIEW", "READY_FOR_IMPLEMENTATION", "CONTRACT_AUDIT", "IMPLEMENTING", "CODE_INTEGRATION_REVIEW", "VALIDATING", "REPAIRING", "PROJECT_READY", "FAILED"]);
 
 export const FactoryProjectSchema = DocumentBaseSchema.extend({
   documentType: z.literal("factory-project"),
