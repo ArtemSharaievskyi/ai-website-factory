@@ -1,0 +1,792 @@
+{
+  "schemaVersion": 1,
+  "phase": "4D3",
+  "specImplementationNote": "Phase 4D1 version 0.1.0 retained as history; Phase 4D3 authored artifacts use initial version 1.0.0.",
+  "generatedAt": "2026-08-09T18:51:07.187Z",
+  "sourceOfTruth": "docs/admin/skill-curation/agent-skill-portfolio-plan-2026-08-09.json",
+  "authoredInternalSkillCount": 13,
+  "approvedInternalSkillCount": 0,
+  "assignedInternalSkillCount": 0,
+  "approvedExternalSkillCount": 3,
+  "assignedExternalSkillCount": 3,
+  "approvalCalled": false,
+  "assignmentsChanged": false,
+  "semanticReviewUsed": false,
+  "networkCalls": 0,
+  "candidates": [
+    {
+      "skillId": "lead-requirements-completeness",
+      "title": "Requirements Completeness and Clarification Lens",
+      "version": "1.0.0",
+      "sourceType": "internal",
+      "provenance": "ai-website-factory-project-owned",
+      "targets": [
+        "lead"
+      ],
+      "capabilities": [
+        "requirements.clarify",
+        "requirements.brief"
+      ],
+      "coverageKeys": [
+        "requirements-completeness"
+      ],
+      "contentPath": "skills/internal/lead-requirements-completeness/SKILL.md",
+      "checksum": "315aa899708b9d7dd5da09c061e3a9f1b8367fa3a617fa6022223157a64afff5",
+      "actualBytes": 2822,
+      "targetContextRange": "4–8 KB",
+      "purposeStatus": "COMPLETE",
+      "procedureStatus": "COMPLETE",
+      "securityStatus": "PASS",
+      "authorityStatus": "PASS",
+      "overlapStatus": "JUSTIFIED",
+      "conflictStatus": "PASS",
+      "semanticReviewStatus": "NOT_USED_DETERMINISTIC_SUFFICIENT",
+      "approvalReadiness": "APPROVAL_ELIGIBLE",
+      "blockers": [],
+      "stagedSkillId": "lead-requirements-completeness",
+      "stagedStatus": "under-review",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion",
+      "evidencePolicyVersion": "external-skill-curation-v1",
+      "reviewEvidence": {
+        "parser": {
+          "purpose": "resolved",
+          "steps": "resolved"
+        },
+        "deterministicChecks": [
+          "canonical normalized checksum excludes timestamps",
+          "exact Phase 4D1 ID, targets, capabilities, coverage, and context range",
+          "professional procedure has decision rules and quality checks",
+          "no external URLs or copied external skill content"
+        ],
+        "authorityChecks": [
+          "explicit no-tool and no-approval boundaries",
+          "no chain-of-thought instruction",
+          "no orchestration or AgentDefinition mutation authority"
+        ]
+      }
+    },
+    {
+      "skillId": "project-data-model-planning",
+      "title": "Project Data Model Planning",
+      "version": "1.0.0",
+      "sourceType": "internal",
+      "provenance": "ai-website-factory-project-owned",
+      "targets": [
+        "planner"
+      ],
+      "capabilities": [
+        "planning.architecture"
+      ],
+      "coverageKeys": [
+        "data-modeling"
+      ],
+      "contentPath": "skills/internal/project-data-model-planning/SKILL.md",
+      "checksum": "57f5c9aac801058ea0bc3e8b06e06fd33a60cffb86a2ee658977d8f445256856",
+      "actualBytes": 2505,
+      "targetContextRange": "5–9 KB",
+      "purposeStatus": "COMPLETE",
+      "procedureStatus": "COMPLETE",
+      "securityStatus": "PASS",
+      "authorityStatus": "PASS",
+      "overlapStatus": "JUSTIFIED",
+      "conflictStatus": "PASS",
+      "semanticReviewStatus": "NOT_USED_DETERMINISTIC_SUFFICIENT",
+      "approvalReadiness": "APPROVAL_ELIGIBLE",
+      "blockers": [],
+      "stagedSkillId": "project-data-model-planning",
+      "stagedStatus": "under-review",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion",
+      "evidencePolicyVersion": "external-skill-curation-v1",
+      "reviewEvidence": {
+        "parser": {
+          "purpose": "resolved",
+          "steps": "resolved"
+        },
+        "deterministicChecks": [
+          "canonical normalized checksum excludes timestamps",
+          "exact Phase 4D1 ID, targets, capabilities, coverage, and context range",
+          "professional procedure has decision rules and quality checks",
+          "no external URLs or copied external skill content"
+        ],
+        "authorityChecks": [
+          "explicit no-tool and no-approval boundaries",
+          "no chain-of-thought instruction",
+          "no orchestration or AgentDefinition mutation authority"
+        ]
+      }
+    },
+    {
+      "skillId": "technical-risk-planning",
+      "title": "Technical Risk and Dependency Planning",
+      "version": "1.0.0",
+      "sourceType": "internal",
+      "provenance": "ai-website-factory-project-owned",
+      "targets": [
+        "planner"
+      ],
+      "capabilities": [
+        "planning.architecture"
+      ],
+      "coverageKeys": [
+        "technical-risk-planning"
+      ],
+      "contentPath": "skills/internal/technical-risk-planning/SKILL.md",
+      "checksum": "19b8469b5e4dc7fed92a41b1c4974183aa676e4968b70d7eec7c25306c595826",
+      "actualBytes": 2425,
+      "targetContextRange": "4–7 KB",
+      "purposeStatus": "COMPLETE",
+      "procedureStatus": "COMPLETE",
+      "securityStatus": "PASS",
+      "authorityStatus": "PASS",
+      "overlapStatus": "JUSTIFIED",
+      "conflictStatus": "PASS",
+      "semanticReviewStatus": "NOT_USED_DETERMINISTIC_SUFFICIENT",
+      "approvalReadiness": "APPROVAL_ELIGIBLE",
+      "blockers": [],
+      "stagedSkillId": "technical-risk-planning",
+      "stagedStatus": "under-review",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion",
+      "evidencePolicyVersion": "external-skill-curation-v1",
+      "reviewEvidence": {
+        "parser": {
+          "purpose": "resolved",
+          "steps": "resolved"
+        },
+        "deterministicChecks": [
+          "canonical normalized checksum excludes timestamps",
+          "exact Phase 4D1 ID, targets, capabilities, coverage, and context range",
+          "professional procedure has decision rules and quality checks",
+          "no external URLs or copied external skill content"
+        ],
+        "authorityChecks": [
+          "explicit no-tool and no-approval boundaries",
+          "no chain-of-thought instruction",
+          "no orchestration or AgentDefinition mutation authority"
+        ]
+      }
+    },
+    {
+      "skillId": "responsive-form-ux-design",
+      "title": "Responsive and Form UX Design Contract",
+      "version": "1.0.0",
+      "sourceType": "internal",
+      "provenance": "ai-website-factory-project-owned",
+      "targets": [
+        "design"
+      ],
+      "capabilities": [
+        "design.directions",
+        "design.selection"
+      ],
+      "coverageKeys": [
+        "responsive-design",
+        "form-ux"
+      ],
+      "contentPath": "skills/internal/responsive-form-ux-design/SKILL.md",
+      "checksum": "769b395263c7e0b5fd67d355b4b49a9e88d113df0e6a83e6c8d07714bca31fee",
+      "actualBytes": 2424,
+      "targetContextRange": "5–8 KB",
+      "purposeStatus": "COMPLETE",
+      "procedureStatus": "COMPLETE",
+      "securityStatus": "PASS",
+      "authorityStatus": "PASS",
+      "overlapStatus": "JUSTIFIED",
+      "conflictStatus": "PASS",
+      "semanticReviewStatus": "NOT_USED_DETERMINISTIC_SUFFICIENT",
+      "approvalReadiness": "APPROVAL_ELIGIBLE",
+      "blockers": [],
+      "stagedSkillId": "responsive-form-ux-design",
+      "stagedStatus": "under-review",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion",
+      "evidencePolicyVersion": "external-skill-curation-v1",
+      "reviewEvidence": {
+        "parser": {
+          "purpose": "resolved",
+          "steps": "resolved"
+        },
+        "deterministicChecks": [
+          "canonical normalized checksum excludes timestamps",
+          "exact Phase 4D1 ID, targets, capabilities, coverage, and context range",
+          "professional procedure has decision rules and quality checks",
+          "no external URLs or copied external skill content"
+        ],
+        "authorityChecks": [
+          "explicit no-tool and no-approval boundaries",
+          "no chain-of-thought instruction",
+          "no orchestration or AgentDefinition mutation authority"
+        ]
+      }
+    },
+    {
+      "skillId": "architecture-tradeoff-review",
+      "title": "Architecture Trade-off Review",
+      "version": "1.0.0",
+      "sourceType": "internal",
+      "provenance": "ai-website-factory-project-owned",
+      "targets": [
+        "architecture-reviewer"
+      ],
+      "capabilities": [
+        "review.architecture"
+      ],
+      "coverageKeys": [
+        "architecture-tradeoffs"
+      ],
+      "contentPath": "skills/internal/architecture-tradeoff-review/SKILL.md",
+      "checksum": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd",
+      "actualBytes": 2494,
+      "targetContextRange": "5–8 KB",
+      "purposeStatus": "COMPLETE",
+      "procedureStatus": "COMPLETE",
+      "securityStatus": "PASS",
+      "authorityStatus": "PASS",
+      "overlapStatus": "JUSTIFIED",
+      "conflictStatus": "PASS",
+      "semanticReviewStatus": "NOT_USED_DETERMINISTIC_SUFFICIENT",
+      "approvalReadiness": "APPROVAL_ELIGIBLE",
+      "blockers": [],
+      "stagedSkillId": "architecture-tradeoff-review",
+      "stagedStatus": "under-review",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion",
+      "evidencePolicyVersion": "external-skill-curation-v1",
+      "reviewEvidence": {
+        "parser": {
+          "purpose": "resolved",
+          "steps": "resolved"
+        },
+        "deterministicChecks": [
+          "canonical normalized checksum excludes timestamps",
+          "exact Phase 4D1 ID, targets, capabilities, coverage, and context range",
+          "professional procedure has decision rules and quality checks",
+          "no external URLs or copied external skill content"
+        ],
+        "authorityChecks": [
+          "explicit no-tool and no-approval boundaries",
+          "no chain-of-thought instruction",
+          "no orchestration or AgentDefinition mutation authority"
+        ]
+      }
+    },
+    {
+      "skillId": "requirements-evidence-traceability",
+      "title": "Requirements and Evidence Traceability",
+      "version": "1.0.0",
+      "sourceType": "internal",
+      "provenance": "ai-website-factory-project-owned",
+      "targets": [
+        "contract-auditor",
+        "test-quality-reviewer"
+      ],
+      "capabilities": [
+        "review.contracts",
+        "review.test-quality"
+      ],
+      "coverageKeys": [
+        "requirements-traceability-review",
+        "cross-stage-consistency",
+        "traceability-evidence"
+      ],
+      "contentPath": "skills/internal/requirements-evidence-traceability/SKILL.md",
+      "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26",
+      "actualBytes": 2706,
+      "targetContextRange": "5–9 KB",
+      "purposeStatus": "COMPLETE",
+      "procedureStatus": "COMPLETE",
+      "securityStatus": "PASS",
+      "authorityStatus": "PASS",
+      "overlapStatus": "JUSTIFIED",
+      "conflictStatus": "PASS",
+      "semanticReviewStatus": "NOT_USED_DETERMINISTIC_SUFFICIENT",
+      "approvalReadiness": "APPROVAL_ELIGIBLE",
+      "blockers": [],
+      "stagedSkillId": "requirements-evidence-traceability",
+      "stagedStatus": "under-review",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion",
+      "evidencePolicyVersion": "external-skill-curation-v1",
+      "reviewEvidence": {
+        "parser": {
+          "purpose": "resolved",
+          "steps": "resolved"
+        },
+        "deterministicChecks": [
+          "canonical normalized checksum excludes timestamps",
+          "exact Phase 4D1 ID, targets, capabilities, coverage, and context range",
+          "professional procedure has decision rules and quality checks",
+          "no external URLs or copied external skill content"
+        ],
+        "authorityChecks": [
+          "explicit no-tool and no-approval boundaries",
+          "no chain-of-thought instruction",
+          "no orchestration or AgentDefinition mutation authority"
+        ]
+      }
+    },
+    {
+      "skillId": "nextjs-server-client-implementation",
+      "title": "Next.js Server and Client Implementation",
+      "version": "1.0.0",
+      "sourceType": "internal",
+      "provenance": "ai-website-factory-project-owned",
+      "targets": [
+        "implementation"
+      ],
+      "capabilities": [
+        "implementation.code"
+      ],
+      "coverageKeys": [
+        "nextjs-implementation",
+        "server-client-boundaries"
+      ],
+      "contentPath": "skills/internal/nextjs-server-client-implementation/SKILL.md",
+      "checksum": "7781dc0f003aef30c6d3bebc5ba72bac8f2b2f4de58812488a9273f2d6c36f4c",
+      "actualBytes": 2641,
+      "targetContextRange": "6–10 KB",
+      "purposeStatus": "COMPLETE",
+      "procedureStatus": "COMPLETE",
+      "securityStatus": "PASS",
+      "authorityStatus": "PASS",
+      "overlapStatus": "JUSTIFIED",
+      "conflictStatus": "PASS",
+      "semanticReviewStatus": "NOT_USED_DETERMINISTIC_SUFFICIENT",
+      "approvalReadiness": "APPROVAL_ELIGIBLE",
+      "blockers": [],
+      "stagedSkillId": "nextjs-server-client-implementation",
+      "stagedStatus": "under-review",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion",
+      "evidencePolicyVersion": "external-skill-curation-v1",
+      "reviewEvidence": {
+        "parser": {
+          "purpose": "resolved",
+          "steps": "resolved"
+        },
+        "deterministicChecks": [
+          "canonical normalized checksum excludes timestamps",
+          "exact Phase 4D1 ID, targets, capabilities, coverage, and context range",
+          "professional procedure has decision rules and quality checks",
+          "no external URLs or copied external skill content"
+        ],
+        "authorityChecks": [
+          "explicit no-tool and no-approval boundaries",
+          "no chain-of-thought instruction",
+          "no orchestration or AgentDefinition mutation authority"
+        ]
+      }
+    },
+    {
+      "skillId": "typed-form-implementation",
+      "title": "Typed Form and Validation Implementation",
+      "version": "1.0.0",
+      "sourceType": "internal",
+      "provenance": "ai-website-factory-project-owned",
+      "targets": [
+        "implementation"
+      ],
+      "capabilities": [
+        "implementation.code"
+      ],
+      "coverageKeys": [
+        "forms-validation"
+      ],
+      "contentPath": "skills/internal/typed-form-implementation/SKILL.md",
+      "checksum": "f72ea7786e203908691e52e59932af2ba68cf13cf9f2ea453eb3b47d91b41182",
+      "actualBytes": 2471,
+      "targetContextRange": "5–8 KB",
+      "purposeStatus": "COMPLETE",
+      "procedureStatus": "COMPLETE",
+      "securityStatus": "PASS",
+      "authorityStatus": "PASS",
+      "overlapStatus": "JUSTIFIED",
+      "conflictStatus": "PASS",
+      "semanticReviewStatus": "NOT_USED_DETERMINISTIC_SUFFICIENT",
+      "approvalReadiness": "APPROVAL_ELIGIBLE",
+      "blockers": [],
+      "stagedSkillId": "typed-form-implementation",
+      "stagedStatus": "under-review",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion",
+      "evidencePolicyVersion": "external-skill-curation-v1",
+      "reviewEvidence": {
+        "parser": {
+          "purpose": "resolved",
+          "steps": "resolved"
+        },
+        "deterministicChecks": [
+          "canonical normalized checksum excludes timestamps",
+          "exact Phase 4D1 ID, targets, capabilities, coverage, and context range",
+          "professional procedure has decision rules and quality checks",
+          "no external URLs or copied external skill content"
+        ],
+        "authorityChecks": [
+          "explicit no-tool and no-approval boundaries",
+          "no chain-of-thought instruction",
+          "no orchestration or AgentDefinition mutation authority"
+        ]
+      }
+    },
+    {
+      "skillId": "supabase-application-integration",
+      "title": "Supabase Application Integration",
+      "version": "1.0.0",
+      "sourceType": "internal",
+      "provenance": "ai-website-factory-project-owned",
+      "targets": [
+        "implementation"
+      ],
+      "capabilities": [
+        "implementation.backend"
+      ],
+      "coverageKeys": [
+        "supabase-implementation"
+      ],
+      "contentPath": "skills/internal/supabase-application-integration/SKILL.md",
+      "checksum": "c819bba97e69bcaf4a3d3b4c40e2476251387e623dc698113a20e919a74f1b78",
+      "actualBytes": 2516,
+      "targetContextRange": "6–10 KB",
+      "purposeStatus": "COMPLETE",
+      "procedureStatus": "COMPLETE",
+      "securityStatus": "PASS",
+      "authorityStatus": "PASS",
+      "overlapStatus": "JUSTIFIED",
+      "conflictStatus": "PASS",
+      "semanticReviewStatus": "NOT_USED_DETERMINISTIC_SUFFICIENT",
+      "approvalReadiness": "APPROVAL_ELIGIBLE",
+      "blockers": [],
+      "stagedSkillId": "supabase-application-integration",
+      "stagedStatus": "under-review",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion",
+      "evidencePolicyVersion": "external-skill-curation-v1",
+      "reviewEvidence": {
+        "parser": {
+          "purpose": "resolved",
+          "steps": "resolved"
+        },
+        "deterministicChecks": [
+          "canonical normalized checksum excludes timestamps",
+          "exact Phase 4D1 ID, targets, capabilities, coverage, and context range",
+          "professional procedure has decision rules and quality checks",
+          "no external URLs or copied external skill content"
+        ],
+        "authorityChecks": [
+          "explicit no-tool and no-approval boundaries",
+          "no chain-of-thought instruction",
+          "no orchestration or AgentDefinition mutation authority"
+        ]
+      }
+    },
+    {
+      "skillId": "maintainable-performance-implementation",
+      "title": "Maintainable and Performant Incremental Implementation",
+      "version": "1.0.0",
+      "sourceType": "internal",
+      "provenance": "ai-website-factory-project-owned",
+      "targets": [
+        "implementation"
+      ],
+      "capabilities": [
+        "implementation.code"
+      ],
+      "coverageKeys": [
+        "maintainable-performance"
+      ],
+      "contentPath": "skills/internal/maintainable-performance-implementation/SKILL.md",
+      "checksum": "f996bde1493bc2d0b6246b2e5e098aea28e43b07b1dd148da8dffff5a3af33f6",
+      "actualBytes": 2478,
+      "targetContextRange": "5–8 KB",
+      "purposeStatus": "COMPLETE",
+      "procedureStatus": "COMPLETE",
+      "securityStatus": "PASS",
+      "authorityStatus": "PASS",
+      "overlapStatus": "JUSTIFIED",
+      "conflictStatus": "PASS",
+      "semanticReviewStatus": "NOT_USED_DETERMINISTIC_SUFFICIENT",
+      "approvalReadiness": "APPROVAL_ELIGIBLE",
+      "blockers": [],
+      "stagedSkillId": "maintainable-performance-implementation",
+      "stagedStatus": "under-review",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion",
+      "evidencePolicyVersion": "external-skill-curation-v1",
+      "reviewEvidence": {
+        "parser": {
+          "purpose": "resolved",
+          "steps": "resolved"
+        },
+        "deterministicChecks": [
+          "canonical normalized checksum excludes timestamps",
+          "exact Phase 4D1 ID, targets, capabilities, coverage, and context range",
+          "professional procedure has decision rules and quality checks",
+          "no external URLs or copied external skill content"
+        ],
+        "authorityChecks": [
+          "explicit no-tool and no-approval boundaries",
+          "no chain-of-thought instruction",
+          "no orchestration or AgentDefinition mutation authority"
+        ]
+      }
+    },
+    {
+      "skillId": "react-nextjs-integration-review",
+      "title": "React and Next.js Integration Review",
+      "version": "1.0.0",
+      "sourceType": "internal",
+      "provenance": "ai-website-factory-project-owned",
+      "targets": [
+        "code-integration-reviewer"
+      ],
+      "capabilities": [
+        "review.integration"
+      ],
+      "coverageKeys": [
+        "react-review",
+        "nextjs-review",
+        "maintainability-review"
+      ],
+      "contentPath": "skills/internal/react-nextjs-integration-review/SKILL.md",
+      "checksum": "acd9276249146013c41cdbf0d53463232124c7f50f360014729266c798cd737b",
+      "actualBytes": 2418,
+      "targetContextRange": "6–10 KB",
+      "purposeStatus": "COMPLETE",
+      "procedureStatus": "COMPLETE",
+      "securityStatus": "PASS",
+      "authorityStatus": "PASS",
+      "overlapStatus": "JUSTIFIED",
+      "conflictStatus": "PASS",
+      "semanticReviewStatus": "NOT_USED_DETERMINISTIC_SUFFICIENT",
+      "approvalReadiness": "APPROVAL_ELIGIBLE",
+      "blockers": [],
+      "stagedSkillId": "react-nextjs-integration-review",
+      "stagedStatus": "under-review",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion",
+      "evidencePolicyVersion": "external-skill-curation-v1",
+      "reviewEvidence": {
+        "parser": {
+          "purpose": "resolved",
+          "steps": "resolved"
+        },
+        "deterministicChecks": [
+          "canonical normalized checksum excludes timestamps",
+          "exact Phase 4D1 ID, targets, capabilities, coverage, and context range",
+          "professional procedure has decision rules and quality checks",
+          "no external URLs or copied external skill content"
+        ],
+        "authorityChecks": [
+          "explicit no-tool and no-approval boundaries",
+          "no chain-of-thought instruction",
+          "no orchestration or AgentDefinition mutation authority"
+        ]
+      }
+    },
+    {
+      "skillId": "auth-storage-security-review",
+      "title": "Authentication and Storage Security Review",
+      "version": "1.0.0",
+      "sourceType": "internal",
+      "provenance": "ai-website-factory-project-owned",
+      "targets": [
+        "security-reviewer"
+      ],
+      "capabilities": [
+        "review.security"
+      ],
+      "coverageKeys": [
+        "auth-security",
+        "storage-upload-security"
+      ],
+      "contentPath": "skills/internal/auth-storage-security-review/SKILL.md",
+      "checksum": "069ffa33fec764ce1e19ff853d21b00d091e5f0eb874e0278de7a774e344dd25",
+      "actualBytes": 2619,
+      "targetContextRange": "5–8 KB",
+      "purposeStatus": "COMPLETE",
+      "procedureStatus": "COMPLETE",
+      "securityStatus": "PASS",
+      "authorityStatus": "PASS",
+      "overlapStatus": "JUSTIFIED",
+      "conflictStatus": "PASS",
+      "semanticReviewStatus": "NOT_USED_DETERMINISTIC_SUFFICIENT",
+      "approvalReadiness": "APPROVAL_ELIGIBLE",
+      "blockers": [],
+      "stagedSkillId": "auth-storage-security-review",
+      "stagedStatus": "under-review",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion",
+      "evidencePolicyVersion": "external-skill-curation-v1",
+      "reviewEvidence": {
+        "parser": {
+          "purpose": "resolved",
+          "steps": "resolved"
+        },
+        "deterministicChecks": [
+          "canonical normalized checksum excludes timestamps",
+          "exact Phase 4D1 ID, targets, capabilities, coverage, and context range",
+          "professional procedure has decision rules and quality checks",
+          "no external URLs or copied external skill content"
+        ],
+        "authorityChecks": [
+          "explicit no-tool and no-approval boundaries",
+          "no chain-of-thought instruction",
+          "no orchestration or AgentDefinition mutation authority"
+        ]
+      }
+    },
+    {
+      "skillId": "behavioral-test-quality-review",
+      "title": "Behavioral Test Quality Review",
+      "version": "1.0.0",
+      "sourceType": "internal",
+      "provenance": "ai-website-factory-project-owned",
+      "targets": [
+        "test-quality-reviewer"
+      ],
+      "capabilities": [
+        "review.test-quality"
+      ],
+      "coverageKeys": [
+        "test-strategy",
+        "meaningful-assertions",
+        "playwright-quality"
+      ],
+      "contentPath": "skills/internal/behavioral-test-quality-review/SKILL.md",
+      "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09",
+      "actualBytes": 2526,
+      "targetContextRange": "6–10 KB",
+      "purposeStatus": "COMPLETE",
+      "procedureStatus": "COMPLETE",
+      "securityStatus": "PASS",
+      "authorityStatus": "PASS",
+      "overlapStatus": "JUSTIFIED",
+      "conflictStatus": "PASS",
+      "semanticReviewStatus": "NOT_USED_DETERMINISTIC_SUFFICIENT",
+      "approvalReadiness": "APPROVAL_ELIGIBLE",
+      "blockers": [],
+      "stagedSkillId": "behavioral-test-quality-review",
+      "stagedStatus": "under-review",
+      "licenseStrategy": "internal-project-owned-no-third-party-license-assertion",
+      "evidencePolicyVersion": "external-skill-curation-v1",
+      "reviewEvidence": {
+        "parser": {
+          "purpose": "resolved",
+          "steps": "resolved"
+        },
+        "deterministicChecks": [
+          "canonical normalized checksum excludes timestamps",
+          "exact Phase 4D1 ID, targets, capabilities, coverage, and context range",
+          "professional procedure has decision rules and quality checks",
+          "no external URLs or copied external skill content"
+        ],
+        "authorityChecks": [
+          "explicit no-tool and no-approval boundaries",
+          "no chain-of-thought instruction",
+          "no orchestration or AgentDefinition mutation authority"
+        ]
+      }
+    }
+  ],
+  "overlapAudit": [
+    {
+      "left": "lead-requirements-completeness",
+      "right": "ambiguity-detector (historical external candidate)",
+      "status": "JUSTIFIED",
+      "note": "Completeness identifies materially missing facts; ambiguity detection identifies unclear signals."
+    },
+    {
+      "left": "project-data-model-planning",
+      "right": "supabase-application-integration",
+      "status": "JUSTIFIED",
+      "note": "Planner derives the model; Implementation integrates the approved surface."
+    },
+    {
+      "left": "nextjs-server-client-implementation",
+      "right": "react-nextjs-integration-review",
+      "status": "JUSTIFIED",
+      "note": "Implementation chooses boundaries; Code Reviewer checks semantic integration afterward."
+    },
+    {
+      "left": "supabase-application-integration",
+      "right": "supabase-rls / auth-storage-security-review",
+      "status": "JUSTIFIED",
+      "note": "Implementation performs planned integration; Security reviews RLS and auth/storage consequences."
+    },
+    {
+      "left": "architecture-tradeoff-review",
+      "right": "module-boundaries / review-maintainability",
+      "status": "JUSTIFIED",
+      "note": "Trade-off judgment complements structural boundaries and maintainability review."
+    },
+    {
+      "left": "requirements-evidence-traceability",
+      "right": "acceptance-criteria / behavioral-test-quality-review",
+      "status": "JUSTIFIED",
+      "note": "Traceability preserves meaning; acceptance and test-quality procedures judge their own evidence concerns."
+    },
+    {
+      "left": "behavioral-test-quality-review",
+      "right": "reviewing-test-quality (historical external candidate)",
+      "status": "JUSTIFIED",
+      "note": "The internal skill is Factory-specific and remains a read-only reviewer method."
+    }
+  ],
+  "conflictAudit": [
+    {
+      "skillId": "lead-requirements-completeness",
+      "status": "PASS",
+      "note": "No workflow, approval, AgentDefinition, tool, or orchestration authority is granted."
+    },
+    {
+      "skillId": "project-data-model-planning",
+      "status": "PASS",
+      "note": "No workflow, approval, AgentDefinition, tool, or orchestration authority is granted."
+    },
+    {
+      "skillId": "technical-risk-planning",
+      "status": "PASS",
+      "note": "No workflow, approval, AgentDefinition, tool, or orchestration authority is granted."
+    },
+    {
+      "skillId": "responsive-form-ux-design",
+      "status": "PASS",
+      "note": "No workflow, approval, AgentDefinition, tool, or orchestration authority is granted."
+    },
+    {
+      "skillId": "nextjs-server-client-implementation",
+      "status": "PASS",
+      "note": "No workflow, approval, AgentDefinition, tool, or orchestration authority is granted."
+    },
+    {
+      "skillId": "typed-form-implementation",
+      "status": "PASS",
+      "note": "No workflow, approval, AgentDefinition, tool, or orchestration authority is granted."
+    },
+    {
+      "skillId": "supabase-application-integration",
+      "status": "PASS",
+      "note": "No workflow, approval, AgentDefinition, tool, or orchestration authority is granted."
+    },
+    {
+      "skillId": "maintainable-performance-implementation",
+      "status": "PASS",
+      "note": "No workflow, approval, AgentDefinition, tool, or orchestration authority is granted."
+    },
+    {
+      "skillId": "architecture-tradeoff-review",
+      "status": "PASS",
+      "note": "No workflow, approval, AgentDefinition, tool, or orchestration authority is granted."
+    },
+    {
+      "skillId": "requirements-evidence-traceability",
+      "status": "PASS",
+      "note": "No workflow, approval, AgentDefinition, tool, or orchestration authority is granted."
+    },
+    {
+      "skillId": "react-nextjs-integration-review",
+      "status": "PASS",
+      "note": "No workflow, approval, AgentDefinition, tool, or orchestration authority is granted."
+    },
+    {
+      "skillId": "auth-storage-security-review",
+      "status": "PASS",
+      "note": "No workflow, approval, AgentDefinition, tool, or orchestration authority is granted."
+    },
+    {
+      "skillId": "behavioral-test-quality-review",
+      "status": "PASS",
+      "note": "No workflow, approval, AgentDefinition, tool, or orchestration authority is granted."
+    }
+  ]
+}

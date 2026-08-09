@@ -13,6 +13,7 @@ export const SkillSourceTypeSchema = z.enum([
   "skills-sh",
   "git-repository",
   "local-manual-import",
+  "internal",
 ]);
 export const SkillRoleSchema = z.enum([
   "lead",

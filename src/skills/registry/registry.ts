@@ -282,7 +282,12 @@ export class SkillRegistry {
     sourcePath: string,
     options: {
       idempotencyKey?: string;
-      sourceType?: "local-manual-import" | "git-repository" | "skills-sh";
+      sourceType?:
+        | "local-manual-import"
+        | "git-repository"
+        | "skills-sh"
+        | "internal";
+      skillId?: string;
       displayName?: string;
       version?: string;
       license?: string;
@@ -314,6 +319,18 @@ export class SkillRegistry {
         "SKILL_SOURCE_INVALID",
         "The explicit skill source must be a directory.",
       );
+    if (
+      options.sourceType === "internal" &&
+      (options.sourceRepository ||
+        options.externalSkillId ||
+        options.canonicalSourceRef ||
+        options.retrievedContentChecksum ||
+        options.normalizedContentChecksum)
+    )
+      throw new SkillError(
+        "SKILL_SOURCE_INVALID",
+        "Internal skills cannot carry external provenance fields.",
+      );
     const files = await this.scan(source);
     const manifestFiles = files.map(
       ({ relativePath, sha256, byteSize, kind, executable }) => ({
@@ -342,7 +359,27 @@ export class SkillRegistry {
     const slug = safeSlug(
       options.displayName ?? summary.title ?? path.basename(source),
     );
-    const id = `${slug}-${manifestChecksum.slice(0, 12)}`;
+    if (
+      options.skillId &&
+      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(options.skillId)
+    )
+      throw new SkillError(
+        "SKILL_SOURCE_INVALID",
+        "The authored skill ID must be lowercase, stable, and language-independent.",
+      );
+    const id = options.skillId ?? `${slug}-${manifestChecksum.slice(0, 12)}`;
+    if (options.skillId) {
+      try {
+        await this.read(id);
+        throw new SkillError(
+          "SKILL_IDEMPOTENCY_CONFLICT",
+          "The authored skill ID already exists in the registry.",
+        );
+      } catch (error) {
+        if (!(error instanceof SkillError) || error.code !== "SKILL_NOT_FOUND")
+          throw error;
+      }
+    }
     const operation = `${id}-${randomUUID()}`;
     const staged = path.join(this.dir("staging"), operation);
     await this.copyFiles(source, staged, files);
