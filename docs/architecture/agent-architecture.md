@@ -14,11 +14,11 @@ The catalog currently contains exactly these nine definitions:
 | Planner | generation | `planning.architecture`, `planning.content`, `planning.assets` | planning package through its service |
 | Design | generation | `design.directions`, `design.selection` | design documents and selection through its service |
 | Implementation | implementation | `implementation.code`, `implementation.backend` | one reservation-owned implementation task at a time |
-| Architecture Reviewer | review | `review.architecture` | read-only review result; `module-boundaries-fb20497b5c35` |
-| Contract Auditor | review | `review.contracts` | read-only review result; `acceptance-criteria-80493e317476` |
-| Code / Integration Reviewer | review | `review.integration` | read-only review result only |
-| Security Reviewer | review | `review.security` | read-only review result; `supabase-rls-1e36b217c969` when relevant |
-| Test / Quality Reviewer | review | `review.test-quality` | read-only review result only |
+| Architecture Reviewer | review | `review.architecture` | read-only review result; module boundaries, maintainability, and architecture tradeoffs |
+| Contract Auditor | review | `review.contracts` | read-only review result; acceptance criteria and shared traceability |
+| Code / Integration Reviewer | review | `review.integration` | read-only review result; React/Next integration |
+| Security Reviewer | review | `review.security` | read-only review result; Supabase RLS and auth/storage when relevant |
+| Test / Quality Reviewer | review | `review.test-quality` | read-only review result; shared traceability and behavioral test quality |
 
 The role boundaries are:
 
@@ -33,7 +33,7 @@ The workflow gates are `Planning Acceptance -> ARCHITECTURE_REVIEW -> Design -> 
 
 ## Permissions and policy
 
-Agent tools are explicit integration IDs: `openai-generation`, `context7-read`, `shadcn-registry-read`, and `codebase-memory-read`. Agent definitions do not inherit wildcard tools or capabilities. Skills are separate approved procedural context. The Phase 4B2 catalog assigns exactly three internal skill IDs; the remaining six agents have empty skill allowlists. The dedicated `skills.sh` source adapter is administrative read-only infrastructure documented in [skills.sh source integration](../integrations/skills-sh-source.md); it never approves or assigns skills.
+Agent tools are explicit integration IDs: `openai-generation`, `context7-read`, `shadcn-registry-read`, and `codebase-memory-read`. Agent definitions do not inherit wildcard tools or capabilities. Skills are separate approved procedural context. Phase 4D4 assigns explicit role-appropriate portfolios to all nine agents; the portfolio has no fixed one-skill or top-K quota, and the shared traceability procedure remains one artifact with multi-reviewer applicability. The three deferred external candidates remain inactive. The dedicated `skills.sh` source adapter is administrative read-only infrastructure documented in [skills.sh source integration](../integrations/skills-sh-source.md); it never approves or assigns skills.
 
 Each definition declares a versioned context policy with allowed categories, item and byte limits, plus an execution policy covering AI-generation permission, retry class, cancellation, concurrency, approval gates, and read-only status. Input and output contracts reference the existing typed agent schemas, while prompt versioning is tracked independently from context and execution policy versions. The Architecture Reviewer receives only the approved Brief, accepted PlanningPackage, fixed architecture policy, and bounded constraints.
 

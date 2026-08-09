@@ -12,7 +12,7 @@ describe("Security Reviewer", () => {
     expect(securityReviewerAgentDefinition.agentId).toBe("security-reviewer");
     expect(securityReviewerAgentDefinition.capabilities).toEqual(["review.security"]);
     expect(securityReviewerAgentDefinition.allowedTools).toEqual(["openai-generation"]);
-    expect(securityReviewerAgentDefinition.allowedSkillIds).toEqual(["supabase-rls-1e36b217c969"]);
+    expect(securityReviewerAgentDefinition.allowedSkillIds).toEqual(["supabase-rls-1e36b217c969", "auth-storage-security-review"]);
     expect(securityReviewerAgentDefinition.readOnly).toBe(true);
     expect(securityReviewerAgentDefinition.contextPolicy.maxBytes).toBeLessThan(250000);
   });

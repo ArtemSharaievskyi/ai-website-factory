@@ -12,7 +12,7 @@ describe("Code / Integration Reviewer", () => {
     expect(codeIntegrationReviewerAgentDefinition.role).toBe("review");
     expect(codeIntegrationReviewerAgentDefinition.capabilities).toEqual(["review.integration"]);
     expect(codeIntegrationReviewerAgentDefinition.allowedTools).toEqual(["openai-generation"]);
-    expect(codeIntegrationReviewerAgentDefinition.allowedSkillIds).toEqual([]);
+    expect(codeIntegrationReviewerAgentDefinition.allowedSkillIds).toEqual(["react-nextjs-integration-review"]);
     expect(codeIntegrationReviewerAgentDefinition.readOnly).toBe(true);
     expect(codeIntegrationReviewerAgentDefinition.contextPolicy.maxBytes).toBeLessThan(250000);
   });

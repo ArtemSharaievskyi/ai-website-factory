@@ -296,6 +296,7 @@ export class SkillRegistry {
       sourceTag?: string;
       reviewer?: string;
       externalSkillId?: string;
+      provenance?: "ai-website-factory-project-owned";
       canonicalSourceRef?: string;
       retrievedContentChecksum?: string;
       normalizedContentChecksum?: string;
@@ -321,7 +322,8 @@ export class SkillRegistry {
       );
     if (
       options.sourceType === "internal" &&
-      (options.sourceRepository ||
+      (options.provenance !== "ai-website-factory-project-owned" ||
+        options.sourceRepository ||
         options.externalSkillId ||
         options.canonicalSourceRef ||
         options.retrievedContentChecksum ||
@@ -438,6 +440,7 @@ export class SkillRegistry {
         fileManifestChecksum: manifestChecksum,
         originalSkillName: definition.displayName,
         externalSkillId: options.externalSkillId,
+        provenance: options.provenance,
         canonicalSourceRef: options.canonicalSourceRef,
         retrievedContentChecksum: options.retrievedContentChecksum,
         normalizedContentChecksum: options.normalizedContentChecksum,
@@ -558,6 +561,54 @@ export class SkillRegistry {
     });
     return next;
   }
+  async recordInternalApprovalEvidence(
+    skillId: string,
+    input: {
+      version: string;
+      normalizedContentChecksum: string;
+      provenance: "ai-website-factory-project-owned";
+    },
+  ) {
+    const record = await this.read(skillId);
+    if (
+      record.source.sourceType !== "internal" ||
+      record.definition.version !== input.version ||
+      record.source.externalSkillId !== undefined ||
+      record.source.repositoryUrl !== undefined
+    )
+      throw new SkillError(
+        "SKILL_SOURCE_INVALID",
+        "Internal approval evidence does not match first-party provenance.",
+      );
+    if (
+      (record.source.normalizedContentChecksum !== undefined &&
+        record.source.normalizedContentChecksum !== input.normalizedContentChecksum) ||
+      (record.source.provenance !== undefined &&
+        record.source.provenance !== input.provenance)
+    )
+      throw new SkillError(
+        "SKILL_CHECKSUM_MISMATCH",
+        "Internal approval evidence does not match the exact staged artifact.",
+      );
+    const next: RegistryRecord = {
+      ...record,
+      source: {
+        ...record.source,
+        provenance: input.provenance,
+        normalizedContentChecksum: input.normalizedContentChecksum,
+      },
+    };
+    await this.save(next);
+    await this.audit({
+      skillId,
+      sourceChecksum: record.definition.sourceChecksum,
+      actor: "phase-4d4",
+      action: "evidence-recorded",
+      summary:
+        "First-party checksum and provenance evidence recorded; approval remains separate.",
+    });
+    return next;
+  }
   async createApproval(
     skillId: string,
     input: Omit<
@@ -582,7 +633,10 @@ export class SkillRegistry {
         "SKILL_REVIEW_BLOCKED",
         "Critical static review findings block approval.",
       );
-    if (review.metadataUnresolved.length || !record.definition.license)
+    if (
+      review.metadataUnresolved.length ||
+      (record.source.sourceType !== "internal" && !record.definition.license)
+    )
       throw new SkillError(
         "SKILL_APPROVAL_REQUIRED",
         "Manual metadata and explicit license evidence are required before approval.",
@@ -603,6 +657,15 @@ export class SkillRegistry {
       throw new SkillError(
         "SKILL_CHECKSUM_MISMATCH",
         "Approval candidate checksum does not match staged provenance.",
+      );
+    if (
+      record.source.sourceType === "internal" &&
+      (input.candidateChecksum === undefined ||
+        input.approvedVersion !== record.definition.version)
+    )
+      throw new SkillError(
+        "SKILL_CHECKSUM_MISMATCH",
+        "Internal approval must bind the exact version and normalized checksum.",
       );
     const allowedFiles =
       input.allowedFiles ??

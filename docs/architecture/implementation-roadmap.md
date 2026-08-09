@@ -4,11 +4,13 @@ The production provider foundation is now available behind existing ports; real 
 
 1. Foundation: this single application, npm, Docker, hygiene, and decisions.
 2. Durable workflow state: define approved Supabase schema, repositories, state transitions, and versioned Workspace Manager output.
-3. Approved skills: implement isolated import, static review, manual approval, immutable copies, permissions, bounded loading, and Phase 4B2 reviewer activation. Exactly three curated reviewer procedures are approved; future assignments remain Phase 4C.
+3. Approved skills: implement isolated import, static review, manual approval, immutable copies, permissions, bounded loading, and the complete Phase 4D4 portfolio activation. The active portfolio contains 4 approved external and 13 approved internal artifacts across all nine agents; three external candidates remain deferred for future policy review.
 4. Requirements: implement Lead Agent clarification and brief approval.
 5. Design: implement three-direction proposal and selection freeze.
 6. Generation: add project workspace, planning, and controlled single-task Implementation Agent execution. The Orchestrator provides deterministic TaskGraph planning; full graph execution and customer website generation remain future work.
 7. Validation and release: add deterministic checks, functional browser tests, repair loops, versioning, local Git, and optional GitHub creation. The controlled real-chain smoke boundary is documented in [`../operations/real-factory-e2e-smoke.md`](../operations/real-factory-e2e-smoke.md).
+
+The active skill portfolio snapshot is documented in [`../admin/skill-curation/active-agent-skill-portfolio-2026-08-09.json`](../admin/skill-curation/active-agent-skill-portfolio-2026-08-09.json).
 
 The production stage composition root is documented in [`../operations/production-factory-runtime.md`](../operations/production-factory-runtime.md).
 

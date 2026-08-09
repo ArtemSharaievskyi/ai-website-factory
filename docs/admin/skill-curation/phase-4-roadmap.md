@@ -22,9 +22,9 @@ Complete. Exactly 13 first-party internal procedures were authored, checksum-bou
 
 Complete. The initial engineering portfolio selects only `review-maintainability` for the Phase 4D4 approval preview. `ambiguity-detector` and `web-security-review` remain deferred pending Factory license-policy decisions; `reviewing-test-quality` remains unselected pending license-scope resolution. These are portfolio decisions, not legal conclusions.
 
-## Phase 4D4 - next: explicit approval and assignment
+## Phase 4D4 - complete: explicit approval and assignment
 
-The preview contains one external candidate and all 13 approval-eligible internal candidates. Phase 4D4 must perform explicit human approval, immutable promotion, narrowed assignment, allowlist updates, resolver applicability review, and focused regression validation. No approval or assignment is implied here.
+The preview was activated as the exact human-approved set: one external candidate and all 13 approval-eligible internal candidates. The local registry now records 4 approved external and 13 approved internal artifacts; all nine catalog allowlists are active, the shared traceability artifact has role-specific multi-task applicability, and the active snapshot/report record exact versions, checksums, deferred inactivity, authority, and offline invariants.
 
 ## Phase 4D5 - final skill portfolio/runtime audit
 

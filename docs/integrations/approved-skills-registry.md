@@ -4,7 +4,7 @@ External skills are untrusted supply-chain inputs. The Factory uses a local, fil
 
 `explicit local import → isolated staging → manifest/checksums → static review → manual approval → immutable approved copy → bounded load`
 
-The canonical layout is `skills/staging/`, `skills/approved/`, `skills/rejected/`, and `skills/registry/`. Staging and rejected payloads are ignored by Git; approved content is committed only when its license permits it. The Phase 4B2 registry contains exactly three approved external skills, each bound to its recorded candidate checksum; no other candidate is approved.
+The canonical layout is `skills/staging/`, `skills/approved/`, `skills/rejected/`, and `skills/registry/`. Staging and rejected payloads are ignored by Git; approved content is committed only when its license permits it. The active Phase 4D4 registry contains exactly 17 approved skill artifacts: 4 external and 13 project-owned internal artifacts. Each approval is bound to its recorded candidate checksum, version, role/task scope, and immutable promoted copy. Three deferred external candidates remain unapproved.
 
 The registry never calls skills.sh, downloads Git repositories, invokes `npx skills add`, installs packages, executes scripts, exposes a public filesystem route, or runs agents. Registry metadata and audit events are small JSON/JSONL records; skill files remain local and are verified by SHA-256 manifests. No database migration is required for this local single-user foundation.
 

@@ -38,7 +38,18 @@ describe("typed agent catalog", () => {
   });
   it("keeps tool, skill, contract, and policy permissions explicit", () => {
     expect(AGENT_TOOL_IDS).toEqual(["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read"]);
-    expect(agentCatalog.filter((agent) => agent.allowedSkillIds.length > 0).map((agent) => agent.agentId)).toEqual(["architecture-reviewer", "contract-auditor", "security-reviewer"]);
+    expect(agentCatalog.filter((agent) => agent.allowedSkillIds.length > 0).map((agent) => agent.agentId)).toEqual(["lead", "planner", "design", "implementation", "architecture-reviewer", "contract-auditor", "code-integration-reviewer", "security-reviewer", "test-quality-reviewer"]);
+    expect(Object.fromEntries(agentCatalog.map((agent) => [agent.agentId, agent.allowedSkillIds]))).toEqual({
+      lead: ["lead-requirements-completeness"],
+      planner: ["project-data-model-planning", "technical-risk-planning"],
+      design: ["responsive-form-ux-design"],
+      implementation: ["nextjs-server-client-implementation", "typed-form-implementation", "supabase-application-integration", "maintainable-performance-implementation"],
+      "architecture-reviewer": ["module-boundaries-fb20497b5c35", "review-maintainability-d9faf7cb9775", "architecture-tradeoff-review"],
+      "contract-auditor": ["acceptance-criteria-80493e317476", "requirements-evidence-traceability"],
+      "code-integration-reviewer": ["react-nextjs-integration-review"],
+      "security-reviewer": ["supabase-rls-1e36b217c969", "auth-storage-security-review"],
+      "test-quality-reviewer": ["requirements-evidence-traceability", "behavioral-test-quality-review"],
+    });
     expect(agentCatalog.every((agent) => agent.inputContract.schemaId.endsWith(".input") && agent.outputContract.schemaId.endsWith(".output"))).toBe(true);
     expect(agentCatalog.every((agent) => agent.contextPolicy.maxBytes > 0 && agent.executionPolicy.retryClass)).toBe(true);
     expect(leadAgentDefinition.promptVersion).not.toBe(leadAgentDefinition.policyVersions.context);

@@ -104,7 +104,9 @@ export const SkillDefinitionSchema = z
     applicability: z
       .object({
         capability: z.string().min(1),
+        capabilities: z.array(z.string().min(1)).min(1).optional(),
         taskType: SkillTaskTypeSchema,
+        taskTypes: z.array(SkillTaskTypeSchema).min(1).optional(),
         coverageKeys: z.array(z.string().min(1)),
         projectSurfaces: z.array(z.string().min(1)),
         conflictsWithSkillIds: z.array(z.string().min(1)),
@@ -164,7 +166,9 @@ export type SkillLicenseEvidence = z.infer<typeof SkillLicenseEvidenceSchema>;
 export const SkillApplicabilitySchema = z
   .object({
     capability: z.string().min(1),
+    capabilities: z.array(z.string().min(1)).min(1).optional(),
     taskType: SkillTaskTypeSchema,
+    taskTypes: z.array(SkillTaskTypeSchema).min(1).optional(),
     coverageKeys: z.array(z.string().min(1)),
     projectSurfaces: z.array(z.string().min(1)),
     conflictsWithSkillIds: z.array(z.string().min(1)),
@@ -204,6 +208,7 @@ export type SkillApprovalRecord = z.infer<typeof SkillApprovalRecordSchema>;
 export const SkillSourceRecordSchema = z
   .object({
     sourceType: SkillSourceTypeSchema,
+    provenance: z.literal("ai-website-factory-project-owned").optional(),
     repositoryUrl: z.string().url().optional(),
     owner: z.string().optional(),
     repository: z.string().optional(),

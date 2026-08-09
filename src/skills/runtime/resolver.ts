@@ -93,11 +93,11 @@ export function selectSkillCandidates(
       decisions.push({ skillId: candidate.skillId, reason: "NOT_RELEVANT", matchedCoverage: [] });
       continue;
     }
-    if (applicability.capability !== request.capability) {
+    if (applicability.capability !== request.capability && !applicability.capabilities?.includes(request.capability)) {
       decisions.push({ skillId: candidate.skillId, reason: "CAPABILITY_MISMATCH", matchedCoverage: [] });
       continue;
     }
-    if (applicability.taskType !== request.taskType) {
+    if (applicability.taskType !== request.taskType && !applicability.taskTypes?.includes(request.taskType as never)) {
       decisions.push({ skillId: candidate.skillId, reason: "TASK_MISMATCH", matchedCoverage: [] });
       continue;
     }
@@ -156,9 +156,18 @@ export async function resolveApprovedSkillContext(
       continue;
     }
     try {
+      const loadRole = request.agent.role === "review"
+        ? "review"
+        : request.agent.agentId === "lead"
+          ? "lead"
+          : request.agent.agentId === "planner"
+            ? "planner-architect"
+            : request.agent.agentId === "design"
+              ? "design"
+              : "implementation";
       const loaded = await registry.load({
         skillId: candidate.skillId,
-        role: request.agent.role === "review" ? "review" : "implementation",
+        role: loadRole,
         taskType: SkillTaskTypeSchema.parse(request.taskType),
         allowedSkillIds: request.agent.allowedSkillIds,
         requestedFiles: ["SKILL.md"],

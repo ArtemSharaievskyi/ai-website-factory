@@ -179,6 +179,7 @@ describe("Phase 4D3 internal skill portfolio", () => {
       sourceType: "internal",
       skillId: "internal-fixture",
       version: "1.0.0",
+      provenance: "ai-website-factory-project-owned",
     });
     await expect(
       registry.stageLocalImport(source, {
@@ -192,6 +193,7 @@ describe("Phase 4D3 internal skill portfolio", () => {
         sourceType: "internal",
         skillId: "internal-fixture",
         version: "1.0.0",
+        provenance: "ai-website-factory-project-owned",
       }),
     ).rejects.toMatchObject({ code: "SKILL_IDEMPOTENCY_CONFLICT" });
   });

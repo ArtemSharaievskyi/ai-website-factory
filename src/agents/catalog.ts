@@ -28,7 +28,7 @@ const definition = (value: AgentDefinition) => AgentDefinitionSchema.parse(value
 export const leadAgentDefinition = definition({
   agentId: "lead", displayName: "Lead Agent", role: "generation", version: "1.0.0",
   capabilities: ["requirements.clarify", "requirements.brief"], supportedTaskTypes: ["clarify-requirements", "create-requirements-spec"],
-  allowedTools: ["openai-generation"], allowedSkillIds: [],
+  allowedTools: ["openai-generation"], allowedSkillIds: ["lead-requirements-completeness"],
   contextPolicy: { version: "lead-context-v1", allowedCategories: ["ORIGINAL_PROMPT", "SUPPLIED_FILES_METADATA", "CLARIFICATION_SESSION", "PROJECT_BRIEF"], maxBytes: 60000, maxItems: 40 },
   inputContract: { schemaId: "lead.input", version: "1" }, outputContract: { schemaId: "lead.output", version: "1" },
   promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "lead.v1", policyVersions: { context: "lead-context-v1", execution: "lead-execution-v1" },
@@ -37,7 +37,7 @@ export const leadAgentDefinition = definition({
 export const plannerAgentDefinition = definition({
   agentId: "planner", displayName: "Planner / Architect Agent", role: "generation", version: "1.0.0",
   capabilities: ["planning.architecture", "planning.content", "planning.assets"], supportedTaskTypes: ["create-technical-architecture", "plan-content", "plan-assets"],
-  allowedTools: ["openai-generation", "context7-read"], allowedSkillIds: [],
+  allowedTools: ["openai-generation", "context7-read"], allowedSkillIds: ["project-data-model-planning", "technical-risk-planning"],
   contextPolicy: { version: "planner-context-v1", allowedCategories: ["PROJECT_BRIEF", "CLARIFICATION_SESSION", "PLANNING_PACKAGE", "PREVIOUS_FINDINGS"], maxBytes: 120000, maxItems: 80 },
   inputContract: { schemaId: "planner.input", version: "1" }, outputContract: { schemaId: "planner.output", version: "1" },
   promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "planner.v1", policyVersions: { context: "planner-context-v1", execution: "planner-execution-v1" },
@@ -46,7 +46,7 @@ export const plannerAgentDefinition = definition({
 export const designAgentDefinition = definition({
   agentId: "design", displayName: "Design Agent", role: "generation", version: "1.0.0",
   capabilities: ["design.directions", "design.selection"], supportedTaskTypes: ["create-design-directions"],
-  allowedTools: ["openai-generation"], allowedSkillIds: [],
+  allowedTools: ["openai-generation"], allowedSkillIds: ["responsive-form-ux-design"],
   contextPolicy: { version: "design-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "SUPPLIED_FILES_METADATA", "PREVIOUS_FINDINGS"], maxBytes: 120000, maxItems: 80 },
   inputContract: { schemaId: "design.input", version: "1" }, outputContract: { schemaId: "design.output", version: "1" },
   promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "design.v1", policyVersions: { context: "design-context-v1", execution: "design-execution-v1" },
@@ -55,7 +55,7 @@ export const designAgentDefinition = definition({
 export const implementationAgentDefinition = definition({
   agentId: "implementation", displayName: "Implementation Agent", role: "implementation", version: "1.0.0",
   capabilities: ["implementation.code", "implementation.backend"], supportedTaskTypes: IMPLEMENTATION_TASK_TYPES,
-  allowedTools: ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read"], allowedSkillIds: [],
+  allowedTools: ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read"], allowedSkillIds: ["nextjs-server-client-implementation", "typed-form-implementation", "supabase-application-integration", "maintainable-performance-implementation"],
   contextPolicy: { version: "implementation-context-v1", allowedCategories: ["TASK_SLICE", "PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "CODEBASE_CONTEXT", "VALIDATION_DIAGNOSTIC", "PREVIOUS_FINDINGS"], maxBytes: 120000, maxItems: 80 },
   inputContract: { schemaId: "implementation.input", version: "1" }, outputContract: { schemaId: "implementation.output", version: "1" },
   promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "implementation.v1", policyVersions: { context: "implementation-context-v1", execution: "implementation-v1" },
@@ -64,7 +64,7 @@ export const implementationAgentDefinition = definition({
 export const architectureReviewerAgentDefinition = definition({
   agentId: "architecture-reviewer", displayName: "Architecture Reviewer", role: "review", version: "1.0.0",
   capabilities: ["review.architecture"], supportedTaskTypes: ["review-architecture"],
-  allowedTools: ["openai-generation"], allowedSkillIds: ["module-boundaries-fb20497b5c35"],
+  allowedTools: ["openai-generation"], allowedSkillIds: ["module-boundaries-fb20497b5c35", "review-maintainability-d9faf7cb9775", "architecture-tradeoff-review"],
   contextPolicy: { version: "architecture-review-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "PREVIOUS_FINDINGS"], maxBytes: 140000, maxItems: 60 },
   inputContract: { schemaId: "architecture-reviewer.input", version: "1" }, outputContract: { schemaId: "review.output", version: "1" },
   promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "architecture-reviewer.v1", policyVersions: { context: "architecture-review-context-v1", execution: "architecture-review-execution-v1" },
@@ -73,7 +73,7 @@ export const architectureReviewerAgentDefinition = definition({
 export const contractAuditorAgentDefinition = definition({
   agentId: "contract-auditor", displayName: "Contract Auditor", role: "review", version: "1.0.0",
   capabilities: ["review.contracts"], supportedTaskTypes: ["review-contracts"],
-  allowedTools: ["openai-generation"], allowedSkillIds: ["acceptance-criteria-80493e317476"],
+  allowedTools: ["openai-generation"], allowedSkillIds: ["acceptance-criteria-80493e317476", "requirements-evidence-traceability"],
   contextPolicy: { version: "contract-audit-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "PREVIOUS_FINDINGS"], maxBytes: 160000, maxItems: 80 },
   inputContract: { schemaId: "contract-auditor.input", version: "1" }, outputContract: { schemaId: "review.output", version: "1" },
   promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "contract-auditor.v1", policyVersions: { context: "contract-audit-context-v1", execution: "contract-audit-execution-v1" },
@@ -81,19 +81,19 @@ export const contractAuditorAgentDefinition = definition({
 });
 export const codeIntegrationReviewerAgentDefinition = definition({
   agentId: "code-integration-reviewer", displayName: "Code / Integration Reviewer", role: "review", version: "1.0.0",
-  capabilities: ["review.integration"], supportedTaskTypes: ["review-code-integration"], allowedTools: ["openai-generation"], allowedSkillIds: [],
+  capabilities: ["review.integration"], supportedTaskTypes: ["review-code-integration"], allowedTools: ["openai-generation"], allowedSkillIds: ["react-nextjs-integration-review"],
   contextPolicy: { version: "code-integration-review-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "TASK_SLICE", "CODEBASE_CONTEXT", "PREVIOUS_FINDINGS"], maxBytes: 180000, maxItems: 120 },
   inputContract: { schemaId: "code-integration-reviewer.input", version: "1" }, outputContract: { schemaId: "review.output", version: "1" }, promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "code-integration-reviewer.v1", policyVersions: { context: "code-integration-review-context-v1", execution: "code-integration-review-execution-v1" }, executionPolicy: { aiGenerationAllowed: true, retryClass: "bounded-provider", cancellationSupported: true, concurrencyClass: "single-flight", requiresExplicitApprovalBeforeTransition: false }, readOnly: true,
 });
 export const securityReviewerAgentDefinition = definition({
   agentId: "security-reviewer", displayName: "Security Reviewer", role: "review", version: "1.0.0",
-  capabilities: ["review.security"], supportedTaskTypes: ["review-security"], allowedTools: ["openai-generation"], allowedSkillIds: ["supabase-rls-1e36b217c969"],
+  capabilities: ["review.security"], supportedTaskTypes: ["review-security"], allowedTools: ["openai-generation"], allowedSkillIds: ["supabase-rls-1e36b217c969", "auth-storage-security-review"],
   contextPolicy: { version: "security-review-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "TASK_SLICE", "CODEBASE_CONTEXT", "PREVIOUS_FINDINGS"], maxBytes: 180000, maxItems: 120 },
   inputContract: { schemaId: "security-reviewer.input", version: "1" }, outputContract: { schemaId: "review.output", version: "1" }, promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "security-reviewer.v1", policyVersions: { context: "security-review-context-v1", execution: "security-review-execution-v1" }, executionPolicy: { aiGenerationAllowed: true, retryClass: "bounded-provider", cancellationSupported: true, concurrencyClass: "single-flight", requiresExplicitApprovalBeforeTransition: false }, readOnly: true,
 });
 export const testQualityReviewerAgentDefinition = definition({
   agentId: "test-quality-reviewer", displayName: "Test / Quality Reviewer", role: "review", version: "1.0.0",
-  capabilities: ["review.test-quality"], supportedTaskTypes: ["review-test-quality"], allowedTools: ["openai-generation"], allowedSkillIds: [],
+  capabilities: ["review.test-quality"], supportedTaskTypes: ["review-test-quality"], allowedTools: ["openai-generation"], allowedSkillIds: ["requirements-evidence-traceability", "behavioral-test-quality-review"],
   contextPolicy: { version: "test-quality-review-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "TASK_SLICE", "VALIDATION_DIAGNOSTIC", "PREVIOUS_FINDINGS"], maxBytes: 180000, maxItems: 140 },
   inputContract: { schemaId: "test-quality-reviewer.input", version: "1" }, outputContract: { schemaId: "review.output", version: "1" }, promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "test-quality-reviewer.v1", policyVersions: { context: "test-quality-review-context-v1", execution: "test-quality-review-execution-v1" }, executionPolicy: { aiGenerationAllowed: true, retryClass: "bounded-provider", cancellationSupported: true, concurrencyClass: "single-flight", requiresExplicitApprovalBeforeTransition: false }, readOnly: true,
 });

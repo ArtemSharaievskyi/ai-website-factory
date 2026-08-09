@@ -8,12 +8,12 @@ import { selectTargetedValidation } from "@/orchestration/execution/targeted-val
 import { transitionWorkflow } from "@/domain/workflow/engine";
 
 describe("Test / Quality Reviewer", () => {
-  it("is read-only, OpenAI-only, skill-free, and bounded", () => {
+  it("is read-only, OpenAI-only, portfolio-bound, and bounded", () => {
     expect(testQualityReviewerAgentDefinition.agentId).toBe("test-quality-reviewer");
     expect(testQualityReviewerAgentDefinition.role).toBe("review");
     expect(testQualityReviewerAgentDefinition.capabilities).toEqual(["review.test-quality"]);
     expect(testQualityReviewerAgentDefinition.allowedTools).toEqual(["openai-generation"]);
-    expect(testQualityReviewerAgentDefinition.allowedSkillIds).toEqual([]);
+    expect(testQualityReviewerAgentDefinition.allowedSkillIds).toEqual(["requirements-evidence-traceability", "behavioral-test-quality-review"]);
     expect(testQualityReviewerAgentDefinition.readOnly).toBe(true);
     expect(testQualityReviewerAgentDefinition.contextPolicy.allowedCategories).not.toContain("ORIGINAL_PROMPT");
   });

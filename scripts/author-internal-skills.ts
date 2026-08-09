@@ -222,6 +222,7 @@ async function main() {
       sourceType: "internal",
       displayName: String(spec.title),
       version,
+      provenance: "ai-website-factory-project-owned",
       reviewer: "phase-4d3-internal-authoring",
       idempotencyKey: `internal:${skillId}:${checksum}`,
     });
