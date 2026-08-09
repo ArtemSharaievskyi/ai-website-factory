@@ -13,6 +13,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Persistence is under `src/persistence/`; runtime mechanics are under `src/runtime/`.
 - Deterministic validators remain with their owning runtime or domain module.
 - Approved Skills Registry source is `src/skills/registry/`; imported skill content is stored under root `skills/`.
+- The read-only `skills.sh` source adapter lives under `src/integrations/skills-sh/`; it may discover and stage bounded public candidates, but never approves, executes, assigns, or dynamically reloads skills.
 
 ## Typed agent contracts
 

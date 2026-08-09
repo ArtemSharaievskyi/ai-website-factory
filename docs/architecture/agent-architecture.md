@@ -33,13 +33,13 @@ The workflow gates are `Planning Acceptance -> ARCHITECTURE_REVIEW -> Design -> 
 
 ## Permissions and policy
 
-Agent tools are explicit integration IDs: `openai-generation`, `context7-read`, `shadcn-registry-read`, and `codebase-memory-read`. Agent definitions do not inherit wildcard tools or capabilities. Skills are empty for the current catalog and there is no `skills.sh` or external skill installation path in this milestone.
+Agent tools are explicit integration IDs: `openai-generation`, `context7-read`, `shadcn-registry-read`, and `codebase-memory-read`. Agent definitions do not inherit wildcard tools or capabilities. Skills remain empty for the current catalog. The dedicated `skills.sh` source adapter is administrative read-only infrastructure documented in [skills.sh source integration](../integrations/skills-sh-source.md); it does not activate or assign skills.
 
 Each definition declares a versioned context policy with allowed categories, item and byte limits, plus an execution policy covering AI-generation permission, retry class, cancellation, concurrency, approval gates, and read-only status. Input and output contracts reference the existing typed agent schemas, while prompt versioning is tracked independently from context and execution policy versions. The Architecture Reviewer receives only the approved Brief, accepted PlanningPackage, fixed architecture policy, and bounded constraints.
 
 The current review capabilities are `review.architecture`, `review.contracts`, `review.integration`, `review.security`, and `review.test-quality`.
 
-Skills provide reviewed specialization to roles; they do not replace the Orchestrator. In the current milestone no external skill is required. Agents must not install arbitrary skills, change requirements, invent facts, or broaden infrastructure.
+Skills provide reviewed specialization to roles; they do not replace the Orchestrator. External discovery follows `skills.sh -> bounded fetch -> STAGING -> deterministic validation/static review -> explicit approval -> checksum-bound immutable copy`. Discovery is never trust, and no external skill is assigned in Phase 4A. Agents must not install arbitrary skills, change requirements, invent facts, or broaden infrastructure.
 Context7 is a replaceable documentation port at the Planner and Implementation context seams, not an Orchestrator or general MCP layer.
 
 The Code / Integration Reviewer is a read-only semantic gate after implementation structural validation, lint, and typecheck. It receives only bounded source manifests/slices and canonical contract checksums, persists evidence-backed findings, and never writes source or invokes Implementation.
