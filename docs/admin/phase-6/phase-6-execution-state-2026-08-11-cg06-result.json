@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6-execution-state",
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "baselineState": "docs/admin/phase-6/phase-6-execution-state-2026-08-11-cg05-result-rev2.json",
+  "baselineCommit": "1d8b4d1",
+  "correctionCommit": "be84301",
+  "planRevision": 1,
+  "completedGroups": [
+    "cg-01-cross-artifact-identity",
+    "cg-02-authentication-authorization-rls",
+    "cg-03-storage-ownership-controls",
+    "cg-04-provider-config-and-lifecycle",
+    "cg-05-design-durable-state-authority",
+    "cg-06-database-error-propagation"
+  ],
+  "groupStates": {
+    "cg-01-cross-artifact-identity": "COMPLETE",
+    "cg-02-authentication-authorization-rls": "COMPLETE",
+    "cg-03-storage-ownership-controls": "COMPLETE",
+    "cg-04-provider-config-and-lifecycle": "COMPLETE",
+    "cg-05-design-durable-state-authority": "COMPLETE",
+    "cg-06-database-error-propagation": "COMPLETE",
+    "cg-07-runtime-cleanup-lifecycle": "NOT_STARTED",
+    "cg-15-persistence-migration-evidence": "NOT_STARTED"
+  },
+  "cg06": {
+    "implementationCyclesConsumed": 2,
+    "newCorrectionBudget": 0,
+    "findingIds": [
+      "finding-c94e4c6dd19f957eeb40"
+    ],
+    "findingState": "RESOLVED",
+    "resultArtifact": "docs/admin/phase-6/cg-06-database-error-propagation-result-2026-08-11.json",
+    "resultReport": "docs/admin/phase-6/cg-06-database-error-propagation-result-2026-08-11.md",
+    "verificationArtifact": "docs/admin/phase-6/cg-06-database-error-propagation-verification-2026-08-11.json"
+  },
+  "findingResolutions": {
+    "finding-c94e4c6dd19f957eeb40": {
+      "state": "RESOLVED",
+      "resolvedByGroupId": "cg-06-database-error-propagation",
+      "correctionCommit": "be84301",
+      "verificationArtifact": "docs/admin/phase-6/cg-06-database-error-propagation-verification-2026-08-11.json"
+    }
+  },
+  "correctionReadyFindingsRemaining": 17,
+  "remainingFindingCounts": {
+    "CRITICAL": 0,
+    "ERROR": 5,
+    "WARNING": 11,
+    "INFO": 1
+  },
+  "dependencyUnblockedGroups": [
+    "cg-07-runtime-cleanup-lifecycle",
+    "cg-15-persistence-migration-evidence"
+  ],
+  "nextRecommendedGroup": "cg-07-runtime-cleanup-lifecycle",
+  "otherGroupsAutoResolved": [],
+  "otherGroupsModified": [],
+  "dagChanged": false,
+  "dagAcyclic": true,
+  "roadmap": [
+    "cg-01 COMPLETE",
+    "cg-02 COMPLETE",
+    "cg-03 COMPLETE",
+    "cg-04 COMPLETE",
+    "cg-05 revision 2 COMPLETE",
+    "cg-06 COMPLETE",
+    "NEXT: cg-07-runtime-cleanup-lifecycle"
+  ],
+  "phase6GStatus": "COMPLETE",
+  "phaseStatus": "COMPLETE"
+}

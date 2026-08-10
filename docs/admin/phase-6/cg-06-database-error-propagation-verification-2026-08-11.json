@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6g-correction-verification",
+  "groupId": "cg-06-database-error-propagation",
+  "findingIds": [
+    "finding-c94e4c6dd19f957eeb40"
+  ],
+  "baselineCommit": "1d8b4d1",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "correctionSnapshot": "working-tree-before-correction-commit",
+  "reviewerResults": [
+    {
+      "reviewerId": "code-integration-reviewer",
+      "state": "RESOLVED",
+      "evidence": [
+        "current:db-common",
+        "current:db-migrate",
+        "current:db-status",
+        "current:db-verify",
+        "current:db-smoke",
+        "test:db-error-propagation"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-06-database-error-propagation correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    }
+  ],
+  "selectedSkills": {
+    "code-integration-reviewer": {
+      "selectedSkillIds": [],
+      "selectedSkillChecksums": [],
+      "identityChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  },
+  "provider": {
+    "model": "gpt-5.6-luna",
+    "modelLabel": "GPT-5.6 Luna",
+    "realGptCalls": 1,
+    "requestEvents": [
+      {
+        "type": "request.started",
+        "role": "code-integration-reviewer"
+      },
+      {
+        "type": "request.completed",
+        "role": "code-integration-reviewer",
+        "requestId": "chatcmpl-EBSfwsY1mBBcgUFjdPZBaQHjP1hK5"
+      }
+    ]
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "evidenceRefs": [
+      "cg06-database-error-contract",
+      "current:db-common",
+      "current:db-migrate",
+      "current:db-smoke",
+      "current:db-status",
+      "current:db-verify",
+      "deterministic-database-script-tests",
+      "original-findings",
+      "safe-cli-error-propagation",
+      "scripts/db-common.mjs:14-31",
+      "scripts/db-migrate.mjs:1-26",
+      "scripts/db-smoke.ts:1-43",
+      "scripts/db-status.mjs:1-5",
+      "scripts/db-verify.mjs:1-22",
+      "src/persistence/database/db-script-error-propagation.test.ts:1-48",
+      "test:db-error-propagation"
+    ],
+    "slices": [
+      {
+        "id": "current:db-common",
+        "relativePath": "scripts/db-common.mjs",
+        "startLine": 14,
+        "endLine": 31,
+        "checksum": "df97c3f9952d2512f93dd77e684c7ca27cc2512392a2ba9f1b0874712a98f3b7",
+        "currentHead": "1d8b4d1"
+      },
+      {
+        "id": "current:db-migrate",
+        "relativePath": "scripts/db-migrate.mjs",
+        "startLine": 1,
+        "endLine": 26,
+        "checksum": "0ecdcf93e4cf2f4df7cdbae93249c1390e5f396e97da686bf239e11ac1cebdc8",
+        "currentHead": "1d8b4d1"
+      },
+      {
+        "id": "current:db-status",
+        "relativePath": "scripts/db-status.mjs",
+        "startLine": 1,
+        "endLine": 5,
+        "checksum": "499226ddff1ce6419efa3ceeb8c24dcc4f54b639cb56e66c8452bc1737efbb75",
+        "currentHead": "1d8b4d1"
+      },
+      {
+        "id": "current:db-verify",
+        "relativePath": "scripts/db-verify.mjs",
+        "startLine": 1,
+        "endLine": 22,
+        "checksum": "cb6d517ed7cc5ccb47ffcacade0f65418b32188c5e81dfec4271f244f74bc541",
+        "currentHead": "1d8b4d1"
+      },
+      {
+        "id": "current:db-smoke",
+        "relativePath": "scripts/db-smoke.ts",
+        "startLine": 1,
+        "endLine": 43,
+        "checksum": "8555d0d84e09b770642c4890b777f0d9db692cf3f9064b54cbf0472fd80f80b6",
+        "currentHead": "1d8b4d1"
+      },
+      {
+        "id": "test:db-error-propagation",
+        "relativePath": "src/persistence/database/db-script-error-propagation.test.ts",
+        "startLine": 1,
+        "endLine": 48,
+        "checksum": "9bcf9b932672e517ed5745a23600a3ed647b6651813f74df75dd32bfb06e62ea",
+        "currentHead": "1d8b4d1"
+      }
+    ]
+  },
+  "phaseStatus": "RESOLVED"
+}

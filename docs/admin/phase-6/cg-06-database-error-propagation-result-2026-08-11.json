@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6g-correction-result",
+  "groupId": "cg-06-database-error-propagation",
+  "planRevision": 1,
+  "baselineCommit": "1d8b4d1",
+  "correctionCommit": "be84301",
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "findingIds": [
+    "finding-c94e4c6dd19f957eeb40"
+  ],
+  "rootCause": "Database pool construction occurred outside the protected execution paths of the database CLI scripts, so configuration and constructor failures bypassed safe error formatting and deterministic nonzero exits.",
+  "rootCauseConfidence": "HIGH",
+  "databaseDomain": "FACTORY_PERSISTENCE",
+  "affectedBoundary": "Factory database CLI scripts and the db-smoke operational script",
+  "correctionGoal": "Ensure database configuration failures travel through the established safe error path without bypasses.",
+  "nonGoals": [
+    "No database schema change",
+    "No customer-generated website database change"
+  ],
+  "rollbackCriteria": "Not represented in the machine group contract; the bounded correction can be reverted by reverting correction commit be84301 if a later validated regression requires it.",
+  "implementationCyclesConsumed": 2,
+  "correctionBudget": 2,
+  "filesChanged": [
+    "scripts/db-common.mjs",
+    "scripts/db-migrate.mjs",
+    "scripts/db-status.mjs",
+    "scripts/db-verify.mjs",
+    "scripts/db-smoke.ts",
+    "src/persistence/database/db-script-error-propagation.test.ts",
+    "scripts/phase-6c-cg02-verification.ts"
+  ],
+  "scopeJustification": {
+    "outsideLikelyFiles": [
+      "src/persistence/database/db-script-error-propagation.test.ts",
+      "scripts/phase-6c-cg02-verification.ts"
+    ],
+    "reason": "The test is the required deterministic regression coverage; the verifier change is approved Phase 6 administrative verification infrastructure for cg-06."
+  },
+  "errorSemantics": {
+    "before": {
+      "missingConfiguration": "Raw uncaught stack from createConfiguredPool before the script try/catch boundary.",
+      "malformedPoolUrl": "Raw constructor TypeError could bypass the safe script output path.",
+      "success": "Unchanged."
+    },
+    "after": {
+      "missingConfiguration": "DATABASE_CONFIGURATION_MISSING with deterministic process exit 1.",
+      "malformedPoolUrl": "DATABASE_CONNECTION_FAILED with deterministic process exit 1.",
+      "success": "Unchanged; valid database operations retain their existing output and cleanup behavior."
+    }
+  },
+  "normalizationBoundary": {
+    "before": "Pool creation occurred before the try block in db-migrate, db-status, and db-verify; db-smoke created its pool before main().",
+    "after": "Pool creation is inside protected execution paths, cleanup is conditional on pool creation, and db-smoke uses safeDatabaseCode for its outer failure boundary."
+  },
+  "testsAdded": [
+    "Four isolated CLI-script regressions for missing DATABASE_URL.",
+    "One isolated db-smoke regression for a malformed pool URL."
+  ],
+  "targetedChecks": {
+    "databaseScriptTests": "5 passed",
+    "fullTestSuite": "68 files, 828 tests passed",
+    "build": "PASS",
+    "typecheck": "PASS",
+    "lint": "PASS with 3 known pre-existing warnings",
+    "gitDiffCheck": "PASS",
+    "taskgraphSmoke": "PASS; 6 tasks, 0 repairs"
+  },
+  "databaseChecks": {
+    "dbValidate": "PASS; 2 migrations",
+    "dbStatus": "PASS; 2 migrations applied",
+    "dbVerify": "PASS; 17 tables, 84 constraints, 4 indexes, RLS 17/17, public policies 0",
+    "dbIntegrityFixture": "PASS",
+    "dockerComposeConfig": "PASS",
+    "npmAuditHigh": "PASS; 0 vulnerabilities"
+  },
+  "requiredReviewerRechecks": [
+    "code-integration-reviewer"
+  ],
+  "actualReviewerRechecks": [
+    {
+      "reviewerId": "code-integration-reviewer",
+      "state": "RESOLVED",
+      "providerVerdict": "APPROVED",
+      "evidenceValid": true,
+      "structuredOutputValid": true,
+      "verificationArtifact": "docs/admin/phase-6/cg-06-database-error-propagation-verification-2026-08-11.json",
+      "realGptCalls": 1,
+      "implementationCyclesUsedBeforeApproval": 2
+    }
+  ],
+  "selectedSkills": {
+    "code-integration-reviewer": {
+      "selectedSkillIds": [],
+      "selectedSkillChecksums": [],
+      "identityChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "invalidEvidence": [],
+    "verificationArtifact": "docs/admin/phase-6/cg-06-database-error-propagation-verification-2026-08-11.json"
+  },
+  "perFindingResolution": {
+    "finding-c94e4c6dd19f957eeb40": {
+      "severity": "ERROR",
+      "category": "ERROR_HANDLING",
+      "finalState": "RESOLVED",
+      "resolvedByGroupId": "cg-06-database-error-propagation",
+      "correctionCommit": "be84301",
+      "verification": "code-integration-reviewer RESOLVED / APPROVED"
+    }
+  },
+  "potentiallyImpactedGroups": [],
+  "unblockedGroups": [
+    "cg-07-runtime-cleanup-lifecycle",
+    "cg-15-persistence-migration-evidence"
+  ],
+  "remainingFindingCounts": {
+    "total": 17,
+    "CRITICAL": 0,
+    "ERROR": 5,
+    "WARNING": 11,
+    "INFO": 1
+  },
+  "nextRecommendedGroup": "cg-07-runtime-cleanup-lifecycle",
+  "phaseStatus": "COMPLETE"
+}
