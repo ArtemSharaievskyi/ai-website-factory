@@ -1,0 +1,2922 @@
+{
+  "baselineCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+  "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+  "files": [
+    {
+      "relativePath": "AGENTS.md",
+      "checksum": "b137b5ff8151b130b3c7bb17efa7b53800fb7e84a703a1b0f7d1924a4147ddaa",
+      "byteLength": 4180,
+      "lineCount": 29
+    },
+    {
+      "relativePath": "CLAUDE.md",
+      "checksum": "336cc4fbf19beaada7ccf9986414fa91851a8d7a07dfb3ccbe800a69eed0ab49",
+      "byteLength": 11,
+      "lineCount": 2
+    },
+    {
+      "relativePath": "CONTRIBUTING.md",
+      "checksum": "dea7e6ae2657d0edb70a2eb6aaefdfcd0b163749468ef6f0a19b79cf08dc233b",
+      "byteLength": 353,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "Dockerfile",
+      "checksum": "0c81a3d91e7cd43ca6add982ac8db71a5507e6b0984ae21223a9456c3e3c0a57",
+      "byteLength": 909,
+      "lineCount": 25
+    },
+    {
+      "relativePath": "README.md",
+      "checksum": "8ce88349aee66b23597b401ccc8e3a48c2ccbdae112c1f0ac357e7a99ca2e439",
+      "byteLength": 6377,
+      "lineCount": 101
+    },
+    {
+      "relativePath": "compose.yaml",
+      "checksum": "e5cc837da68f2c9b5bf2cf06b54da3bb38f3b5b98f564c087eac5e9deb0343d9",
+      "byteLength": 215,
+      "lineCount": 12
+    },
+    {
+      "relativePath": "docs/adr/0001-local-single-user-product.md",
+      "checksum": "83365ab4a1c708bab034e451208337902dd6227351c4bf61303a18ad7af26fb3",
+      "byteLength": 210,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/adr/0002-standalone-versioned-project-output.md",
+      "checksum": "9e50a3db4e8fe52e170e9c5df4f6626e6f8ce50564d0052aef2a2d03f9d06eca",
+      "byteLength": 281,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/adr/0003-no-preview-architecture.md",
+      "checksum": "caccb204101c93bffa8a2d646f15e9a6a46591ca306ce589806891a06ed26bc5",
+      "byteLength": 243,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/adr/0004-npm-package-manager.md",
+      "checksum": "3550adb3df61dce08de513a2dba3994006aff25d5305830e5f4a0cd12cc9b762",
+      "byteLength": 192,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/adr/0005-nextjs-supabase-fixed-stack.md",
+      "checksum": "6658a16d050594bac92566166792d3812343b03277e9736af3c736029202fd8f",
+      "byteLength": 315,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/adr/0006-docker-development-environment.md",
+      "checksum": "0829697c3f3f8a01b0418f74832a77083be635adaa259a335b162e6fc4ff8f9c",
+      "byteLength": 264,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/adr/0007-approved-skills-and-tools.md",
+      "checksum": "b8845f54ae4925ad8617d2b4ce8a6ab89c182e10d8881c54312255bc7042c251",
+      "byteLength": 345,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/architecture/agent-architecture.md",
+      "checksum": "08b4c2d9f9d8ef592d9d51f81fd8204e0ef93dbdc16f18345a4d26259e287aa5",
+      "byteLength": 7593,
+      "lineCount": 50
+    },
+    {
+      "relativePath": "docs/architecture/ai-context-policy.md",
+      "checksum": "dea1da766b3b789b16691444e5a5886ed6d8dd226457691ab96a607339dc6f6d",
+      "byteLength": 389,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/architecture/architecture-reviewer.md",
+      "checksum": "d9bb5e6505900eda772e71124db954e2ff6dd0e5a8536eca708aa57a6a032db9",
+      "byteLength": 2252,
+      "lineCount": 22
+    },
+    {
+      "relativePath": "docs/architecture/authentication-implementation.md",
+      "checksum": "b4c7a10b9923c466e4ff8b2869066b473d578bb4dd4dcaa7b37b816448bd5c0c",
+      "byteLength": 296,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/architecture/backend-implementation.md",
+      "checksum": "437286e7663174c467ac43539b2e24f5a36e02228fbedd59290f694b3bc873e9",
+      "byteLength": 569,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/architecture/code-integration-reviewer.md",
+      "checksum": "9aacdf3685955dd60e4ee5bb7ac54cc382168c9e5ab5c0028fe2320bf3a30be1",
+      "byteLength": 2113,
+      "lineCount": 12
+    },
+    {
+      "relativePath": "docs/architecture/contract-auditor.md",
+      "checksum": "bf01371002a625dd49b81224065028bfb522ec4bbe3355e7e97acf8781d17de5",
+      "byteLength": 3529,
+      "lineCount": 28
+    },
+    {
+      "relativePath": "docs/architecture/design-agent.md",
+      "checksum": "15cb89c7bfc0d5c1014367baed3a4860d0029fc158d8dadc673d5d678adcc9fd",
+      "byteLength": 590,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "docs/architecture/design-anti-template-policy.md",
+      "checksum": "1c124cccbf44ecdd4906604a50bcb9938ed0b0f24e1999a7697e49594b0d1072",
+      "byteLength": 500,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/architecture/design-directions.md",
+      "checksum": "17bd185b6432fe13155361e1a87f227a9e8ab34ff61499b157cdaadd8829ef59",
+      "byteLength": 548,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/architecture/design-selection.md",
+      "checksum": "f79a26e9149821e203a6c3c85df97ec7e5ba21d1b09c6cb1ef27d3a3abd06d48",
+      "byteLength": 511,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/architecture/design-tool-boundaries.md",
+      "checksum": "60c6c897784a50937a2e21d87d2bd8a7423a372b218eaa178cd6ec2e274ec191",
+      "byteLength": 480,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/architecture/email-implementation.md",
+      "checksum": "4ef00e719b6ca0d6aa346885d483d8c0117839d3d477d998445d0d9670b3efcf",
+      "byteLength": 254,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/architecture/fixed-stack.md",
+      "checksum": "86d7cb74401c82f03c4b1c5e3da783951bfe553ef3968cae1bead856fcb0b4d4",
+      "byteLength": 738,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "docs/architecture/implementation-agent.md",
+      "checksum": "e929404ad98696067698e51fb615b76f014532e54bcdf3dd62fc31b54db9d97b",
+      "byteLength": 2416,
+      "lineCount": 26
+    },
+    {
+      "relativePath": "docs/architecture/implementation-context.md",
+      "checksum": "9c16373c163c60da5c6ce56e5dc4ab1227376cfa466a11241aa301b605e723fa",
+      "byteLength": 1299,
+      "lineCount": 13
+    },
+    {
+      "relativePath": "docs/architecture/implementation-roadmap.md",
+      "checksum": "2c8dd24338942bd253568126f049c336e7f2943104422368fc6636b0fbaf4de7",
+      "byteLength": 3837,
+      "lineCount": 40
+    },
+    {
+      "relativePath": "docs/architecture/lead-agent.md",
+      "checksum": "96876523ffb3e4b4d5d1bef73414b332ca9b66175fbf7585cdfc565bdbd6e4ec",
+      "byteLength": 928,
+      "lineCount": 10
+    },
+    {
+      "relativePath": "docs/architecture/planner-architect-agent.md",
+      "checksum": "3696c2f4282ac7da745c8c5b2d8ee2b3e2cba6679ec42855c9a9810373cc7299",
+      "byteLength": 923,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "docs/architecture/product-scope-planning.md",
+      "checksum": "a15c06b73cd5ee9c74582fa3162a77cc9bccd397081bf0d5e47fcf538d4bef12",
+      "byteLength": 601,
+      "lineCount": 10
+    },
+    {
+      "relativePath": "docs/architecture/product-specification.md",
+      "checksum": "9b4fc0d09dd05559167437f277041c9a40b45ab00a60d4a276a814f13abd9018",
+      "byteLength": 1262,
+      "lineCount": 16
+    },
+    {
+      "relativePath": "docs/architecture/repository-structure.md",
+      "checksum": "c3245f5bdf90dbbbce831690e1fd5d50d67bcecec3f1bfa6408b345b83a27fdc",
+      "byteLength": 3170,
+      "lineCount": 53
+    },
+    {
+      "relativePath": "docs/architecture/route-handlers-policy.md",
+      "checksum": "9a266a513a79639db23aba2dea9f3a6ec7594b68551d0c1e06fe08a5f17cacfd",
+      "byteLength": 274,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/architecture/security-reviewer.md",
+      "checksum": "db2214275811b7f6bea99322a1fd038c3cc07adc8e07fb22891c435d9a2a6989",
+      "byteLength": 2555,
+      "lineCount": 12
+    },
+    {
+      "relativePath": "docs/architecture/server-actions-policy.md",
+      "checksum": "3759a45685ba5c1f8bc1df06a7107d8a924a401d0909e108d43f281aced513c4",
+      "byteLength": 337,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/architecture/server-client-boundaries.md",
+      "checksum": "ab2fb78d7f50e4dfca3a11c454a92aaf59317fbc72534bcd45220e7ed0efb948",
+      "byteLength": 301,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/architecture/technical-architecture-planning.md",
+      "checksum": "8a2b343cb3602ec26d0ea25ed5ec13794c37a31d3c9c7720dc9647162853826e",
+      "byteLength": 796,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "docs/architecture/test-quality-reviewer.md",
+      "checksum": "1942415d3e5c278c779d47d42eb2eba0d785df28fd9341279c67cfbd71aed765",
+      "byteLength": 2349,
+      "lineCount": 14
+    },
+    {
+      "relativePath": "docs/architecture/ux-planning.md",
+      "checksum": "cf8a11299e9daf09e1651599754ffbd7ebf814a1009fa5ac4cedb86b5563a0bf",
+      "byteLength": 444,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/architecture/workflow-state-machine.md",
+      "checksum": "da3b406844d10f1454c7ff25f5196e2254d161a0095d1bb99ef90b248a5356c2",
+      "byteLength": 1132,
+      "lineCount": 16
+    },
+    {
+      "relativePath": "docs/architecture/workflow.md",
+      "checksum": "56084e59e18dcd9886bdd0f1d7a30aa99c21a93c20dc7f5ed8b40457e990e334",
+      "byteLength": 1497,
+      "lineCount": 17
+    },
+    {
+      "relativePath": "docs/contracts/brief-approval.md",
+      "checksum": "77cdcc28619b88a946ce8ba4c40c1261dd9a77a8c9649ba19eb5bdfd0cf18ece",
+      "byteLength": 620,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/contracts/change-proposal.md",
+      "checksum": "480397c2e4b950b3b3abf4a910f5a33823b7624c99ad52502768eb862af84747",
+      "byteLength": 409,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/contracts/clarification-workflow.md",
+      "checksum": "ad9b3dc99e6f63771ac59f1c32286288d11d9f682865f8cab7b36732ff84ef60",
+      "byteLength": 829,
+      "lineCount": 12
+    },
+    {
+      "relativePath": "docs/contracts/domain-contracts.md",
+      "checksum": "c13ec30855c1ba01aae334fffe056e7a2d16d886f75976be6d410fbdec60adb9",
+      "byteLength": 1116,
+      "lineCount": 12
+    },
+    {
+      "relativePath": "docs/contracts/implementation-reconciliation.md",
+      "checksum": "1c2146fa62391d0b06ff94dbf93ec46b16ebfa7117335fd5341d35f7cab41f72",
+      "byteLength": 347,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/contracts/implementation-task-execution.md",
+      "checksum": "6735e13c0415e29cca3be6a11924924a90de8894ebe8dc857175c7efc6d9e917",
+      "byteLength": 940,
+      "lineCount": 11
+    },
+    {
+      "relativePath": "docs/contracts/implementation-task-graph.md",
+      "checksum": "f0ce8a499069d128e635638fed8e9ae36cbb4cea58ceb5e2786c3724e265557f",
+      "byteLength": 931,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "docs/contracts/planning-acceptance.md",
+      "checksum": "61828ad8e1290006c3ad44bae35e1f43b3839a44c916e2ebd43d582325ef2e9f",
+      "byteLength": 666,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/contracts/project-brief.md",
+      "checksum": "01c7ad906582cdde2353b79c0286672622decc5a508837325b44e36631ec3bbe",
+      "byteLength": 819,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "docs/contracts/quality-gates.md",
+      "checksum": "8d233aa5ac3ebbce57ccce4ff78d3df17bb40f355710b0024b8be1967a99c01f",
+      "byteLength": 671,
+      "lineCount": 18
+    },
+    {
+      "relativePath": "docs/contracts/requirement-traceability.md",
+      "checksum": "2cbf21d38985b50f4f28f2f74358ee4879896a0c26f9ba88c1f15bb54b10aa28",
+      "byteLength": 595,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/contracts/task-file-scopes.md",
+      "checksum": "1061717b797c13c81ca85bb8a400b3cd678033f8a10bdf8670707a312826596f",
+      "byteLength": 387,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/contracts/task-lifecycle.md",
+      "checksum": "af07c836114f97369e3ba5cf0efd0578c2afe535e6365ec8e279c5b0c90a4df5",
+      "byteLength": 1009,
+      "lineCount": 11
+    },
+    {
+      "relativePath": "docs/contracts/task-permissions.md",
+      "checksum": "0973f688ba5a19fa4698304a09f3673e0e5f5bba4026b5349df305a60ff33c5c",
+      "byteLength": 695,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/integrations/ai-provider-security.md",
+      "checksum": "49f7f0909e2b4947a4ba7f987b9352f178542696e9be95a08939767c6750332a",
+      "byteLength": 505,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/integrations/ai-provider.md",
+      "checksum": "ba3e96127524b22d3bbdbd4195fdf6a81d1c9e1d715cf1f8b49d77753eee6025",
+      "byteLength": 1064,
+      "lineCount": 9
+    },
+    {
+      "relativePath": "docs/integrations/ai-structured-output.md",
+      "checksum": "8bce4ded43d104a2c4d7db15ce5516bccc3a89107d681ac323915cf08afdf0b6",
+      "byteLength": 327,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/integrations/ai-usage-accounting.md",
+      "checksum": "b30672e0392689bd41b4bcb210ef5e407a503aca0a694c47c5f10c8addee1cfe",
+      "byteLength": 326,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/integrations/approved-skills-registry.md",
+      "checksum": "040ba3856eb2a54788511932228cd4a7ac09ce471795655afc2683ce1c26388b",
+      "byteLength": 1479,
+      "lineCount": 12
+    },
+    {
+      "relativePath": "docs/integrations/codebase-memory-impact-analysis.md",
+      "checksum": "c5fafbc4b5e43d82a95414cb474c5715a66decc4f1c80df5e5d13081aeb0a80c",
+      "byteLength": 526,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/integrations/codebase-memory-index-lifecycle.md",
+      "checksum": "1748cd49e64c1cd37db54645bd7b8700e06447b08cbb47e50ca01d2885c962b3",
+      "byteLength": 592,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/integrations/codebase-memory-integration.md",
+      "checksum": "333fc4e47e0c32a914fad8a21ce43486d504400d549f1cf4de9e2b283dcedf05",
+      "byteLength": 700,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "docs/integrations/codebase-memory-query-policy.md",
+      "checksum": "428b4b24c789139ac852833c12a392390f7212a46f678db62c3f3fd4ca748406",
+      "byteLength": 776,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "docs/integrations/codebase-memory-security.md",
+      "checksum": "162c851046f77b396662a0fb638eb310f3ee812bd58df1b8904bf2288dc8098c",
+      "byteLength": 840,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "docs/integrations/codebase-memory-smoke-test.md",
+      "checksum": "a16bb649884ee6f848ecf05412287bf797c53e7596372ae4150ea1ea9e559623",
+      "byteLength": 502,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/integrations/context7-caching.md",
+      "checksum": "8e106dba0202be5d932f3ce5954f2f7f68803c450d40df00fd82c79f72856ed8",
+      "byteLength": 405,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/integrations/context7-integration.md",
+      "checksum": "0894af4e12be72b24fb73550766b12629e36b53b2dd7eaa14fa4954db6be7080",
+      "byteLength": 967,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "docs/integrations/context7-query-policy.md",
+      "checksum": "d30800cb2f4e5e9517ce3395e6a600455a488349bbaeda3e80cccb05b50b8ad9",
+      "byteLength": 646,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/integrations/context7-security.md",
+      "checksum": "b0aeb83925094c239bc06724215ff897d2ed434e7a49a2eab78cfdded62f91a2",
+      "byteLength": 697,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/integrations/context7-smoke-test.md",
+      "checksum": "b20103a9866b07f6c4e44692d5111c7a98952df4604a4049cb0feeb88e13e6fe",
+      "byteLength": 532,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/integrations/shadcn-component-policy.md",
+      "checksum": "475129d7d17b211a9fac52cc7c2a5217e5ba1ebc985a7b1e06cf21cda999478f",
+      "byteLength": 432,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/integrations/shadcn-design-adaptation.md",
+      "checksum": "12d4cdc848eed0a44a78ca4a2ff98ba099f2acbb1821a4b9fd3e7e219f0b2b3c",
+      "byteLength": 355,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/integrations/shadcn-registry-caching.md",
+      "checksum": "5d434dd6b5bc61704b6877aca78b77182f536b38605bf87abaec9cb4e3ff7a65",
+      "byteLength": 348,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/integrations/shadcn-registry-integration.md",
+      "checksum": "24095737350dc3e74dd4f06ad12c595f38524e82e32f5516c4a0cfd8c2a9f9c4",
+      "byteLength": 695,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/integrations/shadcn-registry-security.md",
+      "checksum": "da161c582c2c582fdfd62eb00be4d4f26377b4e74a2440632a4cf01242d1d047",
+      "byteLength": 672,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/integrations/shadcn-smoke-test.md",
+      "checksum": "08dae34423b9ca0a720e0bdb4791b02f64f5eb97341787a5845c7ce0af79f173",
+      "byteLength": 542,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/integrations/skill-import-guide.md",
+      "checksum": "2e77a7a5aa834b4167af55e5e52c0f3cb82803e9fef93b086395db813ec35369",
+      "byteLength": 1126,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "docs/integrations/skill-lifecycle.md",
+      "checksum": "44d4769a32fd5d2fe47fdfca07787afdaf56414c61e93646ac156180e309a993",
+      "byteLength": 931,
+      "lineCount": 14
+    },
+    {
+      "relativePath": "docs/integrations/skill-permissions.md",
+      "checksum": "9bcedcde5a937b06623a5d2d7b2e4bf85d6f31c3380c9e884462ad85c41059f7",
+      "byteLength": 841,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "docs/integrations/skill-security-review.md",
+      "checksum": "0eab9ecaec46e866d079986dfafb0c4be422e10338b0969024ad923d39bf9cd5",
+      "byteLength": 967,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "docs/integrations/skills-curation-policy.md",
+      "checksum": "f4dceb6195cd7ddae85feb75918ae99274c49eed7afe57c9931631c709bedf49",
+      "byteLength": 4036,
+      "lineCount": 35
+    },
+    {
+      "relativePath": "docs/integrations/skills-policy.md",
+      "checksum": "7196692e1c1a23506a3b5ef5388f31685eafaa89fc00822f77242d936df2b2ee",
+      "byteLength": 1532,
+      "lineCount": 10
+    },
+    {
+      "relativePath": "docs/integrations/skills-runtime.md",
+      "checksum": "fc7b7de8b72daf93320c65d82ce4c25a4bdb0111d42bbebb3280922d7402696f",
+      "byteLength": 2804,
+      "lineCount": 21
+    },
+    {
+      "relativePath": "docs/integrations/skills-sh-source.md",
+      "checksum": "f527a5bd35a571e124421fe3fc9b727838be2ee6015a186474cff7a3c7e6a16f",
+      "byteLength": 4478,
+      "lineCount": 54
+    },
+    {
+      "relativePath": "docs/integrations/tool-policy.md",
+      "checksum": "d1ddd4df11604928dbc0cb84f5edd82b8a7ff2232b84ffd78befe1383b65b5ad",
+      "byteLength": 2571,
+      "lineCount": 28
+    },
+    {
+      "relativePath": "docs/operations/ai-retries-and-cancellation.md",
+      "checksum": "420c11962af517dbe398277129041e5552f1601b190259448c81afcf355f5627",
+      "byteLength": 470,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/operations/ai-smoke-test.md",
+      "checksum": "8858d9209323dcb12c3329c55faf4c09015af8d3ebb8729dd203f2db7feaf4d8",
+      "byteLength": 415,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/operations/customer-database-migrations.md",
+      "checksum": "d82934e66fb9547cc3937387139f487ececfa9bb357d4c915644f2eefe3f0d36",
+      "byteLength": 362,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/operations/database-schema.md",
+      "checksum": "320fc86a8994c57e93a8d60d996a8af4f1cd41a6ed511826838755436cf8bcc1",
+      "byteLength": 1341,
+      "lineCount": 12
+    },
+    {
+      "relativePath": "docs/operations/execution-pause-resume.md",
+      "checksum": "4a30728881aca763b48a9a0d6e96677d1960aa1677b7a606eff838e0b09a5dbd",
+      "byteLength": 311,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/operations/execution-release-eligibility.md",
+      "checksum": "1c45f6ada6d8120ff284e9dc91767764d91709738552e0e93be596b15f0cd407",
+      "byteLength": 334,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/operations/execution-repair-cycles.md",
+      "checksum": "fb480c03e8c37c53ff612676f7fe43cbfd356cca3b47627e31865b6e603771f0",
+      "byteLength": 602,
+      "lineCount": 7
+    },
+    {
+      "relativePath": "docs/operations/execution-scheduler.md",
+      "checksum": "fc9badd093c8d5d7bde24fc001e2ba6dc4b5379135addf41a1f40c34e9389125",
+      "byteLength": 292,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/operations/file-operation-security.md",
+      "checksum": "d92db8fee29b40fdd37997aebad50763c760373decd48574e8a970f67c052de8",
+      "byteLength": 676,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/operations/full-execution-reconciliation.md",
+      "checksum": "85eb209a50bfe9b7117208338b3b1a6973c3f5e9f6728e138a7d8b0675ec87fc",
+      "byteLength": 288,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/operations/full-taskgraph-execution.md",
+      "checksum": "63274044e32b51cdcc7d75db9f285dd568109199d980e1710240c9da4c5ca136",
+      "byteLength": 1444,
+      "lineCount": 17
+    },
+    {
+      "relativePath": "docs/operations/generated-runtime-smoke-test.md",
+      "checksum": "41003957c57fd4a152ed844114bcd99634cac4256b6a6fa2561533c98b338387",
+      "byteLength": 421,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/operations/generated-runtime-validation.md",
+      "checksum": "772c6065f5cd2a73f56e42eb0f47c3eee53279d9e830120450ff48a5ec76bcfd",
+      "byteLength": 1294,
+      "lineCount": 17
+    },
+    {
+      "relativePath": "docs/operations/no-invention-policy.md",
+      "checksum": "e6ca7a4721c30205438c53ceb6d6c4b41a0a3cda7622fc064c41c0fdc3b2fca0",
+      "byteLength": 794,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "docs/operations/orchestration-reconciliation.md",
+      "checksum": "466838c0d6512934a6fb4693887edd566f9f3b43549673b10978ebfa7e197146",
+      "byteLength": 403,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/operations/orchestrator.md",
+      "checksum": "d15085faabe56b826585513ccae5bfc4add19f24228b54e7cbcc252d5d3ed104",
+      "byteLength": 1527,
+      "lineCount": 12
+    },
+    {
+      "relativePath": "docs/operations/persistence-concurrency.md",
+      "checksum": "16f04c9261064d7e9978356d8a80ec62e6b6c36c8ba326c22704d947cfef54b7",
+      "byteLength": 824,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "docs/operations/persistence-idempotency.md",
+      "checksum": "53be60df4d2ad55dee11257248a5e14e9d7f4d947df8f4b5022b00e554982bd9",
+      "byteLength": 663,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/operations/playwright-functional-qa.md",
+      "checksum": "3f39c1a0d9143e0004cc3c70b5f2d1081631a3c5e3993cfc0870cb38e78849de",
+      "byteLength": 1023,
+      "lineCount": 13
+    },
+    {
+      "relativePath": "docs/operations/playwright-smoke-test.md",
+      "checksum": "e52d3dffde4aed5dcdf9fe575157c8601b595350a3eeff82b7875c7c3e4324e9",
+      "byteLength": 522,
+      "lineCount": 10
+    },
+    {
+      "relativePath": "docs/operations/production-e2e-stage-runner.md",
+      "checksum": "6226d8c61c44d7c0dcac01142a22708bf9796f32d410e806a3fac613735e9b11",
+      "byteLength": 1222,
+      "lineCount": 10
+    },
+    {
+      "relativePath": "docs/operations/production-execution-state-adapter.md",
+      "checksum": "a022a84cb0723e20e7f4620a1b26de780c1e73554da69a54a257ef4498591f44",
+      "byteLength": 697,
+      "lineCount": 7
+    },
+    {
+      "relativePath": "docs/operations/production-factory-runtime.md",
+      "checksum": "47eb6dc98b56d63db0c19a6d68acc31182a137f392d91950d2647875718d6605",
+      "byteLength": 1426,
+      "lineCount": 15
+    },
+    {
+      "relativePath": "docs/operations/production-stage-composition.md",
+      "checksum": "8421ff4e72f7ce9fdf2aa4272e4b9fb53f86fcdb9433ada0ef541c92088db224",
+      "byteLength": 1167,
+      "lineCount": 10
+    },
+    {
+      "relativePath": "docs/operations/production-task-executor-adapter.md",
+      "checksum": "22a9cef7e5cdbdfce801fa44e79ce4901217fe3d0df11f0142ce8345448d4832",
+      "byteLength": 961,
+      "lineCount": 13
+    },
+    {
+      "relativePath": "docs/operations/production-task-input-builders.md",
+      "checksum": "b57e1cedb3f67dd05f82431eaf981274241ece3fd54d9abb53edea61db16722b",
+      "byteLength": 688,
+      "lineCount": 7
+    },
+    {
+      "relativePath": "docs/operations/project-memory.md",
+      "checksum": "cecd2e9b5087a99a9973f7fc9dbcaa23bab933d7385ff4c1e7528264920189d3",
+      "byteLength": 2976,
+      "lineCount": 41
+    },
+    {
+      "relativePath": "docs/operations/project-versioning.md",
+      "checksum": "73945d1c1e0ede1fc5041275d298f9865944f7ca60a0ecfb3f6bbb61030e7c7a",
+      "byteLength": 1186,
+      "lineCount": 16
+    },
+    {
+      "relativePath": "docs/operations/qa-evidence-policy.md",
+      "checksum": "890f70dd4f43fb1a015fc481f2f9b9aebaa4c297233dbf17fa7ac2436135d66f",
+      "byteLength": 341,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/operations/qa-local-server.md",
+      "checksum": "6ebe929f1c2132800a88ebbd5a636a63b4ca1c79225f877505ab940055d7d412",
+      "byteLength": 371,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/operations/qa-network-policy.md",
+      "checksum": "ea1beb3648d09f0de2eccf1287cb8776ab0df5b4ca5a52e5fdb1e5afbd490e80",
+      "byteLength": 308,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/operations/qa-reconciliation.md",
+      "checksum": "e647c148791c2596c86de967ff40057ea021ba8ab2363ccd0e7d70f8f7668b9e",
+      "byteLength": 330,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/operations/qa-scenario-policy.md",
+      "checksum": "873ee3d019fd254c190e6131351bcbf917867ce2a151c3f943cda76a38c384e0",
+      "byteLength": 336,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/operations/real-e2e-failure-classification.md",
+      "checksum": "5e0f05d75d4af289988192c84545a371ea2cfb74ed901092bd3128012b509a7b",
+      "byteLength": 597,
+      "lineCount": 7
+    },
+    {
+      "relativePath": "docs/operations/real-e2e-preflight.md",
+      "checksum": "02d6e52d5cbcf611368bc0ca0074d20ec1aa431ea3efa3bdd32b122be402bd17",
+      "byteLength": 702,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "docs/operations/real-e2e-stabilization.md",
+      "checksum": "6930cd862cf477e721d305b0fe9ce647fef86d69086277493b9769654a4a3e9e",
+      "byteLength": 456,
+      "lineCount": 5
+    },
+    {
+      "relativePath": "docs/operations/real-factory-e2e-smoke.md",
+      "checksum": "24821c82f970bcb2a3a14db7ae110f408f86259724028c80696d21dc68e01bfa",
+      "byteLength": 2347,
+      "lineCount": 19
+    },
+    {
+      "relativePath": "docs/operations/rls-policy.md",
+      "checksum": "22dbacf5fb3ed36f9dd132f8ed7868a5c7ec8bd7c5840991c3f3a53880891aef",
+      "byteLength": 279,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/operations/runtime-command-policy.md",
+      "checksum": "f7d6fb9b10d0bd18eb42e89b20d6a629ffb59d31af3c9d6bfc82d67eae3d65cb",
+      "byteLength": 326,
+      "lineCount": 12
+    },
+    {
+      "relativePath": "docs/operations/runtime-environment-security.md",
+      "checksum": "6c0d47b9cee6b39a4922e82008b79088e8da8d2cf2258f2fdd449721f610514e",
+      "byteLength": 452,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "docs/operations/runtime-output-policy.md",
+      "checksum": "28ef7380d4f93ac1e7b8e922d70e88534c8e5e907030ae7a48a51005b4b08cb2",
+      "byteLength": 315,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/operations/runtime-quality-checks.md",
+      "checksum": "b436f0c87d6d8752bf9f2592246f5a3445b0d9464887da5a066888ad9dd6e78a",
+      "byteLength": 350,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/operations/runtime-reconciliation.md",
+      "checksum": "85ae7d461e3e1d85371a3890ae674903b40b9e509a2080aeac17dd36bbf6ef2a",
+      "byteLength": 312,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/operations/security-model.md",
+      "checksum": "22376178cade43746d9b2126abef52381ebf19c6eddd72a4c3a504967d3e3c6e",
+      "byteLength": 2639,
+      "lineCount": 27
+    },
+    {
+      "relativePath": "docs/operations/storage-implementation.md",
+      "checksum": "50925381acc8f733861016973f75f5b9910e7c1c92ef96db02197547d78c6223",
+      "byteLength": 302,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "docs/operations/supabase-persistence.md",
+      "checksum": "5d32fdb8ce45bf91dc14aad69ea04fff568a1759c9756d762456493f949c19fe",
+      "byteLength": 1706,
+      "lineCount": 20
+    },
+    {
+      "relativePath": "docs/operations/taskgraph-smoke-test.md",
+      "checksum": "ea8679c10bbe3ed7110e0f5bbd3112866514b36a14af893cade070fc828f79c4",
+      "byteLength": 271,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "docs/operations/version-lifecycle.md",
+      "checksum": "21b5783edfd092757620f86ce08804213688e45be68854be6eb2d2383aafe3ad",
+      "byteLength": 886,
+      "lineCount": 12
+    },
+    {
+      "relativePath": "docs/operations/workspace-manager.md",
+      "checksum": "aba4a2b02f865b3dea9e4699f5d7abf3177232638fbb4043cc0f061d6e6c1061",
+      "byteLength": 1345,
+      "lineCount": 20
+    },
+    {
+      "relativePath": "docs/operations/workspace-reconciliation.md",
+      "checksum": "82275aaac24c0b2f199a423f30fed67a86a1d0b1aa9068e91fde2538d26cd405",
+      "byteLength": 842,
+      "lineCount": 14
+    },
+    {
+      "relativePath": "docs/operations/workspace-security.md",
+      "checksum": "8d62c55d5c9e6556baed6c0a1cf26e5c2fa2a44c69a22a51c133c30e7d72bce4",
+      "byteLength": 1278,
+      "lineCount": 12
+    },
+    {
+      "relativePath": "eslint.config.mjs",
+      "checksum": "329a117d0cce8ecec058fda5553d246bc9a042cabc65e98107e71f45930e5803",
+      "byteLength": 556,
+      "lineCount": 22
+    },
+    {
+      "relativePath": "index-shadcn.ts",
+      "checksum": "1803092dd43d1fe5466fe2183986ece3b69e9f301503eade51c749bd9f02e4b3",
+      "byteLength": 43,
+      "lineCount": 2
+    },
+    {
+      "relativePath": "index.ts",
+      "checksum": "115fdd975f17ebaaea582f761dc0aa85bdf063e93e8ee01c58b2686d2aac18cb",
+      "byteLength": 214,
+      "lineCount": 5
+    },
+    {
+      "relativePath": "next.config.ts",
+      "checksum": "8e87b591c2a7785ebf9b306e3e520411baecc5d1346433c5e712a883a34cd609",
+      "byteLength": 126,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "package-lock.json",
+      "checksum": "d92d1fa6713633a9375c6e2dd8fc4318585484dbfd4a1b3cc6b513c103f8ad46",
+      "byteLength": 302218,
+      "lineCount": 8683
+    },
+    {
+      "relativePath": "package.json",
+      "checksum": "d3b5ecfedc5a57cfed5f52928b83ed15e2645934c05a48ec8638dee6b20a4f06",
+      "byteLength": 2242,
+      "lineCount": 64
+    },
+    {
+      "relativePath": "postcss.config.mjs",
+      "checksum": "dfac7ac2d86d326a0e5adb024e7943c181393ed17a5fcb8f0315b24c7da6ddde",
+      "byteLength": 94,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "scripts/activate-initial-skill-portfolio.ts",
+      "checksum": "d4e9792510b78c69cd7a42255c564fc7e84a8c30eb65e4f9360a185d7d4b68b1",
+      "byteLength": 17552,
+      "lineCount": 182
+    },
+    {
+      "relativePath": "scripts/ai-smoke.ts",
+      "checksum": "d2aeb54efd1b39a50fec5eca6c96cf42f67e4d83f61b16ec5dc68039090db520",
+      "byteLength": 936,
+      "lineCount": 14
+    },
+    {
+      "relativePath": "scripts/author-internal-skills.ts",
+      "checksum": "4d675c2dabc9e0bd4b41f62d59681775a4af4a3e866d470cf00ba1477c25958a",
+      "byteLength": 12769,
+      "lineCount": 300
+    },
+    {
+      "relativePath": "scripts/backend-smoke.ts",
+      "checksum": "12afec111d3e8b1b710d3cb8fbf1c53a032d458abc92ded48f8ff5ee5a24ae1e",
+      "byteLength": 2888,
+      "lineCount": 23
+    },
+    {
+      "relativePath": "scripts/cli-env.ts",
+      "checksum": "dfbd477134ea3c3e3b87e2fb47c5d1f295587eb648ed3760b606cc1026755f23",
+      "byteLength": 334,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "scripts/codebase-memory-smoke.ts",
+      "checksum": "8a9692623c68f9f43472faeca68b4e8ed5179cf7e77a8daac66369b5040e3d97",
+      "byteLength": 2228,
+      "lineCount": 18
+    },
+    {
+      "relativePath": "scripts/context7-smoke.ts",
+      "checksum": "e3f6b47aca837c6497d4b6768c65c80f25f6c9213f1516a8f9bbcdc7f40cf028",
+      "byteLength": 1981,
+      "lineCount": 17
+    },
+    {
+      "relativePath": "scripts/db-common.mjs",
+      "checksum": "4d6727028d35e03a8a374943b3c7b913d769347311a72103b25102cb988feb0b",
+      "byteLength": 1560,
+      "lineCount": 31
+    },
+    {
+      "relativePath": "scripts/db-migrate.mjs",
+      "checksum": "f6105203745fb1a63d99affd1396422f21f251c39d07d3f1168abee1da9c0bbc",
+      "byteLength": 1903,
+      "lineCount": 26
+    },
+    {
+      "relativePath": "scripts/db-smoke.ts",
+      "checksum": "fc2970a68028ebcba076d166e3dc07f933f2ea6bbbb4461ab8758831a0d61857",
+      "byteLength": 7696,
+      "lineCount": 41
+    },
+    {
+      "relativePath": "scripts/db-status.mjs",
+      "checksum": "f7383ddf91d7fe7cf5658d1f4b9e027f6344f82d620503fd6fe8e4019abe2fb3",
+      "byteLength": 506,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "scripts/db-verify.mjs",
+      "checksum": "725cb2f5976d3e0bffdb9a68bee91a71a89fe72da6abb17a6960e734649ca435",
+      "byteLength": 2649,
+      "lineCount": 22
+    },
+    {
+      "relativePath": "scripts/external-advance-evidence.ts",
+      "checksum": "d3531e39accfedec286b870f2d9054746a3e10377b63d5428d569622f2de54dc",
+      "byteLength": 11409,
+      "lineCount": 282
+    },
+    {
+      "relativePath": "scripts/factory-e2e-smoke.ts",
+      "checksum": "c5b0082dee8ede2263fcdaa99cfeb248daac2811ad5b730fe13c87854ff1e5b0",
+      "byteLength": 2639,
+      "lineCount": 36
+    },
+    {
+      "relativePath": "scripts/final-active-skill-layer-audit.ts",
+      "checksum": "94a1f28fed3b1eae6b90338d980c8abb2ffe3e203077ec5f4fce875aa546546b",
+      "byteLength": 15601,
+      "lineCount": 501
+    },
+    {
+      "relativePath": "scripts/generated-runtime-smoke.ts",
+      "checksum": "cd1c568813ea5e9e2bea87129b82f336adbbfc2698d1a96b8047e67bac2d6a4b",
+      "byteLength": 1754,
+      "lineCount": 31
+    },
+    {
+      "relativePath": "scripts/initial-portfolio-license-decisions.ts",
+      "checksum": "bee4260bf96f4df4aff4fc733bf096b812238d941b11e582bd9f0f696315410b",
+      "byteLength": 15231,
+      "lineCount": 315
+    },
+    {
+      "relativePath": "scripts/migration-integrity-fixture.mjs",
+      "checksum": "9f5807f49f6eb4d6ab3f1d5dffa835415e9db59be10904ac71d6dd03cd09fccd",
+      "byteLength": 432,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "scripts/playwright-smoke.ts",
+      "checksum": "2b9328533f8c85f7b7067148ec4be97d7c8583566a53e8f5952ab4b7d1de3886",
+      "byteLength": 2746,
+      "lineCount": 20
+    },
+    {
+      "relativePath": "scripts/shadcn-smoke.ts",
+      "checksum": "8377d91de4164539e877ef67d17470032c5b79e1323c11697a797544cace9a14",
+      "byteLength": 2007,
+      "lineCount": 11
+    },
+    {
+      "relativePath": "scripts/skill-portfolio-plan.ts",
+      "checksum": "e486a79cd4c7dc4c84f665af4a1ba1dd1a8640bf5ca85fa527d58f5966edc015",
+      "byteLength": 2434,
+      "lineCount": 37
+    },
+    {
+      "relativePath": "scripts/skills-curation.ts",
+      "checksum": "bf1f1dcbcb8c07c6e2b306889ebf058ff489a478555b229b6c3bf086c7cf6a3d",
+      "byteLength": 2250,
+      "lineCount": 70
+    },
+    {
+      "relativePath": "scripts/taskgraph-smoke.ts",
+      "checksum": "9c35bdf586433ab0aedbcce5da49faf336b6bf3ef03b165030fe3076f0db6aad",
+      "byteLength": 5752,
+      "lineCount": 16
+    },
+    {
+      "relativePath": "scripts/validate-migrations.mjs",
+      "checksum": "82a11c2ea3353706816b2e09e1768786174920fe9ccaefbdf9c7f5254dc4ee9d",
+      "byteLength": 733,
+      "lineCount": 14
+    },
+    {
+      "relativePath": "skills/.gitignore",
+      "checksum": "11bb900588db6312b006f275b96775936f421dee52071b4d52bb5dc5e8cf72c5",
+      "byteLength": 85,
+      "lineCount": 7
+    },
+    {
+      "relativePath": "skills/internal/architecture-tradeoff-review/SKILL.md",
+      "checksum": "c2bd742738e8f8f567403704a4d5f118c4c1a950c34a851dd7fccbe6501e19dd",
+      "byteLength": 2494,
+      "lineCount": 62
+    },
+    {
+      "relativePath": "skills/internal/auth-storage-security-review/SKILL.md",
+      "checksum": "7fa716003d854a8646c522c8d66efa5bca9aa3d3652c149e10ce78f679c0fb06",
+      "byteLength": 2619,
+      "lineCount": 63
+    },
+    {
+      "relativePath": "skills/internal/behavioral-test-quality-review/SKILL.md",
+      "checksum": "f37af036a5c7956e680a0b07a8e1b416996ea38ecf74eae201ba77e15e4df969",
+      "byteLength": 2526,
+      "lineCount": 62
+    },
+    {
+      "relativePath": "skills/internal/lead-requirements-completeness/SKILL.md",
+      "checksum": "fce119500546107ea0a0247dac27122a6fc8ba3e4baabf40d033cd1a889f1d41",
+      "byteLength": 2822,
+      "lineCount": 66
+    },
+    {
+      "relativePath": "skills/internal/maintainable-performance-implementation/SKILL.md",
+      "checksum": "dc46615f9d045b91b9e3062d84a8fec4818defc8be37d6b6646db0aa6095ef8b",
+      "byteLength": 2478,
+      "lineCount": 61
+    },
+    {
+      "relativePath": "skills/internal/nextjs-server-client-implementation/SKILL.md",
+      "checksum": "5083269fa3174e824e07499d4437feb90a4a11e72ec9adf2b5a2a05bbd7fed72",
+      "byteLength": 2641,
+      "lineCount": 62
+    },
+    {
+      "relativePath": "skills/internal/project-data-model-planning/SKILL.md",
+      "checksum": "2e07df6a8f257fecd86c47ea81269added647ceefd77b7113fcdb76dbcf1d9bc",
+      "byteLength": 2505,
+      "lineCount": 61
+    },
+    {
+      "relativePath": "skills/internal/react-nextjs-integration-review/SKILL.md",
+      "checksum": "af0b566c99f953b5b09e5dd45c8d591ae52005a483104253187033289122c656",
+      "byteLength": 2418,
+      "lineCount": 60
+    },
+    {
+      "relativePath": "skills/internal/requirements-evidence-traceability/SKILL.md",
+      "checksum": "9542e1c38187be7dd5dce0b832fa1e1f8de56d2fc4b60321fbcb6c678fe41281",
+      "byteLength": 2706,
+      "lineCount": 64
+    },
+    {
+      "relativePath": "skills/internal/responsive-form-ux-design/SKILL.md",
+      "checksum": "091bd0164fbe06ca178fa5f38b762163923604454732d1e5bfefb079fc4ae129",
+      "byteLength": 2424,
+      "lineCount": 61
+    },
+    {
+      "relativePath": "skills/internal/supabase-application-integration/SKILL.md",
+      "checksum": "818f7b75ac63f56750517b48d5c71dbf881d7f6c1307d3e9219e51e7fc06712b",
+      "byteLength": 2516,
+      "lineCount": 61
+    },
+    {
+      "relativePath": "skills/internal/technical-risk-planning/SKILL.md",
+      "checksum": "5b84d207c9c45a3b150824653e1d0296e32366a35834ceb66a82491182154131",
+      "byteLength": 2425,
+      "lineCount": 60
+    },
+    {
+      "relativePath": "skills/internal/typed-form-implementation/SKILL.md",
+      "checksum": "fcc0a7ef95af73e03ab4e05cabf00c7679519babf7b17f14f0aefa1649bbbef7",
+      "byteLength": 2471,
+      "lineCount": 60
+    },
+    {
+      "relativePath": "src/agents/catalog.test.ts",
+      "checksum": "8e528ae03659590e15a78c92babd0c71d9842e5ffa355bf3ba0ac59d67fb75f2",
+      "byteLength": 7062,
+      "lineCount": 74
+    },
+    {
+      "relativePath": "src/agents/catalog.ts",
+      "checksum": "0f2a4bb03a6979c3d1807d9942b25695d0c368db63b08b4320c5d033cce2c81d",
+      "byteLength": 16373,
+      "lineCount": 129
+    },
+    {
+      "relativePath": "src/agents/design/contracts.ts",
+      "checksum": "a50e5b83af7315a0c2ce7114ca17b222602913741e8991f3d8d639cd14532704",
+      "byteLength": 3279,
+      "lineCount": 24
+    },
+    {
+      "relativePath": "src/agents/design/design.test.ts",
+      "checksum": "972ac2edfc0d89a7609115ab8012a5e591ac49999290ce07299b228a7c0308bc",
+      "byteLength": 16370,
+      "lineCount": 42
+    },
+    {
+      "relativePath": "src/agents/design/deterministic.ts",
+      "checksum": "fb24bd4b96b473ab160b24f1a56f612f54278321fde3bb8292ae0d41b41791df",
+      "byteLength": 13386,
+      "lineCount": 35
+    },
+    {
+      "relativePath": "src/agents/design/errors.ts",
+      "checksum": "686d7ee0e8d5a2b84886032a29d029d069978582bbe2fec7a9327bff7ec44d01",
+      "byteLength": 1264,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "src/agents/design/index.ts",
+      "checksum": "15857f639e0c8d7c987877390147513e8510c897f7132db94b7d96dc564ed2ac",
+      "byteLength": 166,
+      "lineCount": 7
+    },
+    {
+      "relativePath": "src/agents/design/memory.ts",
+      "checksum": "8d9c97bf82d36cba95c21b53e5544483174a6eff89bd3b86e910a67670cdd3f2",
+      "byteLength": 2752,
+      "lineCount": 23
+    },
+    {
+      "relativePath": "src/agents/design/ports.ts",
+      "checksum": "2cd8e4f4978c272680ee66e0275d8d772c53af1751d8ce527b4fe3800a1f5395",
+      "byteLength": 1474,
+      "lineCount": 11
+    },
+    {
+      "relativePath": "src/agents/design/server.ts",
+      "checksum": "be356de84eda58245c772c3605eaec424a3d15deefcd83f9d76f0bdbf17e0563",
+      "byteLength": 902,
+      "lineCount": 9
+    },
+    {
+      "relativePath": "src/agents/design/service.ts",
+      "checksum": "e6122cd129d517149dd9604a0e41c607a65e45ddc6ada6e718506c0e813da986",
+      "byteLength": 25907,
+      "lineCount": 724
+    },
+    {
+      "relativePath": "src/agents/implementation/applier.ts",
+      "checksum": "54628daf7b0687ef3e4adb899608f11537e0c30023eae2f21168761a5b8f321e",
+      "byteLength": 9120,
+      "lineCount": 33
+    },
+    {
+      "relativePath": "src/agents/implementation/backend.test.ts",
+      "checksum": "4dba8508ff3553d9c6caeeb488d0bd785a1ee5bdf5edf7b59c30ab88a4abfb90",
+      "byteLength": 7483,
+      "lineCount": 21
+    },
+    {
+      "relativePath": "src/agents/implementation/backend.ts",
+      "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159",
+      "byteLength": 14185,
+      "lineCount": 40
+    },
+    {
+      "relativePath": "src/agents/implementation/contracts.ts",
+      "checksum": "ff5fbca435791701d34ddea9ac6598d376936322c92be5bb8776b73801fd0882",
+      "byteLength": 7933,
+      "lineCount": 29
+    },
+    {
+      "relativePath": "src/agents/implementation/errors.ts",
+      "checksum": "e10d6c151100b040aff3c9efcf8b4d02e14780e31a26152d34d7633230c3168d",
+      "byteLength": 5493,
+      "lineCount": 13
+    },
+    {
+      "relativePath": "src/agents/implementation/foundation-artifacts.test.ts",
+      "checksum": "ac73096f1f2d8007c3d4d6012697970d9da0576d3a695b2624b12fd4440048bb",
+      "byteLength": 5813,
+      "lineCount": 30
+    },
+    {
+      "relativePath": "src/agents/implementation/foundation-policy.ts",
+      "checksum": "26485746769bcc615ebb2fd247c098033bfeecffdd8031ad5ccaf1241a39c8cf",
+      "byteLength": 1843,
+      "lineCount": 60
+    },
+    {
+      "relativePath": "src/agents/implementation/implementation.test.ts",
+      "checksum": "f9a28385ed3919f1915032a60e9049952578f9b71293620bb0699f14997aed89",
+      "byteLength": 13552,
+      "lineCount": 34
+    },
+    {
+      "relativePath": "src/agents/implementation/index.ts",
+      "checksum": "b17b52da202094d8541d2eded147dcc60a8a1b374d549cf4418c54815e07ecda",
+      "byteLength": 219,
+      "lineCount": 9
+    },
+    {
+      "relativePath": "src/agents/implementation/policy.ts",
+      "checksum": "4751dd2618746c19ffd9f2843cf2d259a48853fc6657c12b10de6e32343756f4",
+      "byteLength": 21441,
+      "lineCount": 578
+    },
+    {
+      "relativePath": "src/agents/implementation/provider.ts",
+      "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb",
+      "byteLength": 6964,
+      "lineCount": 32
+    },
+    {
+      "relativePath": "src/agents/implementation/scope.ts",
+      "checksum": "3653628462e7faeddd0a174699606bcf51f8e698c119822cc31eb60201f91689",
+      "byteLength": 571,
+      "lineCount": 3
+    },
+    {
+      "relativePath": "src/agents/implementation/server.ts",
+      "checksum": "c1b35c1f91fd230ac5fa3b853aa1480526c6a90943bbaed9d367b7297ce760c5",
+      "byteLength": 1395,
+      "lineCount": 11
+    },
+    {
+      "relativePath": "src/agents/implementation/service.ts",
+      "checksum": "a68c1be2c7e8699ff6f43c022b8ee24a6baf54608cb4bb43d5b0226b5ae32dcf",
+      "byteLength": 17214,
+      "lineCount": 523
+    },
+    {
+      "relativePath": "src/agents/implementation/test-artifacts.test.ts",
+      "checksum": "8f7876d48a1c16f4a261942a43d6fe039e7d96c718a4ff553af9fab77751c5ec",
+      "byteLength": 4268,
+      "lineCount": 20
+    },
+    {
+      "relativePath": "src/agents/implementation/validators.ts",
+      "checksum": "18d8aec15fe20792b157487f1c86efb3b8dc633067025efc165524599ba2ea70",
+      "byteLength": 10112,
+      "lineCount": 55
+    },
+    {
+      "relativePath": "src/agents/lead/clarification-policy.test.ts",
+      "checksum": "d05f69f4f347770661b2dc6f0add561f2bf8f378076d8d0626d5d1eeb878ed79",
+      "byteLength": 1648,
+      "lineCount": 29
+    },
+    {
+      "relativePath": "src/agents/lead/clarification-policy.ts",
+      "checksum": "24f5cfa9859480ccf6919855a05d6cbbbf7ab84f471b87b16d340757601ba0b2",
+      "byteLength": 2371,
+      "lineCount": 31
+    },
+    {
+      "relativePath": "src/agents/lead/contracts.ts",
+      "checksum": "cd8321cb3ff884231ac42c3e51424dd50877a301c37c02ae41df5dbc761f4e70",
+      "byteLength": 5216,
+      "lineCount": 26
+    },
+    {
+      "relativePath": "src/agents/lead/deterministic.ts",
+      "checksum": "1bb80e6a8afee7b18744bfcdc37ce0e012c9eb65b3231acaa98289cb4b41638a",
+      "byteLength": 18107,
+      "lineCount": 64
+    },
+    {
+      "relativePath": "src/agents/lead/errors.ts",
+      "checksum": "a266a53845c0f2ba5f5539aa058b56611ae059517ebfdf5422b0a1012a288e9b",
+      "byteLength": 1305,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "src/agents/lead/index.ts",
+      "checksum": "15857f639e0c8d7c987877390147513e8510c897f7132db94b7d96dc564ed2ac",
+      "byteLength": 166,
+      "lineCount": 7
+    },
+    {
+      "relativePath": "src/agents/lead/lead.test.ts",
+      "checksum": "a4157f76b3342a957a7c91a4d5baaa1580b445def60893d3c37d5070d78cd7f8",
+      "byteLength": 24795,
+      "lineCount": 82
+    },
+    {
+      "relativePath": "src/agents/lead/memory.test.ts",
+      "checksum": "6dd8785099fdebfd4bbd4b9881fa1d69499d55e0420b4271357fd2ed9abd07bd",
+      "byteLength": 600,
+      "lineCount": 13
+    },
+    {
+      "relativePath": "src/agents/lead/memory.ts",
+      "checksum": "0712da63eeeb579e15abc34a11a2e0baf9b0ce1cae3ec52541fd629cc56c014d",
+      "byteLength": 2707,
+      "lineCount": 32
+    },
+    {
+      "relativePath": "src/agents/lead/ports.ts",
+      "checksum": "6486fd8f8b76c08f7e0ae645964dde248fd8d0a8027ef99fb5e22518eb7ade84",
+      "byteLength": 2317,
+      "lineCount": 11
+    },
+    {
+      "relativePath": "src/agents/lead/server.ts",
+      "checksum": "fabb7fe0c416804c5561d40f5ec3d5aedc3e195b569dba81b4fcf6f120458aa8",
+      "byteLength": 756,
+      "lineCount": 9
+    },
+    {
+      "relativePath": "src/agents/lead/service.ts",
+      "checksum": "b9104638532e15cd92c79e3d9d8c47faa4f4e15bfb257a0a0e539fbf26e0e3a1",
+      "byteLength": 25682,
+      "lineCount": 757
+    },
+    {
+      "relativePath": "src/agents/planner/contracts.ts",
+      "checksum": "7529aa5802bbebb677056836494f320e9c0ae2e024fd07c750607700899a8938",
+      "byteLength": 16522,
+      "lineCount": 76
+    },
+    {
+      "relativePath": "src/agents/planner/deterministic.ts",
+      "checksum": "82f93ea1a4b3abc4d539e799d7fcb3e35cb755dcad96b8f1b955b503d0c5f2d0",
+      "byteLength": 27287,
+      "lineCount": 62
+    },
+    {
+      "relativePath": "src/agents/planner/errors.ts",
+      "checksum": "63f1b0f5683fc020a548ee83347c48f6a3cac56e84d77f8dcada8da4028a5c87",
+      "byteLength": 1260,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "src/agents/planner/form-contract.test.ts",
+      "checksum": "0d9a96b2f66c8b807d579a7e40205b6b7d64573cff58e4f83212dec41c339e80",
+      "byteLength": 3296,
+      "lineCount": 35
+    },
+    {
+      "relativePath": "src/agents/planner/index.ts",
+      "checksum": "15857f639e0c8d7c987877390147513e8510c897f7132db94b7d96dc564ed2ac",
+      "byteLength": 166,
+      "lineCount": 7
+    },
+    {
+      "relativePath": "src/agents/planner/memory.ts",
+      "checksum": "7678b89f617f7905a3532a8513e4202aa1a4912bfcbd787fb280353b46b8dace",
+      "byteLength": 2260,
+      "lineCount": 20
+    },
+    {
+      "relativePath": "src/agents/planner/planner.test.ts",
+      "checksum": "6e6dbd9e497131ecfcfd411f3cefc9d214e97d5656d09fda4c8d538a2e05cf2b",
+      "byteLength": 12462,
+      "lineCount": 37
+    },
+    {
+      "relativePath": "src/agents/planner/ports.ts",
+      "checksum": "19eab6c045636f769de43ae55da4e05cf68438f586922f426a9dc30f784109b4",
+      "byteLength": 1301,
+      "lineCount": 11
+    },
+    {
+      "relativePath": "src/agents/planner/server.ts",
+      "checksum": "381cfd468be9b45a28cef7cade4add3f43cfe10bca6467eab28ae37a931148e6",
+      "byteLength": 921,
+      "lineCount": 10
+    },
+    {
+      "relativePath": "src/agents/planner/service.ts",
+      "checksum": "5991917dc67bd61e299fe346adc7bfed6db0e4866ed6fc1be9728a024d4afa5c",
+      "byteLength": 22379,
+      "lineCount": 633
+    },
+    {
+      "relativePath": "src/agents/reviewers/architecture/architecture.test.ts",
+      "checksum": "8fd85217ff01ea597345723a4e875bd7a8a617bf366cb4612ac4176a8d0f5394",
+      "byteLength": 13738,
+      "lineCount": 41
+    },
+    {
+      "relativePath": "src/agents/reviewers/architecture/contracts.ts",
+      "checksum": "33c718081aa964e6a4aa70912b39d4c16201fc403a9c84936ad6344d2d6aae73",
+      "byteLength": 1854,
+      "lineCount": 18
+    },
+    {
+      "relativePath": "src/agents/reviewers/architecture/deterministic.ts",
+      "checksum": "aafef0feeb4c6e80a0206c4706d8013129d98e6adb71d02ea0e00496260ab5fb",
+      "byteLength": 6555,
+      "lineCount": 38
+    },
+    {
+      "relativePath": "src/agents/reviewers/architecture/errors.ts",
+      "checksum": "a73e005b555a79e86025a9b97a5c7be422916b56872e18e776a4269a2a178b96",
+      "byteLength": 594,
+      "lineCount": 3
+    },
+    {
+      "relativePath": "src/agents/reviewers/architecture/ports.ts",
+      "checksum": "911351c4ff8e02e76f02a934a625a2b28be2ffd3f8b96a22b411cb712c648e90",
+      "byteLength": 436,
+      "lineCount": 5
+    },
+    {
+      "relativePath": "src/agents/reviewers/architecture/service.ts",
+      "checksum": "c04d95cbc526e9b90d864afbb604ce96c86f3176751c07ab3131c1d8c922eb24",
+      "byteLength": 13712,
+      "lineCount": 360
+    },
+    {
+      "relativePath": "src/agents/reviewers/code-integration/code-integration.test.ts",
+      "checksum": "6e694fcffad5a86a7b81764b9f89c18c3baa6fc9444c7b6a3415452a2697889a",
+      "byteLength": 2835,
+      "lineCount": 41
+    },
+    {
+      "relativePath": "src/agents/reviewers/code-integration/contracts.ts",
+      "checksum": "76b6ed179becf5329ea49769cb9b22659a39aadf8125b2675447a5373f1299a1",
+      "byteLength": 3095,
+      "lineCount": 21
+    },
+    {
+      "relativePath": "src/agents/reviewers/code-integration/deterministic.ts",
+      "checksum": "64813f96125498eb43f9c3fb0faaa0095122b43bd951653bd82b8ad8134d387c",
+      "byteLength": 4881,
+      "lineCount": 27
+    },
+    {
+      "relativePath": "src/agents/reviewers/code-integration/errors.ts",
+      "checksum": "9fd73867ca4b8dc4fd2ce881bab068f82b1dfe9a2b80cbec6ff9d9faa7313bf6",
+      "byteLength": 595,
+      "lineCount": 3
+    },
+    {
+      "relativePath": "src/agents/reviewers/code-integration/ports.ts",
+      "checksum": "85f62fa76efacc8335a439f1e877ea5fe37818ca1c2a14a0d1f5e3db660303cb",
+      "byteLength": 493,
+      "lineCount": 5
+    },
+    {
+      "relativePath": "src/agents/reviewers/code-integration/service.ts",
+      "checksum": "29adf4c78e24daff5672172469db10ce10778f7bff668b89068d51004653f7a3",
+      "byteLength": 10874,
+      "lineCount": 284
+    },
+    {
+      "relativePath": "src/agents/reviewers/contracts/contracts.test.ts",
+      "checksum": "c4280cbde6755f32ee16d8bc09c85293a439aaa27beac9fdf2948da35d3dfd82",
+      "byteLength": 13562,
+      "lineCount": 45
+    },
+    {
+      "relativePath": "src/agents/reviewers/contracts/contracts.ts",
+      "checksum": "7c3ac24991be9a37fdae8f7b62c624c6a806dab8f3351dfd4112c4994bac365a",
+      "byteLength": 1783,
+      "lineCount": 18
+    },
+    {
+      "relativePath": "src/agents/reviewers/contracts/deterministic.ts",
+      "checksum": "9023ac9d8da298317ce2eaa926b53f283c02786ccc915c23ba4b048bc61b4547",
+      "byteLength": 11875,
+      "lineCount": 59
+    },
+    {
+      "relativePath": "src/agents/reviewers/contracts/errors.ts",
+      "checksum": "958dbad2e46d0d4d670b0f18398d5ffe6e066f4b2e83fb3ac874d0326066247e",
+      "byteLength": 552,
+      "lineCount": 3
+    },
+    {
+      "relativePath": "src/agents/reviewers/contracts/ports.ts",
+      "checksum": "b3fb68792c542d6400e79c002fb187c25d0cebc5954a1294430b12c06a4cfd7f",
+      "byteLength": 456,
+      "lineCount": 5
+    },
+    {
+      "relativePath": "src/agents/reviewers/contracts/service.ts",
+      "checksum": "6daeb0993f13950b8d5f1f27e8d2ce5a857b96bfe5cf8df7eafbe5b177a5384d",
+      "byteLength": 15467,
+      "lineCount": 417
+    },
+    {
+      "relativePath": "src/agents/reviewers/security/contracts.ts",
+      "checksum": "3e1dcc9494ea1cc79bb0a47428465b28d01f598ebb8fca2c7bffd6037b8ccf42",
+      "byteLength": 3398,
+      "lineCount": 22
+    },
+    {
+      "relativePath": "src/agents/reviewers/security/deterministic.ts",
+      "checksum": "9f54c90edbfbeeaa800d6992f786108b600085a95b777090d94d55a01f3c79b9",
+      "byteLength": 9600,
+      "lineCount": 51
+    },
+    {
+      "relativePath": "src/agents/reviewers/security/errors.ts",
+      "checksum": "769499ea1730d1936627aa4a5b669eddf29baa6bfe044051ea5aeddfd6fa5568",
+      "byteLength": 607,
+      "lineCount": 3
+    },
+    {
+      "relativePath": "src/agents/reviewers/security/ports.ts",
+      "checksum": "d0fcb56633df8bf7b2ca48822d210306971b9ae72da5e1d42233aefe8f277abf",
+      "byteLength": 458,
+      "lineCount": 5
+    },
+    {
+      "relativePath": "src/agents/reviewers/security/security.test.ts",
+      "checksum": "824827f1166ea3d1c9e3afbd2b5ce1d1e430b50c40b1ca5bd7ab3802d6c2e023",
+      "byteLength": 3020,
+      "lineCount": 46
+    },
+    {
+      "relativePath": "src/agents/reviewers/security/service.ts",
+      "checksum": "78a416f3b1c82dd06e7c57da983a2e81f2d2ba8df91b46692250048ed4591d73",
+      "byteLength": 11728,
+      "lineCount": 316
+    },
+    {
+      "relativePath": "src/agents/reviewers/test-quality/contracts.ts",
+      "checksum": "72b2968b6c17126e57e9d1d36d666356a863b21c2e3681024113144555b1800b",
+      "byteLength": 4056,
+      "lineCount": 34
+    },
+    {
+      "relativePath": "src/agents/reviewers/test-quality/deterministic.ts",
+      "checksum": "998b3ca9b36f7d1552600f628d8c2e56beeaa619ea204d65bdee5aceb7a67a18",
+      "byteLength": 7610,
+      "lineCount": 34
+    },
+    {
+      "relativePath": "src/agents/reviewers/test-quality/errors.ts",
+      "checksum": "90bd0be24b449869a068fc0c33ac78a03be758327bb7a6f8f2ac6b20c157b735",
+      "byteLength": 449,
+      "lineCount": 2
+    },
+    {
+      "relativePath": "src/agents/reviewers/test-quality/index.ts",
+      "checksum": "5768ba33080f83991fe17c08c49f757047f3171639d4b0734ae2c703c0a51402",
+      "byteLength": 140,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "src/agents/reviewers/test-quality/ports.ts",
+      "checksum": "7083fac367f197e17c1e1b2ca881310c19ea5c3042e5acabe669a953a18ab4e6",
+      "byteLength": 473,
+      "lineCount": 5
+    },
+    {
+      "relativePath": "src/agents/reviewers/test-quality/service.ts",
+      "checksum": "9b2a7ece83dcc58389370b17a73614f65fac7219e174a75e4e4b5c0e69a92296",
+      "byteLength": 11404,
+      "lineCount": 297
+    },
+    {
+      "relativePath": "src/agents/reviewers/test-quality/test-quality.test.ts",
+      "checksum": "369c942d2fb8716d6f37e9bf7b9ee014c06c2493198de51ba5080aa8507fceba",
+      "byteLength": 3124,
+      "lineCount": 41
+    },
+    {
+      "relativePath": "src/app/api/health/route.test.ts",
+      "checksum": "14ccd100a6826e30f1386f34539381600cfd418e60b5cc9d5d51184c7d63d3a3",
+      "byteLength": 357,
+      "lineCount": 15
+    },
+    {
+      "relativePath": "src/app/api/health/route.ts",
+      "checksum": "2eff35454d37b6f8e4d396f2defb2876299c5053d9c2484b7802c101c7324df7",
+      "byteLength": 99,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "src/app/globals.css",
+      "checksum": "ac3ab6971e445e64ef0225c7868a9aea16347310fe3f5441a3af71c9b8ee4cd2",
+      "byteLength": 196,
+      "lineCount": 10
+    },
+    {
+      "relativePath": "src/app/layout.tsx",
+      "checksum": "28e6d29d4a3b8ce2b5f06e572c375f601b0d594986b90cdfc385977e350b691a",
+      "byteLength": 447,
+      "lineCount": 16
+    },
+    {
+      "relativePath": "src/app/page.tsx",
+      "checksum": "0b83cda40ffcf52a005485310d8dd2751770d337fe05e03eee77589ce81e642d",
+      "byteLength": 1272,
+      "lineCount": 21
+    },
+    {
+      "relativePath": "src/cli-env.test.ts",
+      "checksum": "7299e54107463535cf049bb023ba9dcb043f1ea41095566393fd2930afad6ff8",
+      "byteLength": 3042,
+      "lineCount": 19
+    },
+    {
+      "relativePath": "src/domain/agents/schema.ts",
+      "checksum": "26e0121ef3b5c301682e112753e4a378c1e71d0bdaca3c83a2680a25bf9d3fe6",
+      "byteLength": 4343,
+      "lineCount": 73
+    },
+    {
+      "relativePath": "src/domain/architecture/schema.ts",
+      "checksum": "591466ad30f719dbfa3a5c2d047acd07cd6bdb76501953f8b5740d61de2f5e9e",
+      "byteLength": 2220,
+      "lineCount": 32
+    },
+    {
+      "relativePath": "src/domain/assets/schema.ts",
+      "checksum": "2f9d1fd10ca3a346c51adf75e43cfe5dba93823481e9456774181d59c6853662",
+      "byteLength": 1408,
+      "lineCount": 9
+    },
+    {
+      "relativePath": "src/domain/content/schema.ts",
+      "checksum": "3da2bfffe62ea16c33b96f70b93c691d0d2653560eda2b3d0db779e057f7243d",
+      "byteLength": 705,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "src/domain/design/schema.ts",
+      "checksum": "375b66e5d38e9a23aa51a80f3cef3830f20595cdf56f03822310d5da3b7ec9d8",
+      "byteLength": 5462,
+      "lineCount": 16
+    },
+    {
+      "relativePath": "src/domain/domain.test.ts",
+      "checksum": "c851c97922afb5d5f8aeebe3e6c5323e0f8fb78b363c3ebc8e1fca56f695e53a",
+      "byteLength": 10400,
+      "lineCount": 86
+    },
+    {
+      "relativePath": "src/domain/implementation/schema.ts",
+      "checksum": "a2ceb8ba2470b75c07bfecf461ab13ab86a6ee8eb993c41197d72a918feae089",
+      "byteLength": 2148,
+      "lineCount": 9
+    },
+    {
+      "relativePath": "src/domain/index.ts",
+      "checksum": "d2c1ed293bcc6d3027471d6af91896aecbc81f2b7185246cf57e085d7bada184",
+      "byteLength": 558,
+      "lineCount": 17
+    },
+    {
+      "relativePath": "src/domain/project/schema.ts",
+      "checksum": "527af509dc5548d76d4fa1ea342457e74c48f9ee9d6811dad8fe69768dd2b8f7",
+      "byteLength": 1831,
+      "lineCount": 24
+    },
+    {
+      "relativePath": "src/domain/quality/schema.ts",
+      "checksum": "cb7224f2186b79e2bb1857cd96fc2cad70d9dde3bc1402876fab21d45e171ee4",
+      "byteLength": 1471,
+      "lineCount": 9
+    },
+    {
+      "relativePath": "src/domain/release/schema.ts",
+      "checksum": "b269c63a9453a37fe48631037e359ca43dc96c77ba9c5147c2ab8cedb4d0711d",
+      "byteLength": 1079,
+      "lineCount": 10
+    },
+    {
+      "relativePath": "src/domain/requirements/logo-policy.ts",
+      "checksum": "cf7e8d1dd8c03ef8bc6157a7114ab7988ef50827622ac73e4e622e373d56f500",
+      "byteLength": 1234,
+      "lineCount": 19
+    },
+    {
+      "relativePath": "src/domain/requirements/schema.ts",
+      "checksum": "9b0f11af8836f2390a22611dd24f1f173299c2a003ef4cbf06890bb1ed614cd1",
+      "byteLength": 5222,
+      "lineCount": 49
+    },
+    {
+      "relativePath": "src/domain/review/review.test.ts",
+      "checksum": "0673d9933ee94881b5c1982728a0d4236e168dfda88bd38ccf5230a354307f0d",
+      "byteLength": 1840,
+      "lineCount": 22
+    },
+    {
+      "relativePath": "src/domain/review/schema.ts",
+      "checksum": "4b78c1e410c0944b54ddaf769bbea9388c8320bbe0cdd3404d5f67f3d28d2229",
+      "byteLength": 15501,
+      "lineCount": 94
+    },
+    {
+      "relativePath": "src/domain/shared/errors.ts",
+      "checksum": "f27966dabd2639527202ab762ccba0e7d40dcfa334931777857466645828cca0",
+      "byteLength": 1350,
+      "lineCount": 42
+    },
+    {
+      "relativePath": "src/domain/shared/schemas.ts",
+      "checksum": "445bb57d960c7a68b1d5624878e78711f3e60edf5318a4c29c68965249186edd",
+      "byteLength": 1657,
+      "lineCount": 37
+    },
+    {
+      "relativePath": "src/domain/tasks/ownership.ts",
+      "checksum": "1d650aa34eec62eaba6a7edb828cd8e99d5949b7a6a6c84387248ab50623c654",
+      "byteLength": 2535,
+      "lineCount": 15
+    },
+    {
+      "relativePath": "src/domain/tasks/schema.ts",
+      "checksum": "c36d3ef5bb991e8c86a442c95d1e30c98975b1fab886182ebf56a27ac1138ca8",
+      "byteLength": 6863,
+      "lineCount": 29
+    },
+    {
+      "relativePath": "src/domain/workflow/decision.ts",
+      "checksum": "ceb6e9ebb4874f042841dfcbaba1210894518e92e6ed59e705162676db260bfc",
+      "byteLength": 1384,
+      "lineCount": 10
+    },
+    {
+      "relativePath": "src/domain/workflow/engine.ts",
+      "checksum": "4317049029a7bf8f5c8d8730deb71aa490d0b7c1d89fb5029e1dee831355621a",
+      "byteLength": 7676,
+      "lineCount": 57
+    },
+    {
+      "relativePath": "src/git-hygiene.test.ts",
+      "checksum": "fec10f45f428114bcb1b5a3f7465d58b35cc0e6e1b325c80920b75c0554611e8",
+      "byteLength": 1883,
+      "lineCount": 35
+    },
+    {
+      "relativePath": "src/integrations/codebase-memory/codebase-memory.test.ts",
+      "checksum": "f4a9f26b7f59336d028d456ad09f0eeb074be4ebbea00d3569c1fd781b16bb4c",
+      "byteLength": 4211,
+      "lineCount": 21
+    },
+    {
+      "relativePath": "src/integrations/codebase-memory/config.ts",
+      "checksum": "ef127dd7408eee7f121d8579388cd14293bd9bbc243b7f21cd6e030400a0885e",
+      "byteLength": 3103,
+      "lineCount": 22
+    },
+    {
+      "relativePath": "src/integrations/codebase-memory/contracts.ts",
+      "checksum": "b452aaf53072343b453ac0c6af03bb94a657249f318fed68b93315d5d95702cf",
+      "byteLength": 6199,
+      "lineCount": 26
+    },
+    {
+      "relativePath": "src/integrations/codebase-memory/errors.ts",
+      "checksum": "c4173cbb853ebfa6966f897e0975fd70eca5e0d6a378d4df7b1631ab10b3c408",
+      "byteLength": 730,
+      "lineCount": 9
+    },
+    {
+      "relativePath": "src/integrations/codebase-memory/index.ts",
+      "checksum": "ab12ec0addb46776da1bd8b598a14da414710d64fc08f4dbd2fdbf50105a2aa9",
+      "byteLength": 872,
+      "lineCount": 13
+    },
+    {
+      "relativePath": "src/integrations/codebase-memory/metadata.ts",
+      "checksum": "6ef08f3337f0d57ec025cc8ff63a9cb3102dff2c31f42962298cdc264409981e",
+      "byteLength": 458,
+      "lineCount": 5
+    },
+    {
+      "relativePath": "src/integrations/codebase-memory/mock.ts",
+      "checksum": "3085d82e319fd9b6829a8837f03ff6a2fc4beb7db9e1a15eb53d2d20252a64dd",
+      "byteLength": 2861,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "src/integrations/codebase-memory/policy.ts",
+      "checksum": "5890938ba799ced178593c027c72762fd2b95e53af41f2caa6531f9e23a362df",
+      "byteLength": 4690,
+      "lineCount": 28
+    },
+    {
+      "relativePath": "src/integrations/codebase-memory/repair.ts",
+      "checksum": "e39dbeb1b6215bcb184eab7c4c2c0bc17e73f5d4c794b212feee0895ca0df53c",
+      "byteLength": 1285,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "src/integrations/codebase-memory/service.ts",
+      "checksum": "dd273c5d70da607bf26f591d3795138bef02a5aa2b5cd183747008a8e856b93b",
+      "byteLength": 13075,
+      "lineCount": 41
+    },
+    {
+      "relativePath": "src/integrations/codebase-memory/transport.ts",
+      "checksum": "44357c0ba8feac4e10422977c8d2c3071e1a530da286ef5471f0d28c4bcab63c",
+      "byteLength": 3400,
+      "lineCount": 21
+    },
+    {
+      "relativePath": "src/integrations/context7/cache.ts",
+      "checksum": "527d666941f4319d1de326c4b69b499d382fcd3a1fe6a51e7357cddaa58f2011",
+      "byteLength": 1580,
+      "lineCount": 12
+    },
+    {
+      "relativePath": "src/integrations/context7/config.ts",
+      "checksum": "4e39f0c0ba66eb4e958ecac00ab63cd7735708581c9036b2e6ef1ac53e266098",
+      "byteLength": 1700,
+      "lineCount": 18
+    },
+    {
+      "relativePath": "src/integrations/context7/context7.test.ts",
+      "checksum": "7aef8bffded924214617bc77380fc3433705d3bd12e79cf287d8bf9a10b4edf8",
+      "byteLength": 4142,
+      "lineCount": 21
+    },
+    {
+      "relativePath": "src/integrations/context7/contracts.ts",
+      "checksum": "6be99d1b13fb953385b83d166b9051806ad59b6383543f90736bad1d1b45cb1f",
+      "byteLength": 3903,
+      "lineCount": 20
+    },
+    {
+      "relativePath": "src/integrations/context7/errors.ts",
+      "checksum": "4c4e3cee404ae034eea59fc7e4c2c367a828697808815d8b16ea260fbf81ca3e",
+      "byteLength": 741,
+      "lineCount": 12
+    },
+    {
+      "relativePath": "src/integrations/context7/index.ts",
+      "checksum": "b14a7a0021bcd557b64912569bdcb31b8095fda039b0fb15ccf8ade6c910837d",
+      "byteLength": 137,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "src/integrations/context7/normalize.ts",
+      "checksum": "b5c566cb11a543032621f912db8b0c151be058fa34dad68f5c0b9bc92a809c9c",
+      "byteLength": 2480,
+      "lineCount": 20
+    },
+    {
+      "relativePath": "src/integrations/context7/planner.ts",
+      "checksum": "147d1f8e493ada8bc3d4216917688440c4b2a9a321de34a4d44dff921d5d21cf",
+      "byteLength": 1274,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "src/integrations/context7/policy.ts",
+      "checksum": "5384087f0496ade31f7afe30b9090b589e991d69a08fa46807c101c076d691bc",
+      "byteLength": 1667,
+      "lineCount": 13
+    },
+    {
+      "relativePath": "src/integrations/context7/server.ts",
+      "checksum": "b8c2f1edd2dcf0c5979ed2235d409f026fee6b45c9fddc4f1cf0861392cad29a",
+      "byteLength": 75,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "src/integrations/context7/service.ts",
+      "checksum": "7e3731dbb9dcca4eee416cdd3b6c36dbd422b76754109fdd883e10dea61f7d3b",
+      "byteLength": 7920,
+      "lineCount": 39
+    },
+    {
+      "relativePath": "src/integrations/openai/adapters.ts",
+      "checksum": "45fdf17fdb8f44d1a7a441a095858551b0ecdb74b9321221f42062784996b1c7",
+      "byteLength": 40870,
+      "lineCount": 1063
+    },
+    {
+      "relativePath": "src/integrations/openai/client.ts",
+      "checksum": "38d693c9b644dc4f1e28c9613572fc3b633f8782fc82ae7421f71bb169e1dcc5",
+      "byteLength": 7321,
+      "lineCount": 32
+    },
+    {
+      "relativePath": "src/integrations/openai/config.ts",
+      "checksum": "d604ecbc767e71c46ee08a61b6e79889051bbd0a5dc004201c17a0d4529ef05d",
+      "byteLength": 1487,
+      "lineCount": 13
+    },
+    {
+      "relativePath": "src/integrations/openai/errors.ts",
+      "checksum": "082f89fcb2e43cec7d325e29ac71e7b76ba879603e87b62413a86fdabe943c78",
+      "byteLength": 734,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "src/integrations/openai/index.ts",
+      "checksum": "d7fe25ea0a8f49f84969a78c1768edf0d71e3532e82805024c2e29e56808e217",
+      "byteLength": 158,
+      "lineCount": 7
+    },
+    {
+      "relativePath": "src/integrations/openai/limiter.ts",
+      "checksum": "7676d29fcc33dd0653348442e7f5c84cf8371846906dbbeeff0986eb31a1c2a0",
+      "byteLength": 1427,
+      "lineCount": 14
+    },
+    {
+      "relativePath": "src/integrations/openai/production.ts",
+      "checksum": "11f68f597aff32cb1a13ff27950550c113cb3ce0b1c900505b73779bbf290f5e",
+      "byteLength": 663,
+      "lineCount": 7
+    },
+    {
+      "relativePath": "src/integrations/openai/prompts.test.ts",
+      "checksum": "13fc4f4072f3051764b897b01c13916da519924ac8326005c65bc3b2f92a1fec",
+      "byteLength": 1933,
+      "lineCount": 31
+    },
+    {
+      "relativePath": "src/integrations/openai/prompts.ts",
+      "checksum": "0985c4cc5f646dff2050cb35bab20e2ca3d19c08fa671a9fde564166222fec3e",
+      "byteLength": 6388,
+      "lineCount": 20
+    },
+    {
+      "relativePath": "src/integrations/openai/provider.test.ts",
+      "checksum": "3b66fe89a423d6b13b36fd5dfc5ea3c4bdd55fcb41eb4ba2edc0d37dfea19967",
+      "byteLength": 10531,
+      "lineCount": 87
+    },
+    {
+      "relativePath": "src/integrations/openai/server.ts",
+      "checksum": "418a2c831497076f8aec22cdde825b6f2fa54e567e7fd1b864ee4b689c9381aa",
+      "byteLength": 85,
+      "lineCount": 3
+    },
+    {
+      "relativePath": "src/integrations/openai/usage.ts",
+      "checksum": "4ccab35bd6552d7c9ed0ee5681eee7c24d4a6d368151430c45d867af5b9e1f7a",
+      "byteLength": 698,
+      "lineCount": 5
+    },
+    {
+      "relativePath": "src/integrations/shadcn/cache.ts",
+      "checksum": "19f1d31607e6a9b5353f251fb4a53d251bd58d5fbfc0d8b14b32fc21ce863f8b",
+      "byteLength": 1598,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "src/integrations/shadcn/config.ts",
+      "checksum": "ecf57df8d464374d8db6fd1f89148a6da4231e3d0c267acf9f4a7920fef2c96a",
+      "byteLength": 1864,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "src/integrations/shadcn/contracts.ts",
+      "checksum": "78185463408888aad47efc964040b869627d23e582297461dc2ea99472f857ae",
+      "byteLength": 4561,
+      "lineCount": 17
+    },
+    {
+      "relativePath": "src/integrations/shadcn/errors.ts",
+      "checksum": "b8e27c690864662a458255f3e5821ba3118bf308125dd18cbd035b39459ebfe7",
+      "byteLength": 990,
+      "lineCount": 3
+    },
+    {
+      "relativePath": "src/integrations/shadcn/index.ts",
+      "checksum": "2b84a2656e6dac726ba79ff24744c7342dbd3643f4fb4c871227c007bd8ef7c1",
+      "byteLength": 138,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "src/integrations/shadcn/normalize.ts",
+      "checksum": "7eb982725d05734a082f5ceb0c8bee97f342d24b166285144f4ced4bfe3aa3e0",
+      "byteLength": 5709,
+      "lineCount": 15
+    },
+    {
+      "relativePath": "src/integrations/shadcn/policy.ts",
+      "checksum": "362f8ddf5acf39ff85fbb98fd650d206973ac8bf2c43ecfcf0f6e7f998b2827c",
+      "byteLength": 1823,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "src/integrations/shadcn/security.ts",
+      "checksum": "b7d9135d6245c77fb145006b3c3f41ba532ba42bcf2ea4b1368830c1d3ecc1f6",
+      "byteLength": 1623,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "src/integrations/shadcn/server.ts",
+      "checksum": "a637cb748588daeaef54652ab9cf1c8c2b7853432403ba9bcc4eeadadea42c34",
+      "byteLength": 615,
+      "lineCount": 12
+    },
+    {
+      "relativePath": "src/integrations/shadcn/service.ts",
+      "checksum": "5b7700612005e3d9e084c884885b3d4144e672c71483539561b48735d126bd03",
+      "byteLength": 7488,
+      "lineCount": 22
+    },
+    {
+      "relativePath": "src/integrations/shadcn/shadcn-registry.test.ts",
+      "checksum": "327ee0acf0de652c2c957d880498d70686dfe2f3791a72b7b7ff905c1b96c52a",
+      "byteLength": 5274,
+      "lineCount": 25
+    },
+    {
+      "relativePath": "src/integrations/skills-sh/adapter.test.ts",
+      "checksum": "5929dedf304453819d361db02b1cce4778c72c367fcb6cffa521b3be15262972",
+      "byteLength": 17522,
+      "lineCount": 464
+    },
+    {
+      "relativePath": "src/integrations/skills-sh/adapter.ts",
+      "checksum": "f3bae59ca0f1a60cec1fce2830be9625d91400ca8d3480a1c48132f9f7c0d247",
+      "byteLength": 22297,
+      "lineCount": 670
+    },
+    {
+      "relativePath": "src/integrations/skills-sh/contracts.ts",
+      "checksum": "a8f8693cfafdddae8f0a7d8db81f28d08a7c1bcdd3a1be15f8b17193e25a370b",
+      "byteLength": 5692,
+      "lineCount": 172
+    },
+    {
+      "relativePath": "src/integrations/skills-sh/errors.ts",
+      "checksum": "3f1c8f1d9d380fb6b58058010fcb6f5be0d92e3fc6ca750495cacf10e83fe2ee",
+      "byteLength": 326,
+      "lineCount": 3
+    },
+    {
+      "relativePath": "src/integrations/skills-sh/index.ts",
+      "checksum": "24a5972a36972ab15d149331f09dba24042d1f639d4b8b0628b5fb3cbfbe5a07",
+      "byteLength": 82,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "src/orchestration/architecture-review/service.ts",
+      "checksum": "4a4fc52d09b70f76bd647cf26072e1e59a1fe37cb6f356498602a8167604a9bd",
+      "byteLength": 1484,
+      "lineCount": 17
+    },
+    {
+      "relativePath": "src/orchestration/code-integration-review/service.ts",
+      "checksum": "5999a50714d4402437f10ca61dafffc69cc3ddeaa80291842456f1a304320874",
+      "byteLength": 3283,
+      "lineCount": 15
+    },
+    {
+      "relativePath": "src/orchestration/contract-audit/service.ts",
+      "checksum": "872e246d991048e8c454a5438b41d9058ad7bb1465db3cfe64d8828a082a3ee2",
+      "byteLength": 3197,
+      "lineCount": 16
+    },
+    {
+      "relativePath": "src/orchestration/execution/capabilities.test.ts",
+      "checksum": "aead0f3303758887856bfa5734c46636154079bec554ddfd90c4bbf893c0945e",
+      "byteLength": 2955,
+      "lineCount": 24
+    },
+    {
+      "relativePath": "src/orchestration/execution/capabilities.ts",
+      "checksum": "2a89dde02bf6d894f57b29c4573e958d76fac43f8f794e90219a587123825f3e",
+      "byteLength": 1544,
+      "lineCount": 7
+    },
+    {
+      "relativePath": "src/orchestration/execution/contracts.ts",
+      "checksum": "24cf432a476b350a90d97c496e423804269db9399543ca15a168341f4f0ff3b0",
+      "byteLength": 9980,
+      "lineCount": 314
+    },
+    {
+      "relativePath": "src/orchestration/execution/errors.ts",
+      "checksum": "2207de1fe75f0531f542a48b288290121910e326255e3fc0e0c9352d1acb5822",
+      "byteLength": 604,
+      "lineCount": 3
+    },
+    {
+      "relativePath": "src/orchestration/execution/execution.test.ts",
+      "checksum": "4cfff9090cf77d70501e95cf18b81d8fb46d6a28e4a2c3fa7c2510e5bcc13f48",
+      "byteLength": 13822,
+      "lineCount": 28
+    },
+    {
+      "relativePath": "src/orchestration/execution/index.ts",
+      "checksum": "aea8bd07be3627dcf850d826fbe434677a3e9162ab5f249ae7325c437552d880",
+      "byteLength": 147,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "src/orchestration/execution/policy.ts",
+      "checksum": "80e2076aa4d11f79ad90f08b00a2daa502495f84eb630e7c56d2d41fa0d66e01",
+      "byteLength": 3840,
+      "lineCount": 37
+    },
+    {
+      "relativePath": "src/orchestration/execution/production-adapters.test.ts",
+      "checksum": "f75b73c562d9b3dbee739f72b79ab2898d0552d9628242ed6e8222e097da4924",
+      "byteLength": 5545,
+      "lineCount": 29
+    },
+    {
+      "relativePath": "src/orchestration/execution/production-adapters.ts",
+      "checksum": "441967b7a3bfc4b29d4cf03247c1dd034f4bd89fed0a200d3115a09f3221cacc",
+      "byteLength": 26478,
+      "lineCount": 82
+    },
+    {
+      "relativePath": "src/orchestration/execution/qa-policy.ts",
+      "checksum": "97095448f7d98931be14b777b1630456896677168815b2fe02cfa51e90a7c19f",
+      "byteLength": 1373,
+      "lineCount": 11
+    },
+    {
+      "relativePath": "src/orchestration/execution/repair-scope.test.ts",
+      "checksum": "720384ddd387709f2fa96718dd41666ecd0f88af5611f416e32649be70e049e5",
+      "byteLength": 11680,
+      "lineCount": 44
+    },
+    {
+      "relativePath": "src/orchestration/execution/repair-scope.ts",
+      "checksum": "8d23652e06d2328437c16534b6f5ba609f02fd11e36b3e98672639d827ccf176",
+      "byteLength": 5566,
+      "lineCount": 25
+    },
+    {
+      "relativePath": "src/orchestration/execution/service.ts",
+      "checksum": "74fa1f07e6905e5b1b32e3eaed6b64ea6e85f79c49e5a00defa56ae07bd7a64a",
+      "byteLength": 33138,
+      "lineCount": 1001
+    },
+    {
+      "relativePath": "src/orchestration/execution/targeted-validation.ts",
+      "checksum": "9154463609238cf2b07a608311511265f5f29e4bbc9d1092501859a0ccbe87ae",
+      "byteLength": 1569,
+      "lineCount": 13
+    },
+    {
+      "relativePath": "src/orchestration/orchestrator/contracts.ts",
+      "checksum": "b7e500bfa3a408cbd51d7651aa428475990cc34fb74c7a2a5fe512436bcd70b9",
+      "byteLength": 3552,
+      "lineCount": 22
+    },
+    {
+      "relativePath": "src/orchestration/orchestrator/errors.ts",
+      "checksum": "a37a2aaf0b2d3c3db2f22a8c07325a4772e25802e261bf7384ad75ede11ab6d9",
+      "byteLength": 1496,
+      "lineCount": 5
+    },
+    {
+      "relativePath": "src/orchestration/orchestrator/graph.ts",
+      "checksum": "534a86dfa89f709362173d563deb909e537b7006450d8810fc74ca69107c4f89",
+      "byteLength": 20023,
+      "lineCount": 67
+    },
+    {
+      "relativePath": "src/orchestration/orchestrator/index.ts",
+      "checksum": "46232a289207ab9161a689c61043a21edf1f9a9abc89cc9e0eba537bdda344e1",
+      "byteLength": 214,
+      "lineCount": 9
+    },
+    {
+      "relativePath": "src/orchestration/orchestrator/orchestrator.test.ts",
+      "checksum": "9ba73ca08790cd33bd05298cb454977023e1cd53ad072dfee91a1aec05ae2d80",
+      "byteLength": 18191,
+      "lineCount": 42
+    },
+    {
+      "relativePath": "src/orchestration/orchestrator/server.ts",
+      "checksum": "505d285db8599baeafa18dfb43a119f39eec3d63503205a699c3a1effb779181",
+      "byteLength": 1777,
+      "lineCount": 22
+    },
+    {
+      "relativePath": "src/orchestration/orchestrator/service.ts",
+      "checksum": "f295900aa327592fc6d65ec10021d502b829203846bbf0e4cbe56400a72b81e6",
+      "byteLength": 42810,
+      "lineCount": 60
+    },
+    {
+      "relativePath": "src/orchestration/orchestrator/skills.ts",
+      "checksum": "2567e828f6e4242274971300a04990c1790d325435d05b33ed5f114781374411",
+      "byteLength": 1424,
+      "lineCount": 13
+    },
+    {
+      "relativePath": "src/orchestration/orchestrator/tools.ts",
+      "checksum": "300bde1318c57a67c5a6761e84153a43f4db70eb11ba20085c78b8e23ccdcabb",
+      "byteLength": 3690,
+      "lineCount": 26
+    },
+    {
+      "relativePath": "src/orchestration/orchestrator/validation.ts",
+      "checksum": "9870bb260d97f91a217369ad5c69987e42e5e8f0551273bf4a00cdad841942ff",
+      "byteLength": 6093,
+      "lineCount": 56
+    },
+    {
+      "relativePath": "src/orchestration/security-review/service.ts",
+      "checksum": "1e03fe887a3375905fd2bd40d6ad5c5e57a3683fba675201b4b7e75862718ac0",
+      "byteLength": 3168,
+      "lineCount": 15
+    },
+    {
+      "relativePath": "src/orchestration/test-quality-review/service.ts",
+      "checksum": "39027a8bf77253fcea63ccc55c43cfb01d636274f6bb63331bb337dc8e830297",
+      "byteLength": 3264,
+      "lineCount": 15
+    },
+    {
+      "relativePath": "src/persistence/database/env.test.ts",
+      "checksum": "e0466c742adad475c2e7535395ca1e76b372260412ab3915961a9b92029955f0",
+      "byteLength": 2483,
+      "lineCount": 51
+    },
+    {
+      "relativePath": "src/persistence/database/env.ts",
+      "checksum": "3ae3df5d9069b3e8796e252230ebc293243875e855bc36b801a5be6c5ee0d1e4",
+      "byteLength": 2236,
+      "lineCount": 55
+    },
+    {
+      "relativePath": "src/persistence/database/errors.ts",
+      "checksum": "ce6e765d5b903362ed2b0db515d4b31b392f06a7f7667bce705777a29cec73ac",
+      "byteLength": 992,
+      "lineCount": 28
+    },
+    {
+      "relativePath": "src/persistence/database/fake.ts",
+      "checksum": "f67d803f3ee4b266c956068171cf51e0bda99313f567913a7a0becd5fd7115e7",
+      "byteLength": 8821,
+      "lineCount": 75
+    },
+    {
+      "relativePath": "src/persistence/database/index.ts",
+      "checksum": "781efa9b37f4b3340545ab423abc47fe4979e980d71a29bd382347506e0c309b",
+      "byteLength": 214,
+      "lineCount": 9
+    },
+    {
+      "relativePath": "src/persistence/database/mapping.ts",
+      "checksum": "6f1d86c12f1e2d45199ac51c84cbfb19878e387b16dcc5ad37769f4ea0815ca8",
+      "byteLength": 5556,
+      "lineCount": 56
+    },
+    {
+      "relativePath": "src/persistence/database/persistence.test.ts",
+      "checksum": "d9c64fa2ec5ffd9457fcf6657cb7d28a0ea9346b4a509829eff2984aa9d35a9c",
+      "byteLength": 7305,
+      "lineCount": 60
+    },
+    {
+      "relativePath": "src/persistence/database/postgres.ts",
+      "checksum": "b9bec2c8593bb1083dbed7c20d3ca82d2938223f212f226bf01d3b60f059ce9f",
+      "byteLength": 15869,
+      "lineCount": 75
+    },
+    {
+      "relativePath": "src/persistence/database/repositories.ts",
+      "checksum": "80a5f2e6d97233d10c0e4c817df65e858ed27e06da64dd3748a9d99d478b510e",
+      "byteLength": 11220,
+      "lineCount": 93
+    },
+    {
+      "relativePath": "src/persistence/database/serialization.ts",
+      "checksum": "fb3e396a44e7d202bf14648b195e157ed10749d12ae87ebad4a8e178e0516981",
+      "byteLength": 676,
+      "lineCount": 11
+    },
+    {
+      "relativePath": "src/persistence/database/server.ts",
+      "checksum": "36d344b1a75c81aa5877631207ad817cbbea1cbd9c23dd79c00b441bd8558ab1",
+      "byteLength": 101,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "src/persistence/database/sync.ts",
+      "checksum": "bedb94798b8b42052c14cb90bac81652fb9c7563621867ba78e0df5dae34857e",
+      "byteLength": 1604,
+      "lineCount": 16
+    },
+    {
+      "relativePath": "src/persistence/database/types.ts",
+      "checksum": "7dc7cfdf2326b43c8f2def9c990b85996439dfc5c181dce32481e6464cfeae7c",
+      "byteLength": 3059,
+      "lineCount": 33
+    },
+    {
+      "relativePath": "src/persistence/project-memory/filenames.ts",
+      "checksum": "278b2388958785b54c7277cc8b73469d70fd0ce467f69bfcf0a704527e09ae9f",
+      "byteLength": 2885,
+      "lineCount": 43
+    },
+    {
+      "relativePath": "src/persistence/project-memory/index.ts",
+      "checksum": "00b263e98b18e4018ba343ae31983223a2c619a23a064cb346798aa0c7b53fda",
+      "byteLength": 54,
+      "lineCount": 3
+    },
+    {
+      "relativePath": "src/persistence/project-memory/store.test.ts",
+      "checksum": "08f09e8b4cc07de42c1d5205b13f070b84c8fd65cb4d250d67a9a16dc2a5bb8d",
+      "byteLength": 8283,
+      "lineCount": 92
+    },
+    {
+      "relativePath": "src/persistence/project-memory/store.ts",
+      "checksum": "221e8292b8e4066781d8910b35503a0328786cc4fd4d90b9c9a673d5203c99e2",
+      "byteLength": 11816,
+      "lineCount": 145
+    },
+    {
+      "relativePath": "src/runtime/deterministic-factory-runtime.ts",
+      "checksum": "fee39e7a16e9da6db2980044d2b4b03c230a9800901bdb2b8990dcef949a4bdf",
+      "byteLength": 1004,
+      "lineCount": 5
+    },
+    {
+      "relativePath": "src/runtime/e2e/clarification-resolver.test.ts",
+      "checksum": "35528086e2f75045204be7b50b0cb028ded22a9e9b7dd87cbd11e4f126bed950",
+      "byteLength": 6648,
+      "lineCount": 116
+    },
+    {
+      "relativePath": "src/runtime/e2e/clarification-resolver.ts",
+      "checksum": "3952803e2747c575af6c75e98ad457c4f7a0fec9879ac762b875cb7c03475c8d",
+      "byteLength": 14089,
+      "lineCount": 143
+    },
+    {
+      "relativePath": "src/runtime/e2e/contracts.ts",
+      "checksum": "d9b75a8d02f604e5484bbacacf78f6bef8cfd9b5dbc449c9d95b8c5cd53721cf",
+      "byteLength": 3809,
+      "lineCount": 33
+    },
+    {
+      "relativePath": "src/runtime/e2e/e2e.test.ts",
+      "checksum": "cdeafdc32e154e004b8f93a7cb9b1c69190b755b78f65550811df15a52730a41",
+      "byteLength": 9917,
+      "lineCount": 63
+    },
+    {
+      "relativePath": "src/runtime/e2e/harness.ts",
+      "checksum": "76edd851364e0d0d2fe631409660a0fb73d09bfcdf026bf7c12f009074e0a864",
+      "byteLength": 3319,
+      "lineCount": 21
+    },
+    {
+      "relativePath": "src/runtime/e2e/index.ts",
+      "checksum": "bcdddbd083ad5352ea734e27380ffe45cd3fac30ef6ea3c133a5f01fe638a19b",
+      "byteLength": 86,
+      "lineCount": 5
+    },
+    {
+      "relativePath": "src/runtime/e2e/preflight.test.ts",
+      "checksum": "27e742a126db6c6c4b8eeb7678b97ee8efdbcf236efb43284faf899e80739c3d",
+      "byteLength": 2515,
+      "lineCount": 10
+    },
+    {
+      "relativePath": "src/runtime/e2e/preflight.ts",
+      "checksum": "2d9cb33d599f9e7cf45980fe6e6835162845a3079354f164c09b52cf7763d8f9",
+      "byteLength": 4238,
+      "lineCount": 24
+    },
+    {
+      "relativePath": "src/runtime/e2e/spec.ts",
+      "checksum": "ccbf4ded715056ae7f3042885852cafe1e51a3e977139098626f0355884f9572",
+      "byteLength": 2563,
+      "lineCount": 23
+    },
+    {
+      "relativePath": "src/runtime/index.ts",
+      "checksum": "b1cdbecabaef23d08500da0c2e36af161c2e4a8d9168015f9af6acb8aed9e686",
+      "byteLength": 49,
+      "lineCount": 2
+    },
+    {
+      "relativePath": "src/runtime/module-boundary.test.ts",
+      "checksum": "7b55e30c1e7a2547209ba04ba05b24571dbb81e2d2d8401b5074700283f83e13",
+      "byteLength": 1944,
+      "lineCount": 37
+    },
+    {
+      "relativePath": "src/runtime/production-e2e-stage-runner.test.ts",
+      "checksum": "7841ddc3c52a9815916c9e353ebd7ae02e517b7ca1dd9258b4efeb23e8a99a54",
+      "byteLength": 2376,
+      "lineCount": 31
+    },
+    {
+      "relativePath": "src/runtime/production-e2e-stage-runner.ts",
+      "checksum": "20ebb6657dbc428cf2271747bf471cc6091b43a9a1b3fda568c99df4905f9ec2",
+      "byteLength": 53691,
+      "lineCount": 104
+    },
+    {
+      "relativePath": "src/runtime/production-factory-runtime-core.ts",
+      "checksum": "9b39889d9a798cec12aee7a8f8fee08f0a37b815aa44f70d2c871120524836ee",
+      "byteLength": 23265,
+      "lineCount": 581
+    },
+    {
+      "relativePath": "src/runtime/production-factory-runtime.ts",
+      "checksum": "73d7deb796eb593c4cd68604b66537001f4abc7b06cff84b20d2ddd13c7ad613",
+      "byteLength": 170,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "src/runtime/qa/browser.ts",
+      "checksum": "aebdf86eaca111c003a73c103b51f0dae99b37bcb06692be2b6c5346ca482c46",
+      "byteLength": 7543,
+      "lineCount": 28
+    },
+    {
+      "relativePath": "src/runtime/qa/contracts.ts",
+      "checksum": "8149306d8281d4e15e732af6cbb5a655f1fc0dc1055db74d965f025166af3531",
+      "byteLength": 15330,
+      "lineCount": 56
+    },
+    {
+      "relativePath": "src/runtime/qa/diagnostics.test.ts",
+      "checksum": "6c5d33e58182aaf25fba25c2c630e2f73bec61be1adcec47152c8a801e4ab432",
+      "byteLength": 4043,
+      "lineCount": 14
+    },
+    {
+      "relativePath": "src/runtime/qa/diagnostics.ts",
+      "checksum": "de51d75eaa186a7b3e7d1c7ed452dfd1049e7925398277404eb3d2e4ab098478",
+      "byteLength": 4456,
+      "lineCount": 37
+    },
+    {
+      "relativePath": "src/runtime/qa/errors.ts",
+      "checksum": "6455e4954281f262d6a71fefc4aa75b3ec3fa11b4182271e087b8a166a9349ea",
+      "byteLength": 1132,
+      "lineCount": 12
+    },
+    {
+      "relativePath": "src/runtime/qa/fake.ts",
+      "checksum": "bdbf0573915839fe8086654486539eb09a8dac3fbc6263acf3d9a8eb729b1a4f",
+      "byteLength": 2444,
+      "lineCount": 23
+    },
+    {
+      "relativePath": "src/runtime/qa/index.ts",
+      "checksum": "f8dba84ebbd08bc4fa2e3b82e54fc926e2257fbad2f178df75cdab954fcb5193",
+      "byteLength": 238,
+      "lineCount": 10
+    },
+    {
+      "relativePath": "src/runtime/qa/policy.ts",
+      "checksum": "a93f136cabb6b55ba03ca4af8f84da889272b8269b3a77128685de2c118a3dd8",
+      "byteLength": 7688,
+      "lineCount": 44
+    },
+    {
+      "relativePath": "src/runtime/qa/qa.test.ts",
+      "checksum": "98871805ac0f5221224cd95cc75937dc6af15e6adc4a40eaff661d322742a712",
+      "byteLength": 14519,
+      "lineCount": 38
+    },
+    {
+      "relativePath": "src/runtime/qa/reconcile.ts",
+      "checksum": "7601c15e6dcd386a4915569ba1747698a9e62c11288b378c19e96a89aea59a84",
+      "byteLength": 3204,
+      "lineCount": 19
+    },
+    {
+      "relativePath": "src/runtime/qa/server.test.ts",
+      "checksum": "fc971fbbc8d94b1cbf585b811e76a2406c9dcf5815e09139fdf54c895ece32e1",
+      "byteLength": 6078,
+      "lineCount": 62
+    },
+    {
+      "relativePath": "src/runtime/qa/server.ts",
+      "checksum": "3ae76dfaa5ae65b4d14910523950d448fd9b51951fd04da046b72324afb1d219",
+      "byteLength": 7677,
+      "lineCount": 67
+    },
+    {
+      "relativePath": "src/runtime/qa/service.ts",
+      "checksum": "e3bcacbf2822745b2653c35665183c1f41631c2cda8d966dad2eed4de254513c",
+      "byteLength": 19096,
+      "lineCount": 39
+    },
+    {
+      "relativePath": "src/runtime/qa/task.ts",
+      "checksum": "072e0d9db7325a1221768fc7dbf7276abc93c832ff589bd824824d9538429968",
+      "byteLength": 1324,
+      "lineCount": 16
+    },
+    {
+      "relativePath": "src/runtime/runtime.test.ts",
+      "checksum": "5ece98d333b4d4d650407f39ab6ef27a23c863e12b9d69e0312c454a79093bc5",
+      "byteLength": 1573,
+      "lineCount": 24
+    },
+    {
+      "relativePath": "src/runtime/server.ts",
+      "checksum": "cbb8376ed4b8418cd902b322a5d79748493b4739fb34e436783938dc0b9faacb",
+      "byteLength": 131,
+      "lineCount": 3
+    },
+    {
+      "relativePath": "src/runtime/validation/build-diagnostics.test.ts",
+      "checksum": "5a6bc0210677fdc0219c397498b2e63e6c2c6da990d06976731716e08ecb5a17",
+      "byteLength": 3774,
+      "lineCount": 18
+    },
+    {
+      "relativePath": "src/runtime/validation/build-diagnostics.ts",
+      "checksum": "6cbb1606de3eb6f4e9d329f08f7c12a8b02cc1565a8e9ce2355dd87ce730b66e",
+      "byteLength": 6193,
+      "lineCount": 50
+    },
+    {
+      "relativePath": "src/runtime/validation/contracts.ts",
+      "checksum": "40f8af48516bbab81e03c6c1195afc85b426b60f035e50a9c855d6e15c7c7be1",
+      "byteLength": 7498,
+      "lineCount": 22
+    },
+    {
+      "relativePath": "src/runtime/validation/errors.ts",
+      "checksum": "97cad5c098de1efa0fbbc1214694fc03f82c40f0f8e98253c7973f0d7f623cea",
+      "byteLength": 783,
+      "lineCount": 3
+    },
+    {
+      "relativePath": "src/runtime/validation/index.ts",
+      "checksum": "4aaeba233ce64b6947be1ee5c2bb63dee7e09aebf94dd2b155c045bf5702b218",
+      "byteLength": 158,
+      "lineCount": 7
+    },
+    {
+      "relativePath": "src/runtime/validation/policy.ts",
+      "checksum": "03fa8fc0e67df10a5fde8a2477d63573473d810d6107a660bda5a6ed1bf7fd4f",
+      "byteLength": 7300,
+      "lineCount": 15
+    },
+    {
+      "relativePath": "src/runtime/validation/runner.test.ts",
+      "checksum": "d804585bf317a2fec814e6c9da02f7bb6d671c4a08b13d758d08e057d6e4c401",
+      "byteLength": 2600,
+      "lineCount": 15
+    },
+    {
+      "relativePath": "src/runtime/validation/runner.ts",
+      "checksum": "1639624be9c48f99aab8e2d79d197bae7b9089d9845d34fc624f152b7a2d8071",
+      "byteLength": 4615,
+      "lineCount": 13
+    },
+    {
+      "relativePath": "src/runtime/validation/runtime.test.ts",
+      "checksum": "cf3e9aee15119029cc84a0543d27ef46e738e417f1c15098b9d7b49af316baf2",
+      "byteLength": 7027,
+      "lineCount": 82
+    },
+    {
+      "relativePath": "src/runtime/validation/service.ts",
+      "checksum": "cf8c8b42a2a9d9d7ec405a3c9cd3dceb576b6e758a7031649acee56822db36e7",
+      "byteLength": 15673,
+      "lineCount": 36
+    },
+    {
+      "relativePath": "src/runtime/validation/task.ts",
+      "checksum": "8481961a5fa89a234fee206384f670b63dcfc66172aca9ed444f4b193e5f0162",
+      "byteLength": 996,
+      "lineCount": 28
+    },
+    {
+      "relativePath": "src/runtime/validation/test-diagnostics.test.ts",
+      "checksum": "20a5b9a320e5d9de8fa6c5412e8bb594d470a2f4d6c0268b76ac79b5aecdcf7e",
+      "byteLength": 4993,
+      "lineCount": 18
+    },
+    {
+      "relativePath": "src/runtime/validation/test-diagnostics.ts",
+      "checksum": "b534996934e13c6c5de7bb9e157eca6ec72e00c7de86311daa6eec742dcef7a8",
+      "byteLength": 7008,
+      "lineCount": 39
+    },
+    {
+      "relativePath": "src/runtime/workspace/config.ts",
+      "checksum": "181607249ad11b64885c066249d206799cca7cb7b68347981e7b6452399ec078",
+      "byteLength": 890,
+      "lineCount": 7
+    },
+    {
+      "relativePath": "src/runtime/workspace/errors.ts",
+      "checksum": "a41279ed08fc1fcf3256f4be9160a1ad5cf947ea9136808ac18f33d599b813be",
+      "byteLength": 1358,
+      "lineCount": 17
+    },
+    {
+      "relativePath": "src/runtime/workspace/index.ts",
+      "checksum": "08d62a568e87125963ae8cdbfcf61afb2d0f27c4311c6d9d2be88f470a094ee0",
+      "byteLength": 155,
+      "lineCount": 7
+    },
+    {
+      "relativePath": "src/runtime/workspace/manager.ts",
+      "checksum": "7d88df6ed1f52c3e67d59a75860528596fd03074d37635bcca6162cc1ee30f1c",
+      "byteLength": 32493,
+      "lineCount": 133
+    },
+    {
+      "relativePath": "src/runtime/workspace/ports.ts",
+      "checksum": "39063764e8e7c144dab9905d4ecf431772803b1d6395a54091b2b97023c7f6dc",
+      "byteLength": 661,
+      "lineCount": 11
+    },
+    {
+      "relativePath": "src/runtime/workspace/schemas.ts",
+      "checksum": "15acd5554dd39154f778708edf7b77a0349d28444a8d14065b2a6c65d00591e0",
+      "byteLength": 2152,
+      "lineCount": 15
+    },
+    {
+      "relativePath": "src/runtime/workspace/server.ts",
+      "checksum": "a8396bea87d1eb363d654e685ef6d043a8c120e6b6e197c85f2ea0202a8e8e17",
+      "byteLength": 676,
+      "lineCount": 11
+    },
+    {
+      "relativePath": "src/runtime/workspace/sync.test.ts",
+      "checksum": "068df7390587d369221efeb20f637fa79a4b4d8c921c6b237c00245ff735f33f",
+      "byteLength": 2080,
+      "lineCount": 36
+    },
+    {
+      "relativePath": "src/runtime/workspace/sync.ts",
+      "checksum": "5e2d624f68c7458b7c2aacc6e3f93073e1cea2272906a52f3517d7d7ea2dfa57",
+      "byteLength": 3288,
+      "lineCount": 29
+    },
+    {
+      "relativePath": "src/runtime/workspace/workspace.test.ts",
+      "checksum": "d4d0bda666e5867c29f6083c6fae43d79e6ac613182deff3374cc06bbbec957b",
+      "byteLength": 8988,
+      "lineCount": 52
+    },
+    {
+      "relativePath": "src/scripts/cli-env.test.ts",
+      "checksum": "3cf6c13e671a5bb684bf392b2c09f35346bfce68f9018345ed81dffd5d885610",
+      "byteLength": 2267,
+      "lineCount": 60
+    },
+    {
+      "relativePath": "src/shared/foundation/foundation.test.ts",
+      "checksum": "05c79694e2ebc75fea7b2edc6305a06bdc4b4d93a07c16a292342812d3997cb4",
+      "byteLength": 424,
+      "lineCount": 11
+    },
+    {
+      "relativePath": "src/shared/foundation/foundation.ts",
+      "checksum": "c03becfc73526aa393529643277cc906690af75f0f29b62596d0e584273b66c4",
+      "byteLength": 270,
+      "lineCount": 6
+    },
+    {
+      "relativePath": "src/skills/curation/active-portfolio.test.ts",
+      "checksum": "92206c4ce9d8a50c7e85abff55ed4d3e4a78ab232159bf52778cebb36bf3e780",
+      "byteLength": 10109,
+      "lineCount": 126
+    },
+    {
+      "relativePath": "src/skills/curation/active-portfolio.ts",
+      "checksum": "85955ed7b5d5cf0119379d31a98fa16b62d7bd364508a82fcd017663f9af59af",
+      "byteLength": 2048,
+      "lineCount": 52
+    },
+    {
+      "relativePath": "src/skills/curation/contracts.ts",
+      "checksum": "f364ed1ea4a2eea85e73a586099d3e003c97aed6dcc6f6a28c253425871eb862",
+      "byteLength": 5536,
+      "lineCount": 179
+    },
+    {
+      "relativePath": "src/skills/curation/curation.test.ts",
+      "checksum": "4b001230be1f2040b543d76e78fbd72f567533cca5980a522a59ee73daa231d0",
+      "byteLength": 12649,
+      "lineCount": 284
+    },
+    {
+      "relativePath": "src/skills/curation/evaluator.ts",
+      "checksum": "b5408f56814091c9b65cdc938bf0e115b48c649daf34364cb46bc1061217d674",
+      "byteLength": 17686,
+      "lineCount": 415
+    },
+    {
+      "relativePath": "src/skills/curation/evidence.test.ts",
+      "checksum": "213c72c18aecb4228e2bb5fcbeb5cb3be10c513e5c5d1268dbe006a404914ae4",
+      "byteLength": 12661,
+      "lineCount": 329
+    },
+    {
+      "relativePath": "src/skills/curation/evidence.ts",
+      "checksum": "5ef16014f67eb8b2e5411a38b40588c1a10d1a462116fe8fb8f0ce0394201c07",
+      "byteLength": 17427,
+      "lineCount": 471
+    },
+    {
+      "relativePath": "src/skills/curation/external-advance-evidence.test.ts",
+      "checksum": "1e33a22ec43f31e8d2e85ab6ba5b0f818d008b0fc0cfb5acb50f84497da288a2",
+      "byteLength": 11135,
+      "lineCount": 283
+    },
+    {
+      "relativePath": "src/skills/curation/external-advance-evidence.ts",
+      "checksum": "f8d703a7ae6c5947ec3460ea2686adfff2e4c259a77743697627ccec4cc38f0c",
+      "byteLength": 11596,
+      "lineCount": 322
+    },
+    {
+      "relativePath": "src/skills/curation/index.ts",
+      "checksum": "6e2e4e582af907a2c36bd56df5835070bbed4d2cc1c71bdcbbd0d62825807e11",
+      "byteLength": 111,
+      "lineCount": 5
+    },
+    {
+      "relativePath": "src/skills/curation/initial-portfolio-policy.test.ts",
+      "checksum": "c58c738bc7a2dee0a8bd46cd59ea7308860e2cf008c2fb75fb6c990b4aaccf65",
+      "byteLength": 9517,
+      "lineCount": 125
+    },
+    {
+      "relativePath": "src/skills/curation/initial-portfolio-policy.ts",
+      "checksum": "7b1d00cb07d9313dff6e56933b251d4c9d25427bac56ad4a5a686d7ab3176cc8",
+      "byteLength": 5752,
+      "lineCount": 158
+    },
+    {
+      "relativePath": "src/skills/curation/internal-skill-evidence.test.ts",
+      "checksum": "f1e19b9140ba51399dbd2c436a8b3fa57beb5222aa9653c0986769991113b307",
+      "byteLength": 9101,
+      "lineCount": 201
+    },
+    {
+      "relativePath": "src/skills/curation/internal-skill-evidence.ts",
+      "checksum": "f9cd77e9b26230e3d2c34e4fa09fc5e996655e7c0b4ea61f4bd5103f0f818d4f",
+      "byteLength": 5174,
+      "lineCount": 157
+    },
+    {
+      "relativePath": "src/skills/curation/portfolio-plan-report.ts",
+      "checksum": "8fa7366a6df908dccae8aeb004e710df6c0f44f36f33e5daa9499fd6b675b896",
+      "byteLength": 7961,
+      "lineCount": 116
+    },
+    {
+      "relativePath": "src/skills/curation/portfolio-plan.test.ts",
+      "checksum": "7f1b2674364bbbc54596f3c1d068db34b083b8798c8e32c99e78311b44358798",
+      "byteLength": 3697,
+      "lineCount": 64
+    },
+    {
+      "relativePath": "src/skills/curation/portfolio-plan.ts",
+      "checksum": "219ac70614655ea3d51e89c83d7bafd0084344ed976f5b87e101eee32499cdf2",
+      "byteLength": 45668,
+      "lineCount": 198
+    },
+    {
+      "relativePath": "src/skills/curation/portfolio.test.ts",
+      "checksum": "3bb150017a5a515e88306294d70e3dfb1a25e0fb6de7161d1faa18923c6386c8",
+      "byteLength": 3481,
+      "lineCount": 57
+    },
+    {
+      "relativePath": "src/skills/curation/portfolio.ts",
+      "checksum": "18ae86bf29dd79c93b53b58e14e66afee1ea0186794af6e4b40b7f64d0783684",
+      "byteLength": 21679,
+      "lineCount": 263
+    },
+    {
+      "relativePath": "src/skills/curation/report.ts",
+      "checksum": "568fed1786255ca5078254b672d76c27d4e27abc29fb3ad05a32be07acf7781d",
+      "byteLength": 9631,
+      "lineCount": 64
+    },
+    {
+      "relativePath": "src/skills/curation/session.test.ts",
+      "checksum": "eed56b7a54b0f9718d4bcf8a50030415d0b8c4a83ab9d7d1a58e34e3a2b7cc2d",
+      "byteLength": 2119,
+      "lineCount": 60
+    },
+    {
+      "relativePath": "src/skills/curation/session.ts",
+      "checksum": "927090a6d15b53d10a1b89f7fa99eadabc9c3d4832490fabe0191282526dfebc",
+      "byteLength": 9167,
+      "lineCount": 255
+    },
+    {
+      "relativePath": "src/skills/curation/store.ts",
+      "checksum": "38128640e156d9b1d695a21e2cc6cd6dca7ad09745060257bd8bf205265fc01f",
+      "byteLength": 2770,
+      "lineCount": 81
+    },
+    {
+      "relativePath": "src/skills/registry/contracts.ts",
+      "checksum": "b2fc567ced5a038e355ca900f93021cc0542c4e9f334b47052eac15ea575e6ff",
+      "byteLength": 11089,
+      "lineCount": 323
+    },
+    {
+      "relativePath": "src/skills/registry/errors.ts",
+      "checksum": "6f1c8ac2637b141d038e461cd43b84c947d2adfe3ea42b510207a493a7a1831e",
+      "byteLength": 1624,
+      "lineCount": 59
+    },
+    {
+      "relativePath": "src/skills/registry/index.ts",
+      "checksum": "35a32f38d7669ced8c4f282b979523f4babae1e7f63b2832094bb2cc1440eeaa",
+      "byteLength": 161,
+      "lineCount": 7
+    },
+    {
+      "relativePath": "src/skills/registry/parser.ts",
+      "checksum": "a18f73757c8e1497b40760da110440975adaac648fa9ae3bdb1111c886a3dbda",
+      "byteLength": 1922,
+      "lineCount": 4
+    },
+    {
+      "relativePath": "src/skills/registry/policy.ts",
+      "checksum": "3feb46785735c18478978fd4b99cfbc4b60a36752f1b94e47a46cb6a698cd46b",
+      "byteLength": 1945,
+      "lineCount": 7
+    },
+    {
+      "relativePath": "src/skills/registry/registry.test.ts",
+      "checksum": "9a14d1f9f10bb67b9d2cd55872c5abc71b9afc2fb195732c238e107fabee077b",
+      "byteLength": 26142,
+      "lineCount": 75
+    },
+    {
+      "relativePath": "src/skills/registry/registry.ts",
+      "checksum": "8781c15d008167389c36e50f4440dc06e538fb122a56158b95a99a40ba8ac394",
+      "byteLength": 34313,
+      "lineCount": 1035
+    },
+    {
+      "relativePath": "src/skills/registry/review.ts",
+      "checksum": "83a044e708c940962a732dedf8f9bb10d211bf77464b5b30fa6070a945cfc3bc",
+      "byteLength": 5252,
+      "lineCount": 156
+    },
+    {
+      "relativePath": "src/skills/registry/server.ts",
+      "checksum": "a442eac9a084665060f6198fd6d5e31aae92cd6232580c9b0fb8253c8f4e8adf",
+      "byteLength": 232,
+      "lineCount": 8
+    },
+    {
+      "relativePath": "src/skills/registry/types.ts",
+      "checksum": "5bc581beab5f19e50b46d1465b4bcc705364fcecf787feb0c4aee44530533214",
+      "byteLength": 183,
+      "lineCount": 2
+    },
+    {
+      "relativePath": "src/skills/runtime/resolver.test.ts",
+      "checksum": "d61b55e3872a83ce1d89a7dfcf74ca88e5f286637e5c8c39af910370c2b0c25a",
+      "byteLength": 2509,
+      "lineCount": 42
+    },
+    {
+      "relativePath": "src/skills/runtime/resolver.ts",
+      "checksum": "08e496f17f5bc58193b61836fbc7f6958074905c49fe2a6de55a41ad18b3c66b",
+      "byteLength": 9868,
+      "lineCount": 231
+    },
+    {
+      "relativePath": "supabase/migrations/202608060001_factory_metadata.sql",
+      "checksum": "b805180446db0bf473674e1f45ebe29f0100b81004ca68daf2ae2a0953f768b1",
+      "byteLength": 8132,
+      "lineCount": 128
+    },
+    {
+      "relativePath": "supabase/migrations/202608060002_lead_prompt_checksum.sql",
+      "checksum": "554a7e65d3c1a3d7914d00ab2dda7df3c92085ad90e1ebc562042b21c7fdcf52",
+      "byteLength": 835,
+      "lineCount": 14
+    },
+    {
+      "relativePath": "tsconfig.json",
+      "checksum": "5c51df4c59f4510d8c7dadf07a5c32132228826a3b331da5e286207b4df7ef9c",
+      "byteLength": 670,
+      "lineCount": 35
+    },
+    {
+      "relativePath": "vitest.config.ts",
+      "checksum": "3e1e4245df04931f56b77adb24f709be28c6604d9e511e28d32cf40598d0f887",
+      "byteLength": 268,
+      "lineCount": 8
+    }
+  ]
+}

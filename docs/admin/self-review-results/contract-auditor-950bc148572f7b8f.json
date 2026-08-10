@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "runId": "950bc148572f7b8ff1079dbcb2fab1b7c4c58886c63f5bf6ea1537344392054d",
+  "baselineCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+  "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+  "reviewerId": "contract-auditor",
+  "agentVersion": "1.0.0",
+  "capability": "review.contracts",
+  "selectedSkillIdentities": [
+    {
+      "scopeId": "contracts-workflow",
+      "identity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "acceptance-criteria-80493e317476",
+          "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ]
+    },
+    {
+      "scopeId": "contracts-review-and-persistence",
+      "identity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "acceptance-criteria-80493e317476",
+          "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "scopeId": "contracts-workflow",
+      "reviewerId": "contract-auditor",
+      "status": "BLOCKED_REVIEW_EXECUTION",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "acceptance-criteria-80493e317476",
+          "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "skillContextIdentity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "evidencePackChecksum": "2893f87ec2b60a92d0c96a8ab4094ebca96090937efd54891adc2c89f13ee9dd",
+      "snapshotIdentity": "0ace6181f78ccf01dd1bed064fd19b027c5e656bfc78a8ed000c3aa4d91b1c20",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": ""
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "PHASE_5_BLOCKED_AI_PROVIDER",
+      "failureReason": "OPENAI_API_KEY and valid provider configuration are required."
+    },
+    {
+      "scopeId": "contracts-review-and-persistence",
+      "reviewerId": "contract-auditor",
+      "status": "BLOCKED_REVIEW_EXECUTION",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "acceptance-criteria-80493e317476",
+          "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "skillContextIdentity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "evidencePackChecksum": "ef29753473f57aed53ad2b31f375f0f7876ff0a11d63e678033e74de2f57aeec",
+      "snapshotIdentity": "d2f09336a6aad3bee890b8f0aaf5cf4b577f1d0e116fd39504533eff8c347200",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": ""
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "PHASE_5_BLOCKED_AI_PROVIDER",
+      "failureReason": "OPENAI_API_KEY and valid provider configuration are required."
+    }
+  ],
+  "validatedFindings": [],
+  "invalidEvidenceFindings": []
+}

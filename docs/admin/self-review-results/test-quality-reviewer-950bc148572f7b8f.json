@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "runId": "950bc148572f7b8ff1079dbcb2fab1b7c4c58886c63f5bf6ea1537344392054d",
+  "baselineCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+  "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+  "reviewerId": "test-quality-reviewer",
+  "agentVersion": "1.0.0",
+  "capability": "review.test-quality",
+  "selectedSkillIdentities": [
+    {
+      "scopeId": "quality-contract-and-agent-tests",
+      "identity": "b6e61faf7540cc83168f6bdc8e3e36863ec0c179df97fd10eaf8434ad3472a22",
+      "selectedSkillIds": [
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ]
+    },
+    {
+      "scopeId": "quality-runtime-and-release-tests",
+      "identity": "14d5e0b5a2cb75cca227d7c6204de82fc3ac3ed08c2202a3225315856a998f2a",
+      "selectedSkillIds": [
+        "behavioral-test-quality-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "behavioral-test-quality-review",
+          "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09"
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "scopeId": "quality-contract-and-agent-tests",
+      "reviewerId": "test-quality-reviewer",
+      "status": "BLOCKED_REVIEW_EXECUTION",
+      "selectedSkillIds": [
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "skillContextIdentity": "b6e61faf7540cc83168f6bdc8e3e36863ec0c179df97fd10eaf8434ad3472a22",
+      "evidencePackChecksum": "45981b68f7383170cf0add19b31f44f17f710f7c4721daff29bfd815d5f7a334",
+      "snapshotIdentity": "0983fb135be7e7f65eec537c4db6b4abc97c9987619f6141a549384d439394a1",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": ""
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "PHASE_5_BLOCKED_AI_PROVIDER",
+      "failureReason": "OPENAI_API_KEY and valid provider configuration are required."
+    },
+    {
+      "scopeId": "quality-runtime-and-release-tests",
+      "reviewerId": "test-quality-reviewer",
+      "status": "BLOCKED_REVIEW_EXECUTION",
+      "selectedSkillIds": [
+        "behavioral-test-quality-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "behavioral-test-quality-review",
+          "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09"
+        }
+      ],
+      "skillContextIdentity": "14d5e0b5a2cb75cca227d7c6204de82fc3ac3ed08c2202a3225315856a998f2a",
+      "evidencePackChecksum": "5f680aad23fc2f3e613efe448756e322c6fb5ba761742c7bc0f48b089b5ce7ad",
+      "snapshotIdentity": "9b2d32c8fb6f10ca3d8fc57cdfcac63f9150d4f51a343ae5775f4c9128a6febc",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": ""
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "PHASE_5_BLOCKED_AI_PROVIDER",
+      "failureReason": "OPENAI_API_KEY and valid provider configuration are required."
+    }
+  ],
+  "validatedFindings": [],
+  "invalidEvidenceFindings": []
+}
