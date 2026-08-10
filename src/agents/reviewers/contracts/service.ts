@@ -17,6 +17,7 @@ import { ContractAuditError } from "./errors";
 import {
   CONTRACT_AUDIT_POLICY_VERSION,
   ContractAuditInputSchema,
+  assertProjectIdentity,
   type ContractAuditInput,
 } from "./contracts";
 import {
@@ -280,21 +281,16 @@ export class ContractAuditService {
       const planning = input.acceptedPlanningPackage;
       const review = input.approvedArchitectureReview;
       const graph = input.taskGraph;
-      if (
-        brief.projectId !== input.projectId ||
-        planning.projectId !== input.projectId ||
-        review.projectId !== input.projectId ||
-        graph.projectId !== input.projectId ||
-        input.selectedDesign.projectId !== input.projectId ||
-        brief.projectVersion !== input.projectVersion ||
-        planning.projectVersion !== input.projectVersion ||
-        review.projectVersion !== input.projectVersion ||
-        graph.projectVersion !== input.projectVersion ||
-        input.selectedDesign.projectVersion !== input.projectVersion
-      )
-        throw new Error(
-          "Canonical artifacts belong to a different project version.",
-        );
+      assertProjectIdentity(
+        input,
+        [
+          { label: "approvedBrief", value: brief },
+          { label: "acceptedPlanningPackage", value: planning },
+          { label: "approvedArchitectureReview", value: review },
+          { label: "selectedDesign", value: input.selectedDesign },
+          { label: "taskGraph", value: graph },
+        ],
+      );
       if (!brief.approval.approved || brief.briefStatus !== "approved")
         throw new Error("The approved Brief is unavailable.");
       if (

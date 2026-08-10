@@ -2,7 +2,7 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import { taskExecutionCapability } from "@/orchestration/execution/capabilities";
 import { validateFileScopes } from "@/orchestration/orchestrator/validation";
 import { ContractAuditProvider } from "./ports";
-import type { ContractAuditInput } from "./contracts";
+import { assertProjectIdentity, type ContractAuditInput } from "./contracts";
 import { ContractAuditResultSchema, type ContractAuditResult, type ContractAuditFinding } from "@/domain/review/schema";
 
 const reviewed = ["requirements", "planning-package", "architecture-review", "selected-design", "task-graph"];
@@ -26,7 +26,18 @@ const refsForRequirements = (input: ContractAuditInput) => unique([
 const taskText = (task: ContractAuditInput["taskGraph"]["tasks"][number]) => text({ objective: task.objective, inputs: task.inputs, outputs: task.expectedOutputs, acceptance: task.acceptanceCriteria });
 const finding = (findingId: string, category: ContractAuditFinding["category"], summary: string, evidenceRefs: string[], affectedArtifacts: string[], recommendedAction: string, correctionTarget: ContractAuditFinding["correctionTarget"] = "TASKGRAPH", severity: ContractAuditFinding["severity"] = "ERROR"): ContractAuditFinding => ({ findingId: findingId.toLowerCase().replace(/[^a-z0-9_.-]+/g, "-"), severity, category, summary, evidenceRefs, affectedArtifacts, recommendedAction, correctionTarget });
 
-export function deterministicContractAudit(input: ContractAuditInput): ContractAuditResult {
+export function deterministicContractAudit(rawInput: ContractAuditInput): ContractAuditResult {
+  const input = rawInput;
+  assertProjectIdentity(
+    input,
+    [
+      { label: "approvedBrief", value: input.approvedBrief },
+      { label: "acceptedPlanningPackage", value: input.acceptedPlanningPackage },
+      { label: "approvedArchitectureReview", value: input.approvedArchitectureReview },
+      { label: "selectedDesign", value: input.selectedDesign },
+      { label: "taskGraph", value: input.taskGraph },
+    ],
+  );
   const findings: ContractAuditFinding[] = [];
   const planningRefs = new Set(refsForPlanning(input)); const requirementRefs = new Set(refsForRequirements(input)); const tasks = input.taskGraph.tasks;
   const add = (...args: Parameters<typeof finding>) => findings.push(finding(...args));

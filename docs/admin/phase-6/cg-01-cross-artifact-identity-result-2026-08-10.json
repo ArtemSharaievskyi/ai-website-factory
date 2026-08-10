@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6b-correction-group-result",
+  "groupId": "cg-01-cross-artifact-identity",
+  "baselineCommit": "7670288",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "findingIds": ["finding-b385146a5a20fb3e4f1b"],
+  "rootCause": "Bind every downstream canonical artifact to the same projectId and projectVersion before review proceeds.",
+  "rootCauseConfidence": "HIGH",
+  "filesChanged": [
+    "src/agents/reviewers/contracts/contracts.ts",
+    "src/agents/reviewers/contracts/deterministic.ts",
+    "src/agents/reviewers/contracts/service.ts",
+    "src/agents/reviewers/code-integration/contracts.ts",
+    "src/agents/reviewers/contracts/contracts.test.ts",
+    "src/agents/reviewers/code-integration/code-integration.test.ts"
+  ],
+  "correctionCommitCandidate": "working-tree-after-deterministic-correction",
+  "currentWorkingState": "Correction is implemented and all deterministic/full repository checks pass; required GPT reviewer verification is unavailable because the OpenAI provider is not configured.",
+  "correctionSummary": "Centralized projectId/projectVersion comparison and enforced it in Contract Auditor and Code / Integration input contracts, while direct deterministic Contract Auditor calls and the existing Contract Audit service use the same invariant.",
+  "identityContractBefore": "Top-level projectId/projectVersion were present, but downstream schemas did not bind each supplied canonical artifact to that identity. Checksums only established content integrity.",
+  "identityContractAfter": "The request projectId/projectVersion is the canonical identity. Every supplied Brief, Planning Package, Architecture Review, Design, TaskGraph, and Contract Audit record must match it before deterministic or provider review. Stable artifact checksums remain separate content/version evidence.",
+  "testsAdded": [
+    "ContractAuditInputSchema rejects a Brief from a different project identity.",
+    "Code / Integration reviewer regression verifies the shared downstream identity rule identifies a mismatched Contract Audit."
+  ],
+  "testsModified": [],
+  "targetedChecks": {
+    "contractAuditorTests": "PASSED",
+    "codeIntegrationReviewerTests": "PASSED",
+    "typecheck": "PASSED",
+    "lint": "PASSED_WITH_3_PRE_EXISTING_WARNINGS"
+  },
+  "reviewerRechecks": [
+    {
+      "reviewerId": "contract-auditor",
+      "status": "BLOCKED_REVIEW_EXECUTION",
+      "realGptCalls": 0,
+      "selectedApprovedSkills": ["acceptance-criteria-80493e317476", "requirements-evidence-traceability"],
+      "reason": "OPENAI_API_KEY and valid provider configuration are unavailable in the environment."
+    },
+    {
+      "reviewerId": "code-integration-reviewer",
+      "status": "BLOCKED_REVIEW_EXECUTION",
+      "realGptCalls": 0,
+      "selectedApprovedSkills": ["react-nextjs-integration-review"],
+      "reason": "OPENAI_API_KEY and valid provider configuration are unavailable in the environment."
+    }
+  ],
+  "perFindingResolution": [
+    {
+      "findingId": "finding-b385146a5a20fb3e4f1b",
+      "originalReviewTarget": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "phase6ABaseline": "7670288",
+      "resolutionState": "VERIFICATION_FAILED",
+      "currentEvidence": [
+        "src/agents/reviewers/contracts/contracts.ts:12-50",
+        "src/agents/reviewers/contracts/deterministic.ts:31-41",
+        "src/agents/reviewers/contracts/service.ts:284-294",
+        "src/agents/reviewers/code-integration/contracts.ts:19-31"
+      ],
+      "deterministicEvidence": [
+        "src/agents/reviewers/contracts/contracts.test.ts:37",
+        "src/agents/reviewers/code-integration/code-integration.test.ts:29-37",
+        "targeted Contract Auditor and Code / Integration Reviewer suites passed"
+      ],
+      "reviewerVerification": "Not completed; both required same-boundary GPT rechecks are blocked by unavailable provider configuration.",
+      "resolvedByGroupId": null,
+      "notes": "The baseline defect reproduced before mutation: ContractAuditInputSchema accepted a Brief with a different projectId. Deterministic correction evidence passes, but the finding remains correction-ready until required reviewer verification succeeds."
+    }
+  ],
+  "regressions": [],
+  "remainingFindingCount": 31,
+  "unblockedGroups": [],
+  "nextRecommendedGroup": "cg-01-cross-artifact-identity",
+  "phase6BStatus": "BLOCKED",
+  "scopeAudit": {
+    "otherCorrectionGroupsModified": [],
+    "productionWebsiteGenerationE2E": false,
+    "skillsChanged": false,
+    "agentsChanged": false,
+    "orchestratorOrMcpChanged": false,
+    "qaFoundationCleanupPerformed": false
+  },
+  "validationSummary": {
+    "testFiles": 66,
+    "tests": 808,
+    "lint": "PASSED_WITH_3_PRE_EXISTING_WARNINGS",
+    "typecheck": "PASSED",
+    "build": "PASSED",
+    "audit": "0 vulnerabilities",
+    "databaseValidation": "PASSED",
+    "databaseStatus": "PASSED",
+    "databaseVerification": "PASSED; 17 tables, 84 constraints, 4 indexes, RLS 17/17, public policies 0",
+    "databaseIntegrity": "PASSED",
+    "dockerComposeConfig": "PASSED",
+    "taskGraphSmoke": "PASSED; releaseEligible=true",
+    "gitDiffCheck": "PASSED"
+  }
+}

@@ -5,6 +5,7 @@ import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
 import { CodeIntegrationReviewService } from "./service";
 import { CodeIntegrationReviewError } from "./errors";
 import { SourceManifestEntrySchema, SourceSliceSchema } from "./contracts";
+import { projectIdentityMismatches } from "@/agents/reviewers/contracts/contracts";
 
 describe("Code / Integration Reviewer", () => {
   it("is a read-only least-privilege reviewer with bounded source context", () => {
@@ -24,6 +25,15 @@ describe("Code / Integration Reviewer", () => {
   it("keeps semantic review after the implementation gate", () => {
     expect(transitionWorkflow("IMPLEMENTING", "CODE_INTEGRATION_REVIEW")).toBe("CODE_INTEGRATION_REVIEW");
     expect(transitionWorkflow("CODE_INTEGRATION_REVIEW", "VALIDATING")).toBe("VALIDATING");
+  });
+  it("binds downstream review artifacts to one project identity", () => {
+    expect(projectIdentityMismatches(
+      { projectId: "11111111-1111-4111-8111-111111111111", projectVersion: 3 },
+      [
+        { label: "approvedBrief", value: { projectId: "11111111-1111-4111-8111-111111111111", projectVersion: 3 } },
+        { label: "approvedContractAudit", value: { projectId: "22222222-2222-4222-8222-222222222222", projectVersion: 3 } },
+      ],
+    )).toEqual(["approvedContractAudit"]);
   });
   it("fails closed before any provider call for invalid or incomplete input", async () => {
     let calls = 0;
