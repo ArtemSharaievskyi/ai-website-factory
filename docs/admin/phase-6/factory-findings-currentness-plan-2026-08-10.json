@@ -1,0 +1,3884 @@
+{
+  "schemaVersion": 1,
+  "documentType": "factory-findings-currentness-plan",
+  "phase6APlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "baselineHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+  "sourceReviewTarget": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+  "sourceFindingSetIdentity": "799cc543722ee5847c8a634a4ab9ca43ceb1c47650d5c562370fccd9e3bd8bcd",
+  "sourceFindingSetSize": 31,
+  "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+  "currentApplicabilityPolicyVersion": "factory-findings-currentness-and-grouping-v1",
+  "laterCommitBoundary": {
+    "from": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+    "to": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+    "changedFileCount": 39,
+    "changedFiles": [
+      {
+        "path": "docs/admin/factory-self-review-2026-08-10-final.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/factory-self-review-2026-08-10-final.md",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/factory-self-review-2026-08-10-run2.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/factory-self-review-2026-08-10-run2.md",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/factory-self-review-2026-08-10-run3.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/factory-self-review-2026-08-10-run3.md",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/factory-self-review-2026-08-10.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/factory-self-review-2026-08-10.md",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/factory-self-review-evidence-manifest.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/factory-self-review-evidence-reconciliation-2026-08-10.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/factory-self-review-evidence-reconciliation-2026-08-10.md",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/openai-provider-diagnostic-2026-08-10.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/openai-provider-diagnostic-2026-08-10.md",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/self-review-results/architecture-reviewer-950bc148572f7b8f-run2.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/self-review-results/architecture-reviewer-950bc148572f7b8f-run3.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/self-review-results/architecture-reviewer-950bc148572f7b8f.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/self-review-results/code-integration-reviewer-950bc148572f7b8f-run2.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/self-review-results/code-integration-reviewer-950bc148572f7b8f-run3.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/self-review-results/code-integration-reviewer-950bc148572f7b8f.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/self-review-results/contract-auditor-950bc148572f7b8f-run2.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/self-review-results/contract-auditor-950bc148572f7b8f-run3.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/self-review-results/contract-auditor-950bc148572f7b8f.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/self-review-results/security-reviewer-950bc148572f7b8f-run2.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/self-review-results/security-reviewer-950bc148572f7b8f-run3.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/self-review-results/security-reviewer-950bc148572f7b8f.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/self-review-results/test-quality-reviewer-950bc148572f7b8f-run2.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/self-review-results/test-quality-reviewer-950bc148572f7b8f-run3.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "docs/admin/self-review-results/test-quality-reviewer-950bc148572f7b8f.json",
+        "purpose": "admin historical artifacts"
+      },
+      {
+        "path": "scripts/factory-self-review-evidence-reconciliation.ts",
+        "purpose": "self-review harness/evidence infrastructure"
+      },
+      {
+        "path": "scripts/factory-self-review.ts",
+        "purpose": "self-review harness/evidence infrastructure"
+      },
+      {
+        "path": "scripts/openai-provider-diagnostic.ts",
+        "purpose": "Phase 5 support work"
+      },
+      {
+        "path": "src/domain/review/schema.ts",
+        "purpose": "OpenAI Structured Output/provider correction"
+      },
+      {
+        "path": "src/integrations/openai/client.ts",
+        "purpose": "OpenAI Structured Output/provider correction"
+      },
+      {
+        "path": "src/integrations/openai/errors.ts",
+        "purpose": "OpenAI Structured Output/provider correction"
+      },
+      {
+        "path": "src/integrations/openai/provider.test.ts",
+        "purpose": "OpenAI Structured Output/provider correction"
+      },
+      {
+        "path": "src/integrations/openai/usage.ts",
+        "purpose": "OpenAI Structured Output/provider correction"
+      },
+      {
+        "path": "src/operations/factory-self-review-evidence-reconciliation.test.ts",
+        "purpose": "admin/reconciliation tests and planning utility"
+      },
+      {
+        "path": "src/operations/factory-self-review-evidence-reconciliation.ts",
+        "purpose": "admin/reconciliation tests and planning utility"
+      },
+      {
+        "path": "src/operations/factory-self-review.test.ts",
+        "purpose": "admin/reconciliation tests and planning utility"
+      }
+    ]
+  },
+  "totalOriginalFindings": 31,
+  "originalSeverityCounts": {
+    "CRITICAL": 2,
+    "ERROR": 13,
+    "WARNING": 15,
+    "INFO": 1
+  },
+  "currentnessCounts": {
+    "ACTIVE_UNCHANGED": 29,
+    "ACTIVE_REBASED": 2,
+    "PARTIALLY_RESOLVED": 0,
+    "ALREADY_RESOLVED": 0,
+    "NO_LONGER_APPLICABLE": 0,
+    "NEEDS_TARGETED_REVIEW": 0
+  },
+  "targetedReviewerCalls": 0,
+  "targetedReviewerCallsSuccessful": 0,
+  "targetedReviewerCallsFailed": 0,
+  "perFindingCurrentness": [
+    {
+      "findingId": "finding-0590fb313e72090696f0",
+      "originalReviewer": "security-reviewer",
+      "originalSeverity": "ERROR",
+      "originalCategory": "AUTHENTICATION_FLOW",
+      "originalSubsystem": "security",
+      "originalFinding": {
+        "findingId": "finding-0590fb313e72090696f0",
+        "reviewerId": "security-reviewer",
+        "scopeId": "security-supabase-boundary",
+        "severity": "ERROR",
+        "category": "AUTHENTICATION_FLOW",
+        "summary": "The deterministic authentication artifact always returns null, so an authentication-required task can produce no usable authenticated identity.",
+        "evidenceRefs": [
+          "src/agents/implementation/provider.ts:25",
+          "src/agents/implementation/backend.ts:31"
+        ],
+        "affectedArtifacts": [
+          "src/agents/implementation/provider.ts:25",
+          "src/agents/implementation/backend.ts:31"
+        ],
+        "recommendedAction": "Replace the placeholder authentication implementation with an actual approved Supabase Auth session lookup and fail closed when no authenticated user exists. Validate authentication behavior and authorization separately before marking the authentication task complete.",
+        "blockingClassification": "HIGH_PRIORITY",
+        "owner": "security"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/agents/implementation/provider.ts:25",
+        "src/agents/implementation/backend.ts:31"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "security-reviewer",
+        "relativePath": "docs/admin/self-review-results/security-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "7335046d388a8bf62b7eae23d052c369187877ba3ba961177371566a66c59502"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/implementation/provider.ts",
+          "startLine": 25,
+          "endLine": 25,
+          "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb",
+          "lineCount": 32,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/backend.ts",
+          "startLine": 31,
+          "endLine": 31,
+          "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159",
+          "lineCount": 40,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: The deterministic authentication artifact always returns null, so an authentication-required task can produce no usable authenticated identity.",
+      "currentEffectiveSeverity": "ERROR",
+      "correctionGroupId": "cg-02-authentication-authorization-rls",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-0e21399a0a91b82a05dc",
+      "originalReviewer": "contract-auditor",
+      "originalSeverity": "ERROR",
+      "originalCategory": "REQUIREMENT_NOT_TRACED",
+      "originalSubsystem": "contracts",
+      "originalFinding": {
+        "findingId": "finding-0e21399a0a91b82a05dc",
+        "reviewerId": "contract-auditor",
+        "scopeId": "contracts-review-and-persistence",
+        "severity": "ERROR",
+        "category": "REQUIREMENT_NOT_TRACED",
+        "summary": "The architecture reviewer’s canonical evidence set exposes only a subset of approved Brief fields, so material requirements cannot be cited or semantically audited at the architecture boundary.",
+        "evidenceRefs": [
+          "src/agents/reviewers/architecture/deterministic.ts:12-24",
+          "src/agents/reviewers/architecture/service.ts:225-260"
+        ],
+        "affectedArtifacts": [
+          "src/agents/reviewers/architecture/deterministic.ts",
+          "src/agents/reviewers/architecture/service.ts",
+          "architecture-review evidence contract"
+        ],
+        "recommendedAction": "Expand the canonical architecture evidence contract to preserve all material approved Brief obligations, including content, SEO, localization, user roles, acceptance criteria, exclusions, storage, email, administration, and unresolved-item decisions, or explicitly document their exclusion from this review boundary.",
+        "blockingClassification": "HIGH_PRIORITY",
+        "owner": "contracts"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/agents/reviewers/architecture/deterministic.ts:12-24",
+        "src/agents/reviewers/architecture/service.ts:225-260"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "contract-auditor",
+        "relativePath": "docs/admin/self-review-results/contract-auditor-950bc148572f7b8f-run3.json",
+        "checksum": "1669d72909110d5edd8a764f249f17cd335eba155d59e50028df9380b630fb5d"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/reviewers/architecture/deterministic.ts",
+          "startLine": 12,
+          "endLine": 24,
+          "checksum": "aafef0feeb4c6e80a0206c4706d8013129d98e6adb71d02ea0e00496260ab5fb",
+          "lineCount": 38,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/reviewers/architecture/service.ts",
+          "startLine": 225,
+          "endLine": 260,
+          "checksum": "c04d95cbc526e9b90d864afbb604ce96c86f3176751c07ab3131c1d8c922eb24",
+          "lineCount": 360,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: The architecture reviewer’s canonical evidence set exposes only a subset of approved Brief fields, so material requirements cannot be cited or semantically audited at the architecture boundary.",
+      "currentEffectiveSeverity": "ERROR",
+      "correctionGroupId": "cg-12-architecture-review-context",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-0ec8a840d7bf928fec42",
+      "originalReviewer": "test-quality-reviewer",
+      "originalSeverity": "WARNING",
+      "originalCategory": "ERROR_PATH_NOT_VERIFIED",
+      "originalSubsystem": "tests",
+      "originalFinding": {
+        "findingId": "finding-0ec8a840d7bf928fec42",
+        "reviewerId": "test-quality-reviewer",
+        "scopeId": "quality-contract-and-agent-tests",
+        "severity": "WARNING",
+        "category": "ERROR_PATH_NOT_VERIFIED",
+        "summary": "Implementation proposal validation is tested, while the atomic file-application failure and recovery behavior has no supplied test evidence.",
+        "evidenceRefs": [
+          "src/agents/implementation/applier.ts:15-33",
+          "src/agents/implementation/backend.test.ts:8-21"
+        ],
+        "affectedArtifacts": [
+          "src/agents/implementation/applier.ts",
+          "src/agents/implementation/backend.test.ts"
+        ],
+        "recommendedAction": "Add focused applier evidence for rollback after a later operation fails, cancellation during application, unsafe or symlink targets, and checksum mismatch handling. The supplied backend tests validate proposal policies, but they do not exercise the atomic application and recovery flow.",
+        "blockingClassification": "NORMAL_PRIORITY",
+        "owner": "tests"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/agents/implementation/applier.ts:15-33",
+        "src/agents/implementation/backend.test.ts:8-21"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "test-quality-reviewer",
+        "relativePath": "docs/admin/self-review-results/test-quality-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "b681675dd916cdd48a555e5760020fc286532bd547d58257dc163ff68d4e9eef"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/implementation/applier.ts",
+          "startLine": 15,
+          "endLine": 33,
+          "checksum": "54628daf7b0687ef3e4adb899608f11537e0c30023eae2f21168761a5b8f321e",
+          "lineCount": 33,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/backend.test.ts",
+          "startLine": 8,
+          "endLine": 21,
+          "checksum": "4dba8508ff3553d9c6caeeb488d0bd785a1ee5bdf5edf7b59c30ab88a4abfb90",
+          "lineCount": 21,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: Implementation proposal validation is tested, while the atomic file-application failure and recovery behavior has no supplied test evidence.",
+      "currentEffectiveSeverity": "WARNING",
+      "correctionGroupId": "cg-16-implementation-error-recovery-evidence",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-1540c99220f633245955",
+      "originalReviewer": "architecture-reviewer",
+      "originalSeverity": "WARNING",
+      "originalCategory": "SOURCE_OF_TRUTH",
+      "originalSubsystem": "architecture",
+      "originalFinding": {
+        "findingId": "finding-1540c99220f633245955",
+        "reviewerId": "architecture-reviewer",
+        "scopeId": "architecture-module-boundaries",
+        "severity": "WARNING",
+        "category": "SOURCE_OF_TRUTH",
+        "summary": "DesignAgentService keeps workflow and idempotency state in process-local Maps despite having persistence repositories and memory synchronization ports.",
+        "evidenceRefs": [
+          "src/agents/design/service.ts:34-50",
+          "src/agents/design/service.ts:200-260"
+        ],
+        "affectedArtifacts": [
+          "src/agents/design/service.ts:34-50",
+          "src/agents/design/service.ts:200-260"
+        ],
+        "recommendedAction": "Move generation idempotency, generated-set lookup, and selection state to the authoritative persistence boundary, or explicitly constrain these maps to a non-authoritative cache with durable idempotency and recovery semantics. Add restart and concurrent-request coverage.",
+        "blockingClassification": "NORMAL_PRIORITY",
+        "owner": "architecture"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/agents/design/service.ts:34-50",
+        "src/agents/design/service.ts:200-260"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "architecture-reviewer",
+        "relativePath": "docs/admin/self-review-results/architecture-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "89787a4b0101e56e354fcf7ddad5b0d0d5b4f9f2eb4372a215ee86b1a62a0c47"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/design/service.ts",
+          "startLine": 34,
+          "endLine": 50,
+          "checksum": "e6122cd129d517149dd9604a0e41c607a65e45ddc6ada6e718506c0e813da986",
+          "lineCount": 724,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/design/service.ts",
+          "startLine": 200,
+          "endLine": 260,
+          "checksum": "e6122cd129d517149dd9604a0e41c607a65e45ddc6ada6e718506c0e813da986",
+          "lineCount": 724,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: DesignAgentService keeps workflow and idempotency state in process-local Maps despite having persistence repositories and memory synchronization ports.",
+      "currentEffectiveSeverity": "WARNING",
+      "correctionGroupId": "cg-05-design-durable-state-authority",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-191200ccc58b25e3fd0c",
+      "originalReviewer": "test-quality-reviewer",
+      "originalSeverity": "WARNING",
+      "originalCategory": "FUNCTIONAL_SCENARIO_INCOMPLETE",
+      "originalSubsystem": "tests",
+      "originalFinding": {
+        "findingId": "finding-191200ccc58b25e3fd0c",
+        "reviewerId": "test-quality-reviewer",
+        "scopeId": "quality-runtime-and-release-tests",
+        "severity": "WARNING",
+        "category": "FUNCTIONAL_SCENARIO_INCOMPLETE",
+        "summary": "Opt-in integration smoke scripts do not provide executed runtime evidence.",
+        "evidenceRefs": [
+          "scripts/ai-smoke.ts:1-14",
+          "scripts/context7-smoke.ts:1-17",
+          "scripts/codebase-memory-smoke.ts:1-18",
+          "scripts/generated-runtime-smoke.ts:1-31"
+        ],
+        "affectedArtifacts": [
+          "scripts/ai-smoke.ts",
+          "scripts/context7-smoke.ts",
+          "scripts/codebase-memory-smoke.ts",
+          "scripts/generated-runtime-smoke.ts"
+        ],
+        "recommendedAction": "Record results for the integrations that are part of the approved runtime/release path, including their explicit opt-in configuration, or document them as intentionally out of scope for this release. Each supplied smoke is gated by an environment flag and otherwise returns a pending result rather than validating the integration.",
+        "blockingClassification": "NORMAL_PRIORITY",
+        "owner": "tests"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "scripts/ai-smoke.ts:1-14",
+        "scripts/context7-smoke.ts:1-17",
+        "scripts/codebase-memory-smoke.ts:1-18",
+        "scripts/generated-runtime-smoke.ts:1-31"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "test-quality-reviewer",
+        "relativePath": "docs/admin/self-review-results/test-quality-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "b681675dd916cdd48a555e5760020fc286532bd547d58257dc163ff68d4e9eef"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "scripts/ai-smoke.ts",
+          "startLine": 1,
+          "endLine": 14,
+          "checksum": "d2aeb54efd1b39a50fec5eca6c96cf42f67e4d83f61b16ec5dc68039090db520",
+          "lineCount": 14,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/context7-smoke.ts",
+          "startLine": 1,
+          "endLine": 17,
+          "checksum": "e3f6b47aca837c6497d4b6768c65c80f25f6c9213f1516a8f9bbcdc7f40cf028",
+          "lineCount": 17,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/codebase-memory-smoke.ts",
+          "startLine": 1,
+          "endLine": 18,
+          "checksum": "8a9692623c68f9f43472faeca68b4e8ed5179cf7e77a8daac66369b5040e3d97",
+          "lineCount": 18,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/generated-runtime-smoke.ts",
+          "startLine": 1,
+          "endLine": 31,
+          "checksum": "cd1c568813ea5e9e2bea87129b82f336adbbfc2698d1a96b8047e67bac2d6a4b",
+          "lineCount": 31,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: Opt-in integration smoke scripts do not provide executed runtime evidence.",
+      "currentEffectiveSeverity": "WARNING",
+      "correctionGroupId": "cg-14-runtime-release-evidence",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-20662816cdabed08871f",
+      "originalReviewer": "architecture-reviewer",
+      "originalSeverity": "WARNING",
+      "originalCategory": "SOURCE_OF_TRUTH",
+      "originalSubsystem": "architecture",
+      "originalFinding": {
+        "findingId": "finding-20662816cdabed08871f",
+        "reviewerId": "architecture-reviewer",
+        "scopeId": "architecture-tradeoffs",
+        "severity": "WARNING",
+        "category": "SOURCE_OF_TRUTH",
+        "summary": "Context7 dependency eligibility is governed by multiple independently maintained lists.",
+        "evidenceRefs": [
+          "src/integrations/context7/policy.ts:3-13",
+          "src/integrations/context7/service.ts:9-18",
+          "src/integrations/context7/contracts.ts:17-20"
+        ],
+        "affectedArtifacts": [
+          "src/integrations/context7/policy.ts",
+          "src/integrations/context7/service.ts",
+          "src/integrations/context7/contracts.ts"
+        ],
+        "recommendedAction": "The Context7 owner should establish one source of truth for the accepted Factory dependency stack and package allowlist. The service hardcodes a separate fixedStack from the policy's approved package list and accepts caller-provided stack inputs, creating drift risk when dependency approval changes.",
+        "blockingClassification": "NORMAL_PRIORITY",
+        "owner": "architecture"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/integrations/context7/policy.ts:3-13",
+        "src/integrations/context7/service.ts:9-18",
+        "src/integrations/context7/contracts.ts:17-20"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "architecture-reviewer",
+        "relativePath": "docs/admin/self-review-results/architecture-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "89787a4b0101e56e354fcf7ddad5b0d0d5b4f9f2eb4372a215ee86b1a62a0c47"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/integrations/context7/policy.ts",
+          "startLine": 3,
+          "endLine": 13,
+          "checksum": "5384087f0496ade31f7afe30b9090b589e991d69a08fa46807c101c076d691bc",
+          "lineCount": 13,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/context7/service.ts",
+          "startLine": 9,
+          "endLine": 18,
+          "checksum": "7e3731dbb9dcca4eee416cdd3b6c36dbd422b76754109fdd883e10dea61f7d3b",
+          "lineCount": 39,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/context7/contracts.ts",
+          "startLine": 17,
+          "endLine": 20,
+          "checksum": "6be99d1b13fb953385b83d166b9051806ad59b6383543f90736bad1d1b45cb1f",
+          "lineCount": 20,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: Context7 dependency eligibility is governed by multiple independently maintained lists.",
+      "currentEffectiveSeverity": "WARNING",
+      "correctionGroupId": "cg-08-context7-authority",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-233d7f1502c96cf535e1",
+      "originalReviewer": "security-reviewer",
+      "originalSeverity": "CRITICAL",
+      "originalCategory": "RLS_POLICY",
+      "originalSubsystem": "security",
+      "originalFinding": {
+        "findingId": "finding-233d7f1502c96cf535e1",
+        "reviewerId": "security-reviewer",
+        "scopeId": "security-supabase-boundary",
+        "severity": "CRITICAL",
+        "category": "RLS_POLICY",
+        "summary": "The generated RLS policy allows every authenticated user to select every row.",
+        "evidenceRefs": [
+          "src/agents/implementation/provider.ts:22",
+          "src/agents/implementation/backend.ts:29",
+          "src/agents/implementation/backend.test.ts:17"
+        ],
+        "affectedArtifacts": [
+          "src/agents/implementation/provider.ts:22",
+          "src/agents/implementation/backend.ts:29",
+          "src/agents/implementation/backend.test.ts:17"
+        ],
+        "recommendedAction": "Require generated RLS policies to constrain access to the owning user or an explicitly approved tenant boundary, such as auth.uid() = user_id, with corresponding INSERT and UPDATE WITH CHECK conditions. Add validation that identifies the protected table and ownership column rather than accepting any policy that merely checks auth.uid() IS NOT NULL.",
+        "blockingClassification": "BLOCKING_FOR_PHASE_6",
+        "owner": "security"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/agents/implementation/provider.ts:22",
+        "src/agents/implementation/backend.ts:29",
+        "src/agents/implementation/backend.test.ts:17"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "security-reviewer",
+        "relativePath": "docs/admin/self-review-results/security-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "7335046d388a8bf62b7eae23d052c369187877ba3ba961177371566a66c59502"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/implementation/provider.ts",
+          "startLine": 22,
+          "endLine": 22,
+          "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb",
+          "lineCount": 32,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/backend.ts",
+          "startLine": 29,
+          "endLine": 29,
+          "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159",
+          "lineCount": 40,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/backend.test.ts",
+          "startLine": 17,
+          "endLine": 17,
+          "checksum": "4dba8508ff3553d9c6caeeb488d0bd785a1ee5bdf5edf7b59c30ab88a4abfb90",
+          "lineCount": 21,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: The generated RLS policy allows every authenticated user to select every row.",
+      "currentEffectiveSeverity": "CRITICAL",
+      "correctionGroupId": "cg-02-authentication-authorization-rls",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-2484a19307c1536e12e7",
+      "originalReviewer": "architecture-reviewer",
+      "originalSeverity": "INFO",
+      "originalCategory": "REQUIREMENT_TRACEABILITY",
+      "originalSubsystem": "architecture",
+      "originalFinding": {
+        "findingId": "finding-2484a19307c1536e12e7",
+        "reviewerId": "architecture-reviewer",
+        "scopeId": "architecture-maintainability",
+        "severity": "INFO",
+        "category": "REQUIREMENT_TRACEABILITY",
+        "summary": "The Architecture Reviewer contract requires an approved Brief and accepted PlanningPackage, but the supplied evidence pack contains architecture documentation only and no project-specific Brief or PlanningPackage.",
+        "evidenceRefs": [
+          "docs/architecture/architecture-reviewer.md:8-12",
+          "AGENTS.md:1-29"
+        ],
+        "affectedArtifacts": [
+          "docs/architecture/architecture-reviewer.md",
+          "AGENTS.md"
+        ],
+        "recommendedAction": "Publish or reference the canonical approved Brief and accepted PlanningPackage for this review scope, or explicitly record that this self-review is documentation-only and cannot assess project-specific requirement traceability. Keep the distinction visible in the review input contract and evidence manifest.",
+        "blockingClassification": "INFORMATIONAL",
+        "owner": "architecture"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "docs/architecture/architecture-reviewer.md:8-12",
+        "AGENTS.md:1-29"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "architecture-reviewer",
+        "relativePath": "docs/admin/self-review-results/architecture-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "89787a4b0101e56e354fcf7ddad5b0d0d5b4f9f2eb4372a215ee86b1a62a0c47"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "docs/architecture/architecture-reviewer.md",
+          "startLine": 8,
+          "endLine": 12,
+          "checksum": "d9bb5e6505900eda772e71124db954e2ff6dd0e5a8536eca708aa57a6a032db9",
+          "lineCount": 22,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "AGENTS.md",
+          "startLine": 1,
+          "endLine": 29,
+          "checksum": "b137b5ff8151b130b3c7bb17efa7b53800fb7e84a703a1b0f7d1924a4147ddaa",
+          "lineCount": 29,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: The Architecture Reviewer contract requires an approved Brief and accepted PlanningPackage, but the supplied evidence pack contains architecture documentation only and no project-specific Brief or PlanningPackage.",
+      "currentEffectiveSeverity": "INFO",
+      "correctionGroupId": "cg-12-architecture-review-context",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-24cb4b563e9b341a84fd",
+      "originalReviewer": "architecture-reviewer",
+      "originalSeverity": "ERROR",
+      "originalCategory": "IMPLEMENTABILITY",
+      "originalSubsystem": "architecture",
+      "originalFinding": {
+        "findingId": "finding-24cb4b563e9b341a84fd",
+        "reviewerId": "architecture-reviewer",
+        "scopeId": "architecture-tradeoffs",
+        "severity": "ERROR",
+        "category": "IMPLEMENTABILITY",
+        "summary": "The OpenAI provider can be constructed with an empty model identifier.",
+        "evidenceRefs": [
+          "src/integrations/openai/config.ts:4-12",
+          "src/integrations/openai/production.ts:1-7",
+          "src/integrations/openai/client.ts:22-32"
+        ],
+        "affectedArtifacts": [
+          "src/integrations/openai/config.ts",
+          "src/integrations/openai/production.ts",
+          "src/integrations/openai/client.ts"
+        ],
+        "recommendedAction": "The provider owner should define and enforce an actual default model or require OPENAI_MODEL during configuration validation. The current configuration exposes DEFAULT_AI_MODEL_LABEL but returns an empty model when OPENAI_MODEL is absent, and production passes that value directly to the OpenAI client.",
+        "blockingClassification": "HIGH_PRIORITY",
+        "owner": "architecture"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/integrations/openai/config.ts:4-12",
+        "src/integrations/openai/production.ts:1-7",
+        "src/integrations/openai/client.ts:22-32"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "architecture-reviewer",
+        "relativePath": "docs/admin/self-review-results/architecture-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "89787a4b0101e56e354fcf7ddad5b0d0d5b4f9f2eb4372a215ee86b1a62a0c47"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_REBASED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/integrations/openai/config.ts",
+          "startLine": 4,
+          "endLine": 12,
+          "checksum": "d604ecbc767e71c46ee08a61b6e79889051bbd0a5dc004201c17a0d4529ef05d",
+          "lineCount": 13,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/openai/production.ts",
+          "startLine": 1,
+          "endLine": 7,
+          "checksum": "11f68f597aff32cb1a13ff27950550c113cb3ce0b1c900505b73779bbf290f5e",
+          "lineCount": 7,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/openai/client.ts",
+          "startLine": 23,
+          "endLine": 29,
+          "checksum": "45c3d711c29ccee7a38ab7e47e1639bf6211d84a9a7ccbd93248affe11cf47e5",
+          "lineCount": 136,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [
+        {
+          "path": "src/integrations/openai/client.ts",
+          "purpose": "OpenAI Structured Output/provider correction"
+        }
+      ],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: The OpenAI provider can be constructed with an empty model identifier.",
+      "currentEffectiveSeverity": "ERROR",
+      "correctionGroupId": "cg-04-provider-config-and-lifecycle",
+      "verificationMethod": "current-head-source-inspection"
+    },
+    {
+      "findingId": "finding-3ea29b90bbf550eecdb3",
+      "originalReviewer": "architecture-reviewer",
+      "originalSeverity": "WARNING",
+      "originalCategory": "DEPENDENCY_ARCHITECTURE",
+      "originalSubsystem": "architecture",
+      "originalFinding": {
+        "findingId": "finding-3ea29b90bbf550eecdb3",
+        "reviewerId": "architecture-reviewer",
+        "scopeId": "architecture-tradeoffs",
+        "severity": "WARNING",
+        "category": "DEPENDENCY_ARCHITECTURE",
+        "summary": "Configured concurrency limits do not necessarily bound active external work after timeout.",
+        "evidenceRefs": [
+          "src/integrations/codebase-memory/service.ts:38-41",
+          "src/integrations/context7/service.ts:30-39",
+          "src/integrations/openai/client.ts:24-32"
+        ],
+        "affectedArtifacts": [
+          "src/integrations/codebase-memory/service.ts",
+          "src/integrations/context7/service.ts",
+          "src/integrations/openai/client.ts"
+        ],
+        "recommendedAction": "The provider and integration owners should align timeout cancellation with concurrency accounting. A timeout currently rejects a Promise.race but does not necessarily abort the underlying transport; the limiter can then release capacity while external work remains active. Use abort propagation or explicitly document and bound this behavior before relying on the configured concurrency limits operationally.",
+        "blockingClassification": "NORMAL_PRIORITY",
+        "owner": "architecture"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/integrations/codebase-memory/service.ts:38-41",
+        "src/integrations/context7/service.ts:30-39",
+        "src/integrations/openai/client.ts:24-32"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "architecture-reviewer",
+        "relativePath": "docs/admin/self-review-results/architecture-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "89787a4b0101e56e354fcf7ddad5b0d0d5b4f9f2eb4372a215ee86b1a62a0c47"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_REBASED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/integrations/codebase-memory/service.ts",
+          "startLine": 38,
+          "endLine": 41,
+          "checksum": "dd273c5d70da607bf26f591d3795138bef02a5aa2b5cd183747008a8e856b93b",
+          "lineCount": 41,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/context7/service.ts",
+          "startLine": 30,
+          "endLine": 39,
+          "checksum": "7e3731dbb9dcca4eee416cdd3b6c36dbd422b76754109fdd883e10dea61f7d3b",
+          "lineCount": 39,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/openai/client.ts",
+          "startLine": 23,
+          "endLine": 39,
+          "checksum": "45c3d711c29ccee7a38ab7e47e1639bf6211d84a9a7ccbd93248affe11cf47e5",
+          "lineCount": 136,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [
+        {
+          "path": "src/integrations/openai/client.ts",
+          "purpose": "OpenAI Structured Output/provider correction"
+        }
+      ],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: Configured concurrency limits do not necessarily bound active external work after timeout.",
+      "currentEffectiveSeverity": "WARNING",
+      "correctionGroupId": "cg-04-provider-config-and-lifecycle",
+      "verificationMethod": "current-head-source-inspection"
+    },
+    {
+      "findingId": "finding-3ee5bcff808135a21217",
+      "originalReviewer": "architecture-reviewer",
+      "originalSeverity": "WARNING",
+      "originalCategory": "CONTRADICTORY_DECISION",
+      "originalSubsystem": "architecture",
+      "originalFinding": {
+        "findingId": "finding-3ee5bcff808135a21217",
+        "reviewerId": "architecture-reviewer",
+        "scopeId": "architecture-maintainability",
+        "severity": "WARNING",
+        "category": "CONTRADICTORY_DECISION",
+        "summary": "Reviewer skill portfolio claims are inconsistent: the repository rules describe complete portfolio activation across all nine agents, while the Architecture Reviewer definition explicitly declares no skills.",
+        "evidenceRefs": [
+          "AGENTS.md:20-20",
+          "docs/architecture/agent-architecture.md:35-35",
+          "docs/architecture/architecture-reviewer.md:20-22"
+        ],
+        "affectedArtifacts": [
+          "AGENTS.md",
+          "docs/architecture/agent-architecture.md",
+          "docs/architecture/architecture-reviewer.md"
+        ],
+        "recommendedAction": "Define the canonical reviewer skill-assignment state in the registry or one authoritative architecture document, then align the portfolio statements and the Architecture Reviewer catalog definition. Explicitly state whether the Architecture Reviewer has zero skills or participates in the active portfolio with assigned skills.",
+        "blockingClassification": "NORMAL_PRIORITY",
+        "owner": "architecture"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "AGENTS.md:20-20",
+        "docs/architecture/agent-architecture.md:35-35",
+        "docs/architecture/architecture-reviewer.md:20-22"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "architecture-reviewer",
+        "relativePath": "docs/admin/self-review-results/architecture-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "89787a4b0101e56e354fcf7ddad5b0d0d5b4f9f2eb4372a215ee86b1a62a0c47"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "AGENTS.md",
+          "startLine": 20,
+          "endLine": 20,
+          "checksum": "b137b5ff8151b130b3c7bb17efa7b53800fb7e84a703a1b0f7d1924a4147ddaa",
+          "lineCount": 29,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "docs/architecture/agent-architecture.md",
+          "startLine": 35,
+          "endLine": 35,
+          "checksum": "08b4c2d9f9d8ef592d9d51f81fd8204e0ef93dbdc16f18345a4d26259e287aa5",
+          "lineCount": 50,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "docs/architecture/architecture-reviewer.md",
+          "startLine": 20,
+          "endLine": 22,
+          "checksum": "d9bb5e6505900eda772e71124db954e2ff6dd0e5a8536eca708aa57a6a032db9",
+          "lineCount": 22,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: Reviewer skill portfolio claims are inconsistent: the repository rules describe complete portfolio activation across all nine agents, while the Architecture Reviewer definition explicitly declares no skills.",
+      "currentEffectiveSeverity": "WARNING",
+      "correctionGroupId": "cg-18-skill-portfolio-source-of-truth",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-4970556ab704416b2bf8",
+      "originalReviewer": "test-quality-reviewer",
+      "originalSeverity": "ERROR",
+      "originalCategory": "CRITICAL_FLOW_NOT_VERIFIED",
+      "originalSubsystem": "tests",
+      "originalFinding": {
+        "findingId": "finding-4970556ab704416b2bf8",
+        "reviewerId": "test-quality-reviewer",
+        "scopeId": "quality-runtime-and-release-tests",
+        "severity": "ERROR",
+        "category": "CRITICAL_FLOW_NOT_VERIFIED",
+        "summary": "Release-critical browser behavior has no execution evidence.",
+        "evidenceRefs": [
+          "package.json:1-64",
+          "scripts/factory-e2e-smoke.ts:1-36"
+        ],
+        "affectedArtifacts": [
+          "package.json",
+          "scripts/factory-e2e-smoke.ts"
+        ],
+        "recommendedAction": "Provide a recorded successful factory Playwright/E2E execution report covering the release-critical user flow, or mark release evidence incomplete. The current command is opt-in and emits REAL_FACTORY_E2E_PENDING without executing when preflight is not opted in.",
+        "blockingClassification": "HIGH_PRIORITY",
+        "owner": "tests"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "package.json:1-64",
+        "scripts/factory-e2e-smoke.ts:1-36"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "test-quality-reviewer",
+        "relativePath": "docs/admin/self-review-results/test-quality-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "b681675dd916cdd48a555e5760020fc286532bd547d58257dc163ff68d4e9eef"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "package.json",
+          "startLine": 1,
+          "endLine": 64,
+          "checksum": "d3b5ecfedc5a57cfed5f52928b83ed15e2645934c05a48ec8638dee6b20a4f06",
+          "lineCount": 64,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/factory-e2e-smoke.ts",
+          "startLine": 1,
+          "endLine": 36,
+          "checksum": "c5b0082dee8ede2263fcdaa99cfeb248daac2811ad5b730fe13c87854ff1e5b0",
+          "lineCount": 36,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: Release-critical browser behavior has no execution evidence.",
+      "currentEffectiveSeverity": "ERROR",
+      "correctionGroupId": "cg-14-runtime-release-evidence",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-4bba2d52b86f240393fc",
+      "originalReviewer": "architecture-reviewer",
+      "originalSeverity": "WARNING",
+      "originalCategory": "DEPENDENCY_ARCHITECTURE",
+      "originalSubsystem": "architecture",
+      "originalFinding": {
+        "findingId": "finding-4bba2d52b86f240393fc",
+        "reviewerId": "architecture-reviewer",
+        "scopeId": "architecture-module-boundaries",
+        "severity": "WARNING",
+        "category": "DEPENDENCY_ARCHITECTURE",
+        "summary": "The deterministic design provider uses module-global mutable generationSalt and a module-load now value, coupling otherwise independent requests through shared runtime state.",
+        "evidenceRefs": [
+          "src/agents/design/deterministic.ts:6-8"
+        ],
+        "affectedArtifacts": [
+          "src/agents/design/deterministic.ts:6-8"
+        ],
+        "recommendedAction": "Pass generation-specific salt and timestamps as function inputs or keep them local to a generation operation. Remove module-level mutable generationSalt so concurrent design requests cannot influence one another, and avoid a module-load timestamp for persisted document timestamps.",
+        "blockingClassification": "NORMAL_PRIORITY",
+        "owner": "architecture"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/agents/design/deterministic.ts:6-8"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "architecture-reviewer",
+        "relativePath": "docs/admin/self-review-results/architecture-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "89787a4b0101e56e354fcf7ddad5b0d0d5b4f9f2eb4372a215ee86b1a62a0c47"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/design/deterministic.ts",
+          "startLine": 6,
+          "endLine": 8,
+          "checksum": "fb24bd4b96b473ab160b24f1a56f612f54278321fde3bb8292ae0d41b41791df",
+          "lineCount": 35,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: The deterministic design provider uses module-global mutable generationSalt and a module-load now value, coupling otherwise independent requests through shared runtime state.",
+      "currentEffectiveSeverity": "WARNING",
+      "correctionGroupId": "cg-10-design-request-isolation",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-517e635c9c23995687d8",
+      "originalReviewer": "code-integration-reviewer",
+      "originalSeverity": "WARNING",
+      "originalCategory": "ERROR_HANDLING",
+      "originalSubsystem": "implementation",
+      "originalFinding": {
+        "findingId": "finding-517e635c9c23995687d8",
+        "reviewerId": "code-integration-reviewer",
+        "scopeId": "integration-execution-runtime",
+        "severity": "WARNING",
+        "category": "ERROR_HANDLING",
+        "summary": "Real factory E2E failures after runtime creation can leave the runtime unclosed.",
+        "evidenceRefs": [
+          "scripts/factory-e2e-smoke.ts:15-35"
+        ],
+        "affectedArtifacts": [
+          "scripts/factory-e2e-smoke.ts"
+        ],
+        "recommendedAction": "Ensure the production runtime is closed when preflight succeeds and runtime creation is followed by an exception during resume loading or runRealFactoryE2E, rather than only closing it after a successful report.",
+        "blockingClassification": "NORMAL_PRIORITY",
+        "owner": "implementation"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "scripts/factory-e2e-smoke.ts:15-35"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "code-integration-reviewer",
+        "relativePath": "docs/admin/self-review-results/code-integration-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "7bde090970d35b0fc9f3914c32782b0c63c0f1574fed9fddf04af8beef0041e3"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "scripts/factory-e2e-smoke.ts",
+          "startLine": 15,
+          "endLine": 35,
+          "checksum": "c5b0082dee8ede2263fcdaa99cfeb248daac2811ad5b730fe13c87854ff1e5b0",
+          "lineCount": 36,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: Real factory E2E failures after runtime creation can leave the runtime unclosed.",
+      "currentEffectiveSeverity": "WARNING",
+      "correctionGroupId": "cg-07-runtime-cleanup-lifecycle",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-51d38dcb2b668ff33332",
+      "originalReviewer": "test-quality-reviewer",
+      "originalSeverity": "ERROR",
+      "originalCategory": "CRITICAL_FLOW_NOT_VERIFIED",
+      "originalSubsystem": "tests",
+      "originalFinding": {
+        "findingId": "finding-51d38dcb2b668ff33332",
+        "reviewerId": "test-quality-reviewer",
+        "scopeId": "quality-contract-and-agent-tests",
+        "severity": "ERROR",
+        "category": "CRITICAL_FLOW_NOT_VERIFIED",
+        "summary": "Reviewer services are identified and cataloged, but their review execution and output-contract behavior are not meaningfully verified.",
+        "evidenceRefs": [
+          "src/agents/catalog.test.ts:5-74",
+          "src/agents/catalog.ts:82-129",
+          "src/agents/design/service.ts:132-260"
+        ],
+        "affectedArtifacts": [
+          "src/agents/catalog.test.ts",
+          "src/agents/catalog.ts",
+          "src/agents/design/service.ts"
+        ],
+        "recommendedAction": "Add focused behavioral evidence for reviewer-service execution and output-contract handling, including valid review results and rejection of malformed or incomplete reviewer outputs. The current evidence verifies reviewer definitions and service associations but does not demonstrate reviewer behavior.",
+        "blockingClassification": "HIGH_PRIORITY",
+        "owner": "tests"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/agents/catalog.test.ts:5-74",
+        "src/agents/catalog.ts:82-129",
+        "src/agents/design/service.ts:132-260"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "test-quality-reviewer",
+        "relativePath": "docs/admin/self-review-results/test-quality-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "b681675dd916cdd48a555e5760020fc286532bd547d58257dc163ff68d4e9eef"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/catalog.test.ts",
+          "startLine": 5,
+          "endLine": 74,
+          "checksum": "8e528ae03659590e15a78c92babd0c71d9842e5ffa355bf3ba0ac59d67fb75f2",
+          "lineCount": 74,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/catalog.ts",
+          "startLine": 82,
+          "endLine": 129,
+          "checksum": "0f2a4bb03a6979c3d1807d9942b25695d0c368db63b08b4320c5d033cce2c81d",
+          "lineCount": 129,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/design/service.ts",
+          "startLine": 132,
+          "endLine": 260,
+          "checksum": "e6122cd129d517149dd9604a0e41c607a65e45ddc6ada6e718506c0e813da986",
+          "lineCount": 724,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: Reviewer services are identified and cataloged, but their review execution and output-contract behavior are not meaningfully verified.",
+      "currentEffectiveSeverity": "ERROR",
+      "correctionGroupId": "cg-13-reviewer-execution-evidence",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-5f4cd4a958172b921dfd",
+      "originalReviewer": "architecture-reviewer",
+      "originalSeverity": "WARNING",
+      "originalCategory": "SOURCE_OF_TRUTH",
+      "originalSubsystem": "architecture",
+      "originalFinding": {
+        "findingId": "finding-5f4cd4a958172b921dfd",
+        "reviewerId": "architecture-reviewer",
+        "scopeId": "architecture-maintainability",
+        "severity": "WARNING",
+        "category": "SOURCE_OF_TRUTH",
+        "summary": "Several architecture documents mix current-state and planned-state descriptions without an explicit supersession marker, making repository boundaries and implemented capability difficult to determine.",
+        "evidenceRefs": [
+          "docs/architecture/product-specification.md:3-16",
+          "docs/architecture/implementation-roadmap.md:7-23",
+          "docs/architecture/repository-structure.md:51-53",
+          "docs/architecture/agent-architecture.md:1-12"
+        ],
+        "affectedArtifacts": [
+          "docs/architecture/product-specification.md",
+          "docs/architecture/implementation-roadmap.md",
+          "docs/architecture/repository-structure.md",
+          "docs/architecture/agent-architecture.md"
+        ],
+        "recommendedAction": "Add an explicit document-status or milestone source of truth and mark superseded roadmap/product/repository statements, or update them to the same current baseline. In particular, reconcile the claim that the repository contains only the foundation and that reviewer directories are future work with the claims that the reviewer portfolio and production execution adapters are implemented.",
+        "blockingClassification": "NORMAL_PRIORITY",
+        "owner": "architecture"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "docs/architecture/product-specification.md:3-16",
+        "docs/architecture/implementation-roadmap.md:7-23",
+        "docs/architecture/repository-structure.md:51-53",
+        "docs/architecture/agent-architecture.md:1-12"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "architecture-reviewer",
+        "relativePath": "docs/admin/self-review-results/architecture-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "89787a4b0101e56e354fcf7ddad5b0d0d5b4f9f2eb4372a215ee86b1a62a0c47"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "docs/architecture/product-specification.md",
+          "startLine": 3,
+          "endLine": 16,
+          "checksum": "9b4fc0d09dd05559167437f277041c9a40b45ab00a60d4a276a814f13abd9018",
+          "lineCount": 16,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "docs/architecture/implementation-roadmap.md",
+          "startLine": 7,
+          "endLine": 23,
+          "checksum": "2c8dd24338942bd253568126f049c336e7f2943104422368fc6636b0fbaf4de7",
+          "lineCount": 40,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "docs/architecture/repository-structure.md",
+          "startLine": 51,
+          "endLine": 53,
+          "checksum": "c3245f5bdf90dbbbce831690e1fd5d50d67bcecec3f1bfa6408b345b83a27fdc",
+          "lineCount": 53,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "docs/architecture/agent-architecture.md",
+          "startLine": 1,
+          "endLine": 12,
+          "checksum": "08b4c2d9f9d8ef592d9d51f81fd8204e0ef93dbdc16f18345a4d26259e287aa5",
+          "lineCount": 50,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: Several architecture documents mix current-state and planned-state descriptions without an explicit supersession marker, making repository boundaries and implemented capability difficult to determine.",
+      "currentEffectiveSeverity": "WARNING",
+      "correctionGroupId": "cg-19-architecture-document-state",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-601d85f09cdb45d46400",
+      "originalReviewer": "test-quality-reviewer",
+      "originalSeverity": "WARNING",
+      "originalCategory": "FALSE_CONFIDENCE_TEST",
+      "originalSubsystem": "tests",
+      "originalFinding": {
+        "findingId": "finding-601d85f09cdb45d46400",
+        "reviewerId": "test-quality-reviewer",
+        "scopeId": "quality-runtime-and-release-tests",
+        "severity": "WARNING",
+        "category": "FALSE_CONFIDENCE_TEST",
+        "summary": "Backend smoke evidence validates proposal acceptance rather than runtime backend behavior.",
+        "evidenceRefs": [
+          "scripts/backend-smoke.ts:1-23"
+        ],
+        "affectedArtifacts": [
+          "scripts/backend-smoke.ts"
+        ],
+        "recommendedAction": "Supplement the proposal-validation smoke with an executed boundary test that verifies the resulting migration and server action behavior. The current script explicitly reports migrationExecuted: false and validates only proposal construction and validation, so it can pass while runtime persistence behavior is disconnected.",
+        "blockingClassification": "NORMAL_PRIORITY",
+        "owner": "tests"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "scripts/backend-smoke.ts:1-23"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "test-quality-reviewer",
+        "relativePath": "docs/admin/self-review-results/test-quality-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "b681675dd916cdd48a555e5760020fc286532bd547d58257dc163ff68d4e9eef"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "scripts/backend-smoke.ts",
+          "startLine": 1,
+          "endLine": 23,
+          "checksum": "12afec111d3e8b1b710d3cb8fbf1c53a032d458abc92ded48f8ff5ee5a24ae1e",
+          "lineCount": 23,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: Backend smoke evidence validates proposal acceptance rather than runtime backend behavior.",
+      "currentEffectiveSeverity": "WARNING",
+      "correctionGroupId": "cg-14-runtime-release-evidence",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-7586dd5bd4661d954bf4",
+      "originalReviewer": "security-reviewer",
+      "originalSeverity": "ERROR",
+      "originalCategory": "DATABASE_ACCESS",
+      "originalSubsystem": "security",
+      "originalFinding": {
+        "findingId": "finding-7586dd5bd4661d954bf4",
+        "reviewerId": "security-reviewer",
+        "scopeId": "security-supabase-boundary",
+        "severity": "ERROR",
+        "category": "DATABASE_ACCESS",
+        "summary": "The generated schema has no ownership column, while the RLS validator only checks that RLS is enabled and rejects broad true predicates; this does not establish row-level ownership authorization.",
+        "evidenceRefs": [
+          "src/agents/implementation/provider.ts:22",
+          "src/agents/implementation/backend.ts:29"
+        ],
+        "affectedArtifacts": [
+          "src/agents/implementation/provider.ts:22",
+          "src/agents/implementation/backend.ts:29"
+        ],
+        "recommendedAction": "Ensure user-scoped tables include an ownership or tenant key and that the database migration and policies enforce it consistently for SELECT, INSERT, UPDATE, and DELETE. Do not treat enabling RLS alone as sufficient authorization.",
+        "blockingClassification": "BLOCKING_FOR_PHASE_6",
+        "owner": "security"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/agents/implementation/provider.ts:22",
+        "src/agents/implementation/backend.ts:29"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "security-reviewer",
+        "relativePath": "docs/admin/self-review-results/security-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "7335046d388a8bf62b7eae23d052c369187877ba3ba961177371566a66c59502"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/implementation/provider.ts",
+          "startLine": 22,
+          "endLine": 22,
+          "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb",
+          "lineCount": 32,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/backend.ts",
+          "startLine": 29,
+          "endLine": 29,
+          "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159",
+          "lineCount": 40,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: The generated schema has no ownership column, while the RLS validator only checks that RLS is enabled and rejects broad true predicates; this does not establish row-level ownership authorization.",
+      "currentEffectiveSeverity": "ERROR",
+      "correctionGroupId": "cg-02-authentication-authorization-rls",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-865697184809f419d1b7",
+      "originalReviewer": "security-reviewer",
+      "originalSeverity": "WARNING",
+      "originalCategory": "RLS_POLICY",
+      "originalSubsystem": "security",
+      "originalFinding": {
+        "findingId": "finding-865697184809f419d1b7",
+        "reviewerId": "security-reviewer",
+        "scopeId": "security-auth-storage-boundary",
+        "severity": "WARNING",
+        "category": "RLS_POLICY",
+        "summary": "The supplied RLS implementation example allows every authenticated user to select all rows via auth.uid() is not null. Whether this is an authorization defect is contract-dependent because no ownership or audience policy is included in the supplied evidence.",
+        "evidenceRefs": [
+          "src/agents/implementation/backend.ts:1-40",
+          "src/agents/implementation/provider.ts:1-32"
+        ],
+        "affectedArtifacts": [
+          "src/agents/implementation/backend.ts",
+          "src/agents/implementation/provider.ts"
+        ],
+        "recommendedAction": "Provide an explicit table ownership/access contract and require policies to constrain reads and writes to the intended principal, tenant, or approved public audience. The current validation rejects only universally true policies and anonymous access; it does not establish that authenticated users may access only their own records.",
+        "blockingClassification": "BLOCKING_FOR_PHASE_6",
+        "owner": "security"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/agents/implementation/backend.ts:1-40",
+        "src/agents/implementation/provider.ts:1-32"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "security-reviewer",
+        "relativePath": "docs/admin/self-review-results/security-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "7335046d388a8bf62b7eae23d052c369187877ba3ba961177371566a66c59502"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/implementation/backend.ts",
+          "startLine": 1,
+          "endLine": 40,
+          "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159",
+          "lineCount": 40,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/provider.ts",
+          "startLine": 1,
+          "endLine": 32,
+          "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb",
+          "lineCount": 32,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: The supplied RLS implementation example allows every authenticated user to select all rows via auth.uid() is not null. Whether this is an authorization defect is contract-dependent because no ownership or audience policy is included in the supplied evidence.",
+      "currentEffectiveSeverity": "WARNING",
+      "correctionGroupId": "cg-02-authentication-authorization-rls",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-9106112c9ba65e4be7ed",
+      "originalReviewer": "architecture-reviewer",
+      "originalSeverity": "WARNING",
+      "originalCategory": "IDENTITY_MODEL",
+      "originalSubsystem": "architecture",
+      "originalFinding": {
+        "findingId": "finding-9106112c9ba65e4be7ed",
+        "reviewerId": "architecture-reviewer",
+        "scopeId": "architecture-tradeoffs",
+        "severity": "WARNING",
+        "category": "IDENTITY_MODEL",
+        "summary": "Query index selection can be ambiguous when more than one workspace path exists for the same project version.",
+        "evidenceRefs": [
+          "src/integrations/codebase-memory/service.ts:35-41",
+          "src/integrations/codebase-memory/contracts.ts:7-26",
+          "src/integrations/codebase-memory/policy.ts:25-28"
+        ],
+        "affectedArtifacts": [
+          "src/integrations/codebase-memory/service.ts",
+          "src/integrations/codebase-memory/contracts.ts"
+        ],
+        "recommendedAction": "The Project Memory owner should require a workspace scope for queries or make lookup use the complete canonical workspace identity. The current fallback selects the first in-memory index matching only projectId and projectVersion, while canonical identity also includes the resolved workspace path.",
+        "blockingClassification": "NORMAL_PRIORITY",
+        "owner": "architecture"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/integrations/codebase-memory/service.ts:35-41",
+        "src/integrations/codebase-memory/contracts.ts:7-26",
+        "src/integrations/codebase-memory/policy.ts:25-28"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "architecture-reviewer",
+        "relativePath": "docs/admin/self-review-results/architecture-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "89787a4b0101e56e354fcf7ddad5b0d0d5b4f9f2eb4372a215ee86b1a62a0c47"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/integrations/codebase-memory/service.ts",
+          "startLine": 35,
+          "endLine": 41,
+          "checksum": "dd273c5d70da607bf26f591d3795138bef02a5aa2b5cd183747008a8e856b93b",
+          "lineCount": 41,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/codebase-memory/contracts.ts",
+          "startLine": 7,
+          "endLine": 26,
+          "checksum": "b452aaf53072343b453ac0c6af03bb94a657249f318fed68b93315d5d95702cf",
+          "lineCount": 26,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/codebase-memory/policy.ts",
+          "startLine": 25,
+          "endLine": 28,
+          "checksum": "5890938ba799ced178593c027c72762fd2b95e53af41f2caa6531f9e23a362df",
+          "lineCount": 28,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: Query index selection can be ambiguous when more than one workspace path exists for the same project version.",
+      "currentEffectiveSeverity": "WARNING",
+      "correctionGroupId": "cg-11-codebase-index-identity",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-b227589f057cc3fa00ac",
+      "originalReviewer": "security-reviewer",
+      "originalSeverity": "ERROR",
+      "originalCategory": "FILE_UPLOAD_SECURITY",
+      "originalSubsystem": "security",
+      "originalFinding": {
+        "findingId": "finding-b227589f057cc3fa00ac",
+        "reviewerId": "security-reviewer",
+        "scopeId": "security-auth-storage-boundary",
+        "severity": "ERROR",
+        "category": "FILE_UPLOAD_SECURITY",
+        "summary": "The storage artifact only validates a caller-supplied type prefix and numeric size; it does not perform an upload or establish bucket, object ownership, access, or signed-URL controls.",
+        "evidenceRefs": [
+          "src/agents/implementation/provider.ts:1-32",
+          "src/agents/implementation/backend.ts:1-40"
+        ],
+        "affectedArtifacts": [
+          "src/agents/implementation/provider.ts",
+          "src/agents/implementation/backend.ts"
+        ],
+        "recommendedAction": "If storage is required, implement and validate the complete upload boundary: server-side authorization, approved bucket selection, ownership-derived object paths, private/public bucket policy, byte-size limits, allowed formats based on actual content rather than only the client-declared MIME type, and signed URL behavior. Reject the storage task or mark it incomplete until these controls and the applicable Storage policies are present.",
+        "blockingClassification": "HIGH_PRIORITY",
+        "owner": "security"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/agents/implementation/provider.ts:1-32",
+        "src/agents/implementation/backend.ts:1-40"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "security-reviewer",
+        "relativePath": "docs/admin/self-review-results/security-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "7335046d388a8bf62b7eae23d052c369187877ba3ba961177371566a66c59502"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/implementation/provider.ts",
+          "startLine": 1,
+          "endLine": 32,
+          "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb",
+          "lineCount": 32,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/backend.ts",
+          "startLine": 1,
+          "endLine": 40,
+          "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159",
+          "lineCount": 40,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: The storage artifact only validates a caller-supplied type prefix and numeric size; it does not perform an upload or establish bucket, object ownership, access, or signed-URL controls.",
+      "currentEffectiveSeverity": "ERROR",
+      "correctionGroupId": "cg-03-storage-ownership-controls",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-b385146a5a20fb3e4f1b",
+      "originalReviewer": "contract-auditor",
+      "originalSeverity": "CRITICAL",
+      "originalCategory": "IDENTITY_MISMATCH",
+      "originalSubsystem": "contracts",
+      "originalFinding": {
+        "findingId": "finding-b385146a5a20fb3e4f1b",
+        "reviewerId": "contract-auditor",
+        "scopeId": "contracts-review-and-persistence",
+        "severity": "CRITICAL",
+        "category": "IDENTITY_MISMATCH",
+        "summary": "The downstream input schemas accept multiple canonical artifacts with independently valid checksums but do not themselves bind those artifacts to the same project and version; checksum validation proves document integrity, not cross-artifact identity.",
+        "evidenceRefs": [
+          "src/agents/reviewers/contracts/contracts.ts:11-16",
+          "src/agents/reviewers/contracts/deterministic.ts:24-28",
+          "src/agents/reviewers/code-integration/contracts.ts:12-16",
+          "src/agents/reviewers/code-integration/deterministic.ts:5-16",
+          "src/agents/reviewers/code-integration/service.ts:65-83"
+        ],
+        "affectedArtifacts": [
+          "src/agents/reviewers/contracts/deterministic.ts",
+          "src/agents/reviewers/contracts/contracts.ts",
+          "src/agents/reviewers/code-integration/deterministic.ts",
+          "src/agents/reviewers/code-integration/service.ts"
+        ],
+        "recommendedAction": "Add an explicit cross-artifact identity invariant at the downstream review boundary: every supplied Brief, Planning Package, review record, Design, TaskGraph, and audit record must match the input projectId and projectVersion before provider or deterministic review proceeds.",
+        "blockingClassification": "BLOCKING_FOR_PHASE_6",
+        "owner": "contracts"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/agents/reviewers/contracts/contracts.ts:11-16",
+        "src/agents/reviewers/contracts/deterministic.ts:24-28",
+        "src/agents/reviewers/code-integration/contracts.ts:12-16",
+        "src/agents/reviewers/code-integration/deterministic.ts:5-16",
+        "src/agents/reviewers/code-integration/service.ts:65-83"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "contract-auditor",
+        "relativePath": "docs/admin/self-review-results/contract-auditor-950bc148572f7b8f-run3.json",
+        "checksum": "1669d72909110d5edd8a764f249f17cd335eba155d59e50028df9380b630fb5d"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/reviewers/contracts/contracts.ts",
+          "startLine": 11,
+          "endLine": 16,
+          "checksum": "7c3ac24991be9a37fdae8f7b62c624c6a806dab8f3351dfd4112c4994bac365a",
+          "lineCount": 18,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/reviewers/contracts/deterministic.ts",
+          "startLine": 24,
+          "endLine": 28,
+          "checksum": "9023ac9d8da298317ce2eaa926b53f283c02786ccc915c23ba4b048bc61b4547",
+          "lineCount": 59,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/reviewers/code-integration/contracts.ts",
+          "startLine": 12,
+          "endLine": 16,
+          "checksum": "76b6ed179becf5329ea49769cb9b22659a39aadf8125b2675447a5373f1299a1",
+          "lineCount": 21,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/reviewers/code-integration/deterministic.ts",
+          "startLine": 5,
+          "endLine": 16,
+          "checksum": "64813f96125498eb43f9c3fb0faaa0095122b43bd951653bd82b8ad8134d387c",
+          "lineCount": 27,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/reviewers/code-integration/service.ts",
+          "startLine": 65,
+          "endLine": 83,
+          "checksum": "29adf4c78e24daff5672172469db10ce10778f7bff668b89068d51004653f7a3",
+          "lineCount": 284,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: The downstream input schemas accept multiple canonical artifacts with independently valid checksums but do not themselves bind those artifacts to the same project and version; checksum validation proves document integrity, not cross-artifact identity.",
+      "currentEffectiveSeverity": "CRITICAL",
+      "correctionGroupId": "cg-01-cross-artifact-identity",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-bf13a0c6f16bf4702e9e",
+      "originalReviewer": "test-quality-reviewer",
+      "originalSeverity": "WARNING",
+      "originalCategory": "REQUIREMENT_NOT_VERIFIED",
+      "originalSubsystem": "tests",
+      "originalFinding": {
+        "findingId": "finding-bf13a0c6f16bf4702e9e",
+        "reviewerId": "test-quality-reviewer",
+        "scopeId": "quality-contract-and-agent-tests",
+        "severity": "WARNING",
+        "category": "REQUIREMENT_NOT_VERIFIED",
+        "summary": "Several design gate and contract failure paths are implemented but lack direct quality evidence.",
+        "evidenceRefs": [
+          "src/agents/design/contracts.ts:1-24",
+          "src/agents/design/service.ts:68-130",
+          "src/agents/design/design.test.ts:24-42"
+        ],
+        "affectedArtifacts": [
+          "src/agents/design/contracts.ts",
+          "src/agents/design/service.ts",
+          "src/agents/design/design.test.ts"
+        ],
+        "recommendedAction": "Add targeted contract-boundary evidence for stale brief or planning checksums, invalid workflow state, missing architecture approval, and unapproved requirement changes. Existing design tests cover several business outcomes, but the supplied evidence does not directly verify these input-contract failure modes.",
+        "blockingClassification": "NORMAL_PRIORITY",
+        "owner": "tests"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/agents/design/contracts.ts:1-24",
+        "src/agents/design/service.ts:68-130",
+        "src/agents/design/design.test.ts:24-42"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "test-quality-reviewer",
+        "relativePath": "docs/admin/self-review-results/test-quality-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "b681675dd916cdd48a555e5760020fc286532bd547d58257dc163ff68d4e9eef"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/design/contracts.ts",
+          "startLine": 1,
+          "endLine": 24,
+          "checksum": "a50e5b83af7315a0c2ce7114ca17b222602913741e8991f3d8d639cd14532704",
+          "lineCount": 24,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/design/service.ts",
+          "startLine": 68,
+          "endLine": 130,
+          "checksum": "e6122cd129d517149dd9604a0e41c607a65e45ddc6ada6e718506c0e813da986",
+          "lineCount": 724,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/design/design.test.ts",
+          "startLine": 24,
+          "endLine": 42,
+          "checksum": "972ac2edfc0d89a7609115ab8012a5e591ac49999290ce07299b228a7c0308bc",
+          "lineCount": 42,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: Several design gate and contract failure paths are implemented but lack direct quality evidence.",
+      "currentEffectiveSeverity": "WARNING",
+      "correctionGroupId": "cg-17-design-gate-evidence",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-c200a7f61e715bc94be1",
+      "originalReviewer": "security-reviewer",
+      "originalSeverity": "ERROR",
+      "originalCategory": "AUTHENTICATION_FLOW",
+      "originalSubsystem": "security",
+      "originalFinding": {
+        "findingId": "finding-c200a7f61e715bc94be1",
+        "reviewerId": "security-reviewer",
+        "scopeId": "security-auth-storage-boundary",
+        "severity": "ERROR",
+        "category": "AUTHENTICATION_FLOW",
+        "summary": "The authentication implementation is only a stub: getAuthenticatedUser() always returns null, so no authenticated principal or session verification is established.",
+        "evidenceRefs": [
+          "src/agents/implementation/provider.ts:1-32",
+          "src/agents/implementation/backend.ts:1-40"
+        ],
+        "affectedArtifacts": [
+          "src/agents/implementation/provider.ts",
+          "src/agents/implementation/backend.ts"
+        ],
+        "recommendedAction": "Do not treat the generated authentication artifact as an implemented authentication flow. Require a server-side session or token verification implementation, explicit failure handling for unauthenticated requests, and verification that the authenticated principal is propagated to protected operations before accepting the authentication task.",
+        "blockingClassification": "HIGH_PRIORITY",
+        "owner": "security"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/agents/implementation/provider.ts:1-32",
+        "src/agents/implementation/backend.ts:1-40"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "security-reviewer",
+        "relativePath": "docs/admin/self-review-results/security-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "7335046d388a8bf62b7eae23d052c369187877ba3ba961177371566a66c59502"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/implementation/provider.ts",
+          "startLine": 1,
+          "endLine": 32,
+          "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb",
+          "lineCount": 32,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/backend.ts",
+          "startLine": 1,
+          "endLine": 40,
+          "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159",
+          "lineCount": 40,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: The authentication implementation is only a stub: getAuthenticatedUser() always returns null, so no authenticated principal or session verification is established.",
+      "currentEffectiveSeverity": "ERROR",
+      "correctionGroupId": "cg-02-authentication-authorization-rls",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-c94e4c6dd19f957eeb40",
+      "originalReviewer": "code-integration-reviewer",
+      "originalSeverity": "ERROR",
+      "originalCategory": "ERROR_HANDLING",
+      "originalSubsystem": "implementation",
+      "originalFinding": {
+        "findingId": "finding-c94e4c6dd19f957eeb40",
+        "reviewerId": "code-integration-reviewer",
+        "scopeId": "integration-execution-runtime",
+        "severity": "ERROR",
+        "category": "ERROR_HANDLING",
+        "summary": "Database configuration failures bypass the scripts' safe error-propagation path.",
+        "evidenceRefs": [
+          "scripts/db-common.mjs:18-26",
+          "scripts/db-migrate.mjs:8-9",
+          "scripts/db-status.mjs:2-2",
+          "scripts/db-verify.mjs:3-3",
+          "scripts/db-smoke.ts:18-18"
+        ],
+        "affectedArtifacts": [
+          "scripts/db-common.mjs",
+          "scripts/db-migrate.mjs",
+          "scripts/db-status.mjs",
+          "scripts/db-verify.mjs",
+          "scripts/db-smoke.ts"
+        ],
+        "recommendedAction": "Move database-pool construction inside the protected execution path, or add an equivalent top-level failure handler, so DATABASE_CONFIGURATION_MISSING and other pool-creation failures use the established safe error codes and deterministic nonzero process exit behavior.",
+        "blockingClassification": "BLOCKING_FOR_PHASE_6",
+        "owner": "implementation"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "scripts/db-common.mjs:18-26",
+        "scripts/db-migrate.mjs:8-9",
+        "scripts/db-status.mjs:2-2",
+        "scripts/db-verify.mjs:3-3",
+        "scripts/db-smoke.ts:18-18"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "code-integration-reviewer",
+        "relativePath": "docs/admin/self-review-results/code-integration-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "7bde090970d35b0fc9f3914c32782b0c63c0f1574fed9fddf04af8beef0041e3"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "scripts/db-common.mjs",
+          "startLine": 18,
+          "endLine": 26,
+          "checksum": "4d6727028d35e03a8a374943b3c7b913d769347311a72103b25102cb988feb0b",
+          "lineCount": 31,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/db-migrate.mjs",
+          "startLine": 8,
+          "endLine": 9,
+          "checksum": "f6105203745fb1a63d99affd1396422f21f251c39d07d3f1168abee1da9c0bbc",
+          "lineCount": 26,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/db-status.mjs",
+          "startLine": 2,
+          "endLine": 2,
+          "checksum": "f7383ddf91d7fe7cf5658d1f4b9e027f6344f82d620503fd6fe8e4019abe2fb3",
+          "lineCount": 6,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/db-verify.mjs",
+          "startLine": 3,
+          "endLine": 3,
+          "checksum": "725cb2f5976d3e0bffdb9a68bee91a71a89fe72da6abb17a6960e734649ca435",
+          "lineCount": 22,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/db-smoke.ts",
+          "startLine": 18,
+          "endLine": 18,
+          "checksum": "fc2970a68028ebcba076d166e3dc07f933f2ea6bbbb4461ab8758831a0d61857",
+          "lineCount": 41,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: Database configuration failures bypass the scripts' safe error-propagation path.",
+      "currentEffectiveSeverity": "ERROR",
+      "correctionGroupId": "cg-06-database-error-propagation",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-cec06a12d17a2b103135",
+      "originalReviewer": "test-quality-reviewer",
+      "originalSeverity": "ERROR",
+      "originalCategory": "DATA_FLOW_NOT_VERIFIED",
+      "originalSubsystem": "tests",
+      "originalFinding": {
+        "findingId": "finding-cec06a12d17a2b103135",
+        "reviewerId": "test-quality-reviewer",
+        "scopeId": "quality-runtime-and-release-tests",
+        "severity": "ERROR",
+        "category": "DATA_FLOW_NOT_VERIFIED",
+        "summary": "Persistence and migration assertions are defined but not evidenced as executed.",
+        "evidenceRefs": [
+          "scripts/db-smoke.ts:1-41",
+          "scripts/db-verify.mjs:1-22",
+          "scripts/db-migrate.mjs:1-26"
+        ],
+        "affectedArtifacts": [
+          "scripts/db-smoke.ts",
+          "scripts/db-verify.mjs",
+          "scripts/db-migrate.mjs"
+        ],
+        "recommendedAction": "Attach execution output from the database migration, schema verification, and persistence smoke flow against the intended database boundary. The scripts contain meaningful assertions for idempotency, round-trip persistence, workflow guards, concurrency, and cleanup, but no run result is supplied.",
+        "blockingClassification": "HIGH_PRIORITY",
+        "owner": "tests"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "scripts/db-smoke.ts:1-41",
+        "scripts/db-verify.mjs:1-22",
+        "scripts/db-migrate.mjs:1-26"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "test-quality-reviewer",
+        "relativePath": "docs/admin/self-review-results/test-quality-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "b681675dd916cdd48a555e5760020fc286532bd547d58257dc163ff68d4e9eef"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "scripts/db-smoke.ts",
+          "startLine": 1,
+          "endLine": 41,
+          "checksum": "fc2970a68028ebcba076d166e3dc07f933f2ea6bbbb4461ab8758831a0d61857",
+          "lineCount": 41,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/db-verify.mjs",
+          "startLine": 1,
+          "endLine": 22,
+          "checksum": "725cb2f5976d3e0bffdb9a68bee91a71a89fe72da6abb17a6960e734649ca435",
+          "lineCount": 22,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/db-migrate.mjs",
+          "startLine": 1,
+          "endLine": 26,
+          "checksum": "f6105203745fb1a63d99affd1396422f21f251c39d07d3f1168abee1da9c0bbc",
+          "lineCount": 26,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: Persistence and migration assertions are defined but not evidenced as executed.",
+      "currentEffectiveSeverity": "ERROR",
+      "correctionGroupId": "cg-15-persistence-migration-evidence",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-e055bfdcbad92c9b36eb",
+      "originalReviewer": "security-reviewer",
+      "originalSeverity": "ERROR",
+      "originalCategory": "AUTHORIZATION",
+      "originalSubsystem": "security",
+      "originalFinding": {
+        "findingId": "finding-e055bfdcbad92c9b36eb",
+        "reviewerId": "security-reviewer",
+        "scopeId": "security-auth-storage-boundary",
+        "severity": "ERROR",
+        "category": "AUTHORIZATION",
+        "summary": "Authorization is not enforced as a mandatory runtime boundary. The validator only checks for authorization patterns conditionally, while the deterministic Server Action and Route Handler contain input validation but no authentication or authorization checks.",
+        "evidenceRefs": [
+          "src/agents/implementation/backend.ts:1-40",
+          "src/agents/implementation/provider.ts:1-32"
+        ],
+        "affectedArtifacts": [
+          "src/agents/implementation/backend.ts",
+          "src/agents/implementation/provider.ts"
+        ],
+        "recommendedAction": "Require runtime authorization for every protected Server Action and Route Handler, including resource ownership or role checks based on the server-derived identity. The proposal validator must not rely only on whether generated text happens to mention authorization-related terms; authorization requirements should come from the approved operation contract and be enforced in the handler.",
+        "blockingClassification": "BLOCKING_FOR_PHASE_6",
+        "owner": "security"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/agents/implementation/backend.ts:1-40",
+        "src/agents/implementation/provider.ts:1-32"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "security-reviewer",
+        "relativePath": "docs/admin/self-review-results/security-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "7335046d388a8bf62b7eae23d052c369187877ba3ba961177371566a66c59502"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/implementation/backend.ts",
+          "startLine": 1,
+          "endLine": 40,
+          "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159",
+          "lineCount": 40,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/provider.ts",
+          "startLine": 1,
+          "endLine": 32,
+          "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb",
+          "lineCount": 32,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: Authorization is not enforced as a mandatory runtime boundary. The validator only checks for authorization patterns conditionally, while the deterministic Server Action and Route Handler contain input validation but no authentication or authorization checks.",
+      "currentEffectiveSeverity": "ERROR",
+      "correctionGroupId": "cg-02-authentication-authorization-rls",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-eb166a34da7872c62d77",
+      "originalReviewer": "security-reviewer",
+      "originalSeverity": "WARNING",
+      "originalCategory": "STORAGE_ACCESS",
+      "originalSubsystem": "security",
+      "originalFinding": {
+        "findingId": "finding-eb166a34da7872c62d77",
+        "reviewerId": "security-reviewer",
+        "scopeId": "security-supabase-boundary",
+        "severity": "WARNING",
+        "category": "STORAGE_ACCESS",
+        "summary": "The generated storage implementation only checks MIME type and size; no bucket access policy or user-scoped object authorization is evidenced.",
+        "evidenceRefs": [
+          "src/agents/implementation/provider.ts:28",
+          "src/agents/implementation/backend.ts:34"
+        ],
+        "affectedArtifacts": [
+          "src/agents/implementation/provider.ts:28",
+          "src/agents/implementation/backend.ts:34"
+        ],
+        "recommendedAction": "Implement and validate the actual Supabase Storage bucket policy and object-path authorization, including authenticated ownership or tenant scoping, rather than only validating MIME type and size in a helper function. Confirm that uploads, reads, updates, and deletes cannot cross user boundaries.",
+        "blockingClassification": "BLOCKING_FOR_PHASE_6",
+        "owner": "security"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/agents/implementation/provider.ts:28",
+        "src/agents/implementation/backend.ts:34"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "security-reviewer",
+        "relativePath": "docs/admin/self-review-results/security-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "7335046d388a8bf62b7eae23d052c369187877ba3ba961177371566a66c59502"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/implementation/provider.ts",
+          "startLine": 28,
+          "endLine": 28,
+          "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb",
+          "lineCount": 32,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/backend.ts",
+          "startLine": 34,
+          "endLine": 34,
+          "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159",
+          "lineCount": 40,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: The generated storage implementation only checks MIME type and size; no bucket access policy or user-scoped object authorization is evidenced.",
+      "currentEffectiveSeverity": "WARNING",
+      "correctionGroupId": "cg-03-storage-ownership-controls",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-efa4502938176a741e32",
+      "originalReviewer": "architecture-reviewer",
+      "originalSeverity": "ERROR",
+      "originalCategory": "DATA_ARCHITECTURE",
+      "originalSubsystem": "architecture",
+      "originalFinding": {
+        "findingId": "finding-efa4502938176a741e32",
+        "reviewerId": "architecture-reviewer",
+        "scopeId": "architecture-module-boundaries",
+        "severity": "ERROR",
+        "category": "DATA_ARCHITECTURE",
+        "summary": "Design persistence is split across database and filesystem paths, while the injected DecisionRepository is unused by DesignMemoryAdapter.",
+        "evidenceRefs": [
+          "src/agents/design/memory.ts:7-12",
+          "src/agents/design/server.ts:7",
+          "src/agents/design/service.ts:4-9"
+        ],
+        "affectedArtifacts": [
+          "src/agents/design/memory.ts:1-23",
+          "src/agents/design/server.ts:1-9",
+          "src/agents/design/service.ts:1-260"
+        ],
+        "recommendedAction": "Define one authoritative persistence owner for design decisions and snapshots. Either make DesignMemoryAdapter persist through the supplied DecisionRepository and explicitly coordinate filesystem synchronization, or remove the unused repository dependency and document the database-to-filesystem synchronization owner. Ensure a failed write cannot leave database and filesystem state divergent.",
+        "blockingClassification": "HIGH_PRIORITY",
+        "owner": "architecture"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/agents/design/memory.ts:7-12",
+        "src/agents/design/server.ts:7",
+        "src/agents/design/service.ts:4-9"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "architecture-reviewer",
+        "relativePath": "docs/admin/self-review-results/architecture-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "89787a4b0101e56e354fcf7ddad5b0d0d5b4f9f2eb4372a215ee86b1a62a0c47"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/design/memory.ts",
+          "startLine": 7,
+          "endLine": 12,
+          "checksum": "8d9c97bf82d36cba95c21b53e5544483174a6eff89bd3b86e910a67670cdd3f2",
+          "lineCount": 23,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/design/server.ts",
+          "startLine": 7,
+          "endLine": 7,
+          "checksum": "be356de84eda58245c772c3605eaec424a3d15deefcd83f9d76f0bdbf17e0563",
+          "lineCount": 9,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/design/service.ts",
+          "startLine": 4,
+          "endLine": 9,
+          "checksum": "e6122cd129d517149dd9604a0e41c607a65e45ddc6ada6e718506c0e813da986",
+          "lineCount": 724,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: Design persistence is split across database and filesystem paths, while the injected DecisionRepository is unused by DesignMemoryAdapter.",
+      "currentEffectiveSeverity": "ERROR",
+      "correctionGroupId": "cg-05-design-durable-state-authority",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-f13df5392f71f7cf58df",
+      "originalReviewer": "architecture-reviewer",
+      "originalSeverity": "WARNING",
+      "originalCategory": "STORAGE_ARCHITECTURE",
+      "originalSubsystem": "architecture",
+      "originalFinding": {
+        "findingId": "finding-f13df5392f71f7cf58df",
+        "reviewerId": "architecture-reviewer",
+        "scopeId": "architecture-tradeoffs",
+        "severity": "WARNING",
+        "category": "STORAGE_ARCHITECTURE",
+        "summary": "Project Memory defines metadata but the service stores indexes, cache, and idempotency state only in process memory.",
+        "evidenceRefs": [
+          "src/integrations/codebase-memory/service.ts:13-41",
+          "src/integrations/codebase-memory/metadata.ts:1-5"
+        ],
+        "affectedArtifacts": [
+          "src/integrations/codebase-memory/service.ts",
+          "src/integrations/codebase-memory/metadata.ts"
+        ],
+        "recommendedAction": "The project-memory owner should decide whether index metadata and query state are intentionally process-local or must survive generated-runtime restarts. If persistence is required, connect the existing metadata contract to the lifecycle; otherwise document the restart and reindex consequence and remove the unused persistence-shaped contract if it is not part of the selected design.",
+        "blockingClassification": "NORMAL_PRIORITY",
+        "owner": "architecture"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "src/integrations/codebase-memory/service.ts:13-41",
+        "src/integrations/codebase-memory/metadata.ts:1-5"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "architecture-reviewer",
+        "relativePath": "docs/admin/self-review-results/architecture-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "89787a4b0101e56e354fcf7ddad5b0d0d5b4f9f2eb4372a215ee86b1a62a0c47"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "src/integrations/codebase-memory/service.ts",
+          "startLine": 13,
+          "endLine": 41,
+          "checksum": "dd273c5d70da607bf26f591d3795138bef02a5aa2b5cd183747008a8e856b93b",
+          "lineCount": 41,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/codebase-memory/metadata.ts",
+          "startLine": 1,
+          "endLine": 5,
+          "checksum": "6ef08f3337f0d57ec025cc8ff63a9cb3102dff2c31f42962298cdc264409981e",
+          "lineCount": 5,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: Project Memory defines metadata but the service stores indexes, cache, and idempotency state only in process memory.",
+      "currentEffectiveSeverity": "WARNING",
+      "correctionGroupId": "cg-09-project-memory-durability",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    },
+    {
+      "findingId": "finding-f27b5098995ae5bb44c9",
+      "originalReviewer": "test-quality-reviewer",
+      "originalSeverity": "ERROR",
+      "originalCategory": "REQUIREMENT_NOT_VERIFIED",
+      "originalSubsystem": "tests",
+      "originalFinding": {
+        "findingId": "finding-f27b5098995ae5bb44c9",
+        "reviewerId": "test-quality-reviewer",
+        "scopeId": "quality-runtime-and-release-tests",
+        "severity": "ERROR",
+        "category": "REQUIREMENT_NOT_VERIFIED",
+        "summary": "No test artifacts or recorded test results are included in the review evidence.",
+        "evidenceRefs": [
+          "package.json:1-64"
+        ],
+        "affectedArtifacts": [
+          "package.json"
+        ],
+        "recommendedAction": "Provide deterministic Vitest and Playwright result artifacts linked to the approved behavior. The evidence manifest reports testFilesIncluded: 0, so the presence of test commands does not demonstrate that approved behavior was exercised.",
+        "blockingClassification": "HIGH_PRIORITY",
+        "owner": "tests"
+      },
+      "originalTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+      "originalEvidence": [
+        "package.json:1-64"
+      ],
+      "originalEvidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "originalReviewerResultArtifact": {
+        "reviewerId": "test-quality-reviewer",
+        "relativePath": "docs/admin/self-review-results/test-quality-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "b681675dd916cdd48a555e5760020fc286532bd547d58257dc163ff68d4e9eef"
+      },
+      "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5",
+      "currentness": "ACTIVE_UNCHANGED",
+      "currentEvidence": [
+        {
+          "relativePath": "package.json",
+          "startLine": 1,
+          "endLine": 64,
+          "checksum": "d3b5ecfedc5a57cfed5f52928b83ed15e2645934c05a48ec8638dee6b20a4f06",
+          "lineCount": 64,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "laterRelevantChanges": [],
+      "remainingIssue": "The validated finding remains applicable at current HEAD: No test artifacts or recorded test results are included in the review evidence.",
+      "currentEffectiveSeverity": "ERROR",
+      "correctionGroupId": "cg-13-reviewer-execution-evidence",
+      "verificationMethod": "git-diff-unchanged-evidence-fast-path"
+    }
+  ],
+  "correctionReadyFindingCount": 31,
+  "correctionReadySeverityCounts": {
+    "CRITICAL": 2,
+    "ERROR": 13,
+    "WARNING": 15,
+    "INFO": 1
+  },
+  "correctionGroups": [
+    {
+      "groupId": "cg-01-cross-artifact-identity",
+      "title": "Restore cross-artifact project identity binding",
+      "rootCause": "Bind every downstream canonical artifact to the same projectId and projectVersion before review proceeds.",
+      "rootCauseConfidence": "HIGH",
+      "findingIds": [
+        "finding-b385146a5a20fb3e4f1b"
+      ],
+      "currentHighestSeverity": "CRITICAL",
+      "affectedSubsystems": [
+        "reviewer input contracts and downstream identity"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/reviewers/contracts/contracts.ts",
+          "startLine": 11,
+          "endLine": 16,
+          "checksum": "7c3ac24991be9a37fdae8f7b62c624c6a806dab8f3351dfd4112c4994bac365a",
+          "lineCount": 18,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/reviewers/contracts/deterministic.ts",
+          "startLine": 24,
+          "endLine": 28,
+          "checksum": "9023ac9d8da298317ce2eaa926b53f283c02786ccc915c23ba4b048bc61b4547",
+          "lineCount": 59,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/reviewers/code-integration/contracts.ts",
+          "startLine": 12,
+          "endLine": 16,
+          "checksum": "76b6ed179becf5329ea49769cb9b22659a39aadf8125b2675447a5373f1299a1",
+          "lineCount": 21,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/reviewers/code-integration/deterministic.ts",
+          "startLine": 5,
+          "endLine": 16,
+          "checksum": "64813f96125498eb43f9c3fb0faaa0095122b43bd951653bd82b8ad8134d387c",
+          "lineCount": 27,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/reviewers/code-integration/service.ts",
+          "startLine": 65,
+          "endLine": 83,
+          "checksum": "29adf4c78e24daff5672172469db10ce10778f7bff668b89068d51004653f7a3",
+          "lineCount": 284,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Bind every downstream canonical artifact to the same projectId and projectVersion before review proceeds.",
+      "nonGoals": [
+        "No new artifact type",
+        "No reviewer write authority",
+        "No stack or workflow redesign"
+      ],
+      "likelyFiles": [
+        "src/agents/reviewers/contracts/contracts.ts",
+        "src/agents/reviewers/contracts/deterministic.ts",
+        "src/agents/reviewers/code-integration/contracts.ts",
+        "src/agents/reviewers/code-integration/deterministic.ts",
+        "src/agents/reviewers/code-integration/service.ts"
+      ],
+      "likelyCapability": "implementation",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "targeted Contract Auditor tests",
+        "targeted Code / Integration Reviewer tests",
+        "npm run typecheck",
+        "npm run lint"
+      ],
+      "requiredReviewerRechecks": [
+        "contract-auditor",
+        "code-integration-reviewer"
+      ],
+      "dependencies": [],
+      "estimatedRisk": "HIGH",
+      "recommendedOrder": 1
+    },
+    {
+      "groupId": "cg-02-authentication-authorization-rls",
+      "title": "Establish authenticated identity and ownership authorization",
+      "rootCause": "Make authenticated identity and user-scoped authorization mandatory before protected database behavior is considered valid.",
+      "rootCauseConfidence": "HIGH",
+      "findingIds": [
+        "finding-0590fb313e72090696f0",
+        "finding-233d7f1502c96cf535e1",
+        "finding-7586dd5bd4661d954bf4",
+        "finding-865697184809f419d1b7",
+        "finding-c200a7f61e715bc94be1",
+        "finding-e055bfdcbad92c9b36eb"
+      ],
+      "currentHighestSeverity": "CRITICAL",
+      "affectedSubsystems": [
+        "authentication, authorization, generated backend and RLS"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/implementation/provider.ts",
+          "startLine": 25,
+          "endLine": 25,
+          "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb",
+          "lineCount": 32,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/backend.ts",
+          "startLine": 31,
+          "endLine": 31,
+          "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159",
+          "lineCount": 40,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/provider.ts",
+          "startLine": 22,
+          "endLine": 22,
+          "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb",
+          "lineCount": 32,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/backend.ts",
+          "startLine": 29,
+          "endLine": 29,
+          "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159",
+          "lineCount": 40,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/backend.test.ts",
+          "startLine": 17,
+          "endLine": 17,
+          "checksum": "4dba8508ff3553d9c6caeeb488d0bd785a1ee5bdf5edf7b59c30ab88a4abfb90",
+          "lineCount": 21,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/provider.ts",
+          "startLine": 22,
+          "endLine": 22,
+          "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb",
+          "lineCount": 32,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/backend.ts",
+          "startLine": 29,
+          "endLine": 29,
+          "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159",
+          "lineCount": 40,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/backend.ts",
+          "startLine": 1,
+          "endLine": 40,
+          "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159",
+          "lineCount": 40,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/provider.ts",
+          "startLine": 1,
+          "endLine": 32,
+          "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb",
+          "lineCount": 32,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/provider.ts",
+          "startLine": 1,
+          "endLine": 32,
+          "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb",
+          "lineCount": 32,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/backend.ts",
+          "startLine": 1,
+          "endLine": 40,
+          "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159",
+          "lineCount": 40,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/backend.ts",
+          "startLine": 1,
+          "endLine": 40,
+          "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159",
+          "lineCount": 40,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/provider.ts",
+          "startLine": 1,
+          "endLine": 32,
+          "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb",
+          "lineCount": 32,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Make authenticated identity and user-scoped authorization mandatory before protected database behavior is considered valid.",
+      "nonGoals": [
+        "No broad security platform change",
+        "No unrelated storage redesign",
+        "No Phase 6A production mutation"
+      ],
+      "likelyFiles": [
+        "src/agents/implementation/provider.ts",
+        "src/agents/implementation/backend.ts",
+        "src/agents/implementation/backend.test.ts",
+        "src/runtime/validation/security.ts"
+      ],
+      "likelyCapability": "implementation",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "targeted security and backend tests",
+        "specific schema/security validator",
+        "npm run typecheck",
+        "npm run lint",
+        "database integrity checks"
+      ],
+      "requiredReviewerRechecks": [
+        "security-reviewer",
+        "contract-auditor"
+      ],
+      "dependencies": [
+        "cg-01-cross-artifact-identity"
+      ],
+      "estimatedRisk": "HIGH",
+      "recommendedOrder": 2
+    },
+    {
+      "groupId": "cg-03-storage-ownership-controls",
+      "title": "Bind storage operations to ownership and access policy",
+      "rootCause": "Replace type/size-only validation with an explicit bucket, object ownership, access, and signed-URL contract where storage is required.",
+      "rootCauseConfidence": "HIGH",
+      "findingIds": [
+        "finding-b227589f057cc3fa00ac",
+        "finding-eb166a34da7872c62d77"
+      ],
+      "currentHighestSeverity": "ERROR",
+      "affectedSubsystems": [
+        "uploads, storage objects and access policy"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/implementation/provider.ts",
+          "startLine": 1,
+          "endLine": 32,
+          "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb",
+          "lineCount": 32,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/backend.ts",
+          "startLine": 1,
+          "endLine": 40,
+          "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159",
+          "lineCount": 40,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/provider.ts",
+          "startLine": 28,
+          "endLine": 28,
+          "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb",
+          "lineCount": 32,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/backend.ts",
+          "startLine": 34,
+          "endLine": 34,
+          "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159",
+          "lineCount": 40,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Replace type/size-only validation with an explicit bucket, object ownership, access, and signed-URL contract where storage is required.",
+      "nonGoals": [
+        "No storage feature invention",
+        "No unrelated auth redesign"
+      ],
+      "likelyFiles": [
+        "src/agents/implementation/provider.ts",
+        "src/agents/implementation/backend.ts",
+        "src/agents/implementation/backend.test.ts",
+        "supabase/migrations/"
+      ],
+      "likelyCapability": "implementation",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "targeted storage/security tests",
+        "specific RLS/storage validator",
+        "database integrity checks"
+      ],
+      "requiredReviewerRechecks": [
+        "security-reviewer"
+      ],
+      "dependencies": [
+        "cg-02-authentication-authorization-rls"
+      ],
+      "estimatedRisk": "HIGH",
+      "recommendedOrder": 3
+    },
+    {
+      "groupId": "cg-04-provider-config-and-lifecycle",
+      "title": "Make provider configuration and external work lifecycle explicit",
+      "rootCause": "Reject empty provider model configuration and ensure configured limits remain truthful when external work is cancelled or times out.",
+      "rootCauseConfidence": "HIGH",
+      "findingIds": [
+        "finding-24cb4b563e9b341a84fd",
+        "finding-3ea29b90bbf550eecdb3"
+      ],
+      "currentHighestSeverity": "ERROR",
+      "affectedSubsystems": [
+        "OpenAI provider configuration, concurrency and cancellation"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "src/integrations/openai/config.ts",
+          "startLine": 4,
+          "endLine": 12,
+          "checksum": "d604ecbc767e71c46ee08a61b6e79889051bbd0a5dc004201c17a0d4529ef05d",
+          "lineCount": 13,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/openai/production.ts",
+          "startLine": 1,
+          "endLine": 7,
+          "checksum": "11f68f597aff32cb1a13ff27950550c113cb3ce0b1c900505b73779bbf290f5e",
+          "lineCount": 7,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/openai/client.ts",
+          "startLine": 23,
+          "endLine": 29,
+          "checksum": "45c3d711c29ccee7a38ab7e47e1639bf6211d84a9a7ccbd93248affe11cf47e5",
+          "lineCount": 136,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/codebase-memory/service.ts",
+          "startLine": 38,
+          "endLine": 41,
+          "checksum": "dd273c5d70da607bf26f591d3795138bef02a5aa2b5cd183747008a8e856b93b",
+          "lineCount": 41,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/context7/service.ts",
+          "startLine": 30,
+          "endLine": 39,
+          "checksum": "7e3731dbb9dcca4eee416cdd3b6c36dbd422b76754109fdd883e10dea61f7d3b",
+          "lineCount": 39,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/openai/client.ts",
+          "startLine": 23,
+          "endLine": 39,
+          "checksum": "45c3d711c29ccee7a38ab7e47e1639bf6211d84a9a7ccbd93248affe11cf47e5",
+          "lineCount": 136,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Reject empty provider model configuration and ensure configured limits remain truthful when external work is cancelled or times out.",
+      "nonGoals": [
+        "No model migration",
+        "No new queue framework",
+        "No provider fallback policy"
+      ],
+      "likelyFiles": [
+        "src/integrations/openai/config.ts",
+        "src/integrations/openai/client.ts",
+        "src/integrations/openai/limiter.ts",
+        "src/integrations/context7/service.ts",
+        "src/integrations/codebase-memory/service.ts"
+      ],
+      "likelyCapability": "implementation",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "OpenAI provider tests",
+        "limiter cancellation tests",
+        "npm run typecheck",
+        "npm run lint"
+      ],
+      "requiredReviewerRechecks": [
+        "architecture-reviewer",
+        "code-integration-reviewer"
+      ],
+      "dependencies": [
+        "cg-01-cross-artifact-identity"
+      ],
+      "estimatedRisk": "HIGH",
+      "recommendedOrder": 4
+    },
+    {
+      "groupId": "cg-05-design-durable-state-authority",
+      "title": "Unify Design state ownership and persistence",
+      "rootCause": "Make durable repositories and Project Memory the authoritative state path instead of process-local Maps and split filesystem/database state.",
+      "rootCauseConfidence": "HIGH",
+      "findingIds": [
+        "finding-1540c99220f633245955",
+        "finding-efa4502938176a741e32"
+      ],
+      "currentHighestSeverity": "ERROR",
+      "affectedSubsystems": [
+        "Design Agent persistence, workflow state and memory"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/design/service.ts",
+          "startLine": 34,
+          "endLine": 50,
+          "checksum": "e6122cd129d517149dd9604a0e41c607a65e45ddc6ada6e718506c0e813da986",
+          "lineCount": 724,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/design/service.ts",
+          "startLine": 200,
+          "endLine": 260,
+          "checksum": "e6122cd129d517149dd9604a0e41c607a65e45ddc6ada6e718506c0e813da986",
+          "lineCount": 724,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/design/memory.ts",
+          "startLine": 7,
+          "endLine": 12,
+          "checksum": "8d9c97bf82d36cba95c21b53e5544483174a6eff89bd3b86e910a67670cdd3f2",
+          "lineCount": 23,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/design/server.ts",
+          "startLine": 7,
+          "endLine": 7,
+          "checksum": "be356de84eda58245c772c3605eaec424a3d15deefcd83f9d76f0bdbf17e0563",
+          "lineCount": 9,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/design/service.ts",
+          "startLine": 4,
+          "endLine": 9,
+          "checksum": "e6122cd129d517149dd9604a0e41c607a65e45ddc6ada6e718506c0e813da986",
+          "lineCount": 724,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Make durable repositories and Project Memory the authoritative state path instead of process-local Maps and split filesystem/database state.",
+      "nonGoals": [
+        "No design behavior changes",
+        "No new persistence technology"
+      ],
+      "likelyFiles": [
+        "src/agents/design/service.ts",
+        "src/agents/design/memory.ts",
+        "src/agents/design/server.ts"
+      ],
+      "likelyCapability": "implementation",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "targeted Design tests",
+        "persistence integrity test",
+        "npm run typecheck"
+      ],
+      "requiredReviewerRechecks": [
+        "architecture-reviewer",
+        "code-integration-reviewer"
+      ],
+      "dependencies": [
+        "cg-01-cross-artifact-identity"
+      ],
+      "estimatedRisk": "HIGH",
+      "recommendedOrder": 5
+    },
+    {
+      "groupId": "cg-06-database-error-propagation",
+      "title": "Preserve safe database configuration error propagation",
+      "rootCause": "Ensure database configuration failures travel through the established safe error path without bypasses.",
+      "rootCauseConfidence": "HIGH",
+      "findingIds": [
+        "finding-c94e4c6dd19f957eeb40"
+      ],
+      "currentHighestSeverity": "ERROR",
+      "affectedSubsystems": [
+        "database scripts and operational error handling"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "scripts/db-common.mjs",
+          "startLine": 18,
+          "endLine": 26,
+          "checksum": "4d6727028d35e03a8a374943b3c7b913d769347311a72103b25102cb988feb0b",
+          "lineCount": 31,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/db-migrate.mjs",
+          "startLine": 8,
+          "endLine": 9,
+          "checksum": "f6105203745fb1a63d99affd1396422f21f251c39d07d3f1168abee1da9c0bbc",
+          "lineCount": 26,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/db-status.mjs",
+          "startLine": 2,
+          "endLine": 2,
+          "checksum": "f7383ddf91d7fe7cf5658d1f4b9e027f6344f82d620503fd6fe8e4019abe2fb3",
+          "lineCount": 6,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/db-verify.mjs",
+          "startLine": 3,
+          "endLine": 3,
+          "checksum": "725cb2f5976d3e0bffdb9a68bee91a71a89fe72da6abb17a6960e734649ca435",
+          "lineCount": 22,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/db-smoke.ts",
+          "startLine": 18,
+          "endLine": 18,
+          "checksum": "fc2970a68028ebcba076d166e3dc07f933f2ea6bbbb4461ab8758831a0d61857",
+          "lineCount": 41,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Ensure database configuration failures travel through the established safe error path without bypasses.",
+      "nonGoals": [
+        "No database schema change"
+      ],
+      "likelyFiles": [
+        "scripts/db-common.mjs",
+        "scripts/db-migrate.mjs",
+        "scripts/db-status.mjs",
+        "scripts/db-verify.mjs",
+        "scripts/db-smoke.ts"
+      ],
+      "likelyCapability": "implementation",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "targeted database script tests",
+        "npm run db:validate",
+        "npm run db:verify"
+      ],
+      "requiredReviewerRechecks": [
+        "code-integration-reviewer"
+      ],
+      "dependencies": [
+        "cg-01-cross-artifact-identity"
+      ],
+      "estimatedRisk": "MEDIUM",
+      "recommendedOrder": 6
+    },
+    {
+      "groupId": "cg-07-runtime-cleanup-lifecycle",
+      "title": "Close generated runtime resources on E2E failure",
+      "rootCause": "Guarantee runtime cleanup on every post-creation failure path.",
+      "rootCauseConfidence": "HIGH",
+      "findingIds": [
+        "finding-517e635c9c23995687d8"
+      ],
+      "currentHighestSeverity": "WARNING",
+      "affectedSubsystems": [
+        "Factory E2E runtime lifecycle"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "scripts/factory-e2e-smoke.ts",
+          "startLine": 15,
+          "endLine": 35,
+          "checksum": "c5b0082dee8ede2263fcdaa99cfeb248daac2811ad5b730fe13c87854ff1e5b0",
+          "lineCount": 36,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Guarantee runtime cleanup on every post-creation failure path.",
+      "nonGoals": [
+        "No new E2E scenarios"
+      ],
+      "likelyFiles": [
+        "scripts/factory-e2e-smoke.ts"
+      ],
+      "likelyCapability": "implementation",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "targeted E2E stage-runner tests",
+        "TaskGraph smoke"
+      ],
+      "requiredReviewerRechecks": [
+        "code-integration-reviewer",
+        "test-quality-reviewer"
+      ],
+      "dependencies": [
+        "cg-06-database-error-propagation"
+      ],
+      "estimatedRisk": "MEDIUM",
+      "recommendedOrder": 7
+    },
+    {
+      "groupId": "cg-08-context7-authority",
+      "title": "Make Context7 eligibility single-source",
+      "rootCause": "Use one authoritative eligibility decision path for Context7 dependency access.",
+      "rootCauseConfidence": "HIGH",
+      "findingIds": [
+        "finding-20662816cdabed08871f"
+      ],
+      "currentHighestSeverity": "WARNING",
+      "affectedSubsystems": [
+        "Context7 dependency eligibility policy"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "src/integrations/context7/policy.ts",
+          "startLine": 3,
+          "endLine": 13,
+          "checksum": "5384087f0496ade31f7afe30b9090b589e991d69a08fa46807c101c076d691bc",
+          "lineCount": 13,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/context7/service.ts",
+          "startLine": 9,
+          "endLine": 18,
+          "checksum": "7e3731dbb9dcca4eee416cdd3b6c36dbd422b76754109fdd883e10dea61f7d3b",
+          "lineCount": 39,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/context7/contracts.ts",
+          "startLine": 17,
+          "endLine": 20,
+          "checksum": "6be99d1b13fb953385b83d166b9051806ad59b6383543f90736bad1d1b45cb1f",
+          "lineCount": 20,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Use one authoritative eligibility decision path for Context7 dependency access.",
+      "nonGoals": [
+        "No Context7 replacement",
+        "No new external integration"
+      ],
+      "likelyFiles": [
+        "src/integrations/context7/policy.ts",
+        "src/integrations/context7/service.ts",
+        "src/integrations/context7/contracts.ts"
+      ],
+      "likelyCapability": "implementation",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "targeted Context7 tests",
+        "npm run typecheck"
+      ],
+      "requiredReviewerRechecks": [
+        "architecture-reviewer",
+        "code-integration-reviewer"
+      ],
+      "dependencies": [
+        "cg-04-provider-config-and-lifecycle"
+      ],
+      "estimatedRisk": "MEDIUM",
+      "recommendedOrder": 8
+    },
+    {
+      "groupId": "cg-09-project-memory-durability",
+      "title": "Persist Project Memory indexes and idempotency state",
+      "rootCause": "Align Project Memory runtime state with its declared durable metadata and authority boundary.",
+      "rootCauseConfidence": "MEDIUM",
+      "findingIds": [
+        "finding-f13df5392f71f7cf58df"
+      ],
+      "currentHighestSeverity": "WARNING",
+      "affectedSubsystems": [
+        "Project Memory metadata, cache and idempotency"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "src/integrations/codebase-memory/service.ts",
+          "startLine": 13,
+          "endLine": 41,
+          "checksum": "dd273c5d70da607bf26f591d3795138bef02a5aa2b5cd183747008a8e856b93b",
+          "lineCount": 41,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/codebase-memory/metadata.ts",
+          "startLine": 1,
+          "endLine": 5,
+          "checksum": "6ef08f3337f0d57ec025cc8ff63a9cb3102dff2c31f42962298cdc264409981e",
+          "lineCount": 5,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Align Project Memory runtime state with its declared durable metadata and authority boundary.",
+      "nonGoals": [
+        "No new cache or event framework"
+      ],
+      "likelyFiles": [
+        "src/integrations/codebase-memory/service.ts",
+        "src/integrations/codebase-memory/metadata.ts"
+      ],
+      "likelyCapability": "implementation",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "targeted Codebase Memory tests",
+        "persistence integrity test"
+      ],
+      "requiredReviewerRechecks": [
+        "architecture-reviewer",
+        "code-integration-reviewer"
+      ],
+      "dependencies": [
+        "cg-05-design-durable-state-authority"
+      ],
+      "estimatedRisk": "MEDIUM",
+      "recommendedOrder": 9
+    },
+    {
+      "groupId": "cg-10-design-request-isolation",
+      "title": "Remove module-global Design request state",
+      "rootCause": "Make generation salt and timestamps request-local and deterministic without shared mutable module state.",
+      "rootCauseConfidence": "HIGH",
+      "findingIds": [
+        "finding-4bba2d52b86f240393fc"
+      ],
+      "currentHighestSeverity": "WARNING",
+      "affectedSubsystems": [
+        "deterministic Design provider request isolation"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/design/deterministic.ts",
+          "startLine": 6,
+          "endLine": 8,
+          "checksum": "fb24bd4b96b473ab160b24f1a56f612f54278321fde3bb8292ae0d41b41791df",
+          "lineCount": 35,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Make generation salt and timestamps request-local and deterministic without shared mutable module state.",
+      "nonGoals": [
+        "No design direction policy change"
+      ],
+      "likelyFiles": [
+        "src/agents/design/deterministic.ts"
+      ],
+      "likelyCapability": "implementation",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "targeted Design deterministic tests",
+        "npm run typecheck"
+      ],
+      "requiredReviewerRechecks": [
+        "architecture-reviewer",
+        "test-quality-reviewer"
+      ],
+      "dependencies": [
+        "cg-05-design-durable-state-authority"
+      ],
+      "estimatedRisk": "MEDIUM",
+      "recommendedOrder": 10
+    },
+    {
+      "groupId": "cg-11-codebase-index-identity",
+      "title": "Disambiguate Project Memory workspace index selection",
+      "rootCause": "Make index selection deterministic when multiple workspace paths exist for a project version.",
+      "rootCauseConfidence": "HIGH",
+      "findingIds": [
+        "finding-9106112c9ba65e4be7ed"
+      ],
+      "currentHighestSeverity": "WARNING",
+      "affectedSubsystems": [
+        "Codebase Memory workspace path identity"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "src/integrations/codebase-memory/service.ts",
+          "startLine": 35,
+          "endLine": 41,
+          "checksum": "dd273c5d70da607bf26f591d3795138bef02a5aa2b5cd183747008a8e856b93b",
+          "lineCount": 41,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/codebase-memory/contracts.ts",
+          "startLine": 7,
+          "endLine": 26,
+          "checksum": "b452aaf53072343b453ac0c6af03bb94a657249f318fed68b93315d5d95702cf",
+          "lineCount": 26,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/integrations/codebase-memory/policy.ts",
+          "startLine": 25,
+          "endLine": 28,
+          "checksum": "5890938ba799ced178593c027c72762fd2b95e53af41f2caa6531f9e23a362df",
+          "lineCount": 28,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Make index selection deterministic when multiple workspace paths exist for a project version.",
+      "nonGoals": [
+        "No workspace storage redesign"
+      ],
+      "likelyFiles": [
+        "src/integrations/codebase-memory/service.ts",
+        "src/integrations/codebase-memory/contracts.ts",
+        "src/integrations/codebase-memory/policy.ts"
+      ],
+      "likelyCapability": "implementation",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "targeted Codebase Memory tests",
+        "npm run typecheck"
+      ],
+      "requiredReviewerRechecks": [
+        "architecture-reviewer",
+        "code-integration-reviewer"
+      ],
+      "dependencies": [
+        "cg-09-project-memory-durability"
+      ],
+      "estimatedRisk": "MEDIUM",
+      "recommendedOrder": 11
+    },
+    {
+      "groupId": "cg-12-architecture-review-context",
+      "title": "Complete architecture review context and evidence contract",
+      "rootCause": "Ensure architecture review receives and preserves the material approved Brief and PlanningPackage obligations required for traceability.",
+      "rootCauseConfidence": "HIGH",
+      "findingIds": [
+        "finding-0e21399a0a91b82a05dc",
+        "finding-2484a19307c1536e12e7"
+      ],
+      "currentHighestSeverity": "ERROR",
+      "affectedSubsystems": [
+        "Architecture Reviewer canonical evidence and project context"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/reviewers/architecture/deterministic.ts",
+          "startLine": 12,
+          "endLine": 24,
+          "checksum": "aafef0feeb4c6e80a0206c4706d8013129d98e6adb71d02ea0e00496260ab5fb",
+          "lineCount": 38,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/reviewers/architecture/service.ts",
+          "startLine": 225,
+          "endLine": 260,
+          "checksum": "c04d95cbc526e9b90d864afbb604ce96c86f3176751c07ab3131c1d8c922eb24",
+          "lineCount": 360,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "docs/architecture/architecture-reviewer.md",
+          "startLine": 8,
+          "endLine": 12,
+          "checksum": "d9bb5e6505900eda772e71124db954e2ff6dd0e5a8536eca708aa57a6a032db9",
+          "lineCount": 22,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "AGENTS.md",
+          "startLine": 1,
+          "endLine": 29,
+          "checksum": "b137b5ff8151b130b3c7bb17efa7b53800fb7e84a703a1b0f7d1924a4147ddaa",
+          "lineCount": 29,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Ensure architecture review receives and preserves the material approved Brief and PlanningPackage obligations required for traceability.",
+      "nonGoals": [
+        "No new reviewer role",
+        "No architecture redesign by preference"
+      ],
+      "likelyFiles": [
+        "src/agents/reviewers/architecture/deterministic.ts",
+        "src/agents/reviewers/architecture/service.ts",
+        "docs/architecture/architecture-reviewer.md"
+      ],
+      "likelyCapability": "implementation",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "targeted Architecture Reviewer tests",
+        "specific evidence-contract validator",
+        "npm run typecheck"
+      ],
+      "requiredReviewerRechecks": [
+        "architecture-reviewer",
+        "contract-auditor"
+      ],
+      "dependencies": [
+        "cg-01-cross-artifact-identity"
+      ],
+      "estimatedRisk": "MEDIUM",
+      "recommendedOrder": 12
+    },
+    {
+      "groupId": "cg-13-reviewer-execution-evidence",
+      "title": "Provide meaningful reviewer execution and output-contract evidence",
+      "rootCause": "Test reviewer execution, strict output contracts, and preserve trustworthy executed evidence for the reviewer portfolio.",
+      "rootCauseConfidence": "HIGH",
+      "findingIds": [
+        "finding-51d38dcb2b668ff33332",
+        "finding-f27b5098995ae5bb44c9"
+      ],
+      "currentHighestSeverity": "ERROR",
+      "affectedSubsystems": [
+        "reviewer service tests and recorded execution artifacts"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/catalog.test.ts",
+          "startLine": 5,
+          "endLine": 74,
+          "checksum": "8e528ae03659590e15a78c92babd0c71d9842e5ffa355bf3ba0ac59d67fb75f2",
+          "lineCount": 74,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/catalog.ts",
+          "startLine": 82,
+          "endLine": 129,
+          "checksum": "0f2a4bb03a6979c3d1807d9942b25695d0c368db63b08b4320c5d033cce2c81d",
+          "lineCount": 129,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/design/service.ts",
+          "startLine": 132,
+          "endLine": 260,
+          "checksum": "e6122cd129d517149dd9604a0e41c607a65e45ddc6ada6e718506c0e813da986",
+          "lineCount": 724,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "package.json",
+          "startLine": 1,
+          "endLine": 64,
+          "checksum": "d3b5ecfedc5a57cfed5f52928b83ed15e2645934c05a48ec8638dee6b20a4f06",
+          "lineCount": 64,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Test reviewer execution, strict output contracts, and preserve trustworthy executed evidence for the reviewer portfolio.",
+      "nonGoals": [
+        "No broad self-review rerun",
+        "No new reviewer agent"
+      ],
+      "likelyFiles": [
+        "src/agents/catalog.test.ts",
+        "src/agents/catalog.ts",
+        "src/agents/design/service.ts",
+        "package.json"
+      ],
+      "likelyCapability": "test-quality",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "targeted reviewer tests",
+        "npm test -- reviewer test paths",
+        "evidence artifact validator"
+      ],
+      "requiredReviewerRechecks": [
+        "test-quality-reviewer"
+      ],
+      "dependencies": [
+        "cg-12-architecture-review-context"
+      ],
+      "estimatedRisk": "MEDIUM",
+      "recommendedOrder": 13
+    },
+    {
+      "groupId": "cg-14-runtime-release-evidence",
+      "title": "Execute and record release-critical runtime evidence",
+      "rootCause": "Record meaningful runtime behavior evidence rather than only proposal acceptance or unexecuted opt-in scripts.",
+      "rootCauseConfidence": "HIGH",
+      "findingIds": [
+        "finding-4970556ab704416b2bf8",
+        "finding-191200ccc58b25e3fd0c",
+        "finding-601d85f09cdb45d46400"
+      ],
+      "currentHighestSeverity": "ERROR",
+      "affectedSubsystems": [
+        "browser, backend and integration smoke evidence"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "scripts/ai-smoke.ts",
+          "startLine": 1,
+          "endLine": 14,
+          "checksum": "d2aeb54efd1b39a50fec5eca6c96cf42f67e4d83f61b16ec5dc68039090db520",
+          "lineCount": 14,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/context7-smoke.ts",
+          "startLine": 1,
+          "endLine": 17,
+          "checksum": "e3f6b47aca837c6497d4b6768c65c80f25f6c9213f1516a8f9bbcdc7f40cf028",
+          "lineCount": 17,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/codebase-memory-smoke.ts",
+          "startLine": 1,
+          "endLine": 18,
+          "checksum": "8a9692623c68f9f43472faeca68b4e8ed5179cf7e77a8daac66369b5040e3d97",
+          "lineCount": 18,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/generated-runtime-smoke.ts",
+          "startLine": 1,
+          "endLine": 31,
+          "checksum": "cd1c568813ea5e9e2bea87129b82f336adbbfc2698d1a96b8047e67bac2d6a4b",
+          "lineCount": 31,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "package.json",
+          "startLine": 1,
+          "endLine": 64,
+          "checksum": "d3b5ecfedc5a57cfed5f52928b83ed15e2645934c05a48ec8638dee6b20a4f06",
+          "lineCount": 64,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/factory-e2e-smoke.ts",
+          "startLine": 1,
+          "endLine": 36,
+          "checksum": "c5b0082dee8ede2263fcdaa99cfeb248daac2811ad5b730fe13c87854ff1e5b0",
+          "lineCount": 36,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/backend-smoke.ts",
+          "startLine": 1,
+          "endLine": 23,
+          "checksum": "12afec111d3e8b1b710d3cb8fbf1c53a032d458abc92ded48f8ff5ee5a24ae1e",
+          "lineCount": 23,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Record meaningful runtime behavior evidence rather than only proposal acceptance or unexecuted opt-in scripts.",
+      "nonGoals": [
+        "No new product features",
+        "No unrelated browser test expansion"
+      ],
+      "likelyFiles": [
+        "scripts/factory-e2e-smoke.ts",
+        "scripts/backend-smoke.ts",
+        "scripts/ai-smoke.ts",
+        "scripts/context7-smoke.ts",
+        "scripts/codebase-memory-smoke.ts",
+        "scripts/generated-runtime-smoke.ts"
+      ],
+      "likelyCapability": "functional-qa",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "targeted functional QA",
+        "targeted runtime smoke scripts",
+        "TaskGraph smoke"
+      ],
+      "requiredReviewerRechecks": [
+        "test-quality-reviewer",
+        "code-integration-reviewer"
+      ],
+      "dependencies": [
+        "cg-07-runtime-cleanup-lifecycle",
+        "cg-13-reviewer-execution-evidence"
+      ],
+      "estimatedRisk": "MEDIUM",
+      "recommendedOrder": 14
+    },
+    {
+      "groupId": "cg-15-persistence-migration-evidence",
+      "title": "Record executed persistence and migration evidence",
+      "rootCause": "Make migration and persistence checks demonstrably executed and bound to the current source state.",
+      "rootCauseConfidence": "HIGH",
+      "findingIds": [
+        "finding-cec06a12d17a2b103135"
+      ],
+      "currentHighestSeverity": "ERROR",
+      "affectedSubsystems": [
+        "database migration, verification and persistence assertions"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "scripts/db-smoke.ts",
+          "startLine": 1,
+          "endLine": 41,
+          "checksum": "fc2970a68028ebcba076d166e3dc07f933f2ea6bbbb4461ab8758831a0d61857",
+          "lineCount": 41,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/db-verify.mjs",
+          "startLine": 1,
+          "endLine": 22,
+          "checksum": "725cb2f5976d3e0bffdb9a68bee91a71a89fe72da6abb17a6960e734649ca435",
+          "lineCount": 22,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "scripts/db-migrate.mjs",
+          "startLine": 1,
+          "endLine": 26,
+          "checksum": "f6105203745fb1a63d99affd1396422f21f251c39d07d3f1168abee1da9c0bbc",
+          "lineCount": 26,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Make migration and persistence checks demonstrably executed and bound to the current source state.",
+      "nonGoals": [
+        "No migration redesign"
+      ],
+      "likelyFiles": [
+        "scripts/db-smoke.ts",
+        "scripts/db-verify.mjs",
+        "scripts/db-migrate.mjs"
+      ],
+      "likelyCapability": "runtime-tests",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "npm run db:validate",
+        "npm run db:verify",
+        "npm run db:test-integrity"
+      ],
+      "requiredReviewerRechecks": [
+        "test-quality-reviewer"
+      ],
+      "dependencies": [
+        "cg-06-database-error-propagation"
+      ],
+      "estimatedRisk": "LOW",
+      "recommendedOrder": 15
+    },
+    {
+      "groupId": "cg-16-implementation-error-recovery-evidence",
+      "title": "Test atomic implementation failure and recovery",
+      "rootCause": "Exercise and record failure/recovery behavior for atomic file application, not only proposal validation.",
+      "rootCauseConfidence": "HIGH",
+      "findingIds": [
+        "finding-0ec8a840d7bf928fec42"
+      ],
+      "currentHighestSeverity": "WARNING",
+      "affectedSubsystems": [
+        "Implementation Agent atomic file application"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/implementation/applier.ts",
+          "startLine": 15,
+          "endLine": 33,
+          "checksum": "54628daf7b0687ef3e4adb899608f11537e0c30023eae2f21168761a5b8f321e",
+          "lineCount": 33,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/implementation/backend.test.ts",
+          "startLine": 8,
+          "endLine": 21,
+          "checksum": "4dba8508ff3553d9c6caeeb488d0bd785a1ee5bdf5edf7b59c30ab88a4abfb90",
+          "lineCount": 21,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Exercise and record failure/recovery behavior for atomic file application, not only proposal validation.",
+      "nonGoals": [
+        "No implementation policy expansion"
+      ],
+      "likelyFiles": [
+        "src/agents/implementation/applier.ts",
+        "src/agents/implementation/backend.test.ts"
+      ],
+      "likelyCapability": "runtime-tests",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "targeted Vitest",
+        "npm run typecheck"
+      ],
+      "requiredReviewerRechecks": [
+        "test-quality-reviewer"
+      ],
+      "dependencies": [
+        "cg-13-reviewer-execution-evidence"
+      ],
+      "estimatedRisk": "LOW",
+      "recommendedOrder": 16
+    },
+    {
+      "groupId": "cg-17-design-gate-evidence",
+      "title": "Cover Design gate and contract failure paths",
+      "rootCause": "Add direct meaningful quality evidence for the implemented Design gate and contract failure paths.",
+      "rootCauseConfidence": "HIGH",
+      "findingIds": [
+        "finding-bf13a0c6f16bf4702e9e"
+      ],
+      "currentHighestSeverity": "WARNING",
+      "affectedSubsystems": [
+        "Design input contracts and workflow gates"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "src/agents/design/contracts.ts",
+          "startLine": 1,
+          "endLine": 24,
+          "checksum": "a50e5b83af7315a0c2ce7114ca17b222602913741e8991f3d8d639cd14532704",
+          "lineCount": 24,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/design/service.ts",
+          "startLine": 68,
+          "endLine": 130,
+          "checksum": "e6122cd129d517149dd9604a0e41c607a65e45ddc6ada6e718506c0e813da986",
+          "lineCount": 724,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "src/agents/design/design.test.ts",
+          "startLine": 24,
+          "endLine": 42,
+          "checksum": "972ac2edfc0d89a7609115ab8012a5e591ac49999290ce07299b228a7c0308bc",
+          "lineCount": 42,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Add direct meaningful quality evidence for the implemented Design gate and contract failure paths.",
+      "nonGoals": [
+        "No Design behavior change by planning alone"
+      ],
+      "likelyFiles": [
+        "src/agents/design/contracts.ts",
+        "src/agents/design/service.ts",
+        "src/agents/design/design.test.ts"
+      ],
+      "likelyCapability": "runtime-tests",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "targeted Design Vitest",
+        "npm run typecheck"
+      ],
+      "requiredReviewerRechecks": [
+        "test-quality-reviewer",
+        "contract-auditor"
+      ],
+      "dependencies": [
+        "cg-05-design-durable-state-authority"
+      ],
+      "estimatedRisk": "LOW",
+      "recommendedOrder": 17
+    },
+    {
+      "groupId": "cg-18-skill-portfolio-source-of-truth",
+      "title": "Align reviewer skill portfolio documentation and catalog",
+      "rootCause": "Make the documented portfolio and the authoritative catalog agree without changing skills or assignments in this plan.",
+      "rootCauseConfidence": "HIGH",
+      "findingIds": [
+        "finding-3ee5bcff808135a21217"
+      ],
+      "currentHighestSeverity": "WARNING",
+      "affectedSubsystems": [
+        "approved skill portfolio documentation and AgentDefinition"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "AGENTS.md",
+          "startLine": 20,
+          "endLine": 20,
+          "checksum": "b137b5ff8151b130b3c7bb17efa7b53800fb7e84a703a1b0f7d1924a4147ddaa",
+          "lineCount": 29,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "docs/architecture/agent-architecture.md",
+          "startLine": 35,
+          "endLine": 35,
+          "checksum": "08b4c2d9f9d8ef592d9d51f81fd8204e0ef93dbdc16f18345a4d26259e287aa5",
+          "lineCount": 50,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "docs/architecture/architecture-reviewer.md",
+          "startLine": 20,
+          "endLine": 22,
+          "checksum": "d9bb5e6505900eda772e71124db954e2ff6dd0e5a8536eca708aa57a6a032db9",
+          "lineCount": 22,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Make the documented portfolio and the authoritative catalog agree without changing skills or assignments in this plan.",
+      "nonGoals": [
+        "No skill additions",
+        "No assignment changes",
+        "No deferred skill activation"
+      ],
+      "likelyFiles": [
+        "AGENTS.md",
+        "docs/architecture/agent-architecture.md",
+        "docs/architecture/architecture-reviewer.md",
+        "src/agents/catalog.ts"
+      ],
+      "likelyCapability": "implementation",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "catalog tests",
+        "portfolio identity tests",
+        "npm run typecheck"
+      ],
+      "requiredReviewerRechecks": [
+        "architecture-reviewer"
+      ],
+      "dependencies": [
+        "cg-13-reviewer-execution-evidence"
+      ],
+      "estimatedRisk": "LOW",
+      "recommendedOrder": 18
+    },
+    {
+      "groupId": "cg-19-architecture-document-state",
+      "title": "Mark current and planned architecture documentation",
+      "rootCause": "Add explicit current/planned/supersession markers so implemented capability is distinguishable from roadmap intent.",
+      "rootCauseConfidence": "HIGH",
+      "findingIds": [
+        "finding-5f4cd4a958172b921dfd"
+      ],
+      "currentHighestSeverity": "WARNING",
+      "affectedSubsystems": [
+        "architecture documentation source of truth"
+      ],
+      "currentEvidence": [
+        {
+          "relativePath": "docs/architecture/product-specification.md",
+          "startLine": 3,
+          "endLine": 16,
+          "checksum": "9b4fc0d09dd05559167437f277041c9a40b45ab00a60d4a276a814f13abd9018",
+          "lineCount": 16,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "docs/architecture/implementation-roadmap.md",
+          "startLine": 7,
+          "endLine": 23,
+          "checksum": "2c8dd24338942bd253568126f049c336e7f2943104422368fc6636b0fbaf4de7",
+          "lineCount": 40,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "docs/architecture/repository-structure.md",
+          "startLine": 51,
+          "endLine": 53,
+          "checksum": "c3245f5bdf90dbbbce831690e1fd5d50d67bcecec3f1bfa6408b345b83a27fdc",
+          "lineCount": 53,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        },
+        {
+          "relativePath": "docs/architecture/agent-architecture.md",
+          "startLine": 1,
+          "endLine": 12,
+          "checksum": "08b4c2d9f9d8ef592d9d51f81fd8204e0ef93dbdc16f18345a4d26259e287aa5",
+          "lineCount": 50,
+          "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+        }
+      ],
+      "correctionGoal": "Add explicit current/planned/supersession markers so implemented capability is distinguishable from roadmap intent.",
+      "nonGoals": [
+        "No architecture implementation change",
+        "No stack change"
+      ],
+      "likelyFiles": [
+        "docs/architecture/product-specification.md",
+        "docs/architecture/implementation-roadmap.md",
+        "docs/architecture/repository-structure.md",
+        "docs/architecture/agent-architecture.md"
+      ],
+      "likelyCapability": "implementation",
+      "likelyExecutor": "Implementation Agent / trusted implementation executor",
+      "requiredDeterministicChecks": [
+        "documentation consistency checks",
+        "npm run lint"
+      ],
+      "requiredReviewerRechecks": [
+        "architecture-reviewer"
+      ],
+      "dependencies": [
+        "cg-18-skill-portfolio-source-of-truth"
+      ],
+      "estimatedRisk": "LOW",
+      "recommendedOrder": 19
+    }
+  ],
+  "rootCauseConfidenceCounts": {
+    "HIGH": 18,
+    "MEDIUM": 1,
+    "LOW": 0
+  },
+  "dependencyGraph": [
+    {
+      "groupId": "cg-01-cross-artifact-identity",
+      "dependsOn": []
+    },
+    {
+      "groupId": "cg-02-authentication-authorization-rls",
+      "dependsOn": [
+        "cg-01-cross-artifact-identity"
+      ]
+    },
+    {
+      "groupId": "cg-03-storage-ownership-controls",
+      "dependsOn": [
+        "cg-02-authentication-authorization-rls"
+      ]
+    },
+    {
+      "groupId": "cg-04-provider-config-and-lifecycle",
+      "dependsOn": [
+        "cg-01-cross-artifact-identity"
+      ]
+    },
+    {
+      "groupId": "cg-05-design-durable-state-authority",
+      "dependsOn": [
+        "cg-01-cross-artifact-identity"
+      ]
+    },
+    {
+      "groupId": "cg-06-database-error-propagation",
+      "dependsOn": [
+        "cg-01-cross-artifact-identity"
+      ]
+    },
+    {
+      "groupId": "cg-07-runtime-cleanup-lifecycle",
+      "dependsOn": [
+        "cg-06-database-error-propagation"
+      ]
+    },
+    {
+      "groupId": "cg-08-context7-authority",
+      "dependsOn": [
+        "cg-04-provider-config-and-lifecycle"
+      ]
+    },
+    {
+      "groupId": "cg-09-project-memory-durability",
+      "dependsOn": [
+        "cg-05-design-durable-state-authority"
+      ]
+    },
+    {
+      "groupId": "cg-10-design-request-isolation",
+      "dependsOn": [
+        "cg-05-design-durable-state-authority"
+      ]
+    },
+    {
+      "groupId": "cg-11-codebase-index-identity",
+      "dependsOn": [
+        "cg-09-project-memory-durability"
+      ]
+    },
+    {
+      "groupId": "cg-12-architecture-review-context",
+      "dependsOn": [
+        "cg-01-cross-artifact-identity"
+      ]
+    },
+    {
+      "groupId": "cg-13-reviewer-execution-evidence",
+      "dependsOn": [
+        "cg-12-architecture-review-context"
+      ]
+    },
+    {
+      "groupId": "cg-14-runtime-release-evidence",
+      "dependsOn": [
+        "cg-07-runtime-cleanup-lifecycle",
+        "cg-13-reviewer-execution-evidence"
+      ]
+    },
+    {
+      "groupId": "cg-15-persistence-migration-evidence",
+      "dependsOn": [
+        "cg-06-database-error-propagation"
+      ]
+    },
+    {
+      "groupId": "cg-16-implementation-error-recovery-evidence",
+      "dependsOn": [
+        "cg-13-reviewer-execution-evidence"
+      ]
+    },
+    {
+      "groupId": "cg-17-design-gate-evidence",
+      "dependsOn": [
+        "cg-05-design-durable-state-authority"
+      ]
+    },
+    {
+      "groupId": "cg-18-skill-portfolio-source-of-truth",
+      "dependsOn": [
+        "cg-13-reviewer-execution-evidence"
+      ]
+    },
+    {
+      "groupId": "cg-19-architecture-document-state",
+      "dependsOn": [
+        "cg-18-skill-portfolio-source-of-truth"
+      ]
+    }
+  ],
+  "dependencyGraphAcyclic": true,
+  "firstRecommendedGroupId": "cg-01-cross-artifact-identity",
+  "knownMaintenanceItems": [
+    {
+      "type": "KNOWN_MAINTENANCE_ITEM",
+      "item": ".qa-foundation-* directories",
+      "count": 12,
+      "includedInValidatedFindingSet": false,
+      "includedInCorrectionGroups": false
+    }
+  ],
+  "findingsAffectedByLaterCommits": [
+    "finding-24cb4b563e9b341a84fd",
+    "finding-3ea29b90bbf550eecdb3"
+  ],
+  "findingsResolvedByLaterWork": [],
+  "findingsPartiallyResolvedByLaterWork": [],
+  "rejectedPhase5FindingIds": [
+    "contract-audit-001",
+    "contract-audit-002",
+    "contract-audit-003",
+    "contract-audit-004",
+    "contract-audit-005",
+    "contract-audit-006",
+    "cross-type-overlapping-exclusive-scopes-unchecked",
+    "code-review-workflow-state-not-enforced",
+    "source-evidence-not-bound-to-current-source",
+    "implementation-summaries-not-connected-to-source-or-task-ownership"
+  ],
+  "productionSourceCorrectionsApplied": 0,
+  "correctionTaskGraphTasksCreated": 0,
+  "changeProposalsApplied": 0,
+  "websiteGenerationE2E": false,
+  "approvedSkills": {
+    "external": 4,
+    "internal": 13,
+    "assignmentRefs": 18,
+    "deferredUsage": 0
+  },
+  "agentCatalogCount": 9,
+  "newAgentOrchestratorMcp": false,
+  "roadmap": {
+    "phase5": "COMPLETE_FINDINGS_READY",
+    "phase6A": "CURRENTNESS_AND_GROUPING_COMPLETE",
+    "next": "PHASE 6B — FIRST CONTROLLED CORRECTION GROUP"
+  },
+  "phase6AStatus": "CURRENTNESS_AND_GROUPING_COMPLETE"
+}
