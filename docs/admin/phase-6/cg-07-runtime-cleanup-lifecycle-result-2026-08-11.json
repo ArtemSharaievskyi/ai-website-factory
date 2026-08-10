@@ -1,0 +1,201 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6h-correction-result",
+  "groupId": "cg-07-runtime-cleanup-lifecycle",
+  "title": "Close generated runtime resources on E2E failure",
+  "baselineCommit": "fa7801c",
+  "correctionCommit": "247babe",
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "findingIds": [
+    "finding-517e635c9c23995687d8"
+  ],
+  "originalReviewer": "code-integration-reviewer",
+  "severity": "WARNING",
+  "category": "ERROR_HANDLING",
+  "rootCause": "The Factory E2E script created the production runtime but called runtime.close only after successful report persistence, so validation, resume loading, stage execution, and report-write failures could bypass closure.",
+  "rootCauseConfidence": "HIGH",
+  "dependencies": [
+    "cg-06-database-error-propagation"
+  ],
+  "dependencyStatus": "COMPLETE",
+  "runtimeDomain": "FACTORY_E2E_RUNTIME",
+  "resourceTypes": [
+    "Factory production runtime handle",
+    "Runtime-owned PostgreSQL pool"
+  ],
+  "resourceOwnership": {
+    "creator": "createProductionFactoryRuntime in the Factory E2E script",
+    "owner": "scripts/factory-e2e-smoke.ts for the duration of one invocation",
+    "cleanupOwner": "withRuntimeLifecycle at the script-owned terminal boundary",
+    "lifetime": "From successful runtime creation through validation, resume/stage execution, and report persistence",
+    "cleanupTrigger": "Every terminal resolution or rejection of the post-creation operation"
+  },
+  "defectReproduction": {
+    "preCorrection": "The baseline source created runtime at the post-preflight boundary and placed runtime.close after report persistence without try/finally. A controlled post-creation operation failure makes that close statement unreachable; no real provider-backed E2E was invoked.",
+    "preCorrectionEvidence": [
+      "scripts/factory-e2e-smoke.ts:15-35 at baseline fa7801c",
+      "finding-517e635c9c23995687d8 remainingIssue"
+    ],
+    "postCorrection": "The deterministic lifecycle fixture forces a post-creation operation failure and observes one close call while preserving the original error; the success fixture observes one close call and the successful result."
+  },
+  "lifecycleBefore": {
+    "acquire": "createProductionFactoryRuntime",
+    "use": "validate runtime, load optional resume report, run E2E stages, persist report",
+    "release": "runtime.close only after successful report persistence",
+    "failureBehavior": "Post-creation exceptions bypassed runtime.close"
+  },
+  "lifecycleAfter": {
+    "acquire": "createProductionFactoryRuntime once after passed preflight",
+    "use": "The existing validation, resume, stage, and report behavior is unchanged inside the operation callback",
+    "release": "withRuntimeLifecycle awaits runtime.close in finally for success and failure",
+    "failureBehavior": "The original failure propagates after the owned runtime is closed"
+  },
+  "successCleanup": "Runtime closes once after successful report persistence; success output and release eligibility are preserved.",
+  "failureCleanup": "Runtime closes once after validation, resume loading, stage execution, or report persistence failure; the outer safe failure report remains responsible for process status.",
+  "cancellationCleanup": "No separate script cancellation signal is currently passed to the real E2E harness. If the operation rejects for cancellation or abort in a future bounded path, the same finally boundary closes the runtime. No AI-generation timeout was introduced.",
+  "retryCleanup": "No new retry mechanism was introduced. Resume/retry work remains inside the same owned runtime boundary and cannot bypass its terminal close.",
+  "processCleanup": "Not applicable to this finding. The created production runtime's implemented close contract ends its PostgreSQL pool; this correction does not add process scanning or global termination.",
+  "childProcessBehavior": "No child process is created by the corrected runtime-close boundary.",
+  "processTreeBehavior": "Not applicable; no process tree is owned by this boundary.",
+  "portBehavior": "Not applicable; no temporary local server or port is created by this boundary.",
+  "browserBehavior": "Not applicable; browser, context, and page ownership remains with the existing Functional QA service.",
+  "lockBehavior": "Not applicable; no workspace lock is created by this boundary.",
+  "tempWorkspaceBehavior": "Not applicable to the assigned finding; generated workspace lifecycle remains outside cg-07.",
+  "debugWorkspaceBehavior": "Untouched and not auto-cleaned.",
+  "promotedWorkspaceSafety": "Promoted generated versions are untouched.",
+  "customerProjectSafety": "Customer projects and customer artifacts are untouched.",
+  "filesystemCleanup": "Not applicable to this finding. No recursive filesystem cleanup was added.",
+  "pathSafety": "No cleanup path was introduced; customer roots, promoted versions, debug workspaces, and unknown directories are untouched.",
+  "ownershipMarker": "Not applicable; no filesystem resource is auto-cleaned by cg-07.",
+  "filesystemRetry": "Not applicable; no filesystem deletion was introduced.",
+  "cleanupIdempotency": "The lifecycle wrapper invokes the runtime close operation exactly once for each terminal operation path.",
+  "rollbackCriteria": "Not represented in the machine group contract; the bounded correction is reversible by reverting correction commit 247babe.",
+  "historicalTempCleanupDecision": "NOT_AUTHORIZED: the cg-07 machine contract concerns the Factory E2E runtime close boundary and explicitly excludes QA workspace cleanup.",
+  "historicalTempCountBefore": 14,
+  "historicalTempCountAfter": 14,
+  "historicalTempDeleted": 0,
+  "historicalTempRetained": 14,
+  "temporaryRuntimeCounts": {
+    "beforeTargetedTests": 14,
+    "afterTargetedTests": 14,
+    "afterFullTests": 14,
+    "newPersistentLeaks": 0
+  },
+  "filesChanged": [
+    "scripts/factory-e2e-smoke.ts",
+    "src/runtime/e2e/lifecycle.ts",
+    "src/runtime/e2e/lifecycle.test.ts",
+    "scripts/phase-6c-cg02-verification.ts"
+  ],
+  "scopeJustification": {
+    "outsideLikelyFiles": [
+      "src/runtime/e2e/lifecycle.ts",
+      "src/runtime/e2e/lifecycle.test.ts",
+      "scripts/phase-6c-cg02-verification.ts"
+    ],
+    "reason": "The lifecycle helper is the smallest bounded terminal boundary and its test provides deterministic success/failure proof; the verifier extension is required Phase 6 administrative infrastructure for the two assigned reviewer rechecks."
+  },
+  "correctionSummary": "Wrapped the existing post-creation Factory E2E operation in an awaited try/finally lifecycle helper so the production runtime closes on all terminal paths without changing E2E scenarios or adding timeout policy.",
+  "testsAdded": [
+    "Success lifecycle test preserves the operation result and closes once.",
+    "Failure lifecycle test preserves the original post-creation error and closes once."
+  ],
+  "targetedChecks": {
+    "targetedE2ELifecycleTests": "32 passed: 30 existing E2E safety tests and 2 new lifecycle tests",
+    "productionStageRunnerTests": "2 passed in full suite",
+    "optInGatedSmoke": "PASS with ALLOW_REAL_FACTORY_E2E=false; REAL_FACTORY_E2E_PENDING",
+    "taskgraphSmoke": "PASS; releaseEligible=true"
+  },
+  "requiredDeterministicChecks": [
+    "targeted E2E stage-runner tests",
+    "TaskGraph smoke"
+  ],
+  "requiredReviewerRechecks": [
+    "code-integration-reviewer",
+    "test-quality-reviewer"
+  ],
+  "actualReviewerRechecks": [
+    {
+      "reviewerId": "code-integration-reviewer",
+      "state": "RESOLVED",
+      "providerVerdict": "APPROVED",
+      "evidenceValid": true,
+      "realGptCalls": 1
+    },
+    {
+      "reviewerId": "test-quality-reviewer",
+      "state": "RESOLVED",
+      "providerVerdict": "APPROVED",
+      "evidenceValid": true,
+      "realGptCalls": 1
+    }
+  ],
+  "selectedSkills": {
+    "code-integration-reviewer": {
+      "selectedSkillIds": [],
+      "selectedSkillChecksums": [],
+      "identityChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "test-quality-reviewer": {
+      "selectedSkillIds": [
+        "behavioral-test-quality-review",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "behavioral-test-quality-review",
+          "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "identityChecksum": "ba9aa336998b0950a673e80e6b14791dd857750f890fb7048b008b89563a8e10"
+    }
+  },
+  "providerCalls": {
+    "realGptCalls": 2,
+    "model": "gpt-5.6-luna",
+    "reviewers": [
+      "code-integration-reviewer",
+      "test-quality-reviewer"
+    ]
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "structuredOutputValid": true,
+    "invalidEvidence": [],
+    "verificationArtifact": "docs/admin/phase-6/cg-07-runtime-cleanup-lifecycle-verification-2026-08-11.json"
+  },
+  "perFindingResolution": {
+    "finding-517e635c9c23995687d8": {
+      "severity": "WARNING",
+      "category": "ERROR_HANDLING",
+      "resourceType": "Factory production runtime handle / runtime-owned PostgreSQL pool",
+      "resourceOwner": "scripts/factory-e2e-smoke.ts",
+      "preCorrectionEvidence": "Post-creation failure could bypass the success-path runtime.close call.",
+      "correctionEvidence": [
+        "scripts/factory-e2e-smoke.ts:17-35",
+        "src/runtime/e2e/lifecycle.ts:5-13",
+        "src/runtime/e2e/lifecycle.test.ts:5-18"
+      ],
+      "lifecycleEvidence": "Success and failure terminal paths both close exactly once; full test run created no new .qa-foundation-* directory.",
+      "reviewerVerification": "Code / Integration and Test / Quality Reviewers RESOLVED / APPROVED with valid evidence.",
+      "finalState": "RESOLVED",
+      "resolvedByGroupId": "cg-07-runtime-cleanup-lifecycle"
+    }
+  },
+  "potentiallyImpactedGroups": [],
+  "remainingFindingCounts": {
+    "total": 16,
+    "CRITICAL": 0,
+    "ERROR": 5,
+    "WARNING": 10,
+    "INFO": 1
+  },
+  "unblockedGroups": [],
+  "nextRecommendedGroup": "cg-08-context7-authority",
+  "phaseStatus": "COMPLETE"
+}

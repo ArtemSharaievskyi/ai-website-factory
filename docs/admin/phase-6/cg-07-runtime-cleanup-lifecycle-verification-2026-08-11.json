@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6h-correction-verification",
+  "groupId": "cg-07-runtime-cleanup-lifecycle",
+  "findingIds": [
+    "finding-517e635c9c23995687d8"
+  ],
+  "baselineCommit": "fa7801c",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "correctionSnapshot": "working-tree-before-correction-commit",
+  "reviewerResults": [
+    {
+      "reviewerId": "code-integration-reviewer",
+      "state": "RESOLVED",
+      "evidence": [
+        "current:factory-e2e-smoke",
+        "current:runtime-lifecycle",
+        "test:runtime-lifecycle",
+        "cg07-runtime-cleanup-contract",
+        "owned-runtime-lifecycle",
+        "deterministic-lifecycle-tests"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-07-runtime-cleanup-lifecycle correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    },
+    {
+      "reviewerId": "test-quality-reviewer",
+      "state": "RESOLVED",
+      "evidence": [
+        "original-findings",
+        "cg07-runtime-cleanup-contract",
+        "owned-runtime-lifecycle",
+        "deterministic-lifecycle-tests",
+        "current:factory-e2e-smoke",
+        "current:runtime-lifecycle",
+        "test:runtime-lifecycle"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-07-runtime-cleanup-lifecycle correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    }
+  ],
+  "selectedSkills": {
+    "code-integration-reviewer": {
+      "selectedSkillIds": [],
+      "selectedSkillChecksums": [],
+      "identityChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "test-quality-reviewer": {
+      "selectedSkillIds": [
+        "behavioral-test-quality-review",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "behavioral-test-quality-review",
+          "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "identityChecksum": "ba9aa336998b0950a673e80e6b14791dd857750f890fb7048b008b89563a8e10"
+    }
+  },
+  "provider": {
+    "model": "gpt-5.6-luna",
+    "modelLabel": "GPT-5.6 Luna",
+    "realGptCalls": 2,
+    "requestEvents": [
+      {
+        "type": "request.started",
+        "role": "code-integration-reviewer"
+      },
+      {
+        "type": "request.completed",
+        "role": "code-integration-reviewer",
+        "requestId": "chatcmpl-EBSulPmDzoAYZZLNr4xpoVKec3N6B"
+      },
+      {
+        "type": "request.started",
+        "role": "test-quality-reviewer"
+      },
+      {
+        "type": "request.completed",
+        "role": "test-quality-reviewer",
+        "requestId": "chatcmpl-EBSupQdDV2ExKvtjvSK2qHvfmDgYH"
+      }
+    ]
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "evidenceRefs": [
+      "cg07-runtime-cleanup-contract",
+      "current:factory-e2e-smoke",
+      "current:runtime-lifecycle",
+      "deterministic-lifecycle-tests",
+      "original-findings",
+      "owned-runtime-lifecycle",
+      "scripts/factory-e2e-smoke.ts:15-36",
+      "src/runtime/e2e/lifecycle.test.ts:1-18",
+      "src/runtime/e2e/lifecycle.ts:1-14",
+      "test:runtime-lifecycle"
+    ],
+    "slices": [
+      {
+        "id": "current:factory-e2e-smoke",
+        "relativePath": "scripts/factory-e2e-smoke.ts",
+        "startLine": 15,
+        "endLine": 36,
+        "checksum": "ce552e45c972189a7e1a0dfd3cc2cc7707a680cde9f0aaf40dfbdec0d4e64adb",
+        "currentHead": "fa7801c"
+      },
+      {
+        "id": "current:runtime-lifecycle",
+        "relativePath": "src/runtime/e2e/lifecycle.ts",
+        "startLine": 1,
+        "endLine": 14,
+        "checksum": "723b9eb730461439f9222af979219809baeeedd669be20b6757fa23d10668739",
+        "currentHead": "fa7801c"
+      },
+      {
+        "id": "test:runtime-lifecycle",
+        "relativePath": "src/runtime/e2e/lifecycle.test.ts",
+        "startLine": 1,
+        "endLine": 18,
+        "checksum": "090b4ffb759a8274716be446e73eee2a0227e63bb7fa0137af3e25409eaa1bbe",
+        "currentHead": "fa7801c"
+      }
+    ]
+  },
+  "phaseStatus": "RESOLVED"
+}
