@@ -3,8 +3,8 @@ import { execFileSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { contractAuditorAgentDefinition, securityReviewerAgentDefinition } from "@/agents/catalog";
-import { ContractAuditProviderOutputSchema, SecurityReviewProviderOutputSchema } from "@/domain/review/schema";
+import { architectureReviewerAgentDefinition, codeIntegrationReviewerAgentDefinition, contractAuditorAgentDefinition, securityReviewerAgentDefinition } from "@/agents/catalog";
+import { ArchitectureReviewProviderOutputSchema, CodeIntegrationReviewProviderOutputSchema, ContractAuditProviderOutputSchema, SecurityReviewProviderOutputSchema } from "@/domain/review/schema";
 import { createProductionProviderBundle } from "@/integrations/openai/production";
 import { readAiProviderConfig } from "@/integrations/openai/config";
 import { prepareAgentSkillContext, type AgentSkillSelection } from "@/skills/runtime/resolver";
@@ -22,17 +22,21 @@ export const CG02_FINDING_IDS = [
 ] as const;
 export const CG03_GROUP_ID = "cg-03-storage-ownership-controls" as const;
 export const CG03_FINDING_IDS = ["finding-b227589f057cc3fa00ac", "finding-eb166a34da7872c62d77"] as const;
+export const CG04_GROUP_ID = "cg-04-provider-config-and-lifecycle" as const;
+export const CG04_FINDING_IDS = ["finding-24cb4b563e9b341a84fd", "finding-3ea29b90bbf550eecdb3"] as const;
 export const PHASE6A_PLAN_IDENTITY = "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00" as const;
 export const PHASE6A_PLAN_PATH = "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json" as const;
 export const VERIFICATION_MACHINE_PATH = "docs/admin/phase-6/cg-02-authentication-authorization-rls-verification-2026-08-10.json" as const;
 export const VERIFICATION_REPORT_PATH = "docs/admin/phase-6/cg-02-authentication-authorization-rls-verification-2026-08-10.md" as const;
 export const CG03_VERIFICATION_MACHINE_PATH = "docs/admin/phase-6/cg-03-storage-ownership-controls-verification-rev2-2026-08-10.json" as const;
 export const CG03_VERIFICATION_REPORT_PATH = "docs/admin/phase-6/cg-03-storage-ownership-controls-verification-rev2-2026-08-10.md" as const;
+export const CG04_VERIFICATION_MACHINE_PATH = "docs/admin/phase-6/cg-04-provider-config-and-lifecycle-verification-2026-08-10.json" as const;
+export const CG04_VERIFICATION_REPORT_PATH = "docs/admin/phase-6/cg-04-provider-config-and-lifecycle-verification-2026-08-10.md" as const;
 
 const sha256 = (value: string | Uint8Array) => createHash("sha256").update(value).digest("hex");
 const git = (root: string, args: string[]) => execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
 const StateSchema = z.enum(["RESOLVED", "PARTIALLY_RESOLVED", "STILL_ACTIVE", "REGRESSION_FOUND", "VERIFICATION_FAILED"]);
-type ReviewerId = "security-reviewer" | "contract-auditor";
+type ReviewerId = "security-reviewer" | "contract-auditor" | "architecture-reviewer" | "code-integration-reviewer";
 type EvidenceSlice = { id: string; relativePath: string; startLine: number; endLine: number; checksum: string; currentHead: string; content: string };
 type CorrectionConfig = {
   groupId: string;
@@ -95,6 +99,26 @@ const CG03_CONFIG: CorrectionConfig = {
   idempotencyPrefix: "phase6d1",
 };
 
+const CG04_CONFIG: CorrectionConfig = {
+  groupId: CG04_GROUP_ID,
+  findingIds: CG04_FINDING_IDS,
+  machinePath: CG04_VERIFICATION_MACHINE_PATH,
+  reportPath: CG04_VERIFICATION_REPORT_PATH,
+  documentType: "phase-6e-correction-verification",
+  title: "cg-04 Provider Configuration and External Work Lifecycle Verification",
+  fixedRefs: ["original-findings", "cg04-provider-lifecycle-contract", "provider-config-contract", "cancellation-concurrency-contract", "deterministic-provider-lifecycle-tests"],
+  originalFindings: [
+    { findingId: CG04_FINDING_IDS[0], severity: "ERROR", category: "PROVIDER_CONFIGURATION", summary: "OpenAI provider can be constructed with an empty model identifier when OPENAI_MODEL is absent." },
+    { findingId: CG04_FINDING_IDS[1], severity: "WARNING", category: "EXTERNAL_WORK_LIFECYCLE", summary: "Configured concurrency limits do not necessarily bound active external work after timeout because capacity can be released before transport settlement." },
+  ],
+  correctionGoal: "Reject empty provider model configuration and ensure configured limits remain truthful when external work is cancelled or times out.",
+  trustBoundary: "Factory-side OpenAI, Context7, and Codebase Memory provider adapters: validated configuration, transport cancellation, bounded concurrency, and stable error taxonomy.",
+  nonGoals: ["No model migration", "No new queue framework", "No provider fallback policy", "No AI timeout policy", "No unrelated findings"],
+  deterministicChecks: ["missing OPENAI_MODEL is rejected before client construction", "configured model remains unchanged in the official structured API request", "queued cancellation removes only the cancelled waiter and preserves FIFO progress", "Context7 timeout aborts and awaits transport settlement before releasing a slot", "Codebase Memory timeout aborts and awaits transport settlement before releasing a slot", "existing stable cancellation and timeout error taxonomy is preserved"],
+  requiredReviewerIds: ["architecture-reviewer", "code-integration-reviewer"],
+  idempotencyPrefix: "phase6e1",
+};
+
 async function currentSlice(root: string, id: string, relativePath: string, startLine: number, endLine: number): Promise<EvidenceSlice> {
   const bytes = await readFile(path.resolve(root, relativePath));
   const lines = bytes.toString("utf8").split(/\r?\n/);
@@ -103,7 +127,16 @@ async function currentSlice(root: string, id: string, relativePath: string, star
 }
 
 async function buildEvidence(root: string, config: CorrectionConfig) {
-  const slices = await Promise.all([
+  const slices = await Promise.all(config.groupId === CG04_GROUP_ID ? [
+    currentSlice(root, "current:openai-config", "src/integrations/openai/config.ts", 4, 12),
+    currentSlice(root, "current:openai-client", "src/integrations/openai/client.ts", 23, 40),
+    currentSlice(root, "current:openai-limiter", "src/integrations/openai/limiter.ts", 1, 13),
+    currentSlice(root, "current:context7-lifecycle", "src/integrations/context7/service.ts", 27, 51),
+    currentSlice(root, "current:codebase-memory-lifecycle", "src/integrations/codebase-memory/service.ts", 27, 40),
+    currentSlice(root, "test:openai-provider-lifecycle", "src/integrations/openai/provider.test.ts", 153, 161),
+    currentSlice(root, "test:context7-lifecycle", "src/integrations/context7/context7.test.ts", 19, 20),
+    currentSlice(root, "test:codebase-memory-lifecycle", "src/integrations/codebase-memory/codebase-memory.test.ts", 19, 20),
+  ] : [
     currentSlice(root, "current:planner-contract", "src/agents/planner/contracts.ts", 45, 65),
     currentSlice(root, "current:planner-deterministic", "src/agents/planner/deterministic.ts", 30, 40),
     currentSlice(root, "current:implementation-contract", "src/agents/implementation/contracts.ts", 20, 30),
@@ -117,12 +150,15 @@ async function buildEvidence(root: string, config: CorrectionConfig) {
   return { slices, fixedRefs: config.fixedRefs, allowed: new Set([...config.fixedRefs, ...slices.flatMap((slice) => [slice.id, `${slice.relativePath}:${slice.startLine}-${slice.endLine}`])]) };
 }
 
-function correctionDiff(root: string) {
-  return git(root, ["diff", "--no-ext-diff", "--unified=3", "--", "src/agents/planner/contracts.ts", "src/agents/planner/deterministic.ts", "src/agents/planner/planner.test.ts", "src/agents/implementation/contracts.ts", "src/agents/implementation/service.ts", "src/agents/implementation/policy.ts", "src/agents/implementation/provider.ts", "src/agents/implementation/backend.ts", "src/agents/implementation/backend.test.ts", "src/runtime/validation/security.ts", "src/integrations/openai/adapters.ts", "scripts/backend-smoke.ts"]).slice(0, 30000);
+function correctionDiff(root: string, config: CorrectionConfig) {
+  const files = config.groupId === CG04_GROUP_ID ? ["src/integrations/openai/config.ts", "src/integrations/openai/client.ts", "src/integrations/openai/limiter.ts", "src/integrations/context7/service.ts", "src/integrations/codebase-memory/service.ts", "src/integrations/openai/provider.test.ts", "src/integrations/context7/context7.test.ts", "src/integrations/codebase-memory/codebase-memory.test.ts"] : ["src/agents/planner/contracts.ts", "src/agents/planner/deterministic.ts", "src/agents/planner/planner.test.ts", "src/agents/implementation/contracts.ts", "src/agents/implementation/service.ts", "src/agents/implementation/policy.ts", "src/agents/implementation/provider.ts", "src/agents/implementation/backend.ts", "src/agents/implementation/backend.test.ts", "src/runtime/validation/security.ts", "src/integrations/openai/adapters.ts", "scripts/backend-smoke.ts"];
+  return git(root, ["diff", "--no-ext-diff", "--unified=3", "--", ...files]).slice(0, 30000);
 }
 
 async function resolveSkills(root: string, reviewerId: ReviewerId, config: CorrectionConfig): Promise<AgentSkillSelection> {
   const registry = new SkillRegistry(path.resolve(root, "skills"));
+  if (reviewerId === "architecture-reviewer") return prepareAgentSkillContext(registry, { agent: architectureReviewerAgentDefinition, capability: "review.architecture", taskType: "review-architecture", projectSurfaces: ["architecture", "modules", "providers", "concurrency", "cancellation"], requiredCoverage: ["module-boundaries", "architecture-review"], requestedTools: [], contextBudgetBytes: architectureReviewerAgentDefinition.contextPolicy.maxBytes });
+  if (reviewerId === "code-integration-reviewer") return prepareAgentSkillContext(registry, { agent: codeIntegrationReviewerAgentDefinition, capability: "review.integration", taskType: "review-code-integration", projectSurfaces: ["typescript", "providers", "openai", "context7", "codebase-memory", "concurrency", "cancellation"], requiredCoverage: ["react-review", "nextjs-review"], requestedTools: [], contextBudgetBytes: codeIntegrationReviewerAgentDefinition.contextPolicy.maxBytes });
   if (reviewerId === "security-reviewer") {
     const storage = config.groupId === CG03_GROUP_ID;
     return prepareAgentSkillContext(registry, { agent: securityReviewerAgentDefinition, capability: "review.security", taskType: "review-security", projectSurfaces: storage ? ["auth", "storage", "uploads", "sessions", "ownership"] : ["supabase", "postgres", "rls", "database", "auth", "sessions", "ownership"], requiredCoverage: storage ? ["storage-upload-security"] : ["supabase-rls", "row-level-authorization", "auth-security"], requestedTools: [], contextBudgetBytes: securityReviewerAgentDefinition.contextPolicy.maxBytes });
@@ -131,7 +167,7 @@ async function resolveSkills(root: string, reviewerId: ReviewerId, config: Corre
 }
 
 function classifyReviewerOutput(reviewerId: ReviewerId, output: unknown, allowedEvidence: ReadonlySet<string>, realGptCalls: number, config: CorrectionConfig) {
-  const parsed = reviewerId === "security-reviewer" ? SecurityReviewProviderOutputSchema.parse(output) : ContractAuditProviderOutputSchema.parse(output);
+  const parsed = reviewerId === "security-reviewer" ? SecurityReviewProviderOutputSchema.parse(output) : reviewerId === "architecture-reviewer" ? ArchitectureReviewProviderOutputSchema.parse(output) : reviewerId === "code-integration-reviewer" ? CodeIntegrationReviewProviderOutputSchema.parse(output) : ContractAuditProviderOutputSchema.parse(output);
   const evidence = [...parsed.reviewedArtifactRefs, ...parsed.findings.flatMap((finding) => [...finding.evidenceRefs, ...finding.affectedArtifacts])];
   const invalidEvidence = evidence.filter((reference) => !allowedEvidence.has(reference));
   if (invalidEvidence.length) throw new Error(`VERIFICATION_EVIDENCE_INVALID:${invalidEvidence.join(",")}`);
@@ -152,7 +188,7 @@ function verificationInput(reviewerId: ReviewerId, currentHead: string, evidence
     correctionGoal: config.correctionGoal,
     trustBoundary: config.trustBoundary,
     nonGoals: config.nonGoals,
-    verificationQuestion: config.groupId === CG03_GROUP_ID ? "Does the current cg-03 correction resolve the exact assigned storage-ownership finding/root cause without introducing a regression in the reviewed boundary? Return APPROVED with no findings only when the assigned storage ownership and access contract is resolved. Do not report fresh repository findings or unrelated correction groups." : "Does the current bounded cg-02 correction resolve only the assigned authentication, authorization, ownership, and RLS findings? Return APPROVED with no findings only when all six assigned root causes are resolved. Do not report fresh repository findings or unrelated correction groups.",
+    verificationQuestion: config.groupId === CG04_GROUP_ID ? "Does the current cg-04 correction resolve the exact assigned provider-configuration and external-work-lifecycle findings without introducing a regression in the reviewed boundary? Return APPROVED with no findings only when empty model configuration is rejected and configured concurrency remains truthful through cancellation and timeout settlement. Do not report fresh repository findings or unrelated correction groups." : config.groupId === CG03_GROUP_ID ? "Does the current cg-03 correction resolve the exact assigned storage-ownership finding/root cause without introducing a regression in the reviewed boundary? Return APPROVED with no findings only when the assigned storage ownership and access contract is resolved. Do not report fresh repository findings or unrelated correction groups." : "Does the current bounded cg-02 correction resolve only the assigned authentication, authorization, ownership, and RLS findings? Return APPROVED with no findings only when all six assigned root causes are resolved. Do not report fresh repository findings or unrelated correction groups.",
     evidenceCatalog: [...evidence.fixedRefs, ...evidence.slices.map(({ id, relativePath, startLine, endLine, checksum, currentHead: sliceHead, content }) => ({ id, relativePath, startLine, endLine, checksum, currentHead: sliceHead, content }))],
     correctionDiff: diff,
     deterministicChecks: config.deterministicChecks,
@@ -168,7 +204,7 @@ export async function runTargetedCorrectionVerification(root: string, config: Co
   const plan = JSON.parse(await readFile(path.resolve(resolvedRoot, PHASE6A_PLAN_PATH), "utf8")) as { phase6APlanIdentity: string; correctionGroups: Array<{ groupId: string }> };
   if (plan.phase6APlanIdentity !== PHASE6A_PLAN_IDENTITY || !plan.correctionGroups.some((group) => group.groupId === config.groupId)) throw new Error("VERIFICATION_PLAN_IDENTITY_INVALID");
   const evidence = await buildEvidence(resolvedRoot, config);
-  const diff = correctionDiff(resolvedRoot);
+  const diff = correctionDiff(resolvedRoot, config);
   const events: Array<{ type: string; role?: string; requestId?: string; code?: string }> = [];
   const bundle = createProductionProviderBundle({ eventSink: (event) => events.push({ type: event.type, role: event.role, requestId: "requestId" in event ? event.requestId : undefined, code: "code" in event ? event.code : undefined }) });
   const selections: Record<ReviewerId, AgentSkillSelection> = {} as Record<ReviewerId, AgentSkillSelection>;
@@ -180,7 +216,11 @@ export async function runTargetedCorrectionVerification(root: string, config: Co
     const input = verificationInput(reviewerId, currentHead, evidence, diff, config);
     const output = reviewerId === "security-reviewer"
       ? await bundle.securityReviewer.review({ ...input, idempotencyKey: `${config.idempotencyPrefix}:${config.groupId}:${reviewerId}:${currentHead}` } as never, undefined, selections[reviewerId].contexts, selections[reviewerId].identityChecksum)
-      : await bundle.contractAuditor.review({ ...input, idempotencyKey: `${config.idempotencyPrefix}:${config.groupId}:${reviewerId}:${currentHead}` } as never, undefined, selections[reviewerId].contexts, selections[reviewerId].identityChecksum);
+      : reviewerId === "architecture-reviewer"
+        ? await bundle.architectureReviewer.review({ ...input, idempotencyKey: `${config.idempotencyPrefix}:${config.groupId}:${reviewerId}:${currentHead}` } as never, undefined, selections[reviewerId].contexts, selections[reviewerId].identityChecksum)
+        : reviewerId === "code-integration-reviewer"
+          ? await bundle.codeIntegrationReviewer.review({ ...input, idempotencyKey: `${config.idempotencyPrefix}:${config.groupId}:${reviewerId}:${currentHead}` } as never, undefined, selections[reviewerId].contexts, selections[reviewerId].identityChecksum)
+          : await bundle.contractAuditor.review({ ...input, idempotencyKey: `${config.idempotencyPrefix}:${config.groupId}:${reviewerId}:${currentHead}` } as never, undefined, selections[reviewerId].contexts, selections[reviewerId].identityChecksum);
     outputs[reviewerId] = output;
     const calls = events.filter((event) => event.type === "request.started").length - beforeCalls;
     records.push(classifyReviewerOutput(reviewerId, output, evidence.allowed, calls, config));
@@ -207,8 +247,9 @@ export async function runTargetedCorrectionVerification(root: string, config: Co
 
 export async function runCg02Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG02_CONFIG); }
 export async function runCg03Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG03_CONFIG); }
+export async function runCg04Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG04_CONFIG); }
 
 if (process.argv[1]?.endsWith("phase-6c-cg02-verification.ts")) {
-  const runner = process.env.PHASE6_CORRECTION_GROUP === CG03_GROUP_ID ? runCg03Verification : runCg02Verification;
+  const runner = process.env.PHASE6_CORRECTION_GROUP === CG04_GROUP_ID ? runCg04Verification : process.env.PHASE6_CORRECTION_GROUP === CG03_GROUP_ID ? runCg03Verification : runCg02Verification;
   runner().then((result) => console.log(JSON.stringify({ status: result.artifact.phaseStatus, groupId: result.artifact.groupId, realGptCalls: result.artifact.provider.realGptCalls, reviewers: result.artifact.reviewerResults }, null, 2))).catch((error) => { console.error(error instanceof Error ? error.message : "VERIFICATION_FAILED"); process.exitCode = 1; });
 }
