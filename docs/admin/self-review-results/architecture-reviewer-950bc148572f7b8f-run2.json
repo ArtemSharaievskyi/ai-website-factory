@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "runId": "950bc148572f7b8ff1079dbcb2fab1b7c4c58886c63f5bf6ea1537344392054d",
+  "baselineCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+  "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+  "reviewerId": "architecture-reviewer",
+  "agentVersion": "1.0.0",
+  "capability": "review.architecture",
+  "selectedSkillIdentities": [
+    {
+      "scopeId": "architecture-module-boundaries",
+      "identity": "3f7bc8948c675383e5dbfe8ed59f405d2d1bfd23cabe7a74e83415d577cfd60e",
+      "selectedSkillIds": [
+        "module-boundaries-fb20497b5c35"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "module-boundaries-fb20497b5c35",
+          "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff"
+        }
+      ]
+    },
+    {
+      "scopeId": "architecture-maintainability",
+      "identity": "e943fb9b78241af4d3aea28b25d02f5972fc410520d8e9fee77de0761ab4c0fe",
+      "selectedSkillIds": [
+        "review-maintainability-d9faf7cb9775"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "review-maintainability-d9faf7cb9775",
+          "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9"
+        }
+      ]
+    },
+    {
+      "scopeId": "architecture-tradeoffs",
+      "identity": "488df20026a8cdc27a0ea566de496b2de54ab8ce8e047ec9ffa73eb4ad149c59",
+      "selectedSkillIds": [
+        "architecture-tradeoff-review",
+        "module-boundaries-fb20497b5c35",
+        "review-maintainability-d9faf7cb9775"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "architecture-tradeoff-review",
+          "checksum": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd"
+        },
+        {
+          "skillId": "module-boundaries-fb20497b5c35",
+          "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff"
+        },
+        {
+          "skillId": "review-maintainability-d9faf7cb9775",
+          "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9"
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "scopeId": "architecture-module-boundaries",
+      "reviewerId": "architecture-reviewer",
+      "status": "REVIEW_EXECUTION_FAILED",
+      "selectedSkillIds": [
+        "module-boundaries-fb20497b5c35"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "module-boundaries-fb20497b5c35",
+          "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff"
+        }
+      ],
+      "skillContextIdentity": "3f7bc8948c675383e5dbfe8ed59f405d2d1bfd23cabe7a74e83415d577cfd60e",
+      "evidencePackChecksum": "28c85a7e14457005e0b2733047e74eb4781b6a57a1decb583c550cfa6a749b5e",
+      "snapshotIdentity": "39d1b0c45a022d8247faa6de929406fc96c9ec6cf53bd26f001b99dc64c55dcd",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "AI_OUTPUT_INVALID",
+      "failureReason": "AI provider request failed safely."
+    },
+    {
+      "scopeId": "architecture-maintainability",
+      "reviewerId": "architecture-reviewer",
+      "status": "REVIEW_EXECUTION_FAILED",
+      "selectedSkillIds": [
+        "review-maintainability-d9faf7cb9775"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "review-maintainability-d9faf7cb9775",
+          "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9"
+        }
+      ],
+      "skillContextIdentity": "e943fb9b78241af4d3aea28b25d02f5972fc410520d8e9fee77de0761ab4c0fe",
+      "evidencePackChecksum": "c31a69f8348ada6391d97c2f5da2465c7977e9c5bb89dd9960e181446da7a694",
+      "snapshotIdentity": "1fcb2ad1c2c23ff8871bfb2b20b8ba80cbf3e373d3ce3b8cc9a0fb9fe22ebf46",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "AI_OUTPUT_INVALID",
+      "failureReason": "AI provider request failed safely."
+    },
+    {
+      "scopeId": "architecture-tradeoffs",
+      "reviewerId": "architecture-reviewer",
+      "status": "REVIEW_EXECUTION_FAILED",
+      "selectedSkillIds": [
+        "architecture-tradeoff-review",
+        "module-boundaries-fb20497b5c35",
+        "review-maintainability-d9faf7cb9775"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "architecture-tradeoff-review",
+          "checksum": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd"
+        },
+        {
+          "skillId": "module-boundaries-fb20497b5c35",
+          "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff"
+        },
+        {
+          "skillId": "review-maintainability-d9faf7cb9775",
+          "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9"
+        }
+      ],
+      "skillContextIdentity": "488df20026a8cdc27a0ea566de496b2de54ab8ce8e047ec9ffa73eb4ad149c59",
+      "evidencePackChecksum": "7713334b39150024fe3414610f0ff16c1ead1cfba00ebf2da8b9733ab53aa97c",
+      "snapshotIdentity": "2e6291788147f529cdf30336ee9171456ef81b28a9e24a02bb69c8ee1507598f",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "AI_OUTPUT_INVALID",
+      "failureReason": "AI provider request failed safely."
+    }
+  ],
+  "validatedFindings": [],
+  "invalidEvidenceFindings": []
+}

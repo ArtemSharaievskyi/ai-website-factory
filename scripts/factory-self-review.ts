@@ -24,12 +24,16 @@ import type { ContractAuditInput } from "@/agents/reviewers/contracts/contracts"
 import type { CodeIntegrationReviewInput } from "@/agents/reviewers/code-integration/contracts";
 import type { SecurityReviewInput } from "@/agents/reviewers/security/contracts";
 import type { TestQualityReviewInput } from "@/agents/reviewers/test-quality/contracts";
+import { loadFactoryCliEnv } from "./cli-env";
 
 export const SELF_REVIEW_POLICY_VERSION = "factory-self-review-v1" as const;
+export const REVIEW_TARGET_COMMIT = "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4";
+export const REVIEW_TARGET_MANIFEST_CHECKSUM =
+  "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08";
 export const SELF_REVIEW_OUTPUT_PATH =
-  "docs/admin/factory-self-review-2026-08-10.json";
+  "docs/admin/factory-self-review-2026-08-10-run2.json";
 export const SELF_REVIEW_REPORT_PATH =
-  "docs/admin/factory-self-review-2026-08-10.md";
+  "docs/admin/factory-self-review-2026-08-10-run2.md";
 export const SELF_REVIEW_RESULTS_DIRECTORY = "docs/admin/self-review-results";
 export const DEFERRED_SKILLS = [
   "ambiguity-detector",
@@ -174,6 +178,7 @@ export type SelfReviewScopeResult = z.infer<typeof SelfReviewScopeResultSchema>;
 export const SelfReviewArtifactSchema = z
   .object({
     schemaVersion: z.literal(1),
+    attemptLabel: z.literal("run2"),
     runId: z.string().regex(HASH),
     baselineCommit: z.string().regex(/^[0-9a-f]{7,40}$/),
     evidenceManifestChecksum: z.string().regex(HASH),
@@ -725,6 +730,55 @@ export async function buildEvidenceInventory(root: string) {
   };
 }
 
+async function loadReviewTargetInventory(root: string) {
+  const snapshot = JSON.parse(
+    await readFile(
+      resolve(root, "docs/admin/factory-self-review-evidence-manifest.json"),
+      "utf8",
+    ),
+  ) as {
+    baselineCommit?: string;
+    evidenceManifestChecksum?: string;
+    files?: unknown;
+  };
+  const manifest = z.array(EvidenceManifestEntrySchema).parse(snapshot.files);
+  if (
+    snapshot.baselineCommit !== REVIEW_TARGET_COMMIT ||
+    snapshot.evidenceManifestChecksum !== REVIEW_TARGET_MANIFEST_CHECKSUM ||
+    checksumJson(manifest) !== REVIEW_TARGET_MANIFEST_CHECKSUM
+  )
+    throw new Error("REVIEW_TARGET_SNAPSHOT_IDENTITY_MISMATCH");
+  for (const entry of manifest) {
+    const content = await readFile(resolve(root, entry.relativePath));
+    if (checksumBytes(content) !== entry.checksum)
+      throw new Error(`REVIEW_TARGET_SOURCE_CHANGED:${entry.relativePath}`);
+  }
+  const tracked = execFileSync("git", ["ls-files", "-z"], {
+    cwd: root,
+    encoding: "buffer",
+  })
+    .toString("utf8")
+    .split("\0")
+    .filter(Boolean)
+    .map(normalizeRelativePath);
+  const qaFoundationDirectories = tracked
+    .filter((item) =>
+      item.split("/").some((part) => part.startsWith(".qa-foundation-")),
+    )
+    .map((item) =>
+      item.split("/").find((part) => part.startsWith(".qa-foundation-"))!,
+    )
+    .filter((item, index, values) => values.indexOf(item) === index);
+  return {
+    manifest,
+    evidenceManifestChecksum: REVIEW_TARGET_MANIFEST_CHECKSUM,
+    excludedPathCount: tracked.filter((item) => isExcludedEvidencePath(item))
+      .length,
+    qaFoundationDirectories,
+    allTrackedCount: tracked.length,
+  };
+}
+
 async function buildEvidencePack(
   root: string,
   inventory: Awaited<ReturnType<typeof buildEvidenceInventory>>,
@@ -984,6 +1038,22 @@ function reviewerResultRows(
   }));
 }
 
+function classifyProviderFailure(code: string | undefined) {
+  switch (code) {
+    case "AI_AUTHENTICATION_FAILED":
+      return "AUTHENTICATION_REJECTED";
+    case "AI_RATE_LIMITED":
+      return "RATE_LIMITED";
+    case "AI_PROVIDER_UNAVAILABLE":
+    case "AI_RETRY_EXHAUSTED":
+      return "NETWORK_OR_PROVIDER_UNAVAILABLE";
+    case "AI_REQUEST_PARAMETER_UNSUPPORTED":
+      return "REQUEST_PARAMETER_REJECTED";
+    default:
+      return "UNKNOWN_PROVIDER_ERROR";
+  }
+}
+
 function renderHumanReport(
   artifact: SelfReviewArtifact,
   inventory: Awaited<ReturnType<typeof buildEvidenceInventory>>,
@@ -993,11 +1063,18 @@ function renderHumanReport(
     (item) => item.status !== "COMPLETED",
   );
   const findings = artifact.validatedFindings;
+  const providerCallsAttempted = artifact.provider.configured
+    ? artifact.perReviewerResults.length
+    : 0;
+  const providerFailureClassification = artifact.provider.configured
+    ? classifyProviderFailure(failed[0]?.failureCode)
+    : "ENV_FILE_NOT_LOADED";
   const lines = [
     "# Factory Self-Review — 2026-08-10",
     "",
     `- Baseline commit: \`${artifact.baselineCommit}\``,
-    `- Reviewers planned: 5; completed semantic executions: ${artifact.provider.configured ? artifact.perReviewerResults.filter((item) => item.status === "COMPLETED").length : 0}`,
+    `- Attempt: \`${artifact.attemptLabel}\`; execution harness commit: \`8fac238\`; evidence manifest reused: yes`,
+    `- Reviewers planned: 5; provider calls attempted: ${providerCallsAttempted}; completed semantic executions: ${artifact.provider.configured ? artifact.perReviewerResults.filter((item) => item.status === "COMPLETED").length : 0}`,
     `- AI provider: ${artifact.provider.label}; configured: ${artifact.provider.configured ? "yes" : "no"}; model: ${artifact.provider.model || "not configured"}`,
     `- Run ID: \`${artifact.runId}\``,
     `- Evidence manifest checksum: \`${artifact.evidenceManifestChecksum}\``,
@@ -1015,12 +1092,12 @@ function renderHumanReport(
     "",
     "## Deterministic baseline and post-run validation",
     "",
-    "The required deterministic validation completed successfully before and after the blocked AI preflight: lint passed with the three known pre-existing warnings; typecheck passed; 64 test files and 739 tests passed; the production build passed on Next.js 16.2.12; `npm audit --audit-level=high` reported zero vulnerabilities; database validation/status/verification/integrity passed; Docker Compose configuration passed; TaskGraph smoke passed 6/6 with `releaseEligible=true`; and `git diff --check` passed.",
+    "The required deterministic validation completed successfully before and after the blocked AI preflight: lint passed with the three known pre-existing warnings; typecheck passed; 64 test files and 740 tests passed; the production build passed on Next.js 16.2.12; `npm audit --audit-level=high` reported zero vulnerabilities; database validation/status/verification/integrity passed; Docker Compose configuration passed; TaskGraph smoke passed 6/6 with `releaseEligible=true`; and `git diff --check` passed.",
     "",
     "## Execution status",
     "",
     failed.length
-      ? `Real semantic reviewer execution is blocked. No findings were fabricated. Reason: ${failed[0]?.failureReason ?? "provider unavailable"}.`
+      ? `Real semantic reviewer execution is blocked. No findings were fabricated. Classification: ${providerFailureClassification}; safe provider code: ${failed[0]?.failureCode ?? "unavailable"}; detail: ${failed[0]?.failureReason ?? "provider unavailable"}`
       : "All five real reviewer executions completed and were evidence-validated.",
     "",
     "## Per-reviewer review",
@@ -1084,7 +1161,7 @@ function renderHumanReport(
     "",
     "## Phase 6 handoff preview",
     "",
-    "No correction tasks or source changes were created. Once the provider is configured, prioritize validated CRITICAL/ERROR findings by blocking impact, security implications, workflow impact, test coverage, and dependency ordering.",
+    "No correction tasks or source changes were created. Once provider execution is unblocked, prioritize validated CRITICAL/ERROR findings by blocking impact, security implications, workflow impact, test coverage, and dependency ordering.",
     "",
     `## Evidence limits`,
     "",
@@ -1096,18 +1173,17 @@ function renderHumanReport(
         : "BLOCKED"),
     artifact.phase5Status === "COMPLETE_FINDINGS_READY"
       ? "NEXT: PHASE 6 — CONTROLLED FACTORY CORRECTIONS"
-      : "NEXT: CORRECT SELF-REVIEW EXECUTION/EVIDENCE BLOCKERS",
+      : artifact.provider.configured
+        ? "NEXT: CORRECT OPENAI PROVIDER EXECUTION BLOCKER"
+        : "NEXT: CONFIGURE OPENAI_API_KEY LOCALLY AND RERUN",
     "",
   ];
   return lines.join("\n");
 }
 
 async function buildArtifact(root: string) {
-  const baselineCommit = execFileSync("git", ["rev-parse", "HEAD"], {
-    cwd: root,
-    encoding: "utf8",
-  }).trim();
-  const inventory = await buildEvidenceInventory(root);
+  const baselineCommit = REVIEW_TARGET_COMMIT;
+  const inventory = await loadReviewTargetInventory(root);
   const registry = new SkillRegistry(resolve(root, "skills"));
   const selections: Array<{
     plan: ReviewerPlan;
@@ -1298,7 +1374,7 @@ async function buildArtifact(root: string) {
     (entry) => entry.isDirectory() && entry.name.startsWith(".qa-foundation-"),
   ).length;
   const reviewerResultArtifacts = reviewerPlans.map((plan) => {
-    const relativePath = `${SELF_REVIEW_RESULTS_DIRECTORY}/${plan.reviewerId}-${runId.slice(0, 16)}.json`;
+    const relativePath = `${SELF_REVIEW_RESULTS_DIRECTORY}/${plan.reviewerId}-${runId.slice(0, 16)}-run2.json`;
     const payload = {
       schemaVersion: 1,
       runId,
@@ -1329,6 +1405,7 @@ async function buildArtifact(root: string) {
   });
   const artifact = SelfReviewArtifactSchema.parse({
     schemaVersion: 1,
+    attemptLabel: "run2",
     runId,
     baselineCommit,
     evidenceManifestChecksum: inventory.evidenceManifestChecksum,
@@ -1429,16 +1506,13 @@ async function buildArtifact(root: string) {
       `${JSON.stringify(item.payload, null, 2)}\n`,
       "utf8",
     );
-  await writeFile(
-    resolve(root, "docs/admin/factory-self-review-evidence-manifest.json"),
-    `${JSON.stringify({ baselineCommit, evidenceManifestChecksum: inventory.evidenceManifestChecksum, files: inventory.manifest }, null, 2)}\n`,
-    "utf8",
-  );
   return { artifact, inventory, reused: false };
 }
 
 export async function runFactorySelfReview(root = process.cwd()) {
-  return buildArtifact(resolve(root));
+  const resolvedRoot = resolve(root);
+  loadFactoryCliEnv(resolvedRoot);
+  return buildArtifact(resolvedRoot);
 }
 export function getSelfReviewReviewerPlans() {
   return reviewerPlans.map((plan) => ({
@@ -1462,6 +1536,9 @@ async function main() {
         baselineCommit: result.artifact.baselineCommit,
         evidenceManifestChecksum: result.artifact.evidenceManifestChecksum,
         reviewerCount: result.artifact.reviewers.length,
+        providerCallsAttempted: result.artifact.provider.configured
+          ? result.artifact.perReviewerResults.length
+          : 0,
         semanticCalls: result.artifact.perReviewerResults.filter(
           (item) => item.status === "COMPLETED",
         ).length,

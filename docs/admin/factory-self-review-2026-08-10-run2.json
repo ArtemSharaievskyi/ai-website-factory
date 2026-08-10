@@ -1,0 +1,615 @@
+{
+  "schemaVersion": 1,
+  "attemptLabel": "run2",
+  "runId": "950bc148572f7b8ff1079dbcb2fab1b7c4c58886c63f5bf6ea1537344392054d",
+  "baselineCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+  "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+  "reviewPolicyVersion": "factory-self-review-v1",
+  "provider": {
+    "label": "GPT-5.6 Luna",
+    "model": "gpt-5.6-luna",
+    "configured": true
+  },
+  "reviewers": [
+    {
+      "reviewerId": "architecture-reviewer",
+      "agentVersion": "1.0.0",
+      "capability": "review.architecture",
+      "assignedSkillIds": [
+        "module-boundaries-fb20497b5c35",
+        "review-maintainability-d9faf7cb9775",
+        "architecture-tradeoff-review"
+      ],
+      "scopeIds": [
+        "architecture-module-boundaries",
+        "architecture-maintainability",
+        "architecture-tradeoffs"
+      ]
+    },
+    {
+      "reviewerId": "contract-auditor",
+      "agentVersion": "1.0.0",
+      "capability": "review.contracts",
+      "assignedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "scopeIds": [
+        "contracts-workflow",
+        "contracts-review-and-persistence"
+      ]
+    },
+    {
+      "reviewerId": "code-integration-reviewer",
+      "agentVersion": "1.0.0",
+      "capability": "review.integration",
+      "assignedSkillIds": [
+        "react-nextjs-integration-review"
+      ],
+      "scopeIds": [
+        "integration-provider-prompt",
+        "integration-execution-runtime"
+      ]
+    },
+    {
+      "reviewerId": "security-reviewer",
+      "agentVersion": "1.0.0",
+      "capability": "review.security",
+      "assignedSkillIds": [
+        "supabase-rls-1e36b217c969",
+        "auth-storage-security-review"
+      ],
+      "scopeIds": [
+        "security-supabase-boundary",
+        "security-auth-storage-boundary"
+      ]
+    },
+    {
+      "reviewerId": "test-quality-reviewer",
+      "agentVersion": "1.0.0",
+      "capability": "review.test-quality",
+      "assignedSkillIds": [
+        "requirements-evidence-traceability",
+        "behavioral-test-quality-review"
+      ],
+      "scopeIds": [
+        "quality-contract-and-agent-tests",
+        "quality-runtime-and-release-tests"
+      ]
+    }
+  ],
+  "perReviewerResults": [
+    {
+      "scopeId": "architecture-module-boundaries",
+      "reviewerId": "architecture-reviewer",
+      "status": "REVIEW_EXECUTION_FAILED",
+      "selectedSkillIds": [
+        "module-boundaries-fb20497b5c35"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "module-boundaries-fb20497b5c35",
+          "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff"
+        }
+      ],
+      "skillContextIdentity": "3f7bc8948c675383e5dbfe8ed59f405d2d1bfd23cabe7a74e83415d577cfd60e",
+      "evidencePackChecksum": "28c85a7e14457005e0b2733047e74eb4781b6a57a1decb583c550cfa6a749b5e",
+      "snapshotIdentity": "39d1b0c45a022d8247faa6de929406fc96c9ec6cf53bd26f001b99dc64c55dcd",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "AI_OUTPUT_INVALID",
+      "failureReason": "AI provider request failed safely."
+    },
+    {
+      "scopeId": "architecture-maintainability",
+      "reviewerId": "architecture-reviewer",
+      "status": "REVIEW_EXECUTION_FAILED",
+      "selectedSkillIds": [
+        "review-maintainability-d9faf7cb9775"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "review-maintainability-d9faf7cb9775",
+          "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9"
+        }
+      ],
+      "skillContextIdentity": "e943fb9b78241af4d3aea28b25d02f5972fc410520d8e9fee77de0761ab4c0fe",
+      "evidencePackChecksum": "c31a69f8348ada6391d97c2f5da2465c7977e9c5bb89dd9960e181446da7a694",
+      "snapshotIdentity": "1fcb2ad1c2c23ff8871bfb2b20b8ba80cbf3e373d3ce3b8cc9a0fb9fe22ebf46",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "AI_OUTPUT_INVALID",
+      "failureReason": "AI provider request failed safely."
+    },
+    {
+      "scopeId": "architecture-tradeoffs",
+      "reviewerId": "architecture-reviewer",
+      "status": "REVIEW_EXECUTION_FAILED",
+      "selectedSkillIds": [
+        "architecture-tradeoff-review",
+        "module-boundaries-fb20497b5c35",
+        "review-maintainability-d9faf7cb9775"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "architecture-tradeoff-review",
+          "checksum": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd"
+        },
+        {
+          "skillId": "module-boundaries-fb20497b5c35",
+          "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff"
+        },
+        {
+          "skillId": "review-maintainability-d9faf7cb9775",
+          "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9"
+        }
+      ],
+      "skillContextIdentity": "488df20026a8cdc27a0ea566de496b2de54ab8ce8e047ec9ffa73eb4ad149c59",
+      "evidencePackChecksum": "7713334b39150024fe3414610f0ff16c1ead1cfba00ebf2da8b9733ab53aa97c",
+      "snapshotIdentity": "2e6291788147f529cdf30336ee9171456ef81b28a9e24a02bb69c8ee1507598f",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "AI_OUTPUT_INVALID",
+      "failureReason": "AI provider request failed safely."
+    },
+    {
+      "scopeId": "contracts-workflow",
+      "reviewerId": "contract-auditor",
+      "status": "REVIEW_EXECUTION_FAILED",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "acceptance-criteria-80493e317476",
+          "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "skillContextIdentity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "evidencePackChecksum": "2893f87ec2b60a92d0c96a8ab4094ebca96090937efd54891adc2c89f13ee9dd",
+      "snapshotIdentity": "0ace6181f78ccf01dd1bed064fd19b027c5e656bfc78a8ed000c3aa4d91b1c20",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "AI_OUTPUT_INVALID",
+      "failureReason": "AI provider request failed safely."
+    },
+    {
+      "scopeId": "contracts-review-and-persistence",
+      "reviewerId": "contract-auditor",
+      "status": "REVIEW_EXECUTION_FAILED",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "acceptance-criteria-80493e317476",
+          "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "skillContextIdentity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "evidencePackChecksum": "ef29753473f57aed53ad2b31f375f0f7876ff0a11d63e678033e74de2f57aeec",
+      "snapshotIdentity": "d2f09336a6aad3bee890b8f0aaf5cf4b577f1d0e116fd39504533eff8c347200",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "AI_OUTPUT_INVALID",
+      "failureReason": "AI provider request failed safely."
+    },
+    {
+      "scopeId": "integration-provider-prompt",
+      "reviewerId": "code-integration-reviewer",
+      "status": "REVIEW_EXECUTION_FAILED",
+      "selectedSkillIds": [
+        "react-nextjs-integration-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "react-nextjs-integration-review",
+          "checksum": "acd9276249146013c41cdbf0d53463232124c7f50f360014729266c798cd737b"
+        }
+      ],
+      "skillContextIdentity": "6f45faad42804dda84061f7c91f9eb1f3f31d9a541de8ad2b160c41f55a7816e",
+      "evidencePackChecksum": "c9708c798584088e7d09f1a1b8e1be15f08cd8bd25c2ed70ce695a9164a9d293",
+      "snapshotIdentity": "acfcc057685b72b2e3be68d233992cd7f793c1c54cb0a1ef153a7666e09a9958",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "AI_OUTPUT_INVALID",
+      "failureReason": "AI provider request failed safely."
+    },
+    {
+      "scopeId": "integration-execution-runtime",
+      "reviewerId": "code-integration-reviewer",
+      "status": "REVIEW_EXECUTION_FAILED",
+      "selectedSkillIds": [
+        "react-nextjs-integration-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "react-nextjs-integration-review",
+          "checksum": "acd9276249146013c41cdbf0d53463232124c7f50f360014729266c798cd737b"
+        }
+      ],
+      "skillContextIdentity": "6f45faad42804dda84061f7c91f9eb1f3f31d9a541de8ad2b160c41f55a7816e",
+      "evidencePackChecksum": "87619f47dc606ff57089805b929debe875cd12fc33e22f0ce3cbbda85cc8f58c",
+      "snapshotIdentity": "eae61301b00c4171a8a08b13a3103ead65a589c5557ad452fcf0b119fc13c0d6",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "AI_OUTPUT_INVALID",
+      "failureReason": "AI provider request failed safely."
+    },
+    {
+      "scopeId": "security-supabase-boundary",
+      "reviewerId": "security-reviewer",
+      "status": "REVIEW_EXECUTION_FAILED",
+      "selectedSkillIds": [
+        "supabase-rls-1e36b217c969"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "supabase-rls-1e36b217c969",
+          "checksum": "87bc57e597d3eb2e6ec8d4c099684cf4685da84ef45076b14083a7fcc7100877"
+        }
+      ],
+      "skillContextIdentity": "35c990ec3ac4e9c7c1b8487abb0ea3d45b83b7c58483b633e56b4d31b79ef8cf",
+      "evidencePackChecksum": "72c5cd05bb639ef2735fc0b9c8408bf370410ce4e6909a5ea1884c470ea47951",
+      "snapshotIdentity": "bfd6750f98d7d7c1a22d38cb75fc8ebc72654eaf786963a7507a4aa99c1c01b9",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "AI_OUTPUT_INVALID",
+      "failureReason": "AI provider request failed safely."
+    },
+    {
+      "scopeId": "security-auth-storage-boundary",
+      "reviewerId": "security-reviewer",
+      "status": "REVIEW_EXECUTION_FAILED",
+      "selectedSkillIds": [
+        "auth-storage-security-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "auth-storage-security-review",
+          "checksum": "069ffa33fec764ce1e19ff853d21b00d091e5f0eb874e0278de7a774e344dd25"
+        }
+      ],
+      "skillContextIdentity": "7fd45be3b571db15e682c3c6d9407fa4244a9434aa1755457599fd617d39b680",
+      "evidencePackChecksum": "8ac822ce0b0a03b154724ddf8b76a5de41f645e8e52f343945b8d7b1afb4613d",
+      "snapshotIdentity": "9f2d9563f019df7fff6b19d1c5a39f2f9eefb264a3eec0a449f5613dade0c9c2",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "AI_OUTPUT_INVALID",
+      "failureReason": "AI provider request failed safely."
+    },
+    {
+      "scopeId": "quality-contract-and-agent-tests",
+      "reviewerId": "test-quality-reviewer",
+      "status": "REVIEW_EXECUTION_FAILED",
+      "selectedSkillIds": [
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "skillContextIdentity": "b6e61faf7540cc83168f6bdc8e3e36863ec0c179df97fd10eaf8434ad3472a22",
+      "evidencePackChecksum": "45981b68f7383170cf0add19b31f44f17f710f7c4721daff29bfd815d5f7a334",
+      "snapshotIdentity": "0983fb135be7e7f65eec537c4db6b4abc97c9987619f6141a549384d439394a1",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "AI_OUTPUT_INVALID",
+      "failureReason": "AI provider request failed safely."
+    },
+    {
+      "scopeId": "quality-runtime-and-release-tests",
+      "reviewerId": "test-quality-reviewer",
+      "status": "REVIEW_EXECUTION_FAILED",
+      "selectedSkillIds": [
+        "behavioral-test-quality-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "behavioral-test-quality-review",
+          "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09"
+        }
+      ],
+      "skillContextIdentity": "14d5e0b5a2cb75cca227d7c6204de82fc3ac3ed08c2202a3225315856a998f2a",
+      "evidencePackChecksum": "5f680aad23fc2f3e613efe448756e322c6fb5ba761742c7bc0f48b089b5ce7ad",
+      "snapshotIdentity": "9b2d32c8fb6f10ca3d8fc57cdfcac63f9150d4f51a343ae5775f4c9128a6febc",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "AI_OUTPUT_INVALID",
+      "failureReason": "AI provider request failed safely."
+    }
+  ],
+  "selectedSkillIdentities": [
+    {
+      "reviewerId": "architecture-reviewer",
+      "scopeId": "architecture-module-boundaries",
+      "identity": "3f7bc8948c675383e5dbfe8ed59f405d2d1bfd23cabe7a74e83415d577cfd60e",
+      "selectedSkillIds": [
+        "module-boundaries-fb20497b5c35"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "module-boundaries-fb20497b5c35",
+          "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff"
+        }
+      ]
+    },
+    {
+      "reviewerId": "architecture-reviewer",
+      "scopeId": "architecture-maintainability",
+      "identity": "e943fb9b78241af4d3aea28b25d02f5972fc410520d8e9fee77de0761ab4c0fe",
+      "selectedSkillIds": [
+        "review-maintainability-d9faf7cb9775"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "review-maintainability-d9faf7cb9775",
+          "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9"
+        }
+      ]
+    },
+    {
+      "reviewerId": "architecture-reviewer",
+      "scopeId": "architecture-tradeoffs",
+      "identity": "488df20026a8cdc27a0ea566de496b2de54ab8ce8e047ec9ffa73eb4ad149c59",
+      "selectedSkillIds": [
+        "architecture-tradeoff-review",
+        "module-boundaries-fb20497b5c35",
+        "review-maintainability-d9faf7cb9775"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "architecture-tradeoff-review",
+          "checksum": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd"
+        },
+        {
+          "skillId": "module-boundaries-fb20497b5c35",
+          "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff"
+        },
+        {
+          "skillId": "review-maintainability-d9faf7cb9775",
+          "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9"
+        }
+      ]
+    },
+    {
+      "reviewerId": "contract-auditor",
+      "scopeId": "contracts-workflow",
+      "identity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "acceptance-criteria-80493e317476",
+          "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ]
+    },
+    {
+      "reviewerId": "contract-auditor",
+      "scopeId": "contracts-review-and-persistence",
+      "identity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "acceptance-criteria-80493e317476",
+          "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ]
+    },
+    {
+      "reviewerId": "code-integration-reviewer",
+      "scopeId": "integration-provider-prompt",
+      "identity": "6f45faad42804dda84061f7c91f9eb1f3f31d9a541de8ad2b160c41f55a7816e",
+      "selectedSkillIds": [
+        "react-nextjs-integration-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "react-nextjs-integration-review",
+          "checksum": "acd9276249146013c41cdbf0d53463232124c7f50f360014729266c798cd737b"
+        }
+      ]
+    },
+    {
+      "reviewerId": "code-integration-reviewer",
+      "scopeId": "integration-execution-runtime",
+      "identity": "6f45faad42804dda84061f7c91f9eb1f3f31d9a541de8ad2b160c41f55a7816e",
+      "selectedSkillIds": [
+        "react-nextjs-integration-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "react-nextjs-integration-review",
+          "checksum": "acd9276249146013c41cdbf0d53463232124c7f50f360014729266c798cd737b"
+        }
+      ]
+    },
+    {
+      "reviewerId": "security-reviewer",
+      "scopeId": "security-supabase-boundary",
+      "identity": "35c990ec3ac4e9c7c1b8487abb0ea3d45b83b7c58483b633e56b4d31b79ef8cf",
+      "selectedSkillIds": [
+        "supabase-rls-1e36b217c969"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "supabase-rls-1e36b217c969",
+          "checksum": "87bc57e597d3eb2e6ec8d4c099684cf4685da84ef45076b14083a7fcc7100877"
+        }
+      ]
+    },
+    {
+      "reviewerId": "security-reviewer",
+      "scopeId": "security-auth-storage-boundary",
+      "identity": "7fd45be3b571db15e682c3c6d9407fa4244a9434aa1755457599fd617d39b680",
+      "selectedSkillIds": [
+        "auth-storage-security-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "auth-storage-security-review",
+          "checksum": "069ffa33fec764ce1e19ff853d21b00d091e5f0eb874e0278de7a774e344dd25"
+        }
+      ]
+    },
+    {
+      "reviewerId": "test-quality-reviewer",
+      "scopeId": "quality-contract-and-agent-tests",
+      "identity": "b6e61faf7540cc83168f6bdc8e3e36863ec0c179df97fd10eaf8434ad3472a22",
+      "selectedSkillIds": [
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ]
+    },
+    {
+      "reviewerId": "test-quality-reviewer",
+      "scopeId": "quality-runtime-and-release-tests",
+      "identity": "14d5e0b5a2cb75cca227d7c6204de82fc3ac3ed08c2202a3225315856a998f2a",
+      "selectedSkillIds": [
+        "behavioral-test-quality-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "behavioral-test-quality-review",
+          "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09"
+        }
+      ]
+    }
+  ],
+  "perReviewerResultArtifacts": [
+    {
+      "reviewerId": "architecture-reviewer",
+      "relativePath": "docs/admin/self-review-results/architecture-reviewer-950bc148572f7b8f-run2.json",
+      "checksum": "c6d566297cd39745445efa90f734bf11ed4f0b14764f389d62ea0c33e2cdfd7a"
+    },
+    {
+      "reviewerId": "contract-auditor",
+      "relativePath": "docs/admin/self-review-results/contract-auditor-950bc148572f7b8f-run2.json",
+      "checksum": "5d613f13b24331110a09fc2674862c1f616e4bdabb1077aa223c83c727d398e5"
+    },
+    {
+      "reviewerId": "code-integration-reviewer",
+      "relativePath": "docs/admin/self-review-results/code-integration-reviewer-950bc148572f7b8f-run2.json",
+      "checksum": "14884758fe1902b301a0edf6baa13c9dd7a75291688d859adeeca430991e7e84"
+    },
+    {
+      "reviewerId": "security-reviewer",
+      "relativePath": "docs/admin/self-review-results/security-reviewer-950bc148572f7b8f-run2.json",
+      "checksum": "7a9b1f0f0f247dbce12ca8c4255e1b9253165f10633ab666eda158f1627be883"
+    },
+    {
+      "reviewerId": "test-quality-reviewer",
+      "relativePath": "docs/admin/self-review-results/test-quality-reviewer-950bc148572f7b8f-run2.json",
+      "checksum": "0b2ba01a6741d5c6972412131bc120a185fdcbef2925027d0b156f6ab02f9161"
+    }
+  ],
+  "validatedFindings": [],
+  "invalidEvidenceFindings": [],
+  "overlapGroups": [],
+  "severityCounts": {
+    "INFO": 0,
+    "WARNING": 0,
+    "ERROR": 0,
+    "CRITICAL": 0
+  },
+  "blockingCounts": {
+    "BLOCKING_FOR_PHASE_6": 0,
+    "HIGH_PRIORITY": 0,
+    "NORMAL_PRIORITY": 0,
+    "INFORMATIONAL": 0
+  },
+  "subsystemCounts": {},
+  "deterministicEvidence": {
+    "inventoryFileCount": 486,
+    "evidencePackCount": 11,
+    "sourceFilesIncluded": 76,
+    "testFilesIncluded": 11,
+    "excludedPathCount": 120,
+    "qaFoundationDirectoryCount": 9,
+    "qaFoundationDirectoriesTracked": false,
+    "qaFoundationDirectoriesUsed": false,
+    "skillsShCalls": 0,
+    "deferredSkillUsage": 0
+  },
+  "phase5Status": "BLOCKED_REVIEW_EXECUTION",
+  "phase6Handoff": {
+    "prioritizedFindingIds": [],
+    "correctionGroups": [],
+    "dependencies": []
+  }
+}

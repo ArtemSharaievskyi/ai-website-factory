@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "runId": "950bc148572f7b8ff1079dbcb2fab1b7c4c58886c63f5bf6ea1537344392054d",
+  "baselineCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+  "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+  "reviewerId": "security-reviewer",
+  "agentVersion": "1.0.0",
+  "capability": "review.security",
+  "selectedSkillIdentities": [
+    {
+      "scopeId": "security-supabase-boundary",
+      "identity": "35c990ec3ac4e9c7c1b8487abb0ea3d45b83b7c58483b633e56b4d31b79ef8cf",
+      "selectedSkillIds": [
+        "supabase-rls-1e36b217c969"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "supabase-rls-1e36b217c969",
+          "checksum": "87bc57e597d3eb2e6ec8d4c099684cf4685da84ef45076b14083a7fcc7100877"
+        }
+      ]
+    },
+    {
+      "scopeId": "security-auth-storage-boundary",
+      "identity": "7fd45be3b571db15e682c3c6d9407fa4244a9434aa1755457599fd617d39b680",
+      "selectedSkillIds": [
+        "auth-storage-security-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "auth-storage-security-review",
+          "checksum": "069ffa33fec764ce1e19ff853d21b00d091e5f0eb874e0278de7a774e344dd25"
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "scopeId": "security-supabase-boundary",
+      "reviewerId": "security-reviewer",
+      "status": "REVIEW_EXECUTION_FAILED",
+      "selectedSkillIds": [
+        "supabase-rls-1e36b217c969"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "supabase-rls-1e36b217c969",
+          "checksum": "87bc57e597d3eb2e6ec8d4c099684cf4685da84ef45076b14083a7fcc7100877"
+        }
+      ],
+      "skillContextIdentity": "35c990ec3ac4e9c7c1b8487abb0ea3d45b83b7c58483b633e56b4d31b79ef8cf",
+      "evidencePackChecksum": "72c5cd05bb639ef2735fc0b9c8408bf370410ce4e6909a5ea1884c470ea47951",
+      "snapshotIdentity": "bfd6750f98d7d7c1a22d38cb75fc8ebc72654eaf786963a7507a4aa99c1c01b9",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "AI_OUTPUT_INVALID",
+      "failureReason": "AI provider request failed safely."
+    },
+    {
+      "scopeId": "security-auth-storage-boundary",
+      "reviewerId": "security-reviewer",
+      "status": "REVIEW_EXECUTION_FAILED",
+      "selectedSkillIds": [
+        "auth-storage-security-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "auth-storage-security-review",
+          "checksum": "069ffa33fec764ce1e19ff853d21b00d091e5f0eb874e0278de7a774e344dd25"
+        }
+      ],
+      "skillContextIdentity": "7fd45be3b571db15e682c3c6d9407fa4244a9434aa1755457599fd617d39b680",
+      "evidencePackChecksum": "8ac822ce0b0a03b154724ddf8b76a5de41f645e8e52f343945b8d7b1afb4613d",
+      "snapshotIdentity": "9f2d9563f019df7fff6b19d1c5a39f2f9eefb264a3eec0a449f5613dade0c9c2",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "AI_OUTPUT_INVALID",
+      "failureReason": "AI provider request failed safely."
+    }
+  ],
+  "validatedFindings": [],
+  "invalidEvidenceFindings": []
+}

@@ -328,7 +328,11 @@ describe("factory self-review evidence controls", () => {
     const source = await readFile("scripts/factory-self-review.ts", "utf8");
     expect(source).toContain("prepareAgentSkillContext");
   });
-  it("40. contains no manual SKILL.md prompt concatenation", async () => {
+  it("40. reuses the established standalone environment loader", async () => {
+    const source = await readFile("scripts/factory-self-review.ts", "utf8");
+    expect(source).toContain("loadFactoryCliEnv");
+  });
+  it("41. contains no manual SKILL.md prompt concatenation", async () => {
     const source = await readFile("scripts/factory-self-review.ts", "utf8");
     expect(source).not.toContain("skillMarkdown");
   });

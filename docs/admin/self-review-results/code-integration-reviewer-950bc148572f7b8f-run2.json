@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "runId": "950bc148572f7b8ff1079dbcb2fab1b7c4c58886c63f5bf6ea1537344392054d",
+  "baselineCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+  "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+  "reviewerId": "code-integration-reviewer",
+  "agentVersion": "1.0.0",
+  "capability": "review.integration",
+  "selectedSkillIdentities": [
+    {
+      "scopeId": "integration-provider-prompt",
+      "identity": "6f45faad42804dda84061f7c91f9eb1f3f31d9a541de8ad2b160c41f55a7816e",
+      "selectedSkillIds": [
+        "react-nextjs-integration-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "react-nextjs-integration-review",
+          "checksum": "acd9276249146013c41cdbf0d53463232124c7f50f360014729266c798cd737b"
+        }
+      ]
+    },
+    {
+      "scopeId": "integration-execution-runtime",
+      "identity": "6f45faad42804dda84061f7c91f9eb1f3f31d9a541de8ad2b160c41f55a7816e",
+      "selectedSkillIds": [
+        "react-nextjs-integration-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "react-nextjs-integration-review",
+          "checksum": "acd9276249146013c41cdbf0d53463232124c7f50f360014729266c798cd737b"
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "scopeId": "integration-provider-prompt",
+      "reviewerId": "code-integration-reviewer",
+      "status": "REVIEW_EXECUTION_FAILED",
+      "selectedSkillIds": [
+        "react-nextjs-integration-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "react-nextjs-integration-review",
+          "checksum": "acd9276249146013c41cdbf0d53463232124c7f50f360014729266c798cd737b"
+        }
+      ],
+      "skillContextIdentity": "6f45faad42804dda84061f7c91f9eb1f3f31d9a541de8ad2b160c41f55a7816e",
+      "evidencePackChecksum": "c9708c798584088e7d09f1a1b8e1be15f08cd8bd25c2ed70ce695a9164a9d293",
+      "snapshotIdentity": "acfcc057685b72b2e3be68d233992cd7f793c1c54cb0a1ef153a7666e09a9958",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "AI_OUTPUT_INVALID",
+      "failureReason": "AI provider request failed safely."
+    },
+    {
+      "scopeId": "integration-execution-runtime",
+      "reviewerId": "code-integration-reviewer",
+      "status": "REVIEW_EXECUTION_FAILED",
+      "selectedSkillIds": [
+        "react-nextjs-integration-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "react-nextjs-integration-review",
+          "checksum": "acd9276249146013c41cdbf0d53463232124c7f50f360014729266c798cd737b"
+        }
+      ],
+      "skillContextIdentity": "6f45faad42804dda84061f7c91f9eb1f3f31d9a541de8ad2b160c41f55a7816e",
+      "evidencePackChecksum": "87619f47dc606ff57089805b929debe875cd12fc33e22f0ce3cbbda85cc8f58c",
+      "snapshotIdentity": "eae61301b00c4171a8a08b13a3103ead65a589c5557ad452fcf0b119fc13c0d6",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [],
+      "failureCode": "AI_OUTPUT_INVALID",
+      "failureReason": "AI provider request failed safely."
+    }
+  ],
+  "validatedFindings": [],
+  "invalidEvidenceFindings": []
+}
