@@ -1,0 +1,406 @@
+{
+  "schemaVersion": 1,
+  "runId": "950bc148572f7b8ff1079dbcb2fab1b7c4c58886c63f5bf6ea1537344392054d",
+  "baselineCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+  "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+  "reviewerId": "test-quality-reviewer",
+  "agentVersion": "1.0.0",
+  "capability": "review.test-quality",
+  "selectedSkillIdentities": [
+    {
+      "scopeId": "quality-contract-and-agent-tests",
+      "identity": "b6e61faf7540cc83168f6bdc8e3e36863ec0c179df97fd10eaf8434ad3472a22",
+      "selectedSkillIds": [
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ]
+    },
+    {
+      "scopeId": "quality-runtime-and-release-tests",
+      "identity": "14d5e0b5a2cb75cca227d7c6204de82fc3ac3ed08c2202a3225315856a998f2a",
+      "selectedSkillIds": [
+        "behavioral-test-quality-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "behavioral-test-quality-review",
+          "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09"
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "scopeId": "quality-contract-and-agent-tests",
+      "reviewerId": "test-quality-reviewer",
+      "status": "COMPLETED",
+      "selectedSkillIds": [
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "skillContextIdentity": "b6e61faf7540cc83168f6bdc8e3e36863ec0c179df97fd10eaf8434ad3472a22",
+      "evidencePackChecksum": "45981b68f7383170cf0add19b31f44f17f710f7c4721daff29bfd815d5f7a334",
+      "snapshotIdentity": "0983fb135be7e7f65eec537c4db6b4abc97c9987619f6141a549384d439394a1",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [
+        {
+          "findingId": "finding-51d38dcb2b668ff33332",
+          "reviewerId": "test-quality-reviewer",
+          "scopeId": "quality-contract-and-agent-tests",
+          "severity": "ERROR",
+          "category": "CRITICAL_FLOW_NOT_VERIFIED",
+          "summary": "Reviewer services are identified and cataloged, but their review execution and output-contract behavior are not meaningfully verified.",
+          "evidenceRefs": [
+            "src/agents/catalog.test.ts:5-74",
+            "src/agents/catalog.ts:82-129",
+            "src/agents/design/service.ts:132-260"
+          ],
+          "affectedArtifacts": [
+            "src/agents/catalog.test.ts",
+            "src/agents/catalog.ts",
+            "src/agents/design/service.ts"
+          ],
+          "recommendedAction": "Add focused behavioral evidence for reviewer-service execution and output-contract handling, including valid review results and rejection of malformed or incomplete reviewer outputs. The current evidence verifies reviewer definitions and service associations but does not demonstrate reviewer behavior.",
+          "blockingClassification": "HIGH_PRIORITY",
+          "owner": "tests"
+        },
+        {
+          "findingId": "finding-bf13a0c6f16bf4702e9e",
+          "reviewerId": "test-quality-reviewer",
+          "scopeId": "quality-contract-and-agent-tests",
+          "severity": "WARNING",
+          "category": "REQUIREMENT_NOT_VERIFIED",
+          "summary": "Several design gate and contract failure paths are implemented but lack direct quality evidence.",
+          "evidenceRefs": [
+            "src/agents/design/contracts.ts:1-24",
+            "src/agents/design/service.ts:68-130",
+            "src/agents/design/design.test.ts:24-42"
+          ],
+          "affectedArtifacts": [
+            "src/agents/design/contracts.ts",
+            "src/agents/design/service.ts",
+            "src/agents/design/design.test.ts"
+          ],
+          "recommendedAction": "Add targeted contract-boundary evidence for stale brief or planning checksums, invalid workflow state, missing architecture approval, and unapproved requirement changes. Existing design tests cover several business outcomes, but the supplied evidence does not directly verify these input-contract failure modes.",
+          "blockingClassification": "NORMAL_PRIORITY",
+          "owner": "tests"
+        },
+        {
+          "findingId": "finding-0ec8a840d7bf928fec42",
+          "reviewerId": "test-quality-reviewer",
+          "scopeId": "quality-contract-and-agent-tests",
+          "severity": "WARNING",
+          "category": "ERROR_PATH_NOT_VERIFIED",
+          "summary": "Implementation proposal validation is tested, while the atomic file-application failure and recovery behavior has no supplied test evidence.",
+          "evidenceRefs": [
+            "src/agents/implementation/applier.ts:15-33",
+            "src/agents/implementation/backend.test.ts:8-21"
+          ],
+          "affectedArtifacts": [
+            "src/agents/implementation/applier.ts",
+            "src/agents/implementation/backend.test.ts"
+          ],
+          "recommendedAction": "Add focused applier evidence for rollback after a later operation fails, cancellation during application, unsafe or symlink targets, and checksum mismatch handling. The supplied backend tests validate proposal policies, but they do not exercise the atomic application and recovery flow.",
+          "blockingClassification": "NORMAL_PRIORITY",
+          "owner": "tests"
+        }
+      ],
+      "invalidEvidenceFindings": []
+    },
+    {
+      "scopeId": "quality-runtime-and-release-tests",
+      "reviewerId": "test-quality-reviewer",
+      "status": "COMPLETED",
+      "selectedSkillIds": [
+        "behavioral-test-quality-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "behavioral-test-quality-review",
+          "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09"
+        }
+      ],
+      "skillContextIdentity": "14d5e0b5a2cb75cca227d7c6204de82fc3ac3ed08c2202a3225315856a998f2a",
+      "evidencePackChecksum": "5f680aad23fc2f3e613efe448756e322c6fb5ba761742c7bc0f48b089b5ce7ad",
+      "snapshotIdentity": "9b2d32c8fb6f10ca3d8fc57cdfcac63f9150d4f51a343ae5775f4c9128a6febc",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [
+        {
+          "findingId": "finding-4970556ab704416b2bf8",
+          "reviewerId": "test-quality-reviewer",
+          "scopeId": "quality-runtime-and-release-tests",
+          "severity": "ERROR",
+          "category": "CRITICAL_FLOW_NOT_VERIFIED",
+          "summary": "Release-critical browser behavior has no execution evidence.",
+          "evidenceRefs": [
+            "package.json:1-64",
+            "scripts/factory-e2e-smoke.ts:1-36"
+          ],
+          "affectedArtifacts": [
+            "package.json",
+            "scripts/factory-e2e-smoke.ts"
+          ],
+          "recommendedAction": "Provide a recorded successful factory Playwright/E2E execution report covering the release-critical user flow, or mark release evidence incomplete. The current command is opt-in and emits REAL_FACTORY_E2E_PENDING without executing when preflight is not opted in.",
+          "blockingClassification": "HIGH_PRIORITY",
+          "owner": "tests"
+        },
+        {
+          "findingId": "finding-f27b5098995ae5bb44c9",
+          "reviewerId": "test-quality-reviewer",
+          "scopeId": "quality-runtime-and-release-tests",
+          "severity": "ERROR",
+          "category": "REQUIREMENT_NOT_VERIFIED",
+          "summary": "No test artifacts or recorded test results are included in the review evidence.",
+          "evidenceRefs": [
+            "package.json:1-64"
+          ],
+          "affectedArtifacts": [
+            "package.json"
+          ],
+          "recommendedAction": "Provide deterministic Vitest and Playwright result artifacts linked to the approved behavior. The evidence manifest reports testFilesIncluded: 0, so the presence of test commands does not demonstrate that approved behavior was exercised.",
+          "blockingClassification": "HIGH_PRIORITY",
+          "owner": "tests"
+        },
+        {
+          "findingId": "finding-cec06a12d17a2b103135",
+          "reviewerId": "test-quality-reviewer",
+          "scopeId": "quality-runtime-and-release-tests",
+          "severity": "ERROR",
+          "category": "DATA_FLOW_NOT_VERIFIED",
+          "summary": "Persistence and migration assertions are defined but not evidenced as executed.",
+          "evidenceRefs": [
+            "scripts/db-smoke.ts:1-41",
+            "scripts/db-verify.mjs:1-22",
+            "scripts/db-migrate.mjs:1-26"
+          ],
+          "affectedArtifacts": [
+            "scripts/db-smoke.ts",
+            "scripts/db-verify.mjs",
+            "scripts/db-migrate.mjs"
+          ],
+          "recommendedAction": "Attach execution output from the database migration, schema verification, and persistence smoke flow against the intended database boundary. The scripts contain meaningful assertions for idempotency, round-trip persistence, workflow guards, concurrency, and cleanup, but no run result is supplied.",
+          "blockingClassification": "HIGH_PRIORITY",
+          "owner": "tests"
+        },
+        {
+          "findingId": "finding-601d85f09cdb45d46400",
+          "reviewerId": "test-quality-reviewer",
+          "scopeId": "quality-runtime-and-release-tests",
+          "severity": "WARNING",
+          "category": "FALSE_CONFIDENCE_TEST",
+          "summary": "Backend smoke evidence validates proposal acceptance rather than runtime backend behavior.",
+          "evidenceRefs": [
+            "scripts/backend-smoke.ts:1-23"
+          ],
+          "affectedArtifacts": [
+            "scripts/backend-smoke.ts"
+          ],
+          "recommendedAction": "Supplement the proposal-validation smoke with an executed boundary test that verifies the resulting migration and server action behavior. The current script explicitly reports migrationExecuted: false and validates only proposal construction and validation, so it can pass while runtime persistence behavior is disconnected.",
+          "blockingClassification": "NORMAL_PRIORITY",
+          "owner": "tests"
+        },
+        {
+          "findingId": "finding-191200ccc58b25e3fd0c",
+          "reviewerId": "test-quality-reviewer",
+          "scopeId": "quality-runtime-and-release-tests",
+          "severity": "WARNING",
+          "category": "FUNCTIONAL_SCENARIO_INCOMPLETE",
+          "summary": "Opt-in integration smoke scripts do not provide executed runtime evidence.",
+          "evidenceRefs": [
+            "scripts/ai-smoke.ts:1-14",
+            "scripts/context7-smoke.ts:1-17",
+            "scripts/codebase-memory-smoke.ts:1-18",
+            "scripts/generated-runtime-smoke.ts:1-31"
+          ],
+          "affectedArtifacts": [
+            "scripts/ai-smoke.ts",
+            "scripts/context7-smoke.ts",
+            "scripts/codebase-memory-smoke.ts",
+            "scripts/generated-runtime-smoke.ts"
+          ],
+          "recommendedAction": "Record results for the integrations that are part of the approved runtime/release path, including their explicit opt-in configuration, or document them as intentionally out of scope for this release. Each supplied smoke is gated by an environment flag and otherwise returns a pending result rather than validating the integration.",
+          "blockingClassification": "NORMAL_PRIORITY",
+          "owner": "tests"
+        }
+      ],
+      "invalidEvidenceFindings": []
+    }
+  ],
+  "validatedFindings": [
+    {
+      "findingId": "finding-0ec8a840d7bf928fec42",
+      "reviewerId": "test-quality-reviewer",
+      "scopeId": "quality-contract-and-agent-tests",
+      "severity": "WARNING",
+      "category": "ERROR_PATH_NOT_VERIFIED",
+      "summary": "Implementation proposal validation is tested, while the atomic file-application failure and recovery behavior has no supplied test evidence.",
+      "evidenceRefs": [
+        "src/agents/implementation/applier.ts:15-33",
+        "src/agents/implementation/backend.test.ts:8-21"
+      ],
+      "affectedArtifacts": [
+        "src/agents/implementation/applier.ts",
+        "src/agents/implementation/backend.test.ts"
+      ],
+      "recommendedAction": "Add focused applier evidence for rollback after a later operation fails, cancellation during application, unsafe or symlink targets, and checksum mismatch handling. The supplied backend tests validate proposal policies, but they do not exercise the atomic application and recovery flow.",
+      "blockingClassification": "NORMAL_PRIORITY",
+      "owner": "tests"
+    },
+    {
+      "findingId": "finding-191200ccc58b25e3fd0c",
+      "reviewerId": "test-quality-reviewer",
+      "scopeId": "quality-runtime-and-release-tests",
+      "severity": "WARNING",
+      "category": "FUNCTIONAL_SCENARIO_INCOMPLETE",
+      "summary": "Opt-in integration smoke scripts do not provide executed runtime evidence.",
+      "evidenceRefs": [
+        "scripts/ai-smoke.ts:1-14",
+        "scripts/context7-smoke.ts:1-17",
+        "scripts/codebase-memory-smoke.ts:1-18",
+        "scripts/generated-runtime-smoke.ts:1-31"
+      ],
+      "affectedArtifacts": [
+        "scripts/ai-smoke.ts",
+        "scripts/context7-smoke.ts",
+        "scripts/codebase-memory-smoke.ts",
+        "scripts/generated-runtime-smoke.ts"
+      ],
+      "recommendedAction": "Record results for the integrations that are part of the approved runtime/release path, including their explicit opt-in configuration, or document them as intentionally out of scope for this release. Each supplied smoke is gated by an environment flag and otherwise returns a pending result rather than validating the integration.",
+      "blockingClassification": "NORMAL_PRIORITY",
+      "owner": "tests"
+    },
+    {
+      "findingId": "finding-4970556ab704416b2bf8",
+      "reviewerId": "test-quality-reviewer",
+      "scopeId": "quality-runtime-and-release-tests",
+      "severity": "ERROR",
+      "category": "CRITICAL_FLOW_NOT_VERIFIED",
+      "summary": "Release-critical browser behavior has no execution evidence.",
+      "evidenceRefs": [
+        "package.json:1-64",
+        "scripts/factory-e2e-smoke.ts:1-36"
+      ],
+      "affectedArtifacts": [
+        "package.json",
+        "scripts/factory-e2e-smoke.ts"
+      ],
+      "recommendedAction": "Provide a recorded successful factory Playwright/E2E execution report covering the release-critical user flow, or mark release evidence incomplete. The current command is opt-in and emits REAL_FACTORY_E2E_PENDING without executing when preflight is not opted in.",
+      "blockingClassification": "HIGH_PRIORITY",
+      "owner": "tests"
+    },
+    {
+      "findingId": "finding-51d38dcb2b668ff33332",
+      "reviewerId": "test-quality-reviewer",
+      "scopeId": "quality-contract-and-agent-tests",
+      "severity": "ERROR",
+      "category": "CRITICAL_FLOW_NOT_VERIFIED",
+      "summary": "Reviewer services are identified and cataloged, but their review execution and output-contract behavior are not meaningfully verified.",
+      "evidenceRefs": [
+        "src/agents/catalog.test.ts:5-74",
+        "src/agents/catalog.ts:82-129",
+        "src/agents/design/service.ts:132-260"
+      ],
+      "affectedArtifacts": [
+        "src/agents/catalog.test.ts",
+        "src/agents/catalog.ts",
+        "src/agents/design/service.ts"
+      ],
+      "recommendedAction": "Add focused behavioral evidence for reviewer-service execution and output-contract handling, including valid review results and rejection of malformed or incomplete reviewer outputs. The current evidence verifies reviewer definitions and service associations but does not demonstrate reviewer behavior.",
+      "blockingClassification": "HIGH_PRIORITY",
+      "owner": "tests"
+    },
+    {
+      "findingId": "finding-601d85f09cdb45d46400",
+      "reviewerId": "test-quality-reviewer",
+      "scopeId": "quality-runtime-and-release-tests",
+      "severity": "WARNING",
+      "category": "FALSE_CONFIDENCE_TEST",
+      "summary": "Backend smoke evidence validates proposal acceptance rather than runtime backend behavior.",
+      "evidenceRefs": [
+        "scripts/backend-smoke.ts:1-23"
+      ],
+      "affectedArtifacts": [
+        "scripts/backend-smoke.ts"
+      ],
+      "recommendedAction": "Supplement the proposal-validation smoke with an executed boundary test that verifies the resulting migration and server action behavior. The current script explicitly reports migrationExecuted: false and validates only proposal construction and validation, so it can pass while runtime persistence behavior is disconnected.",
+      "blockingClassification": "NORMAL_PRIORITY",
+      "owner": "tests"
+    },
+    {
+      "findingId": "finding-bf13a0c6f16bf4702e9e",
+      "reviewerId": "test-quality-reviewer",
+      "scopeId": "quality-contract-and-agent-tests",
+      "severity": "WARNING",
+      "category": "REQUIREMENT_NOT_VERIFIED",
+      "summary": "Several design gate and contract failure paths are implemented but lack direct quality evidence.",
+      "evidenceRefs": [
+        "src/agents/design/contracts.ts:1-24",
+        "src/agents/design/service.ts:68-130",
+        "src/agents/design/design.test.ts:24-42"
+      ],
+      "affectedArtifacts": [
+        "src/agents/design/contracts.ts",
+        "src/agents/design/service.ts",
+        "src/agents/design/design.test.ts"
+      ],
+      "recommendedAction": "Add targeted contract-boundary evidence for stale brief or planning checksums, invalid workflow state, missing architecture approval, and unapproved requirement changes. Existing design tests cover several business outcomes, but the supplied evidence does not directly verify these input-contract failure modes.",
+      "blockingClassification": "NORMAL_PRIORITY",
+      "owner": "tests"
+    },
+    {
+      "findingId": "finding-cec06a12d17a2b103135",
+      "reviewerId": "test-quality-reviewer",
+      "scopeId": "quality-runtime-and-release-tests",
+      "severity": "ERROR",
+      "category": "DATA_FLOW_NOT_VERIFIED",
+      "summary": "Persistence and migration assertions are defined but not evidenced as executed.",
+      "evidenceRefs": [
+        "scripts/db-smoke.ts:1-41",
+        "scripts/db-verify.mjs:1-22",
+        "scripts/db-migrate.mjs:1-26"
+      ],
+      "affectedArtifacts": [
+        "scripts/db-smoke.ts",
+        "scripts/db-verify.mjs",
+        "scripts/db-migrate.mjs"
+      ],
+      "recommendedAction": "Attach execution output from the database migration, schema verification, and persistence smoke flow against the intended database boundary. The scripts contain meaningful assertions for idempotency, round-trip persistence, workflow guards, concurrency, and cleanup, but no run result is supplied.",
+      "blockingClassification": "HIGH_PRIORITY",
+      "owner": "tests"
+    },
+    {
+      "findingId": "finding-f27b5098995ae5bb44c9",
+      "reviewerId": "test-quality-reviewer",
+      "scopeId": "quality-runtime-and-release-tests",
+      "severity": "ERROR",
+      "category": "REQUIREMENT_NOT_VERIFIED",
+      "summary": "No test artifacts or recorded test results are included in the review evidence.",
+      "evidenceRefs": [
+        "package.json:1-64"
+      ],
+      "affectedArtifacts": [
+        "package.json"
+      ],
+      "recommendedAction": "Provide deterministic Vitest and Playwright result artifacts linked to the approved behavior. The evidence manifest reports testFilesIncluded: 0, so the presence of test commands does not demonstrate that approved behavior was exercised.",
+      "blockingClassification": "HIGH_PRIORITY",
+      "owner": "tests"
+    }
+  ],
+  "invalidEvidenceFindings": []
+}

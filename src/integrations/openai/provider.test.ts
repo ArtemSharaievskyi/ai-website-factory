@@ -7,6 +7,7 @@ import { FifoConcurrencyLimiter } from "./limiter";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, OpenAiLeadProvider, PlanningPackageStructuredOutputSchema, isWorkflowApprovalBlocker } from "./adapters";
 import { readAiProviderConfig } from "./config";
+import { ArchitectureReviewProviderOutputSchema, CodeIntegrationReviewProviderOutputSchema, ContractAuditProviderOutputSchema, SecurityReviewProviderOutputSchema, TestQualityReviewProviderOutputSchema } from "@/domain/review/schema";
 
 const config = { apiKey: "test", model: "test-model", modelLabel: "GPT-5.6 Luna", maxRetries: 1, maxConcurrentRequests: 1 };
 const schema = z.object({ ok: z.boolean(), summary: z.string() }).strict();
@@ -14,6 +15,50 @@ const request = { role: "test", promptVersion: "test.v1", system: "policy", user
 const validExecutor = async <T>() => ({ value: { ok: true, summary: "bounded" } as T, requestId: "req_test" });
 
 describe("production AI provider boundary", () => {
+  it("constructs every reviewer strict transport schema with required nullable metadata", () => {
+    const schemas = [
+      ["architecture-review-result", ArchitectureReviewProviderOutputSchema, "REQUIREMENT_TRACEABILITY"],
+      ["contract-audit-result", ContractAuditProviderOutputSchema, "REQUIREMENT_NOT_TRACED"],
+      ["code-integration-review-result", CodeIntegrationReviewProviderOutputSchema, "CONTRACT_IMPLEMENTATION_MISMATCH"],
+      ["security-review-result", SecurityReviewProviderOutputSchema, "TRUST_BOUNDARY"],
+      ["test-quality-review-result", TestQualityReviewProviderOutputSchema, "REQUIREMENT_NOT_VERIFIED"],
+    ] as const;
+    for (const [name, schema, category] of schemas) {
+      expect(() => zodResponseFormat(schema, name)).not.toThrow();
+      const zeroFinding = { verdict: "APPROVED", findings: [], reviewedArtifactRefs: ["file:src/app.ts"], policyVersion: "review-v1", blockedReason: null };
+      expect(schema.safeParse(zeroFinding).success).toBe(true);
+      const oneFinding = { ...zeroFinding, verdict: "CHANGES_REQUIRED", findings: [{ findingId: "finding-1", severity: "INFO", category, summary: "Bounded finding.", evidenceRefs: ["file:src/app.ts"], affectedArtifacts: [], recommendedAction: "Review the cited evidence.", ...(category === "REQUIREMENT_NOT_TRACED" ? { correctionTarget: "PLANNING" } : {}), ...(category === "CONTRACT_IMPLEMENTATION_MISMATCH" ? { correctionTarget: "IMPLEMENTATION_TASK", ownerTaskId: null } : {}), ...(category === "TRUST_BOUNDARY" ? { correctionTarget: "IMPLEMENTATION_TASK", ownerTaskId: null } : {}), ...(category === "REQUIREMENT_NOT_VERIFIED" ? { correctionTarget: "TEST_TASK", ownerTaskId: null } : {}) }] };
+      expect(schema.safeParse(oneFinding).success).toBe(true);
+    }
+  });
+  it("rejects invalid reviewer severity, verdict, and evidence for every reviewer schema", () => {
+    const schemas = [
+      [ArchitectureReviewProviderOutputSchema, "REQUIREMENT_TRACEABILITY"],
+      [ContractAuditProviderOutputSchema, "REQUIREMENT_NOT_TRACED"],
+      [CodeIntegrationReviewProviderOutputSchema, "CONTRACT_IMPLEMENTATION_MISMATCH"],
+      [SecurityReviewProviderOutputSchema, "TRUST_BOUNDARY"],
+      [TestQualityReviewProviderOutputSchema, "REQUIREMENT_NOT_VERIFIED"],
+    ] as const;
+    for (const [schema, category] of schemas) {
+      const finding = {
+        findingId: "finding-1",
+        severity: "INFO",
+        category,
+        summary: "Bounded finding.",
+        evidenceRefs: ["file:src/app.ts"],
+        affectedArtifacts: [],
+        recommendedAction: "Review the cited evidence.",
+        ...(category === "REQUIREMENT_NOT_TRACED" ? { correctionTarget: "PLANNING" } : {}),
+        ...(category === "CONTRACT_IMPLEMENTATION_MISMATCH" ? { correctionTarget: "IMPLEMENTATION_TASK", ownerTaskId: null } : {}),
+        ...(category === "TRUST_BOUNDARY" ? { correctionTarget: "IMPLEMENTATION_TASK", ownerTaskId: null } : {}),
+        ...(category === "REQUIREMENT_NOT_VERIFIED" ? { correctionTarget: "TEST_TASK", ownerTaskId: null } : {}),
+      };
+      const valid = { verdict: "CHANGES_REQUIRED", findings: [finding], reviewedArtifactRefs: ["file:src/app.ts"], policyVersion: "review-v1", blockedReason: null };
+      expect(schema.safeParse({ ...valid, findings: [{ ...finding, severity: "SEVERE" }] }).success).toBe(false);
+      expect(schema.safeParse({ ...valid, verdict: "UNKNOWN" }).success).toBe(false);
+      expect(schema.safeParse({ ...valid, findings: [{ ...finding, evidenceRefs: [] }] }).success).toBe(false);
+    }
+  });
   it("uses a strict Brief transport schema while preserving nullable optional domain values", () => {
     expect(() => zodResponseFormat(BriefDraftStructuredOutputSchema, "brief-draft")).not.toThrow();
   });
@@ -67,6 +112,34 @@ describe("production AI provider boundary", () => {
     await expect(client.request(request)).resolves.toMatchObject({ value: { ok: true, summary: "bounded" } });
     expect(sent).toMatchObject({ model: "test-model", response_format: expect.anything() });
     expect(sent).not.toHaveProperty("temperature");
+  });
+
+  it("classifies local strict-schema construction separately from API failures", async () => {
+    const events: Array<Record<string, unknown>> = [];
+    const client = new OpenAiStructuredClient(config, { eventSink: (event) => events.push(event), client: { chat: { completions: { parse: vi.fn() } } } as never });
+    const invalidSchema = z.object({ optional: z.string().optional() }).strict();
+    await expect(client.request({ ...request, schema: invalidSchema, schemaName: "invalid-optional-schema" })).rejects.toMatchObject({ code: "AI_REQUEST_SCHEMA_INVALID", diagnostic: { stage: "request_construction", requestAttempted: false, apiResponseReceived: false, schemaName: "invalid-optional-schema" } });
+    expect(events.at(-1)).toMatchObject({ type: "request.failed", code: "AI_REQUEST_SCHEMA_INVALID", diagnostic: { requestAttempted: false } });
+  });
+
+  it("keeps safe API authentication metadata without raw error contents", async () => {
+    const events: Array<Record<string, unknown>> = [];
+    const client = new OpenAiStructuredClient(config, { eventSink: (event) => events.push(event), executor: async () => { throw Object.assign(new Error("secret-api-key-value"), { status: 401, requestID: "req_auth", error: { type: "authentication_error", code: "invalid_api_key", param: null } }); } });
+    await expect(client.request({ ...request, idempotencyKey: "auth-diagnostic" })).rejects.toMatchObject({ code: "AI_AUTHENTICATION_FAILED", diagnostic: { stage: "api_request", requestAttempted: true, apiResponseReceived: true, httpStatus: 401, requestId: "req_auth", openaiErrorType: "authentication_error", openaiErrorCode: "invalid_api_key" } });
+    expect(JSON.stringify(events)).not.toContain("secret-api-key-value");
+  });
+
+  it("distinguishes model access rejection, no parsed output, refusal, truncation, and domain invalidity", async () => {
+    const modelClient = new OpenAiStructuredClient(config, { executor: async () => { throw Object.assign(new Error("model"), { status: 404, requestID: "req_model_access", error: { type: "invalid_request_error", code: "model_not_found", param: "model" } }); } });
+    await expect(modelClient.request({ ...request, idempotencyKey: "model-access-diagnostic" })).rejects.toMatchObject({ code: "AI_MODEL_ACCESS_FAILED", diagnostic: { httpStatus: 404, openaiErrorCode: "model_not_found", openaiErrorParam: "model" } });
+    const noParsed = new OpenAiStructuredClient(config, { client: { chat: { completions: { parse: async () => ({ id: "req_no_parsed", choices: [{ message: { content: "{}" }, finish_reason: "stop" }], usage: {} }) } } } as never });
+    await expect(noParsed.request({ ...request, idempotencyKey: "no-parsed-diagnostic" })).rejects.toMatchObject({ code: "AI_OUTPUT_NO_PARSED_OUTPUT", diagnostic: { apiResponseReceived: true, choicesCount: 1, finishReason: "stop", refusalPresent: false, parsedPresent: false, contentPresent: true } });
+    const refused = new OpenAiStructuredClient(config, { client: { chat: { completions: { parse: async () => ({ id: "req_refusal", choices: [{ message: { refusal: "refused" }, finish_reason: "stop" }], usage: {} }) } } } as never });
+    await expect(refused.request({ ...request, idempotencyKey: "refusal-diagnostic" })).rejects.toMatchObject({ code: "AI_OUTPUT_REFUSED", diagnostic: { refusalPresent: true } });
+    const truncated = new OpenAiStructuredClient(config, { client: { chat: { completions: { parse: async () => ({ id: "req_truncated", choices: [{ message: { content: "{}" }, finish_reason: "length" }], usage: {} }) } } } as never });
+    await expect(truncated.request({ ...request, idempotencyKey: "truncated-diagnostic" })).rejects.toMatchObject({ code: "AI_OUTPUT_TRUNCATED", diagnostic: { finishReason: "length" } });
+    const invalidDomain = new OpenAiStructuredClient(config, { client: { chat: { completions: { parse: async () => ({ id: "req_domain", choices: [{ message: { parsed: { ok: "invalid" } }, finish_reason: "stop" }], usage: {} }) } } } as never });
+    await expect(invalidDomain.request({ ...request, idempotencyKey: "domain-diagnostic" })).rejects.toMatchObject({ code: "AI_OUTPUT_DOMAIN_INVALID", diagnostic: { stage: "domain_validation", domainValidationIssuePaths: expect.arrayContaining(["ok"]) } });
   });
 
   it("maps unsupported request parameters safely without retrying", async () => {

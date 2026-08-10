@@ -1,0 +1,237 @@
+{
+  "schemaVersion": 1,
+  "runId": "950bc148572f7b8ff1079dbcb2fab1b7c4c58886c63f5bf6ea1537344392054d",
+  "baselineCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+  "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+  "reviewerId": "code-integration-reviewer",
+  "agentVersion": "1.0.0",
+  "capability": "review.integration",
+  "selectedSkillIdentities": [
+    {
+      "scopeId": "integration-provider-prompt",
+      "identity": "6f45faad42804dda84061f7c91f9eb1f3f31d9a541de8ad2b160c41f55a7816e",
+      "selectedSkillIds": [
+        "react-nextjs-integration-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "react-nextjs-integration-review",
+          "checksum": "acd9276249146013c41cdbf0d53463232124c7f50f360014729266c798cd737b"
+        }
+      ]
+    },
+    {
+      "scopeId": "integration-execution-runtime",
+      "identity": "6f45faad42804dda84061f7c91f9eb1f3f31d9a541de8ad2b160c41f55a7816e",
+      "selectedSkillIds": [
+        "react-nextjs-integration-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "react-nextjs-integration-review",
+          "checksum": "acd9276249146013c41cdbf0d53463232124c7f50f360014729266c798cd737b"
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "scopeId": "integration-provider-prompt",
+      "reviewerId": "code-integration-reviewer",
+      "status": "COMPLETED",
+      "selectedSkillIds": [
+        "react-nextjs-integration-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "react-nextjs-integration-review",
+          "checksum": "acd9276249146013c41cdbf0d53463232124c7f50f360014729266c798cd737b"
+        }
+      ],
+      "skillContextIdentity": "6f45faad42804dda84061f7c91f9eb1f3f31d9a541de8ad2b160c41f55a7816e",
+      "evidencePackChecksum": "c9708c798584088e7d09f1a1b8e1be15f08cd8bd25c2ed70ce695a9164a9d293",
+      "snapshotIdentity": "acfcc057685b72b2e3be68d233992cd7f793c1c54cb0a1ef153a7666e09a9958",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [
+        {
+          "originalFindingId": "code-review-workflow-state-not-enforced",
+          "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+          "evidenceRefs": [
+            "src/agents/reviewers/code-integration/service.ts#review-workflow-precheck",
+            "src/agents/reviewers/code-integration/service.ts#current-project-version-check",
+            "src/agents/reviewers/code-integration/contracts.ts#CodeIntegrationReviewInputSchema"
+          ]
+        },
+        {
+          "originalFindingId": "source-evidence-not-bound-to-current-source",
+          "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+          "evidenceRefs": [
+            "src/agents/reviewers/code-integration/deterministic.ts#source-checksum-check",
+            "src/agents/reviewers/code-integration/deterministic.ts#source-manifest-membership-check",
+            "src/agents/reviewers/code-integration/contracts.ts#SourceManifestEntrySchema",
+            "src/agents/reviewers/code-integration/contracts.ts#SourceSliceSchema"
+          ]
+        },
+        {
+          "originalFindingId": "implementation-summaries-not-connected-to-source-or-task-ownership",
+          "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+          "evidenceRefs": [
+            "src/agents/reviewers/code-integration/deterministic.ts#implementation-task-summary-check",
+            "src/agents/reviewers/code-integration/contracts.ts#ImplementationTaskSummarySchema",
+            "src/agents/reviewers/code-integration/service.ts#normalize-evidence-set"
+          ]
+        }
+      ]
+    },
+    {
+      "scopeId": "integration-execution-runtime",
+      "reviewerId": "code-integration-reviewer",
+      "status": "COMPLETED",
+      "selectedSkillIds": [
+        "react-nextjs-integration-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "react-nextjs-integration-review",
+          "checksum": "acd9276249146013c41cdbf0d53463232124c7f50f360014729266c798cd737b"
+        }
+      ],
+      "skillContextIdentity": "6f45faad42804dda84061f7c91f9eb1f3f31d9a541de8ad2b160c41f55a7816e",
+      "evidencePackChecksum": "87619f47dc606ff57089805b929debe875cd12fc33e22f0ce3cbbda85cc8f58c",
+      "snapshotIdentity": "eae61301b00c4171a8a08b13a3103ead65a589c5557ad452fcf0b119fc13c0d6",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [
+        {
+          "findingId": "finding-c94e4c6dd19f957eeb40",
+          "reviewerId": "code-integration-reviewer",
+          "scopeId": "integration-execution-runtime",
+          "severity": "ERROR",
+          "category": "ERROR_HANDLING",
+          "summary": "Database configuration failures bypass the scripts' safe error-propagation path.",
+          "evidenceRefs": [
+            "scripts/db-common.mjs:18-26",
+            "scripts/db-migrate.mjs:8-9",
+            "scripts/db-status.mjs:2-2",
+            "scripts/db-verify.mjs:3-3",
+            "scripts/db-smoke.ts:18-18"
+          ],
+          "affectedArtifacts": [
+            "scripts/db-common.mjs",
+            "scripts/db-migrate.mjs",
+            "scripts/db-status.mjs",
+            "scripts/db-verify.mjs",
+            "scripts/db-smoke.ts"
+          ],
+          "recommendedAction": "Move database-pool construction inside the protected execution path, or add an equivalent top-level failure handler, so DATABASE_CONFIGURATION_MISSING and other pool-creation failures use the established safe error codes and deterministic nonzero process exit behavior.",
+          "blockingClassification": "BLOCKING_FOR_PHASE_6",
+          "owner": "implementation"
+        },
+        {
+          "findingId": "finding-517e635c9c23995687d8",
+          "reviewerId": "code-integration-reviewer",
+          "scopeId": "integration-execution-runtime",
+          "severity": "WARNING",
+          "category": "ERROR_HANDLING",
+          "summary": "Real factory E2E failures after runtime creation can leave the runtime unclosed.",
+          "evidenceRefs": [
+            "scripts/factory-e2e-smoke.ts:15-35"
+          ],
+          "affectedArtifacts": [
+            "scripts/factory-e2e-smoke.ts"
+          ],
+          "recommendedAction": "Ensure the production runtime is closed when preflight succeeds and runtime creation is followed by an exception during resume loading or runRealFactoryE2E, rather than only closing it after a successful report.",
+          "blockingClassification": "NORMAL_PRIORITY",
+          "owner": "implementation"
+        }
+      ],
+      "invalidEvidenceFindings": []
+    }
+  ],
+  "validatedFindings": [
+    {
+      "findingId": "finding-517e635c9c23995687d8",
+      "reviewerId": "code-integration-reviewer",
+      "scopeId": "integration-execution-runtime",
+      "severity": "WARNING",
+      "category": "ERROR_HANDLING",
+      "summary": "Real factory E2E failures after runtime creation can leave the runtime unclosed.",
+      "evidenceRefs": [
+        "scripts/factory-e2e-smoke.ts:15-35"
+      ],
+      "affectedArtifacts": [
+        "scripts/factory-e2e-smoke.ts"
+      ],
+      "recommendedAction": "Ensure the production runtime is closed when preflight succeeds and runtime creation is followed by an exception during resume loading or runRealFactoryE2E, rather than only closing it after a successful report.",
+      "blockingClassification": "NORMAL_PRIORITY",
+      "owner": "implementation"
+    },
+    {
+      "findingId": "finding-c94e4c6dd19f957eeb40",
+      "reviewerId": "code-integration-reviewer",
+      "scopeId": "integration-execution-runtime",
+      "severity": "ERROR",
+      "category": "ERROR_HANDLING",
+      "summary": "Database configuration failures bypass the scripts' safe error-propagation path.",
+      "evidenceRefs": [
+        "scripts/db-common.mjs:18-26",
+        "scripts/db-migrate.mjs:8-9",
+        "scripts/db-status.mjs:2-2",
+        "scripts/db-verify.mjs:3-3",
+        "scripts/db-smoke.ts:18-18"
+      ],
+      "affectedArtifacts": [
+        "scripts/db-common.mjs",
+        "scripts/db-migrate.mjs",
+        "scripts/db-status.mjs",
+        "scripts/db-verify.mjs",
+        "scripts/db-smoke.ts"
+      ],
+      "recommendedAction": "Move database-pool construction inside the protected execution path, or add an equivalent top-level failure handler, so DATABASE_CONFIGURATION_MISSING and other pool-creation failures use the established safe error codes and deterministic nonzero process exit behavior.",
+      "blockingClassification": "BLOCKING_FOR_PHASE_6",
+      "owner": "implementation"
+    }
+  ],
+  "invalidEvidenceFindings": [
+    {
+      "reviewerId": "code-integration-reviewer",
+      "scopeId": "integration-provider-prompt",
+      "originalFindingId": "code-review-workflow-state-not-enforced",
+      "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+      "evidenceRefs": [
+        "src/agents/reviewers/code-integration/service.ts#review-workflow-precheck",
+        "src/agents/reviewers/code-integration/service.ts#current-project-version-check",
+        "src/agents/reviewers/code-integration/contracts.ts#CodeIntegrationReviewInputSchema"
+      ]
+    },
+    {
+      "reviewerId": "code-integration-reviewer",
+      "scopeId": "integration-provider-prompt",
+      "originalFindingId": "source-evidence-not-bound-to-current-source",
+      "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+      "evidenceRefs": [
+        "src/agents/reviewers/code-integration/deterministic.ts#source-checksum-check",
+        "src/agents/reviewers/code-integration/deterministic.ts#source-manifest-membership-check",
+        "src/agents/reviewers/code-integration/contracts.ts#SourceManifestEntrySchema",
+        "src/agents/reviewers/code-integration/contracts.ts#SourceSliceSchema"
+      ]
+    },
+    {
+      "reviewerId": "code-integration-reviewer",
+      "scopeId": "integration-provider-prompt",
+      "originalFindingId": "implementation-summaries-not-connected-to-source-or-task-ownership",
+      "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+      "evidenceRefs": [
+        "src/agents/reviewers/code-integration/deterministic.ts#implementation-task-summary-check",
+        "src/agents/reviewers/code-integration/contracts.ts#ImplementationTaskSummarySchema",
+        "src/agents/reviewers/code-integration/service.ts#normalize-evidence-set"
+      ]
+    }
+  ]
+}

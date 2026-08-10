@@ -1,0 +1,591 @@
+{
+  "schemaVersion": 1,
+  "runId": "950bc148572f7b8ff1079dbcb2fab1b7c4c58886c63f5bf6ea1537344392054d",
+  "baselineCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+  "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+  "reviewerId": "architecture-reviewer",
+  "agentVersion": "1.0.0",
+  "capability": "review.architecture",
+  "selectedSkillIdentities": [
+    {
+      "scopeId": "architecture-module-boundaries",
+      "identity": "3f7bc8948c675383e5dbfe8ed59f405d2d1bfd23cabe7a74e83415d577cfd60e",
+      "selectedSkillIds": [
+        "module-boundaries-fb20497b5c35"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "module-boundaries-fb20497b5c35",
+          "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff"
+        }
+      ]
+    },
+    {
+      "scopeId": "architecture-maintainability",
+      "identity": "e943fb9b78241af4d3aea28b25d02f5972fc410520d8e9fee77de0761ab4c0fe",
+      "selectedSkillIds": [
+        "review-maintainability-d9faf7cb9775"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "review-maintainability-d9faf7cb9775",
+          "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9"
+        }
+      ]
+    },
+    {
+      "scopeId": "architecture-tradeoffs",
+      "identity": "488df20026a8cdc27a0ea566de496b2de54ab8ce8e047ec9ffa73eb4ad149c59",
+      "selectedSkillIds": [
+        "architecture-tradeoff-review",
+        "module-boundaries-fb20497b5c35",
+        "review-maintainability-d9faf7cb9775"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "architecture-tradeoff-review",
+          "checksum": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd"
+        },
+        {
+          "skillId": "module-boundaries-fb20497b5c35",
+          "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff"
+        },
+        {
+          "skillId": "review-maintainability-d9faf7cb9775",
+          "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9"
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "scopeId": "architecture-module-boundaries",
+      "reviewerId": "architecture-reviewer",
+      "status": "COMPLETED",
+      "selectedSkillIds": [
+        "module-boundaries-fb20497b5c35"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "module-boundaries-fb20497b5c35",
+          "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff"
+        }
+      ],
+      "skillContextIdentity": "3f7bc8948c675383e5dbfe8ed59f405d2d1bfd23cabe7a74e83415d577cfd60e",
+      "evidencePackChecksum": "28c85a7e14457005e0b2733047e74eb4781b6a57a1decb583c550cfa6a749b5e",
+      "snapshotIdentity": "39d1b0c45a022d8247faa6de929406fc96c9ec6cf53bd26f001b99dc64c55dcd",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [
+        {
+          "findingId": "finding-efa4502938176a741e32",
+          "reviewerId": "architecture-reviewer",
+          "scopeId": "architecture-module-boundaries",
+          "severity": "ERROR",
+          "category": "DATA_ARCHITECTURE",
+          "summary": "Design persistence is split across database and filesystem paths, while the injected DecisionRepository is unused by DesignMemoryAdapter.",
+          "evidenceRefs": [
+            "src/agents/design/memory.ts:7-12",
+            "src/agents/design/server.ts:7",
+            "src/agents/design/service.ts:4-9"
+          ],
+          "affectedArtifacts": [
+            "src/agents/design/memory.ts:1-23",
+            "src/agents/design/server.ts:1-9",
+            "src/agents/design/service.ts:1-260"
+          ],
+          "recommendedAction": "Define one authoritative persistence owner for design decisions and snapshots. Either make DesignMemoryAdapter persist through the supplied DecisionRepository and explicitly coordinate filesystem synchronization, or remove the unused repository dependency and document the database-to-filesystem synchronization owner. Ensure a failed write cannot leave database and filesystem state divergent.",
+          "blockingClassification": "HIGH_PRIORITY",
+          "owner": "architecture"
+        },
+        {
+          "findingId": "finding-1540c99220f633245955",
+          "reviewerId": "architecture-reviewer",
+          "scopeId": "architecture-module-boundaries",
+          "severity": "WARNING",
+          "category": "SOURCE_OF_TRUTH",
+          "summary": "DesignAgentService keeps workflow and idempotency state in process-local Maps despite having persistence repositories and memory synchronization ports.",
+          "evidenceRefs": [
+            "src/agents/design/service.ts:34-50",
+            "src/agents/design/service.ts:200-260"
+          ],
+          "affectedArtifacts": [
+            "src/agents/design/service.ts:34-50",
+            "src/agents/design/service.ts:200-260"
+          ],
+          "recommendedAction": "Move generation idempotency, generated-set lookup, and selection state to the authoritative persistence boundary, or explicitly constrain these maps to a non-authoritative cache with durable idempotency and recovery semantics. Add restart and concurrent-request coverage.",
+          "blockingClassification": "NORMAL_PRIORITY",
+          "owner": "architecture"
+        },
+        {
+          "findingId": "finding-4bba2d52b86f240393fc",
+          "reviewerId": "architecture-reviewer",
+          "scopeId": "architecture-module-boundaries",
+          "severity": "WARNING",
+          "category": "DEPENDENCY_ARCHITECTURE",
+          "summary": "The deterministic design provider uses module-global mutable generationSalt and a module-load now value, coupling otherwise independent requests through shared runtime state.",
+          "evidenceRefs": [
+            "src/agents/design/deterministic.ts:6-8"
+          ],
+          "affectedArtifacts": [
+            "src/agents/design/deterministic.ts:6-8"
+          ],
+          "recommendedAction": "Pass generation-specific salt and timestamps as function inputs or keep them local to a generation operation. Remove module-level mutable generationSalt so concurrent design requests cannot influence one another, and avoid a module-load timestamp for persisted document timestamps.",
+          "blockingClassification": "NORMAL_PRIORITY",
+          "owner": "architecture"
+        }
+      ],
+      "invalidEvidenceFindings": []
+    },
+    {
+      "scopeId": "architecture-maintainability",
+      "reviewerId": "architecture-reviewer",
+      "status": "COMPLETED",
+      "selectedSkillIds": [
+        "review-maintainability-d9faf7cb9775"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "review-maintainability-d9faf7cb9775",
+          "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9"
+        }
+      ],
+      "skillContextIdentity": "e943fb9b78241af4d3aea28b25d02f5972fc410520d8e9fee77de0761ab4c0fe",
+      "evidencePackChecksum": "c31a69f8348ada6391d97c2f5da2465c7977e9c5bb89dd9960e181446da7a694",
+      "snapshotIdentity": "1fcb2ad1c2c23ff8871bfb2b20b8ba80cbf3e373d3ce3b8cc9a0fb9fe22ebf46",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [
+        {
+          "findingId": "finding-3ee5bcff808135a21217",
+          "reviewerId": "architecture-reviewer",
+          "scopeId": "architecture-maintainability",
+          "severity": "WARNING",
+          "category": "CONTRADICTORY_DECISION",
+          "summary": "Reviewer skill portfolio claims are inconsistent: the repository rules describe complete portfolio activation across all nine agents, while the Architecture Reviewer definition explicitly declares no skills.",
+          "evidenceRefs": [
+            "AGENTS.md:20-20",
+            "docs/architecture/agent-architecture.md:35-35",
+            "docs/architecture/architecture-reviewer.md:20-22"
+          ],
+          "affectedArtifacts": [
+            "AGENTS.md",
+            "docs/architecture/agent-architecture.md",
+            "docs/architecture/architecture-reviewer.md"
+          ],
+          "recommendedAction": "Define the canonical reviewer skill-assignment state in the registry or one authoritative architecture document, then align the portfolio statements and the Architecture Reviewer catalog definition. Explicitly state whether the Architecture Reviewer has zero skills or participates in the active portfolio with assigned skills.",
+          "blockingClassification": "NORMAL_PRIORITY",
+          "owner": "architecture"
+        },
+        {
+          "findingId": "finding-5f4cd4a958172b921dfd",
+          "reviewerId": "architecture-reviewer",
+          "scopeId": "architecture-maintainability",
+          "severity": "WARNING",
+          "category": "SOURCE_OF_TRUTH",
+          "summary": "Several architecture documents mix current-state and planned-state descriptions without an explicit supersession marker, making repository boundaries and implemented capability difficult to determine.",
+          "evidenceRefs": [
+            "docs/architecture/product-specification.md:3-16",
+            "docs/architecture/implementation-roadmap.md:7-23",
+            "docs/architecture/repository-structure.md:51-53",
+            "docs/architecture/agent-architecture.md:1-12"
+          ],
+          "affectedArtifacts": [
+            "docs/architecture/product-specification.md",
+            "docs/architecture/implementation-roadmap.md",
+            "docs/architecture/repository-structure.md",
+            "docs/architecture/agent-architecture.md"
+          ],
+          "recommendedAction": "Add an explicit document-status or milestone source of truth and mark superseded roadmap/product/repository statements, or update them to the same current baseline. In particular, reconcile the claim that the repository contains only the foundation and that reviewer directories are future work with the claims that the reviewer portfolio and production execution adapters are implemented.",
+          "blockingClassification": "NORMAL_PRIORITY",
+          "owner": "architecture"
+        },
+        {
+          "findingId": "finding-2484a19307c1536e12e7",
+          "reviewerId": "architecture-reviewer",
+          "scopeId": "architecture-maintainability",
+          "severity": "INFO",
+          "category": "REQUIREMENT_TRACEABILITY",
+          "summary": "The Architecture Reviewer contract requires an approved Brief and accepted PlanningPackage, but the supplied evidence pack contains architecture documentation only and no project-specific Brief or PlanningPackage.",
+          "evidenceRefs": [
+            "docs/architecture/architecture-reviewer.md:8-12",
+            "AGENTS.md:1-29"
+          ],
+          "affectedArtifacts": [
+            "docs/architecture/architecture-reviewer.md",
+            "AGENTS.md"
+          ],
+          "recommendedAction": "Publish or reference the canonical approved Brief and accepted PlanningPackage for this review scope, or explicitly record that this self-review is documentation-only and cannot assess project-specific requirement traceability. Keep the distinction visible in the review input contract and evidence manifest.",
+          "blockingClassification": "INFORMATIONAL",
+          "owner": "architecture"
+        }
+      ],
+      "invalidEvidenceFindings": []
+    },
+    {
+      "scopeId": "architecture-tradeoffs",
+      "reviewerId": "architecture-reviewer",
+      "status": "COMPLETED",
+      "selectedSkillIds": [
+        "architecture-tradeoff-review",
+        "module-boundaries-fb20497b5c35",
+        "review-maintainability-d9faf7cb9775"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "architecture-tradeoff-review",
+          "checksum": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd"
+        },
+        {
+          "skillId": "module-boundaries-fb20497b5c35",
+          "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff"
+        },
+        {
+          "skillId": "review-maintainability-d9faf7cb9775",
+          "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9"
+        }
+      ],
+      "skillContextIdentity": "488df20026a8cdc27a0ea566de496b2de54ab8ce8e047ec9ffa73eb4ad149c59",
+      "evidencePackChecksum": "7713334b39150024fe3414610f0ff16c1ead1cfba00ebf2da8b9733ab53aa97c",
+      "snapshotIdentity": "2e6291788147f529cdf30336ee9171456ef81b28a9e24a02bb69c8ee1507598f",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [
+        {
+          "findingId": "finding-24cb4b563e9b341a84fd",
+          "reviewerId": "architecture-reviewer",
+          "scopeId": "architecture-tradeoffs",
+          "severity": "ERROR",
+          "category": "IMPLEMENTABILITY",
+          "summary": "The OpenAI provider can be constructed with an empty model identifier.",
+          "evidenceRefs": [
+            "src/integrations/openai/config.ts:4-12",
+            "src/integrations/openai/production.ts:1-7",
+            "src/integrations/openai/client.ts:22-32"
+          ],
+          "affectedArtifacts": [
+            "src/integrations/openai/config.ts",
+            "src/integrations/openai/production.ts",
+            "src/integrations/openai/client.ts"
+          ],
+          "recommendedAction": "The provider owner should define and enforce an actual default model or require OPENAI_MODEL during configuration validation. The current configuration exposes DEFAULT_AI_MODEL_LABEL but returns an empty model when OPENAI_MODEL is absent, and production passes that value directly to the OpenAI client.",
+          "blockingClassification": "HIGH_PRIORITY",
+          "owner": "architecture"
+        },
+        {
+          "findingId": "finding-f13df5392f71f7cf58df",
+          "reviewerId": "architecture-reviewer",
+          "scopeId": "architecture-tradeoffs",
+          "severity": "WARNING",
+          "category": "STORAGE_ARCHITECTURE",
+          "summary": "Project Memory defines metadata but the service stores indexes, cache, and idempotency state only in process memory.",
+          "evidenceRefs": [
+            "src/integrations/codebase-memory/service.ts:13-41",
+            "src/integrations/codebase-memory/metadata.ts:1-5"
+          ],
+          "affectedArtifacts": [
+            "src/integrations/codebase-memory/service.ts",
+            "src/integrations/codebase-memory/metadata.ts"
+          ],
+          "recommendedAction": "The project-memory owner should decide whether index metadata and query state are intentionally process-local or must survive generated-runtime restarts. If persistence is required, connect the existing metadata contract to the lifecycle; otherwise document the restart and reindex consequence and remove the unused persistence-shaped contract if it is not part of the selected design.",
+          "blockingClassification": "NORMAL_PRIORITY",
+          "owner": "architecture"
+        },
+        {
+          "findingId": "finding-9106112c9ba65e4be7ed",
+          "reviewerId": "architecture-reviewer",
+          "scopeId": "architecture-tradeoffs",
+          "severity": "WARNING",
+          "category": "IDENTITY_MODEL",
+          "summary": "Query index selection can be ambiguous when more than one workspace path exists for the same project version.",
+          "evidenceRefs": [
+            "src/integrations/codebase-memory/service.ts:35-41",
+            "src/integrations/codebase-memory/contracts.ts:7-26",
+            "src/integrations/codebase-memory/policy.ts:25-28"
+          ],
+          "affectedArtifacts": [
+            "src/integrations/codebase-memory/service.ts",
+            "src/integrations/codebase-memory/contracts.ts"
+          ],
+          "recommendedAction": "The Project Memory owner should require a workspace scope for queries or make lookup use the complete canonical workspace identity. The current fallback selects the first in-memory index matching only projectId and projectVersion, while canonical identity also includes the resolved workspace path.",
+          "blockingClassification": "NORMAL_PRIORITY",
+          "owner": "architecture"
+        },
+        {
+          "findingId": "finding-3ea29b90bbf550eecdb3",
+          "reviewerId": "architecture-reviewer",
+          "scopeId": "architecture-tradeoffs",
+          "severity": "WARNING",
+          "category": "DEPENDENCY_ARCHITECTURE",
+          "summary": "Configured concurrency limits do not necessarily bound active external work after timeout.",
+          "evidenceRefs": [
+            "src/integrations/codebase-memory/service.ts:38-41",
+            "src/integrations/context7/service.ts:30-39",
+            "src/integrations/openai/client.ts:24-32"
+          ],
+          "affectedArtifacts": [
+            "src/integrations/codebase-memory/service.ts",
+            "src/integrations/context7/service.ts",
+            "src/integrations/openai/client.ts"
+          ],
+          "recommendedAction": "The provider and integration owners should align timeout cancellation with concurrency accounting. A timeout currently rejects a Promise.race but does not necessarily abort the underlying transport; the limiter can then release capacity while external work remains active. Use abort propagation or explicitly document and bound this behavior before relying on the configured concurrency limits operationally.",
+          "blockingClassification": "NORMAL_PRIORITY",
+          "owner": "architecture"
+        },
+        {
+          "findingId": "finding-20662816cdabed08871f",
+          "reviewerId": "architecture-reviewer",
+          "scopeId": "architecture-tradeoffs",
+          "severity": "WARNING",
+          "category": "SOURCE_OF_TRUTH",
+          "summary": "Context7 dependency eligibility is governed by multiple independently maintained lists.",
+          "evidenceRefs": [
+            "src/integrations/context7/policy.ts:3-13",
+            "src/integrations/context7/service.ts:9-18",
+            "src/integrations/context7/contracts.ts:17-20"
+          ],
+          "affectedArtifacts": [
+            "src/integrations/context7/policy.ts",
+            "src/integrations/context7/service.ts",
+            "src/integrations/context7/contracts.ts"
+          ],
+          "recommendedAction": "The Context7 owner should establish one source of truth for the accepted Factory dependency stack and package allowlist. The service hardcodes a separate fixedStack from the policy's approved package list and accepts caller-provided stack inputs, creating drift risk when dependency approval changes.",
+          "blockingClassification": "NORMAL_PRIORITY",
+          "owner": "architecture"
+        }
+      ],
+      "invalidEvidenceFindings": []
+    }
+  ],
+  "validatedFindings": [
+    {
+      "findingId": "finding-1540c99220f633245955",
+      "reviewerId": "architecture-reviewer",
+      "scopeId": "architecture-module-boundaries",
+      "severity": "WARNING",
+      "category": "SOURCE_OF_TRUTH",
+      "summary": "DesignAgentService keeps workflow and idempotency state in process-local Maps despite having persistence repositories and memory synchronization ports.",
+      "evidenceRefs": [
+        "src/agents/design/service.ts:34-50",
+        "src/agents/design/service.ts:200-260"
+      ],
+      "affectedArtifacts": [
+        "src/agents/design/service.ts:34-50",
+        "src/agents/design/service.ts:200-260"
+      ],
+      "recommendedAction": "Move generation idempotency, generated-set lookup, and selection state to the authoritative persistence boundary, or explicitly constrain these maps to a non-authoritative cache with durable idempotency and recovery semantics. Add restart and concurrent-request coverage.",
+      "blockingClassification": "NORMAL_PRIORITY",
+      "owner": "architecture"
+    },
+    {
+      "findingId": "finding-20662816cdabed08871f",
+      "reviewerId": "architecture-reviewer",
+      "scopeId": "architecture-tradeoffs",
+      "severity": "WARNING",
+      "category": "SOURCE_OF_TRUTH",
+      "summary": "Context7 dependency eligibility is governed by multiple independently maintained lists.",
+      "evidenceRefs": [
+        "src/integrations/context7/policy.ts:3-13",
+        "src/integrations/context7/service.ts:9-18",
+        "src/integrations/context7/contracts.ts:17-20"
+      ],
+      "affectedArtifacts": [
+        "src/integrations/context7/policy.ts",
+        "src/integrations/context7/service.ts",
+        "src/integrations/context7/contracts.ts"
+      ],
+      "recommendedAction": "The Context7 owner should establish one source of truth for the accepted Factory dependency stack and package allowlist. The service hardcodes a separate fixedStack from the policy's approved package list and accepts caller-provided stack inputs, creating drift risk when dependency approval changes.",
+      "blockingClassification": "NORMAL_PRIORITY",
+      "owner": "architecture"
+    },
+    {
+      "findingId": "finding-2484a19307c1536e12e7",
+      "reviewerId": "architecture-reviewer",
+      "scopeId": "architecture-maintainability",
+      "severity": "INFO",
+      "category": "REQUIREMENT_TRACEABILITY",
+      "summary": "The Architecture Reviewer contract requires an approved Brief and accepted PlanningPackage, but the supplied evidence pack contains architecture documentation only and no project-specific Brief or PlanningPackage.",
+      "evidenceRefs": [
+        "docs/architecture/architecture-reviewer.md:8-12",
+        "AGENTS.md:1-29"
+      ],
+      "affectedArtifacts": [
+        "docs/architecture/architecture-reviewer.md",
+        "AGENTS.md"
+      ],
+      "recommendedAction": "Publish or reference the canonical approved Brief and accepted PlanningPackage for this review scope, or explicitly record that this self-review is documentation-only and cannot assess project-specific requirement traceability. Keep the distinction visible in the review input contract and evidence manifest.",
+      "blockingClassification": "INFORMATIONAL",
+      "owner": "architecture"
+    },
+    {
+      "findingId": "finding-24cb4b563e9b341a84fd",
+      "reviewerId": "architecture-reviewer",
+      "scopeId": "architecture-tradeoffs",
+      "severity": "ERROR",
+      "category": "IMPLEMENTABILITY",
+      "summary": "The OpenAI provider can be constructed with an empty model identifier.",
+      "evidenceRefs": [
+        "src/integrations/openai/config.ts:4-12",
+        "src/integrations/openai/production.ts:1-7",
+        "src/integrations/openai/client.ts:22-32"
+      ],
+      "affectedArtifacts": [
+        "src/integrations/openai/config.ts",
+        "src/integrations/openai/production.ts",
+        "src/integrations/openai/client.ts"
+      ],
+      "recommendedAction": "The provider owner should define and enforce an actual default model or require OPENAI_MODEL during configuration validation. The current configuration exposes DEFAULT_AI_MODEL_LABEL but returns an empty model when OPENAI_MODEL is absent, and production passes that value directly to the OpenAI client.",
+      "blockingClassification": "HIGH_PRIORITY",
+      "owner": "architecture"
+    },
+    {
+      "findingId": "finding-3ea29b90bbf550eecdb3",
+      "reviewerId": "architecture-reviewer",
+      "scopeId": "architecture-tradeoffs",
+      "severity": "WARNING",
+      "category": "DEPENDENCY_ARCHITECTURE",
+      "summary": "Configured concurrency limits do not necessarily bound active external work after timeout.",
+      "evidenceRefs": [
+        "src/integrations/codebase-memory/service.ts:38-41",
+        "src/integrations/context7/service.ts:30-39",
+        "src/integrations/openai/client.ts:24-32"
+      ],
+      "affectedArtifacts": [
+        "src/integrations/codebase-memory/service.ts",
+        "src/integrations/context7/service.ts",
+        "src/integrations/openai/client.ts"
+      ],
+      "recommendedAction": "The provider and integration owners should align timeout cancellation with concurrency accounting. A timeout currently rejects a Promise.race but does not necessarily abort the underlying transport; the limiter can then release capacity while external work remains active. Use abort propagation or explicitly document and bound this behavior before relying on the configured concurrency limits operationally.",
+      "blockingClassification": "NORMAL_PRIORITY",
+      "owner": "architecture"
+    },
+    {
+      "findingId": "finding-3ee5bcff808135a21217",
+      "reviewerId": "architecture-reviewer",
+      "scopeId": "architecture-maintainability",
+      "severity": "WARNING",
+      "category": "CONTRADICTORY_DECISION",
+      "summary": "Reviewer skill portfolio claims are inconsistent: the repository rules describe complete portfolio activation across all nine agents, while the Architecture Reviewer definition explicitly declares no skills.",
+      "evidenceRefs": [
+        "AGENTS.md:20-20",
+        "docs/architecture/agent-architecture.md:35-35",
+        "docs/architecture/architecture-reviewer.md:20-22"
+      ],
+      "affectedArtifacts": [
+        "AGENTS.md",
+        "docs/architecture/agent-architecture.md",
+        "docs/architecture/architecture-reviewer.md"
+      ],
+      "recommendedAction": "Define the canonical reviewer skill-assignment state in the registry or one authoritative architecture document, then align the portfolio statements and the Architecture Reviewer catalog definition. Explicitly state whether the Architecture Reviewer has zero skills or participates in the active portfolio with assigned skills.",
+      "blockingClassification": "NORMAL_PRIORITY",
+      "owner": "architecture"
+    },
+    {
+      "findingId": "finding-4bba2d52b86f240393fc",
+      "reviewerId": "architecture-reviewer",
+      "scopeId": "architecture-module-boundaries",
+      "severity": "WARNING",
+      "category": "DEPENDENCY_ARCHITECTURE",
+      "summary": "The deterministic design provider uses module-global mutable generationSalt and a module-load now value, coupling otherwise independent requests through shared runtime state.",
+      "evidenceRefs": [
+        "src/agents/design/deterministic.ts:6-8"
+      ],
+      "affectedArtifacts": [
+        "src/agents/design/deterministic.ts:6-8"
+      ],
+      "recommendedAction": "Pass generation-specific salt and timestamps as function inputs or keep them local to a generation operation. Remove module-level mutable generationSalt so concurrent design requests cannot influence one another, and avoid a module-load timestamp for persisted document timestamps.",
+      "blockingClassification": "NORMAL_PRIORITY",
+      "owner": "architecture"
+    },
+    {
+      "findingId": "finding-5f4cd4a958172b921dfd",
+      "reviewerId": "architecture-reviewer",
+      "scopeId": "architecture-maintainability",
+      "severity": "WARNING",
+      "category": "SOURCE_OF_TRUTH",
+      "summary": "Several architecture documents mix current-state and planned-state descriptions without an explicit supersession marker, making repository boundaries and implemented capability difficult to determine.",
+      "evidenceRefs": [
+        "docs/architecture/product-specification.md:3-16",
+        "docs/architecture/implementation-roadmap.md:7-23",
+        "docs/architecture/repository-structure.md:51-53",
+        "docs/architecture/agent-architecture.md:1-12"
+      ],
+      "affectedArtifacts": [
+        "docs/architecture/product-specification.md",
+        "docs/architecture/implementation-roadmap.md",
+        "docs/architecture/repository-structure.md",
+        "docs/architecture/agent-architecture.md"
+      ],
+      "recommendedAction": "Add an explicit document-status or milestone source of truth and mark superseded roadmap/product/repository statements, or update them to the same current baseline. In particular, reconcile the claim that the repository contains only the foundation and that reviewer directories are future work with the claims that the reviewer portfolio and production execution adapters are implemented.",
+      "blockingClassification": "NORMAL_PRIORITY",
+      "owner": "architecture"
+    },
+    {
+      "findingId": "finding-9106112c9ba65e4be7ed",
+      "reviewerId": "architecture-reviewer",
+      "scopeId": "architecture-tradeoffs",
+      "severity": "WARNING",
+      "category": "IDENTITY_MODEL",
+      "summary": "Query index selection can be ambiguous when more than one workspace path exists for the same project version.",
+      "evidenceRefs": [
+        "src/integrations/codebase-memory/service.ts:35-41",
+        "src/integrations/codebase-memory/contracts.ts:7-26",
+        "src/integrations/codebase-memory/policy.ts:25-28"
+      ],
+      "affectedArtifacts": [
+        "src/integrations/codebase-memory/service.ts",
+        "src/integrations/codebase-memory/contracts.ts"
+      ],
+      "recommendedAction": "The Project Memory owner should require a workspace scope for queries or make lookup use the complete canonical workspace identity. The current fallback selects the first in-memory index matching only projectId and projectVersion, while canonical identity also includes the resolved workspace path.",
+      "blockingClassification": "NORMAL_PRIORITY",
+      "owner": "architecture"
+    },
+    {
+      "findingId": "finding-efa4502938176a741e32",
+      "reviewerId": "architecture-reviewer",
+      "scopeId": "architecture-module-boundaries",
+      "severity": "ERROR",
+      "category": "DATA_ARCHITECTURE",
+      "summary": "Design persistence is split across database and filesystem paths, while the injected DecisionRepository is unused by DesignMemoryAdapter.",
+      "evidenceRefs": [
+        "src/agents/design/memory.ts:7-12",
+        "src/agents/design/server.ts:7",
+        "src/agents/design/service.ts:4-9"
+      ],
+      "affectedArtifacts": [
+        "src/agents/design/memory.ts:1-23",
+        "src/agents/design/server.ts:1-9",
+        "src/agents/design/service.ts:1-260"
+      ],
+      "recommendedAction": "Define one authoritative persistence owner for design decisions and snapshots. Either make DesignMemoryAdapter persist through the supplied DecisionRepository and explicitly coordinate filesystem synchronization, or remove the unused repository dependency and document the database-to-filesystem synchronization owner. Ensure a failed write cannot leave database and filesystem state divergent.",
+      "blockingClassification": "HIGH_PRIORITY",
+      "owner": "architecture"
+    },
+    {
+      "findingId": "finding-f13df5392f71f7cf58df",
+      "reviewerId": "architecture-reviewer",
+      "scopeId": "architecture-tradeoffs",
+      "severity": "WARNING",
+      "category": "STORAGE_ARCHITECTURE",
+      "summary": "Project Memory defines metadata but the service stores indexes, cache, and idempotency state only in process memory.",
+      "evidenceRefs": [
+        "src/integrations/codebase-memory/service.ts:13-41",
+        "src/integrations/codebase-memory/metadata.ts:1-5"
+      ],
+      "affectedArtifacts": [
+        "src/integrations/codebase-memory/service.ts",
+        "src/integrations/codebase-memory/metadata.ts"
+      ],
+      "recommendedAction": "The project-memory owner should decide whether index metadata and query state are intentionally process-local or must survive generated-runtime restarts. If persistence is required, connect the existing metadata contract to the lifecycle; otherwise document the restart and reindex consequence and remove the unused persistence-shaped contract if it is not part of the selected design.",
+      "blockingClassification": "NORMAL_PRIORITY",
+      "owner": "architecture"
+    }
+  ],
+  "invalidEvidenceFindings": []
+}

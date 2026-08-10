@@ -1,0 +1,332 @@
+{
+  "schemaVersion": 1,
+  "runId": "950bc148572f7b8ff1079dbcb2fab1b7c4c58886c63f5bf6ea1537344392054d",
+  "baselineCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+  "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+  "reviewerId": "contract-auditor",
+  "agentVersion": "1.0.0",
+  "capability": "review.contracts",
+  "selectedSkillIdentities": [
+    {
+      "scopeId": "contracts-workflow",
+      "identity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "acceptance-criteria-80493e317476",
+          "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ]
+    },
+    {
+      "scopeId": "contracts-review-and-persistence",
+      "identity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "acceptance-criteria-80493e317476",
+          "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "scopeId": "contracts-workflow",
+      "reviewerId": "contract-auditor",
+      "status": "COMPLETED",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "acceptance-criteria-80493e317476",
+          "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "skillContextIdentity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "evidencePackChecksum": "2893f87ec2b60a92d0c96a8ab4094ebca96090937efd54891adc2c89f13ee9dd",
+      "snapshotIdentity": "0ace6181f78ccf01dd1bed064fd19b027c5e656bfc78a8ed000c3aa4d91b1c20",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [],
+      "invalidEvidenceFindings": [
+        {
+          "originalFindingId": "contract-audit-001",
+          "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+          "evidenceRefs": [
+            "src/agents/design/service.ts:validateInput",
+            "src/agents/design/contracts.ts:DesignAgentInputSchema"
+          ]
+        },
+        {
+          "originalFindingId": "contract-audit-002",
+          "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+          "evidenceRefs": [
+            "src/agents/design/deterministic.ts:buildDesignDirectionSet",
+            "src/agents/design/design.test.ts:accepts a text wordmark without a logo file and preserves its policy",
+            "src/agents/design/design.test.ts:does not treat explicit no-logo fixture facts as supplied branding"
+          ]
+        },
+        {
+          "originalFindingId": "contract-audit-003",
+          "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+          "evidenceRefs": [
+            "src/agents/design/deterministic.ts:directionReference",
+            "src/agents/design/deterministic.ts:buildDesignDirectionSet",
+            "src/agents/design/contracts.ts:DesignAgentInputSchema"
+          ]
+        },
+        {
+          "originalFindingId": "contract-audit-004",
+          "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+          "evidenceRefs": [
+            "src/agents/design/contracts.ts:DesignAgentInputSchema",
+            "src/agents/design/service.ts:validateInput",
+            "src/agents/design/deterministic.ts:buildDesignDirectionSet"
+          ]
+        },
+        {
+          "originalFindingId": "contract-audit-005",
+          "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+          "evidenceRefs": [
+            "src/agents/design/contracts.ts:DesignAgentInputSchema",
+            "src/agents/design/service.ts:validateInput"
+          ]
+        },
+        {
+          "originalFindingId": "contract-audit-006",
+          "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+          "evidenceRefs": [
+            "src/agents/design/contracts.ts:DesignAgentInputSchema",
+            "src/agents/design/service.ts:DesignAgentService"
+          ]
+        }
+      ]
+    },
+    {
+      "scopeId": "contracts-review-and-persistence",
+      "reviewerId": "contract-auditor",
+      "status": "COMPLETED",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "acceptance-criteria-80493e317476",
+          "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "skillContextIdentity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "evidencePackChecksum": "ef29753473f57aed53ad2b31f375f0f7876ff0a11d63e678033e74de2f57aeec",
+      "snapshotIdentity": "d2f09336a6aad3bee890b8f0aaf5cf4b577f1d0e116fd39504533eff8c347200",
+      "provider": {
+        "modelLabel": "GPT-5.6 Luna",
+        "model": "gpt-5.6-luna"
+      },
+      "findings": [
+        {
+          "findingId": "finding-0e21399a0a91b82a05dc",
+          "reviewerId": "contract-auditor",
+          "scopeId": "contracts-review-and-persistence",
+          "severity": "ERROR",
+          "category": "REQUIREMENT_NOT_TRACED",
+          "summary": "The architecture reviewer’s canonical evidence set exposes only a subset of approved Brief fields, so material requirements cannot be cited or semantically audited at the architecture boundary.",
+          "evidenceRefs": [
+            "src/agents/reviewers/architecture/deterministic.ts:12-24",
+            "src/agents/reviewers/architecture/service.ts:225-260"
+          ],
+          "affectedArtifacts": [
+            "src/agents/reviewers/architecture/deterministic.ts",
+            "src/agents/reviewers/architecture/service.ts",
+            "architecture-review evidence contract"
+          ],
+          "recommendedAction": "Expand the canonical architecture evidence contract to preserve all material approved Brief obligations, including content, SEO, localization, user roles, acceptance criteria, exclusions, storage, email, administration, and unresolved-item decisions, or explicitly document their exclusion from this review boundary.",
+          "blockingClassification": "HIGH_PRIORITY",
+          "owner": "contracts"
+        },
+        {
+          "findingId": "finding-b385146a5a20fb3e4f1b",
+          "reviewerId": "contract-auditor",
+          "scopeId": "contracts-review-and-persistence",
+          "severity": "CRITICAL",
+          "category": "IDENTITY_MISMATCH",
+          "summary": "The downstream input schemas accept multiple canonical artifacts with independently valid checksums but do not themselves bind those artifacts to the same project and version; checksum validation proves document integrity, not cross-artifact identity.",
+          "evidenceRefs": [
+            "src/agents/reviewers/contracts/contracts.ts:11-16",
+            "src/agents/reviewers/contracts/deterministic.ts:24-28",
+            "src/agents/reviewers/code-integration/contracts.ts:12-16",
+            "src/agents/reviewers/code-integration/deterministic.ts:5-16",
+            "src/agents/reviewers/code-integration/service.ts:65-83"
+          ],
+          "affectedArtifacts": [
+            "src/agents/reviewers/contracts/deterministic.ts",
+            "src/agents/reviewers/contracts/contracts.ts",
+            "src/agents/reviewers/code-integration/deterministic.ts",
+            "src/agents/reviewers/code-integration/service.ts"
+          ],
+          "recommendedAction": "Add an explicit cross-artifact identity invariant at the downstream review boundary: every supplied Brief, Planning Package, review record, Design, TaskGraph, and audit record must match the input projectId and projectVersion before provider or deterministic review proceeds.",
+          "blockingClassification": "BLOCKING_FOR_PHASE_6",
+          "owner": "contracts"
+        }
+      ],
+      "invalidEvidenceFindings": [
+        {
+          "originalFindingId": "cross-type-overlapping-exclusive-scopes-unchecked",
+          "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+          "evidenceRefs": [
+            "src/agents/reviewers/contracts/deterministic.ts:53-54",
+            "src/orchestration/execution/capabilities"
+          ]
+        }
+      ]
+    }
+  ],
+  "validatedFindings": [
+    {
+      "findingId": "finding-0e21399a0a91b82a05dc",
+      "reviewerId": "contract-auditor",
+      "scopeId": "contracts-review-and-persistence",
+      "severity": "ERROR",
+      "category": "REQUIREMENT_NOT_TRACED",
+      "summary": "The architecture reviewer’s canonical evidence set exposes only a subset of approved Brief fields, so material requirements cannot be cited or semantically audited at the architecture boundary.",
+      "evidenceRefs": [
+        "src/agents/reviewers/architecture/deterministic.ts:12-24",
+        "src/agents/reviewers/architecture/service.ts:225-260"
+      ],
+      "affectedArtifacts": [
+        "src/agents/reviewers/architecture/deterministic.ts",
+        "src/agents/reviewers/architecture/service.ts",
+        "architecture-review evidence contract"
+      ],
+      "recommendedAction": "Expand the canonical architecture evidence contract to preserve all material approved Brief obligations, including content, SEO, localization, user roles, acceptance criteria, exclusions, storage, email, administration, and unresolved-item decisions, or explicitly document their exclusion from this review boundary.",
+      "blockingClassification": "HIGH_PRIORITY",
+      "owner": "contracts"
+    },
+    {
+      "findingId": "finding-b385146a5a20fb3e4f1b",
+      "reviewerId": "contract-auditor",
+      "scopeId": "contracts-review-and-persistence",
+      "severity": "CRITICAL",
+      "category": "IDENTITY_MISMATCH",
+      "summary": "The downstream input schemas accept multiple canonical artifacts with independently valid checksums but do not themselves bind those artifacts to the same project and version; checksum validation proves document integrity, not cross-artifact identity.",
+      "evidenceRefs": [
+        "src/agents/reviewers/contracts/contracts.ts:11-16",
+        "src/agents/reviewers/contracts/deterministic.ts:24-28",
+        "src/agents/reviewers/code-integration/contracts.ts:12-16",
+        "src/agents/reviewers/code-integration/deterministic.ts:5-16",
+        "src/agents/reviewers/code-integration/service.ts:65-83"
+      ],
+      "affectedArtifacts": [
+        "src/agents/reviewers/contracts/deterministic.ts",
+        "src/agents/reviewers/contracts/contracts.ts",
+        "src/agents/reviewers/code-integration/deterministic.ts",
+        "src/agents/reviewers/code-integration/service.ts"
+      ],
+      "recommendedAction": "Add an explicit cross-artifact identity invariant at the downstream review boundary: every supplied Brief, Planning Package, review record, Design, TaskGraph, and audit record must match the input projectId and projectVersion before provider or deterministic review proceeds.",
+      "blockingClassification": "BLOCKING_FOR_PHASE_6",
+      "owner": "contracts"
+    }
+  ],
+  "invalidEvidenceFindings": [
+    {
+      "reviewerId": "contract-auditor",
+      "scopeId": "contracts-workflow",
+      "originalFindingId": "contract-audit-001",
+      "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+      "evidenceRefs": [
+        "src/agents/design/service.ts:validateInput",
+        "src/agents/design/contracts.ts:DesignAgentInputSchema"
+      ]
+    },
+    {
+      "reviewerId": "contract-auditor",
+      "scopeId": "contracts-workflow",
+      "originalFindingId": "contract-audit-002",
+      "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+      "evidenceRefs": [
+        "src/agents/design/deterministic.ts:buildDesignDirectionSet",
+        "src/agents/design/design.test.ts:accepts a text wordmark without a logo file and preserves its policy",
+        "src/agents/design/design.test.ts:does not treat explicit no-logo fixture facts as supplied branding"
+      ]
+    },
+    {
+      "reviewerId": "contract-auditor",
+      "scopeId": "contracts-workflow",
+      "originalFindingId": "contract-audit-003",
+      "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+      "evidenceRefs": [
+        "src/agents/design/deterministic.ts:directionReference",
+        "src/agents/design/deterministic.ts:buildDesignDirectionSet",
+        "src/agents/design/contracts.ts:DesignAgentInputSchema"
+      ]
+    },
+    {
+      "reviewerId": "contract-auditor",
+      "scopeId": "contracts-workflow",
+      "originalFindingId": "contract-audit-004",
+      "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+      "evidenceRefs": [
+        "src/agents/design/contracts.ts:DesignAgentInputSchema",
+        "src/agents/design/service.ts:validateInput",
+        "src/agents/design/deterministic.ts:buildDesignDirectionSet"
+      ]
+    },
+    {
+      "reviewerId": "contract-auditor",
+      "scopeId": "contracts-workflow",
+      "originalFindingId": "contract-audit-005",
+      "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+      "evidenceRefs": [
+        "src/agents/design/contracts.ts:DesignAgentInputSchema",
+        "src/agents/design/service.ts:validateInput"
+      ]
+    },
+    {
+      "reviewerId": "contract-auditor",
+      "scopeId": "contracts-workflow",
+      "originalFindingId": "contract-audit-006",
+      "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+      "evidenceRefs": [
+        "src/agents/design/contracts.ts:DesignAgentInputSchema",
+        "src/agents/design/service.ts:DesignAgentService"
+      ]
+    },
+    {
+      "reviewerId": "contract-auditor",
+      "scopeId": "contracts-review-and-persistence",
+      "originalFindingId": "cross-type-overlapping-exclusive-scopes-unchecked",
+      "reason": "Evidence reference must use repository-relative path:start-end syntax.",
+      "evidenceRefs": [
+        "src/agents/reviewers/contracts/deterministic.ts:53-54",
+        "src/orchestration/execution/capabilities"
+      ]
+    }
+  ]
+}

@@ -1,4 +1,6 @@
 export type ProviderUsage = { inputTokens: number; cachedInputTokens: number; outputTokens: number; totalTokens: number; requestCount: number; retryCount: number; correctionCount: number; provider: string; model: string; role: string; promptVersion: string };
-export type ProviderUsageSink = (usage: ProviderUsage) => void | Promise<void>;
-export type SafeProviderEvent = { type: "request.started" | "request.completed" | "request.failed"; provider: string; model: string; role: string; promptVersion: string; requestId?: string; code?: string; retryCount?: number; startedAt?: string; completedAt?: string; elapsedMs?: number };
+export type ProviderDiagnosticStage = "request_construction" | "api_request" | "api_response" | "structured_parse" | "domain_validation" | "provider_normalization";
+export type ProviderDiagnostic = { stage: ProviderDiagnosticStage; requestAttempted: boolean; apiResponseReceived: boolean; httpStatus?: number; requestId?: string; sdkErrorClass?: string; openaiErrorType?: string; openaiErrorCode?: string; openaiErrorParam?: string; choicesCount?: number; finishReason?: string | null; refusalPresent?: boolean; parsedPresent?: boolean; contentPresent?: boolean; contentLength?: number; schemaName?: string; domainValidationIssuePaths?: string[] };
+export type SafeProviderEvent = { type: "request.started" | "request.completed" | "request.failed"; provider: string; model: string; role: string; promptVersion: string; requestId?: string; code?: string; retryCount?: number; startedAt?: string; completedAt?: string; elapsedMs?: number; diagnostic?: ProviderDiagnostic };
 export type ProviderEventSink = (event: SafeProviderEvent) => void;
+export type ProviderUsageSink = (usage: ProviderUsage) => void | Promise<void>;

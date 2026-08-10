@@ -31,9 +31,9 @@ export const REVIEW_TARGET_COMMIT = "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4";
 export const REVIEW_TARGET_MANIFEST_CHECKSUM =
   "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08";
 export const SELF_REVIEW_OUTPUT_PATH =
-  "docs/admin/factory-self-review-2026-08-10-run2.json";
+  "docs/admin/factory-self-review-2026-08-10-run3.json";
 export const SELF_REVIEW_REPORT_PATH =
-  "docs/admin/factory-self-review-2026-08-10-run2.md";
+  "docs/admin/factory-self-review-2026-08-10-run3.md";
 export const SELF_REVIEW_RESULTS_DIRECTORY = "docs/admin/self-review-results";
 export const DEFERRED_SKILLS = [
   "ambiguity-detector",
@@ -178,7 +178,7 @@ export type SelfReviewScopeResult = z.infer<typeof SelfReviewScopeResultSchema>;
 export const SelfReviewArtifactSchema = z
   .object({
     schemaVersion: z.literal(1),
-    attemptLabel: z.literal("run2"),
+    attemptLabel: z.literal("run3"),
     runId: z.string().regex(HASH),
     baselineCommit: z.string().regex(/^[0-9a-f]{7,40}$/),
     evidenceManifestChecksum: z.string().regex(HASH),
@@ -730,7 +730,7 @@ export async function buildEvidenceInventory(root: string) {
   };
 }
 
-async function loadReviewTargetInventory(root: string) {
+async function loadReviewTargetInventory(root: string, verifyWorkingTree = true) {
   const snapshot = JSON.parse(
     await readFile(
       resolve(root, "docs/admin/factory-self-review-evidence-manifest.json"),
@@ -748,11 +748,12 @@ async function loadReviewTargetInventory(root: string) {
     checksumJson(manifest) !== REVIEW_TARGET_MANIFEST_CHECKSUM
   )
     throw new Error("REVIEW_TARGET_SNAPSHOT_IDENTITY_MISMATCH");
-  for (const entry of manifest) {
-    const content = await readFile(resolve(root, entry.relativePath));
-    if (checksumBytes(content) !== entry.checksum)
-      throw new Error(`REVIEW_TARGET_SOURCE_CHANGED:${entry.relativePath}`);
-  }
+  if (verifyWorkingTree)
+    for (const entry of manifest) {
+      const content = await readFile(resolve(root, entry.relativePath));
+      if (checksumBytes(content) !== entry.checksum)
+        throw new Error(`REVIEW_TARGET_SOURCE_CHANGED:${entry.relativePath}`);
+    }
   const tracked = execFileSync("git", ["ls-files", "-z"], {
     cwd: root,
     encoding: "buffer",
@@ -779,10 +780,21 @@ async function loadReviewTargetInventory(root: string) {
   };
 }
 
+function reviewTargetTextReader(root: string) {
+  return async (entry: EvidenceManifestEntry) =>
+    execFileSync(
+      "git",
+      ["show", `${REVIEW_TARGET_COMMIT}:${entry.relativePath}`],
+      { cwd: root, encoding: "utf8" },
+    );
+}
+
 async function buildEvidencePack(
   root: string,
   inventory: Awaited<ReturnType<typeof buildEvidenceInventory>>,
   scope: ScopePlan,
+  readText: (entry: EvidenceManifestEntry) => Promise<string> = (entry) =>
+    readFile(resolve(root, entry.relativePath), "utf8"),
 ) {
   const candidates = inventory.manifest
     .filter((entry) => matchesSelector(entry.relativePath, scope.selectors))
@@ -791,7 +803,7 @@ async function buildEvidencePack(
   let totalBytes = 0;
   for (const entry of candidates) {
     if (totalBytes >= MAX_PACK_BYTES) break;
-    const text = await readFile(resolve(root, entry.relativePath), "utf8");
+    const text = await readText(entry);
     const lines = text.split(/\r?\n/);
     const selectedLines = lines.slice(
       0,
@@ -1092,13 +1104,15 @@ function renderHumanReport(
     "",
     "## Deterministic baseline and post-run validation",
     "",
-    "The required deterministic validation completed successfully before and after the blocked AI preflight: lint passed with the three known pre-existing warnings; typecheck passed; 64 test files and 740 tests passed; the production build passed on Next.js 16.2.12; `npm audit --audit-level=high` reported zero vulnerabilities; database validation/status/verification/integrity passed; Docker Compose configuration passed; TaskGraph smoke passed 6/6 with `releaseEligible=true`; and `git diff --check` passed.",
+    "The required deterministic validation completed successfully: lint passed with the three known pre-existing warnings; typecheck, the full test suite, production build, audit, database checks, Docker Compose configuration, TaskGraph smoke, and `git diff --check` all passed.",
     "",
     "## Execution status",
     "",
     failed.length
       ? `Real semantic reviewer execution is blocked. No findings were fabricated. Classification: ${providerFailureClassification}; safe provider code: ${failed[0]?.failureCode ?? "unavailable"}; detail: ${failed[0]?.failureReason ?? "provider unavailable"}`
-      : "All five real reviewer executions completed and were evidence-validated.",
+      : artifact.invalidEvidenceFindings.length
+        ? `All five real reviewer executions completed, but ${artifact.invalidEvidenceFindings.length} findings were rejected by manifest-bound evidence validation. No invalid findings were promoted.`
+        : "All five real reviewer executions completed and were evidence-validated.",
     "",
     "## Per-reviewer review",
     "",
@@ -1161,7 +1175,7 @@ function renderHumanReport(
     "",
     "## Phase 6 handoff preview",
     "",
-    "No correction tasks or source changes were created. Once provider execution is unblocked, prioritize validated CRITICAL/ERROR findings by blocking impact, security implications, workflow impact, test coverage, and dependency ordering.",
+    "No correction tasks or source changes were created. Reconcile rejected evidence references, then prioritize validated CRITICAL/ERROR findings by blocking impact, security implications, workflow impact, test coverage, and dependency ordering.",
     "",
     `## Evidence limits`,
     "",
@@ -1173,8 +1187,10 @@ function renderHumanReport(
         : "BLOCKED"),
     artifact.phase5Status === "COMPLETE_FINDINGS_READY"
       ? "NEXT: PHASE 6 — CONTROLLED FACTORY CORRECTIONS"
-      : artifact.provider.configured
-        ? "NEXT: CORRECT OPENAI PROVIDER EXECUTION BLOCKER"
+      : artifact.invalidEvidenceFindings.length
+        ? "NEXT: RECONCILE INVALID REVIEW EVIDENCE REFERENCES BEFORE PHASE 6"
+        : artifact.provider.configured
+          ? "NEXT: CORRECT OPENAI PROVIDER EXECUTION BLOCKER"
         : "NEXT: CONFIGURE OPENAI_API_KEY LOCALLY AND RERUN",
     "",
   ];
@@ -1183,7 +1199,8 @@ function renderHumanReport(
 
 async function buildArtifact(root: string) {
   const baselineCommit = REVIEW_TARGET_COMMIT;
-  const inventory = await loadReviewTargetInventory(root);
+  const inventory = await loadReviewTargetInventory(root, false);
+  const readTargetText = reviewTargetTextReader(root);
   const registry = new SkillRegistry(resolve(root, "skills"));
   const selections: Array<{
     plan: ReviewerPlan;
@@ -1197,7 +1214,7 @@ async function buildArtifact(root: string) {
         plan,
         scope,
         selection: await selectionForScope(registry, plan, scope),
-        pack: await buildEvidencePack(root, inventory, scope),
+        pack: await buildEvidencePack(root, inventory, scope, readTargetText),
       });
   const runId = checksumJson({
     baselineCommit,
@@ -1374,7 +1391,7 @@ async function buildArtifact(root: string) {
     (entry) => entry.isDirectory() && entry.name.startsWith(".qa-foundation-"),
   ).length;
   const reviewerResultArtifacts = reviewerPlans.map((plan) => {
-    const relativePath = `${SELF_REVIEW_RESULTS_DIRECTORY}/${plan.reviewerId}-${runId.slice(0, 16)}-run2.json`;
+    const relativePath = `${SELF_REVIEW_RESULTS_DIRECTORY}/${plan.reviewerId}-${runId.slice(0, 16)}-run3.json`;
     const payload = {
       schemaVersion: 1,
       runId,
@@ -1405,7 +1422,7 @@ async function buildArtifact(root: string) {
   });
   const artifact = SelfReviewArtifactSchema.parse({
     schemaVersion: 1,
-    attemptLabel: "run2",
+    attemptLabel: "run3",
     runId,
     baselineCommit,
     evidenceManifestChecksum: inventory.evidenceManifestChecksum,
@@ -1477,7 +1494,9 @@ async function buildArtifact(root: string) {
       results.every((result) => result.status === "COMPLETED") &&
       invalidEvidenceFindings.length === 0
         ? "COMPLETE_FINDINGS_READY"
-        : "BLOCKED_REVIEW_EXECUTION",
+        : invalidEvidenceFindings.length > 0
+          ? "BLOCKED_EVIDENCE_INCOMPLETE"
+          : "BLOCKED_REVIEW_EXECUTION",
     phase6Handoff: {
       prioritizedFindingIds: validatedFindings
         .filter(
@@ -1507,6 +1526,52 @@ async function buildArtifact(root: string) {
       "utf8",
     );
   return { artifact, inventory, reused: false };
+}
+
+export async function buildFactorySelfReviewDiagnosticContext(root = process.cwd()) {
+  const resolvedRoot = resolve(root);
+  const baselineCommit = REVIEW_TARGET_COMMIT;
+  const inventory = await loadReviewTargetInventory(resolvedRoot, false);
+  const plan = reviewerPlans[0]!;
+  const scope = plan.scopes[0]!;
+  const registry = new SkillRegistry(resolve(resolvedRoot, "skills"));
+  const selection = await selectionForScope(registry, plan, scope);
+  const pack = await buildEvidencePack(
+    resolvedRoot,
+    inventory,
+    scope,
+    reviewTargetTextReader(resolvedRoot),
+  );
+  const idempotencyKey = `phase5.2-diagnostic:${baselineCommit}:${scope.scopeId}`;
+  return {
+    baselineCommit,
+    evidenceManifestChecksum: inventory.evidenceManifestChecksum,
+    reviewerId: plan.reviewerId,
+    scopeId: scope.scopeId,
+    selectedSkillIds: [...selection.selectedSkillIds],
+    selectedSkillChecksums: [...selection.selectedSkillChecksums],
+    skillContextIdentity: selection.identityChecksum,
+    evidencePackChecksum: pack.evidencePackChecksum,
+    input: {
+      reviewType: "factory-self-review",
+      reviewerId: plan.reviewerId,
+      role: plan.role,
+      scopeId: scope.scopeId,
+      scopeTitle: scope.title,
+      scopeRationale: scope.rationale,
+      baselineCommit,
+      evidenceManifestChecksum: inventory.evidenceManifestChecksum,
+      evidencePackChecksum: pack.evidencePackChecksum,
+      evidence: pack.slices,
+      deterministicEvidence: {
+        inventoryFileCount: inventory.manifest.length,
+        sourceFilesIncluded: pack.slices.filter((slice) => slice.relativePath.startsWith("src/")).length,
+        testFilesIncluded: pack.slices.filter((slice) => /(?:\.test|\.spec)\.[jt]sx?$/.test(slice.relativePath)).length,
+      },
+      idempotencyKey,
+    },
+    contexts: selection.contexts,
+  };
 }
 
 export async function runFactorySelfReview(root = process.cwd()) {
