@@ -1,0 +1,382 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6f1-replan",
+  "groupId": "cg-05-design-durable-state-authority",
+  "planRevision": 2,
+  "originalPlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "baselineCommit": "0098e66",
+  "currentWorkingTreeIdentity": {
+    "head": "0098e66",
+    "diffSha256": "8aaedb1bf7eea3e3e51cfd7c5254fdb2f197a766fbae1fc4feb57a30534fba96",
+    "diffBytes": 44086,
+    "modifiedFiles": [
+      "scripts/phase-6c-cg02-verification.ts",
+      "src/agents/design/design.test.ts",
+      "src/agents/design/memory.ts",
+      "src/agents/design/server.ts",
+      "src/agents/design/service.ts",
+      "src/domain/design/schema.ts",
+      "src/runtime/production-factory-runtime-core.ts"
+    ],
+    "untrackedFiles": []
+  },
+  "findingIds": [
+    "finding-1540c99220f633245955",
+    "finding-efa4502938176a741e32"
+  ],
+  "severities": {
+    "finding-1540c99220f633245955": "WARNING",
+    "finding-efa4502938176a741e32": "ERROR"
+  },
+  "findingRecords": [
+    {
+      "findingId": "finding-1540c99220f633245955",
+      "reviewerId": "architecture-reviewer",
+      "severity": "WARNING",
+      "category": "SOURCE_OF_TRUTH",
+      "semanticClaim": "DesignAgentService kept workflow, generated-set, and idempotency state in process-local Maps despite durable repositories and memory synchronization ports.",
+      "currentEvidence": ["src/agents/design/service.ts:34-50", "src/agents/design/service.ts:200-260"],
+      "remainingIssueAfterRevision1": "The durable-state correction did not explicitly bind selection to the current durable project version."
+    },
+    {
+      "findingId": "finding-efa4502938176a741e32",
+      "reviewerId": "architecture-reviewer",
+      "severity": "ERROR",
+      "category": "DATA_ARCHITECTURE",
+      "semanticClaim": "Design persistence was split across database and filesystem paths while the injected DecisionRepository was unused by DesignMemoryAdapter.",
+      "currentEvidence": ["src/agents/design/memory.ts:7-12", "src/agents/design/server.ts:7", "src/agents/design/service.ts:4-9"],
+      "remainingIssueAfterRevision1": "The final Code / Integration review identified a selection currentness gap; no new database/filesystem divergence was identified."
+    }
+  ],
+  "originalPlanContract": {
+    "title": "Unify Design state ownership and persistence",
+    "rootCause": "Make durable repositories and Project Memory the authoritative state path instead of process-local Maps and split filesystem/database state.",
+    "rootCauseConfidence": "HIGH",
+    "currentHighestSeverity": "ERROR",
+    "correctionGoal": "Make durable repositories and Project Memory the authoritative state path instead of process-local Maps and split filesystem/database state.",
+    "nonGoals": ["No design behavior changes", "No new persistence technology"],
+    "likelyFiles": ["src/agents/design/service.ts", "src/agents/design/memory.ts", "src/agents/design/server.ts"],
+    "requiredDeterministicChecks": ["targeted Design tests", "persistence integrity test", "npm run typecheck"],
+    "requiredReviewerRechecks": ["architecture-reviewer", "code-integration-reviewer"],
+    "dependency": "cg-01-cross-artifact-identity",
+    "estimatedRisk": "HIGH",
+    "recommendedOrder": 5
+  },
+  "attemptsConsumed": 2,
+  "attemptHistory": [
+    {
+      "attempt": 1,
+      "scope": "Removed DesignAgentService process-local Maps, made durable document repositories authoritative for direction sets and selections, reconstructed validation/regeneration context from durable records, removed the unused DecisionRepository injection from DesignMemoryAdapter wiring, and added restart recovery coverage.",
+      "deterministicResult": "PASS",
+      "reviewerResult": "STILL_ACTIVE",
+      "reviewerIssue": "Architecture and Code / Integration reviewers found that durable lookup did not yet persist idempotency-key identity; generation could return a matching set for a different key, and selection retry did not fully prove current artifact identity.",
+      "evidence": "First cg-05 verifier run in the Phase 6F correction session; no closure artifact retained."
+    },
+    {
+      "attempt": 2,
+      "scope": "Persisted generationIdempotencyKey and selectionIdempotencyKey in the existing Design document contracts, added durable idempotency conflict checks, validated selection direction-set and direction checksums, and preserved database authority with Project Memory as synchronized projection.",
+      "deterministicResult": "PASS",
+      "reviewerResult": "Architecture APPROVED; Code / Integration CHANGES_REQUIRED",
+      "reviewerIssue": "selectDesignDirection does not explicitly reject a request whose request.projectVersion differs from the current project's currentVersion.",
+      "evidence": "Final cg-05 verifier run in the Phase 6F correction session; evidence validation PASS; 2 real GPT calls."
+    }
+  ],
+  "reviewerResults": {
+    "architectureReviewer": {
+      "state": "APPROVED",
+      "providerVerdict": "APPROVED",
+      "evidenceValid": true,
+      "remainingIssue": null,
+      "replanTreatment": "Preserve approval; do not reopen the durable-state architecture unless revision 2 materially changes the authority boundary."
+    },
+    "codeIntegrationReviewer": {
+      "state": "STILL_ACTIVE",
+      "providerVerdict": "CHANGES_REQUIRED",
+      "evidenceValid": true,
+      "remainingIssue": "selectDesignDirection lacks an explicit request.projectVersion === currentProject.currentVersion guard at the canonical selection boundary.",
+      "evidenceSource": "Final cg-05 verifier run in the Phase 6F correction session; the temporary verification result was removed after the blocked handoff and is not treated as a closure artifact."
+    }
+  },
+  "remainingBlocker": "A stale selection request can reach the selection path without an explicit equality check between request.projectVersion and the trusted current durable project version.",
+  "planFailureClassification": [
+    "WRITE_BOUNDARY_CURRENTNESS_GAP",
+    "PROJECT_VERSION_NOT_VALIDATED",
+    "STALE_COMMAND_ACCEPTANCE",
+    "SELECTION_MUTATION_GUARD_INCOMPLETE",
+    "CROSS_VERSION_DESIGN_SELECTION_RISK"
+  ],
+  "revisedRootCause": "Revision 1 correctly moved Design state to durable repositories and removed process-local authority, but its canonical selection write boundary validated project identity through repository lookup and validated artifact checksums without validating that the command's projectVersion was the current durable FactoryProject.currentVersion. The remaining root cause is an incomplete currentness guard at selectDesignDirection, not a second persistence authority.",
+  "revisedRootCauseConfidence": "HIGH",
+  "issueClassification": "LOCAL_GUARD",
+  "canonicalAuthority": {
+    "currentProjectId": "The project row returned by ProjectRepository.getWithVersion(request.projectId); its mapped FactoryProject.projectId is the durable identity.",
+    "currentProjectVersion": "The mapped FactoryProject.currentVersion returned by ProjectRepository.getWithVersion(request.projectId), backed by the durable project metadata row.",
+    "projectMemoryRole": "Project Memory remains a synchronized filesystem projection and integrity surface, not a second current-version authority.",
+    "currentDesignArtifact": "The durable design-directions document loaded by (projectId, projectVersion), with its project identity, version, setId, and checksum validated at selection.",
+    "selectedDesign": "The durable selected-design document written through DesignRepository.select after currentness and artifact validation.",
+    "selectionHistory": "DecisionRepository append is the durable selection decision/history path; ProjectMemory appendDecision remains the synchronized projection."
+  },
+  "selectionCommandContract": {
+    "requestProjectId": "Typed DesignSelectionRequest.projectId identifies the project the caller intends to mutate; it is a lookup key, not an authority source.",
+    "requestProjectVersion": "Typed DesignSelectionRequest.projectVersion identifies the exact project version against which the caller intends to select; it is untrusted command input and must equal the trusted current FactoryProject.currentVersion.",
+    "canonicalInvariant": "request.projectId resolves to currentProjectId AND request.projectVersion === currentProjectVersion before selection mutation or successful replay is accepted.",
+    "directionIdentity": "selectedDirectionId must belong to the durable current direction set identified by request.designDirectionSetId; directionSetChecksum and selectedDirectionChecksum must match the current persisted artifacts.",
+    "staleBehavior": "Reject closed-loop with existing DesignError code DESIGN_SELECTION_STALE. Do not map the request to the latest version, upgrade its version, retry against the latest version, or continue with current state."
+  },
+  "canonicalWriteBoundary": {
+    "function": "DesignAgentService.selectDesignDirection",
+    "durableMutation": "DesignRepository.select followed by Project Memory snapshot, WorkflowPersistenceService.transition, DecisionRepository.append, and Project Memory decision projection.",
+    "guardPlacement": "Immediately after DesignSelectionRequestSchema.parse and before reading selection replay state or performing any selection-specific work; load ProjectRepository.getWithVersion(request.projectId) and reject absent or mismatched currentVersion.",
+    "bypassProtection": "The guard belongs in the service mutation boundary, not only in API/UI callers, so resume, admin, direct-service, and future callers receive the same invariant."
+  },
+  "sideEffectPolicy": {
+    "staleRequest": "Fail closed before selection mutation.",
+    "forbiddenEffects": [
+      "persist selected-design",
+      "append a successful design-selection decision",
+      "advance workflow",
+      "write current Design selection to Project Memory",
+      "change currentness or checksums",
+      "create TaskGraph work",
+      "emit a misleading success result"
+    ],
+    "validReplay": "Preserve existing same-version, same-direction idempotent replay after the canonical currentness guard; a stale replay must not be accepted merely because selected-design already exists."
+  },
+  "dirtyFileDecisions": [
+    {
+      "file": "scripts/phase-6c-cg02-verification.ts",
+      "candidatePurpose": "Shared phase verifier extended with cg-05 evidence and reviewer configuration.",
+      "architectureRelevance": "Admin verification infrastructure only; it does not establish Design authority.",
+      "codeReviewerRelevance": "Provides bounded evidence slices and targeted recheck orchestration.",
+      "decision": "ADMIN_VERIFICATION_INFRA_ONLY",
+      "revision2Action": "Keep available for the future bounded Code / Integration recheck; do not redesign or broaden it during implementation."
+    },
+    {
+      "file": "src/agents/design/design.test.ts",
+      "candidatePurpose": "Existing Design behavior tests plus restart-safe durable-state regression.",
+      "architectureRelevance": "Proves durable recovery and no process-local authority regression.",
+      "codeReviewerRelevance": "The required location for currentness, no-side-effect, replay, and identity regressions.",
+      "decision": "KEEP_BUT_MODIFY",
+      "revision2Action": "Add precise current-version success/stale rejection tests and assert persisted selection, decision history, and workflow remain unchanged on stale rejection. Preserve the existing 15 tests."
+    },
+    {
+      "file": "src/agents/design/memory.ts",
+      "candidatePurpose": "Remove the unused DecisionRepository injection while retaining Project Memory synchronization interfaces.",
+      "architectureRelevance": "Supports database authority with filesystem projection ownership.",
+      "codeReviewerRelevance": "Part of the accepted persistence wiring; not implicated in the version guard.",
+      "decision": "KEEP",
+      "revision2Action": "Preserve unchanged unless deterministic implementation reveals a compile issue from the narrow guard."
+    },
+    {
+      "file": "src/agents/design/server.ts",
+      "candidatePurpose": "Production DesignMemoryAdapter wiring after removing the unused repository dependency.",
+      "architectureRelevance": "Preserves the approved database-to-Project-Memory ownership boundary.",
+      "codeReviewerRelevance": "Composition correctness only; not the currentness defect.",
+      "decision": "KEEP",
+      "revision2Action": "Preserve unchanged."
+    },
+    {
+      "file": "src/agents/design/service.ts",
+      "candidatePurpose": "Durable Design reads, context recovery, persisted idempotency, checksum-bound selection, and mutation orchestration.",
+      "architectureRelevance": "Primary Architecture-approved authority boundary.",
+      "codeReviewerRelevance": "Primary location of the missing project-version guard and all downstream selection side effects.",
+      "decision": "KEEP_BUT_MODIFY",
+      "revision2Action": "Add the typed DESIGN_SELECTION_STALE currentVersion equality guard immediately after request parsing; do not redesign persistence or selection behavior."
+    },
+    {
+      "file": "src/domain/design/schema.ts",
+      "candidatePurpose": "Backward-compatible persisted generation and selection idempotency identity fields.",
+      "architectureRelevance": "Supports durable idempotency without a new store or migration.",
+      "codeReviewerRelevance": "Part of the accepted durable contract; no project-version schema gap exists because the request already contains projectVersion.",
+      "decision": "KEEP",
+      "revision2Action": "Preserve unchanged; no migration or new version field is authorized."
+    },
+    {
+      "file": "src/runtime/production-factory-runtime-core.ts",
+      "candidatePurpose": "Production composition call-site update for the simplified DesignMemoryAdapter constructor.",
+      "architectureRelevance": "Ensures the approved adapter ownership model is used in production composition.",
+      "codeReviewerRelevance": "Required wiring outside the machine plan's likelyFiles; not involved in current-version validation.",
+      "decision": "KEEP",
+      "revision2Action": "Preserve unchanged; future scope only if compilation requires it."
+    }
+  ],
+  "candidateControlsRetained": [
+    "No process-local Design Maps as authority",
+    "Durable database document lookup and context reconstruction",
+    "Database authority with Project Memory as synchronized projection",
+    "Persisted generation and selection idempotency identity",
+    "Current direction-set checksum validation",
+    "Selected-direction membership and checksum validation",
+    "DesignRepository selection write boundary",
+    "Workflow row-version transition and durable decision append",
+    "Exactly three design directions",
+    "Restart/resume recovery coverage"
+  ],
+  "candidateControlsModified": [
+    "Add current durable project-version equality validation before selection replay and mutation",
+    "Add stale-request side-effect regression coverage",
+    "Add current-version happy-path regression coverage"
+  ],
+  "candidateControlsDiscarded": [],
+  "revisedCorrectionGoal": "Only an explicit Design selection command bound to the trusted current projectId and current projectVersion, targeting a direction from the current durable Design artifact, may establish durable selection authority.",
+  "revisedRequiredFiles": [
+    "src/agents/design/service.ts",
+    "src/agents/design/design.test.ts"
+  ],
+  "revisedPossibleFiles": [
+    "scripts/phase-6c-cg02-verification.ts",
+    "src/agents/design/contracts.ts",
+    "src/agents/design/errors.ts"
+  ],
+  "revisedOutOfScopeFiles": [
+    "src/agents/design/memory.ts",
+    "src/agents/design/server.ts",
+    "src/domain/design/schema.ts",
+    "src/runtime/production-factory-runtime-core.ts"
+  ],
+  "revisedNonGoals": [
+    "No third revision-1 implementation cycle",
+    "No Design persistence redesign",
+    "No replacement of Project Memory",
+    "No new database, persistence technology, migration, agent, MCP, orchestrator, or framework",
+    "No change to exactly-three design directions or design quality/policy behavior",
+    "No workflow redesign beyond proving stale selection cannot advance it",
+    "No provider, authentication, storage, auth/RLS, or lifecycle correction",
+    "No Implementation changes unless a deterministic compile boundary requires none of the above",
+    "No website/customer E2E",
+    "No QA directory cleanup",
+    "No cg-06 start"
+  ],
+  "revisedDependencies": [
+    {
+      "groupId": "cg-01-cross-artifact-identity",
+      "state": "COMPLETE",
+      "requiredFor": "projectId/projectVersion composite identity principles"
+    }
+  ],
+  "dagImpact": {
+    "changed": false,
+    "dependenciesUnchanged": true,
+    "acyclic": true,
+    "cg05Revision1State": "BLOCKED_AFTER_2_IMPLEMENTATION_CYCLES",
+    "cg05Revision2State": "REPLAN_COMPLETE_IMPLEMENTATION_PENDING",
+    "nextAction": "PHASE 6F.2 - EXECUTE REVISED cg-05 PLAN"
+  },
+  "revisedDeterministicChecks": [
+    "Current projectVersion selection succeeds for a direction in the current durable direction set.",
+    "Stale projectVersion is rejected with existing DESIGN_SELECTION_STALE error code.",
+    "Version validation happens before selected-design idempotent replay is accepted.",
+    "Stale rejection leaves persisted selected-design unchanged.",
+    "Stale rejection appends no successful selection decision.",
+    "Stale rejection does not advance workflow state or rowVersion.",
+    "ProjectId mismatch remains rejected by durable document and direction-set identity checks.",
+    "Current direction-set checksum and selected-direction checksum remain required.",
+    "A direction from an old version cannot become authoritative for the current version where the durable artifact is version-bound.",
+    "Same-version same-direction replay remains idempotent.",
+    "Restart/resume reloads currentProjectVersion from durable ProjectRepository state rather than process-local state.",
+    "Existing targeted Design tests, persistence integrity, typecheck, lint, and full repository tests pass at future closure."
+  ],
+  "plannedRegressionScenarios": [
+    {
+      "scenario": "Current version / valid direction",
+      "expectedResult": "Selection succeeds and transitions to READY_FOR_IMPLEMENTATION.",
+      "mutationAllowed": true
+    },
+    {
+      "scenario": "Project advances from v1 to v2, then a v1 selection request is replayed",
+      "expectedResult": "DESIGN_SELECTION_STALE; no current v2 selection or workflow mutation.",
+      "mutationAllowed": false
+    },
+    {
+      "scenario": "Stale request when a selected-design already exists",
+      "expectedResult": "Stale rejection occurs before idempotent success replay.",
+      "mutationAllowed": false
+    },
+    {
+      "scenario": "Wrong project identity with otherwise matching version/direction data",
+      "expectedResult": "Deterministic identity/artifact rejection.",
+      "mutationAllowed": false
+    },
+    {
+      "scenario": "Restart/resume with current project v2",
+      "expectedResult": "Selection authority reads durable currentVersion v2 and applies the same currentness guard.",
+      "mutationAllowed": true
+    }
+  ],
+  "revisedReviewerRechecks": [
+    {
+      "reviewerId": "code-integration-reviewer",
+      "required": true,
+      "why": "This reviewer returned CHANGES_REQUIRED for the exact missing current-version guard.",
+      "expectedEvidence": [
+        "typed DesignSelectionRequest.projectVersion contract",
+        "ProjectRepository.getWithVersion(request.projectId) as trusted current version source",
+        "guard at selectDesignDirection before replay or mutation",
+        "DESIGN_SELECTION_STALE error contract",
+        "stale no-mutation regression",
+        "current-version success regression",
+        "durable selected-design, workflow, and decision paths"
+      ],
+      "scope": "Exact cg-05 currentness blocker only."
+    },
+    {
+      "reviewerId": "architecture-reviewer",
+      "required": false,
+      "why": "Existing Architecture approval remains valid if revision 2 adds only the local guard at the already approved canonical service boundary.",
+      "rerunCondition": "Require again only if implementation changes the durable authority, introduces another store, or moves selection ownership outside selectDesignDirection."
+    },
+    {
+      "reviewerId": "test-quality-reviewer",
+      "required": false,
+      "why": "The remaining issue is a bounded source currentness guard, not an independent test-strategy finding; deterministic regressions are required as evidence for Code / Integration review."
+    },
+    {
+      "reviewerId": "contract-auditor",
+      "required": false,
+      "why": "No canonical Design/selection contract is being changed; projectVersion already exists in the typed request contract."
+    }
+  ],
+  "implementationCapability": {
+    "agentId": "implementation",
+    "capability": "implementation",
+    "executor": "Existing Implementation Agent / trusted implementation executor",
+    "newAgent": false,
+    "boundedContext": "DesignAgentService.selectDesignDirection and its targeted regression tests only"
+  },
+  "futureCorrectionSequence": [
+    "Preserve all Architecture-approved durable-state candidate changes.",
+    "At selectDesignDirection, load the trusted current FactoryProject after request parsing and reject absent or mismatched projectVersion with DESIGN_SELECTION_STALE before replay or mutation.",
+    "Add current-version success, stale-version, no-side-effect, and version-advance regressions while preserving existing restart/idempotency tests.",
+    "Run targeted Design tests, typecheck, lint, persistence integrity, and relevant full tests.",
+    "Run the bounded Code / Integration Reviewer recheck with currentness and no-mutation evidence; rerun Architecture only if the authority boundary materially changes.",
+    "If all required evidence resolves, commit the explicitly scoped candidate and revision-2 fix; otherwise stop and replan again."
+  ],
+  "newCorrectionBudget": {
+    "maximumImplementationCycles": 1,
+    "rationale": "The remaining defect is a single bounded write-boundary currentness invariant with an existing typed request field, trusted durable source, existing typed error, and no required schema or persistence change. One implementation cycle is sufficient and safer than reopening a two-cycle architecture budget."
+  },
+  "clarificationCallsDuringReplan": 0,
+  "expectedFutureGptVerificationCalls": 1,
+  "findingCounts": {
+    "total": 20,
+    "CRITICAL": 0,
+    "ERROR": 7,
+    "WARNING": 12,
+    "INFO": 1,
+    "cg05FindingsResolvedByReplan": 0,
+    "cg05FindingsRemainingActive": 2
+  },
+  "invariants": {
+    "approvedExternalSkills": 4,
+    "approvedInternalSkills": 13,
+    "uniqueApprovedSkills": 17,
+    "assignments": 18,
+    "agents": 9,
+    "deferredSkillUsage": 0,
+    "qaFoundationDirectoryCount": 12,
+    "cg06Started": false,
+    "websiteE2E": false,
+    "qaCleanup": false
+  },
+  "phaseStatus": "REPLAN_COMPLETE_IMPLEMENTATION_PENDING"
+}

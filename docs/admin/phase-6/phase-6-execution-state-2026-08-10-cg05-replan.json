@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6-execution-state",
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "baselineState": "docs/admin/phase-6/phase-6-execution-state-2026-08-10-cg04-result.json",
+  "baselineCommit": "0098e66",
+  "planRevision": 2,
+  "completedGroups": [
+    "cg-01-cross-artifact-identity",
+    "cg-02-authentication-authorization-rls",
+    "cg-03-storage-ownership-controls",
+    "cg-04-provider-config-and-lifecycle"
+  ],
+  "groupStates": {
+    "cg-01-cross-artifact-identity": "COMPLETE",
+    "cg-02-authentication-authorization-rls": "COMPLETE",
+    "cg-03-storage-ownership-controls": "COMPLETE",
+    "cg-04-provider-config-and-lifecycle": "COMPLETE",
+    "cg-05-design-durable-state-authority": "REPLAN_COMPLETE_IMPLEMENTATION_PENDING"
+  },
+  "cg05": {
+    "revision1": "BLOCKED_AFTER_2_IMPLEMENTATION_CYCLES",
+    "revision2": "REPLAN_COMPLETE_IMPLEMENTATION_PENDING",
+    "attemptsConsumedUnderRevision1": 2,
+    "newCorrectionBudget": 1,
+    "findingIds": [
+      "finding-1540c99220f633245955",
+      "finding-efa4502938176a741e32"
+    ],
+    "findingState": "ACTIVE",
+    "replanArtifact": "docs/admin/phase-6/cg-05-design-durable-state-authority-replan-2026-08-10.json",
+    "replanReport": "docs/admin/phase-6/cg-05-design-durable-state-authority-replan-2026-08-10.md",
+    "implementationPending": true,
+    "requiredReviewerRechecks": ["code-integration-reviewer"],
+    "architectureReviewerRerun": false,
+    "clarificationCallsDuringReplan": 0
+  },
+  "findingResolutions": {},
+  "correctionReadyFindingsRemaining": 20,
+  "remainingFindingCounts": {
+    "CRITICAL": 0,
+    "ERROR": 7,
+    "WARNING": 12,
+    "INFO": 1
+  },
+  "dependencyUnblockedGroups": [],
+  "nextRecommendedGroup": "cg-05-design-durable-state-authority",
+  "phase6F1Status": "COMPLETE",
+  "phase6F2Status": "IMPLEMENTATION_PENDING",
+  "otherGroupsAutoResolved": [],
+  "otherGroupsModified": [],
+  "dagChanged": false,
+  "dagAcyclic": true,
+  "roadmap": [
+    "cg-01 COMPLETE",
+    "cg-02 COMPLETE",
+    "cg-03 COMPLETE",
+    "cg-04 COMPLETE",
+    "cg-05 revision 1 BLOCKED after 2 implementation cycles",
+    "cg-05 revision 2 REPLAN COMPLETE IMPLEMENTATION PENDING",
+    "NEXT: PHASE 6F.2 - EXECUTE REVISED cg-05 PLAN"
+  ],
+  "phaseStatus": "REPLAN_COMPLETE_IMPLEMENTATION_PENDING"
+}
