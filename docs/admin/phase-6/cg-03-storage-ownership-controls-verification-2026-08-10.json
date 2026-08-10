@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6d-correction-verification",
+  "groupId": "cg-03-storage-ownership-controls",
+  "findingIds": [
+    "finding-b227589f057cc3fa00ac",
+    "finding-eb166a34da7872c62d77"
+  ],
+  "baselineCommit": "840fecb",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "correctionSnapshot": "working-tree-before-correction-commit",
+  "reviewerResults": [
+    {
+      "reviewerId": "security-reviewer",
+      "state": "STILL_ACTIVE",
+      "evidence": [
+        "current:implementation-provider",
+        "current:security-validator",
+        "current:implementation-backend",
+        "test:backend-security",
+        "original-findings",
+        "cg03-contract",
+        "cg02-authentication-authorization-boundary",
+        "storage-ownership-contract",
+        "deterministic-storage-regression-tests",
+        "current:implementation-provider",
+        "current:security-validator",
+        "current:implementation-backend",
+        "current:implementation-provider",
+        "current:security-validator",
+        "current:implementation-backend"
+      ],
+      "invalidEvidence": [],
+      "explanation": "Application-side ownership checks and signed URLs were added, but no bucket access policy or user-scoped Storage authorization is established in the reviewed correction.",
+      "remainingIssue": "Application-side ownership checks and signed URLs were added, but no bucket access policy or user-scoped Storage authorization is established in the reviewed correction.",
+      "providerVerdict": "CHANGES_REQUIRED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    }
+  ],
+  "selectedSkills": {
+    "security-reviewer": {
+      "selectedSkillIds": [
+        "auth-storage-security-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "auth-storage-security-review",
+          "checksum": "069ffa33fec764ce1e19ff853d21b00d091e5f0eb874e0278de7a774e344dd25"
+        }
+      ],
+      "identityChecksum": "7fd45be3b571db15e682c3c6d9407fa4244a9434aa1755457599fd617d39b680"
+    }
+  },
+  "provider": {
+    "model": "gpt-5.6-luna",
+    "modelLabel": "GPT-5.6 Luna",
+    "realGptCalls": 1,
+    "requestEvents": [
+      {
+        "type": "request.started",
+        "role": "security-reviewer"
+      },
+      {
+        "type": "request.completed",
+        "role": "security-reviewer",
+        "requestId": "chatcmpl-EBOu2iJFZ57mujpVhm4imxGeSNWWV"
+      }
+    ]
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "evidenceRefs": [
+      "cg02-authentication-authorization-boundary",
+      "cg03-contract",
+      "current:implementation-backend",
+      "current:implementation-provider",
+      "current:security-validator",
+      "deterministic-storage-regression-tests",
+      "original-findings",
+      "src/agents/implementation/backend.test.ts:1-27",
+      "src/agents/implementation/backend.ts:1-86",
+      "src/agents/implementation/provider.ts:1-101",
+      "src/runtime/validation/security.ts:1-48",
+      "storage-ownership-contract",
+      "test:backend-security"
+    ],
+    "slices": [
+      {
+        "id": "current:implementation-provider",
+        "relativePath": "src/agents/implementation/provider.ts",
+        "startLine": 1,
+        "endLine": 101,
+        "checksum": "f714bd9c0d2a9024b6ea1ed82dfd16d0f05492e08ecabdc7b82af8a52a9d1fb8",
+        "currentHead": "840fecb"
+      },
+      {
+        "id": "current:implementation-backend",
+        "relativePath": "src/agents/implementation/backend.ts",
+        "startLine": 1,
+        "endLine": 86,
+        "checksum": "07537d9e27688b2c525febedd3f8d178b84cbcaf9e3393feada27a32d8fa7bc9",
+        "currentHead": "840fecb"
+      },
+      {
+        "id": "current:security-validator",
+        "relativePath": "src/runtime/validation/security.ts",
+        "startLine": 1,
+        "endLine": 48,
+        "checksum": "bdaa534915ad1ad031eb8668c1120799b04fdb46fbd5f5ca60a56db3432df51c",
+        "currentHead": "840fecb"
+      },
+      {
+        "id": "test:backend-security",
+        "relativePath": "src/agents/implementation/backend.test.ts",
+        "startLine": 1,
+        "endLine": 27,
+        "checksum": "3ebe3ac524f6b5276c24bb72f47259c96c4ea4c035720b828a26467415e887b3",
+        "currentHead": "840fecb"
+      }
+    ]
+  },
+  "phaseStatus": "STILL_ACTIVE"
+}

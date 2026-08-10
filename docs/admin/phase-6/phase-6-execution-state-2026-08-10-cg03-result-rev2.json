@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6-execution-state",
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "baselineState": "docs/admin/phase-6/phase-6-execution-state-2026-08-10-replan.json",
+  "baselineCommit": "a8fdbeb",
+  "correctionCommit": "4ce4771",
+  "planRevision": 2,
+  "completedGroups": ["cg-01-cross-artifact-identity", "cg-02-authentication-authorization-rls", "cg-03-storage-ownership-controls"],
+  "groupStates": {
+    "cg-01-cross-artifact-identity": "COMPLETE",
+    "cg-02-authentication-authorization-rls": "COMPLETE",
+    "cg-03-storage-ownership-controls": "COMPLETE",
+    "cg-04-provider-config-and-lifecycle": "NOT_STARTED"
+  },
+  "cg03": {
+    "revision1": "BLOCKED_AFTER_2_CORRECTION_CYCLES",
+    "revision2": "COMPLETE",
+    "attemptsConsumedUnderRevision1": 2,
+    "implementationCyclesConsumedUnderRevision2": 1,
+    "newCorrectionBudget": 2,
+    "findingIds": ["finding-b227589f057cc3fa00ac", "finding-eb166a34da7872c62d77"],
+    "findingState": "RESOLVED",
+    "resultArtifact": "docs/admin/phase-6/cg-03-storage-ownership-controls-result-rev2-2026-08-10.json",
+    "verificationArtifact": "docs/admin/phase-6/cg-03-storage-ownership-controls-verification-rev2-2026-08-10.json"
+  },
+  "findingResolutions": {
+    "finding-b227589f057cc3fa00ac": { "state": "RESOLVED", "resolvedByGroupId": "cg-03-storage-ownership-controls", "correctionCommit": "4ce4771", "verificationArtifact": "docs/admin/phase-6/cg-03-storage-ownership-controls-verification-rev2-2026-08-10.json" },
+    "finding-eb166a34da7872c62d77": { "state": "RESOLVED", "resolvedByGroupId": "cg-03-storage-ownership-controls", "correctionCommit": "4ce4771", "verificationArtifact": "docs/admin/phase-6/cg-03-storage-ownership-controls-verification-rev2-2026-08-10.json" }
+  },
+  "correctionReadyFindingsRemaining": 22,
+  "remainingFindingCounts": { "CRITICAL": 0, "ERROR": 8, "WARNING": 13, "INFO": 1 },
+  "dependencyUnblockedGroups": [],
+  "nextRecommendedGroup": "cg-04-provider-config-and-lifecycle",
+  "cg04Started": false,
+  "otherGroupsAutoResolved": [],
+  "otherGroupsModified": [],
+  "dagChanged": false,
+  "dagAcyclic": true,
+  "roadmap": [
+    "cg-01 COMPLETE",
+    "cg-02 COMPLETE",
+    "cg-03 revision 1 BLOCKED after 2 correction cycles",
+    "cg-03 revision 2 COMPLETE",
+    "NEXT: cg-04-provider-config-and-lifecycle"
+  ],
+  "phase6D2Status": "COMPLETE",
+  "phaseStatus": "COMPLETE"
+}

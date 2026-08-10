@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6d-correction-result",
+  "groupId": "cg-03-storage-ownership-controls",
+  "planRevision": 2,
+  "baselineCommit": "a8fdbeb",
+  "replanCommit": "a8fdbeb",
+  "correctionCommit": "4ce4771",
+  "correctionCommitMessage": "fix: generate storage ownership policies from typed plan",
+  "candidateDiffIdentity": "39cdfba518d7f7ed42f4c6c422bc8d0909ef8706f5c4d662e251173c0a49f34f",
+  "findingIds": [
+    "finding-b227589f057cc3fa00ac",
+    "finding-eb166a34da7872c62d77"
+  ],
+  "revisedRootCause": "The original correction generated a server access helper without a typed policy-generating contract connecting StoragePlan bucket, owner path, and operations to storage.objects policies.",
+  "revisedRootCauseConfidence": "HIGH",
+  "filesChanged": [
+    "scripts/phase-6c-cg02-verification.ts",
+    "src/agents/planner/contracts.ts",
+    "src/agents/planner/deterministic.ts",
+    "src/agents/planner/planner.test.ts",
+    "src/agents/implementation/contracts.ts",
+    "src/agents/implementation/policy.ts",
+    "src/agents/implementation/provider.ts",
+    "src/agents/implementation/backend.ts",
+    "src/agents/implementation/backend.test.ts",
+    "src/agents/implementation/service.ts",
+    "src/runtime/validation/security.ts",
+    "src/integrations/openai/adapters.ts"
+  ],
+  "candidateChangesReused": [
+    "server-side authenticated actor check",
+    "user.id as owner source",
+    "owner-prefixed path validation",
+    "signed URL authorization",
+    "update/delete ownership checks",
+    "server regression coverage",
+    "shared targeted verifier infrastructure"
+  ],
+  "candidateChangesModified": [
+    "hardcoded bucket replaced with typed plan bucket",
+    "prose path strategy replaced with typed canonical path template",
+    "implementation context now carries StoragePlan",
+    "source and policy artifacts share a contract checksum",
+    "verifier preserves historical evidence and supports both rev-2 reviewers"
+  ],
+  "candidateChangesDiscarded": [
+    "source-only closure assumption",
+    "fixed bucket as an implementation default"
+  ],
+  "canonicalStorageContract": {
+    "ownerSource": "authenticated-user-id",
+    "actor": "authenticated Supabase user.id",
+    "bucketId": "approved-uploads",
+    "policyIdentity": "runtime-owner-scoped-storage",
+    "visibility": "private",
+    "objectPathStrategy": "user-id-prefix",
+    "objectPathTemplate": "{userId}/{objectName}",
+    "allowedOperations": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+    "directClientAccess": false,
+    "signedUrl": { "enabled": true, "operations": ["SELECT", "INSERT"], "expirySeconds": 60 },
+    "ownershipTransfer": "forbidden",
+    "serverPrivilegedAccess": false
+  },
+  "storagePoliciesGenerated": "FULL",
+  "storageOperations": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+  "bucketRestriction": "Every policy requires bucket_id = 'approved-uploads'.",
+  "ownerScoping": "Every policy requires storage.foldername(name)[1] = auth.uid()::text.",
+  "policyArtifacts": ["supabase/migrations/runtime-owner-scoped-storage.sql"],
+  "migrationArtifacts": ["supabase/migrations/runtime-owner-scoped-storage.sql"],
+  "generatedSourceArtifact": "src/lib/storage/uploads.ts",
+  "deterministicChecks": {
+    "plannerContract": "PASS",
+    "implementationContextAndChecksum": "PASS",
+    "policyArtifactPresenceAndOperations": "PASS",
+    "safeIdentifiersAndBucketScope": "PASS",
+    "usingWithCheckSemantics": "PASS",
+    "ownerBucketAnonymousAndRebindDenials": "PASS",
+    "signedUrlAuthorization": "PASS",
+    "serviceRoleAbsence": "PASS",
+    "cg02Regression": "PASS",
+    "gitDiffCheck": "PASS"
+  },
+  "behavioralTests": {
+    "targetedTests": "38 passed",
+    "fullSuite": "817 passed",
+    "fixtures": ["valid owner", "anonymous", "cross-user", "wrong bucket", "forged owner path", "ownership rebind", "public policy", "checksum mismatch"]
+  },
+  "reviewerRechecks": "docs/admin/phase-6/cg-03-storage-ownership-controls-verification-rev2-2026-08-10.json",
+  "selectedSkills": {
+    "contract-auditor": ["acceptance-criteria-80493e317476", "requirements-evidence-traceability"],
+    "security-reviewer": ["auth-storage-security-review"]
+  },
+  "providerCalls": [
+    { "reviewerId": "contract-auditor", "realGptCalls": 1, "result": "RESOLVED", "evidenceValidation": "PASS" },
+    { "reviewerId": "security-reviewer", "realGptCalls": 1, "result": "RESOLVED", "evidenceValidation": "PASS" }
+  ],
+  "evidenceValidation": "PASS",
+  "perFindingResolution": [
+    { "findingId": "finding-b227589f057cc3fa00ac", "originalSeverity": "ERROR", "revision1Result": "STILL_ACTIVE", "deterministicEvidence": "typed StoragePlan, source/policy checksum, four policy fixtures", "contractAuditor": "RESOLVED", "securityReviewer": "RESOLVED", "finalState": "RESOLVED", "resolvedByGroupId": "cg-03-storage-ownership-controls" },
+    { "findingId": "finding-eb166a34da7872c62d77", "originalSeverity": "WARNING", "revision1Result": "STILL_ACTIVE", "deterministicEvidence": "bucket-scoped authenticated SELECT/INSERT/UPDATE/DELETE policy fixtures", "contractAuditor": "RESOLVED", "securityReviewer": "RESOLVED", "finalState": "RESOLVED", "resolvedByGroupId": "cg-03-storage-ownership-controls" }
+  ],
+  "remainingFindingCounts": { "before": 24, "after": 22, "CRITICAL": 0, "ERROR": 8, "WARNING": 13, "INFO": 1 },
+  "potentiallyImpactedGroups": [],
+  "unblockedGroups": [],
+  "nextRecommendedGroup": "cg-04-provider-config-and-lifecycle",
+  "phaseStatus": "COMPLETE"
+}

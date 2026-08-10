@@ -1,0 +1,227 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6d-correction-verification",
+  "groupId": "cg-03-storage-ownership-controls",
+  "findingIds": [
+    "finding-b227589f057cc3fa00ac",
+    "finding-eb166a34da7872c62d77"
+  ],
+  "baselineCommit": "a8fdbeb",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "correctionSnapshot": "working-tree-before-correction-commit",
+  "reviewerResults": [
+    {
+      "reviewerId": "contract-auditor",
+      "state": "RESOLVED",
+      "evidence": [
+        "original-findings",
+        "cg03-contract",
+        "cg02-authentication-authorization-boundary",
+        "storage-ownership-contract",
+        "deterministic-storage-regression-tests",
+        "current:planner-contract",
+        "current:planner-deterministic",
+        "current:implementation-contract",
+        "current:implementation-service",
+        "current:implementation-provider",
+        "current:implementation-backend",
+        "current:security-validator",
+        "test:backend-security",
+        "test:planner-storage"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-03-storage-ownership-controls correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    },
+    {
+      "reviewerId": "security-reviewer",
+      "state": "RESOLVED",
+      "evidence": [
+        "current:planner-contract",
+        "current:planner-deterministic",
+        "current:implementation-contract",
+        "current:implementation-service",
+        "current:implementation-provider",
+        "current:implementation-backend",
+        "current:security-validator",
+        "test:backend-security",
+        "test:planner-storage",
+        "original-findings",
+        "cg03-contract",
+        "cg02-authentication-authorization-boundary",
+        "storage-ownership-contract",
+        "deterministic-storage-regression-tests"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-03-storage-ownership-controls correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    }
+  ],
+  "selectedSkills": {
+    "contract-auditor": {
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "acceptance-criteria-80493e317476",
+          "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "identityChecksum": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada"
+    },
+    "security-reviewer": {
+      "selectedSkillIds": [
+        "auth-storage-security-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "auth-storage-security-review",
+          "checksum": "069ffa33fec764ce1e19ff853d21b00d091e5f0eb874e0278de7a774e344dd25"
+        }
+      ],
+      "identityChecksum": "7fd45be3b571db15e682c3c6d9407fa4244a9434aa1755457599fd617d39b680"
+    }
+  },
+  "provider": {
+    "model": "gpt-5.6-luna",
+    "modelLabel": "GPT-5.6 Luna",
+    "realGptCalls": 2,
+    "requestEvents": [
+      {
+        "type": "request.started",
+        "role": "contract-auditor"
+      },
+      {
+        "type": "request.completed",
+        "role": "contract-auditor",
+        "requestId": "chatcmpl-EBRVkwPweiQ6M0i38mEYBzg0cLWNi"
+      },
+      {
+        "type": "request.started",
+        "role": "security-reviewer"
+      },
+      {
+        "type": "request.completed",
+        "role": "security-reviewer",
+        "requestId": "chatcmpl-EBRVrZU7mbvKuxSKlcTgJl1IHWrCM"
+      }
+    ]
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "evidenceRefs": [
+      "cg02-authentication-authorization-boundary",
+      "cg03-contract",
+      "current:implementation-backend",
+      "current:implementation-contract",
+      "current:implementation-provider",
+      "current:implementation-service",
+      "current:planner-contract",
+      "current:planner-deterministic",
+      "current:security-validator",
+      "deterministic-storage-regression-tests",
+      "original-findings",
+      "src/agents/implementation/backend.test.ts:1-30",
+      "src/agents/implementation/backend.ts:1-99",
+      "src/agents/implementation/contracts.ts:20-30",
+      "src/agents/implementation/provider.ts:1-184",
+      "src/agents/implementation/service.ts:385-402",
+      "src/agents/planner/contracts.ts:45-65",
+      "src/agents/planner/deterministic.ts:30-40",
+      "src/agents/planner/planner.test.ts:1-36",
+      "src/runtime/validation/security.ts:1-75",
+      "storage-ownership-contract",
+      "test:backend-security",
+      "test:planner-storage"
+    ],
+    "slices": [
+      {
+        "id": "current:planner-contract",
+        "relativePath": "src/agents/planner/contracts.ts",
+        "startLine": 45,
+        "endLine": 65,
+        "checksum": "e5e8062b1f65fa5ca117674a9e7c12e64c61880352f7e35e3d62716ab4397e6b",
+        "currentHead": "a8fdbeb"
+      },
+      {
+        "id": "current:planner-deterministic",
+        "relativePath": "src/agents/planner/deterministic.ts",
+        "startLine": 30,
+        "endLine": 40,
+        "checksum": "e5693e5bcf90084e24cccababaab2fa7619dc1fbc8b077a9de4dd7462f1b45e4",
+        "currentHead": "a8fdbeb"
+      },
+      {
+        "id": "current:implementation-contract",
+        "relativePath": "src/agents/implementation/contracts.ts",
+        "startLine": 20,
+        "endLine": 30,
+        "checksum": "cdb510366be83d54925eba6844f47394a0277e70c5e97f55556d8f446b79f07a",
+        "currentHead": "a8fdbeb"
+      },
+      {
+        "id": "current:implementation-service",
+        "relativePath": "src/agents/implementation/service.ts",
+        "startLine": 385,
+        "endLine": 402,
+        "checksum": "fd9f4d356f529a1c65d892810136d54fb4d970c61866ae8f3e288b1b7221f778",
+        "currentHead": "a8fdbeb"
+      },
+      {
+        "id": "current:implementation-provider",
+        "relativePath": "src/agents/implementation/provider.ts",
+        "startLine": 1,
+        "endLine": 184,
+        "checksum": "2fc1befc723932e7d8fbe2fcafc3236249915f9a6ce1d0db163ef8e35035f768",
+        "currentHead": "a8fdbeb"
+      },
+      {
+        "id": "current:implementation-backend",
+        "relativePath": "src/agents/implementation/backend.ts",
+        "startLine": 1,
+        "endLine": 99,
+        "checksum": "c0e9bc6257056820bcb995e847ed4f5ca44394e887afc8776e4d2f1330640ad5",
+        "currentHead": "a8fdbeb"
+      },
+      {
+        "id": "current:security-validator",
+        "relativePath": "src/runtime/validation/security.ts",
+        "startLine": 1,
+        "endLine": 75,
+        "checksum": "555de91a7c3407fe436c1aaf37a4533df28eb746ee24e5d4538eeb5ac4243069",
+        "currentHead": "a8fdbeb"
+      },
+      {
+        "id": "test:backend-security",
+        "relativePath": "src/agents/implementation/backend.test.ts",
+        "startLine": 1,
+        "endLine": 30,
+        "checksum": "a9d28537b245ae65ba556d86a6bf8988efa26abd232aa542cdd4461875951adb",
+        "currentHead": "a8fdbeb"
+      },
+      {
+        "id": "test:planner-storage",
+        "relativePath": "src/agents/planner/planner.test.ts",
+        "startLine": 1,
+        "endLine": 36,
+        "checksum": "0a4a1870b70da7db21b1225d168516df7f1524f008bdda0fdfbaa0e9e7ba2925",
+        "currentHead": "a8fdbeb"
+      }
+    ]
+  },
+  "phaseStatus": "RESOLVED"
+}
