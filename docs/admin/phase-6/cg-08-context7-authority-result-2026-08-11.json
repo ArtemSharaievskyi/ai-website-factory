@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6i-correction-result",
+  "groupId": "cg-08-context7-authority",
+  "title": "Make Context7 eligibility single-source",
+  "baselineCommit": "625f02c",
+  "correctionCommit": "ca0583d",
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "findingIds": [
+    "finding-20662816cdabed08871f"
+  ],
+  "originalReviewer": "architecture-reviewer",
+  "severity": "WARNING",
+  "category": "SOURCE_OF_TRUTH",
+  "rootCause": "Context7 eligibility was decided by the policy allowlist plus a separate service-local fixedStack, while the public resolution contract also accepted caller-provided fixedStack input. These independently maintained paths could disagree.",
+  "rootCauseConfidence": "HIGH",
+  "dependencies": [
+    "cg-04-provider-config-and-lifecycle"
+  ],
+  "dependencyStatus": "COMPLETE",
+  "defectReproduction": {
+    "scenario": "Resolve the policy-approved package @supabase/supabase-js without a dependency plan.",
+    "preCorrectionResult": "CONTEXT7_LIBRARY_NOT_PLANNED because the service-local fixedStack omitted the package, despite the policy allowlist accepting it.",
+    "postCorrectionResult": "The same package resolves through the policy-owned approved package list; unapproved prisma remains rejected.",
+    "reproductionCommand": "npx tsx -e with Context7Service.resolveLibrary for @supabase/supabase-js",
+    "liveExternalCall": false
+  },
+  "affectedConsumers": [
+    "Context7Service.resolveLibrary",
+    "Context7 policy validation",
+    "Context7 synthetic smoke consumer"
+  ],
+  "authorityBefore": {
+    "eligibility": "Policy allowlist and independently maintained service fixedStack both influenced eligibility.",
+    "callerInput": "Context7ResolutionInput exposed fixedStack, creating a caller-controlled eligibility input.",
+    "versionResolution": "Dependency plan, package.json, and configuredVersion resolved versions after eligibility; this was preserved."
+  },
+  "authorityAfter": {
+    "eligibility": "APPROVED_CONTEXT7_PACKAGES in policy.ts is the single eligibility source.",
+    "callerInput": "Context7ResolutionInput no longer exposes fixedStack.",
+    "versionResolution": "Dependency plan, package.json, and configuredVersion remain separate version/provenance inputs after policy eligibility."
+  },
+  "canonicalAuthoritySources": [
+    "Factory Context7 policy allowlist",
+    "Accepted dependency plan",
+    "Detected package.json version",
+    "Explicit configured version"
+  ],
+  "context7Authority": "Supplemental, read-only technical documentation only; it cannot define project requirements, architecture, design, TaskGraph scope, permissions, or file scope.",
+  "packageIdentityBinding": "Resolved library identity remains packageName-to-resolvedLibraryId; no similarly named package fallback was added.",
+  "versionBinding": "Version conflict and unresolved-version behavior remain unchanged; no latest-version fallback was introduced.",
+  "provenanceHandling": "Existing dependency-plan/package-json/configured-version source selection remains intact, and normalized excerpts retain sourceReference and content checksum.",
+  "cacheAuthority": "Context7 cache remains a transient read-only optimization keyed by package/library/version/topic/symbol; it is not canonical state or eligibility authority.",
+  "toolPermissionBoundary": "No tools, permissions, MCP access, filesystem writes, network rights, or dependency installation are granted by Context7 eligibility.",
+  "taskScopeBoundary": "No TaskGraph, file scope, project requirement, architecture, or Design scope is derived from the Context7 package list.",
+  "injectionHandling": "Existing normalizeContext7Response suspicious-documentation rejection remains unchanged; retrieved text cannot become instruction authority.",
+  "contextIdentityBehavior": "Existing query plan, idempotency, cache, bounds, and normalized excerpt identity behavior remains unchanged.",
+  "filesChanged": [
+    "src/integrations/context7/policy.ts",
+    "src/integrations/context7/service.ts",
+    "src/integrations/context7/contracts.ts",
+    "src/integrations/context7/context7.test.ts",
+    "scripts/context7-smoke.ts",
+    "scripts/phase-6c-cg02-verification.ts"
+  ],
+  "scopeJustification": {
+    "outsideLikelyFiles": [
+      "src/integrations/context7/context7.test.ts",
+      "scripts/context7-smoke.ts",
+      "scripts/phase-6c-cg02-verification.ts"
+    ],
+    "reason": "The test and smoke consumer update the removed fixedStack contract and provide deterministic proof; the verifier extension is required Phase 6 administrative infrastructure for the assigned reviewer rechecks."
+  },
+  "correctionSummary": "Removed the service-local fixedStack and caller-provided fixedStack contract input. Context7 eligibility now flows through the policy-owned approved package list while existing dependency/version resolution and read-only documentation behavior remain intact.",
+  "testsAdded": [
+    "Approved @supabase/supabase-js resolves without a dependency-plan or caller fixedStack.",
+    "Unapproved prisma remains rejected.",
+    "Existing next exact-version and react unresolved-version tests remain passing."
+  ],
+  "targetedChecks": {
+    "context7Tests": "8 passed",
+    "context7Smoke": "PASS with synthetic transport; 1 excerpt, 56 bytes",
+    "typecheck": "PASS",
+    "packageDriftReproduction": "PASS before correction rejected policy-approved @supabase/supabase-js; after correction accepted it",
+    "optionalUnavailableBehavior": "Existing disabled Context7 behavior preserved"
+  },
+  "liveContext7Calls": {
+    "count": 0,
+    "availability": "No live external Context7 call; synthetic smoke transport was used.",
+    "arbitraryFallbackSourcesAdded": false
+  },
+  "requiredReviewerRechecks": [
+    "architecture-reviewer",
+    "code-integration-reviewer"
+  ],
+  "actualReviewerRechecks": [
+    {
+      "reviewerId": "architecture-reviewer",
+      "state": "RESOLVED",
+      "providerVerdict": "APPROVED",
+      "evidenceValid": true,
+      "realGptCalls": 1
+    },
+    {
+      "reviewerId": "code-integration-reviewer",
+      "state": "RESOLVED",
+      "providerVerdict": "APPROVED",
+      "evidenceValid": true,
+      "realGptCalls": 1
+    }
+  ],
+  "selectedSkills": {
+    "architecture-reviewer": {
+      "selectedSkillIds": [
+        "architecture-tradeoff-review",
+        "module-boundaries-fb20497b5c35",
+        "review-maintainability-d9faf7cb9775"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "architecture-tradeoff-review",
+          "checksum": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd"
+        },
+        {
+          "skillId": "module-boundaries-fb20497b5c35",
+          "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff"
+        },
+        {
+          "skillId": "review-maintainability-d9faf7cb9775",
+          "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9"
+        }
+      ],
+      "identityChecksum": "488df20026a8cdc27a0ea566de496b2de54ab8ce8e047ec9ffa73eb4ad149c59"
+    },
+    "code-integration-reviewer": {
+      "selectedSkillIds": [],
+      "selectedSkillChecksums": [],
+      "identityChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  },
+  "providerCalls": {
+    "realGptCalls": 2,
+    "model": "gpt-5.6-luna",
+    "reviewers": [
+      "architecture-reviewer",
+      "code-integration-reviewer"
+    ]
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "structuredOutputValid": true,
+    "invalidEvidence": [],
+    "verificationArtifact": "docs/admin/phase-6/cg-08-context7-authority-verification-2026-08-11.json"
+  },
+  "perFindingResolution": {
+    "finding-20662816cdabed08871f": {
+      "severity": "WARNING",
+      "category": "SOURCE_OF_TRUTH",
+      "preCorrectionAuthority": "Policy allowlist, service fixedStack, and caller fixedStack input could disagree.",
+      "correctionEvidence": [
+        "src/integrations/context7/policy.ts:3-8",
+        "src/integrations/context7/service.ts:9-18",
+        "src/integrations/context7/contracts.ts:13-19",
+        "src/integrations/context7/context7.test.ts:13-19"
+      ],
+      "versionProvenanceEvidence": "Existing dependency-plan, package.json, and configuredVersion resolution remains unchanged.",
+      "deterministicEvidence": "Policy-approved @supabase/supabase-js resolves without a caller fixedStack; prisma remains rejected; Context7 tests and smoke pass.",
+      "reviewerVerification": "Architecture and Code / Integration Reviewers RESOLVED / APPROVED with valid evidence.",
+      "finalState": "RESOLVED",
+      "resolvedByGroupId": "cg-08-context7-authority"
+    }
+  },
+  "potentiallyImpactedGroups": [],
+  "remainingFindingCounts": {
+    "total": 15,
+    "CRITICAL": 0,
+    "ERROR": 5,
+    "WARNING": 9,
+    "INFO": 1
+  },
+  "unblockedGroups": [],
+  "nextRecommendedGroup": "cg-09-project-memory-durability",
+  "rollbackCriteria": "Not represented in the machine group contract; the bounded correction is reversible by reverting the production correction commit.",
+  "phaseStatus": "COMPLETE"
+}
