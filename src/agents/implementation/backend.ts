@@ -6,7 +6,10 @@ import {
   validateGeneratedDatabaseSchema,
   validateGeneratedProtectedHandler,
   validateGeneratedRlsPolicy,
+  validateGeneratedStorage,
+  validateGeneratedStoragePolicy,
 } from "@/runtime/validation/security";
+import type { StoragePlan } from "@/agents/planner/contracts";
 
 export const BACKEND_TASK_TYPES = new Set([
   "implement-form", "implement-server-action", "implement-route-handler",
@@ -22,7 +25,7 @@ export type BackendPlans = {
     dataModel?: { entities?: Array<{ name: string; fields?: Array<{ name: string; required: boolean }> }> };
     authentication?: { decision?: string; passwordReset?: string; signInMethods?: string[] };
     supabase?: { policies?: string[]; clientBoundaries?: string[] };
-    storage?: { decision?: string; buckets?: Array<{ name?: string; access?: string; acceptedFormats?: string[]; sizeLimits?: string[] }> };
+    storage?: StoragePlan;
     email?: { decision?: string; triggers?: string[]; environmentVariables?: string[] };
   };
 };
@@ -67,7 +70,18 @@ export function validateBackendProposal(task: AgentTask, proposal: Implementatio
   if (task.taskType === "implement-database-schema") { validateMigration(content, paths, plans); validateGeneratedDatabaseSchema(content); }
   if (task.taskType === "implement-rls-policy") validateGeneratedRlsPolicy(content);
   if (task.taskType === "implement-authentication") { if (plans.brief?.authenticationDecision !== "authentication-required" && plans.planning?.authentication?.decision !== "supabase-auth") throw new ImplementationError("AUTH_METHOD_UNAPPROVED", "Authentication method is not approved."); validateGeneratedAuthentication(content); }
-  if (task.taskType === "implement-storage") { if (/from\s+["']user|bucket\s*\(|bucketName.*req|\.\.\//i.test(content)) throw new ImplementationError("STORAGE_PATH_UNSAFE", "Storage path or bucket is user-controlled or unsafe."); if (!/mime|contentType|size|fileSize/i.test(content)) throw new ImplementationError("STORAGE_UPLOAD_VALIDATION_MISSING", "Storage upload validation is missing."); if (/public.*upload|upload.*public/i.test(content)) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Unrestricted public upload is not allowed."); }
+  if (task.taskType === "implement-storage") {
+    const storagePlan = plans.planning?.storage;
+    if (!storagePlan || storagePlan.decision !== "supabase-storage") throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Storage implementation requires the accepted typed StoragePlan.");
+    const source = proposal.operations.filter((operation) => /src\/lib\/storage\/.*\.(ts|tsx)$/.test(operation.relativePath.replaceAll("\\", "/"))).map(text).join("\n");
+    const policy = proposal.operations.filter((operation) => /^supabase\/migrations\/.*\.sql$/.test(operation.relativePath.replaceAll("\\", "/"))).map(text).join("\n");
+    if (!source || !policy) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Storage implementation must include both the server helper and storage.objects policy migration artifact.");
+    validateGeneratedStorage(source, [storagePlan.bucketId], storagePlan);
+    validateGeneratedStoragePolicy(policy, storagePlan);
+    const sourceChecksum = source.match(/storage-contract-checksum:\s*([a-f0-9]{64})/i)?.[1];
+    const policyChecksum = policy.match(/storage-contract-checksum:\s*([a-f0-9]{64})/i)?.[1];
+    if (!sourceChecksum || sourceChecksum !== policyChecksum) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Generated storage source and policy must bind to the same typed StoragePlan checksum.");
+  }
   if (task.taskType === "implement-email") { if (plans.brief?.emailDecision !== "needed" && plans.planning?.email?.decision !== "required-configured-provider") throw new ImplementationError("EMAIL_PROVIDER_PENDING", "Email provider is not resolved."); if (/from\s*:\s*user|replyTo\s*:\s*input|\r|\n.*subject/i.test(content)) throw new ImplementationError("EMAIL_TEMPLATE_UNSAFE", "Email input may permit header injection."); if (/process\.env\.[A-Z_]+/i.test(content) && !/server|email/i.test(paths.join(" "))) throw new ImplementationError("EMAIL_SECRET_EXPOSURE", "Email secret is used outside a server boundary."); }
   if (/\b(Prisma|Drizzle|Sequelize|TypeORM|Express|NestJS|Redis|BullMQ)\b/i.test(content)) throw new ImplementationError("UNAPPROVED_DEPENDENCY", "Backend proposal introduces a prohibited dependency.");
   if (/process\.env\.([A-Z0-9_]+)/g.test(content)) { const declared = new Set(plans.planning?.architecture?.environment?.variables?.map((variable) => variable.name) ?? []); const names = [...content.matchAll(/process\.env\.([A-Z0-9_]+)/g)].map((match) => match[1]); if (names.some((name) => !declared.has(name))) throw new ImplementationError("ENV_VARIABLE_UNPLANNED", "Backend code references an undeclared environment variable."); }

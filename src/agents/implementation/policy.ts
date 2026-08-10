@@ -418,6 +418,10 @@ export class TaskContextAssembler {
     const rawForms =
       (input.acceptedPlanningPackage as BackendPlans["planning"])?.forms
         ?.forms ?? [];
+    const storagePlan =
+      input.task.taskType === "implement-storage"
+        ? (input.acceptedPlanningPackage as BackendPlans["planning"])?.storage
+        : undefined;
     const formPlan =
       input.task.taskType === "implement-form" &&
       rawForms.every((form) =>
@@ -537,6 +541,7 @@ export class TaskContextAssembler {
       architectureExcerpt,
       contentExcerpt,
       assetExcerpt,
+      ...(storagePlan ? { storagePlan } : {}),
       ...(formPlan ? { formPlan } : {}),
       ...(testArtifactExpectation ? { testArtifactExpectation } : {}),
       context7Excerpts,
@@ -559,6 +564,7 @@ export class TaskContextAssembler {
         architectureExcerpt,
         contentExcerpt,
         assetExcerpt,
+        storagePlan,
         context7Excerpts,
         shadcnReferences,
         codebaseMemory,

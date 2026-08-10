@@ -33,6 +33,7 @@ import type { ImplementationProvider } from "./contracts";
 import { validateSupportedTask, validateTaskResult } from "./validators";
 import type { BackendPlans } from "./backend";
 import { implementationAgentDefinition } from "@/agents/catalog";
+import { StoragePlanSchema } from "@/agents/planner/contracts";
 
 export interface ImplementationMemoryPort {
   writeSnapshot(
@@ -384,9 +385,11 @@ export class ImplementationAgentService {
         this.policy,
         () => Boolean(signal?.aborted),
       );
+      const acceptedPlanning = input.acceptedPlanningPackage as BackendPlans["planning"];
+      if (input.task.taskType === "implement-storage") StoragePlanSchema.parse(acceptedPlanning?.storage);
       const backendPlans = {
         brief: input.approvedBrief,
-        planning: input.acceptedPlanningPackage as BackendPlans["planning"],
+        planning: acceptedPlanning,
       };
       const validations = validateTaskResult(
         input.task,

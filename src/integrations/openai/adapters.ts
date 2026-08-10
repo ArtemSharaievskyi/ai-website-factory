@@ -14,6 +14,7 @@ import {
   FormPlanSchema,
   FormSchema,
   PlanningPackageSchema,
+  StoragePlanSchema,
   type PlanningPackage,
 } from "@/agents/planner/contracts";
 import type { DesignDirectionProvider } from "@/agents/design/ports";
@@ -391,9 +392,10 @@ export const PlanningPackageStructuredOutputSchema =
     email: PlanningPackageSchema.shape.email.extend({
       traceability: z.array(StrictTraceabilitySchema),
     }),
-    storage: PlanningPackageSchema.shape.storage.extend({
+    storage: z.object({
+      ...StoragePlanSchema.shape,
       traceability: z.array(StrictTraceabilitySchema),
-    }),
+    }).strict(),
     administration: PlanningPackageSchema.shape.administration.extend({
       traceability: z.array(StrictTraceabilitySchema),
     }),

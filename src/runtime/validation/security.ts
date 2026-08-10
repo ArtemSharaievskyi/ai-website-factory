@@ -1,4 +1,6 @@
 import { ImplementationError } from "@/agents/implementation/errors";
+import type { StoragePlan } from "@/agents/planner/contracts";
+import { storagePlanContractChecksum } from "@/agents/planner/contracts";
 
 export const GENERATED_SECURITY_VALIDATION_POLICY_VERSION = "generated-security-v1";
 
@@ -32,4 +34,41 @@ export function validateGeneratedRlsPolicy(content: string) {
   if (blocks.length < 4 || blocks.some((block) => !hasAuthenticatedRole(block))) throw new ImplementationError("RLS_POLICY_MISSING", "RLS policies must be limited to authenticated users.");
   if (!hasPolicyFor(blocks, "select", ownershipPredicate) || !hasPolicyFor(blocks, "update", ownershipPredicate) || !hasPolicyFor(blocks, "delete", ownershipPredicate)) throw new ImplementationError("RLS_OWNERSHIP_UNSAFE", "SELECT, UPDATE, and DELETE policies must constrain rows to auth.uid() = user_id.");
   if (!hasPolicyFor(blocks, "insert", /with\s+check[\s\S]*auth\.uid\s*\(\s*\)\s*=\s*user_id/i) || !hasPolicyFor(blocks, "update", /with\s+check[\s\S]*auth\.uid\s*\(\s*\)\s*=\s*user_id/i)) throw new ImplementationError("RLS_OWNERSHIP_UNSAFE", "INSERT and UPDATE policies must constrain written ownership with WITH CHECK.");
+}
+
+export function validateGeneratedStorage(content: string, plannedBucketNames: readonly string[] = [], storagePlan?: StoragePlan) {
+  if (/storage\.from\s*\(\s*(?:input|parsed|request|req)\.|\bbucket\s*\(\s*(?:input|parsed|request|req)\.|(?:bucket|bucketName)\s*[:=]\s*(?:input|parsed|request|req)/i.test(content) || /(?:ownerId|userId|storageOwner|pathOwner)\s*[:=]\s*(?:input|parsed|request|req)/i.test(content)) throw new ImplementationError("STORAGE_PATH_UNSAFE", "Generated storage has an unsafe caller-selected bucket or ownership path.");
+  if (!/server-only/i.test(content) || !/getAuthenticatedUser\s*\(/i.test(content) || !/getServerSupabaseClient\s*\(/i.test(content)) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Generated storage must use the existing server-side authenticated Supabase boundary.");
+  if (!/STORAGE_BUCKET\s*=\s*["'][^"']+["']/i.test(content) || !/storage\.from\s*\(\s*STORAGE_BUCKET\s*\)/i.test(content)) throw new ImplementationError("STORAGE_BUCKET_UNAPPROVED", "Generated storage must select an explicit server-owned bucket.");
+  if (plannedBucketNames.length && !plannedBucketNames.some((bucket) => new RegExp(`STORAGE_BUCKET\\s*=\\s*["']${bucket.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}\s*["']`, "i").test(content))) throw new ImplementationError("STORAGE_BUCKET_UNAPPROVED", "Generated storage must use a bucket declared by the approved storage plan.");
+  if (!/user\.id/i.test(content) || !/ownedObjectPath\(user\.id|isOwnedObjectPath\(user\.id/i.test(content)) throw new ImplementationError("STORAGE_PATH_UNSAFE", "Generated storage must derive object ownership from the authenticated user ID.");
+  if (!/createSignedUploadUrl|\.upload\s*\(/i.test(content) || !/createSignedUrl\s*\(/i.test(content) || !/\.update\s*\(/i.test(content) || !/\.remove\s*\(/i.test(content)) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Generated storage must authorize upload, read, update, and delete operations.");
+  if (!/!\s*user/i.test(content) || !/!\s*user\s*\|\||!user\s*\|\|/i.test(content)) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Generated storage must fail closed for unauthenticated requests.");
+  for (const operation of ["createSignedDownloadUrl", "updateOwnedObject", "deleteOwnedObject"]) if (!new RegExp(`${operation}[\\s\\S]*?isOwnedObjectPath\\s*\\(\\s*user\\.id`, "i").test(content)) throw new ImplementationError("STORAGE_PATH_UNSAFE", `${operation} must verify the authenticated owner before storage access.`);
+  if (!/createSignedUploadUrl[\s\S]*?ownedObjectPath\s*\(\s*user\.id/i.test(content)) throw new ImplementationError("STORAGE_PATH_UNSAFE", "Uploads must derive the object path from the authenticated user ID.");
+  if (!/createSignedUploadUrl[\s\S]*?validateUpload\s*\(/i.test(content)) throw new ImplementationError("STORAGE_UPLOAD_VALIDATION_MISSING", "Signed upload URLs must be issued only after the existing upload constraints pass.");
+  if (storagePlan && !new RegExp(`STORAGE_BUCKET\\s*=\\s*["']${storagePlan.bucketId.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}\s*["']`, "i").test(content)) throw new ImplementationError("STORAGE_BUCKET_UNAPPROVED", "Generated storage must use the exact canonical bucket ID.");
+  if (storagePlan && !/storage-contract-checksum:\s*[a-f0-9]{64}/i.test(content)) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Generated storage must carry the typed StoragePlan contract checksum.");
+  if (storagePlan && storagePlan.directClientAccess) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Direct client Storage is not supported by the current StoragePlan.");
+  if (/SUPABASE_SERVICE_ROLE_KEY|service_role/i.test(content)) throw new ImplementationError("AUTH_SECRET_EXPOSURE", "Ordinary storage operations must not use a service-role credential.");
+}
+
+export function validateGeneratedStoragePolicy(content: string, storagePlan: StoragePlan) {
+  const policyIdentity = storagePlan.policyIdentity.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const ownerPredicate = /\(storage\.foldername\s*\(\s*name\s*\)\)\s*\[\s*1\s*\]\s*=\s*\(?\s*auth\.uid\s*\(\s*\)\s*::\s*text\s*\)?/i;
+  const blocks = policyBlocks(content);
+  if (!/^--\s*storage-contract-checksum:\s*[a-f0-9]{64}/im.test(content)) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Storage policy migration must carry the typed StoragePlan contract checksum.");
+  if (!/on\s+storage\.objects/i.test(content) || !content.includes(`bucket_id = '${storagePlan.bucketId}'`)) throw new ImplementationError("STORAGE_BUCKET_UNAPPROVED", "Storage policies must target storage.objects and the exact planned bucket.");
+  if (!new RegExp(`policy\\s+["']?${policyIdentity}[_-]select`, "i").test(content)) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Storage policy identifiers must be stable and derived from the typed contract.");
+  if (!hasAuthenticatedRole(content)) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Storage must generate four authenticated owner policies.");
+  const blockFor = (operation: string) => blocks.find((block) => new RegExp(`\\bfor\\s+${operation}\\b`, "i").test(block)) ?? content;
+  for (const operation of ["select", "insert", "update", "delete"]) {
+    const block = blockFor(operation);
+    if (!content.includes(`create policy ${storagePlan.policyIdentity}_${operation}`) || !new RegExp(`\\bfor\\s+${operation}\\b`, "i").test(content)) throw new ImplementationError("STORAGE_POLICY_UNSAFE", `${operation.toUpperCase()} Storage policy is missing.`);
+    if (!block.includes(`bucket_id = '${storagePlan.bucketId}'`) || !ownerPredicate.test(block)) throw new ImplementationError("STORAGE_PATH_UNSAFE", `${operation.toUpperCase()} policy must scope the exact bucket to auth.uid() owner paths.`);
+  }
+  if (!/for\s+select[\s\S]*using\s*\(/i.test(blockFor("select")) || !/for\s+delete[\s\S]*using\s*\(/i.test(blockFor("delete"))) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "SELECT and DELETE must use USING authorization predicates.");
+  if (!/for\s+insert[\s\S]*with\s+check\s*\(/i.test(blockFor("insert")) || !/for\s+update[\s\S]*using\s*\([\s\S]*with\s+check\s*\(/i.test(blockFor("update"))) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "INSERT and UPDATE must use WITH CHECK ownership predicates.");
+  if (/to\s+public|using\s*\(\s*true\s*\)|with\s+check\s*\(\s*true\s*\)|service_role/i.test(content)) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Storage policies must not grant public, unconditional, or service-role access.");
+  if (storagePlanContractChecksum(storagePlan) !== content.match(/^--\s*storage-contract-checksum:\s*([a-f0-9]{64})/im)?.[1]) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Storage policy checksum does not match the accepted typed StoragePlan.");
 }
