@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { createConfiguredPool } from "./db-common.mjs";
+import { createConfiguredPool, safeDatabaseCode } from "./db-common.mjs";
 import { ClarificationRepository, DecisionRepository, DocumentRepository, ProjectRepository, ProjectVersionRepository, WorkflowPersistenceService, CostRepository } from "../src/persistence/database/repositories";
 import { FactoryProjectSchema } from "../src/domain/project/schema";
 import { RequirementSpecificationSchema } from "../src/domain/requirements/schema";
@@ -17,10 +17,11 @@ const questionId = randomUUID();
 const unresolved = ClarificationSessionSchema.parse({ ...base("clarification-log"), documentType: "clarification-log", questions: [{ id: questionId, category: "business" as const, question: "What is the business fact?", reason: "Smoke test", required: true, blocking: true, askedAt: timestamp, answerStatus: "unresolved" as const }], answers: [] });
 const resolved = ClarificationSessionSchema.parse({ ...unresolved, updatedAt: new Date().toISOString(), questions: [{ ...unresolved.questions[0], answerStatus: "answered" as const }], answers: [{ questionId, status: "answered" as const, answer: "A confirmed fact", answeredAt: new Date().toISOString(), answeredBy: "smoke-test" }] });
 const decision = { id: randomUUID(), timestamp, actorType: "system" as const, actorIdentifier: "smoke-test", category: "verification", decision: "Smoke test", rationale: "Verify persistence", affectedDocuments: ["requirements.json"], requirementChange: false, userApprovalRequired: false, userApprovalStatus: "not-required" as const };
-const pool = createConfiguredPool();
+let pool: ReturnType<typeof createConfiguredPool> | undefined;
 let currentStep = "start";
 async function main() {
 try {
+  currentStep = "pool-configuration"; pool = createConfiguredPool();
   currentStep = "adapter-import"; const db = new (await import("../src/persistence/database/postgres")).PostgresPersistenceDatabase(pool);
   const projects = new ProjectRepository(db); const versions = new ProjectVersionRepository(db); const documents = new DocumentRepository(db); const clarifications = new ClarificationRepository(db); const workflow = new WorkflowPersistenceService(db); const decisions = new DecisionRepository(db); const costs = new CostRepository(db);
   currentStep = "project-idempotency"; const created = await projects.create(project, `smoke-project-${runId}`); const retried = await projects.create(project, `smoke-project-${runId}`); const readProject = await projects.get(id); if (created.id !== retried.id || readProject?.id !== id) throw new Error("SMOKE_IDEMPOTENCY_RESULT_MISMATCH");
@@ -33,8 +34,10 @@ try {
   currentStep = "decision-and-cost"; await decisions.append(id, 1, decision); if ("update" in decisions || "delete" in decisions) throw new Error("SMOKE_DECISION_MUTATION_BOUNDARY_FAILED"); await costs.append({ id: randomUUID(), projectId: id, projectVersion: 1, role: "system", provider: "none", model: "none", inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, estimatedCost: 0, createdAt: timestamp });
   console.log("SMOKE_OK");
 } finally {
-  await pool.query("DELETE FROM decision_records WHERE project_id=$1", [id]); await pool.query("DELETE FROM workflow_events WHERE project_id=$1", [id]); await pool.query("DELETE FROM workflow_documents WHERE project_id=$1", [id]); await pool.query("DELETE FROM cost_records WHERE project_id=$1", [id]); await pool.query("DELETE FROM project_versions WHERE project_id=$1", [id]); await pool.query("DELETE FROM factory_projects WHERE id=$1", [id]); await pool.query("DELETE FROM idempotency_records WHERE idempotency_key LIKE $1", [`smoke-%-${runId}`]); await pool.end();
+  if (pool) {
+    await pool.query("DELETE FROM decision_records WHERE project_id=$1", [id]); await pool.query("DELETE FROM workflow_events WHERE project_id=$1", [id]); await pool.query("DELETE FROM workflow_documents WHERE project_id=$1", [id]); await pool.query("DELETE FROM cost_records WHERE project_id=$1", [id]); await pool.query("DELETE FROM project_versions WHERE project_id=$1", [id]); await pool.query("DELETE FROM factory_projects WHERE id=$1", [id]); await pool.query("DELETE FROM idempotency_records WHERE idempotency_key LIKE $1", [`smoke-%-${runId}`]); await pool.end();
+  }
 }
 }
 
-main().catch((error) => { console.error(`${error?.code ?? "SMOKE_FAILED"}:${currentStep}:${error?.cause?.code ?? "no-provider-code"}`); process.exitCode = 1; });
+main().catch((error) => { console.error(`${safeDatabaseCode(error)}:${currentStep}:${error?.cause?.code ?? "no-provider-code"}`); process.exitCode = 1; });

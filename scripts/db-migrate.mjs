@@ -5,9 +5,10 @@ import { createConfiguredPool, safeDatabaseCode } from "./db-common.mjs";
 
 const directory = path.resolve("supabase/migrations");
 const files = (await readdir(directory)).filter((file) => /^\d+_[a-z0-9_-]+\.sql$/.test(file)).sort();
-const pool = createConfiguredPool();
+let pool;
 let client;
 try {
+  pool = createConfiguredPool();
   client = await pool.connect();
   await client.query("SELECT pg_advisory_lock(hashtext('ai-website-factory:migrations'))");
   await client.query("CREATE TABLE IF NOT EXISTS factory_schema_migrations (filename text primary key, checksum char(64) not null, applied_at timestamptz not null default now())");
@@ -22,4 +23,4 @@ try {
     catch (error) { await client.query("ROLLBACK"); throw error; }
   }
 } catch (error) { console.error(error?.message?.startsWith("MIGRATION_CHECKSUM_MISMATCH") ? "MIGRATION_CHECKSUM_MISMATCH" : safeDatabaseCode(error)); process.exitCode = 1; }
-finally { if (client) { await client.query("SELECT pg_advisory_unlock(hashtext('ai-website-factory:migrations'))").catch(() => undefined); client.release(); } await pool.end(); }
+finally { if (client) { await client.query("SELECT pg_advisory_unlock(hashtext('ai-website-factory:migrations'))").catch(() => undefined); client.release(); } if (pool) await pool.end(); }

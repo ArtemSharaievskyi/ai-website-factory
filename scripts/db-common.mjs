@@ -23,6 +23,7 @@ export function createConfiguredPool() {
 }
 
 export function safeDatabaseCode(error) {
+  if (error?.code === "DATABASE_CONFIGURATION_MISSING") return "DATABASE_CONFIGURATION_MISSING";
   if (error?.code === "28P01" || error?.code === "42501") return "DATABASE_PERMISSION_DENIED";
   if (error?.code === "57014" || error?.code === "ETIMEDOUT") return "DATABASE_TIMEOUT";
   if (error?.code === "DEPTH_ZERO_SELF_SIGNED_CERT" || error?.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" || /ssl|certificate/i.test(error?.message ?? "")) return "DATABASE_SSL_FAILED";

@@ -26,6 +26,8 @@ export const CG04_GROUP_ID = "cg-04-provider-config-and-lifecycle" as const;
 export const CG04_FINDING_IDS = ["finding-24cb4b563e9b341a84fd", "finding-3ea29b90bbf550eecdb3"] as const;
 export const CG05_GROUP_ID = "cg-05-design-durable-state-authority" as const;
 export const CG05_FINDING_IDS = ["finding-1540c99220f633245955", "finding-efa4502938176a741e32"] as const;
+export const CG06_GROUP_ID = "cg-06-database-error-propagation" as const;
+export const CG06_FINDING_IDS = ["finding-c94e4c6dd19f957eeb40"] as const;
 export const PHASE6A_PLAN_IDENTITY = "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00" as const;
 export const PHASE6A_PLAN_PATH = "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json" as const;
 export const VERIFICATION_MACHINE_PATH = "docs/admin/phase-6/cg-02-authentication-authorization-rls-verification-2026-08-10.json" as const;
@@ -36,6 +38,8 @@ export const CG04_VERIFICATION_MACHINE_PATH = "docs/admin/phase-6/cg-04-provider
 export const CG04_VERIFICATION_REPORT_PATH = "docs/admin/phase-6/cg-04-provider-config-and-lifecycle-verification-2026-08-10.md" as const;
 export const CG05_VERIFICATION_MACHINE_PATH = "docs/admin/phase-6/cg-05-design-durable-state-authority-verification-2026-08-10.json" as const;
 export const CG05_VERIFICATION_REPORT_PATH = "docs/admin/phase-6/cg-05-design-durable-state-authority-verification-2026-08-10.md" as const;
+export const CG06_VERIFICATION_MACHINE_PATH = "docs/admin/phase-6/cg-06-database-error-propagation-verification-2026-08-11.json" as const;
+export const CG06_VERIFICATION_REPORT_PATH = "docs/admin/phase-6/cg-06-database-error-propagation-verification-2026-08-11.md" as const;
 
 const sha256 = (value: string | Uint8Array) => createHash("sha256").update(value).digest("hex");
 const git = (root: string, args: string[]) => execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
@@ -143,6 +147,25 @@ const CG05_CONFIG: CorrectionConfig = {
   idempotencyPrefix: "phase6f2",
 };
 
+const CG06_CONFIG: CorrectionConfig = {
+  groupId: CG06_GROUP_ID,
+  findingIds: CG06_FINDING_IDS,
+  machinePath: CG06_VERIFICATION_MACHINE_PATH,
+  reportPath: CG06_VERIFICATION_REPORT_PATH,
+  documentType: "phase-6g-correction-verification",
+  title: "cg-06 Database Error Propagation Verification",
+  fixedRefs: ["original-findings", "cg06-database-error-contract", "safe-cli-error-propagation", "deterministic-database-script-tests"],
+  originalFindings: [
+    { findingId: CG06_FINDING_IDS[0], severity: "ERROR", category: "ERROR_HANDLING", summary: "Database configuration failures bypass the scripts' safe error-propagation path." },
+  ],
+  correctionGoal: "Ensure database configuration failures travel through the established safe error path without bypasses.",
+  trustBoundary: "Factory database CLI scripts: pool configuration, safe error normalization, deterministic nonzero process exit, and no raw driver/configuration details in operational output.",
+  nonGoals: ["No database schema change", "No migration redesign", "No new retry or ORM framework", "No generated customer database changes", "No unrelated correction groups"],
+  deterministicChecks: ["missing DATABASE_URL is normalized to DATABASE_CONFIGURATION_MISSING", "pool construction occurs inside each script's protected error path", "db-migrate, db-status, db-verify, and db-smoke exit nonzero without raw stack output", "database validation and verification continue to pass", "unexpected database failures retain safe connection/permission/timeout categories"],
+  requiredReviewerIds: ["code-integration-reviewer"],
+  idempotencyPrefix: "phase6g1",
+};
+
 async function currentSlice(root: string, id: string, relativePath: string, startLine: number, endLine: number): Promise<EvidenceSlice> {
   const bytes = await readFile(path.resolve(root, relativePath));
   const lines = bytes.toString("utf8").split(/\r?\n/);
@@ -151,7 +174,14 @@ async function currentSlice(root: string, id: string, relativePath: string, star
 }
 
 async function buildEvidence(root: string, config: CorrectionConfig) {
-  const slices = await Promise.all(config.groupId === CG05_GROUP_ID ? [
+  const slices = await Promise.all(config.groupId === CG06_GROUP_ID ? [
+    currentSlice(root, "current:db-common", "scripts/db-common.mjs", 14, 31),
+    currentSlice(root, "current:db-migrate", "scripts/db-migrate.mjs", 1, 26),
+    currentSlice(root, "current:db-status", "scripts/db-status.mjs", 1, 5),
+    currentSlice(root, "current:db-verify", "scripts/db-verify.mjs", 1, 22),
+    currentSlice(root, "current:db-smoke", "scripts/db-smoke.ts", 1, 43),
+    currentSlice(root, "test:db-error-propagation", "src/persistence/database/db-script-error-propagation.test.ts", 1, 48),
+  ] : config.groupId === CG05_GROUP_ID ? [
     currentSlice(root, "current:design-service", "src/agents/design/service.ts", 60, 95),
     currentSlice(root, "current:design-persistence-path", "src/agents/design/service.ts", 210, 337),
     currentSlice(root, "current:design-selection-persistence", "src/agents/design/service.ts", 353, 540),
@@ -185,7 +215,7 @@ async function buildEvidence(root: string, config: CorrectionConfig) {
 }
 
 function correctionDiff(root: string, config: CorrectionConfig) {
-  const files = config.groupId === CG05_GROUP_ID ? ["src/agents/design/service.ts", "src/agents/design/memory.ts", "src/agents/design/server.ts", "src/runtime/production-factory-runtime-core.ts", "src/domain/design/schema.ts", "src/agents/design/design.test.ts"] : config.groupId === CG04_GROUP_ID ? ["src/integrations/openai/config.ts", "src/integrations/openai/client.ts", "src/integrations/openai/limiter.ts", "src/integrations/context7/service.ts", "src/integrations/codebase-memory/service.ts", "src/integrations/openai/provider.test.ts", "src/integrations/context7/context7.test.ts", "src/integrations/codebase-memory/codebase-memory.test.ts"] : ["src/agents/planner/contracts.ts", "src/agents/planner/deterministic.ts", "src/agents/planner/planner.test.ts", "src/agents/implementation/contracts.ts", "src/agents/implementation/service.ts", "src/agents/implementation/policy.ts", "src/agents/implementation/provider.ts", "src/agents/implementation/backend.ts", "src/agents/implementation/backend.test.ts", "src/runtime/validation/security.ts", "src/integrations/openai/adapters.ts", "scripts/backend-smoke.ts"];
+  const files = config.groupId === CG06_GROUP_ID ? ["scripts/db-common.mjs", "scripts/db-migrate.mjs", "scripts/db-status.mjs", "scripts/db-verify.mjs", "scripts/db-smoke.ts", "src/persistence/database/db-script-error-propagation.test.ts"] : config.groupId === CG05_GROUP_ID ? ["src/agents/design/service.ts", "src/agents/design/memory.ts", "src/agents/design/server.ts", "src/runtime/production-factory-runtime-core.ts", "src/domain/design/schema.ts", "src/agents/design/design.test.ts"] : config.groupId === CG04_GROUP_ID ? ["src/integrations/openai/config.ts", "src/integrations/openai/client.ts", "src/integrations/openai/limiter.ts", "src/integrations/context7/service.ts", "src/integrations/codebase-memory/service.ts", "src/integrations/openai/provider.test.ts", "src/integrations/context7/context7.test.ts", "src/integrations/codebase-memory/codebase-memory.test.ts"] : ["src/agents/planner/contracts.ts", "src/agents/planner/deterministic.ts", "src/agents/planner/planner.test.ts", "src/agents/implementation/contracts.ts", "src/agents/implementation/service.ts", "src/agents/implementation/policy.ts", "src/agents/implementation/provider.ts", "src/agents/implementation/backend.ts", "src/agents/implementation/backend.test.ts", "src/runtime/validation/security.ts", "src/integrations/openai/adapters.ts", "scripts/backend-smoke.ts"];
   return git(root, ["diff", "--no-ext-diff", "--unified=3", "--", ...files]).slice(0, 30000);
 }
 
@@ -222,7 +252,7 @@ function verificationInput(reviewerId: ReviewerId, currentHead: string, evidence
     correctionGoal: config.correctionGoal,
     trustBoundary: config.trustBoundary,
     nonGoals: config.nonGoals,
-    verificationQuestion: config.groupId === CG05_GROUP_ID ? "Does the current cg-05 revision-2 correction preserve the Architecture-approved durable Design state and ensure selectDesignDirection rejects any request whose projectVersion differs from the trusted current FactoryProject.currentVersion before replay or mutation, resolving only the two assigned findings? Return APPROVED with no findings only when the typed request, trusted durable version source, guard ordering, stale no-side-effect regression, current-version success, and existing checksum/idempotency behavior are evidenced. Do not report fresh repository findings or unrelated correction groups." : config.groupId === CG04_GROUP_ID ? "Does the current cg-04 correction resolve the exact assigned provider-configuration and external-work-lifecycle findings without introducing a regression in the reviewed boundary? Return APPROVED with no findings only when empty model configuration is rejected and configured concurrency remains truthful through cancellation and timeout settlement. Do not report fresh repository findings or unrelated correction groups." : config.groupId === CG03_GROUP_ID ? "Does the current cg-03 correction resolve the exact assigned storage-ownership finding/root cause without introducing a regression in the reviewed boundary? Return APPROVED with no findings only when the assigned storage ownership and access contract is resolved. Do not report fresh repository findings or unrelated correction groups." : "Does the current bounded cg-02 correction resolve only the assigned authentication, authorization, ownership, and RLS findings? Return APPROVED with no findings only when all six assigned root causes are resolved. Do not report fresh repository findings or unrelated correction groups.",
+    verificationQuestion: config.groupId === CG06_GROUP_ID ? "Does the current cg-06 correction preserve meaningful database configuration failure semantics through the affected Factory CLI script boundary, so missing or failed pool construction cannot be mistaken for valid empty or successful state, while preserving the existing persistence architecture? Return APPROVED with no findings only when pool construction is protected, safe typed codes and nonzero exits are deterministic, and the four-script regression evidence is valid. Do not report fresh repository findings or unrelated correction groups." : config.groupId === CG05_GROUP_ID ? "Does the current cg-05 revision-2 correction preserve the Architecture-approved durable Design state and ensure selectDesignDirection rejects any request whose projectVersion differs from the trusted current FactoryProject.currentVersion before replay or mutation, resolving only the two assigned findings? Return APPROVED with no findings only when the typed request, trusted durable version source, guard ordering, stale no-side-effect regression, current-version success, and existing checksum/idempotency behavior are evidenced. Do not report fresh repository findings or unrelated correction groups." : config.groupId === CG04_GROUP_ID ? "Does the current cg-04 correction resolve the exact assigned provider-configuration and external-work-lifecycle findings without introducing a regression in the reviewed boundary? Return APPROVED with no findings only when empty model configuration is rejected and configured concurrency remains truthful through cancellation and timeout settlement. Do not report fresh repository findings or unrelated correction groups." : config.groupId === CG03_GROUP_ID ? "Does the current cg-03 correction resolve the exact assigned storage-ownership finding/root cause without introducing a regression in the reviewed boundary? Return APPROVED with no findings only when the assigned storage ownership and access contract is resolved. Do not report fresh repository findings or unrelated correction groups." : "Does the current bounded cg-02 correction resolve only the assigned authentication, authorization, ownership, and RLS findings? Return APPROVED with no findings only when all six assigned root causes are resolved. Do not report fresh repository findings or unrelated correction groups.",
     evidenceCatalog: [...evidence.fixedRefs, ...evidence.slices.map(({ id, relativePath, startLine, endLine, checksum, currentHead: sliceHead, content }) => ({ id, relativePath, startLine, endLine, checksum, currentHead: sliceHead, content }))],
     correctionDiff: diff,
     deterministicChecks: config.deterministicChecks,
@@ -283,8 +313,9 @@ export async function runCg02Verification(root = process.cwd()) { return runTarg
 export async function runCg03Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG03_CONFIG); }
 export async function runCg04Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG04_CONFIG); }
 export async function runCg05Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG05_CONFIG); }
+export async function runCg06Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG06_CONFIG); }
 
 if (process.argv[1]?.endsWith("phase-6c-cg02-verification.ts")) {
-  const runner = process.env.PHASE6_CORRECTION_GROUP === CG05_GROUP_ID ? runCg05Verification : process.env.PHASE6_CORRECTION_GROUP === CG04_GROUP_ID ? runCg04Verification : process.env.PHASE6_CORRECTION_GROUP === CG03_GROUP_ID ? runCg03Verification : runCg02Verification;
+  const runner = process.env.PHASE6_CORRECTION_GROUP === CG06_GROUP_ID ? runCg06Verification : process.env.PHASE6_CORRECTION_GROUP === CG05_GROUP_ID ? runCg05Verification : process.env.PHASE6_CORRECTION_GROUP === CG04_GROUP_ID ? runCg04Verification : process.env.PHASE6_CORRECTION_GROUP === CG03_GROUP_ID ? runCg03Verification : runCg02Verification;
   runner().then((result) => console.log(JSON.stringify({ status: result.artifact.phaseStatus, groupId: result.artifact.groupId, realGptCalls: result.artifact.provider.realGptCalls, reviewers: result.artifact.reviewerResults }, null, 2))).catch((error) => { console.error(error instanceof Error ? error.message : "VERIFICATION_FAILED"); process.exitCode = 1; });
 }
