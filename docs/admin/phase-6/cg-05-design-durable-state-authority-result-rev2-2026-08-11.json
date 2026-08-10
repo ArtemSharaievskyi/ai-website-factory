@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6f-correction-result",
+  "groupId": "cg-05-design-durable-state-authority",
+  "planRevision": 2,
+  "baselineCommit": "df3ab5c",
+  "replanCommit": "df3ab5c",
+  "correctionCommit": "93bd092",
+  "workingCandidateIdentity": {
+    "baselineHead": "df3ab5c",
+    "correctionCommit": "93bd092",
+    "diffSha256": "2caf4559012426cd52cff2bef5a2f249ab95ba5f815ba4ba06eda163dd824f80a",
+    "diffBytes": 49012,
+    "files": [
+      "scripts/phase-6c-cg02-verification.ts",
+      "src/agents/design/design.test.ts",
+      "src/agents/design/memory.ts",
+      "src/agents/design/server.ts",
+      "src/agents/design/service.ts",
+      "src/domain/design/schema.ts",
+      "src/runtime/production-factory-runtime-core.ts"
+    ]
+  },
+  "findingIds": [
+    "finding-1540c99220f633245955",
+    "finding-efa4502938176a741e32"
+  ],
+  "revisedRootCause": "Revision 1 established durable Design authority but omitted an explicit current-version comparison at the canonical selection boundary, allowing a request version to reach replay or mutation without proving it matched the durable FactoryProject.currentVersion.",
+  "correctionBudget": 1,
+  "implementationCyclesUsed": 1,
+  "candidateChangesRetained": [
+    "Durable database Design repositories",
+    "Database authority with Project Memory as synchronized projection",
+    "Restart/resume context recovery",
+    "Persisted generation and selection idempotency identity",
+    "Direction-set checksum, direction membership, and selected-direction checksum validation",
+    "DesignRepository selection write path",
+    "Workflow row-version and durable decision handling",
+    "Exactly three Design directions"
+  ],
+  "candidateChangesModified": [
+    "selectDesignDirection now loads ProjectRepository.getWithVersion immediately after request parsing",
+    "Mismatched request.projectVersion now fails with DESIGN_SELECTION_STALE before replay or mutation",
+    "Design tests cover durable version advance, stale rejection, no-side-effect behavior, and current-version success evidence",
+    "Shared verifier now performs only the required Code / Integration Reviewer revision-2 recheck"
+  ],
+  "candidateChangesDiscarded": [],
+  "canonicalCurrentProjectVersionSource": "ProjectRepository.getWithVersion(request.projectId) -> durable FactoryProject.currentVersion.",
+  "selectionCommandVersionSemantics": "request.projectVersion is typed caller intent for the exact version being selected; it is not authoritative.",
+  "writeBoundary": "DesignAgentService.selectDesignDirection",
+  "versionInvariant": "The durable project resolved by request.projectId must exist and currentProject.currentVersion must equal request.projectVersion before successful replay, DesignRepository.select, Project Memory writes, workflow transition, or decision append.",
+  "errorState": "DESIGN_SELECTION_STALE",
+  "staleRequestBehavior": "Reject closed-loop; do not upgrade, retry, ignore, or select against the latest version.",
+  "sideEffectPolicy": {
+    "selectedDesign": "unchanged",
+    "decisionHistory": "no successful selection decision appended",
+    "projectMemory": "unchanged",
+    "workflow": "not advanced",
+    "events": "no successful selection event",
+    "idempotencyReplay": "stale replay cannot return cached success because the guard precedes replay lookup"
+  },
+  "idempotencyOrdering": {
+    "before": "Current project version was loaded after selected-design replay checks, so a stale successful replay could bypass currentness.",
+    "after": "Current project/version validation occurs immediately after request parsing and before review/document/replay checks or mutation.",
+    "staleReplayBypassBefore": true,
+    "staleReplayBypassAfter": false,
+    "sameVersionReplay": "Preserved for the same current project/version, direction set, direction, and checksums."
+  },
+  "filesChanged": [
+    "scripts/phase-6c-cg02-verification.ts",
+    "src/agents/design/design.test.ts",
+    "src/agents/design/memory.ts",
+    "src/agents/design/server.ts",
+    "src/agents/design/service.ts",
+    "src/domain/design/schema.ts",
+    "src/runtime/production-factory-runtime-core.ts"
+  ],
+  "revision2FilesChanged": [
+    "scripts/phase-6c-cg02-verification.ts",
+    "src/agents/design/design.test.ts",
+    "src/agents/design/service.ts"
+  ],
+  "testsAdded": [
+    "rejects a stale selection before any durable or projected side effect"
+  ],
+  "targetedChecks": {
+    "designTests": "16 passed",
+    "typecheck": "PASS",
+    "lint": "PASS with 3 known pre-existing warnings",
+    "gitDiffCheck": "PASS"
+  },
+  "architectureApprovalReused": {
+    "result": "APPROVED",
+    "rerun": false,
+    "reason": "Revision 2 added only a local guard at the already approved durable selection boundary."
+  },
+  "requiredReviewerRechecks": ["code-integration-reviewer"],
+  "actualReviewerRechecks": [
+    {
+      "reviewerId": "code-integration-reviewer",
+      "state": "RESOLVED",
+      "providerVerdict": "APPROVED",
+      "evidenceValid": true,
+      "verificationArtifact": "docs/admin/phase-6/cg-05-design-durable-state-authority-verification-2026-08-10.json",
+      "evidenceRefs": [
+        "current:design-service",
+        "current:design-persistence-path",
+        "current:design-selection-persistence",
+        "current:design-revision-recovery",
+        "current:design-memory-adapter",
+        "current:design-server-wiring",
+        "current:production-design-wiring",
+        "current:design-document-contract",
+        "test:design-durable-state"
+      ]
+    }
+  ],
+  "selectedSkills": {
+    "code-integration-reviewer": {
+      "selectedSkillIds": [],
+      "identityChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  },
+  "providerCalls": {
+    "realGptCalls": 1,
+    "model": "gpt-5.6-luna",
+    "reviewers": ["code-integration-reviewer"]
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "structuredOutputValid": true,
+    "invalidEvidence": []
+  },
+  "perFindingResolution": {
+    "finding-1540c99220f633245955": {
+      "severity": "WARNING",
+      "originalReviewTarget": "Process-local Design Maps and non-durable workflow/idempotency state",
+      "cg05Revision": 2,
+      "correctionEvidence": ["src/agents/design/service.ts:60-95", "src/agents/design/service.ts:353-540", "src/agents/design/design.test.ts:38-42"],
+      "staleVersionEvidence": ["src/agents/design/service.ts:355-374", "src/agents/design/design.test.ts:41"],
+      "noSideEffectEvidence": ["src/agents/design/design.test.ts:41"],
+      "currentVersionSuccessEvidence": ["src/agents/design/design.test.ts:38"],
+      "architectureVerification": "inherited APPROVED",
+      "codeIntegrationVerification": "RESOLVED",
+      "finalState": "RESOLVED",
+      "resolvedByGroupId": "cg-05-design-durable-state-authority"
+    },
+    "finding-efa4502938176a741e32": {
+      "severity": "ERROR",
+      "originalReviewTarget": "Split Design database/filesystem persistence and unused DecisionRepository injection",
+      "cg05Revision": 2,
+      "correctionEvidence": ["src/agents/design/memory.ts:1-20", "src/agents/design/server.ts:1-7", "src/agents/design/service.ts:210-337"],
+      "staleVersionEvidence": ["src/agents/design/service.ts:355-374", "src/agents/design/design.test.ts:41"],
+      "noSideEffectEvidence": ["src/agents/design/design.test.ts:41"],
+      "currentVersionSuccessEvidence": ["src/agents/design/design.test.ts:38"],
+      "architectureVerification": "inherited APPROVED",
+      "codeIntegrationVerification": "RESOLVED",
+      "finalState": "RESOLVED",
+      "resolvedByGroupId": "cg-05-design-durable-state-authority"
+    }
+  },
+  "remainingFindingCounts": {
+    "total": 18,
+    "CRITICAL": 0,
+    "ERROR": 6,
+    "WARNING": 11,
+    "INFO": 1
+  },
+  "potentiallyImpactedGroups": [],
+  "unblockedGroups": [
+    "cg-09-project-memory-durability",
+    "cg-10-design-request-isolation",
+    "cg-17-design-gate-evidence"
+  ],
+  "nextRecommendedGroup": "cg-06-database-error-propagation",
+  "phaseStatus": "COMPLETE"
+}

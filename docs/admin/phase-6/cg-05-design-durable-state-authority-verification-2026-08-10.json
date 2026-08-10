@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6f-correction-verification",
+  "groupId": "cg-05-design-durable-state-authority",
+  "findingIds": [
+    "finding-1540c99220f633245955",
+    "finding-efa4502938176a741e32"
+  ],
+  "baselineCommit": "df3ab5c",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "correctionSnapshot": "working-tree-before-correction-commit",
+  "reviewerResults": [
+    {
+      "reviewerId": "code-integration-reviewer",
+      "state": "RESOLVED",
+      "evidence": [
+        "current:design-service",
+        "current:design-persistence-path",
+        "current:design-selection-persistence",
+        "current:design-revision-recovery",
+        "current:design-memory-adapter",
+        "current:design-server-wiring",
+        "current:production-design-wiring",
+        "current:design-document-contract",
+        "test:design-durable-state"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-05-design-durable-state-authority correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    }
+  ],
+  "selectedSkills": {
+    "code-integration-reviewer": {
+      "selectedSkillIds": [],
+      "selectedSkillChecksums": [],
+      "identityChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  },
+  "provider": {
+    "model": "gpt-5.6-luna",
+    "modelLabel": "GPT-5.6 Luna",
+    "realGptCalls": 1,
+    "requestEvents": [
+      {
+        "type": "request.started",
+        "role": "code-integration-reviewer"
+      },
+      {
+        "type": "request.completed",
+        "role": "code-integration-reviewer",
+        "requestId": "chatcmpl-EBSRD0aache9ZWVl09eTzYRXbOdSr"
+      }
+    ]
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "evidenceRefs": [
+      "cg05-durable-design-state-contract",
+      "current:design-document-contract",
+      "current:design-memory-adapter",
+      "current:design-persistence-path",
+      "current:design-revision-recovery",
+      "current:design-selection-persistence",
+      "current:design-server-wiring",
+      "current:design-service",
+      "current:production-design-wiring",
+      "database-authority-project-memory-projection",
+      "deterministic-design-durability-tests",
+      "original-findings",
+      "restart-resume-contract",
+      "src/agents/design/design.test.ts:38-42",
+      "src/agents/design/memory.ts:1-20",
+      "src/agents/design/server.ts:1-7",
+      "src/agents/design/service.ts:210-337",
+      "src/agents/design/service.ts:353-540",
+      "src/agents/design/service.ts:580-645",
+      "src/agents/design/service.ts:60-95",
+      "src/domain/design/schema.ts:9-12",
+      "src/runtime/production-factory-runtime-core.ts:400-414",
+      "test:design-durable-state"
+    ],
+    "slices": [
+      {
+        "id": "current:design-service",
+        "relativePath": "src/agents/design/service.ts",
+        "startLine": 60,
+        "endLine": 95,
+        "checksum": "ba779ad1fa3bffc61883e6fbd6590e8306fd43d0899b9d9293fa26132fa1b594",
+        "currentHead": "df3ab5c"
+      },
+      {
+        "id": "current:design-persistence-path",
+        "relativePath": "src/agents/design/service.ts",
+        "startLine": 210,
+        "endLine": 337,
+        "checksum": "ba779ad1fa3bffc61883e6fbd6590e8306fd43d0899b9d9293fa26132fa1b594",
+        "currentHead": "df3ab5c"
+      },
+      {
+        "id": "current:design-selection-persistence",
+        "relativePath": "src/agents/design/service.ts",
+        "startLine": 353,
+        "endLine": 540,
+        "checksum": "ba779ad1fa3bffc61883e6fbd6590e8306fd43d0899b9d9293fa26132fa1b594",
+        "currentHead": "df3ab5c"
+      },
+      {
+        "id": "current:design-revision-recovery",
+        "relativePath": "src/agents/design/service.ts",
+        "startLine": 580,
+        "endLine": 645,
+        "checksum": "ba779ad1fa3bffc61883e6fbd6590e8306fd43d0899b9d9293fa26132fa1b594",
+        "currentHead": "df3ab5c"
+      },
+      {
+        "id": "current:design-memory-adapter",
+        "relativePath": "src/agents/design/memory.ts",
+        "startLine": 1,
+        "endLine": 20,
+        "checksum": "041f28cc68f03fb43b6f6aeaf41071806749de15e0f38fdb466b524e5c100594",
+        "currentHead": "df3ab5c"
+      },
+      {
+        "id": "current:design-document-contract",
+        "relativePath": "src/domain/design/schema.ts",
+        "startLine": 9,
+        "endLine": 12,
+        "checksum": "e30e05be5c576cc29a9dd6c45063ab52f06d40020f158cd5365e179e00993156",
+        "currentHead": "df3ab5c"
+      },
+      {
+        "id": "current:design-server-wiring",
+        "relativePath": "src/agents/design/server.ts",
+        "startLine": 1,
+        "endLine": 7,
+        "checksum": "a5cb5b018d0bc07499c4f9c35eab75d0fd6c2533a7cabfb76297932c50defd1d",
+        "currentHead": "df3ab5c"
+      },
+      {
+        "id": "current:production-design-wiring",
+        "relativePath": "src/runtime/production-factory-runtime-core.ts",
+        "startLine": 400,
+        "endLine": 414,
+        "checksum": "01b98d50eeafc79d4e04da0cbce40ac9f2130d266104892256d1fa6d626eecb0",
+        "currentHead": "df3ab5c"
+      },
+      {
+        "id": "test:design-durable-state",
+        "relativePath": "src/agents/design/design.test.ts",
+        "startLine": 38,
+        "endLine": 42,
+        "checksum": "e0eb392aa45c9d72a1f59873e8b4e8519f37e8daeed20a36ac7744a0980a9e85",
+        "currentHead": "df3ab5c"
+      }
+    ]
+  },
+  "phaseStatus": "RESOLVED"
+}
