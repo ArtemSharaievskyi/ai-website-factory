@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6-execution-state",
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "correctionReadyFindingsBefore": 31,
+  "correctionReadyFindingsRemaining": 30,
+  "completedGroups": ["cg-01-cross-artifact-identity"],
+  "findingResolutions": {
+    "finding-b385146a5a20fb3e4f1b": {
+      "state": "RESOLVED",
+      "resolvedByGroupId": "cg-01-cross-artifact-identity",
+      "correctionCommit": "ecae3a2",
+      "verificationArtifact": "docs/admin/phase-6/cg-01-cross-artifact-identity-verification-2026-08-10.json"
+    }
+  },
+  "dependencyUnblockedGroups": [
+    "cg-02-authentication-authorization-rls",
+    "cg-04-provider-config-and-lifecycle",
+    "cg-05-design-durable-state-authority",
+    "cg-06-database-error-propagation",
+    "cg-12-architecture-review-context"
+  ],
+  "nextRecommendedGroup": "cg-02-authentication-authorization-rls",
+  "phase6AStatus": "COMPLETE",
+  "phase6BStatus": "CG01_COMPLETE",
+  "nextAction": "Begin the first controlled correction group only after explicit Phase 6B authorization; do not start it as part of this verification.",
+  "otherGroupsAutoResolved": [],
+  "otherGroupsModified": []
+}

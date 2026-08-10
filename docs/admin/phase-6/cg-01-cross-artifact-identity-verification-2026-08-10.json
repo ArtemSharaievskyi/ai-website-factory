@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6b-correction-verification",
+  "groupId": "cg-01-cross-artifact-identity",
+  "originalCorrectionCommit": "ecae3a2",
+  "verificationRunId": "a1d5a4b1047e396bff5aab85252af4fe7de5323db99f3dc03189cf639e8ea299",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "blockerRootCause": "Attempt 1 had no correction-verification runner; its direct provider configuration probe also skipped the existing standalone environment bootstrap.",
+  "verificationInfrastructureFix": "Added an admin-only sequential verifier that loads scripts/cli-env.ts before configuration, resolves exact approved reviewer skills, builds bounded evidence, invokes the existing production provider adapters, and validates existing strict reviewer output plus bounded evidence references.",
+  "contractAuditorResult": {
+    "findingId": "finding-b385146a5a20fb3e4f1b",
+    "reviewerId": "contract-auditor",
+    "state": "RESOLVED",
+    "evidence": [
+      "current:contracts-contract",
+      "current:contracts-deterministic",
+      "current:contracts-service",
+      "current:code-contract",
+      "test:contract-identity",
+      "test:code-identity",
+      "correction-diff:7670288..ecae3a2"
+    ],
+    "explanation": "The reviewer approved the bounded correction with no remaining findings.",
+    "remainingIssue": null,
+    "providerVerdict": "APPROVED",
+    "structuredOutputValid": true,
+    "evidenceValid": true,
+    "realGptCalls": 1
+  },
+  "codeIntegrationReviewerResult": {
+    "findingId": "finding-b385146a5a20fb3e4f1b",
+    "reviewerId": "code-integration-reviewer",
+    "state": "RESOLVED",
+    "evidence": [
+      "current:contracts-contract",
+      "current:contracts-deterministic",
+      "current:contracts-service",
+      "current:code-contract",
+      "test:contract-identity",
+      "test:code-identity",
+      "correction-diff:7670288..ecae3a2"
+    ],
+    "explanation": "The reviewer approved the bounded correction with no remaining findings.",
+    "remainingIssue": null,
+    "providerVerdict": "APPROVED",
+    "structuredOutputValid": true,
+    "evidenceValid": true,
+    "realGptCalls": 1
+  },
+  "selectedSkills": {
+    "contract-auditor": {
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "acceptance-criteria-80493e317476",
+          "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "identityChecksum": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada"
+    },
+    "code-integration-reviewer": {
+      "selectedSkillIds": [
+        "react-nextjs-integration-review"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "react-nextjs-integration-review",
+          "checksum": "acd9276249146013c41cdbf0d53463232124c7f50f360014729266c798cd737b"
+        }
+      ],
+      "identityChecksum": "6f45faad42804dda84061f7c91f9eb1f3f31d9a541de8ad2b160c41f55a7816e"
+    }
+  },
+  "provider": {
+    "model": "gpt-5.6-luna",
+    "modelLabel": "GPT-5.6 Luna",
+    "configured": true,
+    "realGptCalls": 2,
+    "requestEvents": [
+      {
+        "type": "request.started",
+        "role": "contract-auditor"
+      },
+      {
+        "type": "request.completed",
+        "role": "contract-auditor",
+        "requestId": "chatcmpl-EBMo4LNwiZKEzCdhFjzcAHsf4gc5v"
+      },
+      {
+        "type": "request.started",
+        "role": "code-integration-reviewer"
+      },
+      {
+        "type": "request.completed",
+        "role": "code-integration-reviewer",
+        "requestId": "chatcmpl-EBMo8Htgr4R9INgsDY0v04l5axbHJ"
+      }
+    ]
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "evidenceRefs": [
+      "checksum-vs-project-identity",
+      "correction-diff:7670288..ecae3a2",
+      "correction-goal",
+      "current:code-contract",
+      "current:contracts-contract",
+      "current:contracts-deterministic",
+      "current:contracts-service",
+      "deterministic-regression-tests",
+      "original-finding",
+      "project-identity-invariant",
+      "src/agents/reviewers/code-integration/code-integration.test.ts:29-37",
+      "src/agents/reviewers/code-integration/contracts.ts:19-31",
+      "src/agents/reviewers/contracts/contracts.test.ts:37-37",
+      "src/agents/reviewers/contracts/contracts.ts:12-50",
+      "src/agents/reviewers/contracts/deterministic.ts:31-41",
+      "src/agents/reviewers/contracts/service.ts:284-294",
+      "test:code-identity",
+      "test:contract-identity"
+    ]
+  },
+  "perFindingResolution": [
+    {
+      "findingId": "finding-b385146a5a20fb3e4f1b",
+      "reviewerId": "contract-auditor",
+      "state": "RESOLVED",
+      "evidence": [
+        "current:contracts-contract",
+        "current:contracts-deterministic",
+        "current:contracts-service",
+        "current:code-contract",
+        "test:contract-identity",
+        "test:code-identity",
+        "correction-diff:7670288..ecae3a2"
+      ],
+      "explanation": "The reviewer approved the bounded correction with no remaining findings.",
+      "remainingIssue": null
+    },
+    {
+      "findingId": "finding-b385146a5a20fb3e4f1b",
+      "reviewerId": "code-integration-reviewer",
+      "state": "RESOLVED",
+      "evidence": [
+        "current:contracts-contract",
+        "current:contracts-deterministic",
+        "current:contracts-service",
+        "current:code-contract",
+        "test:contract-identity",
+        "test:code-identity",
+        "correction-diff:7670288..ecae3a2"
+      ],
+      "explanation": "The reviewer approved the bounded correction with no remaining findings.",
+      "remainingIssue": null
+    }
+  ],
+  "remainingFindingCount": 30,
+  "dependencyUnblockedGroups": [
+    "cg-02-authentication-authorization-rls",
+    "cg-04-provider-config-and-lifecycle",
+    "cg-05-design-durable-state-authority",
+    "cg-06-database-error-propagation",
+    "cg-12-architecture-review-context"
+  ],
+  "nextRecommendedGroup": "cg-02-authentication-authorization-rls",
+  "phase6BStatus": "COMPLETE"
+}
