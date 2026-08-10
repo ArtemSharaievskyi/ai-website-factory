@@ -4,27 +4,34 @@
   "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
   "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
   "correctionReadyFindingsBefore": 31,
-  "correctionReadyFindingsRemaining": 30,
-  "completedGroups": ["cg-01-cross-artifact-identity"],
+  "correctionReadyFindingsRemaining": 24,
+  "completedGroups": ["cg-01-cross-artifact-identity", "cg-02-authentication-authorization-rls"],
   "findingResolutions": {
     "finding-b385146a5a20fb3e4f1b": {
       "state": "RESOLVED",
       "resolvedByGroupId": "cg-01-cross-artifact-identity",
       "correctionCommit": "ecae3a2",
       "verificationArtifact": "docs/admin/phase-6/cg-01-cross-artifact-identity-verification-2026-08-10.json"
-    }
+    },
+    "finding-0590fb313e72090696f0": { "state": "RESOLVED", "resolvedByGroupId": "cg-02-authentication-authorization-rls", "correctionCommit": "5014f7f", "verificationArtifact": "docs/admin/phase-6/cg-02-authentication-authorization-rls-verification-2026-08-10.json" },
+    "finding-233d7f1502c96cf535e1": { "state": "RESOLVED", "resolvedByGroupId": "cg-02-authentication-authorization-rls", "correctionCommit": "5014f7f", "verificationArtifact": "docs/admin/phase-6/cg-02-authentication-authorization-rls-verification-2026-08-10.json" },
+    "finding-7586dd5bd4661d954bf4": { "state": "RESOLVED", "resolvedByGroupId": "cg-02-authentication-authorization-rls", "correctionCommit": "5014f7f", "verificationArtifact": "docs/admin/phase-6/cg-02-authentication-authorization-rls-verification-2026-08-10.json" },
+    "finding-865697184809f419d1b7": { "state": "RESOLVED", "resolvedByGroupId": "cg-02-authentication-authorization-rls", "correctionCommit": "5014f7f", "verificationArtifact": "docs/admin/phase-6/cg-02-authentication-authorization-rls-verification-2026-08-10.json" },
+    "finding-c200a7f61e715bc94be1": { "state": "RESOLVED", "resolvedByGroupId": "cg-02-authentication-authorization-rls", "correctionCommit": "5014f7f", "verificationArtifact": "docs/admin/phase-6/cg-02-authentication-authorization-rls-verification-2026-08-10.json" },
+    "finding-e055bfdcbad92c9b36eb": { "state": "RESOLVED", "resolvedByGroupId": "cg-02-authentication-authorization-rls", "correctionCommit": "5014f7f", "verificationArtifact": "docs/admin/phase-6/cg-02-authentication-authorization-rls-verification-2026-08-10.json" }
   },
   "dependencyUnblockedGroups": [
-    "cg-02-authentication-authorization-rls",
+    "cg-03-storage-ownership-controls",
     "cg-04-provider-config-and-lifecycle",
     "cg-05-design-durable-state-authority",
     "cg-06-database-error-propagation",
     "cg-12-architecture-review-context"
   ],
-  "nextRecommendedGroup": "cg-02-authentication-authorization-rls",
+  "nextRecommendedGroup": "cg-03-storage-ownership-controls",
   "phase6AStatus": "COMPLETE",
   "phase6BStatus": "CG01_COMPLETE",
-  "nextAction": "Begin the first controlled correction group only after explicit Phase 6B authorization; do not start it as part of this verification.",
+  "nextAction": "Begin cg-03-storage-ownership-controls only after explicit Phase 6C authorization; do not start it as part of this correction.",
+  "phase6CStatus": "CG02_COMPLETE",
   "otherGroupsAutoResolved": [],
   "otherGroupsModified": []
 }
