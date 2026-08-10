@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6e-correction-result",
+  "groupId": "cg-04-provider-config-and-lifecycle",
+  "planRevision": 2,
+  "baselineCommit": "279dbd2",
+  "correctionCommit": "ba69503",
+  "correctionCommitMessage": "fix: enforce provider config and external lifecycle limits",
+  "candidateDiffIdentity": "fcebde7df4cc0f08f5409834aa4e3646c569fb45",
+  "findingIds": [
+    "finding-24cb4b563e9b341a84fd",
+    "finding-3ea29b90bbf550eecdb3"
+  ],
+  "rootCause": "OpenAI configuration accepted an empty model identifier, while Context7 and Codebase Memory released concurrency capacity when a timeout raced the transport rather than when external work had settled.",
+  "rootCauseConfidence": "HIGH",
+  "filesChanged": [
+    "scripts/phase-6c-cg02-verification.ts",
+    "src/integrations/codebase-memory/codebase-memory.test.ts",
+    "src/integrations/codebase-memory/service.ts",
+    "src/integrations/context7/context7.test.ts",
+    "src/integrations/context7/service.ts",
+    "src/integrations/openai/config.ts",
+    "src/integrations/openai/limiter.ts",
+    "src/integrations/openai/provider.test.ts"
+  ],
+  "correctionChanges": [
+    "OPENAI_MODEL is required and empty provider configuration fails before client construction.",
+    "Queued OpenAI cancellation removes its waiter and preserves FIFO progress.",
+    "Context7 timeout and cancellation abort the transport and await its settlement before releasing the configured slot.",
+    "Codebase Memory timeout and cancellation abort the transport and await its settlement before releasing the configured slot.",
+    "The shared targeted verifier now routes cg-04 to Architecture Reviewer and Code / Integration Reviewer with bounded evidence."
+  ],
+  "nonGoalsPreserved": [
+    "No model migration",
+    "No new queue framework",
+    "No provider fallback policy",
+    "No AI timeout policy",
+    "No new agent, provider, or tool"
+  ],
+  "deterministicChecks": {
+    "openAiProviderTests": "PASS",
+    "limiterCancellationTests": "PASS",
+    "context7LifecycleTest": "PASS",
+    "codebaseMemoryLifecycleTest": "PASS",
+    "npmTypecheck": "PASS",
+    "npmLint": "PASS_WITH_3_PRE_EXISTING_WARNINGS",
+    "gitDiffCheck": "PASS"
+  },
+  "behavioralTests": {
+    "targetedTests": "36 passed",
+    "fullSuite": "821 passed",
+    "fixtures": [
+      "missing OpenAI model",
+      "cancelled FIFO waiter",
+      "Context7 timed-out transport settlement",
+      "Codebase Memory timed-out transport settlement"
+    ]
+  },
+  "reviewerRechecks": "docs/admin/phase-6/cg-04-provider-config-and-lifecycle-verification-2026-08-10.json",
+  "selectedSkills": {
+    "architecture-reviewer": [
+      "architecture-tradeoff-review",
+      "module-boundaries-fb20497b5c35",
+      "review-maintainability-d9faf7cb9775"
+    ],
+    "code-integration-reviewer": []
+  },
+  "providerCalls": [
+    { "reviewerId": "architecture-reviewer", "realGptCalls": 1, "result": "RESOLVED", "evidenceValidation": "PASS" },
+    { "reviewerId": "code-integration-reviewer", "realGptCalls": 1, "result": "RESOLVED", "evidenceValidation": "PASS" }
+  ],
+  "evidenceValidation": "PASS",
+  "perFindingResolution": [
+    { "findingId": "finding-24cb4b563e9b341a84fd", "originalSeverity": "ERROR", "deterministicEvidence": "required model configuration and provider regression tests", "architectureReviewer": "RESOLVED", "codeIntegrationReviewer": "RESOLVED", "finalState": "RESOLVED", "resolvedByGroupId": "cg-04-provider-config-and-lifecycle" },
+    { "findingId": "finding-3ea29b90bbf550eecdb3", "originalSeverity": "WARNING", "deterministicEvidence": "OpenAI queue, Context7, and Codebase Memory cancellation/timeout settlement tests", "architectureReviewer": "RESOLVED", "codeIntegrationReviewer": "RESOLVED", "finalState": "RESOLVED", "resolvedByGroupId": "cg-04-provider-config-and-lifecycle" }
+  ],
+  "remainingFindingCounts": { "before": 22, "after": 20, "CRITICAL": 0, "ERROR": 7, "WARNING": 12, "INFO": 1 },
+  "dependencyUnblockedGroups": ["cg-08-context7-authority"],
+  "nextRecommendedGroup": "cg-05-design-durable-state-authority",
+  "otherGroupsAutoResolved": [],
+  "otherGroupsModified": [],
+  "dagChanged": false,
+  "dagAcyclic": true,
+  "phaseStatus": "COMPLETE"
+}
