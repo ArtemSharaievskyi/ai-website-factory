@@ -3,8 +3,8 @@ import { execFileSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { architectureReviewerAgentDefinition, codeIntegrationReviewerAgentDefinition, contractAuditorAgentDefinition, securityReviewerAgentDefinition } from "@/agents/catalog";
-import { ArchitectureReviewProviderOutputSchema, CodeIntegrationReviewProviderOutputSchema, ContractAuditProviderOutputSchema, SecurityReviewProviderOutputSchema } from "@/domain/review/schema";
+import { architectureReviewerAgentDefinition, codeIntegrationReviewerAgentDefinition, contractAuditorAgentDefinition, securityReviewerAgentDefinition, testQualityReviewerAgentDefinition } from "@/agents/catalog";
+import { ArchitectureReviewProviderOutputSchema, CodeIntegrationReviewProviderOutputSchema, ContractAuditProviderOutputSchema, SecurityReviewProviderOutputSchema, TestQualityReviewProviderOutputSchema } from "@/domain/review/schema";
 import { createProductionProviderBundle } from "@/integrations/openai/production";
 import { readAiProviderConfig } from "@/integrations/openai/config";
 import { prepareAgentSkillContext, type AgentSkillSelection } from "@/skills/runtime/resolver";
@@ -28,6 +28,8 @@ export const CG05_GROUP_ID = "cg-05-design-durable-state-authority" as const;
 export const CG05_FINDING_IDS = ["finding-1540c99220f633245955", "finding-efa4502938176a741e32"] as const;
 export const CG06_GROUP_ID = "cg-06-database-error-propagation" as const;
 export const CG06_FINDING_IDS = ["finding-c94e4c6dd19f957eeb40"] as const;
+export const CG07_GROUP_ID = "cg-07-runtime-cleanup-lifecycle" as const;
+export const CG07_FINDING_IDS = ["finding-517e635c9c23995687d8"] as const;
 export const PHASE6A_PLAN_IDENTITY = "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00" as const;
 export const PHASE6A_PLAN_PATH = "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json" as const;
 export const VERIFICATION_MACHINE_PATH = "docs/admin/phase-6/cg-02-authentication-authorization-rls-verification-2026-08-10.json" as const;
@@ -40,11 +42,13 @@ export const CG05_VERIFICATION_MACHINE_PATH = "docs/admin/phase-6/cg-05-design-d
 export const CG05_VERIFICATION_REPORT_PATH = "docs/admin/phase-6/cg-05-design-durable-state-authority-verification-2026-08-10.md" as const;
 export const CG06_VERIFICATION_MACHINE_PATH = "docs/admin/phase-6/cg-06-database-error-propagation-verification-2026-08-11.json" as const;
 export const CG06_VERIFICATION_REPORT_PATH = "docs/admin/phase-6/cg-06-database-error-propagation-verification-2026-08-11.md" as const;
+export const CG07_VERIFICATION_MACHINE_PATH = "docs/admin/phase-6/cg-07-runtime-cleanup-lifecycle-verification-2026-08-11.json" as const;
+export const CG07_VERIFICATION_REPORT_PATH = "docs/admin/phase-6/cg-07-runtime-cleanup-lifecycle-verification-2026-08-11.md" as const;
 
 const sha256 = (value: string | Uint8Array) => createHash("sha256").update(value).digest("hex");
 const git = (root: string, args: string[]) => execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
 const StateSchema = z.enum(["RESOLVED", "PARTIALLY_RESOLVED", "STILL_ACTIVE", "REGRESSION_FOUND", "VERIFICATION_FAILED"]);
-type ReviewerId = "security-reviewer" | "contract-auditor" | "architecture-reviewer" | "code-integration-reviewer";
+type ReviewerId = "security-reviewer" | "contract-auditor" | "architecture-reviewer" | "code-integration-reviewer" | "test-quality-reviewer";
 type EvidenceSlice = { id: string; relativePath: string; startLine: number; endLine: number; checksum: string; currentHead: string; content: string };
 type CorrectionConfig = {
   groupId: string;
@@ -166,6 +170,25 @@ const CG06_CONFIG: CorrectionConfig = {
   idempotencyPrefix: "phase6g1",
 };
 
+const CG07_CONFIG: CorrectionConfig = {
+  groupId: CG07_GROUP_ID,
+  findingIds: CG07_FINDING_IDS,
+  machinePath: CG07_VERIFICATION_MACHINE_PATH,
+  reportPath: CG07_VERIFICATION_REPORT_PATH,
+  documentType: "phase-6h-correction-verification",
+  title: "cg-07 Runtime Cleanup Lifecycle Verification",
+  fixedRefs: ["original-findings", "cg07-runtime-cleanup-contract", "owned-runtime-lifecycle", "deterministic-lifecycle-tests"],
+  originalFindings: [
+    { findingId: CG07_FINDING_IDS[0], severity: "WARNING", category: "ERROR_HANDLING", summary: "Real factory E2E failures after runtime creation can leave the runtime unclosed." },
+  ],
+  correctionGoal: "Guarantee runtime cleanup on every post-creation failure path.",
+  trustBoundary: "Factory E2E script-owned production runtime: runtime creation, validation, resume loading, stage execution, report persistence, and database-pool closure.",
+  nonGoals: ["No new E2E scenarios", "No QA workspace cleanup", "No browser, port, or child-process redesign", "No AI timeout policy", "No unrelated correction groups"],
+  deterministicChecks: ["owned runtime closes after successful E2E stage execution", "owned runtime closes when validation, resume loading, stage execution, or report persistence throws", "the existing E2E script remains opt-in gated", "TaskGraph smoke remains release eligible"],
+  requiredReviewerIds: ["code-integration-reviewer", "test-quality-reviewer"],
+  idempotencyPrefix: "phase6h1",
+};
+
 async function currentSlice(root: string, id: string, relativePath: string, startLine: number, endLine: number): Promise<EvidenceSlice> {
   const bytes = await readFile(path.resolve(root, relativePath));
   const lines = bytes.toString("utf8").split(/\r?\n/);
@@ -174,7 +197,11 @@ async function currentSlice(root: string, id: string, relativePath: string, star
 }
 
 async function buildEvidence(root: string, config: CorrectionConfig) {
-  const slices = await Promise.all(config.groupId === CG06_GROUP_ID ? [
+  const slices = await Promise.all(config.groupId === CG07_GROUP_ID ? [
+    currentSlice(root, "current:factory-e2e-smoke", "scripts/factory-e2e-smoke.ts", 15, 36),
+    currentSlice(root, "current:runtime-lifecycle", "src/runtime/e2e/lifecycle.ts", 1, 14),
+    currentSlice(root, "test:runtime-lifecycle", "src/runtime/e2e/lifecycle.test.ts", 1, 18),
+  ] : config.groupId === CG06_GROUP_ID ? [
     currentSlice(root, "current:db-common", "scripts/db-common.mjs", 14, 31),
     currentSlice(root, "current:db-migrate", "scripts/db-migrate.mjs", 1, 26),
     currentSlice(root, "current:db-status", "scripts/db-status.mjs", 1, 5),
@@ -215,7 +242,7 @@ async function buildEvidence(root: string, config: CorrectionConfig) {
 }
 
 function correctionDiff(root: string, config: CorrectionConfig) {
-  const files = config.groupId === CG06_GROUP_ID ? ["scripts/db-common.mjs", "scripts/db-migrate.mjs", "scripts/db-status.mjs", "scripts/db-verify.mjs", "scripts/db-smoke.ts", "src/persistence/database/db-script-error-propagation.test.ts"] : config.groupId === CG05_GROUP_ID ? ["src/agents/design/service.ts", "src/agents/design/memory.ts", "src/agents/design/server.ts", "src/runtime/production-factory-runtime-core.ts", "src/domain/design/schema.ts", "src/agents/design/design.test.ts"] : config.groupId === CG04_GROUP_ID ? ["src/integrations/openai/config.ts", "src/integrations/openai/client.ts", "src/integrations/openai/limiter.ts", "src/integrations/context7/service.ts", "src/integrations/codebase-memory/service.ts", "src/integrations/openai/provider.test.ts", "src/integrations/context7/context7.test.ts", "src/integrations/codebase-memory/codebase-memory.test.ts"] : ["src/agents/planner/contracts.ts", "src/agents/planner/deterministic.ts", "src/agents/planner/planner.test.ts", "src/agents/implementation/contracts.ts", "src/agents/implementation/service.ts", "src/agents/implementation/policy.ts", "src/agents/implementation/provider.ts", "src/agents/implementation/backend.ts", "src/agents/implementation/backend.test.ts", "src/runtime/validation/security.ts", "src/integrations/openai/adapters.ts", "scripts/backend-smoke.ts"];
+  const files = config.groupId === CG07_GROUP_ID ? ["scripts/factory-e2e-smoke.ts", "src/runtime/e2e/lifecycle.ts", "src/runtime/e2e/lifecycle.test.ts"] : config.groupId === CG06_GROUP_ID ? ["scripts/db-common.mjs", "scripts/db-migrate.mjs", "scripts/db-status.mjs", "scripts/db-verify.mjs", "scripts/db-smoke.ts", "src/persistence/database/db-script-error-propagation.test.ts"] : config.groupId === CG05_GROUP_ID ? ["src/agents/design/service.ts", "src/agents/design/memory.ts", "src/agents/design/server.ts", "src/runtime/production-factory-runtime-core.ts", "src/domain/design/schema.ts", "src/agents/design/design.test.ts"] : config.groupId === CG04_GROUP_ID ? ["src/integrations/openai/config.ts", "src/integrations/openai/client.ts", "src/integrations/openai/limiter.ts", "src/integrations/context7/service.ts", "src/integrations/codebase-memory/service.ts", "src/integrations/openai/provider.test.ts", "src/integrations/context7/context7.test.ts", "src/integrations/codebase-memory/codebase-memory.test.ts"] : ["src/agents/planner/contracts.ts", "src/agents/planner/deterministic.ts", "src/agents/planner/planner.test.ts", "src/agents/implementation/contracts.ts", "src/agents/implementation/service.ts", "src/agents/implementation/policy.ts", "src/agents/implementation/provider.ts", "src/agents/implementation/backend.ts", "src/agents/implementation/backend.test.ts", "src/runtime/validation/security.ts", "src/integrations/openai/adapters.ts", "scripts/backend-smoke.ts"];
   return git(root, ["diff", "--no-ext-diff", "--unified=3", "--", ...files]).slice(0, 30000);
 }
 
@@ -223,6 +250,7 @@ async function resolveSkills(root: string, reviewerId: ReviewerId, config: Corre
   const registry = new SkillRegistry(path.resolve(root, "skills"));
   if (reviewerId === "architecture-reviewer") return prepareAgentSkillContext(registry, { agent: architectureReviewerAgentDefinition, capability: "review.architecture", taskType: "review-architecture", projectSurfaces: ["architecture", "modules", "providers", "concurrency", "cancellation"], requiredCoverage: ["module-boundaries", "architecture-review"], requestedTools: [], contextBudgetBytes: architectureReviewerAgentDefinition.contextPolicy.maxBytes });
   if (reviewerId === "code-integration-reviewer") return prepareAgentSkillContext(registry, { agent: codeIntegrationReviewerAgentDefinition, capability: "review.integration", taskType: "review-code-integration", projectSurfaces: ["typescript", "providers", "openai", "context7", "codebase-memory", "concurrency", "cancellation"], requiredCoverage: ["react-review", "nextjs-review"], requestedTools: [], contextBudgetBytes: codeIntegrationReviewerAgentDefinition.contextPolicy.maxBytes });
+  if (reviewerId === "test-quality-reviewer") return prepareAgentSkillContext(registry, { agent: testQualityReviewerAgentDefinition, capability: "review.test-quality", taskType: "review-test-quality", projectSurfaces: ["tests", "behavior", "runtime"], requiredCoverage: ["test-strategy", "meaningful-assertions", "playwright-quality"], requestedTools: [], contextBudgetBytes: testQualityReviewerAgentDefinition.contextPolicy.maxBytes });
   if (reviewerId === "security-reviewer") {
     const storage = config.groupId === CG03_GROUP_ID;
     return prepareAgentSkillContext(registry, { agent: securityReviewerAgentDefinition, capability: "review.security", taskType: "review-security", projectSurfaces: storage ? ["auth", "storage", "uploads", "sessions", "ownership"] : ["supabase", "postgres", "rls", "database", "auth", "sessions", "ownership"], requiredCoverage: storage ? ["storage-upload-security"] : ["supabase-rls", "row-level-authorization", "auth-security"], requestedTools: [], contextBudgetBytes: securityReviewerAgentDefinition.contextPolicy.maxBytes });
@@ -231,7 +259,7 @@ async function resolveSkills(root: string, reviewerId: ReviewerId, config: Corre
 }
 
 function classifyReviewerOutput(reviewerId: ReviewerId, output: unknown, allowedEvidence: ReadonlySet<string>, realGptCalls: number, config: CorrectionConfig) {
-  const parsed = reviewerId === "security-reviewer" ? SecurityReviewProviderOutputSchema.parse(output) : reviewerId === "architecture-reviewer" ? ArchitectureReviewProviderOutputSchema.parse(output) : reviewerId === "code-integration-reviewer" ? CodeIntegrationReviewProviderOutputSchema.parse(output) : ContractAuditProviderOutputSchema.parse(output);
+  const parsed = reviewerId === "security-reviewer" ? SecurityReviewProviderOutputSchema.parse(output) : reviewerId === "architecture-reviewer" ? ArchitectureReviewProviderOutputSchema.parse(output) : reviewerId === "code-integration-reviewer" ? CodeIntegrationReviewProviderOutputSchema.parse(output) : reviewerId === "test-quality-reviewer" ? TestQualityReviewProviderOutputSchema.parse(output) : ContractAuditProviderOutputSchema.parse(output);
   const evidence = [...parsed.reviewedArtifactRefs, ...parsed.findings.flatMap((finding) => [...finding.evidenceRefs, ...finding.affectedArtifacts])];
   const invalidEvidence = evidence.filter((reference) => !allowedEvidence.has(reference));
   if (invalidEvidence.length) throw new Error(`VERIFICATION_EVIDENCE_INVALID:${invalidEvidence.join(",")}`);
@@ -252,7 +280,7 @@ function verificationInput(reviewerId: ReviewerId, currentHead: string, evidence
     correctionGoal: config.correctionGoal,
     trustBoundary: config.trustBoundary,
     nonGoals: config.nonGoals,
-    verificationQuestion: config.groupId === CG06_GROUP_ID ? "Does the current cg-06 correction preserve meaningful database configuration failure semantics through the affected Factory CLI script boundary, so missing or failed pool construction cannot be mistaken for valid empty or successful state, while preserving the existing persistence architecture? Return APPROVED with no findings only when pool construction is protected, safe typed codes and nonzero exits are deterministic, and the four-script regression evidence is valid. Do not report fresh repository findings or unrelated correction groups." : config.groupId === CG05_GROUP_ID ? "Does the current cg-05 revision-2 correction preserve the Architecture-approved durable Design state and ensure selectDesignDirection rejects any request whose projectVersion differs from the trusted current FactoryProject.currentVersion before replay or mutation, resolving only the two assigned findings? Return APPROVED with no findings only when the typed request, trusted durable version source, guard ordering, stale no-side-effect regression, current-version success, and existing checksum/idempotency behavior are evidenced. Do not report fresh repository findings or unrelated correction groups." : config.groupId === CG04_GROUP_ID ? "Does the current cg-04 correction resolve the exact assigned provider-configuration and external-work-lifecycle findings without introducing a regression in the reviewed boundary? Return APPROVED with no findings only when empty model configuration is rejected and configured concurrency remains truthful through cancellation and timeout settlement. Do not report fresh repository findings or unrelated correction groups." : config.groupId === CG03_GROUP_ID ? "Does the current cg-03 correction resolve the exact assigned storage-ownership finding/root cause without introducing a regression in the reviewed boundary? Return APPROVED with no findings only when the assigned storage ownership and access contract is resolved. Do not report fresh repository findings or unrelated correction groups." : "Does the current bounded cg-02 correction resolve only the assigned authentication, authorization, ownership, and RLS findings? Return APPROVED with no findings only when all six assigned root causes are resolved. Do not report fresh repository findings or unrelated correction groups.",
+    verificationQuestion: config.groupId === CG07_GROUP_ID ? "Does the current cg-07 correction guarantee closure of the Factory E2E production runtime after every post-creation terminal path covered by the script, including validation, resume loading, stage execution, and report persistence failures, without expanding scope to QA workspace cleanup or new E2E scenarios? Return APPROVED with no findings only when the owned runtime is acquired once, the existing E2E behavior is preserved, the close operation is guaranteed by a bounded try/finally lifecycle, and the deterministic success/failure tests are meaningful. Do not report fresh repository findings or unrelated correction groups." : config.groupId === CG06_GROUP_ID ? "Does the current cg-06 correction preserve meaningful database configuration failure semantics through the affected Factory CLI script boundary, so missing or failed pool construction cannot be mistaken for valid empty or successful state, while preserving the existing persistence architecture? Return APPROVED with no findings only when pool construction is protected, safe typed codes and nonzero exits are deterministic, and the four-script regression evidence is valid. Do not report fresh repository findings or unrelated correction groups." : config.groupId === CG05_GROUP_ID ? "Does the current cg-05 revision-2 correction preserve the Architecture-approved durable Design state and ensure selectDesignDirection rejects any request whose projectVersion differs from the trusted current FactoryProject.currentVersion before replay or mutation, resolving only the two assigned findings? Return APPROVED with no findings only when the typed request, trusted durable version source, guard ordering, stale no-side-effect regression, current-version success, and existing checksum/idempotency behavior are evidenced. Do not report fresh repository findings or unrelated correction groups." : config.groupId === CG04_GROUP_ID ? "Does the current cg-04 correction resolve the exact assigned provider-configuration and external-work-lifecycle findings without introducing a regression in the reviewed boundary? Return APPROVED with no findings only when empty model configuration is rejected and configured concurrency remains truthful through cancellation and timeout settlement. Do not report fresh repository findings or unrelated correction groups." : config.groupId === CG03_GROUP_ID ? "Does the current cg-03 correction resolve the exact assigned storage-ownership finding/root cause without introducing a regression in the reviewed boundary? Return APPROVED with no findings only when the assigned storage ownership and access contract is resolved. Do not report fresh repository findings or unrelated correction groups." : "Does the current bounded cg-02 correction resolve only the assigned authentication, authorization, ownership, and RLS findings? Return APPROVED with no findings only when all six assigned root causes are resolved. Do not report fresh repository findings or unrelated correction groups.",
     evidenceCatalog: [...evidence.fixedRefs, ...evidence.slices.map(({ id, relativePath, startLine, endLine, checksum, currentHead: sliceHead, content }) => ({ id, relativePath, startLine, endLine, checksum, currentHead: sliceHead, content }))],
     correctionDiff: diff,
     deterministicChecks: config.deterministicChecks,
@@ -284,7 +312,9 @@ export async function runTargetedCorrectionVerification(root: string, config: Co
         ? await bundle.architectureReviewer.review({ ...input, idempotencyKey: `${config.idempotencyPrefix}:${config.groupId}:${reviewerId}:${currentHead}` } as never, undefined, selections[reviewerId].contexts, selections[reviewerId].identityChecksum)
         : reviewerId === "code-integration-reviewer"
           ? await bundle.codeIntegrationReviewer.review({ ...input, idempotencyKey: `${config.idempotencyPrefix}:${config.groupId}:${reviewerId}:${currentHead}` } as never, undefined, selections[reviewerId].contexts, selections[reviewerId].identityChecksum)
-          : await bundle.contractAuditor.review({ ...input, idempotencyKey: `${config.idempotencyPrefix}:${config.groupId}:${reviewerId}:${currentHead}` } as never, undefined, selections[reviewerId].contexts, selections[reviewerId].identityChecksum);
+          : reviewerId === "test-quality-reviewer"
+            ? await bundle.testQualityReviewer.review({ ...input, idempotencyKey: `${config.idempotencyPrefix}:${config.groupId}:${reviewerId}:${currentHead}` } as never, undefined, selections[reviewerId].contexts, selections[reviewerId].identityChecksum)
+            : await bundle.contractAuditor.review({ ...input, idempotencyKey: `${config.idempotencyPrefix}:${config.groupId}:${reviewerId}:${currentHead}` } as never, undefined, selections[reviewerId].contexts, selections[reviewerId].identityChecksum);
     outputs[reviewerId] = output;
     const calls = events.filter((event) => event.type === "request.started").length - beforeCalls;
     records.push(classifyReviewerOutput(reviewerId, output, evidence.allowed, calls, config));
@@ -314,8 +344,9 @@ export async function runCg03Verification(root = process.cwd()) { return runTarg
 export async function runCg04Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG04_CONFIG); }
 export async function runCg05Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG05_CONFIG); }
 export async function runCg06Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG06_CONFIG); }
+export async function runCg07Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG07_CONFIG); }
 
 if (process.argv[1]?.endsWith("phase-6c-cg02-verification.ts")) {
-  const runner = process.env.PHASE6_CORRECTION_GROUP === CG06_GROUP_ID ? runCg06Verification : process.env.PHASE6_CORRECTION_GROUP === CG05_GROUP_ID ? runCg05Verification : process.env.PHASE6_CORRECTION_GROUP === CG04_GROUP_ID ? runCg04Verification : process.env.PHASE6_CORRECTION_GROUP === CG03_GROUP_ID ? runCg03Verification : runCg02Verification;
+  const runner = process.env.PHASE6_CORRECTION_GROUP === CG07_GROUP_ID ? runCg07Verification : process.env.PHASE6_CORRECTION_GROUP === CG06_GROUP_ID ? runCg06Verification : process.env.PHASE6_CORRECTION_GROUP === CG05_GROUP_ID ? runCg05Verification : process.env.PHASE6_CORRECTION_GROUP === CG04_GROUP_ID ? runCg04Verification : process.env.PHASE6_CORRECTION_GROUP === CG03_GROUP_ID ? runCg03Verification : runCg02Verification;
   runner().then((result) => console.log(JSON.stringify({ status: result.artifact.phaseStatus, groupId: result.artifact.groupId, realGptCalls: result.artifact.provider.realGptCalls, reviewers: result.artifact.reviewerResults }, null, 2))).catch((error) => { console.error(error instanceof Error ? error.message : "VERIFICATION_FAILED"); process.exitCode = 1; });
 }
