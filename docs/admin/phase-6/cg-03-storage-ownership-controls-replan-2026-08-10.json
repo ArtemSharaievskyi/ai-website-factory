@@ -1,0 +1,370 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6d-replan",
+  "groupId": "cg-03-storage-ownership-controls",
+  "planRevision": 2,
+  "originalPlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "baselineCommit": "840fecb",
+  "currentWorkingTreeIdentity": {
+    "head": "840fecb",
+    "diffSha256": "e6e4dce325789eacc7c31e36066170bd133a8a54cab3ac94276027eca76643df",
+    "diffBytes": 46413,
+    "modifiedFiles": [
+      "scripts/phase-6c-cg02-verification.ts",
+      "src/agents/implementation/backend.test.ts",
+      "src/agents/implementation/backend.ts",
+      "src/agents/implementation/provider.ts",
+      "src/runtime/validation/security.ts"
+    ],
+    "untrackedFiles": [
+      "docs/admin/phase-6/cg-03-storage-ownership-controls-verification-2026-08-10.json",
+      "docs/admin/phase-6/cg-03-storage-ownership-controls-verification-2026-08-10.md"
+    ]
+  },
+  "findingIds": [
+    "finding-b227589f057cc3fa00ac",
+    "finding-eb166a34da7872c62d77"
+  ],
+  "originalPlanContract": {
+    "title": "Bind storage operations to ownership and access policy",
+    "findingIds": [
+      "finding-b227589f057cc3fa00ac",
+      "finding-eb166a34da7872c62d77"
+    ],
+    "rootCause": "Replace type/size-only validation with an explicit bucket, object ownership, access, and signed-URL contract where storage is required.",
+    "rootCauseConfidence": "HIGH",
+    "currentHighestSeverity": "ERROR",
+    "currentEvidence": [
+      { "relativePath": "src/agents/implementation/provider.ts", "startLine": 1, "endLine": 32, "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb", "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5" },
+      { "relativePath": "src/agents/implementation/backend.ts", "startLine": 1, "endLine": 40, "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159", "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5" },
+      { "relativePath": "src/agents/implementation/provider.ts", "startLine": 28, "endLine": 28, "checksum": "da7a49a484db979a0002e9af7e777581aba1fddfa7e4f8ab8bebfcbb399aa5cb", "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5" },
+      { "relativePath": "src/agents/implementation/backend.ts", "startLine": 34, "endLine": 34, "checksum": "83e1fcd16e348952755410cd3677a7809b5b3d736c340f94d3087aa2bdd8a159", "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5" }
+    ],
+    "correctionGoal": "Replace type/size-only validation with an explicit bucket, object ownership, access, and signed-URL contract where storage is required.",
+    "nonGoals": ["No storage feature invention", "No unrelated auth redesign"],
+    "likelyFiles": ["src/agents/implementation/provider.ts", "src/agents/implementation/backend.ts", "src/agents/implementation/backend.test.ts", "supabase/migrations/"],
+    "requiredDeterministicChecks": ["targeted storage/security tests", "specific RLS/storage validator", "database integrity checks"],
+    "requiredReviewerRechecks": ["security-reviewer"],
+    "dependencies": ["cg-02-authentication-authorization-rls"],
+    "estimatedRisk": "HIGH",
+    "rollbackCriteria": "Not represented as a field in the authoritative Phase 6A cg-03 group object; Phase 6D policy requires stopping on currentness conflict, plan invalidation, dependency failure, or exhausted correction budget.",
+    "maximumCorrectionCyclesRepresented": null
+  },
+  "originalRootCause": "Replace type/size-only validation with an explicit bucket, object ownership, access, and signed-URL contract where storage is required.",
+  "originalCorrectionGoal": "Replace type/size-only validation with an explicit bucket, object ownership, access, and signed-URL contract where storage is required.",
+  "attemptsConsumed": 2,
+  "attemptHistory": [
+    {
+      "attempt": 1,
+      "scope": "Generated server-side storage helper, owner-prefixed paths, fixed bucket, signed upload/download URLs, update/delete checks, deterministic storage validator, regression tests, and shared verifier configuration.",
+      "deterministicResult": "PASS",
+      "reviewerResult": "STILL_ACTIVE",
+      "reviewerIssue": "The signed upload URL path did not enforce the existing declared type/size gate before issuing the URL.",
+      "evidence": "Working-tree diff and first Security Reviewer result in the blocked correction session."
+    },
+    {
+      "attempt": 2,
+      "scope": "Added validateUpload enforcement before signed upload URL creation and strengthened the corresponding deterministic validator/test.",
+      "deterministicResult": "PASS",
+      "reviewerResult": "STILL_ACTIVE",
+      "reviewerIssue": "Application-side ownership checks and signed URLs exist, but no bucket-level/user-scoped Supabase Storage policy is established.",
+      "evidence": "docs/admin/phase-6/cg-03-storage-ownership-controls-verification-2026-08-10.json"
+    }
+  ],
+  "securityReviewerStillActiveEvidence": {
+    "artifact": "docs/admin/phase-6/cg-03-storage-ownership-controls-verification-2026-08-10.json",
+    "reviewerId": "security-reviewer",
+    "selectedSkills": ["auth-storage-security-review"],
+    "semanticState": "STILL_ACTIVE",
+    "providerVerdict": "CHANGES_REQUIRED",
+    "remainingIssue": "Application-side ownership checks and signed URLs were added, but no bucket access policy or user-scoped Storage authorization is established in the reviewed correction.",
+    "evidenceValid": true,
+    "snapshotHead": "840fecb",
+    "skillContextIdentity": "7fd45be3b571db15e682c3c6d9407fa4244a9434aa1755457599fd617d39b680",
+    "realGptCallsInFinalVerification": 1,
+    "clarificationCallsForReplan": 0
+  },
+  "remainingIssue": "The generated server path and the generated Supabase Storage authorization boundary are not governed by one canonical bucket/path/operation policy artifact.",
+  "planFailureClassification": [
+    "INCOMPLETE_TRUST_BOUNDARY_MODEL",
+    "INCOMPLETE_STORAGE_POLICY_CONTRACT",
+    "PLANNING_TO_IMPLEMENTATION_INFORMATION_GAP",
+    "STORAGE_POLICY_GENERATION_MISSING",
+    "DETERMINISTIC_SECURITY_EVIDENCE_INCOMPLETE"
+  ],
+  "revisedRootCause": "The original correction treated server-side checks as the storage authorization boundary, while the generated Supabase server client uses the authenticated anon-key session and the Factory has no typed, policy-generating contract connecting StoragePlan bucket/path/operations to storage.objects policies. The missing root cause is an incomplete end-to-end storage policy contract and generation path.",
+  "revisedRootCauseConfidence": "HIGH",
+  "storageDomain": "GENERATED_PROJECT_STORAGE",
+  "storageAccessModes": [
+    {
+      "mode": "SERVER_MEDIATED_AUTHENTICATED",
+      "supported": true,
+      "actor": "Authenticated generated-project user",
+      "credential": "Supabase SSR server client using the project anon key plus the user session; no service role",
+      "authorizationBoundary": "Server owner check plus generated storage.objects policies",
+      "ownershipSource": "Authenticated user.id",
+      "storagePolicyRequired": true
+    },
+    {
+      "mode": "SIGNED_URL_MEDIATED",
+      "supported": true,
+      "actor": "Authenticated generated-project user after server authorization",
+      "credential": "Signed upload/download URL issued by the server client",
+      "authorizationBoundary": "Owner check before URL creation plus bucket/path-scoped Storage policy",
+      "ownershipSource": "Authenticated user.id",
+      "storagePolicyRequired": true
+    },
+    {
+      "mode": "DIRECT_CLIENT_STORAGE_SDK",
+      "supported": false,
+      "actor": "None evidenced",
+      "credential": "None evidenced",
+      "authorizationBoundary": "Not part of the current generated architecture",
+      "ownershipSource": "N/A",
+      "storagePolicyRequired": "N/A unless the revised plan explicitly enables it"
+    },
+    {
+      "mode": "PRIVILEGED_SERVICE_ROLE",
+      "supported": false,
+      "actor": "None in ordinary generated requests",
+      "credential": "No service-role credential is generated or used",
+      "authorizationBoundary": "N/A",
+      "ownershipSource": "N/A",
+      "storagePolicyRequired": "N/A"
+    },
+    {
+      "mode": "PUBLIC_RUNTIME_STORAGE",
+      "supported": false,
+      "actor": "None evidenced for runtime uploads",
+      "credential": "N/A",
+      "authorizationBoundary": "Static/public assets remain outside conditional runtime Storage",
+      "ownershipSource": "N/A",
+      "storagePolicyRequired": "N/A"
+    }
+  ],
+  "canonicalOwnershipContract": {
+    "actorIdentity": "Supabase Auth getUser() result at the existing cg-02 server boundary",
+    "ownerIdentity": "user.id",
+    "bucketIdentity": "Approved StoragePlan bucket ID; no caller-selected bucket",
+    "visibility": "Private owner-scoped runtime storage; public static assets are a separate asset path",
+    "path": "A deterministic owner-bound path template must be added to the typed StoragePlan contract before implementation. The current prose 'Project/version/user-owned paths' is insufficient as executable policy input.",
+    "operations": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+    "ownershipTransfer": "Forbidden; rebind/rename across owners is not supported",
+    "sourceOfTruth": "Typed StoragePlan ownership/path/bucket/operation contract consumed by both server code and generated policy artifact"
+  },
+  "planningContractChangesRequired": {
+    "required": true,
+    "reason": "StoragePlan has decision/access/buckets/objectPathStrategy/policies, but operation semantics and ownership/path policy are free-form and cannot deterministically generate storage.objects policies.",
+    "fields": [
+      "validated bucket IDs with stable policy identity",
+      "canonical owner source: authenticated user.id",
+      "deterministic object path template or structured path segments",
+      "explicit allowed operations for SELECT/INSERT/UPDATE/DELETE",
+      "directClientAccess boolean, default false",
+      "signedUrl operations/expiry policy",
+      "ownershipTransfer policy, default forbidden",
+      "serverPrivilegedAccess boolean, default false"
+    ],
+    "rawSqlInPlanner": false
+  },
+  "implementationContractChangesRequired": {
+    "required": true,
+    "reason": "ImplementationContext does not expose the canonical storage plan, BackendPlans.storage does not mirror the actual StoragePlan shape, and the deterministic storage provider emits only a source helper rather than a bounded policy artifact.",
+    "changes": [
+      "Pass a typed storage ownership contract into the implementation context",
+      "Align BackendPlans.storage with the accepted StoragePlan contract or use a validated adapter",
+      "Allow implement-storage to emit bounded source plus supabase/migrations policy output through the existing ChangeProposal",
+      "Validate source/policy checksum and project/version scope before apply",
+      "Keep server helper and policy artifact tied to the same canonical contract checksum"
+    ]
+  },
+  "storagePolicyGenerationRequired": true,
+  "storagePolicyGenerationCurrently": "NONE",
+  "storagePolicyOperations": {
+    "SELECT": "to authenticated; USING bucket_id = approved_bucket AND owner path matches auth.uid()",
+    "INSERT": "to authenticated; WITH CHECK bucket_id = approved_bucket AND owner path matches auth.uid()",
+    "UPDATE": "to authenticated; USING existing owner and WITH CHECK unchanged owner/bucket contract",
+    "DELETE": "to authenticated; USING bucket_id = approved_bucket AND owner path matches auth.uid()",
+    "ownershipTransfer": "No policy or generated operation permits transfer"
+  },
+  "bucketScopingRequirement": "Every generated storage.objects policy must restrict the exact approved bucket_id before applying the owner predicate.",
+  "directClientAccessModel": "Not supported by current evidence; keep disabled unless a future typed plan explicitly enables it and the same policies are independently tested.",
+  "privilegedServerAccessModel": "Not supported; ordinary server flow uses the authenticated anon-key SSR client. Do not introduce service-role bypass.",
+  "signedUrlModel": "Server checks authenticated user.id and canonical object path before issuing signed upload/download URLs; Storage policies remain defense in depth and must cover the same bucket/path/operation relation.",
+  "currentDirtyFileDecisions": [
+    {
+      "file": "src/agents/implementation/provider.ts",
+      "decision": "KEEP_BUT_MODIFY",
+      "reason": "Owner checks, path safety, signed URL flow, update, and delete are valid directionally, but the bucket is hardcoded and no policy artifact is generated.",
+      "revisedPlanRole": "Generate server helper and policy migration from the typed storage contract; remove unplanned defaults."
+    },
+    {
+      "file": "src/agents/implementation/backend.ts",
+      "decision": "KEEP_BUT_MODIFY",
+      "reason": "The storage validator is the correct deterministic guard location, but it currently validates source patterns only and reads a shape that does not match StoragePlan.",
+      "revisedPlanRole": "Validate typed plan, source/policy pair, operation coverage, bucket/path equivalence, and safe policy identifiers."
+    },
+    {
+      "file": "src/runtime/validation/security.ts",
+      "decision": "KEEP_BUT_MODIFY",
+      "reason": "Current source checks supplement the contract but cannot prove Storage policy enforcement.",
+      "revisedPlanRole": "Add deterministic validation for generated storage policy fixtures and source/policy contract identity."
+    },
+    {
+      "file": "src/agents/implementation/backend.test.ts",
+      "decision": "KEEP_BUT_MODIFY",
+      "reason": "Current server-side regression tests prove useful ownership behavior but do not cover generated Storage policy artifacts.",
+      "revisedPlanRole": "Retain cg-02 and server regressions; add policy fixture, wrong bucket, cross-user, operation, and signed URL tests."
+    },
+    {
+      "file": "scripts/phase-6c-cg02-verification.ts",
+      "decision": "ADMIN_VERIFICATION_INFRA_ONLY",
+      "reason": "The shared runner generalization is useful, but its cg-02 filename is stale. It is not production storage behavior and does not need cleanup before replanned implementation.",
+      "revisedPlanRole": "Reuse existing runner; consider a small neutral rename/extraction only as separate admin work."
+    },
+    {
+      "file": "docs/admin/phase-6/cg-03-storage-ownership-controls-verification-2026-08-10.json",
+      "decision": "ADMIN_VERIFICATION_INFRA_ONLY",
+      "reason": "Validated historical STILL_ACTIVE evidence; must remain as failed-attempt evidence, never closure.",
+      "revisedPlanRole": "Historical input to revision 2."
+    },
+    {
+      "file": "docs/admin/phase-6/cg-03-storage-ownership-controls-verification-2026-08-10.md",
+      "decision": "ADMIN_VERIFICATION_INFRA_ONLY",
+      "reason": "Human-readable historical verification result; preserve unchanged.",
+      "revisedPlanRole": "Historical input to revision 2."
+    }
+  ],
+  "currentCandidateControlsRetained": [
+    "server-side authenticated actor check",
+    "user.id as owner source",
+    "owner-prefixed path validation after the canonical path template is supplied",
+    "bucket selection only from the typed plan",
+    "signed URL authorization before issuance",
+    "update/delete ownership checks",
+    "path safety and safe error behavior",
+    "regression coverage for the server boundary",
+    "shared targeted verifier infrastructure"
+  ],
+  "currentCandidateControlsToModify": [
+    "replace hardcoded bucket with plan-bound bucket identity",
+    "replace prose-only path assumption with typed path contract",
+    "generate and validate bucket/path/operation Storage policies",
+    "align implementation context and BackendPlans with StoragePlan",
+    "bind source and policy artifacts to one contract checksum"
+  ],
+  "currentCandidateControlsToDiscard": [
+    "no current control is discarded outright; the fixed bucket default and source-only closure assumption are discarded from the revised design"
+  ],
+  "revisedRequiredFiles": [
+    "src/agents/planner/contracts.ts",
+    "src/agents/planner/deterministic.ts",
+    "src/agents/implementation/contracts.ts",
+    "src/agents/implementation/service.ts",
+    "src/agents/implementation/provider.ts",
+    "src/agents/implementation/backend.ts",
+    "src/runtime/validation/security.ts",
+    "src/agents/implementation/backend.test.ts",
+    "src/agents/planner/planner.test.ts"
+  ],
+  "revisedPossibleFiles": [
+    "src/orchestration/orchestrator/graph.ts",
+    "supabase/migrations/<generated-project-storage-policy-migration>.sql",
+    "scripts/phase-6c-cg02-verification.ts"
+  ],
+  "revisedNonGoals": [
+    "No third revision-1 implementation cycle",
+    "No Factory metadata database migration",
+    "No direct client Storage mode",
+    "No service-role bypass",
+    "No public runtime upload bucket",
+    "No storage feature invention beyond the approved StoragePlan",
+    "No new agent, MCP, framework, or orchestrator",
+    "No unrelated auth, RLS, provider, design, or lifecycle correction",
+    "No live customer Supabase execution",
+    "No website/customer E2E"
+  ],
+  "revisedDependencies": [
+    { "groupId": "cg-02-authentication-authorization-rls", "state": "COMPLETE", "requiredFor": "authenticated user.id source and server session semantics" }
+  ],
+  "revisedDeterministicChecks": [
+    "StoragePlan schema tests prove conditional storage and typed ownership/policy fields",
+    "Implementation context carries the accepted storage contract and checksum",
+    "Generated policy artifact is present only when storage is required",
+    "Policy identifiers and bucket IDs are validated and safely bounded",
+    "storage.objects policies cover authenticated SELECT/INSERT/UPDATE/DELETE with bucket restriction",
+    "USING and WITH CHECK semantics are correct for existing and new object ownership",
+    "Server source and policy artifact use the same bucket/path/owner contract",
+    "Wrong bucket, anonymous, cross-user, forged owner path, and ownership transfer attempts are denied",
+    "Valid owner operation succeeds in a deterministic policy fixture",
+    "Signed URL creation requires prior owner authorization",
+    "No service-role credential is generated or exposed",
+    "Existing cg-02 authentication/user_id/RLS regression tests remain passing",
+    "Existing cg-03 server-side regression tests remain passing",
+    "TypeScript, ESLint, generated policy validation, and full suite pass at closure"
+  ],
+  "plannedBehavioralPolicyTests": [
+    "authenticated owner can SELECT, INSERT, UPDATE, and DELETE only in the approved bucket and owner path",
+    "anonymous actor is denied",
+    "different authenticated user is denied",
+    "wrong bucket is denied",
+    "forged owner prefix/path is denied",
+    "UPDATE cannot rebind an existing object to another owner",
+    "ownership transfer is denied",
+    "signed upload/download URL cannot be requested for an unauthorized object",
+    "server-side anon-key flow remains authorized only through the same policy",
+    "static public asset behavior remains outside runtime Storage"
+  ],
+  "revisedReviewerRechecks": [
+    {
+      "reviewerId": "security-reviewer",
+      "required": true,
+      "why": "The validated findings are Storage trust-boundary and policy-enforcement findings.",
+      "expectedEvidence": "Typed storage contract, generated policy artifact, source/policy contract checksum, policy operation tests, owner/cross-user denial, signed URL authorization, and no secret exposure.",
+      "activeSkillScope": ["auth-storage-security-review", "supabase-rls-1e36b217c969 only if resolver selects it for the generated policy/RLS surface"],
+      "verificationScope": "Exact cg-03 findings only; read-only semantic review of authenticated actor, owner, bucket, path, Storage policy operations, signed URLs, and privileged-flow absence."
+    },
+    {
+      "reviewerId": "contract-auditor",
+      "required": true,
+      "why": "Revision 2 adds a typed Planning-to-Implementation Storage contract whose traceability must be checked before policy generation is accepted.",
+      "expectedEvidence": "StoragePlan fields -> implementation context -> generated source/policy artifacts -> tests, with no dropped ownership or operation semantics.",
+      "activeSkillScope": ["acceptance-criteria-80493b317476", "requirements-evidence-traceability"],
+      "verificationScope": "Storage contract traceability only; no generic Factory contract discovery."
+    }
+  ],
+  "implementationCapability": {
+    "agentId": "implementation",
+    "capability": "implementation.backend",
+    "executor": "Existing Implementation Agent / trusted implementation executor",
+    "newAgent": false
+  },
+  "futureCorrectionSequence": [
+    "Add the minimal typed StoragePlan ownership/policy fields and deterministic planner output while preserving conditional storage.",
+    "Pass the accepted storage contract and checksum into the existing implementation context and align BackendPlans via a validated adapter.",
+    "Generate bounded server source plus a project migration policy artifact from the same contract through the existing ChangeProposal.",
+    "Validate safe bucket/policy identifiers, project/version scope, source/policy equivalence, idempotency, and migration safety.",
+    "Add policy fixture behavior tests and retain cg-02/server-side regressions.",
+    "Run targeted deterministic checks, then exactly the revised Security Reviewer and Contract Auditor rechecks.",
+    "Only after reviewer closure run full validation and update execution state; otherwise stop and replan again."
+  ],
+  "newCorrectionBudget": 2,
+  "dagImpact": {
+    "changed": false,
+    "dependenciesUnchanged": true,
+    "acyclic": true,
+    "cg03State": "BLOCKED_REPLAN_COMPLETE",
+    "cg04Started": false,
+    "nextAction": "PHASE 6D.2 - EXECUTE REVISED cg-03 PLAN"
+  },
+  "findingCounts": {
+    "remainingCorrectionReady": 24,
+    "critical": 0,
+    "error": 9,
+    "warning": 14,
+    "info": 1,
+    "cg03FindingsChanged": false,
+    "cg03FindingsResolved": 0
+  },
+  "phaseStatus": "BLOCKED_REPLAN_COMPLETE"
+}

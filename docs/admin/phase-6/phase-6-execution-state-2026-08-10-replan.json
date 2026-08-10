@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6-execution-planning-state",
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "baselineState": "docs/admin/phase-6/phase-6-execution-state-2026-08-10.json",
+  "baselineCommit": "840fecb",
+  "planRevision": 2,
+  "replanArtifact": "docs/admin/phase-6/cg-03-storage-ownership-controls-replan-2026-08-10.json",
+  "completedGroups": [
+    "cg-01-cross-artifact-identity",
+    "cg-02-authentication-authorization-rls"
+  ],
+  "groupStates": {
+    "cg-01-cross-artifact-identity": "COMPLETE",
+    "cg-02-authentication-authorization-rls": "COMPLETE",
+    "cg-03-storage-ownership-controls": "BLOCKED_REPLAN_COMPLETE",
+    "cg-04-provider-config-and-lifecycle": "NOT_STARTED"
+  },
+  "cg03": {
+    "revision1": "BLOCKED_AFTER_2_CORRECTION_CYCLES",
+    "revision2": "REPLAN_COMPLETE",
+    "implementationNotStarted": true,
+    "attemptsConsumedUnderRevision1": 2,
+    "newCorrectionBudget": 2,
+    "findingIds": [
+      "finding-b227589f057cc3fa00ac",
+      "finding-eb166a34da7872c62d77"
+    ],
+    "findingState": "ACTIVE",
+    "remainingIssue": "No bucket-level/user-scoped generated Supabase Storage policy is established.",
+    "nextAction": "PHASE 6D.2 - EXECUTE REVISED cg-03 PLAN"
+  },
+  "correctionReadyFindingsRemaining": 24,
+  "remainingFindingCounts": {
+    "CRITICAL": 0,
+    "ERROR": 9,
+    "WARNING": 14,
+    "INFO": 1
+  },
+  "dependencyUnblockedGroups": [
+    "cg-03-storage-ownership-controls",
+    "cg-04-provider-config-and-lifecycle",
+    "cg-05-design-durable-state-authority",
+    "cg-06-database-error-propagation",
+    "cg-12-architecture-review-context"
+  ],
+  "nextRecommendedGroup": "cg-03-storage-ownership-controls",
+  "dagChanged": false,
+  "dagAcyclic": true,
+  "otherGroupsAutoResolved": [],
+  "otherGroupsModified": [],
+  "roadmap": [
+    "cg-01 COMPLETE",
+    "cg-02 COMPLETE",
+    "cg-03 revision 1 BLOCKED after 2 correction cycles",
+    "cg-03 revision 2 REPLAN COMPLETE / IMPLEMENTATION PENDING",
+    "NEXT: PHASE 6D.2 - EXECUTE REVISED cg-03 PLAN"
+  ],
+  "phase6D1Status": "REPLAN_COMPLETE",
+  "phaseStatus": "BLOCKED_REPLAN_COMPLETE"
+}
