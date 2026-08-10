@@ -6,13 +6,12 @@ import { Context7LibrarySchema, Context7QueryPlanSchema, type Context7Documentat
 import { normalizeContext7Response } from "./normalize";
 import { validatePackageAccess, validateTopic } from "./policy";
 
-const fixedStack = ["next", "react", "react-dom", "typescript", "tailwindcss", "zod", "vitest"];
 const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => { const timer = setTimeout(resolve, ms); signal?.addEventListener("abort", () => { clearTimeout(timer); reject(new Context7Error("CONTEXT7_CANCELLED", "Context7 request was cancelled.")); }, { once: true }); });
 export class Context7Service implements Context7DocumentationPort {
   private readonly inFlight = new Map<string, Promise<Context7QueryResult>>(); private readonly idempotency = new Map<string, string>(); private active = 0; private readonly queued: Array<{ run: () => void; signal?: AbortSignal; cleanup?: () => void }> = [];
   constructor(private readonly transport: Context7Transport, private readonly config: Context7Config = readContext7Config(), private readonly cache = new Context7Cache(".context7-cache", config.cacheTtlSeconds), private readonly eventSink?: Context7SafeEventSink) {}
   async resolveLibrary(input: Context7ResolutionInput): Promise<ResolvedContext7Library> {
-    validatePackageAccess(input.packageName, { dependencyPlan: input.dependencyPlan, fixedStack, designApprovesMotion: input.designApprovesMotion });
+    validatePackageAccess(input.packageName, { dependencyPlan: input.dependencyPlan, designApprovesMotion: input.designApprovesMotion });
     const planned = input.dependencyPlan?.find((entry) => entry.name === input.packageName)?.version; const installed = input.packageJson?.[input.packageName];
     if ((input.configuredVersion && planned && input.configuredVersion !== planned) || (planned && installed && installed !== planned)) throw new Context7Error("CONTEXT7_VERSION_CONFLICT", "Approved and detected dependency versions conflict.");
     const version = planned ?? installed ?? input.configuredVersion; const source = planned ? "dependency-plan" : installed ? "package-json" : input.configuredVersion ? "fixed-stack" : "unresolved";
