@@ -1,0 +1,845 @@
+{
+  "schemaVersion": 1,
+  "documentType": "factory-self-review-evidence-reconciliation",
+  "reconciliationRunId": "f71ce5fa4c8d5ee3e281c4c3fd2d1183451929e7eb01ab3bf3639d34a388ac29",
+  "sourceSelfReviewRunId": "950bc148572f7b8ff1079dbcb2fab1b7c4c58886c63f5bf6ea1537344392054d",
+  "reviewTargetCommit": "96d9ebc25c09fe1fb83338e8c7a1fa989fc3d9f4",
+  "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+  "policyVersion": "factory-self-review-evidence-reconciliation-v1",
+  "originalInvalidFindingCount": 10,
+  "perFindingReconciliation": [
+    {
+      "originalFindingId": "contract-audit-001",
+      "reviewerId": "contract-auditor",
+      "scopeId": "contracts-workflow",
+      "severity": null,
+      "category": null,
+      "subsystem": null,
+      "semanticTitle": null,
+      "semanticClaim": null,
+      "semanticFindingPayloadAvailable": false,
+      "semanticFindingPayloadNote": "Run 3 machine artifacts preserve this invalid finding as an ID and evidence set only; no severity, category, or claim body is available for safe successor creation.",
+      "originalEvidenceRefs": [
+        "src/agents/design/service.ts:validateInput",
+        "src/agents/design/contracts.ts:DesignAgentInputSchema"
+      ],
+      "validationFailureReasons": [
+        "Evidence reference must use repository-relative path:start-end syntax."
+      ],
+      "failureTypes": [
+        "PATH_FORMAT_INVALID"
+      ],
+      "scopeEvidencePack": {
+        "scopeId": "contracts-workflow",
+        "evidencePackChecksum": "2893f87ec2b60a92d0c96a8ab4094ebca96090937efd54891adc2c89f13ee9dd",
+        "snapshotIdentity": "0ace6181f78ccf01dd1bed064fd19b027c5e656bfc78a8ed000c3aa4d91b1c20",
+        "allowedPathCount": 32
+      },
+      "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "selectedSkillContextIdentity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "reviewerResultArtifact": {
+        "reviewerId": "contract-auditor",
+        "relativePath": "docs/admin/self-review-results/contract-auditor-950bc148572f7b8f-run3.json",
+        "checksum": "1669d72909110d5edd8a764f249f17cd335eba155d59e50028df9380b630fb5d"
+      },
+      "deterministicRepairAttempt": {
+        "candidateCount": 2,
+        "candidates": [
+          {
+            "originalReference": "src/agents/design/service.ts:validateInput",
+            "repairedReference": "src/agents/design/service.ts:107"
+          },
+          {
+            "originalReference": "src/agents/design/contracts.ts:DesignAgentInputSchema",
+            "repairedReference": "src/agents/design/contracts.ts:9"
+          }
+        ],
+        "unresolvedReferences": [],
+        "result": "MECHANICALLY_REPAIRABLE_BUT_NOT_PROMOTED_WITHOUT_SEMANTIC_PAYLOAD"
+      },
+      "reconciliationOutcome": "REJECTED_UNSUPPORTED",
+      "successorFindingId": null,
+      "targetedReview": {
+        "requiredAfterDeterministicPass": false,
+        "attempted": false,
+        "sameReviewer": "contract-auditor",
+        "reason": "No safe targeted request can be constructed without the original semantic claim body; no new review was substituted for missing provenance."
+      }
+    },
+    {
+      "originalFindingId": "contract-audit-002",
+      "reviewerId": "contract-auditor",
+      "scopeId": "contracts-workflow",
+      "severity": null,
+      "category": null,
+      "subsystem": null,
+      "semanticTitle": null,
+      "semanticClaim": null,
+      "semanticFindingPayloadAvailable": false,
+      "semanticFindingPayloadNote": "Run 3 machine artifacts preserve this invalid finding as an ID and evidence set only; no severity, category, or claim body is available for safe successor creation.",
+      "originalEvidenceRefs": [
+        "src/agents/design/deterministic.ts:buildDesignDirectionSet",
+        "src/agents/design/design.test.ts:accepts a text wordmark without a logo file and preserves its policy",
+        "src/agents/design/design.test.ts:does not treat explicit no-logo fixture facts as supplied branding"
+      ],
+      "validationFailureReasons": [
+        "Evidence reference must use repository-relative path:start-end syntax."
+      ],
+      "failureTypes": [
+        "PATH_FORMAT_INVALID"
+      ],
+      "scopeEvidencePack": {
+        "scopeId": "contracts-workflow",
+        "evidencePackChecksum": "2893f87ec2b60a92d0c96a8ab4094ebca96090937efd54891adc2c89f13ee9dd",
+        "snapshotIdentity": "0ace6181f78ccf01dd1bed064fd19b027c5e656bfc78a8ed000c3aa4d91b1c20",
+        "allowedPathCount": 32
+      },
+      "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "selectedSkillContextIdentity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "reviewerResultArtifact": {
+        "reviewerId": "contract-auditor",
+        "relativePath": "docs/admin/self-review-results/contract-auditor-950bc148572f7b8f-run3.json",
+        "checksum": "1669d72909110d5edd8a764f249f17cd335eba155d59e50028df9380b630fb5d"
+      },
+      "deterministicRepairAttempt": {
+        "candidateCount": 3,
+        "candidates": [
+          {
+            "originalReference": "src/agents/design/deterministic.ts:buildDesignDirectionSet",
+            "repairedReference": "src/agents/design/deterministic.ts:22"
+          },
+          {
+            "originalReference": "src/agents/design/design.test.ts:accepts a text wordmark without a logo file and preserves its policy",
+            "repairedReference": "src/agents/design/design.test.ts:32"
+          },
+          {
+            "originalReference": "src/agents/design/design.test.ts:does not treat explicit no-logo fixture facts as supplied branding",
+            "repairedReference": "src/agents/design/design.test.ts:30"
+          }
+        ],
+        "unresolvedReferences": [],
+        "result": "MECHANICALLY_REPAIRABLE_BUT_NOT_PROMOTED_WITHOUT_SEMANTIC_PAYLOAD"
+      },
+      "reconciliationOutcome": "REJECTED_UNSUPPORTED",
+      "successorFindingId": null,
+      "targetedReview": {
+        "requiredAfterDeterministicPass": false,
+        "attempted": false,
+        "sameReviewer": "contract-auditor",
+        "reason": "No safe targeted request can be constructed without the original semantic claim body; no new review was substituted for missing provenance."
+      }
+    },
+    {
+      "originalFindingId": "contract-audit-003",
+      "reviewerId": "contract-auditor",
+      "scopeId": "contracts-workflow",
+      "severity": null,
+      "category": null,
+      "subsystem": null,
+      "semanticTitle": null,
+      "semanticClaim": null,
+      "semanticFindingPayloadAvailable": false,
+      "semanticFindingPayloadNote": "Run 3 machine artifacts preserve this invalid finding as an ID and evidence set only; no severity, category, or claim body is available for safe successor creation.",
+      "originalEvidenceRefs": [
+        "src/agents/design/deterministic.ts:directionReference",
+        "src/agents/design/deterministic.ts:buildDesignDirectionSet",
+        "src/agents/design/contracts.ts:DesignAgentInputSchema"
+      ],
+      "validationFailureReasons": [
+        "Evidence reference must use repository-relative path:start-end syntax."
+      ],
+      "failureTypes": [
+        "PATH_FORMAT_INVALID"
+      ],
+      "scopeEvidencePack": {
+        "scopeId": "contracts-workflow",
+        "evidencePackChecksum": "2893f87ec2b60a92d0c96a8ab4094ebca96090937efd54891adc2c89f13ee9dd",
+        "snapshotIdentity": "0ace6181f78ccf01dd1bed064fd19b027c5e656bfc78a8ed000c3aa4d91b1c20",
+        "allowedPathCount": 32
+      },
+      "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "selectedSkillContextIdentity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "reviewerResultArtifact": {
+        "reviewerId": "contract-auditor",
+        "relativePath": "docs/admin/self-review-results/contract-auditor-950bc148572f7b8f-run3.json",
+        "checksum": "1669d72909110d5edd8a764f249f17cd335eba155d59e50028df9380b630fb5d"
+      },
+      "deterministicRepairAttempt": {
+        "candidateCount": 3,
+        "candidates": [
+          {
+            "originalReference": "src/agents/design/deterministic.ts:directionReference",
+            "repairedReference": "src/agents/design/deterministic.ts:11"
+          },
+          {
+            "originalReference": "src/agents/design/deterministic.ts:buildDesignDirectionSet",
+            "repairedReference": "src/agents/design/deterministic.ts:22"
+          },
+          {
+            "originalReference": "src/agents/design/contracts.ts:DesignAgentInputSchema",
+            "repairedReference": "src/agents/design/contracts.ts:9"
+          }
+        ],
+        "unresolvedReferences": [],
+        "result": "MECHANICALLY_REPAIRABLE_BUT_NOT_PROMOTED_WITHOUT_SEMANTIC_PAYLOAD"
+      },
+      "reconciliationOutcome": "REJECTED_UNSUPPORTED",
+      "successorFindingId": null,
+      "targetedReview": {
+        "requiredAfterDeterministicPass": false,
+        "attempted": false,
+        "sameReviewer": "contract-auditor",
+        "reason": "No safe targeted request can be constructed without the original semantic claim body; no new review was substituted for missing provenance."
+      }
+    },
+    {
+      "originalFindingId": "contract-audit-004",
+      "reviewerId": "contract-auditor",
+      "scopeId": "contracts-workflow",
+      "severity": null,
+      "category": null,
+      "subsystem": null,
+      "semanticTitle": null,
+      "semanticClaim": null,
+      "semanticFindingPayloadAvailable": false,
+      "semanticFindingPayloadNote": "Run 3 machine artifacts preserve this invalid finding as an ID and evidence set only; no severity, category, or claim body is available for safe successor creation.",
+      "originalEvidenceRefs": [
+        "src/agents/design/contracts.ts:DesignAgentInputSchema",
+        "src/agents/design/service.ts:validateInput",
+        "src/agents/design/deterministic.ts:buildDesignDirectionSet"
+      ],
+      "validationFailureReasons": [
+        "Evidence reference must use repository-relative path:start-end syntax."
+      ],
+      "failureTypes": [
+        "PATH_FORMAT_INVALID"
+      ],
+      "scopeEvidencePack": {
+        "scopeId": "contracts-workflow",
+        "evidencePackChecksum": "2893f87ec2b60a92d0c96a8ab4094ebca96090937efd54891adc2c89f13ee9dd",
+        "snapshotIdentity": "0ace6181f78ccf01dd1bed064fd19b027c5e656bfc78a8ed000c3aa4d91b1c20",
+        "allowedPathCount": 32
+      },
+      "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "selectedSkillContextIdentity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "reviewerResultArtifact": {
+        "reviewerId": "contract-auditor",
+        "relativePath": "docs/admin/self-review-results/contract-auditor-950bc148572f7b8f-run3.json",
+        "checksum": "1669d72909110d5edd8a764f249f17cd335eba155d59e50028df9380b630fb5d"
+      },
+      "deterministicRepairAttempt": {
+        "candidateCount": 3,
+        "candidates": [
+          {
+            "originalReference": "src/agents/design/contracts.ts:DesignAgentInputSchema",
+            "repairedReference": "src/agents/design/contracts.ts:9"
+          },
+          {
+            "originalReference": "src/agents/design/service.ts:validateInput",
+            "repairedReference": "src/agents/design/service.ts:107"
+          },
+          {
+            "originalReference": "src/agents/design/deterministic.ts:buildDesignDirectionSet",
+            "repairedReference": "src/agents/design/deterministic.ts:22"
+          }
+        ],
+        "unresolvedReferences": [],
+        "result": "MECHANICALLY_REPAIRABLE_BUT_NOT_PROMOTED_WITHOUT_SEMANTIC_PAYLOAD"
+      },
+      "reconciliationOutcome": "REJECTED_UNSUPPORTED",
+      "successorFindingId": null,
+      "targetedReview": {
+        "requiredAfterDeterministicPass": false,
+        "attempted": false,
+        "sameReviewer": "contract-auditor",
+        "reason": "No safe targeted request can be constructed without the original semantic claim body; no new review was substituted for missing provenance."
+      }
+    },
+    {
+      "originalFindingId": "contract-audit-005",
+      "reviewerId": "contract-auditor",
+      "scopeId": "contracts-workflow",
+      "severity": null,
+      "category": null,
+      "subsystem": null,
+      "semanticTitle": null,
+      "semanticClaim": null,
+      "semanticFindingPayloadAvailable": false,
+      "semanticFindingPayloadNote": "Run 3 machine artifacts preserve this invalid finding as an ID and evidence set only; no severity, category, or claim body is available for safe successor creation.",
+      "originalEvidenceRefs": [
+        "src/agents/design/contracts.ts:DesignAgentInputSchema",
+        "src/agents/design/service.ts:validateInput"
+      ],
+      "validationFailureReasons": [
+        "Evidence reference must use repository-relative path:start-end syntax."
+      ],
+      "failureTypes": [
+        "PATH_FORMAT_INVALID"
+      ],
+      "scopeEvidencePack": {
+        "scopeId": "contracts-workflow",
+        "evidencePackChecksum": "2893f87ec2b60a92d0c96a8ab4094ebca96090937efd54891adc2c89f13ee9dd",
+        "snapshotIdentity": "0ace6181f78ccf01dd1bed064fd19b027c5e656bfc78a8ed000c3aa4d91b1c20",
+        "allowedPathCount": 32
+      },
+      "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "selectedSkillContextIdentity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "reviewerResultArtifact": {
+        "reviewerId": "contract-auditor",
+        "relativePath": "docs/admin/self-review-results/contract-auditor-950bc148572f7b8f-run3.json",
+        "checksum": "1669d72909110d5edd8a764f249f17cd335eba155d59e50028df9380b630fb5d"
+      },
+      "deterministicRepairAttempt": {
+        "candidateCount": 2,
+        "candidates": [
+          {
+            "originalReference": "src/agents/design/contracts.ts:DesignAgentInputSchema",
+            "repairedReference": "src/agents/design/contracts.ts:9"
+          },
+          {
+            "originalReference": "src/agents/design/service.ts:validateInput",
+            "repairedReference": "src/agents/design/service.ts:107"
+          }
+        ],
+        "unresolvedReferences": [],
+        "result": "MECHANICALLY_REPAIRABLE_BUT_NOT_PROMOTED_WITHOUT_SEMANTIC_PAYLOAD"
+      },
+      "reconciliationOutcome": "REJECTED_UNSUPPORTED",
+      "successorFindingId": null,
+      "targetedReview": {
+        "requiredAfterDeterministicPass": false,
+        "attempted": false,
+        "sameReviewer": "contract-auditor",
+        "reason": "No safe targeted request can be constructed without the original semantic claim body; no new review was substituted for missing provenance."
+      }
+    },
+    {
+      "originalFindingId": "contract-audit-006",
+      "reviewerId": "contract-auditor",
+      "scopeId": "contracts-workflow",
+      "severity": null,
+      "category": null,
+      "subsystem": null,
+      "semanticTitle": null,
+      "semanticClaim": null,
+      "semanticFindingPayloadAvailable": false,
+      "semanticFindingPayloadNote": "Run 3 machine artifacts preserve this invalid finding as an ID and evidence set only; no severity, category, or claim body is available for safe successor creation.",
+      "originalEvidenceRefs": [
+        "src/agents/design/contracts.ts:DesignAgentInputSchema",
+        "src/agents/design/service.ts:DesignAgentService"
+      ],
+      "validationFailureReasons": [
+        "Evidence reference must use repository-relative path:start-end syntax."
+      ],
+      "failureTypes": [
+        "PATH_FORMAT_INVALID"
+      ],
+      "scopeEvidencePack": {
+        "scopeId": "contracts-workflow",
+        "evidencePackChecksum": "2893f87ec2b60a92d0c96a8ab4094ebca96090937efd54891adc2c89f13ee9dd",
+        "snapshotIdentity": "0ace6181f78ccf01dd1bed064fd19b027c5e656bfc78a8ed000c3aa4d91b1c20",
+        "allowedPathCount": 32
+      },
+      "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "selectedSkillContextIdentity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "reviewerResultArtifact": {
+        "reviewerId": "contract-auditor",
+        "relativePath": "docs/admin/self-review-results/contract-auditor-950bc148572f7b8f-run3.json",
+        "checksum": "1669d72909110d5edd8a764f249f17cd335eba155d59e50028df9380b630fb5d"
+      },
+      "deterministicRepairAttempt": {
+        "candidateCount": 2,
+        "candidates": [
+          {
+            "originalReference": "src/agents/design/contracts.ts:DesignAgentInputSchema",
+            "repairedReference": "src/agents/design/contracts.ts:9"
+          },
+          {
+            "originalReference": "src/agents/design/service.ts:DesignAgentService",
+            "repairedReference": "src/agents/design/service.ts:61"
+          }
+        ],
+        "unresolvedReferences": [],
+        "result": "MECHANICALLY_REPAIRABLE_BUT_NOT_PROMOTED_WITHOUT_SEMANTIC_PAYLOAD"
+      },
+      "reconciliationOutcome": "REJECTED_UNSUPPORTED",
+      "successorFindingId": null,
+      "targetedReview": {
+        "requiredAfterDeterministicPass": false,
+        "attempted": false,
+        "sameReviewer": "contract-auditor",
+        "reason": "No safe targeted request can be constructed without the original semantic claim body; no new review was substituted for missing provenance."
+      }
+    },
+    {
+      "originalFindingId": "cross-type-overlapping-exclusive-scopes-unchecked",
+      "reviewerId": "contract-auditor",
+      "scopeId": "contracts-review-and-persistence",
+      "severity": null,
+      "category": null,
+      "subsystem": null,
+      "semanticTitle": null,
+      "semanticClaim": null,
+      "semanticFindingPayloadAvailable": false,
+      "semanticFindingPayloadNote": "Run 3 machine artifacts preserve this invalid finding as an ID and evidence set only; no severity, category, or claim body is available for safe successor creation.",
+      "originalEvidenceRefs": [
+        "src/agents/reviewers/contracts/deterministic.ts:53-54",
+        "src/orchestration/execution/capabilities"
+      ],
+      "validationFailureReasons": [
+        "Evidence reference must use repository-relative path:start-end syntax."
+      ],
+      "failureTypes": [
+        "PATH_FORMAT_INVALID",
+        "EVIDENCE_NOT_IN_SCOPE_PACK"
+      ],
+      "scopeEvidencePack": {
+        "scopeId": "contracts-review-and-persistence",
+        "evidencePackChecksum": "ef29753473f57aed53ad2b31f375f0f7876ff0a11d63e678033e74de2f57aeec",
+        "snapshotIdentity": "d2f09336a6aad3bee890b8f0aaf5cf4b577f1d0e116fd39504533eff8c347200",
+        "allowedPathCount": 32
+      },
+      "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "selectedSkillContextIdentity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "reviewerResultArtifact": {
+        "reviewerId": "contract-auditor",
+        "relativePath": "docs/admin/self-review-results/contract-auditor-950bc148572f7b8f-run3.json",
+        "checksum": "1669d72909110d5edd8a764f249f17cd335eba155d59e50028df9380b630fb5d"
+      },
+      "deterministicRepairAttempt": {
+        "candidateCount": 1,
+        "candidates": [
+          {
+            "originalReference": "src/agents/reviewers/contracts/deterministic.ts:53-54",
+            "repairedReference": "src/agents/reviewers/contracts/deterministic.ts:53-54"
+          }
+        ],
+        "unresolvedReferences": [
+          {
+            "originalReference": "src/orchestration/execution/capabilities",
+            "failureType": "PATH_FORMAT_INVALID",
+            "reason": "Evidence reference must use repository-relative path:start-end syntax."
+          }
+        ],
+        "result": "NOT_REPAIRABLE"
+      },
+      "reconciliationOutcome": "REJECTED_OUT_OF_SCOPE",
+      "successorFindingId": null,
+      "targetedReview": {
+        "requiredAfterDeterministicPass": false,
+        "attempted": false,
+        "sameReviewer": "contract-auditor",
+        "reason": "No safe targeted request can be constructed without the original semantic claim body; no new review was substituted for missing provenance."
+      }
+    },
+    {
+      "originalFindingId": "code-review-workflow-state-not-enforced",
+      "reviewerId": "code-integration-reviewer",
+      "scopeId": "integration-provider-prompt",
+      "severity": null,
+      "category": null,
+      "subsystem": null,
+      "semanticTitle": null,
+      "semanticClaim": null,
+      "semanticFindingPayloadAvailable": false,
+      "semanticFindingPayloadNote": "Run 3 machine artifacts preserve this invalid finding as an ID and evidence set only; no severity, category, or claim body is available for safe successor creation.",
+      "originalEvidenceRefs": [
+        "src/agents/reviewers/code-integration/service.ts#review-workflow-precheck",
+        "src/agents/reviewers/code-integration/service.ts#current-project-version-check",
+        "src/agents/reviewers/code-integration/contracts.ts#CodeIntegrationReviewInputSchema"
+      ],
+      "validationFailureReasons": [
+        "Evidence reference must use repository-relative path:start-end syntax."
+      ],
+      "failureTypes": [
+        "PATH_FORMAT_INVALID"
+      ],
+      "scopeEvidencePack": {
+        "scopeId": "integration-provider-prompt",
+        "evidencePackChecksum": "c9708c798584088e7d09f1a1b8e1be15f08cd8bd25c2ed70ce695a9164a9d293",
+        "snapshotIdentity": "acfcc057685b72b2e3be68d233992cd7f793c1c54cb0a1ef153a7666e09a9958",
+        "allowedPathCount": 32
+      },
+      "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "selectedSkillContextIdentity": "6f45faad42804dda84061f7c91f9eb1f3f31d9a541de8ad2b160c41f55a7816e",
+      "selectedSkillIds": [
+        "react-nextjs-integration-review"
+      ],
+      "reviewerResultArtifact": {
+        "reviewerId": "code-integration-reviewer",
+        "relativePath": "docs/admin/self-review-results/code-integration-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "7bde090970d35b0fc9f3914c32782b0c63c0f1574fed9fddf04af8beef0041e3"
+      },
+      "deterministicRepairAttempt": {
+        "candidateCount": 0,
+        "candidates": [],
+        "unresolvedReferences": [
+          {
+            "originalReference": "src/agents/reviewers/code-integration/service.ts#review-workflow-precheck",
+            "failureType": "PATH_FORMAT_INVALID",
+            "reason": "Evidence reference must use repository-relative path:start-end syntax."
+          },
+          {
+            "originalReference": "src/agents/reviewers/code-integration/service.ts#current-project-version-check",
+            "failureType": "PATH_FORMAT_INVALID",
+            "reason": "Evidence reference must use repository-relative path:start-end syntax."
+          },
+          {
+            "originalReference": "src/agents/reviewers/code-integration/contracts.ts#CodeIntegrationReviewInputSchema",
+            "failureType": "PATH_FORMAT_INVALID",
+            "reason": "Evidence reference must use repository-relative path:start-end syntax."
+          }
+        ],
+        "result": "NOT_REPAIRABLE"
+      },
+      "reconciliationOutcome": "REJECTED_UNSUPPORTED",
+      "successorFindingId": null,
+      "targetedReview": {
+        "requiredAfterDeterministicPass": false,
+        "attempted": false,
+        "sameReviewer": "code-integration-reviewer",
+        "reason": "No safe targeted request can be constructed without the original semantic claim body; no new review was substituted for missing provenance."
+      }
+    },
+    {
+      "originalFindingId": "source-evidence-not-bound-to-current-source",
+      "reviewerId": "code-integration-reviewer",
+      "scopeId": "integration-provider-prompt",
+      "severity": null,
+      "category": null,
+      "subsystem": null,
+      "semanticTitle": null,
+      "semanticClaim": null,
+      "semanticFindingPayloadAvailable": false,
+      "semanticFindingPayloadNote": "Run 3 machine artifacts preserve this invalid finding as an ID and evidence set only; no severity, category, or claim body is available for safe successor creation.",
+      "originalEvidenceRefs": [
+        "src/agents/reviewers/code-integration/deterministic.ts#source-checksum-check",
+        "src/agents/reviewers/code-integration/deterministic.ts#source-manifest-membership-check",
+        "src/agents/reviewers/code-integration/contracts.ts#SourceManifestEntrySchema",
+        "src/agents/reviewers/code-integration/contracts.ts#SourceSliceSchema"
+      ],
+      "validationFailureReasons": [
+        "Evidence reference must use repository-relative path:start-end syntax."
+      ],
+      "failureTypes": [
+        "PATH_FORMAT_INVALID"
+      ],
+      "scopeEvidencePack": {
+        "scopeId": "integration-provider-prompt",
+        "evidencePackChecksum": "c9708c798584088e7d09f1a1b8e1be15f08cd8bd25c2ed70ce695a9164a9d293",
+        "snapshotIdentity": "acfcc057685b72b2e3be68d233992cd7f793c1c54cb0a1ef153a7666e09a9958",
+        "allowedPathCount": 32
+      },
+      "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "selectedSkillContextIdentity": "6f45faad42804dda84061f7c91f9eb1f3f31d9a541de8ad2b160c41f55a7816e",
+      "selectedSkillIds": [
+        "react-nextjs-integration-review"
+      ],
+      "reviewerResultArtifact": {
+        "reviewerId": "code-integration-reviewer",
+        "relativePath": "docs/admin/self-review-results/code-integration-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "7bde090970d35b0fc9f3914c32782b0c63c0f1574fed9fddf04af8beef0041e3"
+      },
+      "deterministicRepairAttempt": {
+        "candidateCount": 2,
+        "candidates": [
+          {
+            "originalReference": "src/agents/reviewers/code-integration/contracts.ts#SourceManifestEntrySchema",
+            "repairedReference": "src/agents/reviewers/code-integration/contracts.ts:12"
+          },
+          {
+            "originalReference": "src/agents/reviewers/code-integration/contracts.ts#SourceSliceSchema",
+            "repairedReference": "src/agents/reviewers/code-integration/contracts.ts:13"
+          }
+        ],
+        "unresolvedReferences": [
+          {
+            "originalReference": "src/agents/reviewers/code-integration/deterministic.ts#source-checksum-check",
+            "failureType": "PATH_FORMAT_INVALID",
+            "reason": "Evidence reference must use repository-relative path:start-end syntax."
+          },
+          {
+            "originalReference": "src/agents/reviewers/code-integration/deterministic.ts#source-manifest-membership-check",
+            "failureType": "PATH_FORMAT_INVALID",
+            "reason": "Evidence reference must use repository-relative path:start-end syntax."
+          }
+        ],
+        "result": "NOT_REPAIRABLE"
+      },
+      "reconciliationOutcome": "REJECTED_UNSUPPORTED",
+      "successorFindingId": null,
+      "targetedReview": {
+        "requiredAfterDeterministicPass": false,
+        "attempted": false,
+        "sameReviewer": "code-integration-reviewer",
+        "reason": "No safe targeted request can be constructed without the original semantic claim body; no new review was substituted for missing provenance."
+      }
+    },
+    {
+      "originalFindingId": "implementation-summaries-not-connected-to-source-or-task-ownership",
+      "reviewerId": "code-integration-reviewer",
+      "scopeId": "integration-provider-prompt",
+      "severity": null,
+      "category": null,
+      "subsystem": null,
+      "semanticTitle": null,
+      "semanticClaim": null,
+      "semanticFindingPayloadAvailable": false,
+      "semanticFindingPayloadNote": "Run 3 machine artifacts preserve this invalid finding as an ID and evidence set only; no severity, category, or claim body is available for safe successor creation.",
+      "originalEvidenceRefs": [
+        "src/agents/reviewers/code-integration/deterministic.ts#implementation-task-summary-check",
+        "src/agents/reviewers/code-integration/contracts.ts#ImplementationTaskSummarySchema",
+        "src/agents/reviewers/code-integration/service.ts#normalize-evidence-set"
+      ],
+      "validationFailureReasons": [
+        "Evidence reference must use repository-relative path:start-end syntax."
+      ],
+      "failureTypes": [
+        "PATH_FORMAT_INVALID"
+      ],
+      "scopeEvidencePack": {
+        "scopeId": "integration-provider-prompt",
+        "evidencePackChecksum": "c9708c798584088e7d09f1a1b8e1be15f08cd8bd25c2ed70ce695a9164a9d293",
+        "snapshotIdentity": "acfcc057685b72b2e3be68d233992cd7f793c1c54cb0a1ef153a7666e09a9958",
+        "allowedPathCount": 32
+      },
+      "evidenceManifestChecksum": "427863061b650425431f5538b130e513e049a931eb44c29ed12c0dad36a38c08",
+      "selectedSkillContextIdentity": "6f45faad42804dda84061f7c91f9eb1f3f31d9a541de8ad2b160c41f55a7816e",
+      "selectedSkillIds": [
+        "react-nextjs-integration-review"
+      ],
+      "reviewerResultArtifact": {
+        "reviewerId": "code-integration-reviewer",
+        "relativePath": "docs/admin/self-review-results/code-integration-reviewer-950bc148572f7b8f-run3.json",
+        "checksum": "7bde090970d35b0fc9f3914c32782b0c63c0f1574fed9fddf04af8beef0041e3"
+      },
+      "deterministicRepairAttempt": {
+        "candidateCount": 1,
+        "candidates": [
+          {
+            "originalReference": "src/agents/reviewers/code-integration/contracts.ts#ImplementationTaskSummarySchema",
+            "repairedReference": "src/agents/reviewers/code-integration/contracts.ts:15"
+          }
+        ],
+        "unresolvedReferences": [
+          {
+            "originalReference": "src/agents/reviewers/code-integration/deterministic.ts#implementation-task-summary-check",
+            "failureType": "PATH_FORMAT_INVALID",
+            "reason": "Evidence reference must use repository-relative path:start-end syntax."
+          },
+          {
+            "originalReference": "src/agents/reviewers/code-integration/service.ts#normalize-evidence-set",
+            "failureType": "PATH_FORMAT_INVALID",
+            "reason": "Evidence reference must use repository-relative path:start-end syntax."
+          }
+        ],
+        "result": "NOT_REPAIRABLE"
+      },
+      "reconciliationOutcome": "REJECTED_UNSUPPORTED",
+      "successorFindingId": null,
+      "targetedReview": {
+        "requiredAfterDeterministicPass": false,
+        "attempted": false,
+        "sameReviewer": "code-integration-reviewer",
+        "reason": "No safe targeted request can be constructed without the original semantic claim body; no new review was substituted for missing provenance."
+      }
+    }
+  ],
+  "deterministicRepairCount": 6,
+  "deterministicRepairCandidateReferenceCount": 19,
+  "targetedReviewerCallCount": 0,
+  "validatedOriginalCount": 0,
+  "validatedRepairedCount": 0,
+  "validatedByTargetedReviewCount": 0,
+  "rejectedUnsupportedCount": 9,
+  "rejectedOutOfScopeCount": 1,
+  "rejectedHallucinatedCount": 0,
+  "remainingInvalidCount": 0,
+  "failureClassCounts": {
+    "PATH_NOT_FOUND": 0,
+    "PATH_FORMAT_INVALID": 10,
+    "PATH_NORMALIZATION_MISMATCH": 0,
+    "LINE_RANGE_INVALID": 0,
+    "EVIDENCE_NOT_IN_SCOPE_PACK": 1,
+    "EVIDENCE_MANIFEST_OR_CHECKSUM_MISMATCH": 0,
+    "HALLUCINATED_REFERENCE": 0,
+    "OTHER": 0
+  },
+  "evidenceContractAudit": {
+    "mismatchDiscovered": true,
+    "defect": "ReviewFinding.evidenceRefs is an unconstrained string in the provider schema and role prompt, while the self-review harness accepts only manifest-bound repository-relative path:start-end references.",
+    "validatorChanged": false,
+    "fix": "No production validator or reviewer prompt was changed; reconciliation adds a narrow immutable-snapshot guard and regression coverage.",
+    "lineSemantics": "1-based inclusive full-source line numbers; evidence packs retain original line positions in their first 260-line excerpt."
+  },
+  "finalValidatedFindingIds": [
+    "finding-0590fb313e72090696f0",
+    "finding-0e21399a0a91b82a05dc",
+    "finding-0ec8a840d7bf928fec42",
+    "finding-1540c99220f633245955",
+    "finding-191200ccc58b25e3fd0c",
+    "finding-20662816cdabed08871f",
+    "finding-233d7f1502c96cf535e1",
+    "finding-2484a19307c1536e12e7",
+    "finding-24cb4b563e9b341a84fd",
+    "finding-3ea29b90bbf550eecdb3",
+    "finding-3ee5bcff808135a21217",
+    "finding-4970556ab704416b2bf8",
+    "finding-4bba2d52b86f240393fc",
+    "finding-517e635c9c23995687d8",
+    "finding-51d38dcb2b668ff33332",
+    "finding-5f4cd4a958172b921dfd",
+    "finding-601d85f09cdb45d46400",
+    "finding-7586dd5bd4661d954bf4",
+    "finding-865697184809f419d1b7",
+    "finding-9106112c9ba65e4be7ed",
+    "finding-b227589f057cc3fa00ac",
+    "finding-b385146a5a20fb3e4f1b",
+    "finding-bf13a0c6f16bf4702e9e",
+    "finding-c200a7f61e715bc94be1",
+    "finding-c94e4c6dd19f957eeb40",
+    "finding-cec06a12d17a2b103135",
+    "finding-e055bfdcbad92c9b36eb",
+    "finding-eb166a34da7872c62d77",
+    "finding-efa4502938176a741e32",
+    "finding-f13df5392f71f7cf58df",
+    "finding-f27b5098995ae5bb44c9"
+  ],
+  "finalSeverityCounts": {
+    "CRITICAL": 2,
+    "ERROR": 13,
+    "WARNING": 15,
+    "INFO": 1
+  },
+  "phase5Status": "COMPLETE_FINDINGS_READY",
+  "phase6HandoffGroups": [
+    {
+      "groupId": "phase6-trust-boundaries-and-authorization",
+      "findingIds": [
+        "finding-0590fb313e72090696f0",
+        "finding-233d7f1502c96cf535e1",
+        "finding-7586dd5bd4661d954bf4",
+        "finding-865697184809f419d1b7",
+        "finding-b227589f057cc3fa00ac",
+        "finding-c200a7f61e715bc94be1",
+        "finding-e055bfdcbad92c9b36eb",
+        "finding-eb166a34da7872c62d77"
+      ],
+      "highestSeverity": "CRITICAL",
+      "subsystem": "authentication, storage, Supabase/RLS and server-client boundaries",
+      "likelyCorrectionOwner": "security-reviewer / security capability",
+      "dependencies": [
+        "verify current-head applicability",
+        "confirm current contract and identity bindings"
+      ]
+    },
+    {
+      "groupId": "phase6-cross-artifact-contract-identity",
+      "findingIds": [
+        "finding-0e21399a0a91b82a05dc",
+        "finding-2484a19307c1536e12e7",
+        "finding-9106112c9ba65e4be7ed",
+        "finding-b385146a5a20fb3e4f1b",
+        "finding-bf13a0c6f16bf4702e9e",
+        "finding-f27b5098995ae5bb44c9"
+      ],
+      "highestSeverity": "CRITICAL",
+      "subsystem": "canonical artifacts, reviewer contracts and traceability",
+      "likelyCorrectionOwner": "contract-auditor / contracts capability",
+      "dependencies": [
+        "verify current-head applicability",
+        "resolve upstream artifact identity before downstream corrections"
+      ]
+    },
+    {
+      "groupId": "phase6-runtime-and-provider-integration",
+      "findingIds": [
+        "finding-517e635c9c23995687d8",
+        "finding-c94e4c6dd19f957eeb40"
+      ],
+      "highestSeverity": "ERROR",
+      "subsystem": "provider, orchestration, persistence and generated-runtime integration",
+      "likelyCorrectionOwner": "code-integration-reviewer / integration capability",
+      "dependencies": [
+        "verify current-head applicability",
+        "apply contract-boundary decisions first"
+      ]
+    },
+    {
+      "groupId": "phase6-quality-and-release-evidence",
+      "findingIds": [
+        "finding-0ec8a840d7bf928fec42",
+        "finding-191200ccc58b25e3fd0c",
+        "finding-4970556ab704416b2bf8",
+        "finding-51d38dcb2b668ff33332",
+        "finding-601d85f09cdb45d46400",
+        "finding-bf13a0c6f16bf4702e9e",
+        "finding-cec06a12d17a2b103135",
+        "finding-f27b5098995ae5bb44c9"
+      ],
+      "highestSeverity": "ERROR",
+      "subsystem": "deterministic gates, behavioral tests and release evidence",
+      "likelyCorrectionOwner": "test-quality-reviewer / test-quality capability",
+      "dependencies": [
+        "verify current-head applicability",
+        "correct contract and integration prerequisites first"
+      ]
+    },
+    {
+      "groupId": "phase6-architecture-ownership-and-maintainability",
+      "findingIds": [
+        "finding-1540c99220f633245955",
+        "finding-20662816cdabed08871f",
+        "finding-2484a19307c1536e12e7",
+        "finding-24cb4b563e9b341a84fd",
+        "finding-3ea29b90bbf550eecdb3",
+        "finding-3ee5bcff808135a21217",
+        "finding-4bba2d52b86f240393fc",
+        "finding-5f4cd4a958172b921dfd",
+        "finding-9106112c9ba65e4be7ed",
+        "finding-efa4502938176a741e32",
+        "finding-f13df5392f71f7cf58df"
+      ],
+      "highestSeverity": "ERROR",
+      "subsystem": "agent, orchestration, runtime, persistence and integration ownership",
+      "likelyCorrectionOwner": "architecture-reviewer / architecture capability",
+      "dependencies": [
+        "verify current-head applicability",
+        "establish cross-artifact identity and trust boundaries first"
+      ]
+    }
+  ],
+  "originalArtifactsPreserved": true,
+  "originalInvalidFindingsPreserved": true,
+  "successorFindingRelationshipsPreserved": true,
+  "targetedReviewQueueAfterDeterministicPass": [],
+  "note": "No invalid record was promoted because Run 3's preserved machine artifacts do not contain the semantic finding payload required to create a trustworthy successor."
+}
