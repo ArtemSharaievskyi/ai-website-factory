@@ -65,8 +65,22 @@ import {
 } from "@/integrations/codebase-memory";
 import { createProcessTransport } from "@/integrations/codebase-memory/transport";
 import { SkillRegistry } from "@/skills/registry/registry";
-import { resolveApprovedSkillContext, toReviewerSkillSelection } from "@/skills/runtime/resolver";
-import { architectureReviewerAgentDefinition, contractAuditorAgentDefinition, securityReviewerAgentDefinition } from "@/agents/catalog";
+import {
+  resolveApprovedSkillContext,
+  prepareAgentSkillContext,
+  toReviewerSkillSelection,
+} from "@/skills/runtime/resolver";
+import {
+  architectureReviewerAgentDefinition,
+  contractAuditorAgentDefinition,
+  leadAgentDefinition,
+  plannerAgentDefinition,
+  designAgentDefinition,
+  implementationAgentDefinition,
+  codeIntegrationReviewerAgentDefinition,
+  securityReviewerAgentDefinition,
+  testQualityReviewerAgentDefinition,
+} from "@/agents/catalog";
 import { classifySecuritySurface } from "@/agents/reviewers/security/deterministic";
 export const RUNTIME_MODES = ["DETERMINISTIC_TEST", "REAL_E2E"] as const;
 export type FactoryRuntimeMode = (typeof RUNTIME_MODES)[number];
@@ -187,9 +201,181 @@ export function createProductionFactoryRuntime(
     codebaseMemory: codebaseConfig.enabled ? "configured" : "not-needed",
   });
   const skillRegistry = new SkillRegistry(path.join(process.cwd(), "skills"));
-  const resolveArchitectureSkills = async (input: import("@/agents/reviewers/architecture/contracts").ArchitectureReviewInput) => toReviewerSkillSelection(await resolveApprovedSkillContext(skillRegistry, { agent: architectureReviewerAgentDefinition, capability: "review.architecture", taskType: "review-architecture", projectSurfaces: ["architecture", "modules"], requiredCoverage: ["module-boundaries", "architecture-review"], requestedTools: [], contextBudgetBytes: architectureReviewerAgentDefinition.contextPolicy.maxBytes, reservedContextBytes: Buffer.byteLength(JSON.stringify(input), "utf8") }));
-  const resolveContractSkills = async (input: import("@/agents/reviewers/contracts/contracts").ContractAuditInput) => toReviewerSkillSelection(await resolveApprovedSkillContext(skillRegistry, { agent: contractAuditorAgentDefinition, capability: "review.contracts", taskType: "review-contracts", projectSurfaces: ["requirements", "contracts", "traceability"], requiredCoverage: ["acceptance-criteria", "requirements-contracts", "traceability"], requestedTools: [], contextBudgetBytes: contractAuditorAgentDefinition.contextPolicy.maxBytes, reservedContextBytes: Buffer.byteLength(JSON.stringify(input), "utf8") }));
-  const resolveSecuritySkills = async (input: import("@/agents/reviewers/security/contracts").SecurityReviewInput) => { const securitySurfaces = classifySecuritySurface(input); const projectSurfaces = input.acceptedPlanningPackage.supabase.postgres ? ["supabase", "postgres", "user-scoped-data"] : input.sourceManifest.some((file) => /rls/i.test(file.relativePath)) ? ["rls"] : ["NONE"]; return toReviewerSkillSelection(await resolveApprovedSkillContext(skillRegistry, { agent: securityReviewerAgentDefinition, capability: "review.security", taskType: "review-security", projectSurfaces, requiredCoverage: ["supabase-rls", "row-level-authorization", "user-scoped-data"], requestedTools: [], contextBudgetBytes: securityReviewerAgentDefinition.contextPolicy.maxBytes, reservedContextBytes: Buffer.byteLength(JSON.stringify({ input, securitySurfaces }), "utf8") })); };
+  const resolveArchitectureSkills = async (
+    input: import("@/agents/reviewers/architecture/contracts").ArchitectureReviewInput,
+  ) =>
+    toReviewerSkillSelection(
+      await resolveApprovedSkillContext(skillRegistry, {
+        agent: architectureReviewerAgentDefinition,
+        capability: "review.architecture",
+        taskType: "review-architecture",
+        projectSurfaces: ["architecture", "modules"],
+        requiredCoverage: ["module-boundaries", "architecture-review"],
+        requestedTools: [],
+        contextBudgetBytes:
+          architectureReviewerAgentDefinition.contextPolicy.maxBytes,
+        reservedContextBytes: Buffer.byteLength(JSON.stringify(input), "utf8"),
+      }),
+    );
+  const resolveContractSkills = async (
+    input: import("@/agents/reviewers/contracts/contracts").ContractAuditInput,
+  ) =>
+    toReviewerSkillSelection(
+      await resolveApprovedSkillContext(skillRegistry, {
+        agent: contractAuditorAgentDefinition,
+        capability: "review.contracts",
+        taskType: "review-contracts",
+        projectSurfaces: ["requirements", "contracts", "traceability"],
+        requiredCoverage: [
+          "acceptance-criteria",
+          "requirements-contracts",
+          "traceability",
+        ],
+        requestedTools: [],
+        contextBudgetBytes:
+          contractAuditorAgentDefinition.contextPolicy.maxBytes,
+        reservedContextBytes: Buffer.byteLength(JSON.stringify(input), "utf8"),
+      }),
+    );
+  const resolveSecuritySkills = async (
+    input: import("@/agents/reviewers/security/contracts").SecurityReviewInput,
+  ) => {
+    const securitySurfaces = classifySecuritySurface(input);
+    const projectSurfaces = input.acceptedPlanningPackage.supabase.postgres
+      ? ["supabase", "postgres", "user-scoped-data"]
+      : input.sourceManifest.some((file) => /rls/i.test(file.relativePath))
+        ? ["rls"]
+        : ["NONE"];
+    return toReviewerSkillSelection(
+      await resolveApprovedSkillContext(skillRegistry, {
+        agent: securityReviewerAgentDefinition,
+        capability: "review.security",
+        taskType: "review-security",
+        projectSurfaces,
+        requiredCoverage: [
+          "supabase-rls",
+          "row-level-authorization",
+          "user-scoped-data",
+        ],
+        requestedTools: [],
+        contextBudgetBytes:
+          securityReviewerAgentDefinition.contextPolicy.maxBytes,
+        reservedContextBytes: Buffer.byteLength(
+          JSON.stringify({ input, securitySurfaces }),
+          "utf8",
+        ),
+      }),
+    );
+  };
+  const resolveLeadSkills = async (
+    input: import("@/agents/lead/contracts").LeadAgentInput,
+  ) =>
+    prepareAgentSkillContext(skillRegistry, {
+      agent: leadAgentDefinition,
+      capability: "requirements.clarify",
+      taskType: "clarify-requirements",
+      projectSurfaces: Object.keys(input.knownUserAnswers ?? {}).length < 3 ? ["clarification"] : [],
+      requiredCoverage: Object.keys(input.knownUserAnswers ?? {}).length < 3 ? ["requirements-completeness"] : [],
+      requestedTools: [],
+      contextBudgetBytes: leadAgentDefinition.contextPolicy.maxBytes,
+      reservedContextBytes: Buffer.byteLength(JSON.stringify(input), "utf8"),
+    });
+  const resolvePlannerSkills = async (
+    input: import("@/agents/planner/contracts").PlannerAgentInput,
+  ) => {
+    const brief = input.approvedBrief;
+    const hasData = brief.backendRequirements.length > 0 || brief.supabaseRequirements.length > 0 || brief.authenticationDecision === "authentication-required" || brief.storageDecision === "needed";
+    const hasRisk = brief.technicalConstraints.length > 0 || hasData;
+    const projectSurfaces = [
+      ...(hasData ? ["data", "database", "schema"] : []),
+      ...(hasRisk ? ["risk", "integrations"] : []),
+    ];
+    return prepareAgentSkillContext(skillRegistry, {
+      agent: plannerAgentDefinition,
+      capability: "planning.architecture",
+      taskType: "create-technical-architecture",
+      projectSurfaces,
+      requiredCoverage: [
+        ...(hasData ? ["data-model-planning"] : []),
+        ...(hasRisk ? ["technical-risk-planning"] : []),
+      ],
+      requestedTools: [],
+      contextBudgetBytes: plannerAgentDefinition.contextPolicy.maxBytes,
+      reservedContextBytes: Buffer.byteLength(JSON.stringify(input), "utf8"),
+    });
+  };
+  const resolveDesignSkills = async (
+    input: import("@/agents/design/contracts").DesignAgentInput,
+  ) => {
+    const hasForm = input.acceptedPlanningPackage.forms.forms.length > 0 || input.approvedBrief.forms.length > 0;
+    return prepareAgentSkillContext(skillRegistry, {
+      agent: designAgentDefinition,
+      capability: "design.directions",
+      taskType: "create-design-directions",
+      projectSurfaces: hasForm ? ["responsive", "forms"] : [],
+      requiredCoverage: hasForm ? ["responsive-form-ux"] : [],
+      requestedTools: [],
+      contextBudgetBytes: designAgentDefinition.contextPolicy.maxBytes,
+      reservedContextBytes: Buffer.byteLength(JSON.stringify(input), "utf8"),
+    });
+  };
+  const resolveImplementationSkills = async (
+    input: import("@/agents/implementation/contracts").ImplementationAgentInput,
+  ) => {
+    const taskType = input.task.taskType;
+    const backend = ["implement-database-schema", "implement-rls-policy", "implement-authentication", "implement-storage", "implement-email"].includes(taskType) || input.task.fileScopes.some((scope) => /supabase|src\/lib\/(auth|storage|email)/i.test(scope));
+    const form = taskType === "implement-form";
+    const performance = /performance|maintain|refactor/i.test(taskType);
+    const projectSurfaces = backend
+      ? ["supabase", "database", "auth", "storage"]
+      : form
+        ? ["forms", "validation", "typed"]
+        : performance
+          ? ["performance", "maintenance"]
+          : ["nextjs", "server", "client", "page", "component"];
+    return prepareAgentSkillContext(skillRegistry, {
+      agent: implementationAgentDefinition,
+      capability: backend ? "implementation.backend" : "implementation.code",
+      taskType: backend ? "implement-backend" : "implement-frontend",
+      projectSurfaces,
+      requiredCoverage: backend
+        ? ["supabase-implementation"]
+        : form
+          ? ["forms-validation"]
+          : performance
+            ? ["maintainability-performance"]
+            : ["nextjs-implementation", "server-client-boundaries"],
+      requestedTools: input.task.allowedTools,
+      contextBudgetBytes: implementationAgentDefinition.contextPolicy.maxBytes,
+      reservedContextBytes: Buffer.byteLength(JSON.stringify(input), "utf8"),
+    });
+  };
+  const resolveCodeIntegrationSkills = async (
+    input: import("@/agents/reviewers/code-integration/contracts").CodeIntegrationReviewInput,
+  ) =>
+    prepareAgentSkillContext(skillRegistry, {
+      agent: codeIntegrationReviewerAgentDefinition,
+      capability: "review.integration",
+      taskType: "review-code-integration",
+      projectSurfaces: input.sourceManifest.some((file) => /react|next|components|routes|forms/i.test(file.relativePath)) ? ["react", "nextjs", "components", "routes", "forms"] : [],
+      requiredCoverage: ["react-review", "nextjs-review"],
+      requestedTools: [],
+      contextBudgetBytes: codeIntegrationReviewerAgentDefinition.contextPolicy.maxBytes,
+      reservedContextBytes: Buffer.byteLength(JSON.stringify(input), "utf8"),
+    });
+  const resolveTestQualitySkills = async (
+    input: import("@/agents/reviewers/test-quality/contracts").TestQualityReviewInput,
+  ) =>
+    prepareAgentSkillContext(skillRegistry, {
+      agent: testQualityReviewerAgentDefinition,
+      capability: "review.test-quality",
+      taskType: "review-test-quality",
+      projectSurfaces: ["requirements", "tests", "behavior"],
+      requiredCoverage: ["requirements-traceability", "test-strategy", "meaningful-assertions"],
+      requestedTools: [],
+      contextBudgetBytes: testQualityReviewerAgentDefinition.contextPolicy.maxBytes,
+      reservedContextBytes: Buffer.byteLength(JSON.stringify(input), "utf8"),
+    });
   return {
     mode: "REAL_E2E",
     identity,
@@ -210,16 +396,19 @@ export function createProductionFactoryRuntime(
         database,
         provider: ai.lead,
         memory: new LeadMemoryAdapter(sync, decisions, workspaceRoot),
+        resolveSkills: resolveLeadSkills,
       });
       const planner = createPlannerArchitectService({
         database,
         provider: ai.planner,
         memory: new PlannerMemoryAdapter(sync, decisions, workspaceRoot),
+        resolveSkills: resolvePlannerSkills,
       });
       const design = createDesignAgentService({
         database,
         provider: ai.design,
         memory: new DesignMemoryAdapter(sync, decisions, workspaceRoot),
+        resolveSkills: resolveDesignSkills,
       });
       const architectureReviewer = new ArchitectureReviewOrchestrationService(
         database,
@@ -230,22 +419,32 @@ export function createProductionFactoryRuntime(
       );
       const contractAuditor = new ContractAuditOrchestrationService(
         database,
-        new ContractAuditService(database, { provider: ai.contractAuditor, resolveSkills: resolveContractSkills }),
+        new ContractAuditService(database, {
+          provider: ai.contractAuditor,
+          resolveSkills: resolveContractSkills,
+        }),
       );
       const codeIntegrationReviewer =
         new CodeIntegrationReviewOrchestrationService(
           database,
           new CodeIntegrationReviewService(database, {
-            provider: ai.codeIntegrationReviewer,
+          provider: ai.codeIntegrationReviewer,
+          resolveSkills: resolveCodeIntegrationSkills,
           }),
         );
       const securityReviewer = new SecurityReviewOrchestrationService(
         database,
-        new SecurityReviewService(database, { provider: ai.securityReviewer, resolveSkills: resolveSecuritySkills }),
+        new SecurityReviewService(database, {
+          provider: ai.securityReviewer,
+          resolveSkills: resolveSecuritySkills,
+        }),
       );
       const testQualityReviewer = new TestQualityReviewOrchestrationService(
         database,
-        new TestQualityReviewService(database, { provider: ai.testQualityReviewer }),
+        new TestQualityReviewService(database, {
+          provider: ai.testQualityReviewer,
+          resolveSkills: resolveTestQualitySkills,
+        }),
       );
       const implementationMemory: ImplementationMemoryPort = {
         writeSnapshot: (projectId, version, documents) =>
@@ -263,6 +462,7 @@ export function createProductionFactoryRuntime(
         : undefined;
       const implementation = new ImplementationAgentService(database, {
         provider: ai.implementation,
+        resolveSkills: resolveImplementationSkills,
         memory: implementationMemory,
         codebaseMemory: codebaseMemory
           ? {

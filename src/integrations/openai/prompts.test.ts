@@ -15,4 +15,16 @@ describe("approved procedural prompt guidance", () => {
   it("omits procedural guidance when the resolver selects none", () => {
     expect(renderApprovedProceduralGuidance([])).toBe("");
   });
+  it("keeps multi-skill guidance deterministic and identity-ready for every semantic role", () => {
+    const skills = [
+      { skillId: "internal-procedure", approvedChecksum: "1".repeat(64), coverageKeys: ["first"], skillMarkdown: "INTERNAL PROCEDURE", references: [] },
+      { skillId: "external-procedure", approvedChecksum: "2".repeat(64), coverageKeys: ["second"], skillMarkdown: "EXTERNAL PROCEDURE", references: [] },
+    ];
+    for (const role of ["lead", "planner", "design", "implementation", "architecture-reviewer", "contract-auditor", "code-integration-reviewer", "security-reviewer", "test-quality-reviewer"] as const) {
+      const prompt = rolePrompt(role, { bounded: true }, false, skills);
+      expect(prompt.system).toContain("INTERNAL PROCEDURE");
+      expect(prompt.system).toContain("EXTERNAL PROCEDURE");
+      expect(prompt.system).not.toContain("reviewing-test-quality");
+    }
+  });
 });

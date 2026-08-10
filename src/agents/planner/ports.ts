@@ -1,8 +1,9 @@
 import type { DecisionRecord } from "@/domain/workflow/decision";
 import type { PlannerAgentInput, PlanningPackage } from "./contracts";
 import type { Context7DocumentationPort, DocumentationExcerpt } from "../../integrations/context7/contracts";
+import type { ApprovedProceduralSkillContext } from "@/skills/runtime/resolver";
 
-export interface PlannerArchitectureProvider { plan(input: PlannerAgentInput & { documentationExcerpts?: DocumentationExcerpt[] }): Promise<PlanningPackage>; }
+export interface PlannerArchitectureProvider { plan(input: PlannerAgentInput & { documentationExcerpts?: DocumentationExcerpt[] }, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string): Promise<PlanningPackage>; }
 export type PlannerDocumentationPort = Context7DocumentationPort;
 export interface PlannerSkillSelectionPort { select(input: { role: "planner-architect"; taskType: "product-scope" | "ux-architecture" | "technical-architecture" | "content-planning" | "asset-planning" }): Promise<string[]>; }
 export class EmptyPlannerSkillSelectionPort implements PlannerSkillSelectionPort { async select() { return []; } }

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "phase": "4D5.1",
+  "auditDate": "2026-08-10",
+  "supersedes": "docs/admin/skill-curation/final-active-skill-layer-audit-2026-08-09.json",
+  "blockedBaseline": "e35cc9a",
+  "productionWiring": {
+    "lead": true,
+    "planner": true,
+    "design": true,
+    "implementation": true,
+    "architecture": true,
+    "contract": true,
+    "code": true,
+    "security": true,
+    "testQuality": true
+  },
+  "identityAndStaleness": {
+    "selectedChecksumsIncluded": true,
+    "unselectedChangesNonInvalidating": true,
+    "productionCoverage": "all semantic production paths"
+  },
+  "approvedArtifactCounts": { "external": 4, "internal": 13, "total": 17 },
+  "assignmentReferenceCount": 18,
+  "deferredRuntimeLeakCount": 0,
+  "runtimeSkillsShCalls": 0,
+  "runtimeVercelOidcTokenRequired": false,
+  "findings": { "info": 1, "warning": 0, "error": 0, "critical": 0, "blocking": 0 },
+  "phase4ClosureCriteria": { "passed": 15, "total": 15 },
+  "phase4ClosureStatus": "COMPLETE"
+}

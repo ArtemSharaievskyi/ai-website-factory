@@ -54,7 +54,13 @@ export type ResolvedSkillContext = {
   citation: SkillLoadResult["citation"];
 };
 export type ApprovedProceduralSkillContext = Pick<ResolvedSkillContext, "skillId" | "approvedChecksum" | "coverageKeys" | "skillMarkdown" | "references">;
-export type ReviewerSkillSelection = { contexts: readonly ApprovedProceduralSkillContext[]; identityChecksum: string };
+export type AgentSkillSelection = {
+  contexts: readonly ApprovedProceduralSkillContext[];
+  identityChecksum: string;
+  selectedSkillIds: readonly string[];
+  selectedSkillChecksums: readonly { skillId: string; checksum: string }[];
+};
+export type ReviewerSkillSelection = AgentSkillSelection;
 
 export type ResolvedSkillContextSet = {
   selected: ResolvedSkillContext[];
@@ -73,7 +79,21 @@ const contextChecksum = (skillChecksums: Array<{ skillId: string; checksum: stri
   createHash("sha256").update(JSON.stringify(skillChecksums), "utf8").digest("hex");
 
 export function toReviewerSkillSelection(result: ResolvedSkillContextSet): ReviewerSkillSelection {
-  return { contexts: result.selected, identityChecksum: result.contextIdentity.checksum };
+  return {
+    contexts: result.selected,
+    identityChecksum: result.contextIdentity.checksum,
+    selectedSkillIds: result.contextIdentity.skillChecksums.map((item) => item.skillId),
+    selectedSkillChecksums: result.contextIdentity.skillChecksums,
+  };
+}
+
+export const toAgentSkillSelection = toReviewerSkillSelection;
+
+export async function prepareAgentSkillContext(
+  registry: SkillRegistry,
+  request: SkillResolutionRequest,
+): Promise<AgentSkillSelection> {
+  return toAgentSkillSelection(await resolveApprovedSkillContext(registry, request));
 }
 
 export function selectSkillCandidates(

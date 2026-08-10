@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { OpenAiStructuredClient } from "./client";
+import { OpenAiStructuredClient, type StructuredRequest } from "./client";
 import { AiProviderError } from "./errors";
 import { FifoConcurrencyLimiter } from "./limiter";
 import { zodResponseFormat } from "openai/helpers/zod";
-import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, PlanningPackageStructuredOutputSchema, isWorkflowApprovalBlocker } from "./adapters";
+import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, OpenAiLeadProvider, PlanningPackageStructuredOutputSchema, isWorkflowApprovalBlocker } from "./adapters";
 import { readAiProviderConfig } from "./config";
 
 const config = { apiKey: "test", model: "test-model", modelLabel: "GPT-5.6 Luna", maxRetries: 1, maxConcurrentRequests: 1 };
@@ -36,6 +36,30 @@ describe("production AI provider boundary", () => {
     expect(result.operations[0]).not.toHaveProperty("expectedPriorChecksum");
     expect(result.operations[0]?.expectedResultChecksum).toBe(createHash("sha256").update("export default function Page() {}", "utf8").digest("hex"));
     expect(result.providerMetadata).toEqual({ provider: "openai" });
+  });
+  it("puts selected approved procedural guidance in the actual Lead provider request", async () => {
+    let sent: { system: string; user: string; idempotencyKey?: string } | undefined;
+    const client = new OpenAiStructuredClient(config, {
+      executor: async <T>(request: StructuredRequest<T>) => {
+        sent = request;
+        return { value: {} as T, requestId: "req_lead" };
+      },
+    });
+    const selected = {
+      skillId: "lead-requirements-completeness",
+      approvedChecksum: "a".repeat(64),
+      coverageKeys: ["requirements-completeness"],
+      skillMarkdown: "SELECTED LEAD PROCEDURE",
+      references: [],
+    };
+    await new OpenAiLeadProvider(client).analyzePrompt(
+      {} as never,
+      [selected],
+      "b".repeat(64),
+    );
+    expect(sent?.system).toContain("SELECTED LEAD PROCEDURE");
+    expect(sent?.system).not.toContain("ambiguity-detector");
+    expect(sent?.idempotencyKey).toContain("b".repeat(64));
   });
   it("passes the configured model unchanged through the official structured API", async () => {
     let sent: Record<string, unknown> | undefined;

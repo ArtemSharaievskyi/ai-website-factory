@@ -1,8 +1,9 @@
 import type { DecisionRecord } from "@/domain/workflow/decision";
 import type { ClarificationSession } from "@/domain/requirements/schema";
 import type { BriefDraft, ClarificationPlan, LeadAgentAnalysis, LeadAgentInput } from "./contracts";
+import type { ApprovedProceduralSkillContext } from "@/skills/runtime/resolver";
 
-export interface LeadAnalysisProvider { analyzePrompt(input: LeadAgentInput): Promise<LeadAgentAnalysis>; proposeClarifications(input: { analysis: LeadAgentAnalysis; session?: ClarificationSession }): Promise<ClarificationPlan>; assembleBriefDraft(input: { analysis: LeadAgentAnalysis; session: ClarificationSession }): Promise<BriefDraft>; }
+export interface LeadAnalysisProvider { analyzePrompt(input: LeadAgentInput, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string): Promise<LeadAgentAnalysis>; proposeClarifications(input: { analysis: LeadAgentAnalysis; session?: ClarificationSession }, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string): Promise<ClarificationPlan>; assembleBriefDraft(input: { analysis: LeadAgentAnalysis; session: ClarificationSession }, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string): Promise<BriefDraft>; }
 export interface SkillSelectionPort { select(input: { role: "lead"; taskType: "clarify-requirements" | "create-requirements-spec" }): Promise<string[]>; }
 export interface LeadMemoryPort { writeSnapshot(projectId: string, projectVersion: number, documents: Record<string, unknown>): Promise<void>; appendDecision(projectId: string, projectVersion: number, decision: DecisionRecord): Promise<void>; verify(projectId: string, projectVersion: number): Promise<boolean>; checksums(projectId: string, projectVersion: number): Promise<Record<string, string>>; }
 export class EmptySkillSelectionPort implements SkillSelectionPort { async select() { return []; } }

@@ -30,6 +30,17 @@ The preview was activated as the exact human-approved set: one external candidat
 
 Audit approved content, assignments, resolver behavior, reviewer prompt identity, stale-checksum handling, and role/task/tool boundaries after Phase 4D4.
 
+## Phase 4D5.1 - production prompt wiring: complete
+
+The blocked Phase 4D5 finding was corrected. All nine semantic production agent
+paths now resolve approved procedural contexts through the shared preparation
+boundary, render the selected procedures in the actual provider prompt, and bind
+selected skill identity to the applicable semantic invocation. The successor
+re-audit records 15/15 closure criteria passed with zero blocking findings.
+
+PHASE 4: COMPLETE
+NEXT: PHASE 5 — AI WEBSITE FACTORY SELF-REVIEW
+
 ## Phase 5 - Factory self-review
 
 Review the Factory against its own contracts, evidence, and operational boundaries.

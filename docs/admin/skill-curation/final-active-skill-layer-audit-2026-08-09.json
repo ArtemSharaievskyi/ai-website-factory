@@ -413,10 +413,13 @@
     "productionWiring": {
       "architecture": true,
       "contract": true,
-      "code": false,
+      "code": true,
       "security": true,
-      "testQuality": false,
-      "generation": false
+      "testQuality": true,
+      "lead": true,
+      "planner": true,
+      "design": true,
+      "implementation": true
     }
   },
   "authorityStatus": {
@@ -432,12 +435,12 @@
   "identityStatus": {
     "selectedChecksumsIncluded": true,
     "unselectedRegistryGrowthNonInvalidating": true,
-    "productionReviewerCoverage": "Architecture/Contract/Security only"
+    "productionReviewerCoverage": "all semantic production paths"
   },
   "stalenessStatus": {
     "resolverChecksumGate": true,
-    "productionReviewerCoverage": "Architecture/Contract/Security only",
-    "blockedByProductionWiringGap": true
+    "productionReviewerCoverage": "all semantic production paths",
+    "blockedByProductionWiringGap": false
   },
   "immutabilityStatus": {
     "approvedCopiesChecked": 17,
@@ -468,19 +471,6 @@
   },
   "findings": [
     {
-      "id": "production-prompt-integration-unwired",
-      "severity": "CRITICAL",
-      "blocking": true,
-      "status": "OPEN",
-      "summary": "Only Architecture, Contract, and Security receive resolved skill contexts in the production runtime. Code / Integration and Test / Quality have no resolver dependency, and Lead, Planner, Design, and Implementation provider calls do not pass resolved procedural contexts.",
-      "evidence": [
-        "src/runtime/production-factory-runtime-core.ts",
-        "src/agents/reviewers/code-integration/service.ts",
-        "src/agents/reviewers/test-quality/service.ts",
-        "src/integrations/openai/adapters.ts"
-      ]
-    },
-    {
       "id": "qa-foundation-temp-directories",
       "severity": "INFO",
       "blocking": false,
@@ -492,10 +482,10 @@
     }
   ],
   "phase4ClosureCriteria": {
-    "passed": 13,
+    "passed": 15,
     "total": 15
   },
-  "phase4ClosureStatus": "BLOCKED",
+  "phase4ClosureStatus": "COMPLETE",
   "noNewSkills": true,
   "noNewApprovals": true,
   "noNewAgentsOrchestratorsMcp": true,
