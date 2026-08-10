@@ -22,7 +22,6 @@ import type { PersistenceDatabase } from "@/persistence/database/types";
 import {
   DesignAgentInputSchema,
   DesignGenerationResultSchema,
-  DesignReadinessSchema,
   DesignRevisionRequestSchema,
   DesignSelectionRequestSchema,
   type DesignAgentInput,
@@ -68,11 +67,6 @@ export class DesignAgentService {
   private readonly skills: DesignSkillSelectionPort;
   private readonly explorationTool: DesignExplorationToolPort;
   private readonly resolveSkills?: DesignServiceDependencies["resolveSkills"];
-  private readonly skillSelections = new Map<string, AgentSkillSelection>();
-  private readonly sets = new Map<string, DesignDirectionSet>();
-  private readonly contexts = new Map<string, DesignAgentInput>();
-  private readonly generationKeys = new Map<string, string>();
-  private readonly selectionKeys = new Map<string, string>();
   constructor(private readonly dependencies: DesignServiceDependencies) {
     this.projects = new ProjectRepository(dependencies.database);
     this.documents = new DocumentRepository(dependencies.database);
@@ -90,8 +84,14 @@ export class DesignAgentService {
   getAgentDefinition() {
     return designAgentDefinition;
   }
-  private key(projectId: string, version: number) {
-    return `${projectId}:${version}`;
+  private async loadDurableContext(projectId: string, projectVersion: number, idempotencyKey = "design-recovered") {
+    const current = await this.projects.getWithVersion(projectId);
+    const brief = await this.documents.get(projectId, projectVersion, "requirements");
+    const planning = await this.documents.get(projectId, projectVersion, "planning-package");
+    if (!current || !brief || brief.documentType !== "requirements") throw new DesignError("DESIGN_BRIEF_STALE", "Durable approved requirements are unavailable.");
+    if (!planning || planning.documentType !== "planning-package") throw new DesignError("DESIGN_PLANNING_STALE", "Durable accepted planning is unavailable.");
+    const decisions = await this.decisions.list(projectId, projectVersion);
+    return DesignAgentInputSchema.parse({ projectId, projectVersion, approvedBrief: brief, approvedBriefChecksum: checksumPersistedDocument(brief), acceptedPlanningPackage: planning, acceptedPlanningChecksum: checksumPersistedDocument(planning), contentPlan: planning.content, assetManifest: planning.assets, suppliedBrandMetadata: {}, suppliedLogoMetadata: brief.suppliedLogoLocation, imageSourceDecision: brief.imageSourceDecision, designPreferences: [], explicitDesignExclusions: [], currentWorkflowState: current.project.workflowState, existingDecisions: decisions, allowedSkills: [], idempotencyKey, expectedRowVersion: current.rowVersion });
   }
   private parseInput(raw: DesignAgentInput) {
     try {
@@ -207,9 +207,7 @@ export class DesignAgentService {
       );
     return { brief, planning };
   }
-  async generateDesignDirections(
-    rawInput: DesignAgentInput,
-  ): Promise<DesignGenerationResult> {
+  async generateDesignDirections(rawInput: DesignAgentInput, options: { replaceExisting?: boolean } = {}): Promise<DesignGenerationResult> {
     const input = this.parseInput(rawInput);
     await this.validateInput(input);
     const project = await this.projects.getWithVersion(input.projectId);
@@ -228,38 +226,14 @@ export class DesignAgentService {
         "DESIGN_SELECTION_STALE",
         "The project row version is stale.",
       );
+    const persisted = await this.documents.get(input.projectId, input.projectVersion, "design-directions");
+    if (!options.replaceExisting && persisted?.documentType === "design-directions" && persisted.approvedBriefChecksum === input.approvedBriefChecksum && persisted.acceptedPlanningChecksum === input.acceptedPlanningChecksum && persisted.generationIdempotencyKey && persisted.generationIdempotencyKey !== input.idempotencyKey) throw new DesignError("IDEMPOTENCY_CONFLICT", "Design generation idempotency key was reused with different input.");
+    if (!options.replaceExisting && persisted?.documentType === "design-directions" && persisted.approvedBriefChecksum === input.approvedBriefChecksum && persisted.acceptedPlanningChecksum === input.acceptedPlanningChecksum) {
+      return DesignGenerationResultSchema.parse({ directionSet: persisted, readiness: { readyForSelection: persisted.readyForSelection, blockingReasons: persisted.blockingReasons ?? [], warnings: persisted.warnings ?? [], directionSetChecksum: directionSetChecksum(persisted) } });
+    }
     const skillSelection = this.resolveSkills
       ? await this.resolveSkills(input)
       : undefined;
-    const requestHash = checksumPersistedDocument({
-      projectId: input.projectId,
-      projectVersion: input.projectVersion,
-      approvedBriefChecksum: input.approvedBriefChecksum,
-      acceptedPlanningChecksum: input.acceptedPlanningChecksum,
-      idempotencyKey: input.idempotencyKey,
-      skillContextChecksum: skillSelection?.identityChecksum ?? "none",
-    });
-    const prior = this.generationKeys.get(input.idempotencyKey);
-    if (prior && prior !== requestHash)
-      throw new DesignError(
-        "IDEMPOTENCY_CONFLICT",
-        "Design generation idempotency key was reused with different input.",
-      );
-    if (prior) {
-      const existing = this.sets.get(
-        this.key(input.projectId, input.projectVersion),
-      );
-      if (existing)
-        return {
-          directionSet: existing,
-          readiness: DesignReadinessSchema.parse({
-            readyForSelection: existing.readyForSelection,
-            blockingReasons: existing.blockingReasons ?? [],
-            warnings: existing.warnings ?? [],
-            directionSetChecksum: directionSetChecksum(existing),
-          }),
-        };
-    }
     await this.skills.select({ role: "design", taskType: "visual-direction" });
     await this.explorationTool.explore(input).catch(() => null);
     let set: DesignDirectionSet;
@@ -330,19 +304,12 @@ export class DesignAgentService {
       warnings: readiness.warnings,
       approvedBriefChecksum: input.approvedBriefChecksum,
       acceptedPlanningChecksum: input.acceptedPlanningChecksum,
+      generationIdempotencyKey: input.idempotencyKey,
     });
     await this.documents.save(
       set,
       `design-directions-${input.projectId}-${input.projectVersion}-${input.idempotencyKey}`,
     );
-    this.sets.set(this.key(input.projectId, input.projectVersion), set);
-    this.contexts.set(this.key(input.projectId, input.projectVersion), input);
-    if (skillSelection)
-      this.skillSelections.set(
-        this.key(input.projectId, input.projectVersion),
-        skillSelection,
-      );
-    this.generationKeys.set(input.idempotencyKey, requestHash);
     await this.dependencies.memory.writeSnapshot(
       input.projectId,
       input.projectVersion,
@@ -357,13 +324,7 @@ export class DesignAgentService {
     });
   }
   async getDesignDirectionSet(projectId: string, projectVersion: number) {
-    const set =
-      this.sets.get(this.key(projectId, projectVersion)) ??
-      (await this.documents.get(
-        projectId,
-        projectVersion,
-        "design-directions",
-      ));
+    const set = await this.documents.get(projectId, projectVersion, "design-directions");
     if (!set || set.documentType !== "design-directions")
       throw new DesignError(
         "DESIGN_SET_NOT_READY",
@@ -373,12 +334,7 @@ export class DesignAgentService {
   }
   async validateDesignDirectionSet(projectId: string, projectVersion: number) {
     const set = await this.getDesignDirectionSet(projectId, projectVersion);
-    const context = this.contexts.get(this.key(projectId, projectVersion));
-    if (!context)
-      throw new DesignError(
-        "DESIGN_INPUT_INVALID",
-        "Design context is not available for validation.",
-      );
+    const context = await this.loadDurableContext(projectId, projectVersion);
     const readiness = validateDesignDirectionSet(context, set);
     return { set, readiness };
   }
@@ -407,6 +363,12 @@ export class DesignAgentService {
         error,
       );
     }
+    const current = await this.projects.getWithVersion(request.projectId);
+    if (!current || current.project.currentVersion !== request.projectVersion)
+      throw new DesignError(
+        "DESIGN_SELECTION_STALE",
+        "The project version is stale.",
+      );
     const reviewDocument = await this.documents.get(
       request.projectId,
       request.projectVersion,
@@ -430,28 +392,7 @@ export class DesignAgentService {
         "DESIGN_ARCHITECTURE_REVIEW_STALE",
         "A current approved Architecture Review is required for Design selection.",
       );
-    const requestHash = checksumPersistedDocument(request);
-    const prior = this.selectionKeys.get(request.idempotencyKey);
-    if (prior && prior !== requestHash)
-      throw new DesignError(
-        "DESIGN_SELECTION_CONFLICT",
-        "Design selection idempotency key was reused with different input.",
-      );
-    if (prior) {
-      const existing = await this.documents.get(
-        request.projectId,
-        request.projectVersion,
-        "selected-design",
-      );
-      if (existing?.documentType === "selected-design")
-        return {
-          selectedDesign: existing,
-          projectState: "READY_FOR_IMPLEMENTATION" as const,
-          rowVersion:
-            (await this.projects.getWithVersion(request.projectId))
-              ?.rowVersion ?? request.expectedRowVersion,
-        };
-    }
+    const existing = await this.documents.get(request.projectId, request.projectVersion, "selected-design");
     const set = await this.getDesignDirectionSet(
       request.projectId,
       request.projectVersion,
@@ -479,7 +420,10 @@ export class DesignAgentService {
         "DESIGN_SELECTION_STALE",
         "The selected direction checksum is stale.",
       );
-    const current = await this.projects.getWithVersion(request.projectId);
+    if (existing?.documentType === "selected-design") {
+      if (existing.selectionIdempotencyKey && existing.selectionIdempotencyKey !== request.idempotencyKey) throw new DesignError("DESIGN_SELECTION_CONFLICT", "Design selection idempotency key was reused with different input.");
+      if (existing.directionSetId === request.designDirectionSetId && existing.selectedDirectionId === request.selectedDirectionId && existing.selectedDirectionChecksum === request.selectedDirectionChecksum) return { selectedDesign: existing, projectState: "READY_FOR_IMPLEMENTATION" as const, rowVersion: (await this.projects.getWithVersion(request.projectId))?.rowVersion ?? request.expectedRowVersion };
+    }
     if (
       !current ||
       current.project.workflowState !== "AWAITING_DESIGN_SELECTION"
@@ -549,6 +493,7 @@ export class DesignAgentService {
       selectedBy: request.selectedBy,
       selectionNotes: request.selectionNotes ?? "",
       selectedDirectionChecksum: request.selectedDirectionChecksum,
+      selectionIdempotencyKey: request.idempotencyKey,
     });
     if (selected.directionSetId !== set.setId)
       throw new DesignError(
@@ -605,7 +550,6 @@ export class DesignAgentService {
       request.projectVersion,
       record,
     );
-    this.selectionKeys.set(request.idempotencyKey, requestHash);
     return {
       selectedDesign: selected,
       projectState: "READY_FOR_IMPLEMENTATION" as const,
@@ -632,14 +576,7 @@ export class DesignAgentService {
       request.projectId,
       request.projectVersion,
     );
-    const context = this.contexts.get(
-      this.key(request.projectId, request.projectVersion),
-    );
-    if (!context)
-      throw new DesignError(
-        "DESIGN_INPUT_INVALID",
-        "Original design context is unavailable for regeneration.",
-      );
+    const context = await this.loadDurableContext(request.projectId, request.projectVersion, request.idempotencyKey);
     let expectedRowVersion = current.rowVersion;
     if (current.project.workflowState === "READY_FOR_IMPLEMENTATION") {
       const transitioned = await this.workflow.transition({
@@ -670,7 +607,7 @@ export class DesignAgentService {
       expectedRowVersion,
       idempotencyKey: request.idempotencyKey,
     };
-    const result = await this.generateDesignDirections(nextInput);
+    const result = await this.generateDesignDirections(nextInput, { replaceExisting: true });
     const superseded = DesignDirectionSetSchema.parse({
       ...result.directionSet,
       supersedesSetId: prior.setId,
@@ -678,10 +615,6 @@ export class DesignAgentService {
     await this.documents.save(
       superseded,
       `design-directions-superseded-${request.idempotencyKey}`,
-    );
-    this.sets.set(
-      this.key(request.projectId, request.projectVersion),
-      superseded,
     );
     const record = DecisionRecordSchema.parse({
       id: randomUUID(),

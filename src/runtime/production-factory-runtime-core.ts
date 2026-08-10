@@ -407,7 +407,7 @@ export function createProductionFactoryRuntime(
       const design = createDesignAgentService({
         database,
         provider: ai.design,
-        memory: new DesignMemoryAdapter(sync, decisions, workspaceRoot),
+        memory: new DesignMemoryAdapter(sync, workspaceRoot),
         resolveSkills: resolveDesignSkills,
       });
       const architectureReviewer = new ArchitectureReviewOrchestrationService(

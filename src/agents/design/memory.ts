@@ -7,7 +7,7 @@ import { versionDirectoryName } from "../../runtime/workspace/schemas";
 import type { DesignMemoryPort } from "./ports";
 
 export class DesignMemoryAdapter implements DesignMemoryPort {
-  constructor(private readonly sync: ProjectMemorySyncPort, _decisions: { append(projectId: string, version: number, decision: DecisionRecord): Promise<unknown> }, private readonly projectRoot?: string) {}
+  constructor(private readonly sync: ProjectMemorySyncPort, private readonly projectRoot?: string) {}
   async writeSnapshot(projectId: string, version: number, documents: Record<string, unknown>) { await this.sync.writeVersionSnapshot(projectId, version, documents); }
   async removeDocument(projectId: string, version: number, documentName: string) { const candidate = this.sync as ProjectMemorySyncPort & { removeVersionDocument?: (projectId: string, version: number, documentName: string) => Promise<void> }; if (candidate.removeVersionDocument) await candidate.removeVersionDocument(projectId, version, documentName); }
   async appendDecision(_projectId: string, _version: number, decision: DecisionRecord) { if (this.projectRoot) await new ProjectMemoryStore(path.join(this.projectRoot, versionDirectoryName(_version), ".factory")).appendDecision(decision); }
