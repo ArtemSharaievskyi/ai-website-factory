@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6c-correction-verification",
+  "groupId": "cg-02-authentication-authorization-rls",
+  "findingIds": [
+    "finding-0590fb313e72090696f0",
+    "finding-233d7f1502c96cf535e1",
+    "finding-7586dd5bd4661d954bf4",
+    "finding-865697184809f419d1b7",
+    "finding-c200a7f61e715bc94be1",
+    "finding-e055bfdcbad92c9b36eb"
+  ],
+  "baselineCommit": "9956fc5",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "correctionSnapshot": "working-tree-before-correction-commit",
+  "reviewerResults": [
+    {
+      "reviewerId": "security-reviewer",
+      "state": "RESOLVED",
+      "evidence": [
+        "current:implementation-provider",
+        "current:implementation-backend",
+        "current:security-validator",
+        "test:backend-security",
+        "cg02-contract",
+        "authentication-vs-authorization",
+        "rls-ownership-contract",
+        "deterministic-regression-tests"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-02 correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    },
+    {
+      "reviewerId": "contract-auditor",
+      "state": "RESOLVED",
+      "evidence": [
+        "current:implementation-provider",
+        "current:implementation-backend",
+        "current:security-validator",
+        "test:backend-security",
+        "deterministic-regression-tests"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-02 correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    }
+  ],
+  "selectedSkills": {
+    "security-reviewer": {
+      "selectedSkillIds": [
+        "auth-storage-security-review",
+        "supabase-rls-1e36b217c969"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "auth-storage-security-review",
+          "checksum": "069ffa33fec764ce1e19ff853d21b00d091e5f0eb874e0278de7a774e344dd25"
+        },
+        {
+          "skillId": "supabase-rls-1e36b217c969",
+          "checksum": "87bc57e597d3eb2e6ec8d4c099684cf4685da84ef45076b14083a7fcc7100877"
+        }
+      ],
+      "identityChecksum": "4af57aedca0e63ac41e15b08f2fd0aa9118818d14c6d1e4bb208a6c545e52fd2"
+    },
+    "contract-auditor": {
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "acceptance-criteria-80493e317476",
+          "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "identityChecksum": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada"
+    }
+  },
+  "provider": {
+    "model": "gpt-5.6-luna",
+    "modelLabel": "GPT-5.6 Luna",
+    "realGptCalls": 2,
+    "requestEvents": [
+      {
+        "type": "request.started",
+        "role": "security-reviewer"
+      },
+      {
+        "type": "request.completed",
+        "role": "security-reviewer",
+        "requestId": "chatcmpl-EBOSqptiC9wnLVrjIQ1kXK9S2EaSc"
+      },
+      {
+        "type": "request.started",
+        "role": "contract-auditor"
+      },
+      {
+        "type": "request.completed",
+        "role": "contract-auditor",
+        "requestId": "chatcmpl-EBOStTQWlT0sPEZA56tr1L2hDlGXa"
+      }
+    ]
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "evidenceRefs": [
+      "authentication-vs-authorization",
+      "cg02-contract",
+      "current:implementation-backend",
+      "current:implementation-provider",
+      "current:security-validator",
+      "deterministic-regression-tests",
+      "original-findings",
+      "rls-ownership-contract",
+      "src/agents/implementation/backend.test.ts:1-25",
+      "src/agents/implementation/backend.ts:1-85",
+      "src/agents/implementation/provider.ts:1-40",
+      "src/runtime/validation/security.ts:1-35",
+      "test:backend-security"
+    ],
+    "slices": [
+      {
+        "id": "current:implementation-provider",
+        "relativePath": "src/agents/implementation/provider.ts",
+        "startLine": 1,
+        "endLine": 40,
+        "checksum": "9fbc412b3702c6851580542ff84d95a5434cfd1ee1ad95fcd6633838fceac13d",
+        "currentHead": "9956fc5"
+      },
+      {
+        "id": "current:implementation-backend",
+        "relativePath": "src/agents/implementation/backend.ts",
+        "startLine": 1,
+        "endLine": 85,
+        "checksum": "25a07c89b44abccf53dc5b0de842ab2ab7a49af9e222ac6f71e7627f5b24af08",
+        "currentHead": "9956fc5"
+      },
+      {
+        "id": "current:security-validator",
+        "relativePath": "src/runtime/validation/security.ts",
+        "startLine": 1,
+        "endLine": 35,
+        "checksum": "1505330f975e9f11ec93416790f4869efee801b153ff30e3831b82aceceab9af",
+        "currentHead": "9956fc5"
+      },
+      {
+        "id": "test:backend-security",
+        "relativePath": "src/agents/implementation/backend.test.ts",
+        "startLine": 1,
+        "endLine": 25,
+        "checksum": "448fa44d090689f1b6d05ea6053183ea2223d1af8d67b0f8e1b9e1b802f8bdbc",
+        "currentHead": "9956fc5"
+      }
+    ]
+  },
+  "phaseStatus": "RESOLVED"
+}
