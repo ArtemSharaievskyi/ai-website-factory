@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6p-correction-result",
+  "groupId": "cg-17-design-gate-evidence",
+  "title": "Cover Design gate and contract failure paths",
+  "baselineCommit": "f3622d5",
+  "correctionCommit": "ba5bbc0",
+  "correctionCommitMessage": "test: cover Design gate contract failures",
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "findingIds": ["finding-bf13a0c6f16bf4702e9e"],
+  "rootCause": "Add direct meaningful quality evidence for the implemented Design gate and contract failure paths.",
+  "rootCauseConfidence": "HIGH",
+  "dependencies": ["cg-05-design-durable-state-authority"],
+  "dependencyStatus": "COMPLETE",
+  "affectedGate": {
+    "owner": [
+      "DesignAgentService.validateInput for Design generation and selection",
+      "OrchestratorService.input/startImplementation for the downstream implementation-start boundary"
+    ],
+    "stage": "Approved Brief and accepted Planning validation before Design provider/persistence side effects, followed by explicit selection and current Contract Audit/task-graph validation before implementation start",
+    "trustBoundary": "Factory Design Agent input gate and downstream implementation-start boundary"
+  },
+  "designEvidenceBefore": {
+    "implementedBehavior": "The Design gate already rejected stale Brief and Planning checksums, invalid workflow state, missing Architecture Review, and unapproved requirement changes before provider or persistence side effects.",
+    "directEvidenceGap": "The focused Design tests covered successful generation, exact-three readiness, selection, currentness, restart, and several business outcomes, but did not directly exercise those five input-contract failure modes through DesignAgentService.generateDesignDirections.",
+    "baselineTargetedTest": "PASS; 16 tests in src/agents/design/design.test.ts, with the assigned contract-boundary evidence gap reproduced."
+  },
+  "designEvidenceAfter": {
+    "directFailureEvidence": [
+      "Stale approved Brief checksum returns DESIGN_BRIEF_STALE before provider or persistence side effects.",
+      "Stale accepted Planning checksum returns DESIGN_PLANNING_STALE before provider or persistence side effects.",
+      "READY_FOR_IMPLEMENTATION supplied to generation returns DESIGN_WORKFLOW_STATE_INVALID.",
+      "Missing current Architecture Review returns DESIGN_ARCHITECTURE_REVIEW_REQUIRED.",
+      "A pending unapproved requirement change returns UNAPPROVED_REQUIREMENT_CHANGE."
+    ],
+    "sideEffectAssertions": "Each scenario asserts zero provider calls, no persisted design-directions document, and no Project Memory design-directions projection.",
+    "targetedTestAfter": "PASS; 17 tests in src/agents/design/design.test.ts."
+  },
+  "designSetIdentity": {
+    "setIdentityFields": ["projectId", "projectVersion", "setId", "approvedBriefChecksum", "acceptedPlanningChecksum", "directionSetChecksum"],
+    "directionIdentityFields": ["direction.id", "label", "directionChecksum", "approvedRequirementReferences", "planningReferences"],
+    "count": 3,
+    "directionVariants": ["Precision", "Editorial", "Dynamic"],
+    "identityEvidence": "Existing deterministic Design tests assert exactly three meaningfully different directions, deterministic set/direction checksums, current set membership, and explicit selection; cg17 adds the missing input-contract failure assertions."
+  },
+  "selection": {
+    "required": true,
+    "selectionIdentity": ["projectId", "projectVersion", "designDirectionSetId", "selectedDirectionId", "directionSetChecksum", "selectedDirectionChecksum", "expectedRowVersion", "idempotencyKey"],
+    "selectedDirection": "Must be a member of the current persisted set and carry the current direction checksum; selection is explicit user input.",
+    "noSelectionBehavior": "The workflow remains AWAITING_DESIGN_SELECTION and cannot cross to READY_FOR_IMPLEMENTATION."
+  },
+  "currentnessRules": {
+    "briefOrPlanningChange": "Brief and Planning checksums are compared to the current persisted documents or their approved/accepted checksum; stale input is rejected before provider/persistence side effects.",
+    "architectureReview": "A current APPROVED Architecture Review must bind the current Brief and Planning checksums.",
+    "designSetRegeneration": "Regeneration supersedes the prior set, reopens READY_FOR_IMPLEMENTATION to AWAITING_DESIGN_SELECTION, deletes the selected design, and requires a new explicit selection.",
+    "selectedDirection": "Direction-set membership, set checksum, selected direction checksum, project/version, and row version are validated before selection authority changes.",
+    "projectVersion": "Wrong or stale project/version identity is rejected; the implementation-start boundary also binds Brief, Planning, selected Design, Contract Audit, and TaskGraph checksums.",
+    "unrelatedCacheOrAdmin": "No unrelated cache, QA history, admin document, schema, or migration currentness behavior was changed."
+  },
+  "persistenceAuthority": {
+    "canonicalAuthority": "Database-backed DesignRepository and DocumentRepository records are authoritative for direction sets and selected design.",
+    "projectMemoryRole": "Project Memory receives a projection/snapshot for restart and context continuity; it is not the Design authority.",
+    "workflowBehavior": "Explicit selection persists selected-design, records the decision, and transitions AWAITING_DESIGN_SELECTION to READY_FOR_IMPLEMENTATION."
+  },
+  "workflowAndImplementationStart": {
+    "designGeneration": "DesignAgentService validates input before provider calls and before design-direction persistence.",
+    "designSelection": "Only a current persisted set and a user-selected current member can transition the project to READY_FOR_IMPLEMENTATION.",
+    "startImplementation": "OrchestratorService requires READY_FOR_IMPLEMENTATION, a current approved Contract Audit bound to Brief/Planning/Design/TaskGraph checksums, and a ready graph before transitioning to IMPLEMENTING.",
+    "callerAuthoredReadiness": false,
+    "automaticSelection": false
+  },
+  "failureBehaviorMatrix": {
+    "missingOrStaleBrief": "DESIGN_BRIEF_STALE; no provider or durable/projection side effect.",
+    "missingOrStalePlanning": "DESIGN_PLANNING_STALE; no provider or durable/projection side effect.",
+    "missingArchitectureApproval": "DESIGN_ARCHITECTURE_REVIEW_REQUIRED, or DESIGN_ARCHITECTURE_REVIEW_STALE when its bindings are stale.",
+    "invalidWorkflowState": "DESIGN_WORKFLOW_STATE_INVALID; generation is only available in AWAITING_DESIGN_SELECTION.",
+    "unapprovedRequirementChange": "UNAPPROVED_REQUIREMENT_CHANGE; Design and selection remain blocked.",
+    "twoOrFourDirections": "The existing DesignDirectionSetSchema and readiness validator reject counts other than exactly three.",
+    "wrongDirectionOrSet": "The existing selection boundary rejects a non-current set or non-member direction with DESIGN_DIRECTION_NOT_FOUND.",
+    "wrongProjectOrVersion": "The existing Design and Orchestrator boundaries reject mismatched project/version identity and stale currentness.",
+    "noSelection": "No selection is persisted and the workflow does not become READY_FOR_IMPLEMENTATION."
+  },
+  "filesChanged": [
+    "src/agents/design/design.test.ts",
+    "scripts/phase-6c-cg02-verification.ts"
+  ],
+  "productionFilesChanged": [],
+  "testFilesChanged": ["src/agents/design/design.test.ts"],
+  "filesOutsideLikelyFiles": {
+    "scripts/phase-6c-cg02-verification.ts": "Required shared verifier extension for current Design slices and the exact test-quality-reviewer and contract-auditor evidence pack."
+  },
+  "correctionSummary": "Added one focused deterministic contract-boundary regression covering stale Brief and Planning checksums, invalid workflow state, missing Architecture Review, and unapproved requirement changes. Each case proves rejection before provider and persistence/projection side effects. Extended the shared verifier with current Design gate, selection, and implementation-start evidence.",
+  "schemaChange": false,
+  "migrationAdded": false,
+  "projectMemoryArchitectureChanged": false,
+  "orchestratorArchitectureChanged": false,
+  "providerArchitectureChanged": false,
+  "skillPortfolioChanged": false,
+  "newAgentOrchestratorMcp": false,
+  "testsAdded": [
+    "direct stale Brief checksum failure before side effects",
+    "direct stale Planning checksum failure before side effects",
+    "direct invalid workflow-state failure",
+    "direct missing Architecture Review failure",
+    "direct unapproved requirement-change failure"
+  ],
+  "initialFailureReproduction": "At baseline f3622d5, the Design suite passed 16 tests while no direct service-level evidence covered the assigned input-contract failure modes.",
+  "targetedChecks": {
+    "focusedVitest": "PASS; 17 tests in src/agents/design/design.test.ts",
+    "typecheck": "PASS",
+    "lint": "PASS; 3 known pre-existing warnings"
+  },
+  "requiredReviewerRechecks": ["test-quality-reviewer", "contract-auditor"],
+  "actualReviewerRechecks": [
+    { "reviewerId": "test-quality-reviewer", "state": "RESOLVED", "providerVerdict": "APPROVED", "structuredOutputValid": true, "evidenceValid": true, "realGptCalls": 1 },
+    { "reviewerId": "contract-auditor", "state": "RESOLVED", "providerVerdict": "APPROVED", "structuredOutputValid": true, "evidenceValid": true, "realGptCalls": 1 }
+  ],
+  "freshProviderCalls": 2,
+  "reusedReviewerExecutions": 0,
+  "selectedSkills": {
+    "test-quality-reviewer": {
+      "selectedSkillIds": ["behavioral-test-quality-review", "requirements-evidence-traceability"],
+      "selectedSkillChecksums": [
+        { "skillId": "behavioral-test-quality-review", "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09" },
+        { "skillId": "requirements-evidence-traceability", "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26" }
+      ],
+      "identityChecksum": "ba9aa336998b0950a673e80e6b14791dd857750f890fb7048b008b89563a8e10"
+    },
+    "contract-auditor": {
+      "selectedSkillIds": ["acceptance-criteria-80493e317476", "requirements-evidence-traceability"],
+      "selectedSkillChecksums": [
+        { "skillId": "acceptance-criteria-80493e317476", "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec" },
+        { "skillId": "requirements-evidence-traceability", "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26" }
+      ],
+      "identityChecksum": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada"
+    }
+  },
+  "reviewExecutionEvidence": "The shared verifier made two fresh structured-output calls against current Design contracts, Design input gate, implementation-start gate, and direct contract-failure tests; both returned APPROVED with valid evidence.",
+  "evidenceValidation": { "valid": true, "verificationArtifact": "docs/admin/phase-6/cg-17-design-gate-evidence-verification-2026-08-11.json" },
+  "perFindingResolution": {
+    "finding-bf13a0c6f16bf4702e9e": {
+      "reviewer": "test-quality-reviewer",
+      "secondaryReviewer": "contract-auditor",
+      "severity": "WARNING",
+      "category": "REQUIREMENT_NOT_VERIFIED",
+      "finalState": "RESOLVED",
+      "resolution": "Recorded direct deterministic evidence for the implemented Design input-contract failure paths without changing their behavior.",
+      "resolvedByGroupId": "cg-17-design-gate-evidence"
+    }
+  },
+  "potentiallyImpactedGroups": [],
+  "remainingFindingCountsBefore": { "total": 5, "CRITICAL": 0, "ERROR": 0, "WARNING": 5, "INFO": 0, "arithmeticValid": true },
+  "remainingFindingCounts": { "total": 4, "CRITICAL": 0, "ERROR": 0, "WARNING": 4, "INFO": 0, "arithmeticValid": true },
+  "resolvedCount": 1,
+  "partialCount": 0,
+  "stillActiveCount": 0,
+  "regressionFoundCount": 0,
+  "newlyUnblockedGroups": [],
+  "unblockedGroups": ["cg-18-skill-portfolio-source-of-truth"],
+  "nextRecommendedGroup": "cg-18-skill-portfolio-source-of-truth",
+  "phaseStatus": "COMPLETE"
+}

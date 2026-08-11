@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6p-correction-verification",
+  "groupId": "cg-17-design-gate-evidence",
+  "findingIds": [
+    "finding-bf13a0c6f16bf4702e9e"
+  ],
+  "baselineCommit": "ba5bbc0",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "correctionSnapshot": "working-tree-before-correction-commit",
+  "reviewerResults": [
+    {
+      "reviewerId": "test-quality-reviewer",
+      "state": "RESOLVED",
+      "evidence": [
+        "current:design-contracts",
+        "current:design-input-gate",
+        "current:implementation-start-gate",
+        "test:design-contract-failures"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-17-design-gate-evidence correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    },
+    {
+      "reviewerId": "contract-auditor",
+      "state": "RESOLVED",
+      "evidence": [
+        "current:design-contracts",
+        "current:design-input-gate",
+        "current:implementation-start-gate",
+        "test:design-contract-failures",
+        "direct-contract-failure-evidence",
+        "design-currentness-contract",
+        "design-selection-boundary"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-17-design-gate-evidence correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    }
+  ],
+  "selectedSkills": {
+    "test-quality-reviewer": {
+      "selectedSkillIds": [
+        "behavioral-test-quality-review",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "behavioral-test-quality-review",
+          "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "identityChecksum": "ba9aa336998b0950a673e80e6b14791dd857750f890fb7048b008b89563a8e10"
+    },
+    "contract-auditor": {
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "acceptance-criteria-80493e317476",
+          "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "identityChecksum": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada"
+    }
+  },
+  "provider": {
+    "model": "gpt-5.6-luna",
+    "modelLabel": "GPT-5.6 Luna",
+    "realGptCalls": 2,
+    "requestEvents": [
+      {
+        "type": "request.started",
+        "role": "test-quality-reviewer"
+      },
+      {
+        "type": "request.completed",
+        "role": "test-quality-reviewer",
+        "requestId": "chatcmpl-EBd4S2s3xHfv3z07wAP7MWhvg9qUK"
+      },
+      {
+        "type": "request.started",
+        "role": "contract-auditor"
+      },
+      {
+        "type": "request.completed",
+        "role": "contract-auditor",
+        "requestId": "chatcmpl-EBd4Wkft6ljVl1rae277mem8UAszI"
+      }
+    ]
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "evidenceRefs": [
+      "cg17-design-input-gate",
+      "current:design-contracts",
+      "current:design-input-gate",
+      "current:implementation-start-gate",
+      "design-currentness-contract",
+      "design-selection-boundary",
+      "direct-contract-failure-evidence",
+      "original-finding",
+      "src/agents/design/contracts.ts",
+      "src/agents/design/contracts.ts:1-23",
+      "src/agents/design/design.test.ts",
+      "src/agents/design/design.test.ts:24-45",
+      "src/agents/design/service.ts",
+      "src/agents/design/service.ts:107-208",
+      "src/orchestration/orchestrator/service.ts",
+      "src/orchestration/orchestrator/service.ts:26-42",
+      "test:design-contract-failures"
+    ],
+    "slices": [
+      {
+        "id": "current:design-contracts",
+        "relativePath": "src/agents/design/contracts.ts",
+        "startLine": 1,
+        "endLine": 23,
+        "checksum": "a50e5b83af7315a0c2ce7114ca17b222602913741e8991f3d8d639cd14532704",
+        "currentHead": "ba5bbc0"
+      },
+      {
+        "id": "current:design-input-gate",
+        "relativePath": "src/agents/design/service.ts",
+        "startLine": 107,
+        "endLine": 208,
+        "checksum": "ba779ad1fa3bffc61883e6fbd6590e8306fd43d0899b9d9293fa26132fa1b594",
+        "currentHead": "ba5bbc0"
+      },
+      {
+        "id": "current:implementation-start-gate",
+        "relativePath": "src/orchestration/orchestrator/service.ts",
+        "startLine": 26,
+        "endLine": 42,
+        "checksum": "f295900aa327592fc6d65ec10021d502b829203846bbf0e4cbe56400a72b81e6",
+        "currentHead": "ba5bbc0"
+      },
+      {
+        "id": "test:design-contract-failures",
+        "relativePath": "src/agents/design/design.test.ts",
+        "startLine": 24,
+        "endLine": 45,
+        "checksum": "cd5ba8fdacdc417d65a19b1f13d8c067ac7833035f355a7f10066e692ae5e727",
+        "currentHead": "ba5bbc0"
+      }
+    ]
+  },
+  "phaseStatus": "RESOLVED"
+}
