@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6n-correction-verification",
+  "groupId": "cg-15-persistence-migration-evidence",
+  "findingIds": [
+    "finding-cec06a12d17a2b103135"
+  ],
+  "baselineCommit": "f8af5bf",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "correctionSnapshot": "working-tree-before-correction-commit",
+  "reviewerResults": [
+    {
+      "reviewerId": "test-quality-reviewer",
+      "state": "RESOLVED",
+      "evidence": [
+        "original-finding",
+        "cg15-factory-persistence-boundary",
+        "migration-set-identity",
+        "executed-migration-evidence",
+        "schema-verification-evidence",
+        "current:db-migrate",
+        "current:db-verify",
+        "current:db-smoke",
+        "current:migration-evidence-helper",
+        "test:migration-evidence-identity",
+        "test:database-error-propagation",
+        "result:database-execution"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-15-persistence-migration-evidence correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    }
+  ],
+  "selectedSkills": {
+    "test-quality-reviewer": {
+      "selectedSkillIds": [
+        "behavioral-test-quality-review",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "behavioral-test-quality-review",
+          "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "identityChecksum": "ba9aa336998b0950a673e80e6b14791dd857750f890fb7048b008b89563a8e10"
+    }
+  },
+  "provider": {
+    "model": "gpt-5.6-luna",
+    "modelLabel": "GPT-5.6 Luna",
+    "realGptCalls": 1,
+    "requestEvents": [
+      {
+        "type": "request.started",
+        "role": "test-quality-reviewer"
+      },
+      {
+        "type": "request.completed",
+        "role": "test-quality-reviewer",
+        "requestId": "chatcmpl-EBcHI2V1AQP38RDrYTD275O905BxS"
+      }
+    ]
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "evidenceRefs": [
+      "cg15-factory-persistence-boundary",
+      "current:db-migrate",
+      "current:db-smoke",
+      "current:db-verify",
+      "current:migration-evidence-helper",
+      "docs/admin/phase-6/cg-15-database-execution-results-2026-08-11.json",
+      "docs/admin/phase-6/cg-15-database-execution-results-2026-08-11.json:1-53",
+      "executed-migration-evidence",
+      "migration-set-identity",
+      "original-finding",
+      "result:database-execution",
+      "schema-verification-evidence",
+      "scripts/db-migrate.mjs",
+      "scripts/db-migrate.mjs:1-29",
+      "scripts/db-smoke.ts",
+      "scripts/db-smoke.ts:1-45",
+      "scripts/db-verify.mjs",
+      "scripts/db-verify.mjs:1-29",
+      "scripts/migration-evidence.mjs",
+      "scripts/migration-evidence.mjs:1-14",
+      "src/persistence/database/db-script-error-propagation.test.ts",
+      "src/persistence/database/db-script-error-propagation.test.ts:1-57",
+      "src/persistence/database/migration-evidence.test.ts",
+      "src/persistence/database/migration-evidence.test.ts:1-30",
+      "test:database-error-propagation",
+      "test:migration-evidence-identity"
+    ],
+    "slices": [
+      {
+        "id": "current:db-migrate",
+        "relativePath": "scripts/db-migrate.mjs",
+        "startLine": 1,
+        "endLine": 29,
+        "checksum": "d3bff40f37e9e45abf38959def2177cdae573d42681f2e3e71f4719e279344d3",
+        "currentHead": "f8af5bf"
+      },
+      {
+        "id": "current:db-verify",
+        "relativePath": "scripts/db-verify.mjs",
+        "startLine": 1,
+        "endLine": 29,
+        "checksum": "cfedb0867707c663fa2452a8f13ffe00d3426c9b3517e311744a2c4d4e3602d2",
+        "currentHead": "f8af5bf"
+      },
+      {
+        "id": "current:db-smoke",
+        "relativePath": "scripts/db-smoke.ts",
+        "startLine": 1,
+        "endLine": 45,
+        "checksum": "736198d8b111ae5c936efccf52e6aa44b9a9a41aef574e398e23ce6362dea55a",
+        "currentHead": "f8af5bf"
+      },
+      {
+        "id": "current:migration-evidence-helper",
+        "relativePath": "scripts/migration-evidence.mjs",
+        "startLine": 1,
+        "endLine": 14,
+        "checksum": "6a35cd2eacdc2a3be2447b6617a7377e845e8eb52acc9b382553983b91175ec9",
+        "currentHead": "f8af5bf"
+      },
+      {
+        "id": "test:migration-evidence-identity",
+        "relativePath": "src/persistence/database/migration-evidence.test.ts",
+        "startLine": 1,
+        "endLine": 30,
+        "checksum": "8c71871d0acf20cac56981871a86ca8d786c191d3ca812ce611c98c4a2d1ee1c",
+        "currentHead": "f8af5bf"
+      },
+      {
+        "id": "test:database-error-propagation",
+        "relativePath": "src/persistence/database/db-script-error-propagation.test.ts",
+        "startLine": 1,
+        "endLine": 57,
+        "checksum": "9bcf9b932672e517ed5745a23600a3ed647b6651813f74df75dd32bfb06e62ea",
+        "currentHead": "f8af5bf"
+      },
+      {
+        "id": "result:database-execution",
+        "relativePath": "docs/admin/phase-6/cg-15-database-execution-results-2026-08-11.json",
+        "startLine": 1,
+        "endLine": 53,
+        "checksum": "66580e327caf208473fd67c5563a8b37d3e39c4a1955557dbe0012622d952bb0",
+        "currentHead": "f8af5bf"
+      }
+    ]
+  },
+  "phaseStatus": "RESOLVED"
+}

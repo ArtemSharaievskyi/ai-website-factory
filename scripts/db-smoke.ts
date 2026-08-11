@@ -5,6 +5,7 @@ import { FactoryProjectSchema } from "../src/domain/project/schema";
 import { RequirementSpecificationSchema } from "../src/domain/requirements/schema";
 import { ClarificationSessionSchema } from "../src/domain/requirements/schema";
 import { DomainError } from "../src/domain/shared/errors";
+import { readMigrationManifest } from "./migration-evidence.mjs";
 
 const runId = randomUUID();
 const id = randomUUID();
@@ -22,6 +23,7 @@ let currentStep = "start";
 async function main() {
 try {
   currentStep = "pool-configuration"; pool = createConfiguredPool();
+  const migrationManifest = await readMigrationManifest();
   currentStep = "adapter-import"; const db = new (await import("../src/persistence/database/postgres")).PostgresPersistenceDatabase(pool);
   const projects = new ProjectRepository(db); const versions = new ProjectVersionRepository(db); const documents = new DocumentRepository(db); const clarifications = new ClarificationRepository(db); const workflow = new WorkflowPersistenceService(db); const decisions = new DecisionRepository(db); const costs = new CostRepository(db);
   currentStep = "project-idempotency"; const created = await projects.create(project, `smoke-project-${runId}`); const retried = await projects.create(project, `smoke-project-${runId}`); const readProject = await projects.get(id); if (created.id !== retried.id || readProject?.id !== id) throw new Error("SMOKE_IDEMPOTENCY_RESULT_MISMATCH");
@@ -32,7 +34,7 @@ try {
   currentStep = "stale-concurrency"; try { await workflow.transition({ projectId: id, projectVersion: 1, expectedState: "CLARIFYING", expectedRowVersion: 1, targetState: "AWAITING_BRIEF_APPROVAL", actor: "smoke-test", reason: "Stale" }); throw new Error("SMOKE_CONCURRENCY_GUARD_FAILED"); } catch (error) { if (!(error instanceof Error) || !((error as { code?: string }).code === "PERSISTENCE_CONFLICT")) throw error; }
   currentStep = "idempotency-conflict"; try { await projects.create({ ...project, slug: `other-${runId.slice(0, 8)}` }, `smoke-project-${runId}`); throw new Error("SMOKE_IDEMPOTENCY_CONFLICT_FAILED"); } catch (error) { if (!(error instanceof Error) || !((error as { code?: string }).code === "IDEMPOTENCY_CONFLICT")) throw error; }
   currentStep = "decision-and-cost"; await decisions.append(id, 1, decision); if ("update" in decisions || "delete" in decisions) throw new Error("SMOKE_DECISION_MUTATION_BOUNDARY_FAILED"); await costs.append({ id: randomUUID(), projectId: id, projectVersion: 1, role: "system", provider: "none", model: "none", inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, estimatedCost: 0, createdAt: timestamp });
-  console.log("SMOKE_OK");
+  console.log(JSON.stringify({ status: "passed", targetDomain: "FACTORY_PERSISTENCE", smokeRunId: runId, migrationSetChecksum: migrationManifest.migrationSetChecksum, assertions: ["project-idempotency", "version-idempotency", "document-round-trip", "blocking-clarification", "workflow-transition", "stale-concurrency", "idempotency-conflict", "decision-and-cost"], cleanup: "passed", customerDatabaseMutation: false }));
 } finally {
   if (pool) {
     await pool.query("DELETE FROM decision_records WHERE project_id=$1", [id]); await pool.query("DELETE FROM workflow_events WHERE project_id=$1", [id]); await pool.query("DELETE FROM workflow_documents WHERE project_id=$1", [id]); await pool.query("DELETE FROM cost_records WHERE project_id=$1", [id]); await pool.query("DELETE FROM project_versions WHERE project_id=$1", [id]); await pool.query("DELETE FROM factory_projects WHERE id=$1", [id]); await pool.query("DELETE FROM idempotency_records WHERE idempotency_key LIKE $1", [`smoke-%-${runId}`]); await pool.end();

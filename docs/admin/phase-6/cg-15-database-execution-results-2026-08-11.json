@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "documentType": "cg-15-database-execution-result",
+  "groupId": "cg-15-persistence-migration-evidence",
+  "migrationDomain": "FACTORY_PERSISTENCE",
+  "targetBoundary": "configured Factory persistence database; no customer/generated database",
+  "commands": {
+    "db:validate": "PASS; 2 migrations",
+    "db:migrate": "PASS; both migrations already applied with matching checksums; no new transaction required",
+    "db:status": "PASS; two applied migration checksums reported",
+    "db:verify": "PASS; migration history current, 17 tables, RLS 17/17, public policies 0",
+    "db:smoke": "PASS; eight persistence assertions and cleanup passed",
+    "db:test-integrity": "PASS"
+  },
+  "migrationSetIdentity": {
+    "migrationSetChecksum": "12f468133347ad10a8820c58e6662d25560ea2f66f890ba952707b0fc832413f",
+    "ordering": "ordered numeric filename sequence",
+    "migrations": [
+      { "filename": "202608060001_factory_metadata.sql", "checksum": "b805180446db0bf473674e1f45ebe29f0100b81004ca68daf2ae2a0953f768b1" },
+      { "filename": "202608060002_lead_prompt_checksum.sql", "checksum": "554a7e65d3c1a3d7914d00ab2dda7df3c92085ad90e1ebc562042b21c7fdcf52" }
+    ]
+  },
+  "executionEvidence": {
+    "status": "current",
+    "migrationHistory": "both rows present and checksums match current ordered manifest",
+    "transactionSemantics": "new migrations commit in a transaction; already-applied migrations are idempotent and report transactionStatus=not-run",
+    "dbMigrateEvidence": "migration-history-and-transaction-result"
+  },
+  "schemaVerificationEvidence": {
+    "status": "passed",
+    "migrationHistoryBound": true,
+    "tableCount": 17,
+    "constraintCount": 84,
+    "indexCount": 4,
+    "rlsEnabled": "17/17",
+    "publicPolicies": 0
+  },
+  "persistenceSmoke": {
+    "status": "passed",
+    "smokeRunId": "459cfdb8-3d54-4bba-adfb-a852b37f0463",
+    "migrationSetChecksum": "12f468133347ad10a8820c58e6662d25560ea2f66f890ba952707b0fc832413f",
+    "assertionsPassed": 8,
+    "cleanup": "passed",
+    "customerDatabaseMutation": false
+  },
+  "sourceChecksums": {
+    "scripts/db-migrate.mjs": "d3bff40f37e9e45abf38959def2177cdae573d42681f2e3e71f4719e279344d3",
+    "scripts/db-verify.mjs": "cfedb0867707c663fa2452a8f13ffe00d3426c9b3517e311744a2c4d4e3602d2",
+    "scripts/db-smoke.ts": "736198d8b111ae5c936efccf52e6aa44b9a9a41aef574e398e23ce6362dea55a",
+    "scripts/migration-evidence.mjs": "6a35cd2eacdc2a3be2447b6617a7377e845e8eb52acc9b382553983b91175ec9"
+  },
+  "productionSemantics": "Evidence is for the Factory persistence boundary only; no customer production migration, generated-project migration, deployment, or hosting action occurred."
+}
