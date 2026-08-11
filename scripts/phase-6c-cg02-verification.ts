@@ -42,6 +42,8 @@ export const CG14_GROUP_ID = "cg-14-runtime-release-evidence" as const;
 export const CG14_FINDING_IDS = ["finding-4970556ab704416b2bf8", "finding-191200ccc58b25e3fd0c", "finding-601d85f09cdb45d46400"] as const;
 export const CG15_GROUP_ID = "cg-15-persistence-migration-evidence" as const;
 export const CG15_FINDING_IDS = ["finding-cec06a12d17a2b103135"] as const;
+export const CG16_GROUP_ID = "cg-16-implementation-error-recovery-evidence" as const;
+export const CG16_FINDING_IDS = ["finding-0ec8a840d7bf928fec42"] as const;
 export const PHASE6A_PLAN_IDENTITY = "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00" as const;
 export const PHASE6A_PLAN_PATH = "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json" as const;
 export const VERIFICATION_MACHINE_PATH = "docs/admin/phase-6/cg-02-authentication-authorization-rls-verification-2026-08-10.json" as const;
@@ -323,6 +325,25 @@ const CG15_CONFIG: CorrectionConfig = {
   idempotencyPrefix: "phase6n1",
 };
 
+const CG16_CONFIG: CorrectionConfig = {
+  groupId: CG16_GROUP_ID,
+  findingIds: CG16_FINDING_IDS,
+  machinePath: "docs/admin/phase-6/cg-16-implementation-error-recovery-evidence-verification-2026-08-11.json",
+  reportPath: "docs/admin/phase-6/cg-16-implementation-error-recovery-evidence-verification-2026-08-11.md",
+  documentType: "phase-6o-correction-verification",
+  title: "cg-16 Atomic Implementation Failure and Recovery Verification",
+  fixedRefs: ["original-finding", "cg16-implementation-staging-boundary", "atomic-rollback-evidence", "cancellation-and-target-safety", "recovery-regression-evidence"],
+  originalFindings: [
+    { findingId: CG16_FINDING_IDS[0], severity: "WARNING", category: "ERROR_PATH_NOT_VERIFIED", summary: "Implementation proposal validation is tested, while atomic file-application failure and recovery behavior has no supplied test evidence." },
+  ],
+  correctionGoal: "Exercise and record failure/recovery behavior for atomic file application, not only proposal validation.",
+  trustBoundary: "Factory Implementation Agent staging workspace: proposal policy validation, atomic file application, rollback, cancellation, path/symlink safety, and checksum currentness. No new recovery authority is introduced.",
+  nonGoals: ["No implementation policy expansion", "No new Repair or Recovery Agent", "No TaskGraph or orchestrator redesign", "No customer website-generation E2E", "No deployment", "No other correction groups"],
+  deterministicChecks: ["proposal validation rejects unsafe paths before mutation", "a later operation checksum failure restores earlier writes", "cancellation between operations restores earlier writes", "symlink targets are rejected without mutating the linked target", "stale prior checksums are rejected without mutation", "a fresh valid candidate succeeds after the failed candidate is rolled back"],
+  requiredReviewerIds: ["test-quality-reviewer"],
+  idempotencyPrefix: "phase6o1",
+};
+
 async function currentSlice(root: string, id: string, relativePath: string, startLine: number, endLine: number): Promise<EvidenceSlice> {
   const bytes = await readFile(path.resolve(root, relativePath));
   const lines = bytes.toString("utf8").split(/\r?\n/);
@@ -331,7 +352,11 @@ async function currentSlice(root: string, id: string, relativePath: string, star
 }
 
 async function buildEvidence(root: string, config: CorrectionConfig) {
-  const slices = await Promise.all(config.groupId === CG15_GROUP_ID ? [
+  const slices = await Promise.all(config.groupId === CG16_GROUP_ID ? [
+    currentSlice(root, "current:implementation-applier", "src/agents/implementation/applier.ts", 1, 32),
+    currentSlice(root, "current:implementation-service-failure-boundary", "src/agents/implementation/service.ts", 394, 457),
+    currentSlice(root, "test:atomic-implementation-recovery", "src/agents/implementation/backend.test.ts", 46, 105),
+  ] : config.groupId === CG15_GROUP_ID ? [
     currentSlice(root, "current:db-migrate", "scripts/db-migrate.mjs", 1, 29),
     currentSlice(root, "current:db-verify", "scripts/db-verify.mjs", 1, 29),
     currentSlice(root, "current:db-smoke", "scripts/db-smoke.ts", 1, 45),
@@ -425,6 +450,7 @@ async function buildEvidence(root: string, config: CorrectionConfig) {
 }
 
 function correctionDiff(root: string, config: CorrectionConfig) {
+  if (config.groupId === CG16_GROUP_ID) return git(root, ["diff", "--no-ext-diff", "--unified=3", "--", "src/agents/implementation/applier.ts", "src/agents/implementation/service.ts", "src/agents/implementation/backend.test.ts", "scripts/phase-6c-cg02-verification.ts"]).slice(0, 30000);
   if (config.groupId === CG15_GROUP_ID) return git(root, ["diff", "--no-ext-diff", "--unified=3", "--", "scripts/db-migrate.mjs", "scripts/db-verify.mjs", "scripts/db-smoke.ts", "scripts/migration-evidence.mjs", "src/persistence/database/migration-evidence.test.ts", "src/persistence/database/db-script-error-propagation.test.ts", "scripts/phase-6c-cg02-verification.ts"]).slice(0, 30000);
   if (config.groupId === CG14_GROUP_ID) return git(root, ["diff", "--no-ext-diff", "--unified=3", "--", "src/orchestration/execution/service.ts", "src/orchestration/execution/contracts.ts", "src/domain/quality/schema.ts", "src/orchestration/execution/execution.test.ts", "scripts/backend-smoke.ts", "scripts/generated-runtime-smoke.ts", "scripts/ai-smoke.ts", "scripts/context7-smoke.ts", "scripts/codebase-memory-smoke.ts", "scripts/factory-e2e-smoke.ts", "package.json"]).slice(0, 30000);
   const files = config.groupId === CG13_GROUP_ID ? ["src/agents/catalog.test.ts", "src/agents/catalog.ts", "src/integrations/openai/client.ts", "src/integrations/openai/adapters.ts", "src/integrations/openai/provider.test.ts", "package.json"] : config.groupId === CG12_GROUP_ID ? ["src/agents/reviewers/architecture/deterministic.ts", "src/agents/reviewers/architecture/service.ts", "src/agents/reviewers/architecture/architecture.test.ts", "docs/architecture/architecture-reviewer.md"] : config.groupId === CG09_GROUP_ID ? ["src/integrations/codebase-memory/service.ts", "src/integrations/codebase-memory/metadata.ts", "src/integrations/codebase-memory/errors.ts", "src/integrations/codebase-memory/codebase-memory.test.ts", "docs/integrations/codebase-memory-index-lifecycle.md", "docs/integrations/codebase-memory-security.md"] : config.groupId === CG08_GROUP_ID ? ["src/integrations/context7/policy.ts", "src/integrations/context7/service.ts", "src/integrations/context7/contracts.ts", "src/integrations/context7/context7.test.ts", "scripts/context7-smoke.ts"] : config.groupId === CG07_GROUP_ID ? ["scripts/factory-e2e-smoke.ts", "src/runtime/e2e/lifecycle.ts", "src/runtime/e2e/lifecycle.test.ts"] : config.groupId === CG06_GROUP_ID ? ["scripts/db-common.mjs", "scripts/db-migrate.mjs", "scripts/db-status.mjs", "scripts/db-verify.mjs", "scripts/db-smoke.ts", "src/persistence/database/db-script-error-propagation.test.ts"] : config.groupId === CG05_GROUP_ID ? ["src/agents/design/service.ts", "src/agents/design/memory.ts", "src/agents/design/server.ts", "src/runtime/production-factory-runtime-core.ts", "src/domain/design/schema.ts", "src/agents/design/design.test.ts"] : config.groupId === CG04_GROUP_ID ? ["src/integrations/openai/config.ts", "src/integrations/openai/client.ts", "src/integrations/openai/limiter.ts", "src/integrations/context7/service.ts", "src/integrations/codebase-memory/service.ts", "src/integrations/openai/provider.test.ts", "src/integrations/context7/context7.test.ts", "src/integrations/codebase-memory/codebase-memory.test.ts"] : ["src/agents/planner/contracts.ts", "src/agents/planner/deterministic.ts", "src/agents/planner/planner.test.ts", "src/agents/implementation/contracts.ts", "src/agents/implementation/service.ts", "src/agents/implementation/policy.ts", "src/agents/implementation/provider.ts", "src/agents/implementation/backend.ts", "src/agents/implementation/backend.test.ts", "src/runtime/validation/security.ts", "src/integrations/openai/adapters.ts", "scripts/backend-smoke.ts"];
@@ -491,6 +517,8 @@ export async function runTargetedCorrectionVerification(root: string, config: Co
     selections[reviewerId] = await resolveSkills(resolvedRoot, reviewerId, config);
     const beforeCalls = events.filter((event) => event.type === "request.started").length;
     const input = verificationInput(reviewerId, currentHead, evidence, diff, config);
+    if (config.groupId === CG16_GROUP_ID)
+      input.verificationQuestion = "Does the current cg-16 correction resolve the assigned atomic implementation error-path finding by exercising host-observable rollback and recovery behavior for the exact Implementation Agent staging path, while preserving proposal validation, cancellation, path/symlink safety, checksum currentness, and the existing bounded architecture? Return APPROVED with no findings only when a later operation failure cannot leave earlier writes authoritative, cancellation cannot leave a partial candidate, unsafe or symlink targets cannot mutate the workspace, stale prior checksums cannot mutate the workspace, and a fresh valid candidate is demonstrably accepted after the failed candidate is rolled back. Do not report fresh repository findings or unrelated correction groups.";
     if (config.groupId === CG15_GROUP_ID)
       input.verificationQuestion = "Does the current cg-15 correction resolve the assigned Factory persistence finding by recording demonstrably executed migration, schema-verification, and persistence-smoke evidence bound to the current ordered migration-set identity, while preserving safe database errors, transaction semantics, RLS verification, and the Factory-versus-customer boundary? Return APPROVED with no findings only when artifact existence is not treated as execution proof, stale or changed migration content invalidates prior evidence, schema verification is linked to the same current migration set, local Factory persistence execution is not represented as customer production migration, and no migration redesign or unrelated correction group is introduced. Do not report fresh repository findings or unrelated correction groups.";
     if (config.groupId === CG14_GROUP_ID)
@@ -540,8 +568,9 @@ export async function runCg12Verification(root = process.cwd()) { return runTarg
 export async function runCg13Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG13_CONFIG); }
 export async function runCg14Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG14_CONFIG); }
 export async function runCg15Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG15_CONFIG); }
+export async function runCg16Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG16_CONFIG); }
 
 if (process.argv[1]?.endsWith("phase-6c-cg02-verification.ts")) {
-  const runner = process.env.PHASE6_CORRECTION_GROUP === CG15_GROUP_ID ? runCg15Verification : process.env.PHASE6_CORRECTION_GROUP === CG14_GROUP_ID ? runCg14Verification : process.env.PHASE6_CORRECTION_GROUP === CG13_GROUP_ID ? runCg13Verification : process.env.PHASE6_CORRECTION_GROUP === CG12_GROUP_ID ? runCg12Verification : process.env.PHASE6_CORRECTION_GROUP === CG09_GROUP_ID ? runCg09Verification : process.env.PHASE6_CORRECTION_GROUP === CG08_GROUP_ID ? runCg08Verification : process.env.PHASE6_CORRECTION_GROUP === CG07_GROUP_ID ? runCg07Verification : process.env.PHASE6_CORRECTION_GROUP === CG06_GROUP_ID ? runCg06Verification : process.env.PHASE6_CORRECTION_GROUP === CG05_GROUP_ID ? runCg05Verification : process.env.PHASE6_CORRECTION_GROUP === CG04_GROUP_ID ? runCg04Verification : process.env.PHASE6_CORRECTION_GROUP === CG03_GROUP_ID ? runCg03Verification : runCg02Verification;
+  const runner = process.env.PHASE6_CORRECTION_GROUP === CG16_GROUP_ID ? runCg16Verification : process.env.PHASE6_CORRECTION_GROUP === CG15_GROUP_ID ? runCg15Verification : process.env.PHASE6_CORRECTION_GROUP === CG14_GROUP_ID ? runCg14Verification : process.env.PHASE6_CORRECTION_GROUP === CG13_GROUP_ID ? runCg13Verification : process.env.PHASE6_CORRECTION_GROUP === CG12_GROUP_ID ? runCg12Verification : process.env.PHASE6_CORRECTION_GROUP === CG09_GROUP_ID ? runCg09Verification : process.env.PHASE6_CORRECTION_GROUP === CG08_GROUP_ID ? runCg08Verification : process.env.PHASE6_CORRECTION_GROUP === CG07_GROUP_ID ? runCg07Verification : process.env.PHASE6_CORRECTION_GROUP === CG06_GROUP_ID ? runCg06Verification : process.env.PHASE6_CORRECTION_GROUP === CG05_GROUP_ID ? runCg05Verification : process.env.PHASE6_CORRECTION_GROUP === CG04_GROUP_ID ? runCg04Verification : process.env.PHASE6_CORRECTION_GROUP === CG03_GROUP_ID ? runCg03Verification : runCg02Verification;
   runner().then((result) => console.log(JSON.stringify({ status: result.artifact.phaseStatus, groupId: result.artifact.groupId, realGptCalls: result.artifact.provider.realGptCalls, reviewers: result.artifact.reviewerResults }, null, 2))).catch((error) => { console.error(error instanceof Error ? error.message : "VERIFICATION_FAILED"); process.exitCode = 1; });
 }

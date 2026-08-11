@@ -1,16 +1,23 @@
 import { createHash, randomUUID } from "node:crypto";
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { AgentTaskSchema } from "@/domain/tasks/schema";
-import { ImplementationChangeProposalSchema } from "./contracts";
+import { DEFAULT_EXECUTION_POLICY, ImplementationChangeProposalSchema } from "./contracts";
 import type { ImplementationContext } from "./contracts";
 import { StoragePlanSchema } from "@/agents/planner/contracts";
 import { assertBackendTaskRequired, canonicalFormFieldIdentity, formFieldValidationDiagnostic, validateBackendProposal, type BackendPlans } from "./backend";
 import { DeterministicImplementationProvider } from "./provider";
+import { AtomicChangeApplier } from "./applier";
 const task = (taskType: string) => AgentTaskSchema.parse({ id: randomUUID(), projectId: randomUUID(), projectVersion: 1, role: "implementation", taskType, title: taskType, objective: taskType, inputs: [], expectedOutputs: [], allowedSkills: [], allowedTools: ["filesystem-read", "filesystem-write"], fileScopes: ["**/*"], dependencies: [], status: "ready", attempt: 0, maxAttempts: 3, createdAt: "2026-01-01T00:00:00.000Z" });
 const storagePlan = (projectId: string) => StoragePlanSchema.parse({ schemaVersion: 1, documentType: "storage-plan", projectId, projectVersion: 1, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", decision: "supabase-storage", assetCategories: ["Runtime user uploads"], uploadActors: ["Authenticated users"], acceptedFormats: ["Images"], sizeLimits: ["5 MB"], validation: ["MIME, extension, size, ownership"], access: "private", buckets: ["approved-uploads"], bucketId: "approved-uploads", policyIdentity: "runtime-owner-scoped-storage", ownerSource: "authenticated-user-id", objectPathStrategy: "user-id-prefix", objectPathTemplate: "{userId}/{objectName}", allowedOperations: ["SELECT", "INSERT", "UPDATE", "DELETE"], directClientAccess: false, signedUrl: { enabled: true, operations: ["SELECT", "INSERT"], expirySeconds: 60 }, ownershipTransfer: "forbidden", serverPrivilegedAccess: false, retention: "Pending", deletionBehavior: "Owner deletion", policies: ["Bucket-scoped authenticated Storage ownership policies"], traceability: [{ decisionId: randomUUID(), category: "storage", requirementReferences: ["brief:storageDecision"], systemConstraintReferences: [], rationale: "Typed storage contract", confidence: "high", userConfirmationRequired: false }] });
 const proposal = (currentTask: ReturnType<typeof task>, relativePath: string, content: string) => ImplementationChangeProposalSchema.parse({ proposalId: randomUUID(), projectId: currentTask.projectId, projectVersion: 1, taskId: currentTask.id, taskAttempt: 0, summary: "backend", operations: [{ type: "create-file", relativePath, expectedResultChecksum: createHash("sha256").update(content).digest("hex"), encoding: "utf-8", reason: "planned", requirementReferences: [], planningReferences: [], selectedDesignReferences: [], content }], expectedChangedFiles: [relativePath], expectedCreatedFiles: [relativePath], expectedDeletedFiles: [], validationPlan: [currentTask.taskType], requirementReferences: [], planningReferences: [], selectedDesignReferences: [], providerMetadata: { provider: "test" }, generatedAt: "2026-01-01T00:00:00.000Z" });
 const formPlans: BackendPlans = { brief: { forms: ["contact"] }, planning: { forms: { forms: [{ fields: [{ name: "name", required: true }] }] } } };
 const providerContext = (taskType: string): ImplementationContext => { const currentTask = task(taskType); return { task: currentTask, acceptanceCriteria: [], requirementReferences: [], planningReferences: [], selectedDesignReferences: [], architectureExcerpt: {}, contentExcerpt: {}, assetExcerpt: {}, ...(taskType === "implement-storage" ? { storagePlan: storagePlan(currentTask.projectId) } : {}), files: [], skills: [], skillContextIdentity: "none", allowedTools: [], conventions: [], contextChecksum: "a".repeat(64) }; };
+const atomicOperation = (type: "create-file" | "replace-file", relativePath: string, content: string, expectedPriorChecksum?: string) => ({ type, relativePath, ...(expectedPriorChecksum ? { expectedPriorChecksum } : {}), expectedResultChecksum: createHash("sha256").update(content).digest("hex"), encoding: "utf-8" as const, reason: "cg-16 atomic recovery evidence", requirementReferences: [], planningReferences: [], selectedDesignReferences: [], content });
+const atomicProposal = (currentTask: ReturnType<typeof task>, operations: Array<ReturnType<typeof atomicOperation>>) => ImplementationChangeProposalSchema.parse({ proposalId: randomUUID(), projectId: currentTask.projectId, projectVersion: currentTask.projectVersion, taskId: currentTask.id, taskAttempt: currentTask.attempt, summary: "cg-16 atomic recovery regression", operations, expectedChangedFiles: operations.map((operation) => operation.relativePath), expectedCreatedFiles: [], expectedDeletedFiles: [], validationPlan: ["atomic-application-recovery"], requirementReferences: [], planningReferences: [], selectedDesignReferences: [], providerMetadata: { provider: "test" }, generatedAt: "2026-01-01T00:00:00.000Z" });
+const atomicFixture = async () => { const root = await mkdtemp(path.join(os.tmpdir(), "factory-cg16-applier-")); await mkdir(path.join(root, "src"), { recursive: true }); return { root, currentTask: task("implement-project-foundation") }; };
 describe("backend implementation policies", () => {
   it("rejects backend tasks that are not required", () => { expect(() => assertBackendTaskRequired(task("implement-authentication"), { brief: { authenticationDecision: "no-authentication-guest-first" } })).toThrowError(/do not require/); });
   it("accepts planned forms and rejects unplanned fields", () => { const current = task("implement-form"); expect(() => validateBackendProposal(current, proposal(current, "src/forms/contact.tsx", "import { z } from 'zod'; const schema = z.object({ name: z.string() });"), formPlans)).not.toThrow(); expect(() => validateBackendProposal(current, proposal(current, "src/forms/contact.tsx", "<input name=\"phone\" />"), formPlans)).toThrowError(/unplanned field/); });
@@ -27,4 +34,72 @@ describe("backend implementation policies", () => {
   it("enforces the cg-03 storage ownership contract", async () => { const provider = new DeterministicImplementationProvider(); const storageTask = task("implement-storage"); const result = await provider.proposeTaskChanges(providerContext("implement-storage")); const source = result.operations.find((item) => item.relativePath.endsWith("uploads.ts")); const policy = result.operations.find((item) => item.relativePath.endsWith(".sql")); if (!source || !policy || !("content" in source) || !("content" in policy)) throw new Error("Missing generated storage artifacts"); const plans = { brief: { storageDecision: "needed" }, planning: { storage: storagePlan(storageTask.projectId) } } satisfies BackendPlans; const proposalValue = ImplementationChangeProposalSchema.parse({ ...proposal(storageTask, source.relativePath, source.content), operations: [source, policy], expectedChangedFiles: [source.relativePath, policy.relativePath], expectedCreatedFiles: [source.relativePath, policy.relativePath] }); expect(() => validateBackendProposal(storageTask, proposalValue, plans)).not.toThrow(); expect(source.content).toMatch(/getAuthenticatedUser|user\.id/); expect(source.content).toMatch(/createSignedUploadUrl[\s\S]*validateUpload/); expect(source.content).toMatch(/createSignedUrl/); expect(policy.content).toMatch(/storage\.objects/); expect(policy.content).toMatch(/for select|for insert|for update|for delete/gi); });
   it("proves storage policy isolation and rejects forged policy variants", async () => { const provider = new DeterministicImplementationProvider(); const storageTask = task("implement-storage"); const result = await provider.proposeTaskChanges(providerContext("implement-storage")); const source = result.operations.find((item) => item.relativePath.endsWith("uploads.ts")); const policy = result.operations.find((item) => item.relativePath.endsWith(".sql")); if (!source || !policy || !("content" in source) || !("content" in policy)) throw new Error("Missing generated storage artifacts"); const plan = storagePlan(storageTask.projectId); const plans = { brief: { storageDecision: "needed" }, planning: { storage: plan } } satisfies BackendPlans; const make = (policyContent: string) => ImplementationChangeProposalSchema.parse({ ...proposal(storageTask, source.relativePath, source.content), operations: [source, { ...policy, content: policyContent, expectedResultChecksum: createHash("sha256").update(policyContent).digest("hex") }], expectedChangedFiles: [source.relativePath, policy.relativePath], expectedCreatedFiles: [source.relativePath, policy.relativePath] }); expect(() => validateBackendProposal(storageTask, make(policy.content), plans)).not.toThrow(); expect(() => validateBackendProposal(storageTask, make(policy.content.replaceAll("approved-uploads", "other-bucket")), plans)).toThrowError(/bucket|STORAGE/i); expect(() => validateBackendProposal(storageTask, make(policy.content.replaceAll("auth.uid()::text", "other_user_id::text")), plans)).toThrowError(/path|ownership|STORAGE/i); expect(() => validateBackendProposal(storageTask, make(policy.content.replaceAll("to authenticated", "to public")), plans)).toThrowError(/public|STORAGE/i); expect(() => validateBackendProposal(storageTask, make(policy.content.replace(/storage-contract-checksum: [a-f0-9]{64}/, `storage-contract-checksum: ${"f".repeat(64)}`)), plans)).toThrowError(/checksum|STORAGE/i); });
   it("rejects storage contracts that can be forged across owners", async () => { const provider = new DeterministicImplementationProvider(); const storageTask = task("implement-storage"); const result = await provider.proposeTaskChanges(providerContext("implement-storage")); const operation = result.operations[0]; if (!operation || !("content" in operation)) throw new Error("Missing generated storage content"); const unsafe = operation.content.replace(/isOwnedObjectPath\(user\.id, objectPath\)/g, "true"); expect(() => validateBackendProposal(storageTask, proposal(storageTask, "src/lib/storage/uploads.ts", unsafe), { brief: { storageDecision: "needed" }, planning: { storage: storagePlan(storageTask.projectId) } })).toThrowError(/ownership|path|STORAGE/i); });
+});
+
+describe("atomic implementation failure and recovery evidence", () => {
+  it("rolls back earlier operations when a later operation fails, then accepts a fresh recovery candidate", async () => {
+    const f = await atomicFixture();
+    try {
+      await writeFile(path.join(f.root, "src", "first.ts"), "before-first");
+      await writeFile(path.join(f.root, "src", "second.ts"), "before-second");
+      const failedProposal = atomicProposal(f.currentTask, [
+        atomicOperation("replace-file", "src/first.ts", "after-first", createHash("sha256").update("before-first").digest("hex")),
+        { ...atomicOperation("replace-file", "src/second.ts", "after-second", createHash("sha256").update("before-second").digest("hex")), expectedResultChecksum: "f".repeat(64) },
+      ]);
+      const applier = new AtomicChangeApplier();
+      await expect(applier.apply(f.currentTask, failedProposal, f.root, DEFAULT_EXECUTION_POLICY)).rejects.toMatchObject({ code: "IMPLEMENTATION_RESULT_CHECKSUM_MISMATCH" });
+      expect(await readFile(path.join(f.root, "src", "first.ts"), "utf8")).toBe("before-first");
+      expect(await readFile(path.join(f.root, "src", "second.ts"), "utf8")).toBe("before-second");
+      const recoveryProposal = atomicProposal(f.currentTask, [
+        atomicOperation("replace-file", "src/first.ts", "recovered-first", createHash("sha256").update("before-first").digest("hex")),
+        atomicOperation("replace-file", "src/second.ts", "recovered-second", createHash("sha256").update("before-second").digest("hex")),
+      ]);
+      await expect(applier.apply(f.currentTask, recoveryProposal, f.root, DEFAULT_EXECUTION_POLICY)).resolves.toMatchObject({ changedFiles: ["src/first.ts", "src/second.ts"] });
+      expect(await readFile(path.join(f.root, "src", "first.ts"), "utf8")).toBe("recovered-first");
+      expect(await readFile(path.join(f.root, "src", "second.ts"), "utf8")).toBe("recovered-second");
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+
+  it("rolls back already-applied operations when cancellation arrives between operations", async () => {
+    const f = await atomicFixture();
+    try {
+      await writeFile(path.join(f.root, "src", "first.ts"), "before-first");
+      await writeFile(path.join(f.root, "src", "second.ts"), "before-second");
+      const proposalValue = atomicProposal(f.currentTask, [
+        atomicOperation("replace-file", "src/first.ts", "after-first", createHash("sha256").update("before-first").digest("hex")),
+        atomicOperation("replace-file", "src/second.ts", "after-second", createHash("sha256").update("before-second").digest("hex")),
+      ]);
+      let checks = 0;
+      await expect(new AtomicChangeApplier().apply(f.currentTask, proposalValue, f.root, DEFAULT_EXECUTION_POLICY, () => checks++ > 0)).rejects.toMatchObject({ code: "IMPLEMENTATION_CANCELLED" });
+      expect(await readFile(path.join(f.root, "src", "first.ts"), "utf8")).toBe("before-first");
+      expect(await readFile(path.join(f.root, "src", "second.ts"), "utf8")).toBe("before-second");
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+
+  it("rejects unsafe and symlink targets without mutating the workspace", async () => {
+    const f = await atomicFixture();
+    try {
+      const unsafe = atomicProposal(f.currentTask, [atomicOperation("create-file", "../outside.ts", "unsafe")]);
+      await expect(new AtomicChangeApplier().apply(f.currentTask, unsafe, f.root, DEFAULT_EXECUTION_POLICY)).rejects.toMatchObject({ code: "IMPLEMENTATION_PATH_INVALID" });
+      const outside = path.join(f.root, "outside-dir");
+      const linked = path.join(f.root, "src", "linked.ts");
+      await mkdir(outside);
+      await writeFile(path.join(outside, "marker.ts"), "outside");
+      await symlink(outside, linked, "junction");
+      const symlinkProposal = atomicProposal(f.currentTask, [atomicOperation("replace-file", "src/linked.ts", "mutated", createHash("sha256").update("outside").digest("hex"))]);
+      await expect(new AtomicChangeApplier().apply(f.currentTask, symlinkProposal, f.root, DEFAULT_EXECUTION_POLICY)).rejects.toMatchObject({ code: "IMPLEMENTATION_WORKSPACE_TAMPERED" });
+      expect(await readFile(path.join(outside, "marker.ts"), "utf8")).toBe("outside");
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+
+  it("rejects stale prior checksums before mutation", async () => {
+    const f = await atomicFixture();
+    try {
+      const target = path.join(f.root, "src", "checksum.ts");
+      await writeFile(target, "current");
+      const stale = atomicProposal(f.currentTask, [atomicOperation("replace-file", "src/checksum.ts", "new", createHash("sha256").update("stale").digest("hex"))]);
+      await expect(new AtomicChangeApplier().apply(f.currentTask, stale, f.root, DEFAULT_EXECUTION_POLICY)).rejects.toMatchObject({ code: "IMPLEMENTATION_CHECKSUM_MISMATCH" });
+      expect(await readFile(target, "utf8")).toBe("current");
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
 });
