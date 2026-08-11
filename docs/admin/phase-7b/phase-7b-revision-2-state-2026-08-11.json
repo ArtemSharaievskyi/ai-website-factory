@@ -316,7 +316,7 @@
     }
   ],
   "newlyUnblockedGroups": [],
-  "nextRecommendedGroup": "R2-G2 FINAL EVIDENCE COMPLETION",
+  "nextRecommendedGroup": "R2-G3-EVIDENCE_COMPLETENESS",
   "validActiveFindingCount": 2,
   "globalRevisionPolicy": {
     "maximumGroupsBeforeReconciliation": 2,
