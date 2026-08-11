@@ -102,6 +102,8 @@ export class ArchitectureReviewService {
       projectVersion: input.projectVersion,
       approvedBriefChecksum: input.approvedBriefChecksum,
       acceptedPlanningChecksum: input.acceptedPlanningChecksum,
+      factoryArchitecturePolicy: input.factoryArchitecturePolicy,
+      relevantProjectConstraints: input.relevantProjectConstraints,
       skillContextChecksum: skillSelection.identityChecksum,
       policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION,
       promptVersion: this.provider.promptVersion,

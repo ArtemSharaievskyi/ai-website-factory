@@ -10,7 +10,7 @@ The reviewer returns a typed `ReviewResult`. Orchestration interprets the result
 
 ## Inputs and outputs
 
-`ArchitectureReviewInput` contains the project/version, approved Brief and checksum, accepted PlanningPackage and checksum, fixed Factory architecture policy, bounded project constraints, and an idempotency key. It excludes secrets, arbitrary source, implementation workspaces, and unrestricted Project Memory.
+`ArchitectureReviewInput` contains the project/version, approved Brief and checksum, accepted PlanningPackage and checksum, fixed Factory architecture policy, bounded project constraints, and an idempotency key. The canonical evidence contract exposes every material approved Brief obligation (including content, SEO, localization, roles, acceptance criteria, exclusions, infrastructure decisions, and unresolved-item decisions) plus the accepted PlanningPackage's identity, acceptance, and architecture references. It excludes secrets, arbitrary source, implementation workspaces, and unrestricted Project Memory.
 
 The output is the existing `ReviewResult` contract with architecture-specific finding categories. `ERROR` and `CRITICAL` findings cannot produce `APPROVED`; `INFO` and `WARNING` findings may. Every finding has concrete canonical evidence references, and invented references are rejected.
 
@@ -18,4 +18,10 @@ The output is the existing `ReviewResult` contract with architecture-specific fi
 
 Deterministic prechecks verify approval, checksums, acceptance, identifier/reference structure, blockers, and fixed-stack policy before any provider call. AI reasoning is limited to semantic architecture: requirement traceability, source of truth, domain identity, data/auth/storage/API boundaries, server/client boundaries, dependencies, security-relevant architecture, implementability, minimal sufficiency, and contradictory decisions.
 
-The reviewer must not invent requirements, judge visual design, demand optional infrastructure, redesign by preference, or modify project state. Its catalog definition is `architecture-reviewer`, capability `review.architecture`, role `review`, OpenAI generation only, no skills, and `readOnly: true`. Prompt ownership remains `src/integrations/openai/prompts.ts`, version `architecture-reviewer.v1`; future professional skills are intentionally deferred.
+The reviewer must not invent requirements, judge visual design, demand optional infrastructure, redesign by preference, or modify project state. Its catalog definition is `architecture-reviewer`, capability `review.architecture`, role `review`, OpenAI generation only, approved skills selected by the resolver, and `readOnly: true`. Prompt ownership remains `src/integrations/openai/prompts.ts`, version `architecture-reviewer.v1`.
+
+## Normal review versus Factory self-review
+
+The normal project-generation review is the typed `ArchitectureReviewInput` path after Planning Acceptance and before Design. It is the only path that can produce a project-specific architecture gate, and its approved Brief, accepted PlanningPackage, project identity, version, and checksums are authoritative.
+
+The Phase 5/6 Factory self-review is a separate, bounded repository evidence-pack review of the Factory itself. It does not have a project-specific approved Brief or accepted PlanningPackage, so it is documentation-only for architecture and cannot establish project-specific requirement traceability. Self-review evidence must not be treated as a substitute for, or mixed into, a normal generated-project Architecture Review.

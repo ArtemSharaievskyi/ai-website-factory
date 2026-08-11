@@ -6,12 +6,15 @@ const finding = (findingId: string, category: ArchitectureReviewResult["findings
 const hasPersistenceRequirement = (input: ArchitectureReviewInput) => [...input.approvedBrief.features, ...input.approvedBrief.forms, ...input.approvedBrief.backendRequirements, ...input.approvedBrief.supabaseRequirements].some((value) => /persist|database|store|save|submission|record/i.test(value));
 const isStaticProfile = (input: ArchitectureReviewInput) => input.acceptedPlanningPackage.profile.selectedProfile === "marketing-site" && input.approvedBrief.backendRequirements.length === 0 && input.approvedBrief.supabaseRequirements.length === 0 && input.approvedBrief.authenticationDecision !== "authentication-required";
 const hasDuplicate = (values: string[]) => new Set(values).size !== values.length;
+const canonicalBriefEvidence = [
+  "brief:projectId", "brief:projectVersion", "brief:projectSummary", "brief:protectedFunctionalityRequired", "brief:imagesRequired", "brief:businessGoals", "brief:targetAudiences", "brief:pages", "brief:userRoles", "brief:features", "brief:forms", "brief:contentRequirements", "brief:backendRequirements", "brief:supabaseRequirements", "brief:authenticationDecision", "brief:storageDecision", "brief:emailDecision", "brief:administrationDecision", "brief:seoRequirements", "brief:localization", "brief:imageSourceDecision", "brief:suppliedBrandInformation", "brief:suppliedLogoLocation", "brief:technicalConstraints", "brief:explicitExclusions", "brief:userAcceptanceCriteria", "brief:unresolvedItems", "brief:approval", "brief:projectTitle", "brief:contactFacts", "brief:legalFacts", "brief:brandFacts", "brief:logoMetadata", "brief:imageSourcingNotes", "brief:evidence", "brief:recommendations", "brief:briefStatus", "brief:briefVersion", "brief:briefApprovalNote",
+] as const;
 
 export function canonicalArchitectureEvidence(input: ArchitectureReviewInput) {
   const planning = input.acceptedPlanningPackage;
   return new Set([
-    "brief:projectSummary", "brief:features", "brief:forms", "brief:backendRequirements", "brief:authenticationDecision", "brief:storageDecision", "brief:emailDecision", "brief:administrationDecision",
-    "planning:productScope", "planning:sitemap", "planning:pages", "planning:userFlows", "planning:forms", "planning:dataModel", "planning:authentication", "planning:supabase", "planning:storage", "planning:email", "planning:administration", "planning:architecture", "planning:environment", "planning:dependencies", "planning:testStrategy", "planning:security", "planning:traceability",
+    ...canonicalBriefEvidence,
+    "planning:projectId", "planning:projectVersion", "planning:accepted", "planning:blockers", "planning:architectureAcceptance", "planning:productScope", "planning:sitemap", "planning:pages", "planning:userFlows", "planning:forms", "planning:dataModel", "planning:authentication", "planning:supabase", "planning:storage", "planning:email", "planning:administration", "planning:architecture", "planning:environment", "planning:dependencies", "planning:testStrategy", "planning:security", "planning:traceability",
     ...planning.sitemap.routes.map((route) => `page:${route.id}`), ...planning.pages.pages.map((page) => `page:${page.id}`), ...planning.userFlows.flows.map((flow) => `flow:${flow.id}`), ...planning.forms.forms.map((form) => `form:${form.id}`), ...planning.dataModel.entities.map((entity) => `entity:${entity.id}`), ...planning.traceability.map((entry) => `decision:${entry.decisionId}`),
   ]);
 }
