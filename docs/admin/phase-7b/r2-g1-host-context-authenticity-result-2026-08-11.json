@@ -1,0 +1,317 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-7b-r2-g1-result",
+  "generatedOn": "2026-08-11",
+  "phase": "7B",
+  "revision": "2",
+  "groupId": "R2-G1-HOST_CONTEXT_AUTHENTICITY",
+  "title": "Host context provenance correction",
+  "status": "COMPLETE",
+  "phase7BStatusAfterGroup": "BLOCKED_REMAINING_REVISION_2_GROUPS",
+  "initialCommittedHead": "67306e3",
+  "sourceRevisionPlan": {
+    "planId": "phase-7b-revision-2-2026-08-11",
+    "path": "docs/admin/phase-7b/phase-7b-revision-2-plan-2026-08-11.json",
+    "planBaselineCommit": "bbc9e3a",
+    "sourceReconciliation": "phase-7b-semantic-reconciliation-2026-08-11"
+  },
+  "baselineCheckpoint": {
+    "commit": "408858ed3b3685d21783884d33bedf5a64d81722",
+    "message": "feat: checkpoint phase 7b developer tooling candidate",
+    "purpose": "Commit the inherited Phase 7B candidate separately before the single R2-G1 correction group.",
+    "inheritedCandidateFileCount": 22,
+    "knownTransientNotStaged": [".context7-cache/"],
+    "qaFoundationDirectoryCountBefore": 16
+  },
+  "correctionCommit": {
+    "commit": "a3773276e31c2bd5aaec622e8e8f915b2e987a2f",
+    "message": "fix: authenticate developer tool host context"
+  },
+  "finding": {
+    "findingIds": ["7b-sec-001"],
+    "reviewer": "security-reviewer",
+    "severity": "ERROR",
+    "category": "TRUST_BOUNDARY",
+    "defectClass": "SECURITY_BOUNDARY_DEFECT",
+    "risk": "HIGH",
+    "confidence": "HIGH",
+    "currentAtBaseline": true,
+    "reproduced": true,
+    "rootCause": "The exported createToolHostContext accepted caller-supplied ToolProjectScope and trusted executor identities. Its unique-symbol brand proved only that the exported constructor was invoked, not that a factory host created or attested the authority.",
+    "requiredClosure": "Only a host-owned binding may produce a usable ToolHostContext; stale, mismatched, structurally forged, or caller-expanded authority must fail closed."
+  },
+  "inheritedCandidateIdentity": {
+    "checkpointCommit": "408858ed3b3685d21783884d33bedf5a64d81722",
+    "fileCount": 22,
+    "files": [
+      "docs/architecture/agent-architecture.md",
+      "docs/architecture/developer-tooling-capability-layer.md",
+      "src/agents/catalog.ts",
+      "src/agents/reviewers/contracts/contracts.ts",
+      "src/domain/agents/schema.ts",
+      "src/domain/index.ts",
+      "src/domain/tasks/schema.ts",
+      "src/domain/tooling/path-policy.ts",
+      "src/domain/tooling/schema.ts",
+      "src/integrations/codebase-memory/contracts.ts",
+      "src/integrations/context7/contracts.ts",
+      "src/integrations/shadcn/contracts.ts",
+      "src/orchestration/orchestrator/graph.ts",
+      "src/orchestration/orchestrator/tools.ts",
+      "src/orchestration/tooling/adapters.ts",
+      "src/orchestration/tooling/authority.ts",
+      "src/orchestration/tooling/executor-ids.ts",
+      "src/orchestration/tooling/executors.ts",
+      "src/orchestration/tooling/index.ts",
+      "src/orchestration/tooling/registry.ts",
+      "src/orchestration/tooling/tooling.test.ts",
+      "src/runtime/validation/contracts.ts"
+    ],
+    "disposition": "Preserved and checkpointed; R2-G1 changed only the four scoped paths listed in affectedFiles."
+  },
+  "affectedFiles": [
+    {
+      "path": "src/orchestration/tooling/host-context.ts",
+      "category": "new-production-authority",
+      "preR2G1Sha256": null,
+      "postR2G1Sha256": "3b7f663283e1de0a301ceea7fd0588b91b08500a282b1ce2d8062478284279ee"
+    },
+    {
+      "path": "src/domain/tooling/schema.ts",
+      "category": "production-contract",
+      "preR2G1Sha256": "6e76f7325e2f86badd8a6f42782ca6aae2bf0cbf0bd2d3af09bed0c6cba34d1e",
+      "postR2G1Sha256": "bbc8946194422fb900f2d6ae26f6c59268415f8b52cbdfbb3789119943f286e7"
+    },
+    {
+      "path": "src/orchestration/tooling/authority.ts",
+      "category": "production-authorization",
+      "preR2G1Sha256": "a63aa06ea7210f7a2feee210e08cee679a50ddf2ebadf64176e7185dbad9108e",
+      "postR2G1Sha256": "b27219215152d13a030e6929f97d4627f1df6931fd4779db87f5b6c6179ef38c"
+    },
+    {
+      "path": "src/orchestration/tooling/tooling.test.ts",
+      "category": "focused-negative-tests",
+      "preR2G1Sha256": "1d1ef5979b611c359dc0a7fdef16256652fd1005e11f9b5d0e22ba9a3968ba52",
+      "postR2G1Sha256": "3576690b9be11386a80e1783655e9793cc09678dcb1d1d51e1c7b298d502dbce"
+    }
+  ],
+  "hostAuthorityModel": {
+    "trustedHostFields": [
+      "identity",
+      "currentScope.projectId",
+      "currentScope.projectVersion",
+      "currentScope.taskId",
+      "currentScope.workspaceIdentity",
+      "currentScope.workspaceReference",
+      "currentScope.allowedFileScopes",
+      "currentScope.current",
+      "currentScope.mutable",
+      "projectId",
+      "projectVersion",
+      "taskId",
+      "taskType",
+      "taskCapabilities",
+      "taskFileScopes",
+      "taskAllowedToolIds",
+      "agentId",
+      "agentAllowedToolIds",
+      "agentSupportedTaskTypes",
+      "trustedExecutorIds"
+    ],
+    "requestFields": [
+      "requestId",
+      "projectId",
+      "projectVersion",
+      "taskId",
+      "toolId",
+      "operationId",
+      "input"
+    ],
+    "requestFieldsAreClaims": ["projectId", "projectVersion", "taskId", "toolId", "operationId", "input"],
+    "authoritySources": [
+      "Private WeakSet membership in src/orchestration/tooling/host-context.ts proves the context is a host-created object in this runtime.",
+      "ToolHostContext construction validates scope/task identity, task capabilities, agent task-type support, and registered executor IDs.",
+      "authorizeToolRequest compares the request and supplied AgentTask against the host snapshot before registry and operation authorization.",
+      "The immutable Tool Registry and REGISTERED_TOOL_EXECUTOR_IDS remain the only tool/operation/executor definitions.",
+      "AgentDefinition permissions and TaskGraph task permissions remain intersections; neither request input nor agent role labels can grant authority."
+    ],
+    "requestCannotOverride": [
+      "agent identity or allowed tools",
+      "task identity, task type, or status",
+      "project/version/workspace scope",
+      "derived task capabilities",
+      "file scopes",
+      "tool definition or operation definition",
+      "executor identity",
+      "network policy, mutation mode, or dependency authority"
+    ]
+  },
+  "beforeAfterBehavior": {
+    "contextConstructionBefore": "Exported createToolHostContext accepted a caller-provided scope and trusted executor list; the symbol brand did not establish provenance.",
+    "contextConstructionAfter": "The internal host-context constructor validates canonical task/agent/scope identity, freezes all authority arrays, accepts only registered executor identities, and records the exact object in a private WeakSet. The tooling barrel does not export the constructor.",
+    "authorizationBefore": "A branded caller-constructed context could supply authority facts to the authorization path.",
+    "authorizationAfter": "Untrusted structural copies/lookalikes fail with HOST_CONTEXT_UNTRUSTED; trusted contexts must match request project/version/task, current AgentTask identity/capabilities/file scopes, and supplied AgentDefinition identity before operation authorization.",
+    "agent": "AgentDefinition.allowedTools and supportedTaskTypes are host-snapshotted and compared; a lead/reviewer definition cannot impersonate the implementation host context.",
+    "task": "Task ID, project/version, task type, file scopes, allowed tools, and derived/required capabilities are host-snapshotted and must match the current AgentTask.",
+    "project": "The request projectId, projectVersion, and taskId must match both the host context and its current project scope.",
+    "projectVersion": "A version mismatch remains PROJECT_SCOPE_INVALID and cannot be repaired through request input.",
+    "capability": "Operation requirements are checked against host-snapshotted task capabilities; request input cannot add a capability.",
+    "fileScope": "Source selectors remain inside the intersection of immutable host allowedFileScopes and host taskFileScopes.",
+    "network": "Arbitrary URLs remain rejected by input policy; registered external adapters remain the only network-capable integration boundary and return UNTRUSTED_EXTERNAL data.",
+    "mutation": "Operation mutation mode still requires a current mutable workspace where applicable; no generic write/edit/delete or shell operation was added.",
+    "dependency": "Dependency materialization remains a registered host runtime operation under the existing Dependency Authority; package names and command arguments cannot be supplied through request input.",
+    "currentness": "Only ready/running tasks authorize; cancelled/stale task status remains TASK_NOT_CURRENT.",
+    "cancellation": "Controlled runtime operation cancellation remains owned by the existing GeneratedProjectRuntimeValidator and typed runtime operation boundary; R2-G1 does not widen it."
+  },
+  "forgeryTests": [
+    {
+      "case": "Structural copy of a trusted context",
+      "before": "A unique-symbol copy could look branded at the type/shape boundary.",
+      "after": "Private WeakSet membership fails; authorization returns HOST_CONTEXT_UNTRUSTED.",
+      "proof": "src/orchestration/tooling/tooling.test.ts; 11 focused tests passed"
+    },
+    {
+      "case": "Task/scope identity mismatch at construction",
+      "before": "Caller-supplied scope and task facts were not bound by the old constructor.",
+      "after": "createHostToolContext throws because host task identity does not match current project scope.",
+      "proof": "src/orchestration/tooling/tooling.test.ts"
+    },
+    {
+      "case": "Request project/version/task mismatch",
+      "before": "Existing scope validation denied the mismatch.",
+      "after": "The trusted host snapshot is checked first; mismatch remains PROJECT_SCOPE_INVALID.",
+      "proof": "src/orchestration/tooling/tooling.test.ts"
+    },
+    {
+      "case": "Reviewer/lead agent impersonation",
+      "before": "Agent allowed-tool authorization denied the lead definition for the implementation operation.",
+      "after": "Host agent identity mismatch denies with AGENT_TOOL_NOT_ALLOWED before operation authorization.",
+      "proof": "src/orchestration/tooling/tooling.test.ts"
+    },
+    {
+      "case": "Forged capability or command-like request input",
+      "before": "Input policy denied capability/command-shaped fields.",
+      "after": "Input policy remains INPUT_NOT_ALLOWED; request data cannot become authority.",
+      "proof": "src/orchestration/tooling/tooling.test.ts"
+    }
+  ],
+  "reviewEvidence": {
+    "provider": "existing production provider bundle",
+    "model": "gpt-5.6-luna",
+    "modelLabel": "GPT-5.6 Luna",
+    "reviewTargetCommit": "408858ed3b3685d21783884d33bedf5a64d81722",
+    "reviewTargetState": "R2-G1 working tree changes were reviewed before the correction commit; committed source hashes match the reviewed source slices.",
+    "freshProviderCalls": 2,
+    "reusedProviderCalls": 0,
+    "evidenceValid": true,
+    "reviewers": [
+      {
+        "reviewer": "architecture-reviewer",
+        "verdict": "APPROVED",
+        "findingCount": 0,
+        "selectedSkills": [
+          {"skillId": "architecture-tradeoff-review", "checksum": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd"},
+          {"skillId": "module-boundaries-fb20497b5c35", "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff"},
+          {"skillId": "review-maintainability-d9faf7cb9775", "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9"}
+        ],
+        "skillContextIdentityChecksum": "488df20026a8cdc27a0ea566de496b2de54ab8ce8e047ec9ffa73eb4ad149c59"
+      },
+      {
+        "reviewer": "security-reviewer",
+        "verdict": "APPROVED",
+        "findingCount": 0,
+        "selectedSkills": [],
+        "skillContextIdentityChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    ],
+    "reviewedSourceSlices": [
+      "src/orchestration/tooling/host-context.ts",
+      "src/orchestration/tooling/authority.ts",
+      "src/domain/tooling/schema.ts",
+      "src/orchestration/tooling/tooling.test.ts",
+      "docs/architecture/developer-tooling-capability-layer.md"
+    ]
+  },
+  "deterministicValidation": {
+    "focusedToolingTest": "PASS: npm exec vitest run src/orchestration/tooling/tooling.test.ts; 1 file, 11 tests",
+    "reviewerRegressionSuite": "PASS: npm run test:reviewers; 7 files, 77 tests",
+    "typecheck": "PASS: npm run typecheck",
+    "lint": "PASS: npm run lint; 0 errors, 3 pre-existing warnings",
+    "build": "PASS: npm run build; Next.js 16.2.12",
+    "fullTest": "PASS: npm test; 72 files, 867 tests",
+    "audit": "PASS: npm audit --audit-level=high; 0 vulnerabilities",
+    "diffCheck": "PASS: git diff --check; only expected CRLF normalization warnings",
+    "dbValidate": "PASS: 2 migrations validated",
+    "dbStatus": "PASS: both migrations applied",
+    "dbVerify": "PASS: 17 tables, 84 constraints, 4 indexes, RLS 17/17, public policies 0",
+    "dbIntegrity": "PASS: MIGRATION_INTEGRITY_FIXTURE_OK",
+    "dockerComposeConfig": "PASS: docker compose config",
+    "taskgraphSmoke": "PASS: completed, releaseEligible true, passedTasks 6, repairs 0, network false, npm false, browser false",
+    "orderedRetryNote": "An initial parallel build/test invocation produced two local QA missing-build failures because npm test raced npm run build. Build was rerun first and the ordered full suite passed; no source or QA cleanup change was made."
+  },
+  "resolution": {
+    "perFinding": [
+      {
+        "findingId": "7b-sec-001",
+        "before": "VALID_ACTIVE",
+        "after": "RESOLVED",
+        "semanticVerdict": "APPROVED",
+        "deterministicProof": "PASS",
+        "regression": false
+      }
+    ],
+    "resolvedFindingCount": 1,
+    "remainingActiveFindingCountForThisGroup": 0,
+    "regressionCount": 0,
+    "correctionCyclesUsed": 1,
+    "correctionBudgetMaximum": 1
+  },
+  "laterGroups": {
+    "potentiallyImpacted": [
+      {
+        "groupId": "R2-G2-EXTERNAL_RESULT_BOUNDARY",
+        "findingIds": ["7b-sec-002", "7b-sec-004"],
+        "state": "POTENTIALLY_IMPACTED_BY_R2_G1",
+        "note": "R2-G1 changes the authority root only. External result bounding remains an active independent correction group and was not auto-resolved."
+      }
+    ],
+    "notAutoResolved": [
+      {
+        "groupId": "R2-G3-EVIDENCE_COMPLETENESS",
+        "findingIds": ["contract-audit-001", "tqr-7b-003"],
+        "state": "REMAINS_VALID_ACTIVE",
+        "note": "The evidence and generated-graph gap was not changed by this group."
+      }
+    ]
+  },
+  "successorState": {
+    "remainingValidFindings": ["contract-audit-001", "7b-sec-002", "7b-sec-004", "tqr-7b-003"],
+    "remainingGroups": ["R2-G2-EXTERNAL_RESULT_BOUNDARY", "R2-G3-EVIDENCE_COMPLETENESS"],
+    "newlyUnblockedGroups": ["R2-G2-EXTERNAL_RESULT_BOUNDARY"],
+    "nextRecommendedGroup": "R2-G2-EXTERNAL_RESULT_BOUNDARY",
+    "phase7BStatus": "BLOCKED_REMAINING_REVISION_2_GROUPS",
+    "stateArtifact": "docs/admin/phase-7b/phase-7b-revision-2-state-2026-08-11.json"
+  },
+  "scopeAndInvariants": {
+    "phase6": "COMPLETE; 0 findings",
+    "phase7A": "COMPLETE",
+    "agents": 9,
+    "approvedExternalSkills": 4,
+    "approvedInternalSkills": 13,
+    "uniqueApprovedSkills": 17,
+    "explicitAssignments": 18,
+    "deferredExternalSkillUsage": 0,
+    "customerWebsiteGenerationE2E": "NOT_RUN_BY_SCOPE",
+    "filesystemMcp": "NOT_USED",
+    "unrestrictedShell": "NOT_ADDED",
+    "newAgents": "NONE",
+    "newSkills": "NONE",
+    "astPatching": "NOT_STARTED",
+    "phase7C7D7E": "NOT_STARTED",
+    "qaFoundationDirectoryCountBefore": 16,
+    "qaFoundationDirectoryCountAfter": 17,
+    "qaFoundationCleanup": false,
+    "context7CacheStaged": false,
+    "knownTransient": [".context7-cache/"]
+  }
+}
