@@ -4,7 +4,7 @@
   "generatedOn": "2026-08-11",
   "phase": "7B",
   "revision": "2",
-  "state": "BLOCKED_R2_G2_FINAL_SEMANTIC_CLOSURE_READY",
+  "state": "BLOCKED_R2_G2_FROZEN_CLOSURE_VERIFICATION_READY",
   "sourcePlanIdentity": "r2-g2-final-transport-closure-2026-08-11",
   "sourcePlanPath": "docs/admin/phase-7b/r2-g2-final-transport-closure-plan-2026-08-11.json",
   "sourceReconciliationIdentity": "phase-7b-semantic-reconciliation-2026-08-11",
@@ -114,7 +114,7 @@
   },
   "finalSemanticClosurePlan": {
     "planId": "r2-g2-final-semantic-closure-2026-08-11",
-    "status": "READY_FOR_ONE_FINAL_BOUNDED_EXECUTION",
+    "status": "EXECUTED_BLOCKED_REVIEW",
     "path": "docs/admin/phase-7b/r2-g2-final-semantic-closure-plan-2026-08-11.json",
     "reportPath": "docs/admin/phase-7b/r2-g2-final-semantic-closure-plan-2026-08-11.md",
     "baselineHead": "2046614",
@@ -123,7 +123,65 @@
     "requiredReviewers": ["test-quality-reviewer", "security-reviewer", "contract-auditor", "code-integration-reviewer"],
     "architectureReviewerRequired": false,
     "normalizedBlockerCount": 5,
-    "nextAction": "R2-G2 FINAL SEMANTIC CLOSURE - EXECUTE"
+    "nextAction": "RECONCILE FINAL SEMANTIC RESULT"
+  },
+  "finalSemanticClosureExecution": {
+    "status": "BLOCKED",
+    "implementationCycleUsed": 1,
+    "authorizedImplementationCycles": 1,
+    "baselineHead": "2046614",
+    "currentHead": "9dfaddfe337b9d4fef054e244206cdf36ca2b7f8",
+    "resultArtifact": "docs/admin/phase-7b/r2-g2-final-semantic-closure-result-2026-08-11.json",
+    "reportArtifact": "docs/admin/phase-7b/r2-g2-final-semantic-closure-result-2026-08-11.md",
+    "reviewVerificationArtifact": "docs/admin/phase-7b/r2-g2-final-semantic-closure-review-verification-2026-08-11.json",
+    "correctionCommit": null,
+    "closureCommit": null,
+    "freshGptCalls": 4,
+    "reusedProviderCalls": 0,
+    "evidenceValid": true,
+    "reviewVerdicts": {
+      "code-integration-reviewer": "CHANGES_REQUIRED",
+      "test-quality-reviewer": "CHANGES_REQUIRED",
+      "security-reviewer": "CHANGES_REQUIRED",
+      "contract-auditor": "BLOCKED"
+    },
+    "blockingFindings": [
+      "r2-g2-final-semantic-closure-transport-f001",
+      "tqr-r2-g2-production-composition-001",
+      "tqr-r2-g2-composed-boundary-002",
+      "ca-r2-g2-001",
+      "ca-r2-g2-002",
+      "ca-r2-g2-003",
+      "ca-r2-g2-004",
+      "ca-r2-g2-005",
+      "ca-r2-g2-006"
+    ],
+    "nextAction": "RECONCILE FINAL SEMANTIC RESULT",
+    "noSecondCorrectionCycle": true
+  },
+  "closureScopeReconciliation": {
+    "reconciliationId": "R2-G2.5-CLOSURE-SCOPE-RECONCILIATION",
+    "status": "COMPLETE",
+    "contractArtifact": "docs/admin/phase-7b/r2-g2-closure-contract-2026-08-11.json",
+    "reportArtifact": "docs/admin/phase-7b/r2-g2-closure-scope-reconciliation-2026-08-11.md",
+    "candidateId": "r2-g2.5-candidate-2026-08-11",
+    "candidateChecksum": "81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97",
+    "evidenceId": "r2-g2.5-evidence-af001dd1bff714e03a95fea07018c1e43004e1e8b72e954558efd88b8ea804c9",
+    "candidateFileCount": 16,
+    "candidatePreservedByteForByte": true,
+    "freshGptCalls": 0,
+    "latestUniqueFindingCount": 18,
+    "r2g2ProductionDefects": 0,
+    "r2g2Regressions": 0,
+    "r2g2RequiredEvidence": 2,
+    "r2g3EvidenceFindings": 11,
+    "futureHardeningFindings": 1,
+    "currentStaleDuplicateScopeDrift": 4,
+    "historicalSupersededFindings": 13,
+    "nextAction": "R2-G2 FROZEN CLOSURE VERIFICATION",
+    "successorPlanId": "r2-g2-frozen-closure-verification-2026-08-11",
+    "architectureReviewerRequired": false,
+    "sourceTestMutation": false
   },
   "remainingValidFindings": [
     {
@@ -179,9 +237,9 @@
     {
       "groupId": "R2-G2-FINAL-SEMANTIC-CLOSURE",
       "findingIds": ["tqr-r2-g2-production-composition-001", "sec-7b-001", "sec-7b-002", "sec-7b-003", "sec-7b-004", "r2-g2-final-transport-closure-f001", "r2-g2-final-transport-closure-f002", "r2-g2-final-transport-closure-f003"],
-      "state": "BLOCKED_FINAL_SEMANTIC_CLOSURE_READY",
+      "state": "BLOCKED_FROZEN_CLOSURE_VERIFICATION_READY",
       "dependencySatisfiedBy": "R2-G1-HOST_CONTEXT_AUTHENTICITY",
-      "note": "R2-G2.4 reconciled the eight current reviewer findings into five normalized blockers. One future bounded semantic-closure cycle is ready; no implementation or reviewer execution occurred in this reconciliation."
+      "note": "R2-G2.5 froze seven finite obligations. Deterministic behavior is green; two findings require one bounded same-candidate closure verification. Generic evidence routes to R2-G3 and spawn-error handling routes to future hardening."
     },
     {
       "groupId": "R2-G3-EVIDENCE_COMPLETENESS",
@@ -191,8 +249,8 @@
     }
   ],
   "newlyUnblockedGroups": [],
-  "nextRecommendedGroup": "R2-G2-FINAL-SEMANTIC-CLOSURE",
-  "validActiveFindingCount": 8,
+  "nextRecommendedGroup": "R2-G2-FROZEN-CLOSURE-VERIFICATION",
+  "validActiveFindingCount": 13,
   "globalRevisionPolicy": {
     "maximumGroupsBeforeReconciliation": 2,
     "groupsExecutedSinceLastReconciliation": 1,
@@ -201,15 +259,15 @@
   },
   "validationState": {
     "reconciliationArtifactValidation": "PASS",
-    "candidateSourceTestsModifiedThisTurn": "YES",
-    "focusedToolingTest": "PASS 53/53",
+    "candidateSourceTestsModifiedThisTurn": "NO",
+    "focusedToolingTest": "PASS 41/41",
     "typecheck": "PASS",
     "lint": "PASS; 0 errors, 3 known pre-existing warnings",
     "build": "PASS; Next.js 16.2.12",
-    "fullDeterministicGates": "NOT_RUN_AFTER_REVIEWER_BLOCK",
-    "reviewerRegressionSuite": "NOT_RUN_AFTER_REVIEWER_BLOCK",
-    "databaseGates": "NOT_RUN_AFTER_REVIEWER_BLOCK",
-    "taskgraphSmoke": "NOT_RUN_AFTER_REVIEWER_BLOCK",
+    "fullDeterministicGates": "NOT_RUN_BY_META_SCOPE",
+    "reviewerRegressionSuite": "NOT_RUN_BY_META_SCOPE",
+    "databaseGates": "NOT_RUN_BY_META_SCOPE",
+    "taskgraphSmoke": "NOT_RUN_BY_META_SCOPE",
     "customerWebsiteGenerationE2E": "NOT_RUN_BY_SCOPE"
   },
   "invariants": {
@@ -241,9 +299,10 @@
     "context7CacheStaged": false,
     "unexpectedTrackedChangesAfterClosure": false,
     "expectedCandidateChangesUncommitted": true,
-    "candidateChangedThisTurn": true,
+    "candidateChangedThisTurn": false,
     "planningArtifactsChangedThisTurn": true,
-    "closureCommit": null
+    "closureCommit": null,
+    "metaOnlyReconciliation": true
   },
-  "nextTurnInstruction": "Execute exactly one R2-G2 FINAL SEMANTIC CLOSURE cycle from the reconciled plan, then run the required deterministic checks and fresh reviewers. Do not start R2-G3, Phase 7C/7D/7E, customer website-generation E2E, deployment, or QA cleanup."
+  "nextTurnInstruction": "Execute R2-G2 FROZEN CLOSURE VERIFICATION on candidate r2-g2.5-candidate-2026-08-11 with no source/test mutation. Do not start R2-G3, Phase 7C/7D/7E, customer website-generation E2E, deployment, or QA cleanup."
 }

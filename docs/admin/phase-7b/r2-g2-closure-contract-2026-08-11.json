@@ -1,0 +1,294 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-7b-r2-g2-closure-contract",
+  "generatedOn": "2026-08-11",
+  "phase": "7B",
+  "reconciliationId": "R2-G2.5-CLOSURE-SCOPE-RECONCILIATION",
+  "contractId": "r2-g2-frozen-closure-contract-2026-08-11",
+  "baselineHead": "9dfaddfe337b9d4fef054e244206cdf36ca2b7f8",
+  "sourceFinalSemanticResultIdentity": "r2-g2-final-semantic-closure-2026-08-11",
+  "sourceFinalSemanticResultPath": "docs/admin/phase-7b/r2-g2-final-semantic-closure-result-2026-08-11.json",
+  "candidateId": "r2-g2.5-candidate-2026-08-11",
+  "candidateChecksum": "81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97",
+  "evidenceId": "r2-g2.5-evidence-af001dd1bff714e03a95fea07018c1e43004e1e8b72e954558efd88b8ea804c9",
+  "candidateFiles": [
+    {"path":"src/integrations/codebase-memory/codebase-memory.test.ts","status":"M","checksum":"6374f10f467efba19e1761844a3d73bd8d7501de77c5783c09d05d4d38cf1c04","diffSummary":"+59/-11","firstRevision":"R2-G2 Revision 2"},
+    {"path":"src/integrations/codebase-memory/service.ts","status":"M","checksum":"26e3b26505e5d34714abc24b7628576cc08bb8c7ff2ecd5654946f9fbfe53b2e","diffSummary":"+68/-11","firstRevision":"R2-G2 Revision 2"},
+    {"path":"src/integrations/codebase-memory/transport.ts","status":"M","checksum":"bb6b4b6262c0f6122a015e163eb4f01674f2610f4ae0f4dd092dae18cc052277","diffSummary":"+165/-14","firstRevision":"R2-G2 Revision 2"},
+    {"path":"src/integrations/context7/cache.ts","status":"M","checksum":"34363c1adbd116938e76e03b762f1cedf6a800734fc6fde7785157ae284e95e6","diffSummary":"+9/-1","firstRevision":"R2-G2.4 final semantic closure"},
+    {"path":"src/integrations/context7/context7.test.ts","status":"M","checksum":"e5fd8f047852eebbab4a39d95206b9b4a70992a96878c503afa64e475690db7b","diffSummary":"+9/-6","firstRevision":"R2-G2 Revision 2"},
+    {"path":"src/integrations/context7/contracts.ts","status":"M","checksum":"af8442cd5368902188779d478dad5f78c7dcea1e727c7873ad26ae52b5bab238","diffSummary":"+1/-1","firstRevision":"R2-G2 Revision 2"},
+    {"path":"src/integrations/context7/normalize.ts","status":"M","checksum":"0a8bbd9d330e579f3c86f23454f4cf704d791c2cf8865b55cd0d545ba78fef30","diffSummary":"+12/-0","firstRevision":"R2-G2 Revision 2"},
+    {"path":"src/integrations/context7/service.ts","status":"M","checksum":"a1d78e068129ccc7a4d04ece9f329c45746cc4f46ab80bd61a1fe0c116135f59","diffSummary":"+3/-3","firstRevision":"R2-G2 Revision 2"},
+    {"path":"src/integrations/shadcn/cache.ts","status":"M","checksum":"67b9ca28c796593d83b17cedc2370ed0fb10b59feddcc8e55aceadb0694a3a39","diffSummary":"+2/-1","firstRevision":"R2-G2.4 final semantic closure"},
+    {"path":"src/integrations/shadcn/contracts.ts","status":"M","checksum":"d0fb0a5d72cf7cc7fcea4557f012353d140325bea50c0aa374519b2d82403355","diffSummary":"+1/-1","firstRevision":"R2-G2 Revision 2"},
+    {"path":"src/integrations/shadcn/server.ts","status":"M","checksum":"681e9f97b84c6cadf93754ce4d47600325f35368899a3c4c28bfd125336ee5f6","diffSummary":"+1/-1","firstRevision":"R2-G2 Revision 2"},
+    {"path":"src/integrations/shadcn/service.ts","status":"M","checksum":"7b9259d85b584805f198bc89d1666d8ee3c49bc8965aa808cd584806f3e4587a","diffSummary":"+12/-2","firstRevision":"R2-G2 Revision 2"},
+    {"path":"src/integrations/shadcn/shadcn-registry.test.ts","status":"M","checksum":"d572835b4ad8f0d690d12db9bc45cce732e05d0c79ea0990e79ab8bfbe2971cc","diffSummary":"+9/-4","firstRevision":"R2-G2 Revision 2"},
+    {"path":"src/orchestration/tooling/adapters.ts","status":"M","checksum":"3cfce5d4b2a18a2952f9eda0b9db95be277d5acf4972e18e5399491079e73659","diffSummary":"+16/-12","firstRevision":"R2-G2 Revision 2"},
+    {"path":"src/orchestration/tooling/executors.ts","status":"M","checksum":"11f9f8660b60a28e0f012c674669b4b94378097cf3d904bb5e52dda750d4a3b5","diffSummary":"+14/-5","firstRevision":"R2-G2 Revision 2"},
+    {"path":"src/orchestration/tooling/tooling.test.ts","status":"M","checksum":"c48788f27a8d81bfc65d414ca1144d078ab32333b9be64aa559eec20bbbf9d6f","diffSummary":"+193/-5","firstRevision":"R2-G2 Revision 2"}
+  ],
+  "worktreeClassification": {
+    "R2_G2_CANDIDATE": 16,
+    "R2_G2_BLOCKED_ATTEMPT_ADMIN_ARTIFACT": 12,
+    "PHASE_7B_CANONICAL_ADMIN": ["docs/admin/phase-7b/phase-7b-revision-2-state-2026-08-11.json"],
+    "KNOWN_TRANSIENT": [".context7-cache/", ".qa-foundation-* (18 directories)"],
+    "UNRELATED_UNEXPECTED": []
+  },
+  "originalR2G2Definition": {
+    "groupId": "R2-G2-EXTERNAL_RESULT_BOUNDARY",
+    "originalFindingIds": ["7b-sec-002", "7b-sec-004"],
+    "originalRootCause": "The generic external-result conversion serialized and redacted arbitrary external values before all resource bounds and JSON-key secret protections were enforced.",
+    "affectedDomain": "External integration output entering the bounded UNTRUSTED_EXTERNAL ToolResult boundary.",
+    "threatModel": "External Context7, shadcn, and Codebase Memory output must not become authority, execute arbitrary object behavior, exceed bounded resource limits, or persist raw secret-bearing content.",
+    "originalClosureRequirement": "Reject oversized or unsafe external output before unbounded materialization, preserve serialized/parsed contract coherence, redact bounded untrusted results, and retain existing host/dependency/write authority boundaries.",
+    "originalReviewerSet": ["security-reviewer", "code-integration-reviewer", "test-quality-reviewer"],
+    "dependency": "R2-G1-HOST_CONTEXT_AUTHENTICITY is complete and remains unchanged."
+  },
+  "rootCauseEvolution": [
+    {"stage":"initial Phase 7B reconciliation","identity":"NF-7B-EXTERNAL-RESULT-BOUNDARY","meaning":"Generic serialization and redaction occurred before complete resource/secret protection."},
+    {"stage":"R2-G1","identity":"7b-sec-001","meaning":"Host context authenticity was separated into its own completed group and is not an R2-G2 obligation."},
+    {"stage":"R2-G2 Revision 2","identity":"r2-g2-002 / r2-g2-tq-001","meaning":"Generic adapter live-object traversal and missing integration-specific serialized bounds were identified."},
+    {"stage":"R2-G2 Revision 3","identity":"r3-r2-g2-001 / 7b-sec-004-codebase-transport / 7b-sec-002-r3 / 7b-sec-004-transport-verification-gap","meaning":"The generic adapter was changed to serialized text, exposing the remaining Codebase Memory process reserialization and production-path proof gap."},
+    {"stage":"R2-G2 final transport closure","identity":"R2-G2-FINAL-TRANSPORT-CLOSURE","meaning":"The inert JSON claim was corrected; process overflow cleanup, composition proof, child environment, stderr, cancellation, persistence, and UTF-8 concerns were grouped for one final semantic cycle."},
+    {"stage":"R2-G2.4 final semantic closure","identity":"R2-G2.4-CLOSURE","meaning":"Deterministic behavior became green for the bounded lifecycle, storage, cancellation, UTF-8, and composed tests; fresh review then added production-factory/ownership evidence demands and a pre-existing spawn-error hardening concern."},
+    {"stage":"R2-G2.5 reconciliation","identity":"R2-G2.5-CLOSURE-SCOPE-RECONCILIATION","meaning":"The finite contract keeps direct result-boundary correctness and one candidate-bound evidence verification in R2-G2; generic traceability and factory-wiring evidence route to R2-G3; spawn-error handling routes to future hardening."}
+  ],
+  "reviewTimeline": [
+    {"run":"phase-7b-final-bounded-pass-bbc9e3a-unpersisted","candidate":"bbc9e3a; source snapshot not persisted","reviewers":"Architecture, Contract, Code/Integration, Security, Test/Quality","verdict":"Architecture CHANGES_REQUIRED (3); Contract BLOCKED (1); Code/Integration CHANGES_REQUIRED (3); Security CHANGES_REQUIRED (4); Test/Quality CHANGES_REQUIRED (3)","newFindings":"7b-arch-001..003, contract-audit-001, phase-7b-integration-001..003, 7b-sec-001..004, tqr-7b-001..003","resolvedFindings":"None at this run; later reconciliation marked 8 stale/resolved and rebased 5 valid active findings."},
+    {"run":"R2-G1 host-context closure","candidate":"408858ed3b3685d21783884d33bedf5a64d81722 → a3773276 correction","reviewers":"Architecture, Security","verdict":"APPROVED / APPROVED","newFindings":"None","resolvedFindings":"7b-sec-001; host-context authenticity group complete."},
+    {"run":"r2-g2-revision-2-2026-08-11","candidate":"69674f46d163df9ac2b06418ba00d2f83392a4cdb665b4c5d6bf44685b1c453a","reviewers":"Security, Code/Integration, Test/Quality","verdict":"APPROVED / CHANGES_REQUIRED / CHANGES_REQUIRED","newFindings":"r2-g2-002, r2-g2-tq-001","resolvedFindings":"Prior generic external-result wording was narrowed; R2-G2 remained blocked."},
+    {"run":"phase-7b-r2-g2-revision-3-2026-08-11","candidate":"baseline 82f0487803b817b11089f714fc4f6ab14bff9e60; four-reviewer verification","reviewers":"Code/Integration, Test/Quality, Security, Contract","verdict":"All CHANGES_REQUIRED","newFindings":"r3-r2-g2-001, 7b-sec-004-codebase-transport, 7b-sec-002-r3, 7b-sec-004-transport-verification-gap","resolvedFindings":"r2-g2-002 and r2-g2-tq-001 were superseded/rebased by the new serialized host binding and integration-specific findings."},
+    {"run":"r2-g2-final-transport-closure-2026-08-11","candidate":"14-file candidate hash set in final transport plan","reviewers":"Code/Integration, Test/Quality, Security, Contract","verdict":"APPROVED / CHANGES_REQUIRED / CHANGES_REQUIRED / CHANGES_REQUIRED","newFindings":"tqr-r2-g2-production-composition-001, sec-7b-001..004, r2-g2-final-transport-closure-f001..f003","resolvedFindings":"The prior generic adapter claim was approved; remaining process/lifecycle/composition findings were normalized."},
+    {"run":"r2-g2-final-semantic-closure-2026-08-11","candidate":"r2-g2.5-candidate-2026-08-11 / 81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","reviewers":"Code/Integration, Test/Quality, Security, Contract","verdict":"CHANGES_REQUIRED / CHANGES_REQUIRED / CHANGES_REQUIRED / BLOCKED","newFindings":"r2-g2-final-semantic-closure-transport-f001, ca-r2-g2-001..006, tqr-r2-g2-composed-boundary-002; tqr-r2-g2-production-composition-001 was inherited","resolvedFindings":"Deterministic child environment, stderr, cancellation, storage redaction, UTF-8, and composed behavior were green; semantic approval was not obtained."}
+  ],
+  "perReviewerApprovalHistory": {
+    "architecture-reviewer": [
+      {"revision":"initial final bounded pass","candidate":"bbc9e3a unpersisted","verdict":"CHANGES_REQUIRED","findings":["7b-arch-001","7b-arch-002","7b-arch-003"],"approvedScope":"none for R2-G2; later stale after correction"},
+      {"revision":"R2-G1","candidate":"408858ed3b3685d21783884d33bedf5a64d81722","verdict":"APPROVED","findings":[],"approvedScope":"host-context authenticity and current architecture boundary"}
+    ],
+    "contract-auditor": [
+      {"revision":"initial final bounded pass","candidate":"bbc9e3a unpersisted","verdict":"BLOCKED","findings":["contract-audit-001"],"approvedScope":"none"},
+      {"revision":"R2-G2 Revision 3","candidate":"82f0487803b817b11089f714fc4f6ab14bff9e60","verdict":"CHANGES_REQUIRED","findings":["7b-sec-004-transport-verification-gap"],"approvedScope":"none"},
+      {"revision":"final transport closure","candidate":"r2-g2-final-transport-closure hash set","verdict":"CHANGES_REQUIRED","findings":["r2-g2-final-transport-closure-f001","r2-g2-final-transport-closure-f002","r2-g2-final-transport-closure-f003"],"approvedScope":"none"},
+      {"revision":"final semantic closure","candidate":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","verdict":"BLOCKED","findings":["ca-r2-g2-001","ca-r2-g2-002","ca-r2-g2-003","ca-r2-g2-004","ca-r2-g2-005","ca-r2-g2-006"],"approvedScope":"none"}
+    ],
+    "code-integration-reviewer": [
+      {"revision":"initial final bounded pass","candidate":"bbc9e3a unpersisted","verdict":"CHANGES_REQUIRED","findings":["phase-7b-integration-001","phase-7b-integration-002","phase-7b-integration-003"],"approvedScope":"none; later stale after correction"},
+      {"revision":"R2-G2 Revision 2","candidate":"69674f46d163df9ac2b06418ba00d2f83392a4cdb665b4c5d6bf44685b1c453a","verdict":"CHANGES_REQUIRED","findings":["r2-g2-002"],"approvedScope":"none"},
+      {"revision":"R2-G2 Revision 3","candidate":"82f0487803b817b11089f714fc4f6ab14bff9e60","verdict":"CHANGES_REQUIRED","findings":["r3-r2-g2-001"],"approvedScope":"none"},
+      {"revision":"final transport closure","candidate":"r2-g2-final-transport-closure hash set","verdict":"APPROVED","findings":[],"approvedScope":"inert JSON provenance, bounded Codebase process transport, and lower transport contract as evidenced at that candidate"},
+      {"revision":"final semantic closure","candidate":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","verdict":"CHANGES_REQUIRED","findings":["r2-g2-final-semantic-closure-transport-f001"],"approvedScope":"none for current candidate; latest concern is spawn-error lifecycle"}
+    ],
+    "security-reviewer": [
+      {"revision":"initial final bounded pass","candidate":"bbc9e3a unpersisted","verdict":"CHANGES_REQUIRED","findings":["7b-sec-001","7b-sec-002","7b-sec-004"],"approvedScope":"none"},
+      {"revision":"R2-G1","candidate":"408858ed3b3685d21783884d33bedf5a64d81722","verdict":"APPROVED","findings":[],"approvedScope":"host-context authenticity"},
+      {"revision":"R2-G2 Revision 2","candidate":"69674f46d163df9ac2b06418ba00d2f83392a4cdb665b4c5d6bf44685b1c453a","verdict":"APPROVED","findings":[],"approvedScope":"generic external-result boundary as evidenced before later lifecycle changes"},
+      {"revision":"R2-G2 Revision 3","candidate":"82f0487803b817b11089f714fc4f6ab14bff9e60","verdict":"CHANGES_REQUIRED","findings":["7b-sec-002-r3"],"approvedScope":"none"},
+      {"revision":"final transport closure","candidate":"r2-g2-final-transport-closure hash set","verdict":"CHANGES_REQUIRED","findings":["sec-7b-001","sec-7b-002","sec-7b-003","sec-7b-004"],"approvedScope":"none"},
+      {"revision":"final semantic closure","candidate":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","verdict":"CHANGES_REQUIRED","findings":["r2-g2-final-semantic-closure-transport-f001"],"approvedScope":"none for current candidate"}
+    ],
+    "test-quality-reviewer": [
+      {"revision":"initial final bounded pass","candidate":"bbc9e3a unpersisted","verdict":"CHANGES_REQUIRED","findings":["tqr-7b-001","tqr-7b-002","tqr-7b-003"],"approvedScope":"none; two became stale, one remains R2-G3"},
+      {"revision":"R2-G2 Revision 2","candidate":"69674f46d163df9ac2b06418ba00d2f83392a4cdb665b4c5d6bf44685b1c453a","verdict":"CHANGES_REQUIRED","findings":["r2-g2-tq-001"],"approvedScope":"none"},
+      {"revision":"R2-G2 Revision 3","candidate":"82f0487803b817b11089f714fc4f6ab14bff9e60","verdict":"CHANGES_REQUIRED","findings":["7b-sec-004-codebase-transport"],"approvedScope":"none"},
+      {"revision":"final transport closure","candidate":"r2-g2-final-transport-closure hash set","verdict":"CHANGES_REQUIRED","findings":["tqr-r2-g2-production-composition-001"],"approvedScope":"none"},
+      {"revision":"final semantic closure","candidate":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","verdict":"CHANGES_REQUIRED","findings":["tqr-r2-g2-production-composition-001","tqr-r2-g2-composed-boundary-002"],"approvedScope":"none"}
+    ]
+  },
+  "approvedInvariants": [
+    {"invariantId":"R2-G1-HOST-CONTEXT-AUTHENTICITY","status":"APPROVAL_STILL_CURRENT","evidence":"R2-G1 Architecture/Security approval on 408858…; host-context paths are not in the R2-G2 candidate."},
+    {"invariantId":"DEPENDENCY-AUTHORITY","status":"APPROVAL_STILL_CURRENT","evidence":"Committed dependency-authority hardening is outside the candidate and remains unchanged."},
+    {"invariantId":"INERT-JSON-PARSE-CONCLUSION","status":"APPROVAL_STILL_CURRENT","evidence":"Final transport Code/Integration approval and plan explicitly preserve standard JSON.parse without a reviver as ordinary inert JSON data."},
+    {"invariantId":"GENERIC-SERIALIZED-TOOLRESULT-BOUNDARY","status":"APPROVAL_STILL_CURRENT_FOR_CORE-CONTRACT","evidence":"adapters.ts/executors.ts remain unchanged from the final semantic candidate start; the remaining issue is evidence/currentness, not a proven parsed-DTO runtime mismatch."},
+    {"invariantId":"CONTEXT7-SHADCN-OVERSIZED-REJECTION","status":"APPROVAL_STALE_DUE_TO_SOURCE_CHANGE_BUT_BEHAVIOR_PRESERVED","evidence":"Relevant service/test paths changed in the candidate; existing focused behavior remains green and no contrary current production reproduction exists."},
+    {"invariantId":"CODEBASE-TRANSPORT-OVERFLOW-RECOVERY","status":"APPROVAL_STALE_DUE_TO_SOURCE_CHANGE_BUT_BEHAVIOR_PRESERVED","evidence":"transport/service/test changed after final transport approval; current focused process overflow, cleanup, and recovery assertions pass."}
+  ],
+  "approvalCurrentnessDiffs": [
+    {"reviewer":"code-integration-reviewer","lastApproval":"final transport closure","sourceChangedAfterward":"YES, PARTIALLY","changedPaths":["src/integrations/codebase-memory/transport.ts","src/integrations/codebase-memory/service.ts","src/integrations/codebase-memory/codebase-memory.test.ts"],"newFindingConcernsChangedArea":"PARTIALLY; the spawn-error path predates the cycle's lifecycle edits and was not shown to be introduced by them.","conclusion":"Approval remains valid only for the previously reviewed lower-boundary scope, not as a blanket approval of the current candidate."},
+    {"reviewer":"security-reviewer","lastApproval":"R2-G2 Revision 2","sourceChangedAfterward":"YES","changedPaths":["src/integrations/codebase-memory/transport.ts","src/integrations/codebase-memory/service.ts","src/integrations/context7/cache.ts","src/integrations/shadcn/cache.ts"],"newFindingConcernsChangedArea":"PARTIALLY; current environment/stderr/cancellation/storage claims are now deterministically addressed; spawn-error is pre-existing adjacent hardening.","conclusion":"Later Security blocks reflect both real scope changes and evidence scope expansion; they do not automatically reopen the approved host-context or inert-JSON invariants."}
+  ],
+  "frozenObligations": [
+    {
+      "obligationId":"R2-G2-O1-INERT-SERIALIZED-EXTERNAL-RESULT",
+      "title":"External results remain inert, serialized, bounded, and non-authoritative",
+      "sourceFindings":["7b-sec-002","7b-sec-004","r2-g2-final-transport-closure-f001"],
+      "domain":"external result boundary",
+      "requiredBehavior":"External results cannot invoke caller-controlled getters/Proxy/toJSON/iterator behavior, cannot grant authority, and enter the registered UNTRUSTED_EXTERNAL boundary as bounded serialized data or validated normalized data.",
+      "deterministicEvidence":"Hostile-object tests pass; standard JSON.parse provenance is preserved; registeredOutputToToolResult requires primitive serialized text and validates the registered DTO.",
+      "semanticReviewerOwners":["code-integration-reviewer","security-reviewer","contract-auditor"],
+      "currentStatus":"PASS_BEHAVIOR_REQUIRES_FROZEN_SCOPE_VERIFICATION",
+      "blockingWhenFailed":true
+    },
+    {
+      "obligationId":"R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND",
+      "title":"Context7, shadcn, and Codebase Memory reject oversized serialized results before downstream work",
+      "sourceFindings":["r2-g2-tq-001","7b-sec-002","r2-g2-final-transport-closure-f002"],
+      "domain":"integration transport and parsing",
+      "requiredBehavior":"Raw UTF-8 serialized output is bounded and rejected before normalization, cache, metadata persistence, authority decisions, or model-facing ToolResult continuation.",
+      "deterministicEvidence":"Context7/shadcn service-boundary tests and Codebase Memory process/service overflow tests pass; targeted suite is green.",
+      "semanticReviewerOwners":["test-quality-reviewer","security-reviewer","code-integration-reviewer"],
+      "currentStatus":"PASS_BEHAVIOR_REQUIRES_FROZEN_SCOPE_VERIFICATION",
+      "blockingWhenFailed":true
+    },
+    {
+      "obligationId":"R2-G2-O3-CHILD-TRUST-TERMINAL-LIFECYCLE",
+      "title":"The configured child process has bounded trust and terminal overflow lifecycle",
+      "sourceFindings":["sec-7b-001","sec-7b-002"],
+      "domain":"Codebase Memory child-process lifecycle",
+      "requiredBehavior":"The child receives an explicit minimal environment, stderr is consumed without raw exposure or pipe blockage, terminal overflow clears pending/buffer state, terminates the child, and a fresh request can recover.",
+      "deterministicEvidence":"Synthetic-secret environment test, bounded stderr counter, process overflow cleanup, and fresh-process recovery tests pass.",
+      "semanticReviewerOwners":["security-reviewer","code-integration-reviewer","test-quality-reviewer"],
+      "currentStatus":"PASS_BEHAVIOR; SPAWN-ERROR HARDENING IS OUTSIDE THIS FROZEN OBLIGATION",
+      "blockingWhenFailed":true
+    },
+    {
+      "obligationId":"R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE",
+      "title":"External data is redacted before Codebase, Context7, and shadcn persistence",
+      "sourceFindings":["sec-7b-004"],
+      "domain":"external data at rest",
+      "requiredBehavior":"Raw external source/result text is not persisted; bounded redaction occurs before cache/metadata publication; output remains UNTRUSTED_EXTERNAL.",
+      "deterministicEvidence":"Synthetic-secret persistence tests pass for Codebase Memory, Context7, and shadcn; provenance remains untrusted.",
+      "semanticReviewerOwners":["security-reviewer","test-quality-reviewer"],
+      "currentStatus":"PASS_BEHAVIOR; GENERIC POLICY OWNERSHIP TRACE ROUTES TO R2-G3",
+      "blockingWhenFailed":true
+    },
+    {
+      "obligationId":"R2-G2-O5-CANCELLATION-ISOLATION",
+      "title":"Cancellation is isolated across transport requests and shared service work",
+      "sourceFindings":["sec-7b-003"],
+      "domain":"request lifecycle",
+      "requiredBehavior":"One request's abort cannot cancel an unrelated pending request; shared index work remains usable by a sibling caller; status cancellation is honored; terminal overflow remains fail-closed.",
+      "deterministicEvidence":"Focused transport sibling, shared-index caller, and getIndexStatus cancellation tests pass.",
+      "semanticReviewerOwners":["security-reviewer","test-quality-reviewer","contract-auditor"],
+      "currentStatus":"PASS_BEHAVIOR; GENERIC TRACEABILITY REQUEST ROUTES TO R2-G3",
+      "blockingWhenFailed":true
+    },
+    {
+      "obligationId":"R2-G2-O6-UTF8-SAFE-NORMALIZATION",
+      "title":"Normalized excerpts preserve UTF-8 code-point boundaries",
+      "sourceFindings":["r2-g2-final-transport-closure-f003"],
+      "domain":"Codebase Memory normalization",
+      "requiredBehavior":"Excerpt byte limits never split a multibyte code point or introduce replacement characters.",
+      "deterministicEvidence":"Multibyte excerpt regression passes with byte-length assertion and no U+FFFD replacement character.",
+      "semanticReviewerOwners":["contract-auditor","test-quality-reviewer"],
+      "currentStatus":"PASS_BEHAVIOR; CROSS-ARTIFACT TRACE ROUTES TO R2-G3",
+      "blockingWhenFailed":true
+    },
+    {
+      "obligationId":"R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE",
+      "title":"One frozen candidate has a current end-to-end process/service/ToolResult closure record",
+      "sourceFindings":["tqr-r2-g2-production-composition-001","r2-g2-final-transport-closure-f001","r2-g2-final-transport-closure-f002","tqr-r2-g2-composed-boundary-002"],
+      "domain":"R2-G2 semantic closure evidence",
+      "requiredBehavior":"The same immutable candidate and evidence identity demonstrate valid real-child output reaching service normalization and registered serialized ToolResult consumption, while oversized output is rejected before normalization/cache/metadata/completion and remains recoverable. Production-factory/TaskGraph ownership expansion is not part of this obligation and routes to R2-G3.",
+      "deterministicEvidence":"The final semantic candidate has a real child → process transport → service → serializer/registered-dispatch test and 41 focused tests; the evidence identity is frozen here.",
+      "semanticReviewerOwners":["code-integration-reviewer","test-quality-reviewer","contract-auditor","security-reviewer"],
+      "currentStatus":"REQUIRED_CLOSURE_VERIFICATION",
+      "blockingWhenFailed":true
+    }
+  ],
+  "currentFindings": [
+    {"findingId":"tqr-r2-g2-production-composition-001","reviewer":"test-quality-reviewer","severity":"ERROR","firstSeen":"R2-G2 final transport closure","exactClaim":"Tests manually compose process/service and ToolResult paths without proving production-factory wiring.","affectedPath":["src/integrations/codebase-memory/codebase-memory.test.ts","src/orchestration/tooling/tooling.test.ts","src/runtime/production-factory-runtime-core.ts"],"candidateIdentity":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","sourceChangedSincePriorApproval":"NO_PRIOR_TQR_APPROVAL","mappedObligationId":"R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE","classification":"R2_G2_REQUIRED_EVIDENCE","blockingForR2G2":true,"routedTo":"R2-G2 CLOSURE CONTRACT","rationaleEvidence":"The direct R2-G2 composition behavior is tested; one frozen-candidate closure verification remains necessary. The extra production-factory wiring demand beyond that behavior routes to R2-G3."},
+    {"findingId":"sec-7b-001","reviewer":"security-reviewer","severity":"ERROR","firstSeen":"R2-G2 final transport closure","exactClaim":"The child inherited the parent environment and could receive Factory secrets.","affectedPath":["src/integrations/codebase-memory/transport.ts"],"candidateIdentity":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","sourceChangedSincePriorApproval":"YES","mappedObligationId":"R2-G2-O3-CHILD-TRUST-TERMINAL-LIFECYCLE","classification":"STALE","blockingForR2G2":false,"routedTo":"STALE/SUPERSEDED/DUPLICATE","rationaleEvidence":"Current transport passes an explicit allowlist and the synthetic-secret test passes; the inherited-environment claim is false after the bounded correction."},
+    {"findingId":"sec-7b-002","reviewer":"security-reviewer","severity":"ERROR","firstSeen":"R2-G2 final transport closure","exactClaim":"stderr was unconsumed and timeout/cancellation left child lifecycle handling incomplete.","affectedPath":["src/integrations/codebase-memory/transport.ts"],"candidateIdentity":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","sourceChangedSincePriorApproval":"YES","mappedObligationId":"R2-G2-O3-CHILD-TRUST-TERMINAL-LIFECYCLE","classification":"STALE","blockingForR2G2":false,"routedTo":"STALE/SUPERSEDED/DUPLICATE","rationaleEvidence":"Current stderr consumption, bounded counter, timeout/abort handling, overflow cleanup, and recovery tests pass. The separate spawn-error concern is new adjacent hardening, not this finding's original claim."},
+    {"findingId":"sec-7b-003","reviewer":"security-reviewer","severity":"WARNING","firstSeen":"R2-G2 final transport closure","exactClaim":"Status cancellation and shared index work were incomplete.","affectedPath":["src/integrations/codebase-memory/service.ts","src/integrations/codebase-memory/transport.ts"],"candidateIdentity":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","sourceChangedSincePriorApproval":"YES","mappedObligationId":"R2-G2-O5-CANCELLATION-ISOLATION","classification":"STALE","blockingForR2G2":false,"routedTo":"STALE/SUPERSEDED/DUPLICATE","rationaleEvidence":"Current focused status/shared-index and per-request isolation tests pass; generic ownership evidence is routed to R2-G3."},
+    {"findingId":"sec-7b-004","reviewer":"security-reviewer","severity":"ERROR","firstSeen":"R2-G2 final transport closure","exactClaim":"External output could be persisted before redaction.","affectedPath":["src/integrations/codebase-memory/service.ts","src/integrations/context7/cache.ts","src/integrations/shadcn/cache.ts"],"candidateIdentity":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","sourceChangedSincePriorApproval":"YES","mappedObligationId":"R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE","classification":"STALE","blockingForR2G2":false,"routedTo":"STALE/SUPERSEDED/DUPLICATE","rationaleEvidence":"Current synthetic-secret cache/metadata persistence tests pass and persisted values are redacted before publication."},
+    {"findingId":"r2-g2-final-transport-closure-f001","reviewer":"contract-auditor","severity":"ERROR","firstSeen":"R2-G2 final transport closure","exactClaim":"Generic tooling and typed integration ports were directly mismatched.","affectedPath":["src/orchestration/tooling/adapters.ts","src/orchestration/tooling/executors.ts","src/integrations/codebase-memory/contracts.ts"],"candidateIdentity":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","sourceChangedSincePriorApproval":"NO for adapters/executors; YES for integration paths","mappedObligationId":"R2-G2-O1-INERT-SERIALIZED-EXTERNAL-RESULT","classification":"R2_G3_EVIDENCE_COMPLETENESS","blockingForR2G2":false,"routedTo":"R2-G3","rationaleEvidence":"The Promise<string> transport and serialized executor binding are coherent; the remaining demand is proof/ownership of the composition, not an observed producer/consumer runtime mismatch."},
+    {"findingId":"r2-g2-final-transport-closure-f002","reviewer":"contract-auditor","severity":"WARNING","firstSeen":"R2-G2 final transport closure","exactClaim":"No evidence traced a real Codebase Memory process response through generic dispatch.","affectedPath":["src/integrations/codebase-memory/codebase-memory.test.ts","src/orchestration/tooling/tooling.test.ts"],"candidateIdentity":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","sourceChangedSincePriorApproval":"YES","mappedObligationId":"R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE","classification":"R2_G2_REQUIRED_EVIDENCE","blockingForR2G2":true,"routedTo":"R2-G2 CLOSURE CONTRACT","rationaleEvidence":"The direct composed behavior now exists, but the same-candidate semantic closure verification has not approved it; generic TaskGraph/production-factory trace expansion routes to R2-G3."},
+    {"findingId":"r2-g2-final-transport-closure-f003","reviewer":"contract-auditor","severity":"WARNING","firstSeen":"R2-G2 final transport closure","exactClaim":"Service truncation could split a multibyte UTF-8 character.","affectedPath":["src/integrations/codebase-memory/service.ts","src/integrations/codebase-memory/codebase-memory.test.ts"],"candidateIdentity":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","sourceChangedSincePriorApproval":"YES","mappedObligationId":"R2-G2-O6-UTF8-SAFE-NORMALIZATION","classification":"R2_G3_EVIDENCE_COMPLETENESS","blockingForR2G2":false,"routedTo":"R2-G3","rationaleEvidence":"The current implementation uses code-point-safe truncation and the multibyte regression passes; remaining request is cross-artifact contract evidence."},
+    {"findingId":"r2-g2-final-semantic-closure-transport-f001","reviewer":"code-integration-reviewer/security-reviewer","severity":"ERROR","firstSeen":"R2-G2.4 final semantic closure","exactClaim":"Spawn errors are not routed through bounded pending-request rejection and cleanup.","affectedPath":["src/integrations/codebase-memory/transport.ts:start"],"candidateIdentity":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","sourceChangedSincePriorApproval":"YES for surrounding lifecycle code; spawn-error path predates this cycle and was not shown introduced by it","mappedObligationId":null,"classification":"FUTURE_HARDENING","blockingForR2G2":false,"routedTo":"POST_PHASE_7B_HARDENING","rationaleEvidence":"Valid child-process hardening concern, but not part of the frozen original result-boundary obligations and not a regression caused by this candidate."},
+    {"findingId":"ca-r2-g2-001","reviewer":"contract-auditor","severity":"ERROR","firstSeen":"R2-G2.4 final semantic closure","exactClaim":"The composed serialized transport-to-service-to-ToolResult contract lacks complete requirement/ownership evidence.","affectedPath":["R2-G2.4-COMPOSED-PROCESS-SERVICE-EVIDENCE","src/orchestration/tooling/adapters.ts","src/orchestration/tooling/executors.ts"],"candidateIdentity":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","sourceChangedSincePriorApproval":"NO for generic adapter; YES for test composition","mappedObligationId":"R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE","classification":"R2_G3_EVIDENCE_COMPLETENESS","blockingForR2G2":false,"routedTo":"R2-G3","rationaleEvidence":"This asks for cross-artifact ownership and TaskGraph traceability beyond the frozen direct behavior; the direct behavior is represented in the focused composition test."},
+    {"findingId":"ca-r2-g2-002","reviewer":"contract-auditor","severity":"CRITICAL","firstSeen":"R2-G2.4 final semantic closure","exactClaim":"Child trust and stderr lifecycle obligations lack closed ownership evidence.","affectedPath":["src/integrations/codebase-memory/transport.ts"],"candidateIdentity":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","sourceChangedSincePriorApproval":"YES","mappedObligationId":"R2-G2-O3-CHILD-TRUST-TERMINAL-LIFECYCLE","classification":"R2_G3_EVIDENCE_COMPLETENESS","blockingForR2G2":false,"routedTo":"R2-G3","rationaleEvidence":"Deterministic environment/stderr/lifecycle behavior passes; the requested production-level ownership and evidence trace is generic evidence completeness."},
+    {"findingId":"ca-r2-g2-003","reviewer":"contract-auditor","severity":"CRITICAL","firstSeen":"R2-G2.4 final semantic closure","exactClaim":"Cancellation isolation remains a production defect rather than a closed contract.","affectedPath":["src/integrations/codebase-memory/service.ts","src/integrations/codebase-memory/transport.ts"],"candidateIdentity":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","sourceChangedSincePriorApproval":"YES","mappedObligationId":"R2-G2-O5-CANCELLATION-ISOLATION","classification":"R2_G3_EVIDENCE_COMPLETENESS","blockingForR2G2":false,"routedTo":"R2-G3","rationaleEvidence":"Current targeted cancellation tests pass; the reviewer request is a generic contract/ownership reconciliation rather than a reproduced current defect."},
+    {"findingId":"ca-r2-g2-004","reviewer":"contract-auditor","severity":"ERROR","firstSeen":"R2-G2.4 final semantic closure","exactClaim":"External cache and metadata storage lacks an explicitly owned storage-policy trace.","affectedPath":["src/integrations/codebase-memory/service.ts","src/integrations/context7/cache.ts","src/integrations/shadcn/cache.ts"],"candidateIdentity":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","sourceChangedSincePriorApproval":"YES","mappedObligationId":"R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE","classification":"R2_G3_EVIDENCE_COMPLETENESS","blockingForR2G2":false,"routedTo":"R2-G3","rationaleEvidence":"Synthetic-secret persistence tests pass; the missing authoritative policy/owner trace belongs to evidence completeness."},
+    {"findingId":"ca-r2-g2-005","reviewer":"contract-auditor","severity":"ERROR","firstSeen":"R2-G2.4 final semantic closure","exactClaim":"UTF-8 normalization remains open despite the multibyte boundary test.","affectedPath":["src/integrations/codebase-memory/service.ts","src/integrations/codebase-memory/codebase-memory.test.ts"],"candidateIdentity":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","sourceChangedSincePriorApproval":"YES","mappedObligationId":"R2-G2-O6-UTF8-SAFE-NORMALIZATION","classification":"R2_G3_EVIDENCE_COMPLETENESS","blockingForR2G2":false,"routedTo":"R2-G3","rationaleEvidence":"Current code-point-safe test passes; the remaining cross-contract trace request is R2-G3."},
+    {"findingId":"ca-r2-g2-006","reviewer":"contract-auditor","severity":"WARNING","firstSeen":"R2-G2.4 final semantic closure","exactClaim":"The approved inert JSON conclusion lacks a complete end-to-end ownership trace.","affectedPath":["src/orchestration/tooling/adapters.ts","src/orchestration/tooling/executors.ts"],"candidateIdentity":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","sourceChangedSincePriorApproval":"NO","mappedObligationId":"R2-G2-O1-INERT-SERIALIZED-EXTERNAL-RESULT","classification":"R2_G3_EVIDENCE_COMPLETENESS","blockingForR2G2":false,"routedTo":"R2-G3","rationaleEvidence":"The inert JSON conclusion is explicitly approved and unchanged; only its generic ownership trace is incomplete."},
+    {"findingId":"tqr-r2-g2-composed-boundary-002","reviewer":"test-quality-reviewer","severity":"WARNING","firstSeen":"R2-G2.4 final semantic closure","exactClaim":"Oversized suppression is split across fixtures without one traceable evidence record linking both downstream boundaries.","affectedPath":["src/integrations/codebase-memory/codebase-memory.test.ts","src/orchestration/tooling/tooling.test.ts"],"candidateIdentity":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97","sourceChangedSincePriorApproval":"NO_PRIOR_TQR_APPROVAL","mappedObligationId":"R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE","classification":"R2_G3_EVIDENCE_COMPLETENESS","blockingForR2G2":false,"routedTo":"R2-G3","rationaleEvidence":"A single frozen evidence identity is defined here; the request for broader trace metadata is R2-G3 rather than a new production behavior."},
+    {"findingId":"contract-audit-001","reviewer":"contract-auditor","severity":"ERROR","firstSeen":"initial final bounded pass","exactClaim":"Phase 7B evidence lacks persisted final review identity and complete cross-stage requirement mapping.","affectedPath":["docs/admin/phase-7b/phase-7b-implementation-evidence-2026-08-11.json","src/orchestration/orchestrator/graph.ts","src/orchestration/orchestrator/tools.ts"],"candidateIdentity":"bbc9e3a unpersisted → current","sourceChangedSincePriorApproval":"NO for relevant graph paths","mappedObligationId":null,"classification":"R2_G3_EVIDENCE_COMPLETENESS","blockingForR2G2":false,"routedTo":"R2-G3","rationaleEvidence":"This is the authoritative R2-G3 group definition; it was independent of R2-G2 and remains unexecuted."},
+    {"findingId":"tqr-7b-003","reviewer":"test-quality-reviewer","severity":"WARNING","firstSeen":"initial final bounded pass","exactClaim":"The generated TaskGraph path and legacy normalization were not behaviorally verified together.","affectedPath":["src/orchestration/orchestrator/graph.ts","src/orchestration/orchestrator/tools.ts","src/orchestration/tooling/tooling.test.ts"],"candidateIdentity":"bbc9e3a unpersisted → current","sourceChangedSincePriorApproval":"NO for graph paths; tooling test changed","mappedObligationId":null,"classification":"R2_G3_EVIDENCE_COMPLETENESS","blockingForR2G2":false,"routedTo":"R2-G3","rationaleEvidence":"The original reconciliation explicitly assigned this finding to R2-G3-EVIDENCE_COMPLETENESS; R2-G3 was not executed here."}
+  ],
+  "historicalSupersededFindings": {
+    "count": 13,
+    "ids":["7b-arch-001","7b-arch-002","7b-arch-003","phase-7b-integration-001","phase-7b-integration-002","phase-7b-integration-003","7b-sec-003","tqr-7b-001","tqr-7b-002","r3-r2-g2-001","7b-sec-004-codebase-transport","7b-sec-002-r3","7b-sec-004-transport-verification-gap"],
+    "policy":"Retain as audit history; do not re-promote rebased/stale IDs as new R2-G2 blockers. No cleanup was performed."
+  },
+  "counts": {
+    "latestUniqueCurrentFindingCount": 18,
+    "r2g2ProductionDefects": 0,
+    "r2g2Regressions": 0,
+    "r2g2RequiredEvidence": 2,
+    "r2g3EvidenceCompleteness": 11,
+    "futureHardening": 1,
+    "staleDuplicateScopeDrift": 4,
+    "historicalSupersededNotCurrent": 13,
+    "phase7c": 0,
+    "phase7d": 0,
+    "phase7e": 0
+  },
+  "r2g3Boundary": {
+    "groupId":"R2-G3-EVIDENCE_COMPLETENESS",
+    "source":"phase-7b-semantic-reconciliation-2026-08-11.json rootCauseGroups",
+    "scope":"Persist final review identity/source/evidence checksums and prove the generated TaskGraph-to-tool-policy path, capability derivation, canonical aliases, allowed/denied policy, and legacy compatibility without inventing customer-project lineage.",
+    "routedFindingIds":["r2-g2-final-transport-closure-f001","r2-g2-final-transport-closure-f003","ca-r2-g2-001","ca-r2-g2-002","ca-r2-g2-003","ca-r2-g2-004","ca-r2-g2-005","ca-r2-g2-006","tqr-r2-g2-composed-boundary-002","contract-audit-001","tqr-7b-003"],
+    "executedInThisRun":false
+  },
+  "phase7cBoundary": "Typed Task Contracts, richer Data Contracts, dependency-planning UX, and planner acceptance/data-model changes remain outside R2-G2 and were not started.",
+  "phase7eBoundary": "QA foundation cleanup, temporary workspace deletion, and test sandbox lifecycle hygiene remain Phase 7E work; no cleanup was performed.",
+  "futureHardeningItems": [
+    {"findingId":"r2-g2-final-semantic-closure-transport-f001","title":"Handle spawned-child error events through bounded pending rejection and cleanup","validConcern":true,"nonBlockingReason":"The path predates the current R2-G2 correction and is not a frozen external-result closure obligation; no current regression was reproduced.","owner":"POST_PHASE_7B_HARDENING"}
+  ],
+  "frozenCandidatePolicy": {
+    "candidateId":"r2-g2.5-candidate-2026-08-11",
+    "candidateChecksum":"81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97",
+    "evidenceId":"r2-g2.5-evidence-af001dd1bff714e03a95fea07018c1e43004e1e8b72e954558efd88b8ea804c9",
+    "candidateFileCount":16,
+    "checksumRule":"Reviewers must consume exactly this sorted path/checksum set; any checksum drift invalidates the evidence and stops verification.",
+    "mutationRule":"No source/test mutation is permitted between deterministic gates or between reviewer calls.",
+    "transientRule":".context7-cache/ and .qa-foundation-* remain untracked/transient and are excluded from the candidate.",
+    "freshGptCallsThisReconciliation":0
+  },
+  "futureReviewerScope": {
+    "reviewers":["code-integration-reviewer","test-quality-reviewer","security-reviewer","contract-auditor"],
+    "architectureReviewerRequired":false,
+    "reviewerOrder":"Deterministic gates first; then all four read-only reviewers evaluate the same frozen candidate with no mutation; reconcile verdicts only after all responses.",
+    "obligationAllowlist": {
+      "code-integration-reviewer":["R2-G2-O1-INERT-SERIALIZED-EXTERNAL-RESULT","R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND","R2-G2-O3-CHILD-TRUST-TERMINAL-LIFECYCLE","R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE"],
+      "security-reviewer":["R2-G2-O1-INERT-SERIALIZED-EXTERNAL-RESULT","R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND","R2-G2-O3-CHILD-TRUST-TERMINAL-LIFECYCLE","R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE","R2-G2-O5-CANCELLATION-ISOLATION","R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE"],
+      "test-quality-reviewer":["R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND","R2-G2-O3-CHILD-TRUST-TERMINAL-LIFECYCLE","R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE","R2-G2-O5-CANCELLATION-ISOLATION","R2-G2-O6-UTF8-SAFE-NORMALIZATION","R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE"],
+      "contract-auditor":["R2-G2-O1-INERT-SERIALIZED-EXTERNAL-RESULT","R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND","R2-G2-O5-CANCELLATION-ISOLATION","R2-G2-O6-UTF8-SAFE-NORMALIZATION","R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE"]
+    }
+  },
+  "reviewerScopeDriftPolicy": "A reviewer may fail a frozen obligation or report a concrete current regression. A new adjacent concern must be classified and routed; it cannot expand R2-G2 without a direct contradiction of the original two-finding result-boundary definition.",
+  "criticalRegressionEscapeHatch": "A concrete current remote-code-execution path, secret leakage, data corruption, authority bypass, or equivalent severe regression directly caused by the candidate may be classified R2_G2_REGRESSION and block despite not being named originally. Evidence must identify the affected production path and reproduction.",
+  "requiredDeterministicGates": ["focused R2-G2 integration/tooling tests","npm run typecheck","npm run lint","npm run build","git diff --check","candidate checksum equality before and after review"],
+  "fullValidationPosition": "Only after all frozen obligations receive APPROVED/RESOLVED semantic verification: run the repository full validation sequence, then create one accepted implementation commit. A blocked verification must not trigger an automatic source correction loop.",
+  "acceptedCommitPolicy": "If verification passes, commit all accepted R2-G2 candidate source/test files together in one explicit implementation commit, then commit the closure report/state separately. Do not push.",
+  "historicalArtifactPolicy": "COMMIT_AS_HISTORY in a future explicit admin-history operation; retain blocked result/reviewer artifacts now, do not stage them in this meta commit, and do not clean/delete them here.",
+  "successorPlan": {
+    "planId":"r2-g2-frozen-closure-verification-2026-08-11",
+    "status":"FROZEN_CLOSURE_VERIFICATION_READY",
+    "implementationCycles":0,
+    "freshGptCalls":4,
+    "sourceMutation":false,
+    "nextAction":"R2-G2 FROZEN CLOSURE VERIFICATION",
+    "successCondition":"All seven frozen obligations are approved/resolved by the four required reviewers on candidate 81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97.",
+    "failureCondition":"Any frozen obligation fails or any checksum drifts; retain R2-G2 blocked and reconcile without automatically expanding scope."
+  },
+  "nextAction": "R2-G2 FROZEN CLOSURE VERIFICATION READY",
+  "phase7BStatus": "BLOCKED",
+  "r2g2Status": "BLOCKED — production behavior satisfies the finite contract; two R2-G2 closure-evidence findings remain until frozen verification.",
+  "r2g3Status": "NOT EXECUTED",
+  "newDependencies":false,
+  "newAgents":false,
+  "newReviewers":false,
+  "newMcp":false,
+  "filesystemMcp":false,
+  "unrestrictedShell":false,
+  "astPatching":false,
+  "phase7cImplementation":false,
+  "phase7eCleanup":false,
+  "customerE2E":false,
+  "deployment":false,
+  "redactionDisclosure":"No secrets, raw prompts, or chain-of-thought included."
+}
