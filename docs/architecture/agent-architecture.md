@@ -1,5 +1,8 @@
 # Agent architecture
 
+> Status: CURRENT_ARCHITECTURE
+> Authority: This document describes the current typed agent architecture. `src/agents/catalog.ts`, typed domain contracts, and runtime validators enforce behavior; this Markdown is descriptive and not runtime authority.
+
 Production provider calls are server-only adapters behind the existing role ports; deterministic providers remain available for offline tests. Prompt text and prompt versions remain owned by `src/integrations/openai/prompts.ts`; the catalog records that ownership and the provider adapter owns transport and normalization.
 
 The current typed flow is:

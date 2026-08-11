@@ -91,6 +91,33 @@ describe("typed agent catalog", () => {
     expect(documentation).toContain(documentedAllowlist);
     expect(documentation).not.toContain("no skills");
   });
+  it("keeps current architecture document state explicit and aligned with the reviewer tree", async () => {
+    const root = process.cwd();
+    const [product, roadmap, structure, architecture] = await Promise.all([
+      readFile(path.join(root, "docs/architecture/product-specification.md"), "utf8"),
+      readFile(path.join(root, "docs/architecture/implementation-roadmap.md"), "utf8"),
+      readFile(path.join(root, "docs/architecture/repository-structure.md"), "utf8"),
+      readFile(path.join(root, "docs/architecture/agent-architecture.md"), "utf8"),
+    ]);
+    expect(product).toContain("Status: CURRENT_ARCHITECTURE");
+    expect(product).toContain("State: PLANNED_FUTURE");
+    expect(product).not.toContain("currently contains only the foundation application and documentation");
+    expect(roadmap).toContain("Status: ROADMAP");
+    expect(roadmap).toContain("State: CURRENT");
+    expect(roadmap).toContain("State: PLANNED_FUTURE / DEFERRED_WORK");
+    expect(roadmap).toContain("`Dependency Authority`: **PLANNED_FUTURE**");
+    expect(roadmap).toContain("`Magic Patterns`: **PLANNED_FUTURE**");
+    expect(roadmap).toContain("`Preview` and `Deployment`: **DEFERRED_WORK**");
+    expect(structure).toContain("Status: CURRENT_ARCHITECTURE");
+    expect(structure).toContain("src/agents/reviewers/<role>/");
+    expect(structure).not.toContain("Future Reviewer agents");
+    expect(architecture).toContain("Status: CURRENT_ARCHITECTURE");
+    expect(architecture).toContain("src/agents/catalog.ts");
+    for (const directory of ["architecture", "contracts", "code-integration", "security", "test-quality"]) {
+      await expect(readFile(path.join(root, "src/agents/reviewers", directory, "service.ts"), "utf8")).resolves.toBeTruthy();
+    }
+    expect(agentCatalog.filter((agent) => agent.role === "review")).toHaveLength(5);
+  });
   it("resolves only approved skills", () => {
     const custom = { ...implementationAgentDefinition, allowedSkillIds: ["approved-skill"] } as typeof implementationAgentDefinition;
     expect(resolveApprovedSkillIds("implementation", ["approved-skill"], new Set(["approved-skill"]), [custom])).toEqual(["approved-skill"]);

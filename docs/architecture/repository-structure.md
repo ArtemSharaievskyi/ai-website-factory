@@ -1,5 +1,8 @@
 # Repository Structure
 
+> Status: CURRENT_ARCHITECTURE
+> Authority: This document describes current repository placement. Source modules and typed contracts remain canonical, and this Markdown is not runtime configuration.
+
 ## High-level tree
 
 ```text
@@ -10,6 +13,12 @@ src/
     planner/                   Planner / Architect agent
     design/                    Design agent
     implementation/            Implementation agent
+    reviewers/                 Read-only reviewer implementations
+      architecture/            Architecture Reviewer
+      contracts/               Contract Auditor
+      code-integration/        Code / Integration Reviewer
+      security/                Security Reviewer
+      test-quality/            Test / Quality Reviewer
   domain/                      Shared workflow and product contracts
   orchestration/
     orchestrator/              TaskGraph planning and lifecycle coordination
@@ -49,4 +58,4 @@ public/                        Factory static assets only
 - Factory-internal generated, smoke, QA, and build artifacts are transient and ignored; they must not become source or customer output.
 - Documentation is grouped by responsibility. Durable architectural decisions remain under `docs/adr/`.
 
-Future Reviewer agents, once implemented, will belong under `src/agents/` as explicit role directories. No reviewer directories are created in this phase.
+The current nine-agent catalog includes five read-only reviewers implemented under `src/agents/reviewers/<role>/` as explicit role directories. Future reviewer capabilities, if approved, must first be reflected in the typed catalog and source tree; this document does not create agent eligibility.

@@ -48,6 +48,8 @@ export const CG17_GROUP_ID = "cg-17-design-gate-evidence" as const;
 export const CG17_FINDING_IDS = ["finding-bf13a0c6f16bf4702e9e"] as const;
 export const CG18_GROUP_ID = "cg-18-skill-portfolio-source-of-truth" as const;
 export const CG18_FINDING_IDS = ["finding-3ee5bcff808135a21217"] as const;
+export const CG19_GROUP_ID = "cg-19-architecture-document-state" as const;
+export const CG19_FINDING_IDS = ["finding-5f4cd4a958172b921dfd"] as const;
 export const PHASE6A_PLAN_IDENTITY = "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00" as const;
 export const PHASE6A_PLAN_PATH = "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json" as const;
 export const VERIFICATION_MACHINE_PATH = "docs/admin/phase-6/cg-02-authentication-authorization-rls-verification-2026-08-10.json" as const;
@@ -386,6 +388,25 @@ const CG18_CONFIG: CorrectionConfig = {
   idempotencyPrefix: "phase6q1",
 };
 
+const CG19_CONFIG: CorrectionConfig = {
+  groupId: CG19_GROUP_ID,
+  findingIds: CG19_FINDING_IDS,
+  machinePath: "docs/admin/phase-6/cg-19-architecture-document-state-verification-2026-08-11.json",
+  reportPath: "docs/admin/phase-6/cg-19-architecture-document-state-verification-2026-08-11.md",
+  documentType: "phase-6r-correction-verification",
+  title: "cg-19 Architecture Document State Verification",
+  fixedRefs: ["original-finding", "document-state-markers", "current-architecture-authority", "reviewer-tree-alignment", "planned-deferred-boundary", "document-consistency-regression"],
+  originalFindings: [
+    { findingId: CG19_FINDING_IDS[0], severity: "WARNING", category: "SOURCE_OF_TRUTH", summary: "Architecture documents mix current-state and planned-state descriptions without explicit supersession or state markers; repository boundaries and implemented reviewer capability are difficult to determine." },
+  ],
+  correctionGoal: "Add explicit current/planned/supersession markers so implemented capability is distinguishable from roadmap intent.",
+  trustBoundary: "Current architecture documentation for product boundary, roadmap state, repository placement, and typed agent architecture. Production source and typed contracts remain canonical; Markdown is descriptive and non-runtime authority.",
+  nonGoals: ["No architecture implementation change", "No stack change", "No agent/catalog change", "No skill approval or assignment change", "No historical report rewrite", "No deployment, Preview, or Dependency Authority implementation", "No other correction groups"],
+  deterministicChecks: ["current architecture documents carry explicit status and non-runtime-authority markers", "product specification no longer claims the repository contains only foundation/documentation", "repository structure documents the implemented reviewer tree and current nine-agent catalog", "current agent architecture references src/agents/catalog.ts as assignment authority", "roadmap marks Magic Patterns and Dependency Authority PLANNED_FUTURE and Preview/Deployment DEFERRED_WORK", "focused catalog test verifies document markers and reviewer implementation paths"],
+  requiredReviewerIds: ["architecture-reviewer"],
+  idempotencyPrefix: "phase6r1",
+};
+
 async function currentSlice(root: string, id: string, relativePath: string, startLine: number, endLine: number): Promise<EvidenceSlice> {
   const bytes = await readFile(path.resolve(root, relativePath));
   const lines = bytes.toString("utf8").split(/\r?\n/);
@@ -394,7 +415,15 @@ async function currentSlice(root: string, id: string, relativePath: string, star
 }
 
 async function buildEvidence(root: string, config: CorrectionConfig) {
-  const slices = await Promise.all(config.groupId === CG18_GROUP_ID ? [
+  const slices = await Promise.all(config.groupId === CG19_GROUP_ID ? [
+    currentSlice(root, "current:product-architecture-state", "docs/architecture/product-specification.md", 3, 28),
+    currentSlice(root, "current:implementation-roadmap-state", "docs/architecture/implementation-roadmap.md", 3, 29),
+    currentSlice(root, "current:repository-reviewer-tree", "docs/architecture/repository-structure.md", 3, 61),
+    currentSlice(root, "current:agent-architecture-state", "docs/architecture/agent-architecture.md", 3, 52),
+    currentSlice(root, "current:agent-catalog", "src/agents/catalog.ts", 61, 128),
+    currentSlice(root, "current:architecture-reviewer-implementation", "src/agents/reviewers/architecture/service.ts", 15, 21),
+    currentSlice(root, "test:architecture-document-state", "src/agents/catalog.test.ts", 94, 126),
+  ] : config.groupId === CG18_GROUP_ID ? [
     currentSlice(root, "current:repository-rules", "AGENTS.md", 18, 23),
     currentSlice(root, "current:agent-architecture-policy", "docs/architecture/agent-architecture.md", 34, 36),
     currentSlice(root, "current:architecture-reviewer-documentation", "docs/architecture/architecture-reviewer.md", 18, 28),
@@ -504,6 +533,7 @@ async function buildEvidence(root: string, config: CorrectionConfig) {
 }
 
 function correctionDiff(root: string, config: CorrectionConfig) {
+  if (config.groupId === CG19_GROUP_ID) return git(root, ["diff", "--no-ext-diff", "--unified=3", "HEAD^", "HEAD", "--", "docs/architecture/product-specification.md", "docs/architecture/implementation-roadmap.md", "docs/architecture/repository-structure.md", "docs/architecture/agent-architecture.md", "src/agents/catalog.ts", "src/agents/reviewers/architecture/service.ts", "src/agents/catalog.test.ts", "scripts/phase-6c-cg02-verification.ts"]).slice(0, 30000);
   if (config.groupId === CG18_GROUP_ID) return git(root, ["diff", "--no-ext-diff", "--unified=3", "--", "AGENTS.md", "docs/architecture/agent-architecture.md", "docs/architecture/architecture-reviewer.md", "src/agents/catalog.ts", "src/agents/catalog.test.ts", "src/skills/curation/active-portfolio.test.ts", "scripts/phase-6c-cg02-verification.ts"]).slice(0, 30000);
   if (config.groupId === CG17_GROUP_ID) return git(root, ["diff", "--no-ext-diff", "--unified=3", "--", "src/agents/design/contracts.ts", "src/agents/design/service.ts", "src/agents/design/design.test.ts", "scripts/phase-6c-cg02-verification.ts"]).slice(0, 30000);
   if (config.groupId === CG16_GROUP_ID) return git(root, ["diff", "--no-ext-diff", "--unified=3", "--", "src/agents/implementation/applier.ts", "src/agents/implementation/service.ts", "src/agents/implementation/backend.test.ts", "scripts/phase-6c-cg02-verification.ts"]).slice(0, 30000);
@@ -573,6 +603,8 @@ export async function runTargetedCorrectionVerification(root: string, config: Co
     selections[reviewerId] = await resolveSkills(resolvedRoot, reviewerId, config);
     const beforeCalls = events.filter((event) => event.type === "request.started").length;
     const input = verificationInput(reviewerId, currentHead, evidence, diff, config);
+    if (config.groupId === CG19_GROUP_ID)
+      input.verificationQuestion = "Does the current cg-19 correction resolve the assigned architecture-document-state source-of-truth finding by explicitly distinguishing CURRENT_ARCHITECTURE, CURRENT, ROADMAP, PLANNED_FUTURE, and DEFERRED_WORK content across the affected documents, correcting the stale foundation-only and future-reviewer-directory claims against the implemented nine-agent catalog/reviewer tree, and preserving production source and typed contracts as canonical non-Markdown authority? Return APPROVED with no findings only when the current architecture documents accurately describe implemented capability, planned/deferred capabilities including Magic Patterns, Dependency Authority, Preview, and Deployment remain non-current, the focused consistency evidence is valid, historical/admin reports and cg-18 skill authority remain unchanged, and no runtime behavior, agent, skill, stack, deployment, or other correction group is changed. Do not report fresh repository findings or unrelated correction groups.";
     if (config.groupId === CG18_GROUP_ID)
       input.verificationQuestion = "Does the current cg-18 correction resolve the assigned skill-portfolio contradiction by making src/agents/catalog.ts the sole current AgentDefinition assignment authority, explicitly documenting the Architecture Reviewer allowlist from that catalog, and proving the active portfolio snapshot equals the catalog for all nine agents, while preserving the Approved Skills Registry as approval and approved-content authority, the resolver as invocation-selection authority, zero/one/multiple minimum-sufficient selection, checksum currentness, historical/admin reports as derived only, skills.sh as discovery/staging only, and unchanged assignments, skills, reviewer read-only boundaries, and offline runtime? Return APPROVED with no findings only when no documentation or snapshot can grant runtime eligibility, no new skill or assignment is introduced, no caller override or whole-registry invalidation is added, and no cg-17 or unrelated correction group is changed. Do not report fresh repository findings or unrelated correction groups.";
     if (config.groupId === CG17_GROUP_ID)
@@ -631,8 +663,9 @@ export async function runCg15Verification(root = process.cwd()) { return runTarg
 export async function runCg16Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG16_CONFIG); }
 export async function runCg17Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG17_CONFIG); }
 export async function runCg18Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG18_CONFIG); }
+export async function runCg19Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG19_CONFIG); }
 
 if (process.argv[1]?.endsWith("phase-6c-cg02-verification.ts")) {
-  const runner = process.env.PHASE6_CORRECTION_GROUP === CG18_GROUP_ID ? runCg18Verification : process.env.PHASE6_CORRECTION_GROUP === CG17_GROUP_ID ? runCg17Verification : process.env.PHASE6_CORRECTION_GROUP === CG16_GROUP_ID ? runCg16Verification : process.env.PHASE6_CORRECTION_GROUP === CG15_GROUP_ID ? runCg15Verification : process.env.PHASE6_CORRECTION_GROUP === CG14_GROUP_ID ? runCg14Verification : process.env.PHASE6_CORRECTION_GROUP === CG13_GROUP_ID ? runCg13Verification : process.env.PHASE6_CORRECTION_GROUP === CG12_GROUP_ID ? runCg12Verification : process.env.PHASE6_CORRECTION_GROUP === CG09_GROUP_ID ? runCg09Verification : process.env.PHASE6_CORRECTION_GROUP === CG08_GROUP_ID ? runCg08Verification : process.env.PHASE6_CORRECTION_GROUP === CG07_GROUP_ID ? runCg07Verification : process.env.PHASE6_CORRECTION_GROUP === CG06_GROUP_ID ? runCg06Verification : process.env.PHASE6_CORRECTION_GROUP === CG05_GROUP_ID ? runCg05Verification : process.env.PHASE6_CORRECTION_GROUP === CG04_GROUP_ID ? runCg04Verification : process.env.PHASE6_CORRECTION_GROUP === CG03_GROUP_ID ? runCg03Verification : runCg02Verification;
+  const runner = process.env.PHASE6_CORRECTION_GROUP === CG19_GROUP_ID ? runCg19Verification : process.env.PHASE6_CORRECTION_GROUP === CG18_GROUP_ID ? runCg18Verification : process.env.PHASE6_CORRECTION_GROUP === CG17_GROUP_ID ? runCg17Verification : process.env.PHASE6_CORRECTION_GROUP === CG16_GROUP_ID ? runCg16Verification : process.env.PHASE6_CORRECTION_GROUP === CG15_GROUP_ID ? runCg15Verification : process.env.PHASE6_CORRECTION_GROUP === CG14_GROUP_ID ? runCg14Verification : process.env.PHASE6_CORRECTION_GROUP === CG13_GROUP_ID ? runCg13Verification : process.env.PHASE6_CORRECTION_GROUP === CG12_GROUP_ID ? runCg12Verification : process.env.PHASE6_CORRECTION_GROUP === CG09_GROUP_ID ? runCg09Verification : process.env.PHASE6_CORRECTION_GROUP === CG08_GROUP_ID ? runCg08Verification : process.env.PHASE6_CORRECTION_GROUP === CG07_GROUP_ID ? runCg07Verification : process.env.PHASE6_CORRECTION_GROUP === CG06_GROUP_ID ? runCg06Verification : process.env.PHASE6_CORRECTION_GROUP === CG05_GROUP_ID ? runCg05Verification : process.env.PHASE6_CORRECTION_GROUP === CG04_GROUP_ID ? runCg04Verification : process.env.PHASE6_CORRECTION_GROUP === CG03_GROUP_ID ? runCg03Verification : runCg02Verification;
   runner().then((result) => console.log(JSON.stringify({ status: result.artifact.phaseStatus, groupId: result.artifact.groupId, realGptCalls: result.artifact.provider.realGptCalls, reviewers: result.artifact.reviewerResults }, null, 2))).catch((error) => { console.error(error instanceof Error ? error.message : "VERIFICATION_FAILED"); process.exitCode = 1; });
 }
