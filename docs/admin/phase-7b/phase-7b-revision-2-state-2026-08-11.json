@@ -4,7 +4,7 @@
   "generatedOn": "2026-08-11",
   "phase": "7B",
   "revision": "2",
-  "state": "BLOCKED_R2_G2_FROZEN_OBLIGATION_FAILURE",
+  "state": "FROZEN_O2_O4_CORRECTION_READY",
   "sourcePlanIdentity": "r2-g2-final-transport-closure-2026-08-11",
   "sourcePlanPath": "docs/admin/phase-7b/r2-g2-final-transport-closure-plan-2026-08-11.json",
   "sourceReconciliationIdentity": "phase-7b-semantic-reconciliation-2026-08-11",
@@ -214,7 +214,30 @@
     "fullValidation": "NOT_RUN_AFTER_FROZEN_REVIEW_BLOCK",
     "acceptedImplementationCommit": null,
     "closureCommit": null,
-    "nextAction": "RECONCILE FROZEN OBLIGATION FAILURE"
+    "nextAction": "R2-G2 FROZEN O2/O4 CORRECTION — EXECUTE"
+  },
+  "o2O4CorrectionPlan": {
+    "planId": "r2-g2-o2-o4-correction-2026-08-11",
+    "status": "FROZEN_O2_O4_CORRECTION_READY",
+    "planArtifact": "docs/admin/phase-7b/r2-g2-o2-o4-correction-plan-2026-08-11.json",
+    "reportArtifact": "docs/admin/phase-7b/r2-g2-o2-o4-correction-plan-2026-08-11.md",
+    "activeObligations": [
+      "R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND",
+      "R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE"
+    ],
+    "frozenPassObligationsPreserved": [
+      "R2-G2-O1-INERT-SERIALIZED-EXTERNAL-RESULT",
+      "R2-G2-O3-CHILD-TRUST-TERMINAL-LIFECYCLE",
+      "R2-G2-O5-CANCELLATION-ISOLATION",
+      "R2-G2-O6-UTF8-SAFE-NORMALIZATION",
+      "R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE"
+    ],
+    "authorizedFutureCorrectionCycles": 1,
+    "sourceOrTestMutationThisTurn": false,
+    "freshGptCallsThisTurn": 0,
+    "r2g2RemainsBlocked": true,
+    "r2g3Executed": false,
+    "nextAction": "R2-G2 FROZEN O2/O4 CORRECTION — EXECUTE"
   },
   "remainingValidFindings": [
     {
@@ -270,7 +293,7 @@
     {
       "groupId": "R2-G2-FINAL-SEMANTIC-CLOSURE",
       "findingIds": ["tqr-r2-g2-production-composition-001", "sec-7b-001", "sec-7b-002", "sec-7b-003", "sec-7b-004", "r2-g2-final-transport-closure-f001", "r2-g2-final-transport-closure-f002", "r2-g2-final-transport-closure-f003"],
-      "state": "BLOCKED_FROZEN_OBLIGATION_FAILURE",
+      "state": "BLOCKED_FROZEN_O2_O4_CORRECTION_READY",
       "dependencySatisfiedBy": "R2-G1-HOST_CONTEXT_AUTHENTICITY",
       "note": "R2-G2.5 froze seven finite obligations. The same-candidate closure verification passed deterministic gates but found direct O2 and O4 failures. No source correction was attempted; generic evidence routes to R2-G3 and spawn-error handling routes to future hardening."
     },
@@ -282,7 +305,7 @@
     }
   ],
   "newlyUnblockedGroups": [],
-  "nextRecommendedGroup": "RECONCILE FROZEN OBLIGATION FAILURE",
+  "nextRecommendedGroup": "R2-G2 FROZEN O2/O4 CORRECTION",
   "validActiveFindingCount": 13,
   "globalRevisionPolicy": {
     "maximumGroupsBeforeReconciliation": 2,
@@ -337,5 +360,5 @@
     "closureCommit": null,
     "metaOnlyReconciliation": true
   },
-  "nextTurnInstruction": "Reconcile frozen R2-G2 O2/O4 obligation failures on candidate r2-g2.5-candidate-2026-08-11 before any source correction or new execution. Do not start R2-G3, Phase 7C/7D/7E, customer website-generation E2E, deployment, or QA cleanup."
+  "nextTurnInstruction": "Execute exactly one authorized R2-G2 frozen O2/O4 correction cycle from docs/admin/phase-7b/r2-g2-o2-o4-correction-plan-2026-08-11.json. Keep R2-G2 blocked until all seven obligations pass the same new candidate and four required reviewers. Do not start R2-G3, Phase 7C/7D/7E, customer website-generation E2E, deployment, or QA cleanup."
 }

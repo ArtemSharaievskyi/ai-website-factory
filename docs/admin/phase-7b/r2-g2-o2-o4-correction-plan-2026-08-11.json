@@ -1,0 +1,407 @@
+{
+  "schemaVersion": 1,
+  "documentType": "r2-g2-frozen-o2-o4-correction-plan",
+  "generatedOn": "2026-08-11",
+  "planId": "r2-g2-o2-o4-correction-2026-08-11",
+  "status": "FROZEN_O2_O4_CORRECTION_READY",
+  "mode": "RECONCILIATION_ONLY",
+  "executionAuthorizedThisRun": false,
+  "freshGptCallsThisRun": 0,
+  "baselineHead": "38ac6e5",
+  "frozenVerificationCommit": "38ac6e5",
+  "sourceClosureContractId": "r2-g2-frozen-closure-contract-2026-08-11",
+  "sourceCandidateId": "r2-g2.5-candidate-2026-08-11",
+  "sourceCandidateChecksum": "81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97",
+  "baseline": {
+    "head": "38ac6e5",
+    "authoritativeContractId": "r2-g2-frozen-closure-contract-2026-08-11",
+    "authoritativeContractPath": "docs/admin/phase-7b/r2-g2-closure-contract-2026-08-11.json",
+    "authoritativeVerificationId": "r2-g2-frozen-verification-2026-08-11-r2",
+    "authoritativeVerificationPath": "docs/admin/phase-7b/r2-g2-frozen-closure-verification-2026-08-11.json",
+    "candidateId": "r2-g2.5-candidate-2026-08-11",
+    "candidateAggregateChecksum": "81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97",
+    "candidateFileCount": 16,
+    "candidateSourceTestMutationThisRun": false,
+    "candidateManifest": [
+      {"path":"src/integrations/codebase-memory/codebase-memory.test.ts","sha256":"6374f10f467efba19e1761844a3d73bd8d7501de77c5783c09d05d4d38cf1c04"},
+      {"path":"src/integrations/codebase-memory/service.ts","sha256":"26e3b26505e5d34714abc24b7628576cc08bb8c7ff2ecd5654946f9fbfe53b2e"},
+      {"path":"src/integrations/codebase-memory/transport.ts","sha256":"bb6b4b6262c0f6122a015e163eb4f01674f2610f4ae0f4dd092dae18cc052277"},
+      {"path":"src/integrations/context7/cache.ts","sha256":"34363c1adbd116938e76e03b762f1cedf6a800734fc6fde7785157ae284e95e6"},
+      {"path":"src/integrations/context7/context7.test.ts","sha256":"e5fd8f047852eebbab4a39d95206b9b4a70992a96878c503afa64e475690db7b"},
+      {"path":"src/integrations/context7/contracts.ts","sha256":"af8442cd5368902188779d478dad5f78c7dcea1e727c7873ad26ae52b5bab238"},
+      {"path":"src/integrations/context7/normalize.ts","sha256":"0a8bbd9d330e579f3c86f23454f4cf704d791c2cf8865b55cd0d545ba78fef30"},
+      {"path":"src/integrations/context7/service.ts","sha256":"a1d78e068129ccc7a4d04ece9f329c45746cc4f46ab80bd61a1fe0c116135f59"},
+      {"path":"src/integrations/shadcn/cache.ts","sha256":"67b9ca28c796593d83b17cedc2370ed0fb10b59feddcc8e55aceadb0694a3a39"},
+      {"path":"src/integrations/shadcn/contracts.ts","sha256":"d0fb0a5d72cf7cc7fcea4557f012353d140325bea50c0aa374519b2d82403355"},
+      {"path":"src/integrations/shadcn/server.ts","sha256":"681e9f97b84c6cadf93754ce4d47600325f35368899a3c4c28bfd125336ee5f6"},
+      {"path":"src/integrations/shadcn/service.ts","sha256":"7b9259d85b584805f198bc89d1666d8ee3c49bc8965aa808cd584806f3e4587a"},
+      {"path":"src/integrations/shadcn/shadcn-registry.test.ts","sha256":"d572835b4ad8f0d690d12db9bc45cce732e05d0c79ea0990e79ab8bfbe2971cc"},
+      {"path":"src/orchestration/tooling/adapters.ts","sha256":"3cfce5d4b2a18a2952f9eda0b9db95be277d5acf4972e18e5399491079e73659"},
+      {"path":"src/orchestration/tooling/executors.ts","sha256":"11f9f8660b60a28e0f012c674669b4b94378097cf3d904bb5e52dda750d4a3b5"},
+      {"path":"src/orchestration/tooling/tooling.test.ts","sha256":"c48788f27a8d81bfc65d414ca1144d078ab32333b9be64aa559eec20bbbf9d6f"}
+    ],
+    "inheritedWorkspaceChanges": {
+      "trackedCandidateFiles": 16,
+      "untrackedTransient": [".context7-cache/"],
+      "untrackedHistoricalArtifactsPreserved": true,
+      "candidateChangesRemainUncommitted": true,
+      "cleanupPerformed": false
+    }
+  },
+  "frozenContract": {
+    "obligationCount": 7,
+    "obligationIds": [
+      "R2-G2-O1-INERT-SERIALIZED-EXTERNAL-RESULT",
+      "R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND",
+      "R2-G2-O3-CHILD-TRUST-TERMINAL-LIFECYCLE",
+      "R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE",
+      "R2-G2-O5-CANCELLATION-ISOLATION",
+      "R2-G2-O6-UTF8-SAFE-NORMALIZATION",
+      "R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE"
+    ],
+    "passedAndFrozen": [
+      "R2-G2-O1-INERT-SERIALIZED-EXTERNAL-RESULT",
+      "R2-G2-O3-CHILD-TRUST-TERMINAL-LIFECYCLE",
+      "R2-G2-O5-CANCELLATION-ISOLATION",
+      "R2-G2-O6-UTF8-SAFE-NORMALIZATION",
+      "R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE"
+    ],
+    "activeFailedOnly": [
+      "R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND",
+      "R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE"
+    ],
+    "newObligations": 0,
+    "r2g3Executed": false,
+    "phase7cStarted": false,
+    "phase7dStarted": false,
+    "phase7eStarted": false
+  },
+  "failureRecords": [
+    {
+      "obligationId": "R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND",
+      "findingId": "r2-g2-code-integration-f001",
+      "reviewer": "code-integration-reviewer",
+      "severity": "ERROR",
+      "classification": "R2_G2_FROZEN_OBLIGATION_FAILURE",
+      "summary": "Codebase Memory index_repository responses are not bounded at the service boundary.",
+      "evidenceRefs": [
+        "obligation:R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND",
+        "source-path:src/integrations/codebase-memory/service.ts:120-123",
+        "test:codebase-memory-process-service-toolresult",
+        "test:codebase-memory-overflow-recovery"
+      ],
+      "rootCauseConfidence": "HIGH",
+      "rootCause": {
+        "genericOperation": "codebase-memory-read:ensure-index",
+        "dispatchPath": [
+          "tool registry codebase-memory-read ensure-index",
+          "executeBoundToolOperation",
+          "CodebaseMemoryService.ensureIndex",
+          "CodebaseMemoryService.index/indexInternal",
+          "UpstreamTransport index_repository",
+          "CodebaseMemoryProcessTransport.call",
+          "registered output serialization only after service completion"
+        ],
+        "transportRepresentation": "The child JSON-RPC response is parsed as an envelope and value.result is JSON.stringify-ed into the UpstreamTransport Promise<string>; the process transport already rejects an oversized stdout line at 200000 UTF-8 bytes.",
+        "serviceRepresentation": "indexInternal receives the serialized Promise<string> but currently awaits and discards it, then constructs a host index, stores READY state, persists metadata, and returns.",
+        "existingTransportBound": {"constant":"CODEBASE_MEMORY_RAW_LINE_MAX_BYTES","limit":200000,"unit":"UTF-8 bytes","errorCode":"CODEBASE_MEMORY_UNAVAILABLE"},
+        "existingServiceBound": {"constant":"CODEBASE_MEMORY_RAW_RESULT_MAX_BYTES","limit":200000,"unit":"UTF-8 bytes","authority":"parseUpstreamResult"},
+        "canonicalBoundAuthority": "CODEBASE_MEMORY_RAW_RESULT_MAX_BYTES plus parseUpstreamResult; do not create a second limit.",
+        "bypass": "Only the index_repository branch in indexInternal skips parseUpstreamResult. Query operations already retain raw text, validate the same bound, parse, normalize, cache, and persist.",
+        "unsafeEffect": "A direct service transport can return an oversized serialized index result and still reach READY metadata publication; the model-facing adapter bound is downstream and cannot repair this service-boundary bypass.",
+        "affectedProductionFile": "src/integrations/codebase-memory/service.ts",
+        "affectedTestFile": "src/integrations/codebase-memory/codebase-memory.test.ts"
+      },
+      "minimumCorrection": {
+        "production": [
+          "Retain the serialized index_repository result at the service boundary.",
+          "Invoke the existing parseUpstreamResult validator immediately after transport completion and before READY construction, cache/metadata publication, or any continuation.",
+          "Ensure a bounded-result rejection propagates as the existing CODEBASE_MEMORY_UNAVAILABLE error before the failure-persistence branch can publish an index state; preserve ordinary transport failure handling and existing transport limits.",
+          "Do not redesign CodebaseMemoryProcessTransport, add another size authority, alter generic tooling, or change external provenance semantics."
+        ],
+        "tests": [
+          "Add a deterministic direct-service index_repository fixture whose serialized JSON exceeds CODEBASE_MEMORY_RAW_RESULT_MAX_BYTES and assert rejection, unchanged metadata, no READY event, and no downstream result.",
+          "Add the bounded positive control and retain the existing process transport overflow/recovery and registered dispatch tests as regression guards.",
+          "Keep the fixture synthetic and do not print or persist raw secret material."
+        ]
+      },
+      "postFixAcceptance": [
+        "The same ensure-index path rejects oversized serialized output at 200000 UTF-8 bytes with CODEBASE_MEMORY_UNAVAILABLE.",
+        "Normalization, cache/metadata publication, authority decisions, READY continuation, and model-facing ToolResult continuation are not reached for the rejected result.",
+        "A valid bounded index_repository result still reaches the existing READY path.",
+        "The existing process transport bound remains a lower-layer defense and the service bound remains the canonical integration boundary."
+      ],
+      "mustNotChange": [
+        "R2-G2-O1, O3, O5, O6, or O7 contract meaning or evidence",
+        "Context7/shadcn service boundaries",
+        "generic adapter/executor/registry policy",
+        "agent catalog, skills, MCP, dependencies, or shell permissions"
+      ]
+    },
+    {
+      "obligationId": "R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE",
+      "findingId": "r2-g2-sec-o4-codebase-result-persistence",
+      "reviewer": "security-reviewer",
+      "severity": "ERROR",
+      "classification": "R2_G2_FROZEN_OBLIGATION_FAILURE",
+      "summary": "Codebase Memory persistence redacts result excerpts but does not demonstrate redaction of all externally sourced textual metadata such as symbols, relationships, and index/result metadata.",
+      "evidenceRefs": [
+        "obligation:R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE",
+        "source-path:src/integrations/codebase-memory/service.ts:226-240",
+        "test:codebase-memory-boundary-persistence",
+        "test:context7-boundary-persistence",
+        "test:shadcn-boundary-persistence"
+      ],
+      "rootCauseConfidence": "HIGH",
+      "rootCause": {
+        "unsafePersistenceBoundary": "Codebase Memory metadata is written by writeCodebaseMemoryMetadata to .codebase-memory/<workspace-identity-hash>/codebase-memory.json. persistStateSnapshot builds cache[].result immediately before that write.",
+        "currentRedactionBoundary": "redactPersistedResult is called for cache result entries before state serialization, but it maps only excerpts[].text through redactToolText and recomputes excerpt bytes/checksum/totalBytes.",
+        "externalFieldsThatCanReachPersistence": {
+          "symbols": ["symbol/name", "kind/label", "file", "signature/signatureSummary", "optional nested sourceLocation string fields"],
+          "relationships": ["sourceSymbol/source", "targetSymbol/target", "optional nested sourceLocation string fields"],
+          "excerpts": ["text is already redacted; file is currently plan-controlled and line/byte/checksum fields are host-derived"],
+          "optionalImpact": "Not populated by the current runQuery normalizer; if populated by the correction surface, apply the same field-level rule before persistence."
+        },
+        "hostControlledTechnicalFieldsThatRemain": ["projectId", "projectVersion", "workspaceIdentity", "indexId", "manifestChecksum", "status", "policyVersion", "adapterVersion", "timestamps", "queryId", "inputHash", "cache key/expiry", "operation enum", "relationshipType", "confidence", "line numbers", "bytes", "checksums"],
+        "affectedProductionFile": "src/integrations/codebase-memory/service.ts",
+        "affectedTestFile": "src/integrations/codebase-memory/codebase-memory.test.ts"
+      },
+      "minimumCorrection": {
+        "production": [
+          "Expand the existing redactPersistedResult boundary; reuse redactToolText and configured secret values rather than introducing a second redaction engine.",
+          "Redact all externally sourced string fields in persisted symbol and relationship data, including nested sourceLocation fields when present; continue redacting excerpt text.",
+          "Preserve host-controlled enums, IDs, checksums, line/byte counts, timestamps, workspace/index metadata, and provenance that is host-generated.",
+          "Keep the redacted result schema-valid before write; recompute derived excerpt bytes/checksum/totalBytes after redaction and do not invent checksums for unchanged technical fields."
+        ],
+        "tests": [
+          "Extend deterministic Codebase Memory persistence coverage with synthetic secret markers in symbol, relationship, and excerpt text fields; assert no marker reaches codebase-memory.json or a restart/cache hit.",
+          "Assert ordinary non-secret symbol, relationship, file, signature, and excerpt values remain present to catch over-redaction.",
+          "Keep Context7 and shadcn persistence tests byte-for-byte regression guards; they are not correction targets in this plan."
+        ]
+      },
+      "postFixAcceptance": [
+        "No synthetic secret marker from externally sourced symbol, relationship, nested location, or excerpt text is present in Codebase Memory persisted metadata.",
+        "The persisted result remains UNTRUSTED_EXTERNAL by its existing provenance/contract semantics.",
+        "Normal safe technical metadata and ordinary non-secret external values remain available after restart/cache hit.",
+        "The redaction occurs before writeCodebaseMemoryMetadata and before any persistent cache result is published."
+      ],
+      "mustNotChange": [
+        "Host-controlled checksum/ID/enum/timestamp semantics",
+        "The existing redactToolText policy authority",
+        "Context7/shadcn persistence implementations",
+        "R2-G2-O2 transport or generic ToolResult limits"
+      ]
+    }
+  ],
+  "failedObligations": [
+    "R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND",
+    "R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE"
+  ],
+  "perFailedObligation": {
+    "O2": {
+      "obligationId": "R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND",
+      "findingIds": ["r2-g2-code-integration-f001"],
+      "reviewers": ["code-integration-reviewer"],
+      "exactFailure": "Codebase Memory index_repository responses are not bounded at the service boundary.",
+      "sourceEvidence": ["src/integrations/codebase-memory/service.ts:120-123", "test:codebase-memory-process-service-toolresult", "test:codebase-memory-overflow-recovery"],
+      "productionPath": ["codebase-memory-read:ensure-index", "executeBoundToolOperation", "CodebaseMemoryService.ensureIndex", "indexInternal", "UpstreamTransport(index_repository)", "CodebaseMemoryProcessTransport.call"],
+      "rootCause": "indexInternal awaits and discards the serialized index_repository result instead of invoking parseUpstreamResult before READY state and persistence.",
+      "rootCauseConfidence": "HIGH",
+      "preFixProof": "A direct service transport returns a syntactically valid serialized result over the canonical byte bound; the frozen implementation incorrectly continues to READY and persists.",
+      "productionFiles": ["src/integrations/codebase-memory/service.ts"],
+      "testFiles": ["src/integrations/codebase-memory/codebase-memory.test.ts"],
+      "correctionSteps": ["Retain the raw serialized response.", "Run parseUpstreamResult at the service boundary before READY construction or publication.", "Prevent the bounded-result rejection from entering the failure-persistence publication branch.", "Reuse the existing size authority and error taxonomy."],
+      "postFixAcceptance": ["Over-limit index_repository output rejects with CODEBASE_MEMORY_UNAVAILABLE.", "Normalization, persistence, and model-facing continuation are not reached.", "A bounded valid result remains functional."],
+      "o2": {
+        "operation": "codebase-memory-read:ensure-index -> index_repository",
+        "dispatchPath": "registry -> bound adapter -> service ensureIndex/indexInternal -> process transport -> serialized result -> service validation -> registered output",
+        "transportRepresentation": "JSON-RPC value.result JSON.stringify-ed to Promise<string>; process stdout line is bounded before completion.",
+        "serviceRepresentation": "Promise<string> returned by UpstreamTransport; indexInternal currently discards it.",
+        "existingTransportBound": {"name":"CODEBASE_MEMORY_RAW_LINE_MAX_BYTES","limit":200000,"unit":"UTF-8 bytes","owner":"CodebaseMemoryProcessTransport"},
+        "existingServiceBound": {"name":"CODEBASE_MEMORY_RAW_RESULT_MAX_BYTES","limit":200000,"unit":"UTF-8 bytes","owner":"parseUpstreamResult"},
+        "bypassLocation": "src/integrations/codebase-memory/service.ts:120-123 in indexInternal",
+        "canonicalSizeAuthority": "CODEBASE_MEMORY_RAW_RESULT_MAX_BYTES via parseUpstreamResult",
+        "sizeLimit": 200000,
+        "sizeUnit": "UTF-8 bytes",
+        "expectedError": "CODEBASE_MEMORY_UNAVAILABLE",
+        "normalizationNotReachedProof": "Reject before any index READY/result normalization path; query normalization remains unchanged.",
+        "persistenceNotReachedProof": "Reject before READY metadata publication for the bounded-result failure; no raw index result is persisted.",
+        "positiveBehaviorProof": "A bounded syntactically valid index_repository result reaches the existing READY behavior."
+      }
+    },
+    "O4": {
+      "obligationId": "R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE",
+      "findingIds": ["r2-g2-sec-o4-codebase-result-persistence"],
+      "reviewers": ["security-reviewer"],
+      "exactFailure": "Codebase Memory persistence redacts result excerpts but does not demonstrate redaction of externally sourced symbols, relationships, and index/result metadata.",
+      "sourceEvidence": ["src/integrations/codebase-memory/service.ts:226-240", "test:codebase-memory-boundary-persistence", "test:context7-boundary-persistence", "test:shadcn-boundary-persistence"],
+      "productionPath": ["external query result", "CodebaseMemoryService.normalize", "in-memory cache result", "persistStateSnapshot", "writeCodebaseMemoryMetadata"],
+      "rootCause": "redactPersistedResult currently redacts only excerpts[].text; externally sourced symbol and relationship strings pass through to the persisted cache result.",
+      "rootCauseConfidence": "HIGH",
+      "preFixProof": "A synthetic secret marker in symbol/relationship/excerpt text is present in the frozen candidate's persisted Codebase Memory metadata.",
+      "productionFiles": ["src/integrations/codebase-memory/service.ts"],
+      "testFiles": ["src/integrations/codebase-memory/codebase-memory.test.ts"],
+      "correctionSteps": ["Expand the existing redactPersistedResult boundary to all externally sourced result strings.", "Reuse redactToolText and configured secret values.", "Preserve host technical metadata and recompute excerpt-derived fields.", "Validate the persistence DTO before write."],
+      "postFixAcceptance": ["Synthetic external markers are absent from persisted metadata and restart/cache-hit results.", "Host technical metadata and ordinary values remain usable.", "UNTRUSTED_EXTERNAL provenance remains intact."],
+      "o4": {
+        "affectedPersistencePaths": [".codebase-memory/<workspace-identity-hash>/codebase-memory.json", "persistStateSnapshot cache[].result"],
+        "externalMetadataFields": ["CodeSymbolReference.symbol/kind/file/signatureSummary", "CodeRelationship.sourceSymbol/targetSymbol/sourceLocation strings", "SourceExcerpt.text", "optional impact strings if populated"],
+        "hostMetadataFields": ["projectId", "projectVersion", "workspaceIdentity", "indexId", "manifestChecksum", "status", "policyVersion", "adapterVersion", "timestamps", "queryId", "inputHash", "cache key/expiry", "operation enum", "relationshipType", "confidence", "line/byte/checksum fields", "host-generated provenance"],
+        "currentRedactionFunction": "redactPersistedResult -> redactToolText; currently complete only for excerpts[].text",
+        "currentOrdering": "normalize external data -> cache normalized result -> persistStateSnapshot -> redact excerpt copy only -> writeCodebaseMemoryMetadata",
+        "requiredOrdering": "validate/normalize -> redact every untrusted external persisted string -> schema-validate persistence DTO -> writeCodebaseMemoryMetadata",
+        "unsafePersistenceBoundary": "The cache[].result value passed into writeCodebaseMemoryMetadata after incomplete redactPersistedResult processing.",
+        "canonicalStateBoundary": "Host-generated index/identity/currentness/idempotency metadata remains canonical technical state and is not destructively redacted.",
+        "secretFixture": "Synthetic secret-like markers in symbol, relationship, nested location, and excerpt text; no real credentials.",
+        "nonSecretFixture": "Ordinary symbol, relationship, file, signature, status, and checksum values remain readable after persistence/restart.",
+        "identityCurrentnessImpact": "Keep queryId/inputHash/cache key/expiry and host index identity deterministic; never derive identity from a redacted display string."
+      }
+    }
+  },
+  "passedFrozenObligations": [
+    "R2-G2-O1-INERT-SERIALIZED-EXTERNAL-RESULT",
+    "R2-G2-O3-CHILD-TRUST-TERMINAL-LIFECYCLE",
+    "R2-G2-O5-CANCELLATION-ISOLATION",
+    "R2-G2-O6-UTF8-SAFE-NORMALIZATION",
+    "R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE"
+  ],
+  "sharedFiles": [
+    "src/integrations/codebase-memory/service.ts",
+    "src/integrations/codebase-memory/codebase-memory.test.ts"
+  ],
+  "futureMutableFiles": {
+    "production": ["src/integrations/codebase-memory/service.ts"],
+    "tests": ["src/integrations/codebase-memory/codebase-memory.test.ts"]
+  },
+  "futureImmutableRegressionFiles": [
+    "src/integrations/codebase-memory/transport.ts",
+    "src/integrations/context7/cache.ts",
+    "src/integrations/context7/context7.test.ts",
+    "src/integrations/context7/contracts.ts",
+    "src/integrations/context7/normalize.ts",
+    "src/integrations/context7/service.ts",
+    "src/integrations/shadcn/cache.ts",
+    "src/integrations/shadcn/contracts.ts",
+    "src/integrations/shadcn/server.ts",
+    "src/integrations/shadcn/service.ts",
+    "src/integrations/shadcn/shadcn-registry.test.ts",
+    "src/orchestration/tooling/adapters.ts",
+    "src/orchestration/tooling/executors.ts",
+    "src/orchestration/tooling/tooling.test.ts"
+  ],
+  "regressionChecks": {
+    "O1": "Registered serialized boundary and inert hostile JSON tests.",
+    "O3": "Process overflow, child environment/stderr, valid result, and recovery tests.",
+    "O5": "Sibling cancellation and shared-index cancellation/status isolation tests.",
+    "O6": "UTF-8 multibyte truncation and byte/checksum invariant test.",
+    "O7": "Service-to-registered dispatch and oversized query before completion/persistence tests."
+  },
+  "requiredDeterministicGates": ["focused O2/O4 plus frozen regression suite", "typecheck", "lint", "build", "git diff --check", "new candidate checksum"],
+  "fullValidationPosition": "Only after all seven obligations pass on one new candidate and the four required reviewers approve that same evidence identity.",
+  "acceptedCommitPolicy": "Only a future all-seven-pass implementation may receive an accepted implementation/closure commit; this plan commit is documentation only.",
+  "r2g3Status": "NOT_EXECUTED",
+  "nextAction": "R2-G2 FROZEN O2/O4 CORRECTION — EXECUTE",
+  "correctionScope": {
+    "sharedFutureMutableFiles": [
+      "src/integrations/codebase-memory/service.ts",
+      "src/integrations/codebase-memory/codebase-memory.test.ts"
+    ],
+    "futureImmutableRegressionGuards": [
+      "src/integrations/codebase-memory/transport.ts",
+      "src/integrations/context7/cache.ts",
+      "src/integrations/context7/context7.test.ts",
+      "src/integrations/context7/contracts.ts",
+      "src/integrations/context7/normalize.ts",
+      "src/integrations/context7/service.ts",
+      "src/integrations/shadcn/cache.ts",
+      "src/integrations/shadcn/contracts.ts",
+      "src/integrations/shadcn/server.ts",
+      "src/integrations/shadcn/service.ts",
+      "src/integrations/shadcn/shadcn-registry.test.ts",
+      "src/orchestration/tooling/adapters.ts",
+      "src/orchestration/tooling/executors.ts",
+      "src/orchestration/tooling/tooling.test.ts"
+    ],
+    "sourceTestFilesOutsideScope": true,
+    "noNewFilesDuringCorrection": true,
+    "noNewAgentsSkillsMcpDependencies": true
+  },
+  "regressionPlan": {
+    "R2-G2-O1-INERT-SERIALIZED-EXTERNAL-RESULT": ["tooling registered serialized boundary", "hostile inert JSON object remains inert", "UNTRUSTED_EXTERNAL result policy"],
+    "R2-G2-O3-CHILD-TRUST-TERMINAL-LIFECYCLE": ["process stdout overflow", "explicit child environment and stderr handling", "valid process result and recovery"],
+    "R2-G2-O5-CANCELLATION-ISOLATION": ["sibling query cancellation", "shared index cancellation and status isolation"],
+    "R2-G2-O6-UTF8-SAFE-NORMALIZATION": ["multibyte truncation and byte/checksum invariants"],
+    "R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE": ["service to registered serialized dispatch", "oversized result suppression before completion/persistence"],
+    "regressionRule": "Any regression in a passed-and-frozen obligation blocks acceptance and does not create a new obligation."
+  },
+  "futureExecutionSequence": [
+    "1. Freeze the current candidate identity and capture a new correction candidate identity only after source/test correction.",
+    "2. Run the two deterministic O2/O4 reproductions against the frozen pre-fix behavior.",
+    "3. Apply one coherent correction limited to the two shared mutable files.",
+    "4. Run focused O2/O4 tests plus every frozen regression guard.",
+    "5. Run typecheck, lint, build, git diff --check, and candidate checksum validation.",
+    "6. Freeze one new candidate and one evidence-pack identity; all four required reviewers use exactly that same identity.",
+    "7. If and only if all seven obligations pass, run the required full deterministic validation and record the accepted implementation/closure commit."
+  ],
+  "reviewerCurrentnessPlan": {
+    "requiredReviewers": ["code-integration-reviewer", "test-quality-reviewer", "security-reviewer", "contract-auditor"],
+    "architectureReviewer": "NOT_REQUIRED_UNLESS_ARCHITECTURE_CHANGES",
+    "freshReviewerCallsThisRun": 0,
+    "futureReviewersMustRerun": true,
+    "sameCandidateAndEvidencePackRequired": true,
+    "scopes": {
+      "code-integration-reviewer": "O2 service boundary and O2/O4 regression implementation; no compiler/security/test-strategy substitution.",
+      "security-reviewer": "O4 complete persistence redaction/provenance and O2 rejection-before-persistence; no generic code review.",
+      "test-quality-reviewer": "O2/O4 deterministic proof, negative/positive controls, current candidate evidence, and frozen regression sufficiency.",
+      "contract-auditor": "Trace O2/O4 implementation and tests to the frozen contract while preserving O1/O3/O5/O6/O7 and excluding R2-G3."
+    }
+  },
+  "correctionBudget": {
+    "authorizedFutureCorrectionCycles": 1,
+    "repairLoop": false,
+    "automaticRetry": false,
+    "secondCorrectionCycle": "NOT_AUTHORIZED",
+    "onFailure": "Remain blocked and reconcile the resulting evidence; do not silently broaden scope."
+  },
+  "gates": {
+    "thisRun": {
+      "planJsonParse": "REQUIRED",
+      "gitDiffCheck": "REQUIRED",
+      "fullTests": "NOT_RUN",
+      "semanticReviewers": "NOT_RUN",
+      "freshGptCalls": 0
+    },
+    "futureExecution": ["focused O2/O4 and frozen regression suite", "typecheck", "lint", "build", "git diff --check", "new candidate aggregate checksum", "same-evidence-pack four-reviewer verification"],
+    "fullValidationAfterAllSevenPass": ["full deterministic gates", "database/RLS gates only if applicable", "taskgraph smoke", "customer website generation E2E only in its authorized later phase"],
+    "noR2G3OrLaterPhaseExecution": true
+  },
+  "candidateFreezePolicy": {
+    "oldCandidateChecksumMustNeverBeReusedAfterCorrection": true,
+    "newCandidateIdRequired": true,
+    "newPerFileHashesRequired": true,
+    "newAggregateChecksumRequired": true,
+    "allReviewersUseSameNewCandidate": true,
+    "candidateMustExclude": ["source/test edits before correction", "verification source candidate", "transient .context7-cache", "historical/untracked closure artifacts"]
+  },
+  "criticalRegressionEscapeHatch": {
+    "used": false,
+    "rule": "If a frozen PASS obligation regresses, stop and classify the regression under the existing contract; do not waive it or create an obligation in this plan."
+  },
+  "nonGoals": [
+    "No production source modification this run",
+    "No test modification this run",
+    "No correction execution or reviewer rerun this run",
+    "No transport redesign or generic tooling redesign",
+    "No Context7/shadcn correction",
+    "No R2-G3, Phase 7C, Phase 7D, Phase 7E, cleanup, deployment, or customer E2E"
+  ],
+  "nextState": {
+    "phase7Status": "BLOCKED",
+    "r2g2Status": "BLOCKED",
+    "statePointer": "FROZEN_O2_O4_CORRECTION_READY",
+    "r2g3Status": "NOT_EXECUTED",
+    "nextAction": "R2-G2 FROZEN O2/O4 CORRECTION — EXECUTE",
+    "planArtifact": "docs/admin/phase-7b/r2-g2-o2-o4-correction-plan-2026-08-11.json",
+    "reportArtifact": "docs/admin/phase-7b/r2-g2-o2-o4-correction-plan-2026-08-11.md"
+  }
+}
