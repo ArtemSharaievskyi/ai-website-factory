@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6q-correction-result",
+  "groupId": "cg-18-skill-portfolio-source-of-truth",
+  "title": "Align reviewer skill portfolio documentation and catalog",
+  "baselineCommit": "a935dda",
+  "correctionCommit": "c02ee31",
+  "correctionCommitMessage": "docs: align skill portfolio authority",
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "findingIds": ["finding-3ee5bcff808135a21217"],
+  "rootCause": "Make the documented portfolio and the authoritative catalog agree without changing skills or assignments in this plan.",
+  "rootCauseConfidence": "HIGH",
+  "dependencies": ["cg-13-reviewer-execution-evidence"],
+  "dependencyStatus": "COMPLETE",
+  "finding": {
+    "reviewer": "architecture-reviewer",
+    "severity": "WARNING",
+    "category": "CONTRADICTORY_DECISION",
+    "highestSeverity": "WARNING",
+    "semanticClaim": "Reviewer skill portfolio claims were inconsistent: the repository rules described complete nine-agent activation while the Architecture Reviewer documentation retained the old no-skills interpretation instead of stating the catalog allowlist."
+  },
+  "authorityClassification": "AGENT_ALLOWLIST_DIVERGENCE in derived documentation, with no runtime assignment divergence",
+  "duplicatedFacts": [
+    {
+      "fact": "Current Architecture Reviewer skill assignment",
+      "previousAuthorities": [
+        "src/agents/catalog.ts allowedSkillIds: module-boundaries-fb20497b5c35, review-maintainability-d9faf7cb9775, architecture-tradeoff-review",
+        "docs/architecture/architecture-reviewer.md documentation that did not state the complete allowlist and retained the historical no-skills interpretation",
+        "AGENTS.md and docs/architecture/agent-architecture.md statements that Phase 4D4 activates all nine portfolios"
+      ],
+      "canonicalAuthority": "src/agents/catalog.ts AgentDefinition.allowedSkillIds",
+      "correction": "Documentation now names the catalog as authority and states the exact Architecture Reviewer allowlist; the catalog assignment itself was unchanged."
+    },
+    {
+      "fact": "Active portfolio snapshot assignment rows",
+      "previousAuthority": "Historical admin snapshot, used for reporting/tests but not runtime",
+      "canonicalAuthority": "src/agents/catalog.ts",
+      "correction": "A deterministic regression now requires every snapshot approvedAllowedSkillIds row to equal the catalog row, preserving the snapshot as a derived projection."
+    }
+  ],
+  "authorityMapBefore": {
+    "approvedStatus": "Approved Skills Registry records under skills/registry/*.json",
+    "approvedChecksumAndContent": "Registry record plus immutable approved local copy under skills/approved/",
+    "agentAssignment": "Runtime catalog in src/agents/catalog.ts, but documentation did not state the Architecture Reviewer allowlist consistently",
+    "runtimeSelection": "src/skills/runtime/resolver.ts derived from AgentDefinition.allowedSkillIds and current registry metadata",
+    "portfolioSummary": "Historical/admin snapshots and curation documents; not runtime authority",
+    "problem": "The same reviewer assignment fact had an ambiguous contradictory documentation projection."
+  },
+  "authorityMapAfter": {
+    "approvedStatus": "Approved Skills Registry only",
+    "approvedChecksumAndContent": "Approved Skills Registry resolves immutable local approved content and validates manifest/file checksums",
+    "agentAssignment": "src/agents/catalog.ts only",
+    "runtimeSelection": "src/skills/runtime/resolver.ts selects the minimum sufficient relevant subset from catalog allowlists and approved registry metadata",
+    "portfolioSummary": "Derived historical/admin representation; active snapshot equality is tested against the catalog and cannot grant runtime eligibility",
+    "documentation": "AGENTS.md, agent-architecture.md, and architecture-reviewer.md explicitly identify catalog authority; Architecture Reviewer docs state the exact three IDs"
+  },
+  "skillContentAuthority": {
+    "before": "Approved local skill content loaded through SkillRegistry; no runtime skills.sh/GitHub/admin snapshot load path found.",
+    "after": "Unchanged: SkillRegistry.load permits only approved, non-revoked content from immutable local approved copies and verifies manifest/file checksums."
+  },
+  "approvalAuthority": {
+    "before": "SkillRegistry definition.status and approval records; internal and external records use the same registry loading checks.",
+    "after": "Unchanged and explicitly preserved; documentation and portfolio snapshots cannot approve or revoke skills."
+  },
+  "assignmentAuthority": {
+    "before": "src/agents/catalog.ts at runtime; historical docs/snapshot could be misread as a second authority.",
+    "after": "src/agents/catalog.ts AgentDefinition.allowedSkillIds is explicitly the sole current assignment authority. No IDs changed."
+  },
+  "runtimeSelectionAuthority": {
+    "before": "src/skills/runtime/resolver.ts plus SkillRegistry metadata; zero/one/multiple selection and checksum identity already existed.",
+    "after": "Unchanged; resolver derives candidates from the catalog allowlist, filters approval/applicability, loads approved local content, and includes selected checksums in context identity."
+  },
+  "historicalReportingAuthority": {
+    "before": "Admin snapshots, curation plans, and reports were historical/derived but not explicitly labelled in the affected architecture documentation.",
+    "after": "Explicitly labelled derived/report-only; they do not grant eligibility, approval, assignment, or runtime selection."
+  },
+  "registryRole": "Canonical approval state, source/manifest identity, approved applicability, audit trail, and immutable approved-content load boundary.",
+  "agentDefinitionRole": "Canonical answer to whether an agent is allowed to use a skill; explicit per-agent allowlists remain typed and unchanged.",
+  "resolverRole": "Invocation-specific deterministic authority that selects the smallest relevant non-conflicting approved subset within context budget.",
+  "approvedArtifactRole": "Immutable local SKILL.md/reference content bound to registry checksums; runtime does not fetch source content.",
+  "adminSnapshotRole": "Historical or derived evidence of a portfolio at a point in time; never runtime authority.",
+  "curationRole": "Discovery, evaluation, staging, and approval evidence; no runtime assignment or execution authority.",
+  "skillsShRole": "Read-only discovery/source adapter during curation and staging only; zero runtime dependency.",
+  "runtimeAuthorityBefore": "AgentDefinition catalog -> SkillRegistry approved metadata/content -> resolver applicability/coverage/conflict/budget selection -> selected checksum identity -> prompt context.",
+  "runtimeAuthorityAfter": "Same runtime flow; documentation and historical snapshot paths are now explicitly non-authoritative and regression-bound to the catalog.",
+  "integrityRules": {
+    "danglingAssignmentBehavior": "Catalog validation can reject unknown IDs when supplied known registry IDs; the active snapshot equality test detects a stale/missing catalog row.",
+    "unapprovedAssignmentBehavior": "Resolver records NOT_APPROVED and does not select an assigned registry record unless its current status and approval are valid.",
+    "revokedSkillBehavior": "SkillRegistry.load denies revoked skills with SKILL_REVOKED; no portfolio document bypasses this gate.",
+    "callerOverrideBehavior": "Resolver candidates come only from request.agent.allowedSkillIds; an optional load allowlist is a deny check and cannot add candidates or grant assignment authority.",
+    "snapshotMutationBehavior": "Changing an admin snapshot cannot affect runtime; the snapshot is checked as a derived projection of the catalog.",
+    "selectedSkillCurrentness": "Selected skill IDs and approved checksums remain part of invocation context identity; changed approved content is rejected by registry checksum validation.",
+    "unselectedSkillStability": "Unselected registry growth does not invalidate an invocation identity; only selected checksum identity participates."
+  },
+  "internalExternalParity": "Internal and external approved records both use SkillRegistry status, approval, immutable local content, applicability, role/task/tool checks, and checksum validation. No second internal approval registry was introduced.",
+  "sharedSkillBehavior": "requirements-evidence-traceability remains one approved artifact with two assignment references; unique artifacts and assignment references intentionally remain different.",
+  "portfolioCounts": {
+    "approvedExternal": 4,
+    "approvedInternal": 13,
+    "uniqueApprovedArtifacts": 17,
+    "assignmentReferences": 18,
+    "agents": 9,
+    "deferredRuntimeUsage": 0
+  },
+  "runtimeNetworkCalls": 0,
+  "skillsShRuntimeDependency": false,
+  "vercelOidcRequiredAtRuntime": false,
+  "filesChanged": [
+    "AGENTS.md",
+    "docs/architecture/agent-architecture.md",
+    "docs/architecture/architecture-reviewer.md",
+    "src/agents/catalog.test.ts",
+    "src/skills/curation/active-portfolio.test.ts",
+    "scripts/phase-6c-cg02-verification.ts"
+  ],
+  "productionFilesChanged": [],
+  "documentationFilesChanged": ["AGENTS.md", "docs/architecture/agent-architecture.md", "docs/architecture/architecture-reviewer.md"],
+  "testFilesChanged": ["src/agents/catalog.test.ts", "src/skills/curation/active-portfolio.test.ts"],
+  "filesOutsideLikelyFiles": {
+    "src/agents/catalog.test.ts": "Required catalog/documentation authority regression.",
+    "src/skills/curation/active-portfolio.test.ts": "Required proof that the historical active snapshot is derived from, and cannot diverge from, the catalog.",
+    "scripts/phase-6c-cg02-verification.ts": "Required shared cg-13-compatible architecture-reviewer verification evidence wiring."
+  },
+  "correctionSummary": "Declared src/agents/catalog.ts the sole current assignment authority, aligned Architecture Reviewer documentation with its exact three-skill allowlist, labelled documentation/admin snapshots as derived only, and added deterministic catalog/documentation and snapshot/catalog equality regressions.",
+  "skillsChanged": false,
+  "activeSkillMarkdownFilesModified": 0,
+  "newSkillsApproved": 0,
+  "skillsRevoked": 0,
+  "assignmentsChanged": false,
+  "agentDefinitionSchemaChanged": false,
+  "registrySchemaChanged": false,
+  "dbSchemaChanged": false,
+  "migrationAdded": false,
+  "resolverRedesigned": false,
+  "promptWiringRedesigned": false,
+  "newAgentOrchestratorMcp": false,
+  "testsAdded": [
+    "Architecture Reviewer documentation allowlist must equal architectureReviewerAgentDefinition.allowedSkillIds and must not claim no skills",
+    "all nine active snapshot approvedAllowedSkillIds rows must equal the authoritative catalog rows"
+  ],
+  "initialFailureReproduction": "At baseline a935dda, targeted catalog, active portfolio, curation portfolio, and resolver tests passed 29 tests, but no regression compared the Architecture Reviewer documentation or active snapshot assignment rows directly to the authoritative catalog.",
+  "targetedChecks": {
+    "focusedVitest": "PASS; 30 tests across catalog, active portfolio, curation portfolio, and resolver suites",
+    "typecheck": "PASS",
+    "documentationAuthority": "PASS; exact Architecture Reviewer allowlist is derived from the catalog in a deterministic test",
+    "portfolioIdentity": "PASS; all nine active snapshot assignment rows equal catalog allowlists"
+  },
+  "requiredReviewerRechecks": ["architecture-reviewer"],
+  "actualReviewerRechecks": [
+    { "reviewerId": "architecture-reviewer", "state": "RESOLVED", "providerVerdict": "APPROVED", "structuredOutputValid": true, "evidenceValid": true, "realGptCalls": 1 }
+  ],
+  "freshProviderCalls": 1,
+  "reusedReviewerExecutions": 0,
+  "selectedSkills": {
+    "architecture-reviewer": {
+      "selectedSkillIds": ["architecture-tradeoff-review", "module-boundaries-fb20497b5c35", "review-maintainability-d9faf7cb9775"],
+      "selectedSkillChecksums": [
+        { "skillId": "architecture-tradeoff-review", "checksum": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd" },
+        { "skillId": "module-boundaries-fb20497b5c35", "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff" },
+        { "skillId": "review-maintainability-d9faf7cb9775", "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9" }
+      ],
+      "identityChecksum": "488df20026a8cdc27a0ea566de496b2de54ab8ce8e047ec9ffa73eb4ad149c59"
+    }
+  },
+  "reviewExecutionEvidence": "The shared verifier made one fresh structured-output Architecture Reviewer call using current repository rules, architecture policy, Architecture Reviewer documentation, catalog, and both deterministic regressions. The reviewer returned APPROVED with no findings.",
+  "evidenceValidation": { "valid": true, "verificationArtifact": "docs/admin/phase-6/cg-18-skill-portfolio-source-of-truth-verification-2026-08-11.json" },
+  "perFindingResolution": {
+    "finding-3ee5bcff808135a21217": {
+      "reviewer": "architecture-reviewer",
+      "severity": "WARNING",
+      "category": "CONTRADICTORY_DECISION",
+      "finalState": "RESOLVED",
+      "resolution": "Aligned the affected documentation with the catalog’s exact Architecture Reviewer allowlist and added catalog-bound documentation/snapshot regressions without changing assignments or skills.",
+      "resolvedByGroupId": "cg-18-skill-portfolio-source-of-truth"
+    }
+  },
+  "potentiallyImpactedGroups": [],
+  "remainingFindingCountsBefore": { "total": 4, "CRITICAL": 0, "ERROR": 0, "WARNING": 4, "INFO": 0, "arithmeticValid": true },
+  "remainingFindingCounts": { "total": 3, "CRITICAL": 0, "ERROR": 0, "WARNING": 3, "INFO": 0, "arithmeticValid": true },
+  "resolvedCount": 1,
+  "partialCount": 0,
+  "stillActiveCount": 0,
+  "regressionFoundCount": 0,
+  "newlyUnblockedGroups": ["cg-19-architecture-document-state"],
+  "unblockedGroups": ["cg-19-architecture-document-state"],
+  "nextRecommendedGroup": "cg-19-architecture-document-state",
+  "phaseStatus": "COMPLETE"
+}
