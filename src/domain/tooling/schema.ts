@@ -199,12 +199,14 @@ export const ToolAuthorityDecisionSchema = z
       "TASK_NOT_CURRENT",
       "INPUT_NOT_ALLOWED",
       "EXECUTOR_NOT_TRUSTED",
+      "HOST_CONTEXT_UNTRUSTED",
     ]),
     toolId: z.string().optional(),
     operationId: z.string().optional(),
     requiredCapabilities: z.array(CapabilityIdSchema),
     taskCapabilities: z.array(CapabilityIdSchema),
     executorId: z.string().optional(),
+    hostContextIdentity: z.string().min(1).max(300).optional(),
   })
   .strict();
 export type ToolAuthorityDecision = z.infer<typeof ToolAuthorityDecisionSchema>;

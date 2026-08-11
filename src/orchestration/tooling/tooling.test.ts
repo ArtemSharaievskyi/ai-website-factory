@@ -6,17 +6,26 @@ import { ToolRequestSchema } from "@/domain/tooling/schema";
 import { isPathWithinToolScopes, isSafeToolRelativePath } from "@/domain/tooling/path-policy";
 import { RuntimeCommandResultSchema, type GeneratedProjectRuntimeValidator } from "@/runtime/validation/contracts";
 import { FunctionalQaReportSchema } from "@/runtime/qa/contracts";
-import { authorizeToolRequest, createToolHostContext, resolveAuthorizedToolOperations, taskCapabilitiesFor } from "./authority";
+import { authorizeToolRequest, resolveAuthorizedToolOperations, taskCapabilitiesFor } from "./authority";
 import { boundToolText, executeControlledRuntimeOperation, registeredOutputToToolResult, runtimeResultToToolResult } from "./executors";
+import { createHostToolContext, isTrustedToolHostContext, type ToolHostContext } from "./host-context";
 import { CAPABILITY_REGISTRY, TOOL_REGISTRY, validateToolRegistry } from "./registry";
 import { resolveTools, validateToolPolicy } from "@/orchestration/orchestrator/tools";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
 const workspace = { projectId, projectVersion: 1, taskId: "22222222-2222-4222-8222-222222222222", workspaceIdentity: "workspace:project-1:v1", workspaceReference: "project-1/v1/.staging/task", allowedFileScopes: ["src/**"], current: true, mutable: true };
-const host = (scope = workspace, trustedExecutorIds: readonly string[] = []) => createToolHostContext(scope, trustedExecutorIds);
 
 function task(overrides: Partial<AgentTask> = {}) {
   return AgentTaskSchema.parse({ id: workspace.taskId, projectId, projectVersion: 1, role: "implementation", taskType: "implement-page", title: "Implement page", objective: "Implement approved page", inputs: [], expectedOutputs: [], allowedSkills: [], allowedTools: ["Context7-read", "shadcn-registry-read", "codebase-memory-read"], fileScopes: ["src/**"], dependencies: [], status: "ready", attempt: 0, maxAttempts: 2, createdAt: "2026-01-01T00:00:00.000Z", requiredCapabilities: ["docs.library-read", "ui.registry-read", "codebase.structure-read", "source.inspect"], ...overrides });
+}
+
+function host(scope = workspace, trustedExecutorIds: readonly ("openai-structured-output-provider" | "context7-documentation-service" | "shadcn-registry-service" | "codebase-memory-service" | "generated-runtime-validator" | "functional-qa-service")[] = [], canonicalTask: AgentTask = task({ id: scope.taskId, projectId: scope.projectId, projectVersion: scope.projectVersion })) {
+  const agentDefinition = implementationAgentDefinition.supportedTaskTypes.includes(canonicalTask.taskType) ? implementationAgentDefinition : undefined;
+  return createHostToolContext({ currentScope: scope, trustedExecutorIds, task: { id: canonicalTask.id, projectId: canonicalTask.projectId, projectVersion: canonicalTask.projectVersion, taskType: canonicalTask.taskType, taskCapabilities: taskCapabilitiesFor(canonicalTask), fileScopes: canonicalTask.fileScopes, allowedTools: canonicalTask.allowedTools }, agentDefinition });
+}
+
+function validationTask(overrides: Partial<AgentTask> = {}) {
+  return task({ taskType: "validate-typecheck", role: "qa-release", allowedTools: ["filesystem-read"], requiredCapabilities: ["validation.typecheck", "dependency.materialize"], fileScopes: [], ...overrides });
 }
 
 function request(overrides: Record<string, unknown> = {}) {
@@ -33,7 +42,7 @@ describe("Phase 7B developer tooling authority", () => {
 
   it("allows only the intersection of current task capability, agent permission, and scope", () => {
     const decision = authorizeToolRequest({ request: request(), task: task(), hostContext: host(), agentDefinition: implementationAgentDefinition });
-    expect(decision).toMatchObject({ allowed: true, code: "ALLOWED", toolId: "context7-read", operationId: "query-documentation" });
+    expect(decision).toMatchObject({ allowed: true, code: "ALLOWED", toolId: "context7-read", operationId: "query-documentation", hostContextIdentity: `host:implementation:${projectId}:1:${workspace.taskId}` });
     expect(resolveAuthorizedToolOperations({ task: task(), hostContext: host(), agentDefinition: implementationAgentDefinition })).toEqual([
       { toolId: "context7-read", operationId: "resolve-library" },
       { toolId: "context7-read", operationId: "query-documentation" },
@@ -45,20 +54,32 @@ describe("Phase 7B developer tooling authority", () => {
     ]);
   });
 
+  it("requires a host-created context and rejects structural forgery", () => {
+    const trusted = host();
+    const forged = { ...trusted } as unknown as ToolHostContext;
+    expect(isTrustedToolHostContext(trusted)).toBe(true);
+    expect(isTrustedToolHostContext(forged)).toBe(false);
+    expect(authorizeToolRequest({ request: request(), task: task(), hostContext: forged, agentDefinition: implementationAgentDefinition })).toMatchObject({ allowed: false, code: "HOST_CONTEXT_UNTRUSTED" });
+    expect(() => createHostToolContext({ currentScope: workspace, trustedExecutorIds: [], task: { id: "44444444-4444-4444-8444-444444444444", projectId, projectVersion: 1, taskType: "implement-page", taskCapabilities: taskCapabilitiesFor(task()), fileScopes: ["src/**"], allowedTools: task().allowedTools } })).toThrow(/does not match/);
+  });
+
   it("denies unknown tools, unknown operations, missing agent permissions, missing task capabilities, and stale identity", () => {
     expect(authorizeToolRequest({ request: request({ toolId: "not-registered" }), task: task(), hostContext: host(), agentDefinition: implementationAgentDefinition }).code).toBe("UNKNOWN_TOOL");
     expect(authorizeToolRequest({ request: request({ operationId: "execute-command" }), task: task(), hostContext: host(), agentDefinition: implementationAgentDefinition }).code).toBe("UNKNOWN_OPERATION");
     expect(authorizeToolRequest({ request: request(), task: task(), hostContext: host(), agentDefinition: leadAgentDefinition }).code).toBe("AGENT_TOOL_NOT_ALLOWED");
-    expect(authorizeToolRequest({ request: request(), task: task({ requiredCapabilities: ["source.inspect"] }), hostContext: host(), agentDefinition: implementationAgentDefinition }).code).toBe("TASK_CAPABILITY_MISSING");
+    const missingCapabilityTask = task({ requiredCapabilities: ["source.inspect"] });
+    expect(authorizeToolRequest({ request: request(), task: missingCapabilityTask, hostContext: host(workspace, [], missingCapabilityTask), agentDefinition: implementationAgentDefinition }).code).toBe("TASK_CAPABILITY_MISSING");
     expect(authorizeToolRequest({ request: request(), task: task({ status: "cancelled", completedAt: "2026-01-01T00:01:00.000Z" }), hostContext: host(), agentDefinition: implementationAgentDefinition }).code).toBe("TASK_NOT_CURRENT");
     expect(authorizeToolRequest({ request: request({ projectId: "33333333-3333-4333-8333-333333333333" }), task: task(), hostContext: host(), agentDefinition: implementationAgentDefinition }).code).toBe("PROJECT_SCOPE_INVALID");
     expect(authorizeToolRequest({ request: request({ projectVersion: 2 }), task: task(), hostContext: host(), agentDefinition: implementationAgentDefinition }).code).toBe("PROJECT_SCOPE_INVALID");
     expect(authorizeToolRequest({ request: request({ taskId: "44444444-4444-4444-8444-444444444444" }), task: task(), hostContext: host(), agentDefinition: implementationAgentDefinition }).code).toBe("PROJECT_SCOPE_INVALID");
     expect(authorizeToolRequest({ request: request({ toolId: "Context7-read" }), task: task(), hostContext: host(), agentDefinition: implementationAgentDefinition }).code).toBe("ALLOWED");
-    expect(authorizeToolRequest({ request: request({ toolId: "generated-runtime-validation", operationId: "typecheck", input: {} }), task: task({ taskType: "validate-typecheck", role: "qa-release", allowedTools: ["filesystem-read"], requiredCapabilities: ["validation.typecheck", "dependency.materialize"], fileScopes: [] }), hostContext: host({ ...workspace, taskId: "33333333-3333-4333-8333-333333333333", allowedFileScopes: [] }, ["generated-runtime-validator"]) }).code).toBe("PROJECT_SCOPE_INVALID");
+    const mismatchedScopeTask = validationTask({ id: "33333333-3333-4333-8333-333333333333" });
+    expect(authorizeToolRequest({ request: request({ toolId: "generated-runtime-validation", operationId: "typecheck", input: {} }), task: mismatchedScopeTask, hostContext: host({ ...workspace, taskId: "33333333-3333-4333-8333-333333333333", allowedFileScopes: [] }, ["generated-runtime-validator"], mismatchedScopeTask) }).code).toBe("PROJECT_SCOPE_INVALID");
     expect(authorizeToolRequest({ request: request(), task: task(), hostContext: host({ ...workspace, current: false }), agentDefinition: implementationAgentDefinition }).code).toBe("TASK_SCOPE_INVALID");
-    expect(authorizeToolRequest({ request: request({ toolId: "generated-runtime-validation", operationId: "typecheck", input: {} }), task: task({ taskType: "validate-typecheck", role: "qa-release", allowedTools: ["filesystem-read"], requiredCapabilities: ["validation.typecheck", "dependency.materialize"], fileScopes: [] }), hostContext: host({ ...workspace, allowedFileScopes: [] }) }).code).toBe("EXECUTOR_NOT_TRUSTED");
-    expect(authorizeToolRequest({ request: request({ toolId: "generated-runtime-validation", operationId: "typecheck", input: {} }), task: task({ taskType: "validate-typecheck", role: "qa-release", allowedTools: ["filesystem-read"], requiredCapabilities: ["validation.typecheck", "dependency.materialize"], fileScopes: [] }), hostContext: host({ ...workspace, allowedFileScopes: [], mutable: false }, ["generated-runtime-validator"]) }).code).toBe("TASK_SCOPE_INVALID");
+    const runtimeTask = validationTask();
+    expect(authorizeToolRequest({ request: request({ toolId: "generated-runtime-validation", operationId: "typecheck", input: {} }), task: runtimeTask, hostContext: host({ ...workspace, allowedFileScopes: [] }, [], runtimeTask) }).code).toBe("EXECUTOR_NOT_TRUSTED");
+    expect(authorizeToolRequest({ request: request({ toolId: "generated-runtime-validation", operationId: "typecheck", input: {} }), task: runtimeTask, hostContext: host({ ...workspace, allowedFileScopes: [], mutable: false }, ["generated-runtime-validator"], runtimeTask) }).code).toBe("TASK_SCOPE_INVALID");
   });
 
   it("rejects forged authority, traversal, secrets, arbitrary URLs, raw commands, and package arguments", () => {
@@ -66,16 +87,20 @@ describe("Phase 7B developer tooling authority", () => {
     expect(authorizeToolRequest({ request: request({ toolId: "codebase-memory-read", operationId: "get-relevant-source", input: { file: "../outside.ts" } }), task: task(), hostContext: host(), agentDefinition: implementationAgentDefinition }).code).toBe("INPUT_NOT_ALLOWED");
     expect(authorizeToolRequest({ request: request({ toolId: "codebase-memory-read", operationId: "get-relevant-source", input: { file: ".env" } }), task: task(), hostContext: host(), agentDefinition: implementationAgentDefinition }).code).toBe("INPUT_NOT_ALLOWED");
     expect(authorizeToolRequest({ request: request({ toolId: "shadcn-registry-read", operationId: "resolve-component", input: { registryUrl: "https://evil.example" } }), task: task(), hostContext: host(), agentDefinition: implementationAgentDefinition }).code).toBe("INPUT_NOT_ALLOWED");
-    expect(authorizeToolRequest({ request: request({ toolId: "generated-runtime-validation", operationId: "typecheck", input: { command: "npm run build && whoami" } }), task: task({ taskType: "validate-typecheck", role: "qa-release", allowedTools: ["filesystem-read"], requiredCapabilities: ["validation.typecheck", "dependency.materialize"], fileScopes: [] }), hostContext: host({ ...workspace, allowedFileScopes: [] }, ["generated-runtime-validator"] ) }).code).toBe("INPUT_NOT_ALLOWED");
-    expect(authorizeToolRequest({ request: request({ toolId: "generated-runtime-validation", operationId: "install-locked", input: { package: "unapproved-package" } }), task: task({ taskType: "implement-project-foundation", allowedTools: ["filesystem-read", "filesystem-write"], requiredCapabilities: ["dependency.materialize"] }), hostContext: host(workspace, ["generated-runtime-validator"]) }).code).toBe("INPUT_NOT_ALLOWED");
+    const commandTask = validationTask();
+    expect(authorizeToolRequest({ request: request({ toolId: "generated-runtime-validation", operationId: "typecheck", input: { command: "npm run build && whoami" } }), task: commandTask, hostContext: host({ ...workspace, allowedFileScopes: [] }, ["generated-runtime-validator"], commandTask) }).code).toBe("INPUT_NOT_ALLOWED");
+    const foundationTask = task({ taskType: "implement-project-foundation", allowedTools: ["filesystem-read", "filesystem-write"], requiredCapabilities: ["dependency.materialize"] });
+    expect(authorizeToolRequest({ request: request({ toolId: "generated-runtime-validation", operationId: "install-locked", input: { package: "unapproved-package" } }), task: foundationTask, hostContext: host(workspace, ["generated-runtime-validator"], foundationTask) }).code).toBe("INPUT_NOT_ALLOWED");
     expect(authorizeToolRequest({ request: request({ toolId: "codebase-memory-read", operationId: "get-relevant-source", input: { file: "src/page.ts", relativePath: "src2/secret.ts" } }), task: task(), hostContext: host(), agentDefinition: implementationAgentDefinition }).code).toBe("INPUT_NOT_ALLOWED");
-    expect(authorizeToolRequest({ request: request({ toolId: "codebase-memory-read", operationId: "get-relevant-source", input: { file: "src/page.ts" } }), task: task({ fileScopes: ["src/components/**"] }), hostContext: host(), agentDefinition: implementationAgentDefinition }).code).toBe("INPUT_NOT_ALLOWED");
+    const narrowerTask = task({ fileScopes: ["src/components/**"] });
+    expect(authorizeToolRequest({ request: request({ toolId: "codebase-memory-read", operationId: "get-relevant-source", input: { file: "src/page.ts" } }), task: narrowerTask, hostContext: host(workspace, [], narrowerTask), agentDefinition: implementationAgentDefinition }).code).toBe("INPUT_NOT_ALLOWED");
   });
 
   it("authorizes a host-controlled runtime operation without exposing command arguments", async () => {
     const command = RuntimeCommandResultSchema.parse({ commandId: randomUUID(), validationRunId: randomUUID(), projectId, projectVersion: 1, commandType: "typecheck", executableIdentity: "npm", safeArgsSummary: "run typecheck", cwdReference: "project-1/v1/.staging/task", startedAt: "2026-01-01T00:00:00.000Z", completedAt: "2026-01-01T00:00:01.000Z", durationMs: 1000, exitCode: 0, terminationReason: "completed", stdoutSummary: "passed\nOPENAI_API_KEY=sk-123456789012345", stderrSummary: "", stdoutBytes: 40, stderrBytes: 0, outputTruncated: false, timeout: false, cancelled: false, passed: true, sourceChecksum: "a".repeat(64), diagnostics: [] });
     const validator = { runTypecheck: async () => command } as unknown as GeneratedProjectRuntimeValidator;
-    const authority = authorizeToolRequest({ request: request({ toolId: "generated-runtime-validation", operationId: "typecheck", input: {} }), task: task({ taskType: "validate-typecheck", role: "qa-release", allowedTools: ["filesystem-read"], requiredCapabilities: ["validation.typecheck", "dependency.materialize"], fileScopes: [] }), hostContext: host({ ...workspace, allowedFileScopes: [] }, ["generated-runtime-validator"]) });
+    const runtimeTask = validationTask();
+    const authority = authorizeToolRequest({ request: request({ toolId: "generated-runtime-validation", operationId: "typecheck", input: {} }), task: runtimeTask, hostContext: host({ ...workspace, allowedFileScopes: [] }, ["generated-runtime-validator"], runtimeTask) });
     expect(authority.allowed).toBe(true);
     const result = await executeControlledRuntimeOperation({ operationId: "typecheck", runtimeInput: { projectId, projectVersion: 1, workspacePath: "C:\\generated\\project-1\\.staging\\task", generatedProjectsRoot: "C:\\generated" }, validator });
     expect(result.status).toBe("passed");
