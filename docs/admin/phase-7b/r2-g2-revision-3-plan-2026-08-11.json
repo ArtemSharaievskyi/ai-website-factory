@@ -1,0 +1,297 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-7b-r2-g2-revision-3-plan",
+  "generatedOn": "2026-08-11",
+  "phase": "7B",
+  "revision": "3",
+  "groupId": "R2-G2-EXTERNAL_RESULT_BOUNDARY",
+  "planId": "phase-7b-r2-g2-revision-3-2026-08-11",
+  "title": "R2-G2 Revision 3 transport boundary reconciliation and correction plan",
+  "planStatus": "READY_FOR_ONE_NEW_CORRECTION_CYCLE",
+  "baselineHead": "82f0487803b817b11089f714fc4f6ab14bff9e60",
+  "sourceReplanCommit": {
+    "commit": "82f0487803b817b11089f714fc4f6ab14bff9e60",
+    "message": "docs: replan phase 7b external result boundary"
+  },
+  "sourceRevisionPlanIdentity": "phase-7b-revision-2-2026-08-11",
+  "sourceEvidence": {
+    "resultArtifact": {
+      "path": "docs/admin/phase-7b/r2-g2-revision-2-result-2026-08-11.json",
+      "sha256": "ee1c36bbcef4547d6d956323ef0610c622c3cacf9d2bfb6fc1f2ed359cbdc8ad"
+    },
+    "resultReport": {
+      "path": "docs/admin/phase-7b/r2-g2-revision-2-result-2026-08-11.md",
+      "sha256": "e64ef0b5406261641ee100854b9c60c46f11459656886e55474371d3adaec884"
+    },
+    "reviewVerification": {
+      "path": "docs/admin/phase-7b/r2-g2-revision-2-review-verification-2026-08-11.json",
+      "sha256": "792f417a2dff91b3cfba37ff75f3a69e8a5793bf986e5ea471a8a1adaa3c5734"
+    },
+    "semanticReconciliation": {
+      "path": "docs/admin/phase-7b/phase-7b-semantic-reconciliation-2026-08-11.json",
+      "sha256": "4cf3851c72b36b3eafdf15e3b965471a92627516b55873faef9fc47c1fcfd3f3"
+    },
+    "r2g1Result": {
+      "path": "docs/admin/phase-7b/r2-g1-host-context-authenticity-result-2026-08-11.json",
+      "sha256": "80eec8cd3dfbf6121b693d2a5888479013583857a4f50c77df44ec760a2dfa14"
+    }
+  },
+  "candidateIdentity": {
+    "classification": "R2_G2_FAILED_CANDIDATE",
+    "preserveByteForByte": true,
+    "fileCount": 14,
+    "files": [
+      { "path": "src/integrations/codebase-memory/codebase-memory.test.ts", "baseBlob": "a76a33e177353bd09eec1be7fd124116a8d2ab21", "currentSha256": "1655e6a1a00e23c2ef74f42f61d7e564ac7bab2c681ffd3c469ad347c408421a", "role": "test" },
+      { "path": "src/integrations/codebase-memory/service.ts", "baseBlob": "3813bd580f405e338670428dc3badd403ee3579f", "currentSha256": "23c792483dd9bd617276593c3d44fd3c80d2ad7e1b9aef3fc006491993aaf4b7", "role": "production" },
+      { "path": "src/integrations/codebase-memory/transport.ts", "baseBlob": "9f9695f82783db0be70dbcc1d109c1645dcbee5a", "currentSha256": "0072ec2a3a0debe60a45f479cb70a19c8bce88548e98168931f7ad5f873e4e53", "role": "production" },
+      { "path": "src/integrations/context7/context7.test.ts", "baseBlob": "e23562ffe68673d778e488581bd54bcff480bfd9", "currentSha256": "08251e810de07be9958ee20a23fce7ad0cb3dc4384a21e3c33f375cfa3345fc7", "role": "test" },
+      { "path": "src/integrations/context7/contracts.ts", "baseBlob": "d3442a723726054aaf6113af0d6f48ca5d7b687f", "currentSha256": "af8442cd5368902188779d478dad5f78c7dcea1e727c7873ad26ae52b5bab238", "role": "production" },
+      { "path": "src/integrations/context7/normalize.ts", "baseBlob": "e39d328ddc8c04fcebb37e42b909d8755a824a4a", "currentSha256": "c683488ec7c3275c749790cd085f98aa01295efbe81749f0d3ab52db1b5dd10d", "role": "production" },
+      { "path": "src/integrations/context7/service.ts", "baseBlob": "055644f51b862dea6737bbb3f33f216e45bbba2b", "currentSha256": "a1d78e068129ccc7a4d04ece9f329c45746cc4f46ab80bd61a1fe0c116135f59", "role": "production" },
+      { "path": "src/integrations/shadcn/contracts.ts", "baseBlob": "b5cfeb0b785071f12c675f9ffcab0f515e82dd65", "currentSha256": "d0fb0a5d72cf7cc7fcea4557f012353d140325bea50c0aa374519b2d82403355", "role": "production" },
+      { "path": "src/integrations/shadcn/server.ts", "baseBlob": "6b040d1616c149aac53379fe5eeb85f7a3b29d35", "currentSha256": "681e9f97b84c6cadf93754ce4d47600325f35368899a3c4c28bfd125336ee5f6", "role": "production" },
+      { "path": "src/integrations/shadcn/service.ts", "baseBlob": "4962fc5d13cec68748e6298b04622545f335ccbc", "currentSha256": "ddf416b08a56b5c3964294c5be24ef2cf8c22d10a3f8bd4db7e3936d0df71069", "role": "production" },
+      { "path": "src/integrations/shadcn/shadcn-registry.test.ts", "baseBlob": "e4b2abef68c3c1974b914481ec91b2d4b3f6861f", "currentSha256": "135cf8f744e9cb531719d74a1b65e10ff0dfcdbf7a958104072b390b405400e7", "role": "test" },
+      { "path": "src/orchestration/tooling/adapters.ts", "baseBlob": "fe22d268d9f6f626ec22b68dc7a0f41fc817329d", "currentSha256": "4d150b8eb6d02b90c5996cc52e4e42b8dfcfa996bf30ea14f2ce4bfaa7c523e7", "role": "production" },
+      { "path": "src/orchestration/tooling/executors.ts", "baseBlob": "94e9b218d73a50bf94b69fa8db8ccc3b2a928c01", "currentSha256": "11f9f8660b60a28e0f012c674669b4b94378097cf3d904bb5e52dda750d4a3b5", "role": "production" },
+      { "path": "src/orchestration/tooling/tooling.test.ts", "baseBlob": "788386edf89faccb7b6d8056ee6ea3a5db27c5d3", "currentSha256": "90209e0a13f978268f62678e124317fb7b71f80a9ea95760af09fc115a9d51b8", "role": "test" }
+    ],
+    "knownTransient": [".context7-cache/"],
+    "adminArtifacts": [
+      "docs/admin/phase-7b/phase-7b-revision-2-state-2026-08-11.json",
+      "docs/admin/phase-7b/r2-g2-revision-2-result-2026-08-11.json",
+      "docs/admin/phase-7b/r2-g2-revision-2-result-2026-08-11.md",
+      "docs/admin/phase-7b/r2-g2-revision-2-review-verification-2026-08-11.json"
+    ],
+    "unexpectedDirtyPaths": []
+  },
+  "activeFindings": [
+    {
+      "findingId": "7b-sec-002",
+      "reviewerFindingId": "r2-g2-002",
+      "reviewer": "code-integration-reviewer",
+      "severity": "ERROR",
+      "risk": "HIGH",
+      "state": "VALID_ACTIVE_BLOCKING",
+      "category": "EXTERNAL_RESULT_BOUNDARY",
+      "semanticClaim": "Host adapter serialization still traverses live external result objects before the generic boundary.",
+      "evidenceRefs": ["current:host-adapter-serialization", "current:tool-output-boundary", "generic-result-boundary", "serialized-transport"],
+      "affectedFiles": ["src/orchestration/tooling/adapters.ts", "src/orchestration/tooling/executors.ts"],
+      "requiredCorrection": "Remove live-result JSON.stringify from executeBoundToolOperation. Require the bound host executor operation to return a primitive serialized JSON string and reject non-string values before any property access, JSON.parse, schema validation, redaction, or byte calculation."
+    },
+    {
+      "findingId": "7b-sec-004",
+      "reviewerFindingId": "r2-g2-tq-001",
+      "reviewer": "test-quality-reviewer",
+      "severity": "WARNING",
+      "reviewerSeverity": "ERROR",
+      "risk": "HIGH",
+      "state": "VALID_ACTIVE_BLOCKING",
+      "category": "SECRET_REDACTION_ORDER",
+      "semanticClaim": "Integration-specific serialized byte bounds are not meaningfully verified at each cited raw-response boundary.",
+      "evidenceRefs": ["current:context7-parse-and-service", "current:shadcn-parse-and-service", "current:codebase-memory-transport", "current:codebase-memory-service", "test:context7-boundary", "test:shadcn-boundary", "test:codebase-memory-boundary", "serialized-transport"],
+      "affectedFiles": ["src/integrations/context7/normalize.ts", "src/integrations/context7/context7.test.ts", "src/integrations/shadcn/service.ts", "src/integrations/shadcn/shadcn-registry.test.ts", "src/integrations/codebase-memory/transport.ts", "src/integrations/codebase-memory/service.ts", "src/integrations/codebase-memory/codebase-memory.test.ts"],
+      "requiredCorrection": "Add focused oversized serialized-response assertions at the Context7, shadcn, and Codebase Memory service/transport boundaries, proving rejection before JSON.parse or normalization and proving no cache/persistence side effect."
+    }
+  ],
+  "resolvedReviewerState": {
+    "securityReviewer": "APPROVED",
+    "codeIntegrationReviewer": "CHANGES_REQUIRED",
+    "testQualityReviewer": "CHANGES_REQUIRED",
+    "securityFinding7bSec001": "RESOLVED_BY_R2-G1_AND_NOT_REOPENED",
+    "resolvedFindings": ["7b-sec-001"],
+    "currentReviewerArtifactEvidenceValid": true
+  },
+  "revisedRootCause": {
+    "statement": "Revision 2 moved the generic converter to an inert serialized-text input, but the exported bound-operation dispatch still bridges typed executor results with JSON.stringify inside the generic adapter. That bridge is earlier than the string-only runtime check and can execute getter/Proxy/cycle-sensitive traversal. In parallel, the three integration parsers have raw UTF-8 guards but no integration-specific over-limit tests proving the guard precedes parse/normalization and side effects.",
+    "confidence": "HIGH",
+    "reachability": {
+      "officialOrProcessTransportArbitraryLiveObject": "NO under the current serialized transport contracts; Context7 is injected text-only, shadcn official transport uses response.text, and Codebase Memory parses bounded child-process JSON before its bounded result re-encoding.",
+      "exportedBoundOperationCustomExecutor": "LIMITED_YES; no non-test production caller was found, but the exported internal API permits a caller-supplied executor at runtime and currently serializes its live return value.",
+      "modelOrAgentDirectCall": false
+    },
+    "earliestRequiredInertBoundary": "The bound host executor must yield a primitive serialized JSON string before executeBoundToolOperation invokes registeredOutputToToolResult; each external integration must reject over-limit raw text before JSON.parse and normalization."
+  },
+  "jsonStringifyInventory": [
+    { "path": "src/orchestration/tooling/adapters.ts:36", "kind": "production", "valueOrigin": "caller-supplied executor result from BoundToolOperation", "trustLayer": "HOST_BOUNDARY_BEFORE_INERT_CHECK", "reachability": "LIMITED_YES through exported host dispatch/custom executor", "earliestBoundary": "currently after executor await but before registeredOutputToToolResult string check", "revision3Action": "REMOVE from generic adapter path; require serialized text from bound executor and pass it directly" },
+    { "path": "src/orchestration/tooling/executors.ts:45", "kind": "production", "valueOrigin": "JSON.parse result from already serialized external text", "trustLayer": "ADAPTER_VALIDATED_INERT_JSON", "reachability": "YES after bounded parse; no arbitrary live input", "earliestBoundary": "registeredOutputToToolResult UTF-8 check then JSON.parse", "revision3Action": "KEEP as defense-in-depth redaction/data shaping" },
+    { "path": "src/orchestration/tooling/executors.ts:52", "kind": "production", "valueOrigin": "redacted bounded data envelope built from inert parsed JSON", "trustLayer": "ADAPTER_VALIDATED_INERT_JSON", "reachability": "YES after generic boundary", "earliestBoundary": "after bounded parse and resultData", "revision3Action": "KEEP" },
+    { "path": "src/integrations/codebase-memory/transport.ts:13", "kind": "production", "valueOrigin": "host-created JSON-RPC request arguments", "trustLayer": "HOST_AUTHORITY_INPUT", "reachability": "YES but not an external result", "earliestBoundary": "outbound process request", "revision3Action": "KEEP; outside R2-G2 result defect" },
+    { "path": "src/integrations/codebase-memory/transport.ts:18", "kind": "production", "valueOrigin": "value.result produced by bounded child stdout JSON.parse", "trustLayer": "HOST_LIBRARY_RUNTIME_INERT_JSON", "reachability": "YES only after bounded line parse; not arbitrary caller Proxy", "earliestBoundary": "raw line byte guard then JSON.parse", "revision3Action": "KEEP bounded re-encoding; add process-line oversize proof" },
+    { "path": "src/integrations/context7/service.ts:23", "kind": "production", "valueOrigin": "host-created validated query plan", "trustLayer": "HOST_AUTHORITY_INPUT", "reachability": "YES but not an external result", "earliestBoundary": "idempotency key computation", "revision3Action": "KEEP" },
+    { "path": "src/integrations/context7/service.ts:55", "kind": "production-synthetic", "valueOrigin": "host-created synthetic smoke payload", "trustLayer": "HOST_TEST_FIXTURE", "reachability": "test/smoke only", "earliestBoundary": "synthetic transport construction", "revision3Action": "KEEP; not production external traversal" },
+    { "path": "src/integrations/context7/cache.ts:8,10", "kind": "production", "valueOrigin": "validated query plan and normalized Context7QueryResult", "trustLayer": "HOST_NORMALIZED_CACHE", "reachability": "YES after normalization", "earliestBoundary": "cache key/persistence after service normalization", "revision3Action": "KEEP; never cache raw transport text" },
+    { "path": "src/integrations/shadcn/service.ts:25", "kind": "production", "valueOrigin": "validated component query plan and design metadata", "trustLayer": "HOST_AUTHORITY_INPUT", "reachability": "YES but not an external result", "earliestBoundary": "idempotency key computation", "revision3Action": "KEEP" },
+    { "path": "src/integrations/shadcn/service.ts:31", "kind": "production-synthetic", "valueOrigin": "host-created synthetic registry fixture", "trustLayer": "HOST_TEST_FIXTURE", "reachability": "test/smoke only", "earliestBoundary": "synthetic transport construction", "revision3Action": "KEEP" },
+    { "path": "src/integrations/shadcn/normalize.ts:13", "kind": "production", "valueOrigin": "explicit normalized plan/files/dependencies DTO", "trustLayer": "HOST_NORMALIZED", "reachability": "YES after explicit field extraction and bounds", "earliestBoundary": "normalizer validates and constructs base DTO before checksum", "revision3Action": "KEEP" },
+    { "path": "src/integrations/shadcn/cache.ts:5,10", "kind": "production", "valueOrigin": "validated plan and normalized ShadcnReferenceResult", "trustLayer": "HOST_NORMALIZED_CACHE", "reachability": "YES after normalization", "earliestBoundary": "cache key/persistence after service normalization", "revision3Action": "KEEP; never cache raw response" },
+    { "path": "src/integrations/codebase-memory/service.ts:137", "kind": "production", "valueOrigin": "validated CodebaseMemoryQueryPlan", "trustLayer": "HOST_AUTHORITY_INPUT", "reachability": "YES but not an external result", "earliestBoundary": "idempotency key computation", "revision3Action": "KEEP" },
+    { "path": "src/integrations/codebase-memory/policy.ts:22", "kind": "production", "valueOrigin": "host-derived file manifest", "trustLayer": "HOST_AUTHORITY_INPUT", "reachability": "YES but not an external result", "earliestBoundary": "manifest checksum", "revision3Action": "KEEP" },
+    { "path": "src/integrations/codebase-memory/metadata.ts:112", "kind": "production", "valueOrigin": "stable validated persisted metadata", "trustLayer": "HOST_NORMALIZED_PERSISTENCE", "reachability": "YES after metadata validation", "earliestBoundary": "persistence write", "revision3Action": "KEEP; outside current candidate" },
+    { "path": "src/orchestration/tooling/authority.ts:46-47", "kind": "production", "valueOrigin": "host-authorized ToolRequest.input", "trustLayer": "HOST_AUTHORITY_INPUT", "reachability": "YES but not an external result", "earliestBoundary": "host input size/URL policy", "revision3Action": "KEEP; explicitly unrelated to R2-G2" },
+    { "path": "src/orchestration/tooling/tooling.test.ts:38", "kind": "test-only", "valueOrigin": "fixture value", "trustLayer": "TEST_FIXTURE", "reachability": "test only", "earliestBoundary": "fixture construction", "revision3Action": "KEEP or adjust fixtures for serialized binding" },
+    { "path": "src/integrations/context7/context7.test.ts:13", "kind": "test-only", "valueOrigin": "fixture value", "trustLayer": "TEST_FIXTURE", "reachability": "test only", "earliestBoundary": "fixture construction", "revision3Action": "KEEP and add oversize fixture" },
+    { "path": "src/integrations/shadcn/shadcn-registry.test.ts:15", "kind": "test-only", "valueOrigin": "fixture value", "trustLayer": "TEST_FIXTURE", "reachability": "test only", "earliestBoundary": "fixture construction", "revision3Action": "KEEP and add oversize fixture" },
+    { "path": "src/integrations/codebase-memory/codebase-memory.test.ts:15,27", "kind": "test-only", "valueOrigin": "fixture value and persisted test metadata", "trustLayer": "TEST_FIXTURE", "reachability": "test only", "earliestBoundary": "fixture/persistence setup", "revision3Action": "KEEP and add service/process oversize assertions" }
+  ],
+  "integrationBoundaryReconciliation": {
+    "Context7": {
+      "rawSource": "Injected Context7Transport serialized JSON text; no concrete Context7 HTTP client exists in this repository.",
+      "rawRepresentation": "Promise<string>",
+      "sizeGuard": "CONTEXT7_RAW_RESPONSE_MAX_BYTES = 200000 UTF-8 bytes before JSON.parse",
+      "parseBoundary": "parseContext7TransportResponse, then normalizeContext7Response",
+      "normalizeBoundary": "explicit candidate extraction, unsafe-content/version/content/byte bounds, Context7 schemas",
+      "cache": "normalized Context7QueryResult JSON only; no raw response",
+      "revision3Action": "KEEP production transport contract and parser; add service-path oversized text test proving parser rejects before normalization/cache"
+    },
+    "shadcn": {
+      "rawSource": "Official allowlisted fetch response.text(); injected ShadcnRegistryTransport text.",
+      "rawRepresentation": "Promise<string>",
+      "sizeGuard": "SHADCN_RAW_RESPONSE_MAX_BYTES = 200000 UTF-8 bytes before JSON.parse",
+      "parseBoundary": "parseRegistryTransportResponse, then normalizeComponent and ShadcnComponentReferenceSchema",
+      "normalizeBoundary": "explicit file/source/path/dependency/content extraction and official registry policy",
+      "cache": "normalized ShadcnReferenceResult JSON only; no raw response",
+      "revision3Action": "KEEP production transport/parser; add service-path oversized text test proving rejection before normalization/cache"
+    },
+    "CodebaseMemory": {
+      "rawSource": "Child-process newline-delimited JSON-RPC stdout plus injected UpstreamTransport text.",
+      "rawRepresentation": "Promise<string> for service transport; bounded process line before JSON.parse",
+      "sizeGuard": "CODEBASE_MEMORY_RAW_LINE_MAX_BYTES and CODEBASE_MEMORY_RAW_RESULT_MAX_BYTES = 200000 UTF-8 bytes",
+      "parseBoundary": "process line guard then JSON.parse then bounded result re-encoding; service result guard then JSON.parse",
+      "normalizeBoundary": "workspace/current-index checks, explicit result mapping, result/source byte bounds and Codebase schemas",
+      "cache": "normalized result/metadata only; no raw upstream result",
+      "revision3Action": "KEEP bounded process and service boundaries; add injected-service oversized test and process-line oversize test when existing child-process harness permits, without inventing HTTP"
+    }
+  },
+  "transportSizePolicy": {
+    "rawExternalTransportMaxBytes": 200000,
+    "measurement": "Buffer.byteLength(serializedText, utf8)",
+    "guardOrder": "read bounded text -> reject over-limit -> JSON.parse -> integration normalization/schema -> normalized cache -> generic serialized ToolResult boundary",
+    "genericPrevalidationMaxBytes": 200000,
+    "normalizedToolResultMaxBytes": 16000,
+    "registeredOperationPolicyMaxBytes": 16000,
+    "modelContextLimit": "Provider/model prompt context is downstream and provider-specific; no repository model-context constant authorizes larger raw transport. ToolResult 16000-byte data/text bounds remain the local context gate.",
+    "failureMode": "Fail closed with integration-specific unavailable/content-limit error before parse, normalization, cache, persistence, model prompt assembly, or authority decisions.",
+    "duplicationRule": "Integration raw limits protect parse/normalization resources; generic 200000-byte serialized guard is defense-in-depth; ToolResult 16000-byte bound protects model-facing output. Do not replace one with another."
+  },
+  "authorityProvenanceAndCache": {
+    "contentTrust": "UNTRUSTED_EXTERNAL for Context7, shadcn, Codebase Memory result content",
+    "hostProvenance": "Host-owned executor identity, tool policy, workspace/index identity, registry approval, and evidenceIdentity remain separate from external content.",
+    "authority": "No external result may select tools, expand file/dependency scope, authorize writes, change host context, or become HOST_VALIDATED.",
+    "cacheRule": "Only schema-normalized bounded DTOs are cached or persisted. Oversized raw text must not create cache or metadata files.",
+    "promptRule": "Supplemental result content remains advisory data and prompt-injection inert; no raw text is used as policy or instruction."
+  },
+  "failedRevision2Analysis": {
+    "whatPassed": ["generic serialized text type check", "generic UTF-8 pre-parse bound", "safe JSON.parse and registered schema path", "redaction and UNTRUSTED_EXTERNAL provenance", "R2-G1 host-context authority invariants"],
+    "whyBlocked": ["adapter JSON.stringify still precedes the generic inert boundary", "bound-operation hostile-object proof is absent", "Context7/shadcn/Codebase Memory integration-specific oversized tests are absent"],
+    "notAReasonToChange": ["no evidence that Codebase Memory child-process JSON.parse result is an arbitrary caller Proxy", "no evidence that authority.ts request-input stringify is an external-result defect", "no reason to rewrite normalized caches or introduce a new transport framework"]
+  },
+  "keepModifyDropSupersede": {
+    "KEEP": ["string-only registeredOutputToToolResult", "200000-byte serialized pre-parse guard", "existing redaction, ToolResult bounds, schemas, provenance, and supplemental-content policies", "Context7/shadcn/Codebase Memory serialized transport contracts and bounded parsers", "official shadcn allowlist and response.text", "Codebase Memory bounded child-process line handling and parsed-result re-encoding", "normalized-only cache/persistence"],
+    "MODIFY": ["src/orchestration/tooling/adapters.ts: replace live-result bridge with serialized executor binding", "src/orchestration/tooling/tooling.test.ts: add bound-operation getter/Proxy/cycle zero-trap proof and serialized-binding positive path", "three cited integration tests: add service/transport oversized assertions", "phase-7b-revision-2-state-2026-08-11.json: successor pointer only"],
+    "DROP": ["generic recursive clone/reflection, unknown live-object acceptance, any new serializer/framework, any HTTP client invention, any second Revision 2 attempt"],
+    "SUPERSEDE": ["Revision 2 correction plan as execution guidance; retain Revision 2 result/reviewer artifacts as immutable historical evidence", "current failed candidate remains preserved until a future authorized implementation cycle explicitly replaces it"]
+  },
+  "revision3CorrectionScope": {
+    "productionFiles": [
+      "src/orchestration/tooling/adapters.ts",
+      "src/orchestration/tooling/executors.ts",
+      "src/integrations/context7/normalize.ts",
+      "src/integrations/context7/service.ts",
+      "src/integrations/shadcn/service.ts",
+      "src/integrations/codebase-memory/transport.ts",
+      "src/integrations/codebase-memory/service.ts"
+    ],
+    "testFiles": [
+      "src/orchestration/tooling/tooling.test.ts",
+      "src/integrations/context7/context7.test.ts",
+      "src/integrations/shadcn/shadcn-registry.test.ts",
+      "src/integrations/codebase-memory/codebase-memory.test.ts"
+    ],
+    "conditionalContractFiles": ["src/domain/tooling/schema.ts", "src/integrations/context7/contracts.ts", "src/integrations/shadcn/contracts.ts"],
+    "scopeRule": "Modify only the host serialized binding and focused boundary tests unless implementation evidence proves a contract declaration must be updated; do not change authority, agent catalog, skills, dependencies, workflows, runtime lifecycle, customer projects, or deployment."
+  },
+  "preFixProof": {
+    "adapterPath": "executeBoundToolOperation is exported/re-exported, takes caller-supplied typed executor values, awaits one of eight bound operations, JSON.stringifies the result, then calls registeredOutputToToolResult.",
+    "callerSearch": "No non-test production caller of executeBoundToolOperation was found. The API remains limited internal host dispatch, but runtime type forgery/custom executor injection is possible.",
+    "directGenericProof": "Direct generic hostile-object tests pass because registeredOutputToToolResult rejects non-string input before traversal.",
+    "boundAdapterProof": "Not closed: current adapter serialization invokes JSON.stringify before the generic check.",
+    "integrationProof": "All three current parsers contain raw UTF-8 guards, but current focused suites do not assert over-limit service rejection before parse/normalization/cache or persistence."
+  },
+  "revision3CorrectionSteps": [
+    "1. Reconfirm the preserved candidate checksums and current baseline HEAD before editing; abort if any unexpected dirty path appears.",
+    "2. In adapters.ts, split the host tooling binding from typed agent/domain ports: BoundToolOperation executors for registered external-result operations must return Promise<string> serialized JSON text. Remove serializeHostNormalizedResult and do not JSON.stringify executor output in executeBoundToolOperation. Pass the primitive string directly to registeredOutputToToolResult. Keep authority selection and operation discriminants unchanged.",
+    "3. If a current production binding site is discovered, make that binding return serialized text from an integration-owned, schema-normalized result boundary; never add a generic unknown-to-string bridge in adapters. Repository evidence currently shows no non-test production caller, so do not invent a wiring file.",
+    "4. Keep registeredOutputToToolResult's runtime primitive check, UTF-8 bound before JSON.parse, schema/redaction/provenance behavior, and 16000-byte ToolResult context bound. Add a bound-operation test proving getter, Proxy, toJSON, iterator, and cyclic object attempts cause zero protected traps and fail before generic conversion; add a valid serialized binding success test.",
+    "5. Add the exact Context7 oversized serialized transport test at the service boundary. Assert the 200001-byte UTF-8 payload fails with the existing Context7 unavailable/limit error before normalization, cache write, and ToolResult conversion.",
+    "6. Add the exact shadcn oversized serialized transport test at the service boundary. Assert the 200001-byte UTF-8 payload fails with the existing shadcn content-limit/unavailable error before JSON.parse/normalize/schema/cache.",
+    "7. Add the exact Codebase Memory oversized injected-result service test. Assert the 200001-byte UTF-8 payload fails before normalize/cache/persistence. Also add the bounded child-process line test if the existing test harness can exercise the transport; otherwise record the service test and preserve the production line guard without a new framework.",
+    "8. Run deterministic focused tests, then the repository-required lint/typecheck/full deterministic gates, and capture source checksums and test evidence before reviewers. Do not run customer E2E, deployment, QA cleanup, or R2-G3.",
+    "9. Rerun the required reviewers once on current evidence. Close R2-G2 only if all required reviewers approve and no active finding remains; otherwise record BLOCKED and preserve the candidate."
+  ],
+  "postFixAcceptanceCriteria": [
+    "No production executeBoundToolOperation path calls JSON.stringify on a caller-supplied executor result.",
+    "A bound executor result reaches registeredOutputToToolResult only as primitive serialized JSON text; object, Proxy, getter, toJSON, iterator, and cyclic values are rejected without protected traps.",
+    "The generic serialized UTF-8 bound occurs before JSON.parse; ToolResult data/text remains bounded at 16000 bytes and redaction/provenance remain intact.",
+    "Context7, shadcn, and Codebase Memory each reject an oversized serialized response before JSON.parse/normalization, and tests prove no cache/persistence mutation.",
+    "External content remains UNTRUSTED_EXTERNAL, advisory, redacted, and unable to affect authority, dependency scope, file scope, host context, or write permissions.",
+    "Existing allowlists, schema/content/path/dependency/workspace/currentness/cache/retry/cancellation behavior remains passing.",
+    "No new agent, skill, dependency, MCP, shell, AST, workflow, customer-project, deployment, or QA-cleanup behavior is introduced."
+  ],
+  "oversizedIntegrationTests": [
+    { "integration": "Context7", "fixture": "transport returns 'x'.repeat(CONTEXT7_RAW_RESPONSE_MAX_BYTES + 1) or 200001 UTF-8 bytes", "entry": "Context7Service request/query path", "assertBefore": ["JSON.parse", "normalizeContext7Response", "cache.set", "registeredOutputToToolResult"], "expectedFailure": "existing Context7 bounded/unavailable error", "sideEffects": "no cache write, no authority change" },
+    { "integration": "shadcn", "fixture": "ShadcnRegistryTransport returns 200001 UTF-8 bytes", "entry": "ShadcnRegistryService fetchComponentReference path", "assertBefore": ["JSON.parse", "normalizeComponent", "ShadcnComponentReferenceSchema.parse", "cache.set", "registeredOutputToToolResult"], "expectedFailure": "existing shadcn raw content-limit/unavailable error", "sideEffects": "no cache write, no authority change" },
+    { "integration": "Codebase Memory", "fixture": "UpstreamTransport returns 200001 UTF-8 bytes; child-process variant emits an over-limit line", "entry": "CodebaseMemoryService findSymbol/getRelevantSource and bounded process transport", "assertBefore": ["JSON.parse", "normalize", "cache/persistence", "registeredOutputToToolResult"], "expectedFailure": "existing Codebase Memory unavailable/bounded transport error", "sideEffects": "no metadata/cache mutation, no workspace authority change" }
+  ],
+  "requiredDeterministicChecks": [
+    "JSON parse validation for both new JSON/admin state artifacts",
+    "git diff --check",
+    "focused tooling and three integration test suites after future implementation",
+    "lint/typecheck/full deterministic gates required by repository after future implementation",
+    "source/evidence checksum validation and candidate identity comparison before and after future implementation",
+    "review evidence completeness and current-source SHA verification"
+  ],
+  "requiredReviewerRechecks": [
+    { "reviewer": "code-integration-reviewer", "required": true, "reason": "adapter binding and three transport boundaries materially change" },
+    { "reviewer": "test-quality-reviewer", "required": true, "reason": "new integration-specific oversize and bound-adapter tests must establish semantic sufficiency" },
+    { "reviewer": "security-reviewer", "required": true, "reason": "the live-object/accessor boundary is materially changed and security closure must be re-established" },
+    { "reviewer": "contract-auditor", "required": true, "reason": "BoundToolOperation's typed host binding changes from typed DTO-returning executors to serialized-text-returning executors; cross-artifact traceability must be checked" },
+    { "reviewer": "architecture-reviewer", "required": false, "reason": "no canonical authority model, agent topology, lifecycle, or persisted architecture changes; escalate only if implementation changes those surfaces" }
+  ],
+  "reviewerQuestions": {
+    "codeIntegration": "Does every bound operation hand a primitive serialized string directly to the generic converter, with no live traversal or hidden unknown-to-string bridge?",
+    "testQuality": "Do the bound hostile-object tests and all three integration-specific oversized tests prove rejection before parse/normalization/side effects and preserve positive behavior?",
+    "security": "Are raw size, inert parsing, redaction order, content trust, provenance, authority, and prompt-injection invariants closed across all production paths?",
+    "contract": "Do the new serialized host binding type and existing typed agent/domain ports remain traceable and non-conflicting?"
+  },
+  "correctionBudget": {
+    "newAuthorizedImplementationCycles": 1,
+    "automaticRetry": false,
+    "freshGptCallsThisReconciliation": 0,
+    "freshGptCallsAllowedForAmbiguity": 1,
+    "reviewerCallsThisReconciliation": 0,
+    "rule": "This plan authorizes one new bounded R2-G2 Revision 3 implementation cycle after this run. It does not execute or automatically retry it."
+  },
+  "dependencies": {
+    "r2g1": "COMPLETE; R2-G1 host-context authenticity correction and Architecture/Security approval retained",
+    "r2g2Revision2": "BLOCKED after its one implementation cycle; reconciliation evidence loaded",
+    "r2g3": "INDEPENDENT_VALID_ACTIVE and NOT_EXECUTED; remains blocked from execution by phase ordering",
+    "phase7B": "BLOCKED until R2-G2 closes and R2-G3 is separately reconciled/executed",
+    "phase7C": "NOT_STARTED"
+  },
+  "rollbackCriteria": [
+    "Any bound adapter still JSON.stringifies, reflects, clones, or schema-inspects caller-supplied live result before primitive serialized-text rejection.",
+    "Any integration parses or normalizes over-limit raw text, or writes cache/persistence before the over-limit failure.",
+    "Any current normalized DTO, cache, retry, cancellation, allowlist, workspace/currentness, redaction, or authority invariant regresses.",
+    "Any external content is marked HOST_VALIDATED, controls provenance/authority, expands dependency/file scope, or enters policy as instruction.",
+    "Implementation expands beyond the listed production/test boundary or touches agents, skills, packages, MCP/shell, workflows, customer projects, deployment, or QA cleanup."
+  ],
+  "nonGoals": [
+    "Do not implement Revision 3 in this reconciliation run.",
+    "Do not rerun current reviewers or make fresh GPT calls for already unambiguous evidence.",
+    "Do not reset, restore, checkout, stash, clean, discard, or rewrite the dirty failed candidate.",
+    "Do not modify R2-G3, Phase 7C/7D/7E, customer website-generation E2E, deployment, or QA foundation artifacts.",
+    "Do not change authority.ts request-input serialization; it is not an external-result boundary defect."
+  ],
+  "nextAction": "R2-G2 REVISION 3 — EXECUTE TRANSPORT-SAFE EXTERNAL RESULT BOUNDARY"
+}

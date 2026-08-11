@@ -4,10 +4,21 @@
   "generatedOn": "2026-08-11",
   "phase": "7B",
   "revision": "2",
-  "state": "BLOCKED_REMAINING_REVISION_2_GROUPS",
-  "sourcePlanIdentity": "phase-7b-revision-2-2026-08-11",
-  "sourcePlanPath": "docs/admin/phase-7b/phase-7b-revision-2-plan-2026-08-11.json",
+  "state": "BLOCKED_R2_G2_REVISION_3_READY",
+  "sourcePlanIdentity": "phase-7b-r2-g2-revision-3-2026-08-11",
+  "sourcePlanPath": "docs/admin/phase-7b/r2-g2-revision-3-plan-2026-08-11.json",
   "sourceReconciliationIdentity": "phase-7b-semantic-reconciliation-2026-08-11",
+  "reconciliationStatus": "COMPLETE",
+  "reconciliationBaselineHead": "82f0487803b817b11089f714fc4f6ab14bff9e60",
+  "successorPlan": {
+    "planId": "phase-7b-r2-g2-revision-3-2026-08-11",
+    "status": "READY",
+    "path": "docs/admin/phase-7b/r2-g2-revision-3-plan-2026-08-11.json",
+    "reportPath": "docs/admin/phase-7b/r2-g2-revision-3-plan-2026-08-11.md",
+    "newAuthorizedImplementationCycles": 1,
+    "automaticRetry": false,
+    "nextAction": "R2-G2 REVISION 3 — EXECUTE TRANSPORT-SAFE EXTERNAL RESULT BOUNDARY"
+  },
   "initialCommittedHead": "67306e3",
   "inheritedCandidateCheckpoint": "408858ed3b3685d21783884d33bedf5a64d81722",
   "completedGroup": {
@@ -21,6 +32,26 @@
       "architecture-reviewer": "APPROVED",
       "security-reviewer": "APPROVED"
     }
+  },
+  "attemptedGroup": {
+    "groupId": "R2-G2-EXTERNAL_RESULT_BOUNDARY",
+    "findingIds": ["7b-sec-002", "7b-sec-004"],
+    "status": "BLOCKED",
+    "implementationCycleUsed": 1,
+    "correctionCommit": null,
+    "closureCommit": null,
+    "resultArtifact": "docs/admin/phase-7b/r2-g2-revision-2-result-2026-08-11.json",
+    "reviewVerificationArtifact": "docs/admin/phase-7b/r2-g2-revision-2-review-verification-2026-08-11.json",
+    "reviewers": ["security-reviewer", "code-integration-reviewer", "test-quality-reviewer"],
+    "reviewVerdicts": {
+      "security-reviewer": "APPROVED",
+      "code-integration-reviewer": "CHANGES_REQUIRED",
+      "test-quality-reviewer": "CHANGES_REQUIRED"
+    },
+    "freshGptCalls": 3,
+    "evidenceValid": true,
+    "blockingFindings": ["r2-g2-002", "r2-g2-tq-001"],
+    "note": "The direct generic converter is bounded and inert for serialized text, but the host adapter still JSON.stringifies live executor output before that boundary; integration-specific oversized serialized-response assertions are also missing. No second correction cycle is authorized in this turn."
   },
   "remainingValidFindings": [
     {
@@ -52,9 +83,9 @@
     {
       "groupId": "R2-G2-EXTERNAL_RESULT_BOUNDARY",
       "findingIds": ["7b-sec-002", "7b-sec-004"],
-      "state": "UNBLOCKED_PENDING_AUTHORIZATION",
+      "state": "BLOCKED_REVISION_3_READY",
       "dependencySatisfiedBy": "R2-G1-HOST_CONTEXT_AUTHENTICITY",
-      "note": "R2-G1 was the only blocking dependency. This group remains unresolved and was not executed in the current turn."
+      "note": "R2-G1 dependency was satisfied and one R2-G2 Revision 2 cycle was attempted. Required Code / Integration and Test / Quality reviewers blocked closure. Phase 7B.1 reconciliation is complete; one new bounded Revision 3 correction cycle is ready but is not executed in this turn."
     },
     {
       "groupId": "R2-G3-EVIDENCE_COMPLETENESS",
@@ -63,21 +94,23 @@
       "note": "This group remains unresolved and was not executed in the current turn."
     }
   ],
-  "newlyUnblockedGroups": ["R2-G2-EXTERNAL_RESULT_BOUNDARY"],
-  "nextRecommendedGroup": "R2-G2-EXTERNAL_RESULT_BOUNDARY",
+  "newlyUnblockedGroups": [],
+  "nextRecommendedGroup": "R2-G2-EXTERNAL_RESULT_BOUNDARY_REVISION_3",
   "validActiveFindingCount": 4,
   "globalRevisionPolicy": {
     "maximumGroupsBeforeReconciliation": 2,
-    "groupsExecutedSinceLastReconciliation": 1,
+    "groupsExecutedSinceLastReconciliation": 0,
     "thirdBlindCorrectionCycle": false,
-    "reconcileBeforeFurtherWorkAfterAtMost": 1
+    "reconcileBeforeFurtherWorkAfterAtMost": 0
   },
   "validationState": {
+    "reconciliationArtifactValidation": "PASS",
+    "candidateSourceTestsModifiedThisTurn": "NO",
     "focusedToolingTest": "PASS",
     "fullDeterministicGates": "PASS",
     "reviewerRegressionSuite": "PASS",
-    "databaseGates": "PASS",
-    "taskgraphSmoke": "PASS",
+    "databaseGates": "NOT_RUN_AFTER_REVIEWER_BLOCK",
+    "taskgraphSmoke": "NOT_RUN_AFTER_REVIEWER_BLOCK",
     "customerWebsiteGenerationE2E": "NOT_RUN_BY_SCOPE"
   },
   "invariants": {
@@ -102,12 +135,16 @@
     "customerWebsiteGenerationE2EStarted": false
   },
   "workspaceState": {
-    "qaFoundationDirectoryCountBefore": 16,
-    "qaFoundationDirectoryCountAfter": 17,
+    "qaFoundationDirectoryCountBefore": 17,
+    "qaFoundationDirectoryCountAfter": 18,
     "qaFoundationCleanupPerformed": false,
     "knownTransientUntracked": [".context7-cache/"],
     "context7CacheStaged": false,
-    "unexpectedTrackedChangesAfterClosure": false
+    "unexpectedTrackedChangesAfterClosure": false,
+    "expectedCandidateChangesUncommitted": true,
+    "candidateChangedThisTurn": false,
+    "planningArtifactsChangedThisTurn": true,
+    "closureCommit": null
   },
-  "nextTurnInstruction": "Execute exactly R2-G2-EXTERNAL_RESULT_BOUNDARY in the next authorized turn; do not execute R2-G3 or any Phase 7C/7D/7E/customer-E2E work in that turn. After at most two Revision 2 groups, perform another Phase 7B.1 reconciliation before further correction work."
+  "nextTurnInstruction": "Execute the single authorized R2-G2 Revision 3 correction cycle against the preserved candidate: remove live adapter serialization, add Context7/shadcn/Codebase Memory oversized-boundary tests, run deterministic gates, then rerun required reviewers. Do not start R2-G3, Phase 7C/7D/7E, customer website-generation E2E, deployment, or QA cleanup."
 }
