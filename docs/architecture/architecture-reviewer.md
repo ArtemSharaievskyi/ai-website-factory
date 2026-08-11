@@ -18,7 +18,13 @@ The output is the existing `ReviewResult` contract with architecture-specific fi
 
 Deterministic prechecks verify approval, checksums, acceptance, identifier/reference structure, blockers, and fixed-stack policy before any provider call. AI reasoning is limited to semantic architecture: requirement traceability, source of truth, domain identity, data/auth/storage/API boundaries, server/client boundaries, dependencies, security-relevant architecture, implementability, minimal sufficiency, and contradictory decisions.
 
-The reviewer must not invent requirements, judge visual design, demand optional infrastructure, redesign by preference, or modify project state. Its catalog definition is `architecture-reviewer`, capability `review.architecture`, role `review`, OpenAI generation only, approved skills selected by the resolver, and `readOnly: true`. Prompt ownership remains `src/integrations/openai/prompts.ts`, version `architecture-reviewer.v1`.
+The reviewer must not invent requirements, judge visual design, demand optional infrastructure, redesign by preference, or modify project state. Its catalog definition is `architecture-reviewer`, capability `review.architecture`, role `review`, OpenAI generation only, and `readOnly: true`. The current approved skill allowlist from the authoritative `src/agents/catalog.ts` is:
+
+- `module-boundaries-fb20497b5c35`
+- `review-maintainability-d9faf7cb9775`
+- `architecture-tradeoff-review`
+
+The resolver may select zero, one, or multiple relevant procedures from that allowlist; the documentation list does not itself grant eligibility. Prompt ownership remains `src/integrations/openai/prompts.ts`, version `architecture-reviewer.v1`.
 
 ## Normal review versus Factory self-review
 

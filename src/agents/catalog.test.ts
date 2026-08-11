@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { AgentDefinitionSchema } from "@/domain/agents/schema";
 import { agentCatalog, AGENT_CAPABILITY_IDS, AGENT_TOOL_IDS, assertAgentSupportsCapability, findAgentById, findAgentsByCapability, implementationAgentDefinition, architectureReviewerAgentDefinition, contractAuditorAgentDefinition, codeIntegrationReviewerAgentDefinition, securityReviewerAgentDefinition, testQualityReviewerAgentDefinition, leadAgentDefinition, plannerAgentDefinition, designAgentDefinition, resolveApprovedSkillIds, validateAgentCatalog, AgentCatalogError } from "./catalog";
@@ -81,6 +83,13 @@ describe("typed agent catalog", () => {
     expect(agentCatalog.every((agent) => agent.inputContract.schemaId.endsWith(".input") && agent.outputContract.schemaId.endsWith(".output"))).toBe(true);
     expect(agentCatalog.every((agent) => agent.contextPolicy.maxBytes > 0 && agent.executionPolicy.retryClass)).toBe(true);
     expect(leadAgentDefinition.promptVersion).not.toBe(leadAgentDefinition.policyVersions.context);
+  });
+  it("keeps Architecture Reviewer documentation derived from the catalog allowlist", async () => {
+    const documentation = await readFile(path.join(process.cwd(), "docs/architecture/architecture-reviewer.md"), "utf8");
+    const documentedAllowlist = architectureReviewerAgentDefinition.allowedSkillIds.map((skillId) => `- \`${skillId}\``).join("\n");
+    expect(documentation).toContain("src/agents/catalog.ts");
+    expect(documentation).toContain(documentedAllowlist);
+    expect(documentation).not.toContain("no skills");
   });
   it("resolves only approved skills", () => {
     const custom = { ...implementationAgentDefinition, allowedSkillIds: ["approved-skill"] } as typeof implementationAgentDefinition;

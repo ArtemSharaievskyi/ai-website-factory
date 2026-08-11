@@ -45,6 +45,7 @@ describe("Phase 4D4 active skill portfolios", () => {
     const snapshot = await readSnapshot();
     expect(agentCatalog).toHaveLength(9);
     expect(snapshot.agents.map((agent) => agent.agentId)).toEqual(agentCatalog.map((agent) => agent.agentId));
+    for (const agent of agentCatalog) expect(snapshot.agents.find((candidate) => candidate.agentId === agent.agentId)?.approvedAllowedSkillIds).toEqual([...agent.allowedSkillIds]);
     expect(snapshot.agents.find((agent) => agent.agentId === "contract-auditor")?.approvedAllowedSkillIds).toContain("requirements-evidence-traceability");
     expect(snapshot.agents.find((agent) => agent.agentId === "test-quality-reviewer")?.approvedAllowedSkillIds).toContain("requirements-evidence-traceability");
   });
