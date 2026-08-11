@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6m-correction-result",
+  "groupId": "cg-14-runtime-release-evidence",
+  "title": "Execute and record release-critical runtime evidence",
+  "baselineCommit": "a7b0131",
+  "correctionCommit": "7d27523",
+  "correctionCommitMessage": "fix: record runtime release evidence",
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "findingIds": ["finding-4970556ab704416b2bf8", "finding-191200ccc58b25e3fd0c", "finding-601d85f09cdb45d46400"],
+  "rootCause": "Record meaningful runtime behavior evidence rather than only proposal acceptance or unexecuted opt-in scripts.",
+  "rootCauseConfidence": "HIGH",
+  "dependencies": ["cg-07-runtime-cleanup-lifecycle", "cg-13-reviewer-execution-evidence"],
+  "dependencyStatus": "COMPLETE",
+  "canonicalReleaseDecisionPath": {
+    "owner": "FullTaskGraphExecutor.finishSummary",
+    "source": "src/orchestration/execution/service.ts",
+    "decision": "releaseEligible is true only when every mandatory gate is present, passed, current-candidate bound, and carries the required runtime-validation or functional-QA execution reference; missing or incomplete gates become explicit blockers.",
+    "standaloneSmokeAuthority": "none",
+    "browserEvidenceState": "INCOMPLETE_AND_NON_ELIGIBLE",
+    "customerWebsiteGenerationE2E": "NOT_RUN"
+  },
+  "filesChanged": [
+    "src/domain/quality/schema.ts",
+    "src/orchestration/execution/service.ts",
+    "src/orchestration/execution/execution.test.ts",
+    "scripts/backend-smoke.ts",
+    "scripts/generated-runtime-smoke.ts",
+    "scripts/ai-smoke.ts",
+    "scripts/context7-smoke.ts",
+    "scripts/codebase-memory-smoke.ts",
+    "scripts/factory-e2e-smoke.ts",
+    "scripts/taskgraph-smoke.ts",
+    "scripts/phase-6c-cg02-verification.ts"
+  ],
+  "correctionSummary": "Added candidate-bound quality evidence, required runtime/QA execution references, fail-closed mandatory-gate evaluation, explicit evidence blockers, an executed local backend boundary fixture, structured runtime smoke output, and cg-14 support in the existing bounded verifier.",
+  "perFindingResolution": {
+    "finding-4970556ab704416b2bf8": {
+      "originalSeverity": "ERROR",
+      "category": "CRITICAL_FLOW_NOT_VERIFIED",
+      "finalState": "RESOLVED",
+      "resolution": "The release path now records explicit missing/incomplete gate blockers and never treats standalone or absent browser evidence as release eligibility. The repository Playwright wrapper was recorded as blocked by the validated QA workspace preflight; customer website generation E2E remained out of scope and was not run.",
+      "evidence": ["src/orchestration/execution/service.ts", "docs/admin/phase-6/cg-14-browser-evidence-results-2026-08-11.json"]
+    },
+    "finding-191200ccc58b25e3fd0c": {
+      "originalSeverity": "WARNING",
+      "category": "FUNCTIONAL_SCENARIO_INCOMPLETE",
+      "finalState": "RESOLVED",
+      "resolution": "Opt-in smoke commands now emit structured not-run/non-release records unless explicitly authorized; executed generated-runtime evidence records validation identity, checksums, command results, and policy version.",
+      "evidence": ["scripts/ai-smoke.ts", "scripts/context7-smoke.ts", "scripts/codebase-memory-smoke.ts", "scripts/generated-runtime-smoke.ts", "docs/admin/phase-6/cg-14-generated-runtime-smoke-results-2026-08-11.json", "docs/admin/phase-6/cg-14-opt-in-smoke-results-2026-08-11.json"]
+    },
+    "finding-601d85f09cdb45d46400": {
+      "originalSeverity": "WARNING",
+      "category": "FALSE_CONFIDENCE_TEST",
+      "finalState": "RESOLVED",
+      "resolution": "Backend smoke retains proposal validation and additionally executes a temporary local migration/server-action boundary fixture, with no network or production database claim.",
+      "evidence": ["scripts/backend-smoke.ts", "docs/admin/phase-6/cg-14-backend-runtime-smoke-results-2026-08-11.json"]
+    }
+  },
+  "targetedChecks": {
+    "backendSmoke": "PASS; proposal validation plus executed local migration/server-action boundary",
+    "generatedRuntimeSmoke": "PASS; 5/5 command results passed with validationRunId, package checksum, lockfile checksum, and runtime-v1 policy",
+    "taskGraphSmoke": "PASS; completed, releaseEligible=true only with all mandatory checks and execution references",
+    "browserSmoke": "BLOCKED; validated QA workspace missing Next.js production build",
+    "optInSmokeBoundaries": "PASS; AI, Context7, Codebase Memory, and Factory E2E default to explicit not-run/non-release records",
+    "targetedExecutionTests": "PASS; 7 tests",
+    "reviewerRechecks": "PASS; Test / Quality Reviewer and Code / Integration Reviewer both APPROVED"
+  },
+  "actualReviewerRechecks": [
+    { "reviewerId": "test-quality-reviewer", "state": "RESOLVED", "providerVerdict": "APPROVED", "evidenceValid": true, "structuredOutputValid": true, "realGptCalls": 1 },
+    { "reviewerId": "code-integration-reviewer", "state": "RESOLVED", "providerVerdict": "APPROVED", "evidenceValid": true, "structuredOutputValid": true, "realGptCalls": 1 }
+  ],
+  "providerCalls": { "model": "gpt-5.6-luna", "modelLabel": "GPT-5.6 Luna", "realGptCalls": 2 },
+  "verificationArtifact": "docs/admin/phase-6/cg-14-runtime-release-evidence-verification-2026-08-11.json",
+  "validation": {
+    "lint": "PASS; 3 known pre-existing warnings",
+    "typecheck": "PASS",
+    "testFiles": 69,
+    "tests": 839,
+    "targetedReviewerTests": "75 passed across 7 files",
+    "build": "PASS",
+    "npmAudit": "0 vulnerabilities",
+    "dbValidate": "PASS",
+    "dbStatus": "PASS",
+    "dbVerify": "PASS; 17 tables, 84 constraints, 4 indexes, RLS 17/17, public policies 0",
+    "dbIntegrity": "PASS",
+    "dockerComposeConfig": "PASS",
+    "gitDiffCheck": "PASS",
+    "taskGraph": "PASS; releaseEligible=true",
+    "customerWebsiteGenerationE2E": "NOT RUN",
+    "repositoryPlaywrightWrapper": "BLOCKED by validated QA workspace build preflight"
+  },
+  "invariants": {
+    "qaFoundationDirectoriesBefore": 15,
+    "qaFoundationDirectoriesAfter": 15,
+    "historicalQaCleanup": "NONE",
+    "context7CacheCommitted": false,
+    "context7CacheState": "untracked generated cache left unstaged",
+    "approvedExternalSkills": 4,
+    "approvedInternalSkills": 13,
+    "uniqueApprovedArtifacts": 17,
+    "assignmentRefs": 18,
+    "agents": 9,
+    "deferredSkillUsage": 0,
+    "newToolPermissions": false,
+    "newAgentOrchestratorMcp": false,
+    "otherCorrectionGroupsModified": false
+  },
+  "remainingFindingCounts": { "total": 7, "CRITICAL": 0, "ERROR": 1, "WARNING": 7, "INFO": 0 },
+  "nextRecommendedGroup": "cg-15-persistence-migration-evidence",
+  "phaseStatus": "COMPLETE"
+}
