@@ -1,0 +1,239 @@
+{
+  "schemaVersion": 1,
+  "documentType": "dependency-authority-result-final",
+  "baselineReviewCommit": "2e39cd0",
+  "implementationCommit": "fa6e8fd",
+  "policyVersion": "generated-dependency-authority-v1",
+  "status": "COMPLETE",
+  "previousBlockedReason": "REVIEW_PROVIDER_UNAVAILABLE",
+  "providerEnvironment": {
+    "loader": "scripts/cli-env.ts via @next/env loadEnvConfig",
+    "openAiKeyAvailable": true,
+    "providerConfigured": true,
+    "model": "gpt-5.6-luna",
+    "secretsPrinted": false,
+    "rawOpenAiClientUsed": false
+  },
+  "dependencyAuthority": {
+    "canonicalCatalog": "src/dependencies/authority.ts:DEPENDENCY_CATALOG",
+    "baselineRuntimeCount": 5,
+    "baselineDevCount": 10,
+    "baselineCount": 15,
+    "optionalCount": 0,
+    "factoryRootDependenciesExcluded": ["openai", "pg", "@types/pg", "tsx"],
+    "authorityFlow": [
+      "Factory catalog",
+      "Current accepted Planning dependency intent",
+      "Current TaskGraph/task capability",
+      "Validated generated package.json",
+      "Controlled npm lockfile materialization",
+      "Direct-root lockfile validation",
+      "npm ci, lint, typecheck, test, build, and audit gates"
+    ],
+    "packageCatalogEntries": [
+      { "package": "next", "approvedSpec": "16.2.12", "class": "BASELINE_REQUIRED", "section": "dependencies" },
+      { "package": "react", "approvedSpec": "19.2.4", "class": "BASELINE_REQUIRED", "section": "dependencies" },
+      { "package": "react-dom", "approvedSpec": "19.2.4", "class": "BASELINE_REQUIRED", "section": "dependencies" },
+      { "package": "server-only", "approvedSpec": "^0.0.1", "class": "BASELINE_REQUIRED", "section": "dependencies" },
+      { "package": "zod", "approvedSpec": "^4.4.3", "class": "BASELINE_REQUIRED", "section": "dependencies" },
+      { "package": "@tailwindcss/postcss", "approvedSpec": "^4", "class": "BASELINE_REQUIRED", "section": "devDependencies" },
+      { "package": "@types/node", "approvedSpec": "^20", "class": "BASELINE_REQUIRED", "section": "devDependencies" },
+      { "package": "@types/react", "approvedSpec": "^19", "class": "BASELINE_REQUIRED", "section": "devDependencies" },
+      { "package": "@types/react-dom", "approvedSpec": "^19", "class": "BASELINE_REQUIRED", "section": "devDependencies" },
+      { "package": "eslint", "approvedSpec": "^9", "class": "BASELINE_REQUIRED", "section": "devDependencies" },
+      { "package": "eslint-config-next", "approvedSpec": "16.2.12", "class": "BASELINE_REQUIRED", "section": "devDependencies" },
+      { "package": "playwright", "approvedSpec": "^1.62.1", "class": "BASELINE_REQUIRED", "section": "devDependencies" },
+      { "package": "tailwindcss", "approvedSpec": "^4", "class": "BASELINE_REQUIRED", "section": "devDependencies" },
+      { "package": "typescript", "approvedSpec": "^5", "class": "BASELINE_REQUIRED", "section": "devDependencies" },
+      { "package": "vitest", "approvedSpec": "^3.2.4", "class": "BASELINE_REQUIRED", "section": "devDependencies" }
+    ]
+  },
+  "optionalDependencyAudit": [
+    {
+      "candidates": ["@supabase/ssr", "@supabase/supabase-js"],
+      "directGeneratedDependency": false,
+      "baselineDependency": false,
+      "repositoryOwnedApprovedSpec": false,
+      "decision": "NOT_CURRENTLY_AUTHORIZED",
+      "evidence": "Documented conditional authentication/persistence capability; no repository-owned direct version specification and no generated direct catalog entry."
+    },
+    {
+      "candidates": ["@playwright/test"],
+      "directGeneratedDependency": false,
+      "baselineDependency": false,
+      "repositoryOwnedApprovedSpec": false,
+      "decision": "NOT_CURRENTLY_AUTHORIZED",
+      "evidence": "A future E2E template references this package, but the repository-owned generated baseline is playwright and no direct @playwright/test spec exists."
+    },
+    {
+      "candidates": ["react-hook-form"],
+      "directGeneratedDependency": false,
+      "baselineDependency": false,
+      "repositoryOwnedApprovedSpec": false,
+      "decision": "NOT_CURRENTLY_AUTHORIZED",
+      "evidence": "Architecture/Context7 documentation-only capability mention; no production implementation import and no repository-owned direct version specification."
+    },
+    {
+      "candidates": ["motion"],
+      "directGeneratedDependency": false,
+      "baselineDependency": false,
+      "repositoryOwnedApprovedSpec": false,
+      "decision": "NOT_CURRENTLY_AUTHORIZED",
+      "evidence": "Architecture/Context7 documentation-only capability mention; no production implementation import and no repository-owned direct version specification."
+    },
+    {
+      "candidates": ["shadcn-added-direct-dependencies"],
+      "directGeneratedDependency": false,
+      "baselineDependency": false,
+      "repositoryOwnedApprovedSpec": false,
+      "decision": "NOT_CURRENTLY_AUTHORIZED",
+      "evidence": "The registry remains read-only; a component dependency must be in current plan intent and the host catalog. No additional repository-owned direct specs were found."
+    },
+    {
+      "candidates": ["zod", "playwright"],
+      "directGeneratedDependency": true,
+      "baselineDependency": true,
+      "repositoryOwnedApprovedSpec": true,
+      "decision": "AUTHORIZED_BASELINE",
+      "evidence": "zod and playwright are current generated baseline entries, not optional entries."
+    }
+  ],
+  "integration": {
+    "planner": "Bounded catalog context and deterministic DependencyPlan validation; unknown names/specs are blocked before acceptance.",
+    "implementation": "Generated package.json is authority-validated before atomic apply; AI package-lock.json edits are forbidden; accepted planning currentness is checked.",
+    "runtime": "Generated manifest and npm v3 lockfile root direct declarations are validated; transitive packages remain npm-resolved under authorized direct packages.",
+    "commands": [
+      "npm install --package-lock-only --ignore-scripts --no-audit --no-fund",
+      "npm ci",
+      "npm run lint",
+      "npm run typecheck",
+      "npm test",
+      "npm run build"
+    ],
+    "bypassBehavior": [
+      "Unknown, typo, malformed, non-registry, latest/next/beta/canary, URL/VCS/file/link/workspace/alias specs deny.",
+      "Wrong version, wrong section, duplicate, baseline removal, and unplanned dependency intent deny.",
+      "Unknown direct package.json entries deny before apply.",
+      "AI-authored package-lock.json is forbidden.",
+      "No arbitrary npm package-argument path exists.",
+      "Context7, shadcn, Codebase Memory, approved skills, and admin reports grant no dependency authority."
+    ]
+  },
+  "semanticReview": {
+    "provider": "existing production provider bundle",
+    "model": "gpt-5.6-luna",
+    "reviewerOrder": ["architecture-reviewer", "contract-auditor", "code-integration-reviewer", "security-reviewer", "test-quality-reviewer"],
+    "freshProviderCalls": 5,
+    "reusedProviderCalls": 0,
+    "correctionCycles": 0,
+    "allEvidenceValid": true,
+    "reviewResults": [
+      { "reviewer": "architecture-reviewer", "verdict": "APPROVED", "findingCount": 0, "freshProviderCalls": 1, "evidenceValid": true },
+      { "reviewer": "contract-auditor", "verdict": "APPROVED", "findingCount": 0, "freshProviderCalls": 1, "evidenceValid": true },
+      { "reviewer": "code-integration-reviewer", "verdict": "APPROVED", "findingCount": 0, "freshProviderCalls": 1, "evidenceValid": true },
+      { "reviewer": "security-reviewer", "verdict": "APPROVED", "findingCount": 0, "freshProviderCalls": 1, "evidenceValid": true },
+      { "reviewer": "test-quality-reviewer", "verdict": "APPROVED", "findingCount": 0, "freshProviderCalls": 1, "evidenceValid": true }
+    ],
+    "resolverSelections": {
+      "architecture-reviewer": {
+        "selectedSkillIds": ["architecture-tradeoff-review", "module-boundaries-fb20497b5c35", "review-maintainability-d9faf7cb9775"],
+        "selectedSkillChecksums": [
+          { "skillId": "architecture-tradeoff-review", "checksum": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd" },
+          { "skillId": "module-boundaries-fb20497b5c35", "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff" },
+          { "skillId": "review-maintainability-d9faf7cb9775", "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9" }
+        ],
+        "identityChecksum": "488df20026a8cdc27a0ea566de496b2de54ab8ce8e047ec9ffa73eb4ad149c59"
+      },
+      "contract-auditor": {
+        "selectedSkillIds": ["acceptance-criteria-80493e317476", "requirements-evidence-traceability"],
+        "selectedSkillChecksums": [
+          { "skillId": "acceptance-criteria-80493e317476", "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec" },
+          { "skillId": "requirements-evidence-traceability", "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26" }
+        ],
+        "identityChecksum": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada"
+      },
+      "code-integration-reviewer": {
+        "selectedSkillIds": ["react-nextjs-integration-review"],
+        "selectedSkillChecksums": [{ "skillId": "react-nextjs-integration-review", "checksum": "acd9276249146013c41cdbf0d53463232124c7f50f360014729266c798cd737b" }],
+        "identityChecksum": "6f45faad42804dda84061f7c91f9eb1f3f31d9a541de8ad2b160c41f55a7816e"
+      },
+      "security-reviewer": {
+        "selectedSkillIds": [],
+        "selectedSkillChecksums": [],
+        "identityChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "test-quality-reviewer": {
+        "selectedSkillIds": ["behavioral-test-quality-review", "requirements-evidence-traceability"],
+        "selectedSkillChecksums": [
+          { "skillId": "behavioral-test-quality-review", "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09" },
+          { "skillId": "requirements-evidence-traceability", "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26" }
+        ],
+        "identityChecksum": "ba9aa336998b0950a673e80e6b14791dd857750f890fb7048b008b89563a8e10"
+      }
+    },
+    "reviewEvidence": {
+      "currentHeadAtReview": "2e39cd0",
+      "allowedReferenceCount": 25,
+      "slices": [
+        { "id": "current:dependency-authority-doc", "path": "docs/architecture/dependency-authority.md", "lines": "1-25", "checksum": "7d6964845ad5aa3346076504c6b40183385393b8b5edc6c0ec0c1abcb77402be" },
+        { "id": "current:dependency-authority-source", "path": "src/dependencies/authority.ts", "lines": "1-122", "checksum": "6f416adf5d2fe2576438c65819648c4afe1fb1a72413bdfce788ae929bf073ad" },
+        { "id": "current:dependency-authority-validation", "path": "src/dependencies/authority.ts", "lines": "172-324", "checksum": "6f416adf5d2fe2576438c65819648c4afe1fb1a72413bdfce788ae929bf073ad" },
+        { "id": "test:dependency-authority", "path": "src/dependencies/authority.test.ts", "lines": "1-77", "checksum": "1ec4753f670af5ec413fe416b790ff774a27ee78ea49d4a65e7c4fec95b24747" },
+        { "id": "current:foundation-policy", "path": "src/agents/implementation/foundation-policy.ts", "lines": "1-48", "checksum": "f8a48e6fc0884eb43093e88902222b42c68784e7215095772e7846485a8e5d69" },
+        { "id": "current:planner-dependency-gate", "path": "src/agents/planner/deterministic.ts", "lines": "1-72", "checksum": "78e0817a832613b00ac3cc82e36094144afa7e4d09e1ed2bca9acf918758815b" },
+        { "id": "current:implementation-dependency-gate", "path": "src/agents/implementation/validators.ts", "lines": "1-56", "checksum": "e7c3435e178bf4198f516c9ba4078ae66d1fab2fa9cf60f795135d083b180323" },
+        { "id": "current:runtime-dependency-gate", "path": "src/runtime/validation/policy.ts", "lines": "1-16", "checksum": "282e1ba61f16c520992f063d1c7940aa6e9f216edec9f6fb239039ea593d383f" },
+        { "id": "current:production-dependency-context", "path": "src/orchestration/execution/production-adapters.ts", "lines": "1-86", "checksum": "a41bdf193bb280aee908912a7998ab266b6d6ce238ef45fbabb81f85303b696e" }
+      ]
+    }
+  },
+  "validation": {
+    "targetedTests": "PASS: 9 focused suites, 91 tests",
+    "fullTests": "PASS: npm test, 71 files, 856 tests",
+    "reviewerTestSuite": "PASS: npm run test:reviewers, 7 files, 77 tests",
+    "typecheck": "PASS: npm run typecheck",
+    "lint": "PASS: 0 errors, 3 pre-existing warnings",
+    "build": "PASS: npm run build",
+    "audit": "PASS: npm audit --audit-level=high, 0 vulnerabilities",
+    "database": "PASS: existing Phase 6 database validation/status/verify/integrity evidence retained; no migration change",
+    "docker": "PASS: docker compose config",
+    "taskgraph": "PASS: releaseEligible=true, 6 passed tasks, 0 repairs, no network/npm/browser",
+    "customerWebsiteGenerationE2E": "NOT RUN by scope"
+  },
+  "invariants": {
+    "agents": 9,
+    "approvedExternalArtifacts": 4,
+    "approvedInternalArtifacts": 13,
+    "uniqueApprovedArtifacts": 17,
+    "assignments": 18,
+    "deferredExternalCandidates": ["ambiguity-detector", "web-security-review", "reviewing-test-quality"],
+    "phase6Status": "COMPLETE",
+    "phase6Findings": 0,
+    "qaFoundationDirectoryCount": 16,
+    "context7Cache": "present as pre-existing untracked .context7-cache/; not staged or modified",
+    "historicalCleanupPerformed": false,
+    "newAgent": false,
+    "newMcp": false,
+    "newFactoryNpmDependency": false,
+    "deployment": false,
+    "unrestrictedShell": false,
+    "filesystemMcp": false
+  },
+  "git": {
+    "trackedSourceWorktree": "clean after implementation commit",
+    "closureArtifacts": [
+      "docs/admin/post-phase-6/dependency-authority-result-2026-08-11-final.json",
+      "docs/admin/post-phase-6/dependency-authority-result-2026-08-11-final.md"
+    ],
+    "unstagedPreExisting": [".context7-cache/"],
+    "sourceOrTestChangesInClosure": false,
+    "explicitStagingOnly": true
+  },
+  "next": "PHASE 7B — DEVELOPER TOOLING & CAPABILITY LAYER",
+  "completionLines": [
+    "PHASE 7A — DEPENDENCY AUTHORITY: COMPLETE",
+    "PHASE 6 STATUS: COMPLETE",
+    "PHASE 6 FINDINGS: 0",
+    "NEXT: PHASE 7B — DEVELOPER TOOLING & CAPABILITY LAYER"
+  ]
+}
