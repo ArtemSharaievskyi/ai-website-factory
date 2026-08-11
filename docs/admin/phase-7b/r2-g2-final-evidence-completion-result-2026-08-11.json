@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 1,
+  "documentType": "r2-g2-final-evidence-completion-result",
+  "generatedOn": "2026-08-11",
+  "status": "COMPLETE",
+  "planId": "r2-g2-final-evidence-completion-2026-08-11",
+  "baselineHead": "18baf4c82a0b3926e15dbf59cb4697ff2e7c4223",
+  "initialHead": "d9d6871dbc7a74a3448f774477f2296e69fbf340",
+  "planCommit": "d9d6871dbc7a74a3448f774477f2296e69fbf340",
+  "sourceCorrectedCandidateId": "r2-g2-o2-o4-corrected-candidate-2026-08-11",
+  "sourceCorrectedCandidateChecksum": "2b58d78110cc8eaaa17e221a15dcdd4827f4d504a466e9480e4e99d48380bbd4",
+  "sourceCandidateFileCount": 16,
+  "sourceCandidateVerification": "VERIFIED_BEFORE_TEST_ONLY_EXTENSION",
+  "authorizedMutation": {
+    "productionFiles": [],
+    "testFiles": ["src/integrations/codebase-memory/codebase-memory.test.ts"],
+    "configFiles": [],
+    "dependencyFiles": []
+  },
+  "sourceLocationEvidence": {
+    "type": "CodeRelationship.sourceLocation?: Partial<CodeSymbolReference>",
+    "externalFields": ["symbol", "kind", "file", "signatureSummary"],
+    "preservedFields": ["lineStart", "lineEnd", "exported", "checksum"],
+    "persistenceProof": "Existing O4 test seam seeds two normalized relationships, persists through persistStateSnapshot -> redactPersistedResult -> writeCodebaseMemoryMetadata, and asserts persisted cache[].result.",
+    "reloadProof": "The same test restarts CodebaseMemoryService, performs a cache-hit findReferences query, and reasserts marker absence, redaction, ordinary controls, and technical metadata.",
+    "nonSecretProof": "Nested ContactForm / Function / src/actions/stats.ts / function stats remains readable; existing ContactForm and src/index.ts controls remain readable.",
+    "result": "PASS"
+  },
+  "o2Evidence": {
+    "behavioralStatus": "DETERMINISTIC_PASS",
+    "testEvidence": "Oversized serialized query results are rejected before parsing/normalization/persistence; oversized index_repository results do not publish READY; bounded process responses continue through service normalization.",
+    "citeableReferences": [
+      "src/integrations/codebase-memory/service.ts:31-40",
+      "src/integrations/codebase-memory/service.ts:112-139",
+      "src/integrations/codebase-memory/codebase-memory.test.ts:63-67",
+      "src/integrations/codebase-memory/transport.ts:1-171"
+    ],
+    "referenceValidation": { "format": "repository-relative-path:start[-end]", "invalidReferenceCount": 0, "evidenceValid": true },
+    "result": "PASS"
+  },
+  "newCandidateId": "r2-g2-final-evidence-candidate-2026-08-11",
+  "newCandidateChecksum": "1b4c31cdc54d144c3b94ef778e9b419c2a89bf55392c0c436ed01e9580599916",
+  "newCandidateFileCount": 16,
+  "newCandidateFiles": [
+    { "path": "src/integrations/codebase-memory/codebase-memory.test.ts", "sha256": "ec382180b8554a39999000453814977b35bf97ef879beb927d774463748bef2c", "lineCount": 81 },
+    { "path": "src/integrations/codebase-memory/service.ts", "sha256": "41abee723160bec395fd79534aeaac3e488b35c00451b9bc21a2fe21efdb5557", "lineCount": 356 },
+    { "path": "src/integrations/codebase-memory/transport.ts", "sha256": "bb6b4b6262c0f6122a015e163eb4f01674f2610f4ae0f4dd092dae18cc052277", "lineCount": 172 },
+    { "path": "src/integrations/context7/cache.ts", "sha256": "34363c1adbd116938e76e03b762f1cedf6a800734fc6fde7785157ae284e95e6", "lineCount": 20 },
+    { "path": "src/integrations/context7/context7.test.ts", "sha256": "e5fd8f047852eebbab4a39d95206b9b4a70992a96878c503afa64e475690db7b", "lineCount": 26 },
+    { "path": "src/integrations/context7/contracts.ts", "sha256": "af8442cd5368902188779d478dad5f78c7dcea1e727c7873ad26ae52b5bab238", "lineCount": 21 },
+    { "path": "src/integrations/context7/normalize.ts", "sha256": "0a8bbd9d330e579f3c86f23454f4cf704d791c2cf8865b55cd0d545ba78fef30", "lineCount": 32 },
+    { "path": "src/integrations/context7/service.ts", "sha256": "a1d78e068129ccc7a4d04ece9f329c45746cc4f46ab80bd61a1fe0c116135f59", "lineCount": 56 },
+    { "path": "src/integrations/shadcn/cache.ts", "sha256": "67b9ca28c796593d83b17cedc2370ed0fb10b59feddcc8e55aceadb0694a3a39", "lineCount": 7 },
+    { "path": "src/integrations/shadcn/contracts.ts", "sha256": "d0fb0a5d72cf7cc7fcea4557f012353d140325bea50c0aa374519b2d82403355", "lineCount": 18 },
+    { "path": "src/integrations/shadcn/server.ts", "sha256": "681e9f97b84c6cadf93754ce4d47600325f35368899a3c4c28bfd125336ee5f6", "lineCount": 12 },
+    { "path": "src/integrations/shadcn/service.ts", "sha256": "7b9259d85b584805f198bc89d1666d8ee3c49bc8965aa808cd584806f3e4587a", "lineCount": 32 },
+    { "path": "src/integrations/shadcn/shadcn-registry.test.ts", "sha256": "d572835b4ad8f0d690d12db9bc45cce732e05d0c79ea0990e79ab8bfbe2971cc", "lineCount": 30 },
+    { "path": "src/orchestration/tooling/adapters.ts", "sha256": "3cfce5d4b2a18a2952f9eda0b9db95be277d5acf4972e18e5399491079e73659", "lineCount": 53 },
+    { "path": "src/orchestration/tooling/executors.ts", "sha256": "11f9f8660b60a28e0f012c674669b4b94378097cf3d904bb5e52dda750d4a3b5", "lineCount": 112 },
+    { "path": "src/orchestration/tooling/tooling.test.ts", "sha256": "c48788f27a8d81bfc65d414ca1144d078ab32333b9be64aa559eec20bbbf9d6f", "lineCount": 359 }
+  ],
+  "focusedValidation": {
+    "codebaseMemory": "25/25 PASS",
+    "focusedFrozenSuite": "4 files, 63/63 PASS",
+    "typecheck": "PASS",
+    "lint": "PASS; 0 errors, 3 known pre-existing warnings",
+    "build": "PASS; Next.js 16.2.12",
+    "gitDiffCheck": "PASS"
+  },
+  "evidencePackId": "r2-g2-final-evidence-pack-2026-08-11",
+  "evidencePackChecksum": "46fcf3cb4431a847b129b95c316774d70874ef98fe86cfdef1c4cfdd8140a13d",
+  "evidenceValidation": {
+    "manifestFileCount": 16,
+    "sliceCount": 15,
+    "evidenceBytes": 42828,
+    "referenceFormat": "repository-relative-path:start[-end]",
+    "invalidReferenceCount": 0,
+    "evidenceValid": true,
+    "validatedBeforeReviewerCalls": true,
+    "candidateBound": true
+  },
+  "reviewers": {
+    "model": "GPT-5.6 Luna",
+    "sameCandidate": true,
+    "sameEvidencePack": true,
+    "mutationBetweenCalls": false,
+    "perReviewer": [
+      {
+        "reviewerId": "code-integration-reviewer",
+        "assignedObligations": ["O2", "O4"],
+        "candidateId": "r2-g2-final-evidence-candidate-2026-08-11",
+        "candidateChecksum": "1b4c31cdc54d144c3b94ef778e9b419c2a89bf55392c0c436ed01e9580599916",
+        "evidencePackChecksum": "46fcf3cb4431a847b129b95c316774d70874ef98fe86cfdef1c4cfdd8140a13d",
+        "selectedSkills": [{ "id": "react-nextjs-integration-review", "checksum": "acd9276249146013c41cdbf0d53463232124c7f50f360014729266c798cd737b" }],
+        "freshOrReused": "FRESH",
+        "evidenceValid": true,
+        "verdict": "APPROVED",
+        "findings": [],
+        "reviewedReferences": ["src/integrations/codebase-memory/service.ts:31-40", "src/integrations/codebase-memory/service.ts:112-139", "src/integrations/codebase-memory/service.ts:282-320", "src/integrations/codebase-memory/codebase-memory.test.ts:63-67", "src/integrations/codebase-memory/codebase-memory.test.ts:77-77", "src/integrations/codebase-memory/contracts.ts:10-12", "src/integrations/codebase-memory/transport.ts:1-171"]
+      },
+      {
+        "reviewerId": "test-quality-reviewer",
+        "assignedObligations": ["O2", "O4"],
+        "candidateId": "r2-g2-final-evidence-candidate-2026-08-11",
+        "candidateChecksum": "1b4c31cdc54d144c3b94ef778e9b419c2a89bf55392c0c436ed01e9580599916",
+        "evidencePackChecksum": "46fcf3cb4431a847b129b95c316774d70874ef98fe86cfdef1c4cfdd8140a13d",
+        "selectedSkills": [
+          { "id": "behavioral-test-quality-review", "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09" },
+          { "id": "requirements-evidence-traceability", "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26" }
+        ],
+        "freshOrReused": "FRESH",
+        "evidenceValid": true,
+        "verdict": "APPROVED",
+        "findings": []
+      },
+      {
+        "reviewerId": "security-reviewer",
+        "assignedObligations": ["O2", "O4"],
+        "candidateId": "r2-g2-final-evidence-candidate-2026-08-11",
+        "candidateChecksum": "1b4c31cdc54d144c3b94ef778e9b419c2a89bf55392c0c436ed01e9580599916",
+        "evidencePackChecksum": "46fcf3cb4431a847b129b95c316774d70874ef98fe86cfdef1c4cfdd8140a13d",
+        "selectedSkills": [{ "id": "auth-storage-security-review", "checksum": "069ffa33fec764ce1e19ff853d21b00d091e5f0eb874e0278de7a774e344dd25" }],
+        "freshOrReused": "FRESH",
+        "evidenceValid": true,
+        "verdict": "APPROVED",
+        "findings": []
+      },
+      {
+        "reviewerId": "contract-auditor",
+        "assignedObligations": ["O2", "O4"],
+        "candidateId": "r2-g2-final-evidence-candidate-2026-08-11",
+        "candidateChecksum": "1b4c31cdc54d144c3b94ef778e9b419c2a89bf55392c0c436ed01e9580599916",
+        "evidencePackChecksum": "46fcf3cb4431a847b129b95c316774d70874ef98fe86cfdef1c4cfdd8140a13d",
+        "selectedSkills": [
+          { "id": "acceptance-criteria-80493e317476", "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec" },
+          { "id": "requirements-evidence-traceability", "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26" }
+        ],
+        "freshOrReused": "FRESH",
+        "evidenceValid": true,
+        "verdict": "APPROVED",
+        "findings": []
+      }
+    ]
+  },
+  "finalFrozenObligations": { "O1": "PASS", "O2": "PASS", "O3": "PASS", "O4": "PASS", "O5": "PASS", "O6": "PASS", "O7": "PASS", "count": 7, "newObligationCount": 0 },
+  "criticalRegressionEscape": { "triggered": false, "activeCriticalRegression": false },
+  "fullValidation": {
+    "executedAfterSevenOfSevenClosure": true,
+    "fullTestSuite": "72 files, 891 tests PASS",
+    "reviewerSuite": "7 files, 77 tests PASS",
+    "lint": "PASS; 0 errors, 3 known pre-existing warnings",
+    "typecheck": "PASS",
+    "build": "PASS",
+    "npmAudit": "PASS; 0 vulnerabilities",
+    "dbValidate": "PASS; 2 migrations",
+    "dbStatus": "PASS; 2 migrations applied",
+    "dbVerify": "PASS; 17 tables, 84 constraints, 4 indexes, RLS 17/17, public policies 0",
+    "dbIntegrity": "PASS",
+    "dockerComposeConfig": "PASS",
+    "taskgraphSmoke": "PASS; releaseEligible true, 6 tasks, 0 repairs",
+    "gitDiffCheck": "PASS"
+  },
+  "acceptedImplementationCommit": "be97c3839a494efe2d75d0edb029b2d5f7b9d009",
+  "acceptedImplementationFileCount": 16,
+  "acceptedCandidateProvenance": "VERIFIED; explicit staging contained exactly the 16 frozen candidate paths and no admin/transient files",
+  "resolvedR2G2FindingIds": ["7b-sec-002", "7b-sec-004"],
+  "remainingR2G2Findings": [],
+  "r2g2Status": "COMPLETE",
+  "r2g3RoutedFindings": ["contract-audit-001", "tqr-7b-003"],
+  "r2g3Status": "NOT EXECUTED",
+  "futureHardeningFindings": ["external-review-evidence-protocol-hardening"],
+  "phase6Status": "COMPLETE",
+  "phase6Findings": 0,
+  "phase7AStatus": "COMPLETE",
+  "r2g1Status": "COMPLETE",
+  "phase7BStatus": "BLOCKED - R2-G3 REMAINS",
+  "nextRecommendedGroup": "R2-G3-EVIDENCE_COMPLETENESS",
+  "qaCounts": { "before": 18, "afterTargeted": 18, "afterReviewers": 18, "afterFullValidation": 18, "cleanupPerformed": false },
+  "historicalArtifactPolicy": "Preserved historical blocked artifacts, .qa-foundation-* directories, and .context7-cache/; no cleanup performed.",
+  "adminClosureCommit": null,
+  "nextAction": "R2-G3-EVIDENCE_COMPLETENESS"
+}
