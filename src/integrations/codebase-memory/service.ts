@@ -117,6 +117,7 @@ export class CodebaseMemoryService implements CodebaseMemoryPort {
 
   private async runQuery(plan: CodebaseMemoryQueryPlan, operation: CodebaseMemoryQueryPlan["operation"], work: (signal: AbortSignal) => Promise<unknown>, signal?: AbortSignal): Promise<CodebaseMemoryResult> {
     CodebaseMemoryQueryPlanSchema.parse({ ...plan, operation });
+    if (plan.workspaceScope.projectId !== plan.projectId || plan.workspaceScope.projectVersion !== plan.projectVersion) throw new CodebaseMemoryError("CODEBASE_MEMORY_WORKSPACE_INVALID", "The query workspace scope does not match the query project identity.");
     isSafeQueryText(plan.symbol ?? plan.file ?? plan.topic ?? "");
     await this.ensureStateLoaded(plan.workspaceScope, canonicalWorkspaceIdentity(plan.workspaceScope));
     const index = this.findIndex(plan);
