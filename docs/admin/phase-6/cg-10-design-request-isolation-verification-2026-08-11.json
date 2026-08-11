@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6s-correction-verification",
+  "groupId": "cg-10-design-request-isolation",
+  "findingIds": [
+    "finding-4bba2d52b86f240393fc"
+  ],
+  "baselineCommit": "b2b7cfe",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "correctionSnapshot": "working-tree-before-correction-commit",
+  "reviewerResults": [
+    {
+      "reviewerId": "architecture-reviewer",
+      "state": "RESOLVED",
+      "evidence": [
+        "current:design-deterministic-provider",
+        "current:design-request-contract",
+        "current:design-service-boundary",
+        "test:design-request-isolation"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-10-design-request-isolation correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    },
+    {
+      "reviewerId": "test-quality-reviewer",
+      "state": "RESOLVED",
+      "evidence": [
+        "current:design-deterministic-provider",
+        "current:design-request-contract",
+        "current:design-service-boundary",
+        "test:design-request-isolation"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-10-design-request-isolation correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    }
+  ],
+  "selectedSkills": {
+    "architecture-reviewer": {
+      "selectedSkillIds": [
+        "architecture-tradeoff-review",
+        "module-boundaries-fb20497b5c35",
+        "review-maintainability-d9faf7cb9775"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "architecture-tradeoff-review",
+          "checksum": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd"
+        },
+        {
+          "skillId": "module-boundaries-fb20497b5c35",
+          "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff"
+        },
+        {
+          "skillId": "review-maintainability-d9faf7cb9775",
+          "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9"
+        }
+      ],
+      "identityChecksum": "488df20026a8cdc27a0ea566de496b2de54ab8ce8e047ec9ffa73eb4ad149c59"
+    },
+    "test-quality-reviewer": {
+      "selectedSkillIds": [
+        "behavioral-test-quality-review",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "behavioral-test-quality-review",
+          "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "identityChecksum": "ba9aa336998b0950a673e80e6b14791dd857750f890fb7048b008b89563a8e10"
+    }
+  },
+  "provider": {
+    "model": "gpt-5.6-luna",
+    "modelLabel": "GPT-5.6 Luna",
+    "realGptCalls": 2,
+    "requestEvents": [
+      {
+        "type": "request.started",
+        "role": "architecture-reviewer"
+      },
+      {
+        "type": "request.completed",
+        "role": "architecture-reviewer",
+        "requestId": "chatcmpl-EBecIDKswO7DN29DEo58iqNAcQGvx"
+      },
+      {
+        "type": "request.started",
+        "role": "test-quality-reviewer"
+      },
+      {
+        "type": "request.completed",
+        "role": "test-quality-reviewer",
+        "requestId": "chatcmpl-EBecNPXnx9zRA5QNUX7slQ868gSG7"
+      }
+    ]
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "evidenceRefs": [
+      "current:design-deterministic-provider",
+      "current:design-request-contract",
+      "current:design-service-boundary",
+      "design-currentness-boundary",
+      "design-durable-authority",
+      "design-request-contract",
+      "deterministic-interleaving-regression",
+      "original-finding",
+      "request-local-generation",
+      "src/agents/design/contracts.ts",
+      "src/agents/design/contracts.ts:1-23",
+      "src/agents/design/design.test.ts",
+      "src/agents/design/design.test.ts:38-46",
+      "src/agents/design/deterministic.ts",
+      "src/agents/design/deterministic.ts:1-35",
+      "src/agents/design/service.ts",
+      "src/agents/design/service.ts:210-337",
+      "test:design-request-isolation"
+    ],
+    "slices": [
+      {
+        "id": "current:design-deterministic-provider",
+        "relativePath": "src/agents/design/deterministic.ts",
+        "startLine": 1,
+        "endLine": 35,
+        "checksum": "295a1a4579521f8b67deed85f0a52119694f00b685f338f3811db4c9cd87f355",
+        "currentHead": "b2b7cfe"
+      },
+      {
+        "id": "current:design-request-contract",
+        "relativePath": "src/agents/design/contracts.ts",
+        "startLine": 1,
+        "endLine": 23,
+        "checksum": "a50e5b83af7315a0c2ce7114ca17b222602913741e8991f3d8d639cd14532704",
+        "currentHead": "b2b7cfe"
+      },
+      {
+        "id": "current:design-service-boundary",
+        "relativePath": "src/agents/design/service.ts",
+        "startLine": 210,
+        "endLine": 337,
+        "checksum": "ba779ad1fa3bffc61883e6fbd6590e8306fd43d0899b9d9293fa26132fa1b594",
+        "currentHead": "b2b7cfe"
+      },
+      {
+        "id": "test:design-request-isolation",
+        "relativePath": "src/agents/design/design.test.ts",
+        "startLine": 38,
+        "endLine": 46,
+        "checksum": "a12aee99bafb235f830f1c834ec6e879d99ed9f173ff4a77033c7624a1c46ee4",
+        "currentHead": "b2b7cfe"
+      }
+    ]
+  },
+  "phaseStatus": "RESOLVED"
+}

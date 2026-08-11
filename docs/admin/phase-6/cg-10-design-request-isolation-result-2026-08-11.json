@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6s-correction-result",
+  "groupId": "cg-10-design-request-isolation",
+  "title": "Remove module-global Design request state",
+  "baselineCommit": "8e0864bc1295fcf82966570e703f564fd7a45e3b",
+  "correctionCommit": "b2b7cfebe31bdafdf86e6013a2a32d9c9e03e613",
+  "correctionCommitMessage": "test: prove design generation reentrancy isolation",
+  "correctionCommits": [
+    { "commit": "d814853880a610077277414a8f5f3bda6bfa7499", "message": "fix: isolate deterministic design generation state" },
+    { "commit": "b2b7cfebe31bdafdf86e6013a2a32d9c9e03e613", "message": "test: prove design generation reentrancy isolation" }
+  ],
+  "correctionCyclesUsed": 2,
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "findingIds": ["finding-4bba2d52b86f240393fc"],
+  "rootCause": "Make generation salt and timestamps request-local and deterministic without shared mutable module state.",
+  "rootCauseConfidence": "HIGH",
+  "dependencies": ["cg-05-design-durable-state-authority"],
+  "dependencyStatus": "COMPLETE",
+  "finding": {
+    "reviewer": "architecture-reviewer",
+    "severity": "WARNING",
+    "category": "DEPENDENCY_ARCHITECTURE",
+    "highestSeverity": "WARNING",
+    "semanticClaim": "The deterministic design provider used module-global mutable generationSalt and a module-load now value, coupling otherwise independent requests through shared runtime state.",
+    "evidence": ["src/agents/design/deterministic.ts:6-8"]
+  },
+  "authorityClassification": "DETERMINISTIC_PROVIDER_SHARED_STATE; DesignAgentService remains the authority for Brief/Planning currentness, idempotency, persistence, and the cg-17 Design gate.",
+  "correction": {
+    "before": "buildDesignDirectionSet mutated module-global generationSalt and reused a module-load timestamp.",
+    "after": "The generation salt is local to each operation and derived from input.idempotencyKey; timestamps are local per operation with controlled generatedAt injection for deterministic tests.",
+    "reentrancyProof": "A controlled onGenerationStart nested request cannot alter the outer request's IDs or timestamp.",
+    "policyPreserved": "The three existing deterministic directions, provider boundary, Design currentness/idempotency checks, cg-05 durable authority, and cg-17 gate remain unchanged."
+  },
+  "canonicalFactOwners": [
+    { "fact": "Semantic Design request identity", "owner": "src/agents/design/contracts.ts input.idempotencyKey" },
+    { "fact": "Design currentness, idempotency, persistence, and selection authority", "owner": "src/agents/design/service.ts and cg-05 durable state" },
+    { "fact": "Deterministic direction generation", "owner": "src/agents/design/deterministic.ts" }
+  ],
+  "productionCodeChanged": true,
+  "productionBehaviorChanged": true,
+  "historicalArtifactsPreserved": true,
+  "filesChanged": [
+    "src/agents/design/deterministic.ts",
+    "src/agents/design/design.test.ts",
+    "scripts/phase-6c-cg02-verification.ts"
+  ],
+  "productionFilesChanged": ["src/agents/design/deterministic.ts"],
+  "testFilesChanged": ["src/agents/design/design.test.ts"],
+  "scriptsChanged": ["scripts/phase-6c-cg02-verification.ts"],
+  "filesOutsideLikelyFiles": {
+    "src/agents/design/design.test.ts": "Required deterministic request-isolation and controlled nested-request regression evidence.",
+    "scripts/phase-6c-cg02-verification.ts": "Required cg10 verifier configuration, bounded evidence slices, exact reviewer allowlist, and dispatcher wiring."
+  },
+  "correctionSummary": "Removed shared mutable deterministic Design generation state, made timestamps request-local, and added fixed-time and controlled nested-request tests proving repeatability, timestamp isolation, exactly three directions, and disjoint generated IDs.",
+  "testsAdded": [
+    "Same semantic request with a fixed generatedAt remains checksum-deterministic.",
+    "Distinct request identities retain distinct timestamps and direction IDs.",
+    "A nested request at generation start cannot overwrite the outer request's local IDs or timestamp, and complete generated-ID sets remain disjoint."
+  ],
+  "deterministicConsistencyChecks": {
+    "moduleGlobalStateRemoved": "PASS; no module-global generationSalt or module-load now remains in the deterministic provider.",
+    "requestLocalIdentity": "PASS; stable UUID derivation receives the local input.idempotencyKey salt.",
+    "requestLocalTimestamp": "PASS; generatedAt is captured per generation operation, with valid default and controlled test injection.",
+    "reentrantIsolation": "PASS; controlled nested-request regression preserves the outer output and proves disjoint generated IDs.",
+    "directionContract": "PASS; each request produces exactly three meaningfully different directions.",
+    "authorityPreservation": "PASS; Design service currentness/idempotency/persistence and cg-05/cg-17 boundaries remain covered."
+  },
+  "requiredDeterministicChecks": ["targeted Design deterministic tests", "npm run typecheck"],
+  "targetedChecks": {
+    "focusedVitest": "PASS; 1 file / 19 tests",
+    "lint": "PASS; 0 errors and 3 known pre-existing warnings",
+    "typecheck": "PASS",
+    "productionBuildBeforeReview": "PASS",
+    "gitDiffCheck": "PASS"
+  },
+  "requiredReviewerRechecks": ["architecture-reviewer", "test-quality-reviewer"],
+  "actualReviewerRechecks": [
+    { "reviewerId": "architecture-reviewer", "state": "RESOLVED", "providerVerdict": "APPROVED", "structuredOutputValid": true, "evidenceValid": true, "realGptCalls": 1 },
+    { "reviewerId": "test-quality-reviewer", "state": "RESOLVED", "providerVerdict": "APPROVED", "structuredOutputValid": true, "evidenceValid": true, "realGptCalls": 1 }
+  ],
+  "reviewCycles": [
+    { "cycle": 1, "result": "CHANGES_REQUIRED", "finding": "Reviewers requested re-entrant/interleaved and complete-ID-isolation evidence." },
+    { "cycle": 2, "result": "APPROVED", "finding": "Both required reviewers resolved cg10 with no remaining findings." }
+  ],
+  "freshProviderCalls": 2,
+  "reusedReviewerExecutions": 0,
+  "selectedSkills": {
+    "architecture-reviewer": {
+      "selectedSkillIds": ["architecture-tradeoff-review", "module-boundaries-fb20497b5c35", "review-maintainability-d9faf7cb9775"],
+      "selectedSkillChecksums": [
+        { "skillId": "architecture-tradeoff-review", "checksum": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd" },
+        { "skillId": "module-boundaries-fb20497b5c35", "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff" },
+        { "skillId": "review-maintainability-d9faf7cb9775", "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9" }
+      ],
+      "identityChecksum": "488df20026a8cdc27a0ea566de496b2de54ab8ce8e047ec9ffa73eb4ad149c59"
+    },
+    "test-quality-reviewer": {
+      "selectedSkillIds": ["behavioral-test-quality-review", "requirements-evidence-traceability"],
+      "selectedSkillChecksums": [
+        { "skillId": "behavioral-test-quality-review", "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09" },
+        { "skillId": "requirements-evidence-traceability", "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26" }
+      ],
+      "identityChecksum": "ba9aa336998b0950a673e80e6b14791dd857750f890fb7048b008b89563a8e10"
+    }
+  },
+  "reviewExecutionEvidence": {
+    "verificationArtifact": "docs/admin/phase-6/cg-10-design-request-isolation-verification-2026-08-11.json",
+    "verificationReport": "docs/admin/phase-6/cg-10-design-request-isolation-verification-2026-08-11.md",
+    "result": "APPROVED with no findings",
+    "evidenceValid": true,
+    "evidenceRefs": ["current:design-deterministic-provider", "current:design-request-contract", "current:design-service-boundary", "test:design-request-isolation"]
+  },
+  "evidenceValidation": { "valid": true, "verificationArtifact": "docs/admin/phase-6/cg-10-design-request-isolation-verification-2026-08-11.json" },
+  "perFindingResolution": {
+    "finding-4bba2d52b86f240393fc": {
+      "reviewer": "architecture-reviewer",
+      "severity": "WARNING",
+      "category": "DEPENDENCY_ARCHITECTURE",
+      "finalState": "RESOLVED",
+      "resolution": "Removed module-global generationSalt and module-load timestamp state; generation now uses request-local semantic identity and per-operation timestamps, with controlled nested-request regression evidence.",
+      "resolvedByGroupId": "cg-10-design-request-isolation"
+    }
+  },
+  "potentiallyImpactedGroups": [],
+  "remainingFindingCountsBefore": { "total": 2, "CRITICAL": 0, "ERROR": 0, "WARNING": 2, "INFO": 0, "arithmeticValid": true },
+  "remainingFindingCounts": { "total": 1, "CRITICAL": 0, "ERROR": 0, "WARNING": 1, "INFO": 0, "arithmeticValid": true },
+  "resolvedCount": 1,
+  "partialCount": 0,
+  "stillActiveCount": 0,
+  "regressionFoundCount": 0,
+  "fullValidation": {
+    "vitest": "PASS; 70 files / 849 tests",
+    "reviewerSuite": "PASS; 7 files / 77 tests",
+    "typecheck": "PASS",
+    "lint": "PASS; 0 errors / 3 known warnings",
+    "build": "PASS; Next.js 16.2.12",
+    "npmAudit": "PASS; 0 vulnerabilities",
+    "databaseValidation": "PASS; 2 migrations",
+    "databaseStatus": "PASS; 2 migrations applied",
+    "databaseVerification": "PASS; 17 tables, 84 constraints, 4 indexes, RLS 17/17, public policies 0",
+    "databaseIntegrity": "PASS",
+    "dockerComposeConfig": "PASS",
+    "taskGraphSmoke": "PASS; releaseEligible=true, 6 tasks, 0 repairs",
+    "gitDiffCheck": "PASS"
+  },
+  "dependencyUnblockedGroups": ["cg-11-codebase-index-identity"],
+  "newlyUnblockedGroups": [],
+  "nextRecommendedGroup": "cg-11-codebase-index-identity",
+  "dagChanged": false,
+  "dagAcyclic": true,
+  "phaseStatus": "COMPLETE"
+}
