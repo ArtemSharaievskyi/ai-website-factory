@@ -34,6 +34,8 @@ export const CG08_GROUP_ID = "cg-08-context7-authority" as const;
 export const CG08_FINDING_IDS = ["finding-20662816cdabed08871f"] as const;
 export const CG09_GROUP_ID = "cg-09-project-memory-durability" as const;
 export const CG09_FINDING_IDS = ["finding-f13df5392f71f7cf58df"] as const;
+export const CG10_GROUP_ID = "cg-10-design-request-isolation" as const;
+export const CG10_FINDING_IDS = ["finding-4bba2d52b86f240393fc"] as const;
 export const CG12_GROUP_ID = "cg-12-architecture-review-context" as const;
 export const CG12_FINDING_IDS = ["finding-0e21399a0a91b82a05dc", "finding-2484a19307c1536e12e7"] as const;
 export const CG13_GROUP_ID = "cg-13-reviewer-execution-evidence" as const;
@@ -249,6 +251,25 @@ const CG09_CONFIG: CorrectionConfig = {
   deterministicChecks: ["READY index reloads as READY after a new service instance", "persisted cache avoids a second upstream query", "reused query id with changed input remains IDEMPOTENCY_CONFLICT after restart", "malformed metadata is rejected", "metadata is project/version/workspace bound", "stable JSON, atomic temp publication, and file sync are preserved"],
   requiredReviewerIds: ["architecture-reviewer", "code-integration-reviewer"],
   idempotencyPrefix: "phase6j1",
+};
+
+const CG10_CONFIG: CorrectionConfig = {
+  groupId: CG10_GROUP_ID,
+  findingIds: CG10_FINDING_IDS,
+  machinePath: "docs/admin/phase-6/cg-10-design-request-isolation-verification-2026-08-11.json",
+  reportPath: "docs/admin/phase-6/cg-10-design-request-isolation-verification-2026-08-11.md",
+  documentType: "phase-6s-correction-verification",
+  title: "cg-10 Design Request Isolation Verification",
+  fixedRefs: ["original-finding", "design-request-contract", "request-local-generation", "deterministic-interleaving-regression", "design-currentness-boundary", "design-durable-authority"],
+  originalFindings: [
+    { findingId: CG10_FINDING_IDS[0], severity: "WARNING", category: "DEPENDENCY_ARCHITECTURE", summary: "The deterministic design provider uses module-global mutable generationSalt and a module-load now value, coupling otherwise independent requests through shared runtime state." },
+  ],
+  correctionGoal: "Make Design generation salt and timestamps request-local and deterministic without shared mutable module state.",
+  trustBoundary: "Deterministic Design provider generation: input.idempotencyKey is the semantic request salt, generatedAt is local to each generation operation, and the existing DesignAgentService remains authoritative for Brief/Planning/currentness, idempotency, persistence, and the cg-17 Design gate.",
+  nonGoals: ["No design direction policy change", "No Design persistence redesign", "No cg-05 durable authority change", "No new provider, orchestrator, lock, or framework", "No unrelated correction groups"],
+  deterministicChecks: ["generation salt is request-local and derived from input.idempotencyKey", "generation timestamp is local per operation and valid", "two controlled requests with distinct identities do not share IDs or timestamps", "same semantic request with a fixed generation timestamp remains deterministic", "each request produces exactly three directions with no cross-request direction membership", "existing Design currentness, idempotency, persistence, and gate tests remain passing"],
+  requiredReviewerIds: ["architecture-reviewer", "test-quality-reviewer"],
+  idempotencyPrefix: "phase6s1",
 };
 
 const CG12_CONFIG: CorrectionConfig = {
@@ -477,6 +498,11 @@ async function buildEvidence(root: string, config: CorrectionConfig) {
     currentSlice(root, "test:architecture-context-regressions", "src/agents/reviewers/architecture/architecture.test.ts", 34, 38),
     currentSlice(root, "docs:architecture-review-boundary", "docs/architecture/architecture-reviewer.md", 11, 27),
     currentSlice(root, "current:architecture-agent-authority", "src/agents/catalog.ts", 65, 71),
+  ] : config.groupId === CG10_GROUP_ID ? [
+    currentSlice(root, "current:design-deterministic-provider", "src/agents/design/deterministic.ts", 1, 35),
+    currentSlice(root, "current:design-request-contract", "src/agents/design/contracts.ts", 1, 23),
+    currentSlice(root, "current:design-service-boundary", "src/agents/design/service.ts", 210, 337),
+    currentSlice(root, "test:design-request-isolation", "src/agents/design/design.test.ts", 38, 46),
   ] : config.groupId === CG09_GROUP_ID ? [
     currentSlice(root, "current:codebase-memory-service", "src/integrations/codebase-memory/service.ts", 115, 199),
     currentSlice(root, "current:codebase-memory-metadata", "src/integrations/codebase-memory/metadata.ts", 20, 137),
@@ -534,6 +560,7 @@ async function buildEvidence(root: string, config: CorrectionConfig) {
 
 function correctionDiff(root: string, config: CorrectionConfig) {
   if (config.groupId === CG19_GROUP_ID) return git(root, ["diff", "--no-ext-diff", "--unified=3", "HEAD^", "HEAD", "--", "docs/architecture/product-specification.md", "docs/architecture/implementation-roadmap.md", "docs/architecture/repository-structure.md", "docs/architecture/agent-architecture.md", "src/agents/catalog.ts", "src/agents/reviewers/architecture/service.ts", "src/agents/catalog.test.ts", "scripts/phase-6c-cg02-verification.ts"]).slice(0, 30000);
+  if (config.groupId === CG10_GROUP_ID) return git(root, ["diff", "--no-ext-diff", "--unified=3", "HEAD^", "HEAD", "--", "src/agents/design/deterministic.ts", "src/agents/design/design.test.ts", "scripts/phase-6c-cg02-verification.ts"]).slice(0, 30000);
   if (config.groupId === CG18_GROUP_ID) return git(root, ["diff", "--no-ext-diff", "--unified=3", "--", "AGENTS.md", "docs/architecture/agent-architecture.md", "docs/architecture/architecture-reviewer.md", "src/agents/catalog.ts", "src/agents/catalog.test.ts", "src/skills/curation/active-portfolio.test.ts", "scripts/phase-6c-cg02-verification.ts"]).slice(0, 30000);
   if (config.groupId === CG17_GROUP_ID) return git(root, ["diff", "--no-ext-diff", "--unified=3", "--", "src/agents/design/contracts.ts", "src/agents/design/service.ts", "src/agents/design/design.test.ts", "scripts/phase-6c-cg02-verification.ts"]).slice(0, 30000);
   if (config.groupId === CG16_GROUP_ID) return git(root, ["diff", "--no-ext-diff", "--unified=3", "--", "src/agents/implementation/applier.ts", "src/agents/implementation/service.ts", "src/agents/implementation/backend.test.ts", "scripts/phase-6c-cg02-verification.ts"]).slice(0, 30000);
@@ -547,7 +574,7 @@ async function resolveSkills(root: string, reviewerId: ReviewerId, config: Corre
   const registry = new SkillRegistry(path.resolve(root, "skills"));
   if (reviewerId === "architecture-reviewer") return prepareAgentSkillContext(registry, { agent: architectureReviewerAgentDefinition, capability: "review.architecture", taskType: "review-architecture", projectSurfaces: config.groupId === CG12_GROUP_ID ? ["architecture", "requirements", "planning", "traceability", "review-context"] : config.groupId === CG09_GROUP_ID ? ["architecture", "modules", "persistence", "durability", "recovery", "codebase-memory"] : ["architecture", "modules", "providers", "concurrency", "cancellation"], requiredCoverage: ["module-boundaries", "architecture-review"], requestedTools: [], contextBudgetBytes: architectureReviewerAgentDefinition.contextPolicy.maxBytes });
   if (reviewerId === "code-integration-reviewer") return prepareAgentSkillContext(registry, { agent: codeIntegrationReviewerAgentDefinition, capability: "review.integration", taskType: "review-code-integration", projectSurfaces: ["typescript", "providers", "openai", "context7", "codebase-memory", "concurrency", "cancellation"], requiredCoverage: ["react-review", "nextjs-review"], requestedTools: [], contextBudgetBytes: codeIntegrationReviewerAgentDefinition.contextPolicy.maxBytes });
-  if (reviewerId === "test-quality-reviewer") return prepareAgentSkillContext(registry, { agent: testQualityReviewerAgentDefinition, capability: "review.test-quality", taskType: "review-test-quality", projectSurfaces: ["tests", "behavior", "runtime"], requiredCoverage: ["test-strategy", "meaningful-assertions", "playwright-quality"], requestedTools: [], contextBudgetBytes: testQualityReviewerAgentDefinition.contextPolicy.maxBytes });
+  if (reviewerId === "test-quality-reviewer") return prepareAgentSkillContext(registry, { agent: testQualityReviewerAgentDefinition, capability: "review.test-quality", taskType: "review-test-quality", projectSurfaces: config.groupId === CG10_GROUP_ID ? ["tests", "behavior", "design", "concurrency", "runtime"] : ["tests", "behavior", "runtime"], requiredCoverage: config.groupId === CG10_GROUP_ID ? ["test-strategy", "meaningful-assertions"] : ["test-strategy", "meaningful-assertions", "playwright-quality"], requestedTools: [], contextBudgetBytes: testQualityReviewerAgentDefinition.contextPolicy.maxBytes });
   if (reviewerId === "security-reviewer") {
     const storage = config.groupId === CG03_GROUP_ID;
     return prepareAgentSkillContext(registry, { agent: securityReviewerAgentDefinition, capability: "review.security", taskType: "review-security", projectSurfaces: storage ? ["auth", "storage", "uploads", "sessions", "ownership"] : ["supabase", "postgres", "rls", "database", "auth", "sessions", "ownership"], requiredCoverage: storage ? ["storage-upload-security"] : ["supabase-rls", "row-level-authorization", "auth-security"], requestedTools: [], contextBudgetBytes: securityReviewerAgentDefinition.contextPolicy.maxBytes });
@@ -605,6 +632,8 @@ export async function runTargetedCorrectionVerification(root: string, config: Co
     const input = verificationInput(reviewerId, currentHead, evidence, diff, config);
     if (config.groupId === CG19_GROUP_ID)
       input.verificationQuestion = "Does the current cg-19 correction resolve the assigned architecture-document-state source-of-truth finding by explicitly distinguishing CURRENT_ARCHITECTURE, CURRENT, ROADMAP, PLANNED_FUTURE, and DEFERRED_WORK content across the affected documents, correcting the stale foundation-only and future-reviewer-directory claims against the implemented nine-agent catalog/reviewer tree, and preserving production source and typed contracts as canonical non-Markdown authority? Return APPROVED with no findings only when the current architecture documents accurately describe implemented capability, planned/deferred capabilities including Magic Patterns, Dependency Authority, Preview, and Deployment remain non-current, the focused consistency evidence is valid, historical/admin reports and cg-18 skill authority remain unchanged, and no runtime behavior, agent, skill, stack, deployment, or other correction group is changed. Do not report fresh repository findings or unrelated correction groups.";
+    if (config.groupId === CG10_GROUP_ID)
+      input.verificationQuestion = "Does the current cg-10 correction resolve the assigned Design dependency-architecture finding by removing module-global mutable generationSalt and the module-load timestamp, keeping input.idempotencyKey as request-local semantic identity and generatedAt local to each generation operation (with controlled injection for deterministic tests), while preserving exactly three directions, existing Design currentness/idempotency/persistence and cg-05 durable authority, the cg-17 Design gate, and the existing provider boundary? Return APPROVED with no findings only when distinct controlled requests cannot share generation IDs or timestamps, the same semantic request remains deterministic under a fixed generation timestamp, the regression evidence is meaningful and non-flaky, and no design-policy, workflow, persistence, provider, agent, reviewer, tool, or infrastructure change is introduced. Do not report fresh repository findings or unrelated correction groups.";
     if (config.groupId === CG18_GROUP_ID)
       input.verificationQuestion = "Does the current cg-18 correction resolve the assigned skill-portfolio contradiction by making src/agents/catalog.ts the sole current AgentDefinition assignment authority, explicitly documenting the Architecture Reviewer allowlist from that catalog, and proving the active portfolio snapshot equals the catalog for all nine agents, while preserving the Approved Skills Registry as approval and approved-content authority, the resolver as invocation-selection authority, zero/one/multiple minimum-sufficient selection, checksum currentness, historical/admin reports as derived only, skills.sh as discovery/staging only, and unchanged assignments, skills, reviewer read-only boundaries, and offline runtime? Return APPROVED with no findings only when no documentation or snapshot can grant runtime eligibility, no new skill or assignment is introduced, no caller override or whole-registry invalidation is added, and no cg-17 or unrelated correction group is changed. Do not report fresh repository findings or unrelated correction groups.";
     if (config.groupId === CG17_GROUP_ID)
@@ -656,6 +685,7 @@ export async function runCg06Verification(root = process.cwd()) { return runTarg
 export async function runCg07Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG07_CONFIG); }
 export async function runCg08Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG08_CONFIG); }
 export async function runCg09Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG09_CONFIG); }
+export async function runCg10Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG10_CONFIG); }
 export async function runCg12Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG12_CONFIG); }
 export async function runCg13Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG13_CONFIG); }
 export async function runCg14Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG14_CONFIG); }
@@ -666,6 +696,6 @@ export async function runCg18Verification(root = process.cwd()) { return runTarg
 export async function runCg19Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG19_CONFIG); }
 
 if (process.argv[1]?.endsWith("phase-6c-cg02-verification.ts")) {
-  const runner = process.env.PHASE6_CORRECTION_GROUP === CG19_GROUP_ID ? runCg19Verification : process.env.PHASE6_CORRECTION_GROUP === CG18_GROUP_ID ? runCg18Verification : process.env.PHASE6_CORRECTION_GROUP === CG17_GROUP_ID ? runCg17Verification : process.env.PHASE6_CORRECTION_GROUP === CG16_GROUP_ID ? runCg16Verification : process.env.PHASE6_CORRECTION_GROUP === CG15_GROUP_ID ? runCg15Verification : process.env.PHASE6_CORRECTION_GROUP === CG14_GROUP_ID ? runCg14Verification : process.env.PHASE6_CORRECTION_GROUP === CG13_GROUP_ID ? runCg13Verification : process.env.PHASE6_CORRECTION_GROUP === CG12_GROUP_ID ? runCg12Verification : process.env.PHASE6_CORRECTION_GROUP === CG09_GROUP_ID ? runCg09Verification : process.env.PHASE6_CORRECTION_GROUP === CG08_GROUP_ID ? runCg08Verification : process.env.PHASE6_CORRECTION_GROUP === CG07_GROUP_ID ? runCg07Verification : process.env.PHASE6_CORRECTION_GROUP === CG06_GROUP_ID ? runCg06Verification : process.env.PHASE6_CORRECTION_GROUP === CG05_GROUP_ID ? runCg05Verification : process.env.PHASE6_CORRECTION_GROUP === CG04_GROUP_ID ? runCg04Verification : process.env.PHASE6_CORRECTION_GROUP === CG03_GROUP_ID ? runCg03Verification : runCg02Verification;
+  const runner = process.env.PHASE6_CORRECTION_GROUP === CG19_GROUP_ID ? runCg19Verification : process.env.PHASE6_CORRECTION_GROUP === CG18_GROUP_ID ? runCg18Verification : process.env.PHASE6_CORRECTION_GROUP === CG17_GROUP_ID ? runCg17Verification : process.env.PHASE6_CORRECTION_GROUP === CG16_GROUP_ID ? runCg16Verification : process.env.PHASE6_CORRECTION_GROUP === CG15_GROUP_ID ? runCg15Verification : process.env.PHASE6_CORRECTION_GROUP === CG14_GROUP_ID ? runCg14Verification : process.env.PHASE6_CORRECTION_GROUP === CG13_GROUP_ID ? runCg13Verification : process.env.PHASE6_CORRECTION_GROUP === CG12_GROUP_ID ? runCg12Verification : process.env.PHASE6_CORRECTION_GROUP === CG10_GROUP_ID ? runCg10Verification : process.env.PHASE6_CORRECTION_GROUP === CG09_GROUP_ID ? runCg09Verification : process.env.PHASE6_CORRECTION_GROUP === CG08_GROUP_ID ? runCg08Verification : process.env.PHASE6_CORRECTION_GROUP === CG07_GROUP_ID ? runCg07Verification : process.env.PHASE6_CORRECTION_GROUP === CG06_GROUP_ID ? runCg06Verification : process.env.PHASE6_CORRECTION_GROUP === CG05_GROUP_ID ? runCg05Verification : process.env.PHASE6_CORRECTION_GROUP === CG04_GROUP_ID ? runCg04Verification : process.env.PHASE6_CORRECTION_GROUP === CG03_GROUP_ID ? runCg03Verification : runCg02Verification;
   runner().then((result) => console.log(JSON.stringify({ status: result.artifact.phaseStatus, groupId: result.artifact.groupId, realGptCalls: result.artifact.provider.realGptCalls, reviewers: result.artifact.reviewerResults }, null, 2))).catch((error) => { console.error(error instanceof Error ? error.message : "VERIFICATION_FAILED"); process.exitCode = 1; });
 }
