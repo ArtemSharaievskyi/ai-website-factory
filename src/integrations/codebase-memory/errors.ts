@@ -4,5 +4,6 @@ export type CodebaseMemoryErrorCode =
   | "CODEBASE_MEMORY_UNAVAILABLE" | "CODEBASE_MEMORY_TIMEOUT" | "CODEBASE_MEMORY_CANCELLED"
   | "CODEBASE_MEMORY_CONCURRENCY_LIMIT_REACHED" | "CODEBASE_MEMORY_INDEX_STALE"
   | "CODEBASE_MEMORY_INDEX_FAILED" | "CODEBASE_MEMORY_QUERY_INVALID"
-  | "CODEBASE_MEMORY_SCOPE_EXPANSION_REQUIRED" | "IDEMPOTENCY_CONFLICT";
+  | "CODEBASE_MEMORY_SCOPE_EXPANSION_REQUIRED" | "IDEMPOTENCY_CONFLICT"
+  | "CODEBASE_MEMORY_METADATA_INVALID" | "CODEBASE_MEMORY_PERSISTENCE_FAILED";
 export class CodebaseMemoryError extends Error { constructor(public readonly code: CodebaseMemoryErrorCode, message: string, public readonly cause?: unknown) { super(message); this.name = "CodebaseMemoryError"; } }
