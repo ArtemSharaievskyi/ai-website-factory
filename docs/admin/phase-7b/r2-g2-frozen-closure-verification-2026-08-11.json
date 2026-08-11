@@ -1,0 +1,238 @@
+{
+  "schemaVersion": 1,
+  "documentType": "r2-g2-frozen-closure-verification",
+  "generatedOn": "2026-08-11",
+  "verificationId": "r2-g2-frozen-verification-2026-08-11-r2",
+  "status": "BLOCKED",
+  "contract": {
+    "contractId": "r2-g2-frozen-closure-contract-2026-08-11",
+    "contractPath": "docs/admin/phase-7b/r2-g2-closure-contract-2026-08-11.json",
+    "contractEvidenceId": "r2-g2.5-evidence-af001dd1bff714e03a95fea07018c1e43004e1e8b72e954558efd88b8ea804c9",
+    "frozenObligationCount": 7,
+    "frozenObligationIds": [
+      "R2-G2-O1-INERT-SERIALIZED-EXTERNAL-RESULT",
+      "R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND",
+      "R2-G2-O3-CHILD-TRUST-TERMINAL-LIFECYCLE",
+      "R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE",
+      "R2-G2-O5-CANCELLATION-ISOLATION",
+      "R2-G2-O6-UTF8-SAFE-NORMALIZATION",
+      "R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE"
+    ],
+    "requiredReviewers": [
+      "code-integration-reviewer",
+      "test-quality-reviewer",
+      "security-reviewer",
+      "contract-auditor"
+    ],
+    "architectureReviewerRequired": false,
+    "newObligationsCreated": 0,
+    "criticalRegressionEscapeHatchUsed": false
+  },
+  "candidate": {
+    "candidateId": "r2-g2.5-candidate-2026-08-11",
+    "candidateChecksum": "81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97",
+    "candidateFileCount": 16,
+    "baselineHead": "9dfaddfe337b9d4fef054e244206cdf36ca2b7f8",
+    "verificationHead": "3499bc8851813bdba3966a2350f109b8cb27e781",
+    "candidatePreservedByteForByte": true,
+    "sourceTestMutationDuringVerification": false,
+    "files": [
+      { "path": "src/integrations/codebase-memory/codebase-memory.test.ts", "sha256": "6374f10f467efba19e1761844a3d73bd8d7501de77c5783c09d05d4d38cf1c04" },
+      { "path": "src/integrations/codebase-memory/service.ts", "sha256": "26e3b26505e5d34714abc24b7628576cc08bb8c7ff2ecd5654946f9fbfe53b2e" },
+      { "path": "src/integrations/codebase-memory/transport.ts", "sha256": "bb6b4b6262c0f6122a015e163eb4f01674f2610f4ae0f4dd092dae18cc052277" },
+      { "path": "src/integrations/context7/cache.ts", "sha256": "34363c1adbd116938e76e03b762f1cedf6a800734fc6fde7785157ae284e95e6" },
+      { "path": "src/integrations/context7/context7.test.ts", "sha256": "e5fd8f047852eebbab4a39d95206b9b4a70992a96878c503afa64e475690db7b" },
+      { "path": "src/integrations/context7/contracts.ts", "sha256": "af8442cd5368902188779d478dad5f78c7dcea1e727c7873ad26ae52b5bab238" },
+      { "path": "src/integrations/context7/normalize.ts", "sha256": "0a8bbd9d330e579f3c86f23454f4cf704d791c2cf8865b55cd0d545ba78fef30" },
+      { "path": "src/integrations/context7/service.ts", "sha256": "a1d78e068129ccc7a4d04ece9f329c45746cc4f46ab80bd61a1fe0c116135f59" },
+      { "path": "src/integrations/shadcn/cache.ts", "sha256": "67b9ca28c796593d83b17cedc2370ed0fb10b59feddcc8e55aceadb0694a3a39" },
+      { "path": "src/integrations/shadcn/contracts.ts", "sha256": "d0fb0a5d72cf7cc7fcea4557f012353d140325bea50c0aa374519b2d82403355" },
+      { "path": "src/integrations/shadcn/server.ts", "sha256": "681e9f97b84c6cadf93754ce4d47600325f35368899a3c4c28bfd125336ee5f6" },
+      { "path": "src/integrations/shadcn/service.ts", "sha256": "7b9259d85b584805f198bc89d1666d8ee3c49bc8965aa808cd584806f3e4587a" },
+      { "path": "src/integrations/shadcn/shadcn-registry.test.ts", "sha256": "d572835b4ad8f0d690d12db9bc45cce732e05d0c79ea0990e79ab8bfbe2971cc" },
+      { "path": "src/orchestration/tooling/adapters.ts", "sha256": "3cfce5d4b2a18a2952f9eda0b9db95be277d5acf4972e18e5399491079e73659" },
+      { "path": "src/orchestration/tooling/executors.ts", "sha256": "11f9f8660b60a28e0f012c674669b4b94378097cf3d904bb5e52dda750d4a3b5" },
+      { "path": "src/orchestration/tooling/tooling.test.ts", "sha256": "c48788f27a8d81bfc65d414ca1144d078ab32333b9be64aa559eec20bbbf9d6f" }
+    ]
+  },
+  "evidence": {
+    "evidencePackChecksum": "325f9da1123d1be5d8c4ac3868a4bb352588d0cf89ab2c195ab60e3910dbf767",
+    "sameEvidencePackForAllFinalReviewers": true,
+    "finalFocusedSuite": {
+      "command": "npm exec vitest run src/integrations/codebase-memory/codebase-memory.test.ts src/integrations/context7/context7.test.ts src/integrations/shadcn/shadcn-registry.test.ts src/orchestration/tooling/tooling.test.ts",
+      "status": "PASSED",
+      "testFiles": 4,
+      "tests": 61,
+      "breakdown": {
+        "codebase-memory": 23,
+        "context7": 10,
+        "shadcn": 10,
+        "tooling": 18
+      }
+    },
+    "proceduralAttemptSuperseded": {
+      "verificationId": "r2-g2-frozen-verification-2026-08-11",
+      "evidencePackChecksum": "4a0074fbb188db41f15908c28e53e22486aa8a25b0120b0a495b4e28d734fac9",
+      "result": "NOT_ACCEPTED",
+      "reason": "Test/Quality correctly identified that the initial 41-test command omitted Context7 and shadcn suites. No source/test mutation occurred; the complete 61-test suite was then executed before the final four-reviewer run."
+    },
+    "deterministicGates": [
+      { "name": "focused integration/tooling suite", "status": "PASSED", "evidence": "4 files, 61 tests" },
+      { "name": "npm run typecheck", "status": "PASSED" },
+      { "name": "npm run lint", "status": "PASSED", "notes": "0 errors; 3 known pre-existing warnings" },
+      { "name": "npm run build", "status": "PASSED", "notes": "Next.js 16.2.12" },
+      { "name": "git diff --check", "status": "PASSED", "notes": "line-ending warnings only" },
+      { "name": "candidate checksum before/after gates and reviewers", "status": "PASSED", "observedChecksum": "81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97" }
+    ],
+    "requiredEvidenceRefs": [
+      "test:codebase-memory-process-service-toolresult",
+      "test:codebase-memory-overflow-recovery",
+      "test:context7-boundary-persistence",
+      "test:shadcn-boundary-persistence",
+      "test:tooling-registered-serialized-boundary",
+      "gate:typecheck",
+      "gate:lint",
+      "gate:build",
+      "gate:diff-check"
+    ]
+  },
+  "reviewExecution": {
+    "provider": "existing production provider adapter bundle",
+    "model": "gpt-5.6-luna",
+    "modelLabel": "GPT-5.6 Luna",
+    "finalFreshReviewerCalls": 4,
+    "finalReusedReviewerCalls": 0,
+    "totalFreshCallsIncludingSupersededAttempt": 8,
+    "reviewerOrder": [
+      "code-integration-reviewer",
+      "test-quality-reviewer",
+      "security-reviewer",
+      "contract-auditor"
+    ],
+    "reviewerResults": [
+      {
+        "reviewerId": "code-integration-reviewer",
+        "verdict": "CHANGES_REQUIRED",
+        "assignedObligations": ["R2-G2-O1-INERT-SERIALIZED-EXTERNAL-RESULT", "R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND", "R2-G2-O3-CHILD-TRUST-TERMINAL-LIFECYCLE", "R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE"],
+        "selectedSkillIds": [],
+        "skillContextIdentity": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidateChecksum": "81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97",
+        "evidencePackChecksum": "325f9da1123d1be5d8c4ac3868a4bb352588d0cf89ab2c195ab60e3910dbf767",
+        "findings": [
+          {
+            "findingId": "r2-g2-code-integration-f001",
+            "severity": "ERROR",
+            "mappedObligation": "R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND",
+            "summary": "Codebase Memory index_repository responses are not bounded at the service boundary.",
+            "evidenceRefs": ["obligation:R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND", "source-path:src/integrations/codebase-memory/service.ts:120-123", "test:codebase-memory-process-service-toolresult", "test:codebase-memory-overflow-recovery"],
+            "classification": "R2_G2_FROZEN_OBLIGATION_FAILURE"
+          }
+        ]
+      },
+      {
+        "reviewerId": "test-quality-reviewer",
+        "verdict": "APPROVED",
+        "assignedObligations": ["R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND", "R2-G2-O3-CHILD-TRUST-TERMINAL-LIFECYCLE", "R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE", "R2-G2-O5-CANCELLATION-ISOLATION", "R2-G2-O6-UTF8-SAFE-NORMALIZATION", "R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE"],
+        "selectedSkillIds": ["behavioral-test-quality-review", "requirements-evidence-traceability"],
+        "selectedSkillChecksums": [
+          { "skillId": "behavioral-test-quality-review", "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09" },
+          { "skillId": "requirements-evidence-traceability", "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26" }
+        ],
+        "skillContextIdentity": "ba9aa336998b0950a673e80e6b14791dd857750f890fb7048b008b89563a8e10",
+        "candidateChecksum": "81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97",
+        "evidencePackChecksum": "325f9da1123d1be5d8c4ac3868a4bb352588d0cf89ab2c195ab60e3910dbf767",
+        "findings": []
+      },
+      {
+        "reviewerId": "security-reviewer",
+        "verdict": "CHANGES_REQUIRED",
+        "assignedObligations": ["R2-G2-O1-INERT-SERIALIZED-EXTERNAL-RESULT", "R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND", "R2-G2-O3-CHILD-TRUST-TERMINAL-LIFECYCLE", "R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE", "R2-G2-O5-CANCELLATION-ISOLATION", "R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE"],
+        "selectedSkillIds": [],
+        "skillContextIdentity": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidateChecksum": "81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97",
+        "evidencePackChecksum": "325f9da1123d1be5d8c4ac3868a4bb352588d0cf89ab2c195ab60e3910dbf767",
+        "findings": [
+          {
+            "findingId": "r2-g2-sec-o4-codebase-result-persistence",
+            "severity": "ERROR",
+            "mappedObligation": "R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE",
+            "summary": "Codebase Memory persistence redacts result excerpts, but the candidate does not demonstrate redaction of all externally sourced textual metadata such as symbols, relationships, and index/result metadata.",
+            "evidenceRefs": ["obligation:R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE", "source-path:src/integrations/codebase-memory/service.ts:226-240", "test:codebase-memory-boundary-persistence", "test:context7-boundary-persistence", "test:shadcn-boundary-persistence"],
+            "classification": "R2_G2_FROZEN_OBLIGATION_FAILURE"
+          }
+        ]
+      },
+      {
+        "reviewerId": "contract-auditor",
+        "verdict": "APPROVED",
+        "assignedObligations": ["R2-G2-O1-INERT-SERIALIZED-EXTERNAL-RESULT", "R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND", "R2-G2-O5-CANCELLATION-ISOLATION", "R2-G2-O6-UTF8-SAFE-NORMALIZATION", "R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE"],
+        "selectedSkillIds": ["acceptance-criteria-80493e317476", "requirements-evidence-traceability"],
+        "selectedSkillChecksums": [
+          { "skillId": "acceptance-criteria-80493e317476", "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec" },
+          { "skillId": "requirements-evidence-traceability", "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26" }
+        ],
+        "skillContextIdentity": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada",
+        "candidateChecksum": "81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97",
+        "evidencePackChecksum": "325f9da1123d1be5d8c4ac3868a4bb352588d0cf89ab2c195ab60e3910dbf767",
+        "findings": []
+      }
+    ]
+  },
+  "obligationReconciliation": [
+    { "obligationId": "R2-G2-O1-INERT-SERIALIZED-EXTERNAL-RESULT", "status": "PASS", "blocking": false, "reviewerBasis": "All assigned reviewers approved; no current regression found." },
+    { "obligationId": "R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND", "status": "FAILED", "blocking": true, "reviewerBasis": "r2-g2-code-integration-f001: index_repository transport output is discarded without service-boundary size rejection." },
+    { "obligationId": "R2-G2-O3-CHILD-TRUST-TERMINAL-LIFECYCLE", "status": "PASS", "blocking": false, "reviewerBasis": "All assigned reviewers approved this obligation; spawn-error hardening remains outside the frozen scope." },
+    { "obligationId": "R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE", "status": "FAILED", "blocking": true, "reviewerBasis": "r2-g2-sec-o4-codebase-result-persistence: full Codebase Memory externally sourced metadata redaction is not closed." },
+    { "obligationId": "R2-G2-O5-CANCELLATION-ISOLATION", "status": "PASS", "blocking": false, "reviewerBasis": "Security, Test/Quality, and Contract Auditor approved." },
+    { "obligationId": "R2-G2-O6-UTF8-SAFE-NORMALIZATION", "status": "PASS", "blocking": false, "reviewerBasis": "Test/Quality and Contract Auditor approved." },
+    { "obligationId": "R2-G2-O7-FROZEN-COMPOSED-CLOSURE-EVIDENCE", "status": "PASS", "blocking": false, "reviewerBasis": "All four required reviewers approved O7 on the final same-candidate evidence pack." }
+  ],
+  "counts": {
+    "frozenObligations": 7,
+    "passedObligations": 5,
+    "failedObligations": 2,
+    "r2g2ProductionDefectsBeforeVerification": 0,
+    "r2g2RegressionsBeforeVerification": 0,
+    "r2g2RequiredEvidenceBeforeVerification": 2,
+    "r2g3EvidenceCompleteness": 11,
+    "futureHardening": 1,
+    "staleDuplicateScopeDrift": 4,
+    "historicalSupersededNotCurrent": 13,
+    "architectureReviewersRun": 0,
+    "newAgents": 0,
+    "newSkills": 0,
+    "newMcp": 0,
+    "newDependencies": 0
+  },
+  "scopeAndSafety": {
+    "r2g3Executed": false,
+    "phase7cExecuted": false,
+    "phase7dExecuted": false,
+    "phase7eExecuted": false,
+    "customerWebsiteGenerationE2EExecuted": false,
+    "deploymentExecuted": false,
+    "cleanupExecuted": false,
+    "sourceCorrectionAttempted": false,
+    "fullValidationRun": false,
+    "acceptedImplementationCommit": null,
+    "closureCommit": null,
+    "reviewerScopeDrift": false,
+    "adjacentFindingsPromoted": 0
+  },
+  "nextAction": "RECONCILE FROZEN OBLIGATION FAILURE",
+  "phase7BStatus": "BLOCKED",
+  "r2g2Status": "BLOCKED",
+  "r2g3Status": "NOT_EXECUTED_IN_THIS_VERIFICATION",
+  "failedObligations": [
+    "R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND",
+    "R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE"
+  ],
+  "gitStateAtResult": {
+    "head": "3499bc8851813bdba3966a2350f109b8cb27e781",
+    "candidateSourceTestFilesRemainUncommitted": true,
+    "transientContext7CachePresent": true,
+    "historicalBlockedArtifactsRetained": true,
+    "unexpectedTrackedChanges": false,
+    "temporaryVerificationHarnessRemoved": true
+  }
+}

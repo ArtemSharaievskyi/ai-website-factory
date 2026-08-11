@@ -4,7 +4,7 @@
   "generatedOn": "2026-08-11",
   "phase": "7B",
   "revision": "2",
-  "state": "BLOCKED_R2_G2_FROZEN_CLOSURE_VERIFICATION_READY",
+  "state": "BLOCKED_R2_G2_FROZEN_OBLIGATION_FAILURE",
   "sourcePlanIdentity": "r2-g2-final-transport-closure-2026-08-11",
   "sourcePlanPath": "docs/admin/phase-7b/r2-g2-final-transport-closure-plan-2026-08-11.json",
   "sourceReconciliationIdentity": "phase-7b-semantic-reconciliation-2026-08-11",
@@ -183,6 +183,39 @@
     "architectureReviewerRequired": false,
     "sourceTestMutation": false
   },
+  "frozenClosureVerification": {
+    "verificationId": "r2-g2-frozen-verification-2026-08-11-r2",
+    "status": "BLOCKED",
+    "resultArtifact": "docs/admin/phase-7b/r2-g2-frozen-closure-verification-2026-08-11.json",
+    "reportArtifact": "docs/admin/phase-7b/r2-g2-frozen-closure-verification-2026-08-11.md",
+    "contractId": "r2-g2-frozen-closure-contract-2026-08-11",
+    "candidateId": "r2-g2.5-candidate-2026-08-11",
+    "candidateChecksum": "81b59dce2a78da2317759f0d6258e57bce650637803999de0a53a022cd342a97",
+    "evidencePackChecksum": "325f9da1123d1be5d8c4ac3868a4bb352588d0cf89ab2c195ab60e3910dbf767",
+    "candidateFileCount": 16,
+    "candidateSourceTestMutation": false,
+    "focusedSuite": "PASS 61/61",
+    "freshGptCalls": 4,
+    "reusedProviderCalls": 0,
+    "reviewVerdicts": {
+      "code-integration-reviewer": "CHANGES_REQUIRED",
+      "test-quality-reviewer": "APPROVED",
+      "security-reviewer": "CHANGES_REQUIRED",
+      "contract-auditor": "APPROVED"
+    },
+    "failedObligations": [
+      "R2-G2-O2-INTEGRATION-RAW-RESULT-BOUND",
+      "R2-G2-O4-REDACTED-UNTRUSTED-PERSISTENCE"
+    ],
+    "blockingFindings": [
+      "r2-g2-code-integration-f001",
+      "r2-g2-sec-o4-codebase-result-persistence"
+    ],
+    "fullValidation": "NOT_RUN_AFTER_FROZEN_REVIEW_BLOCK",
+    "acceptedImplementationCommit": null,
+    "closureCommit": null,
+    "nextAction": "RECONCILE FROZEN OBLIGATION FAILURE"
+  },
   "remainingValidFindings": [
     {
       "findingId": "tqr-r2-g2-production-composition-001",
@@ -237,9 +270,9 @@
     {
       "groupId": "R2-G2-FINAL-SEMANTIC-CLOSURE",
       "findingIds": ["tqr-r2-g2-production-composition-001", "sec-7b-001", "sec-7b-002", "sec-7b-003", "sec-7b-004", "r2-g2-final-transport-closure-f001", "r2-g2-final-transport-closure-f002", "r2-g2-final-transport-closure-f003"],
-      "state": "BLOCKED_FROZEN_CLOSURE_VERIFICATION_READY",
+      "state": "BLOCKED_FROZEN_OBLIGATION_FAILURE",
       "dependencySatisfiedBy": "R2-G1-HOST_CONTEXT_AUTHENTICITY",
-      "note": "R2-G2.5 froze seven finite obligations. Deterministic behavior is green; two findings require one bounded same-candidate closure verification. Generic evidence routes to R2-G3 and spawn-error handling routes to future hardening."
+      "note": "R2-G2.5 froze seven finite obligations. The same-candidate closure verification passed deterministic gates but found direct O2 and O4 failures. No source correction was attempted; generic evidence routes to R2-G3 and spawn-error handling routes to future hardening."
     },
     {
       "groupId": "R2-G3-EVIDENCE_COMPLETENESS",
@@ -249,7 +282,7 @@
     }
   ],
   "newlyUnblockedGroups": [],
-  "nextRecommendedGroup": "R2-G2-FROZEN-CLOSURE-VERIFICATION",
+  "nextRecommendedGroup": "RECONCILE FROZEN OBLIGATION FAILURE",
   "validActiveFindingCount": 13,
   "globalRevisionPolicy": {
     "maximumGroupsBeforeReconciliation": 2,
@@ -260,7 +293,7 @@
   "validationState": {
     "reconciliationArtifactValidation": "PASS",
     "candidateSourceTestsModifiedThisTurn": "NO",
-    "focusedToolingTest": "PASS 41/41",
+    "focusedToolingTest": "PASS 61/61",
     "typecheck": "PASS",
     "lint": "PASS; 0 errors, 3 known pre-existing warnings",
     "build": "PASS; Next.js 16.2.12",
@@ -304,5 +337,5 @@
     "closureCommit": null,
     "metaOnlyReconciliation": true
   },
-  "nextTurnInstruction": "Execute R2-G2 FROZEN CLOSURE VERIFICATION on candidate r2-g2.5-candidate-2026-08-11 with no source/test mutation. Do not start R2-G3, Phase 7C/7D/7E, customer website-generation E2E, deployment, or QA cleanup."
+  "nextTurnInstruction": "Reconcile frozen R2-G2 O2/O4 obligation failures on candidate r2-g2.5-candidate-2026-08-11 before any source correction or new execution. Do not start R2-G3, Phase 7C/7D/7E, customer website-generation E2E, deployment, or QA cleanup."
 }
