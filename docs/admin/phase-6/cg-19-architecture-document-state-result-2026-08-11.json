@@ -1,0 +1,211 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6r-correction-result",
+  "groupId": "cg-19-architecture-document-state",
+  "title": "Mark current and planned architecture documentation",
+  "baselineCommit": "b9984bea7849b6960e213573e6c0c19760a8d3ca",
+  "correctionCommit": "98efe3edc2cdfca01d8ddb9957d3b478a29cb95c",
+  "correctionCommitMessage": "docs: mark current architecture document state",
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "findingIds": ["finding-5f4cd4a958172b921dfd"],
+  "rootCause": "Add explicit current/planned/supersession markers so implemented capability is distinguishable from roadmap intent.",
+  "rootCauseConfidence": "HIGH",
+  "dependencies": ["cg-18-skill-portfolio-source-of-truth"],
+  "dependencyStatus": "COMPLETE",
+  "finding": {
+    "reviewer": "architecture-reviewer",
+    "severity": "WARNING",
+    "category": "SOURCE_OF_TRUTH",
+    "highestSeverity": "WARNING",
+    "semanticClaim": "Several architecture documents mix current-state and planned-state descriptions without an explicit supersession marker, making repository boundaries and implemented capability difficult to determine.",
+    "evidence": [
+      "docs/architecture/product-specification.md:3-16",
+      "docs/architecture/implementation-roadmap.md:7-23",
+      "docs/architecture/repository-structure.md:51-53",
+      "docs/architecture/agent-architecture.md:1-12"
+    ]
+  },
+  "authorityClassification": "MISSING_ARCHITECTURE_STATE with DOCUMENT_STALE claims; production architecture is current and documentation was ambiguous/stale",
+  "contradictedClaims": [
+    {
+      "document": "docs/architecture/product-specification.md",
+      "before": "This repository currently contains only the foundation application and documentation.",
+      "canonicalFact": "The repository contains implemented workflow, reviewer, execution, validation, and evidence infrastructure in addition to the Factory foundation.",
+      "canonicalFactOwner": "Current production source under src/agents/, src/orchestration/, and src/runtime/; typed contracts remain authoritative.",
+      "after": "The current product boundary names the implemented Factory infrastructure and keeps complete customer-project generation planned."
+    },
+    {
+      "document": "docs/architecture/repository-structure.md",
+      "before": "Future Reviewer agents, once implemented, will belong under src/agents/; no reviewer directories are created in this phase.",
+      "canonicalFact": "Five read-only reviewer implementations already exist under src/agents/reviewers/ and are represented in the nine-definition catalog.",
+      "canonicalFactOwner": "src/agents/catalog.ts plus the existing src/agents/reviewers/<role>/ source tree.",
+      "after": "The current tree lists the five reviewer directories and the placement rule describes the current nine-agent catalog."
+    },
+    {
+      "document": "docs/architecture/implementation-roadmap.md",
+      "before": "Current implementation notes and future milestones were interleaved without a document-level state convention.",
+      "canonicalFact": "Current Factory foundations and planned/deferred customer capabilities are distinct states.",
+      "canonicalFactOwner": "The implemented production modules and typed contracts; the roadmap is a descriptive projection only.",
+      "after": "The roadmap declares ROADMAP status, marks the current baseline, and labels Magic Patterns/Dependency Authority as PLANNED_FUTURE and Preview/Deployment as DEFERRED_WORK."
+    },
+    {
+      "document": "docs/architecture/agent-architecture.md",
+      "before": "The document described current agent architecture but did not explicitly identify its current/non-runtime role.",
+      "canonicalFact": "The typed catalog and domain/runtime validators enforce current agent identity, capability, tool, and skill-assignment behavior.",
+      "canonicalFactOwner": "src/agents/catalog.ts and typed domain contracts/validators.",
+      "after": "The document is explicitly CURRENT_ARCHITECTURE and states that Markdown is descriptive, not runtime authority."
+    }
+  ],
+  "affectedDocuments": [
+    {
+      "path": "docs/architecture/product-specification.md",
+      "classification": "CURRENT_ARCHITECTURE",
+      "currentAuthority": false,
+      "runtimeInput": false,
+      "stateBefore": "Implicit current foundation mixed with planned MVP and stale foundation-only wording",
+      "stateAfter": "Status CURRENT_ARCHITECTURE; sections explicitly mark CURRENT, PLANNED_FUTURE, and DEFERRED_WORK"
+    },
+    {
+      "path": "docs/architecture/implementation-roadmap.md",
+      "classification": "ROADMAP",
+      "currentAuthority": false,
+      "runtimeInput": false,
+      "stateBefore": "Current milestone notes and future work interleaved without explicit state metadata",
+      "stateAfter": "Status ROADMAP with CURRENT baseline and PLANNED_FUTURE/DEFERRED_WORK section markers"
+    },
+    {
+      "path": "docs/architecture/repository-structure.md",
+      "classification": "CURRENT_ARCHITECTURE",
+      "currentAuthority": false,
+      "runtimeInput": false,
+      "stateBefore": "Implicit current tree contradicted by a future/no-reviewer-directories statement",
+      "stateAfter": "Status CURRENT_ARCHITECTURE and current reviewer tree under src/agents/reviewers/<role>/"
+    },
+    {
+      "path": "docs/architecture/agent-architecture.md",
+      "classification": "CURRENT_ARCHITECTURE",
+      "currentAuthority": false,
+      "runtimeInput": false,
+      "stateBefore": "Current claims lacked explicit document-state and non-runtime-authority metadata",
+      "stateAfter": "Status CURRENT_ARCHITECTURE with catalog/typed-contract authority and descriptive-only Markdown role"
+    }
+  ],
+  "canonicalFactOwners": [
+    { "fact": "Current agent identities and assignments", "owner": "src/agents/catalog.ts" },
+    { "fact": "Reviewer implementation presence and placement", "owner": "src/agents/reviewers/<role>/ source tree" },
+    { "fact": "Current workflow, runtime, and validation capability", "owner": "typed domain/orchestration/runtime contracts and implementations" },
+    { "fact": "Roadmap/product documentation state", "owner": "documentation metadata only; it cannot grant runtime authority" }
+  ],
+  "architectureStateBefore": "Production architecture already contained nine catalog definitions, five reviewer implementations, production execution adapters, runtime validation, and evidence infrastructure; current docs did not consistently identify that state.",
+  "architectureStateAfter": "Production architecture is unchanged and current docs now describe the implemented nine-agent/reviewer tree and Factory foundations while separating future customer-generation work and deferred capabilities.",
+  "documentStateBefore": "CURRENT, PLANNED, and future statements were mixed; repository and product documents contained stale/ambiguous claims and no consistent status convention.",
+  "documentStateAfter": "Product, repository, and agent documents are CURRENT_ARCHITECTURE; the roadmap is ROADMAP with explicit CURRENT, PLANNED_FUTURE, and DEFERRED_WORK markers. All remain descriptive/non-runtime.",
+  "productionCodeChanged": false,
+  "productionBehaviorChanged": false,
+  "historicalArtifactsPreserved": true,
+  "plannedFeaturesKeptNonCurrent": [
+    "Magic Patterns remains PLANNED_FUTURE and design-stage-only.",
+    "Dependency Authority/package-allowlist hardening remains PLANNED_FUTURE after Phase 6.",
+    "Preview remains DEFERRED_WORK; no Preview Agent or embedded Preview was added.",
+    "Deployment remains DEFERRED_WORK; no Deployment Agent, deployment stage, or customer deployment was added.",
+    "Complete customer-project generation and generated-project browser/npm/build/test execution remain planned."
+  ],
+  "filesChanged": [
+    "docs/architecture/product-specification.md",
+    "docs/architecture/implementation-roadmap.md",
+    "docs/architecture/repository-structure.md",
+    "docs/architecture/agent-architecture.md",
+    "src/agents/catalog.test.ts",
+    "scripts/phase-6c-cg02-verification.ts"
+  ],
+  "productionFilesChanged": [],
+  "documentationFilesChanged": [
+    "docs/architecture/product-specification.md",
+    "docs/architecture/implementation-roadmap.md",
+    "docs/architecture/repository-structure.md",
+    "docs/architecture/agent-architecture.md"
+  ],
+  "testFilesChanged": ["src/agents/catalog.test.ts"],
+  "scriptsChanged": ["scripts/phase-6c-cg02-verification.ts"],
+  "filesOutsideLikelyFiles": {
+    "src/agents/catalog.test.ts": "Required deterministic regression for the exact current-agent/reviewer-tree documentation claim.",
+    "scripts/phase-6c-cg02-verification.ts": "Required shared architecture-reviewer verification wiring and bounded current-document evidence pack."
+  },
+  "correctionSummary": "Added explicit document-state and non-runtime-authority markers to the four implicated architecture documents, corrected stale foundation-only and future-reviewer-directory claims, and labeled current/planned/deferred capabilities without changing production behavior.",
+  "testsAdded": [
+    "Current architecture documents carry explicit state markers and do not retain the stale foundation-only/future-reviewer claims.",
+    "The repository documents the reviewer tree and the five reviewer service paths exist alongside the catalog's five review agents."
+  ],
+  "deterministicConsistencyChecks": {
+    "focusedCatalogTest": "PASS; src/agents/catalog.test.ts, 12 tests",
+    "documentStatusMarkers": "PASS; product/repository/agent docs are CURRENT_ARCHITECTURE and roadmap is ROADMAP",
+    "currentVsPlanned": "PASS; roadmap explicitly labels CURRENT, PLANNED_FUTURE, and DEFERRED_WORK",
+    "reviewerTreeAlignment": "PASS; five reviewer directories/services exist and catalog has five review agents",
+    "documentationNonRuntimeAuthority": "PASS; all four documents state source/contracts are canonical and Markdown is not runtime configuration",
+    "staleClaimReproductionAfterCorrection": "PASS; stale foundation-only and future-reviewer-directory claims are absent"
+  },
+  "requiredDeterministicChecks": ["documentation consistency checks", "npm run lint"],
+  "targetedChecks": {
+    "focusedVitest": "PASS; 1 file / 12 tests",
+    "lint": "PASS; 0 errors and 3 known pre-existing warnings",
+    "typecheck": "PASS",
+    "gitDiffCheck": "PASS"
+  },
+  "requiredReviewerRechecks": ["architecture-reviewer"],
+  "actualReviewerRechecks": [
+    { "reviewerId": "architecture-reviewer", "state": "RESOLVED", "providerVerdict": "APPROVED", "structuredOutputValid": true, "evidenceValid": true, "realGptCalls": 1 }
+  ],
+  "freshProviderCalls": 1,
+  "reusedReviewerExecutions": 0,
+  "selectedSkills": {
+    "architecture-reviewer": {
+      "selectedSkillIds": ["architecture-tradeoff-review", "module-boundaries-fb20497b5c35", "review-maintainability-d9faf7cb977"],
+      "selectedSkillChecksums": [
+        { "skillId": "architecture-tradeoff-review", "checksum": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd" },
+        { "skillId": "module-boundaries-fb20497b5c35", "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff" },
+        { "skillId": "review-maintainability-d9faf7cb977", "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9" }
+      ],
+      "identityChecksum": "488df20026a8cdc27a0ea566de496b2de54ab8ce8e047ec9ffa73eb4ad149c59"
+    }
+  },
+  "reviewExecutionEvidence": {
+    "verificationArtifact": "docs/admin/phase-6/cg-19-architecture-document-state-verification-2026-08-11.json",
+    "reviewer": "architecture-reviewer",
+    "result": "APPROVED with no findings",
+    "evidenceValid": true,
+    "evidenceRefs": [
+      "current:product-architecture-state",
+      "current:implementation-roadmap-state",
+      "current:repository-reviewer-tree",
+      "current:agent-architecture-state",
+      "current:agent-catalog",
+      "current:architecture-reviewer-implementation",
+      "test:architecture-document-state"
+    ]
+  },
+  "evidenceValidation": { "valid": true, "verificationArtifact": "docs/admin/phase-6/cg-19-architecture-document-state-verification-2026-08-11.json" },
+  "perFindingResolution": {
+    "finding-5f4cd4a958172b921dfd": {
+      "reviewer": "architecture-reviewer",
+      "severity": "WARNING",
+      "category": "SOURCE_OF_TRUTH",
+      "finalState": "RESOLVED",
+      "resolution": "Marked the four affected architecture documents with explicit current/roadmap/planned/deferred state, corrected stale reviewer/foundation claims, and added focused documentation consistency evidence.",
+      "resolvedByGroupId": "cg-19-architecture-document-state"
+    }
+  },
+  "potentiallyImpactedGroups": [],
+  "remainingFindingCountsBefore": { "total": 3, "CRITICAL": 0, "ERROR": 0, "WARNING": 3, "INFO": 0, "arithmeticValid": true },
+  "remainingFindingCounts": { "total": 2, "CRITICAL": 0, "ERROR": 0, "WARNING": 2, "INFO": 0, "arithmeticValid": true },
+  "resolvedCount": 1,
+  "partialCount": 0,
+  "stillActiveCount": 0,
+  "regressionFoundCount": 0,
+  "dependencyUnblockedGroups": ["cg-10-design-request-isolation", "cg-11-codebase-index-identity"],
+  "newlyUnblockedGroups": [],
+  "nextRecommendedGroup": "cg-10-design-request-isolation",
+  "dagChanged": false,
+  "dagAcyclic": true,
+  "phaseStatus": "COMPLETE"
+}

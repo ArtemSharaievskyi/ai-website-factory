@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6r-correction-verification",
+  "groupId": "cg-19-architecture-document-state",
+  "findingIds": [
+    "finding-5f4cd4a958172b921dfd"
+  ],
+  "baselineCommit": "98efe3e",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "correctionSnapshot": "working-tree-before-correction-commit",
+  "reviewerResults": [
+    {
+      "reviewerId": "architecture-reviewer",
+      "state": "RESOLVED",
+      "evidence": [
+        "current:product-architecture-state",
+        "current:implementation-roadmap-state",
+        "current:repository-reviewer-tree",
+        "current:agent-architecture-state",
+        "current:agent-catalog",
+        "current:architecture-reviewer-implementation",
+        "test:architecture-document-state"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-19-architecture-document-state correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    }
+  ],
+  "selectedSkills": {
+    "architecture-reviewer": {
+      "selectedSkillIds": [
+        "architecture-tradeoff-review",
+        "module-boundaries-fb20497b5c35",
+        "review-maintainability-d9faf7cb9775"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "architecture-tradeoff-review",
+          "checksum": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd"
+        },
+        {
+          "skillId": "module-boundaries-fb20497b5c35",
+          "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff"
+        },
+        {
+          "skillId": "review-maintainability-d9faf7cb9775",
+          "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9"
+        }
+      ],
+      "identityChecksum": "488df20026a8cdc27a0ea566de496b2de54ab8ce8e047ec9ffa73eb4ad149c59"
+    }
+  },
+  "provider": {
+    "model": "gpt-5.6-luna",
+    "modelLabel": "GPT-5.6 Luna",
+    "realGptCalls": 1,
+    "requestEvents": [
+      {
+        "type": "request.started",
+        "role": "architecture-reviewer"
+      },
+      {
+        "type": "request.completed",
+        "role": "architecture-reviewer",
+        "requestId": "chatcmpl-EBdvXRu7iRlxPApDlW4SG6LdhHO2h"
+      }
+    ]
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "evidenceRefs": [
+      "current-architecture-authority",
+      "current:agent-architecture-state",
+      "current:agent-catalog",
+      "current:architecture-reviewer-implementation",
+      "current:implementation-roadmap-state",
+      "current:product-architecture-state",
+      "current:repository-reviewer-tree",
+      "docs/architecture/agent-architecture.md",
+      "docs/architecture/agent-architecture.md:3-52",
+      "docs/architecture/implementation-roadmap.md",
+      "docs/architecture/implementation-roadmap.md:3-29",
+      "docs/architecture/product-specification.md",
+      "docs/architecture/product-specification.md:3-28",
+      "docs/architecture/repository-structure.md",
+      "docs/architecture/repository-structure.md:3-61",
+      "document-consistency-regression",
+      "document-state-markers",
+      "original-finding",
+      "planned-deferred-boundary",
+      "reviewer-tree-alignment",
+      "src/agents/catalog.test.ts",
+      "src/agents/catalog.test.ts:94-126",
+      "src/agents/catalog.ts",
+      "src/agents/catalog.ts:61-128",
+      "src/agents/reviewers/architecture/service.ts",
+      "src/agents/reviewers/architecture/service.ts:15-21",
+      "test:architecture-document-state"
+    ],
+    "slices": [
+      {
+        "id": "current:product-architecture-state",
+        "relativePath": "docs/architecture/product-specification.md",
+        "startLine": 3,
+        "endLine": 28,
+        "checksum": "fc96664a75ed0b3c2bb7367ba91bced684fb597000368c6dfc9c744ff04f3ee8",
+        "currentHead": "98efe3e"
+      },
+      {
+        "id": "current:implementation-roadmap-state",
+        "relativePath": "docs/architecture/implementation-roadmap.md",
+        "startLine": 3,
+        "endLine": 29,
+        "checksum": "ba4181853803ee3e7f9d29514bebe10e156725f829e770e4724992e9bccf90ca",
+        "currentHead": "98efe3e"
+      },
+      {
+        "id": "current:repository-reviewer-tree",
+        "relativePath": "docs/architecture/repository-structure.md",
+        "startLine": 3,
+        "endLine": 61,
+        "checksum": "d02ace2aff480fa93aca61ac81da2867ecdd4f98510539d134a0ced0039172c6",
+        "currentHead": "98efe3e"
+      },
+      {
+        "id": "current:agent-architecture-state",
+        "relativePath": "docs/architecture/agent-architecture.md",
+        "startLine": 3,
+        "endLine": 52,
+        "checksum": "29464188d0cb17e8652332c1214e8a65f08ce44f70009f9e01bfb5490ffd86ea",
+        "currentHead": "98efe3e"
+      },
+      {
+        "id": "current:agent-catalog",
+        "relativePath": "src/agents/catalog.ts",
+        "startLine": 61,
+        "endLine": 128,
+        "checksum": "0f2a4bb03a6979c3d1807d9942b25695d0c368db63b08b4320c5d033cce2c81d",
+        "currentHead": "98efe3e"
+      },
+      {
+        "id": "current:architecture-reviewer-implementation",
+        "relativePath": "src/agents/reviewers/architecture/service.ts",
+        "startLine": 15,
+        "endLine": 21,
+        "checksum": "28752da919599e3da4df3dd06b1820bdfbeffaeb372182a76d0c3e1a6b937ea7",
+        "currentHead": "98efe3e"
+      },
+      {
+        "id": "test:architecture-document-state",
+        "relativePath": "src/agents/catalog.test.ts",
+        "startLine": 94,
+        "endLine": 126,
+        "checksum": "55c8105c372f1cfa92f5fcc8044df61ac2770430922cc1c16ffca8f3a912a15b",
+        "currentHead": "98efe3e"
+      }
+    ]
+  },
+  "phaseStatus": "RESOLVED"
+}
