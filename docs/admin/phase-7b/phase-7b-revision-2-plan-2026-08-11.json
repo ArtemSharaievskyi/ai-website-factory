@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-7b-revision-2-plan",
+  "planId": "phase-7b-revision-2-2026-08-11",
+  "phase": "7B",
+  "planStatus": "READY_FOR_ONE_BOUNDED_GROUP_AT_A_TIME",
+  "baselineCommit": "bbc9e3a",
+  "sourceReconciliationIdentity": "phase-7b-semantic-reconciliation-2026-08-11",
+  "sourceReconciliationPath": "docs/admin/phase-7b/phase-7b-semantic-reconciliation-2026-08-11.json",
+  "groups": [
+    {
+      "groupId": "R2-G1-HOST_CONTEXT_AUTHENTICITY",
+      "title": "Make host context provenance host-owned",
+      "findingIds": ["7b-sec-001"],
+      "priority": 1,
+      "defectClass": "SECURITY_BOUNDARY_DEFECT",
+      "risk": "HIGH",
+      "likelyFiles": ["src/orchestration/tooling/authority.ts", "src/domain/tooling/schema.ts", "src/orchestration/tooling/executor-ids.ts"],
+      "nonGoals": ["No generic shell", "No Filesystem MCP", "No new agent", "No customer website-generation E2E", "No Phase 7C/7D/7E work"],
+      "preFixReproduction": "createToolHostContext is exported and accepts caller-supplied ToolProjectScope and trustedExecutorIds; the unique symbol brand proves only that the exported constructor was invoked.",
+      "implementationObjective": "Bind usable ToolHostContext creation to a host-owned provenance boundary while preserving project/task/workspace currentness, executor allowlisting, and fail-closed authorization.",
+      "postFixDeterministicProof": [
+        "A caller cannot create a usable trusted host context by supplying arbitrary scope or executor IDs.",
+        "Unregistered executor identities are rejected.",
+        "Stale project/version/task/workspace scope is rejected.",
+        "AgentDefinition and TaskGraph permissions remain intersections and cannot self-expand.",
+        "No generic shell, filesystem mutation, or direct write tool appears in the registry."
+      ],
+      "targetedTests": ["src/orchestration/tooling/tooling.test.ts", "focused negative host-context and authority tests"],
+      "requiredChecks": ["npm exec vitest run src/orchestration/tooling/tooling.test.ts", "npm run typecheck", "npm run lint", "npm run build", "npm test", "npm audit --audit-level=high", "git diff --check"],
+      "requiredReviewerRechecks": ["architecture-reviewer", "security-reviewer"],
+      "correctionBudget": {"maximumImplementationCycles": 1},
+      "dependsOn": [],
+      "blocks": ["R2-G2-EXTERNAL_RESULT_BOUNDARY"],
+      "canRunIndependently": true,
+      "rollbackCriteria": ["Caller-supplied identity can still authorize a tool", "The change widens tool or executor permissions", "A generic execution or mutation path is introduced", "Currentness or cancellation checks are weakened"]
+    },
+    {
+      "groupId": "R2-G2-EXTERNAL_RESULT_BOUNDARY",
+      "title": "Bound and redact external results before arbitrary materialization",
+      "findingIds": ["7b-sec-002", "7b-sec-004"],
+      "priority": 2,
+      "defectClass": "SECURITY_BOUNDARY_DEFECT",
+      "risk": "HIGH",
+      "likelyFiles": ["src/orchestration/tooling/executors.ts", "src/orchestration/tooling/adapters.ts", "src/integrations/context7/contracts.ts", "src/integrations/shadcn/contracts.ts", "src/integrations/codebase-memory/contracts.ts"],
+      "nonGoals": ["No external authority expansion", "No network discovery", "No generic command execution", "No AST patching", "No customer E2E"],
+      "preFixReproduction": "registeredOutputToToolResult serializes an arbitrary value before its 200000-byte pre-validation rejection and the redaction expression is not guaranteed to match quoted JSON secret keys.",
+      "implementationObjective": "Make external output conversion bounded and secret-aware before it can become a ToolResult, while preserving typed output schemas and UNTRUSTED_EXTERNAL provenance.",
+      "postFixDeterministicProof": [
+        "Oversized and cyclic external values fail safely without an unbounded pre-validation serialization path.",
+        "Common JSON-key forms and token/private-key patterns are redacted.",
+        "Every external adapter uses registered output validation and bounded result conversion.",
+        "ToolResult data remains within the configured maximum and contentTrust remains UNTRUSTED_EXTERNAL."
+      ],
+      "targetedTests": ["src/orchestration/tooling/tooling.test.ts", "focused oversized/cyclic/JSON-key secret output tests"],
+      "requiredChecks": ["npm exec vitest run src/orchestration/tooling/tooling.test.ts", "npm run typecheck", "npm run lint", "npm run build", "npm test", "npm audit --audit-level=high", "git diff --check"],
+      "requiredReviewerRechecks": ["security-reviewer", "code-integration-reviewer", "test-quality-reviewer"],
+      "correctionBudget": {"maximumImplementationCycles": 1},
+      "dependsOn": ["R2-G1-HOST_CONTEXT_AUTHENTICITY"],
+      "blocks": [],
+      "canRunIndependently": false,
+      "rollbackCriteria": ["External output is marked HOST_VALIDATED", "A bound still requires unbounded stringify/parser work", "Secrets remain in structured or preview output", "An adapter bypasses registered output conversion"]
+    },
+    {
+      "groupId": "R2-G3-EVIDENCE_COMPLETENESS",
+      "title": "Persist semantic evidence and prove the generated graph path",
+      "findingIds": ["contract-audit-001", "tqr-7b-003"],
+      "priority": 3,
+      "defectClass": "REVIEW_EVIDENCE_GAP_AND_TEST_EVIDENCE_GAP",
+      "risk": "MEDIUM",
+      "likelyFiles": ["docs/admin/phase-7b/phase-7b-implementation-evidence-2026-08-11.json", "src/orchestration/orchestrator/graph.ts", "src/orchestration/orchestrator/tools.ts", "src/orchestration/tooling/tooling.test.ts"],
+      "nonGoals": ["Do not invent customer-project Brief/Planning/Design/TaskGraph IDs", "Do not change Planner data contracts", "Do not start Phase 7C", "Do not mix Phase 5/6 historical findings"],
+      "preFixReproduction": "The final semantic pass is summarized but not persisted with a run ID/source snapshot, and the focused test constructs a task directly instead of invoking the generated graph builder.",
+      "implementationObjective": "Persist current review identity/checksums and add evidence that the generated TaskGraph path reaches the same capability/tool policy and compatibility boundary already covered by helper tests.",
+      "postFixDeterministicProof": [
+        "The semantic review evidence bundle identifies reviewers, provider/model, selected skill checksums, review target, and source checksums.",
+        "The generated graph builder is invoked by a focused test.",
+        "The test asserts registry-derived capabilities, canonical Context7/Playwright aliases, allowed/denied policy, and legacy filesystem/database/npm/shell compatibility behavior.",
+        "No synthetic customer lineage is used."
+      ],
+      "targetedTests": ["generated TaskGraph/tool policy focused test", "admin artifact JSON parse/checksum validation"],
+      "requiredChecks": ["npm exec vitest run <focused generated-graph test>", "npm run typecheck", "npm run lint", "npm run build", "npm test", "npm audit --audit-level=high", "git diff --check"],
+      "requiredReviewerRechecks": ["contract-auditor", "test-quality-reviewer"],
+      "correctionBudget": {"maximumImplementationCycles": 1},
+      "dependsOn": [],
+      "blocks": [],
+      "canRunIndependently": true,
+      "rollbackCriteria": ["Evidence uses invented lineage identifiers", "Historical Phase 5/6 findings are mixed into Phase 7B", "The generated graph is not actually exercised", "Pure evidence work changes production authority behavior"]
+    }
+  ],
+  "DAG": {
+    "nodes": ["R2-G1-HOST_CONTEXT_AUTHENTICITY", "R2-G2-EXTERNAL_RESULT_BOUNDARY", "R2-G3-EVIDENCE_COMPLETENESS"],
+    "edges": [
+      {"from": "R2-G1-HOST_CONTEXT_AUTHENTICITY", "to": "R2-G2-EXTERNAL_RESULT_BOUNDARY", "type": "must_complete_before"}
+    ],
+    "independentGroups": ["R2-G3-EVIDENCE_COMPLETENESS"],
+    "acyclic": true
+  },
+  "nextRecommendedGroup": "R2-G1-HOST_CONTEXT_AUTHENTICITY",
+  "maximumGroupsBeforeReconciliation": 2,
+  "phaseScope": {
+    "included": ["typed developer tools", "host-owned operations", "AgentDefinition permission boundary", "TaskGraph capability boundary", "deterministic policy", "bounded/redacted ToolResult", "currentness and cancellation", "read-only reviewer boundaries", "Phase 7B evidence"],
+    "excluded": ["customer project generation", "Phase 7C typed task/data contracts", "Phase 7D AST-aware patching", "Phase 7E QA workspace lifecycle", "deployment", "preview", "Filesystem MCP", "unrestricted shell", "new agents", "new skills"]
+  },
+  "globalNonGoals": [
+    "Do not execute a third blind correction cycle.",
+    "Do not mark Phase 7B complete before semantic closure.",
+    "Do not start Phase 7C, 7D, or 7E.",
+    "Do not clean .qa-foundation-* directories.",
+    "Do not stage .context7-cache/.",
+    "Do not run customer website-generation E2E.",
+    "Do not add a Frontend Agent, Backend Agent, Deployment Agent, Filesystem MCP, unrestricted shell, or direct write_file/edit_file path."
+  ],
+  "globalInvariants": [
+    "The agent portfolio remains nine agents and Implementation remains one agent.",
+    "Skills remain procedural context only and do not grant tools or dependencies.",
+    "ChangeProposal remains the only write authority for source mutation.",
+    "Dependency Authority remains complete and is not bypassed by Phase 7B tooling.",
+    "External integrations remain read-only/bounded where designed and produce untrusted content.",
+    "Phase 6 remains COMPLETE with 0 findings and Phase 7A remains COMPLETE."
+  ],
+  "phase7BCompletionCriteria": [
+    "R2-G1 host provenance has deterministic negative tests and Architecture/Security approval.",
+    "R2-G2 external result boundary has deterministic oversized/cyclic/secret-key tests and Security/Code/Integration/Test Quality approval.",
+    "R2-G3 evidence has a persisted current review identity and generated graph traceability accepted by Contract Auditor/Test Quality.",
+    "All deterministic validation remains green: tests, typecheck, lint, build, audit, and diff check.",
+    "A fresh authorized closure review reports no valid blocking Phase 7B findings.",
+    "Only then may Phase 7B be marked COMPLETE; Phase 7C remains the next phase."
+  ],
+  "executionInstruction": "Execute only nextRecommendedGroup in the next authorized turn. After at most two groups, stop and perform another Phase 7B.1 reconciliation before any further correction work."
+}

@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-7b-implementation-evidence",
+  "phase": "7B",
+  "title": "Developer Tooling & Capability Layer",
+  "policyVersion": "developer-tooling-policy-v1",
+  "status": "IMPLEMENTED_PENDING_SEMANTIC_CLOSURE",
+  "scope": "Factory-owned typed developer-tool registry, task capability derivation, host authorization, bounded executor dispatch, and integration contracts. No customer project generation or Phase 7C/7D/7E work.",
+  "baselineCommit": "bbc9e3a",
+  "canonicalLineage": [
+    { "artifact": "repository-canonical-brief-contract", "path": "docs/contracts/project-brief.md", "checksum": "01c7ad906582cdde2353b79c0286672622decc5a508837325b44e36631ec3bbe" },
+    { "artifact": "repository-canonical-planning-contract", "path": "docs/contracts/planning-acceptance.md", "checksum": "61828ad8e1290006c3ad44bae35e1f43b3839a44c916e2ebd43d582325ef2e9f" },
+    { "artifact": "factory-agent-architecture", "path": "docs/architecture/agent-architecture.md", "checksum": "1abc5918f121b8411581f0e3081dedb25bb8b3d08247425df6ef165d3554cf86" },
+    { "artifact": "phase-7b-architecture", "path": "docs/architecture/developer-tooling-capability-layer.md", "checksum": "b681341308342df833c2f425d102aa6f3918a683e9b50006e7d1525ccdf6a5ba" }
+  ],
+  "implementationArtifacts": [
+    { "path": "src/domain/tooling/schema.ts", "checksum": "6e76f7325e2f86badd8a6f42782ca6aae2bf0cbf0bd2d3af09bed0c6cba34d1e", "responsibility": "Tool, operation, capability, request, host-scope, and bounded result contracts." },
+    { "path": "src/orchestration/tooling/registry.ts", "checksum": "263df9566773bae4ecd9e97d25b21d689585c9869df148ce0dc3c57079902aab", "responsibility": "Immutable tool/capability registry, typed schema references, executor references, and registry invariants." },
+    { "path": "src/orchestration/tooling/authority.ts", "checksum": "a63aa06ea7210f7a2feee210e08cee679a50ddf2ebadf64176e7185dbad9108e", "responsibility": "Fail-closed identity, host-context, task-capability, agent-tool, input, and file-scope authorization." },
+    { "path": "src/orchestration/tooling/adapters.ts", "checksum": "b6871d94b5c23febad90f9ba9e5c249f6bf19f0ab02f9725b40f2e8677ced221", "responsibility": "Discriminated host dispatch to existing Context7, shadcn, Codebase Memory, and Functional QA ports." },
+    { "path": "src/orchestration/orchestrator/graph.ts", "checksum": "e419c2d8034cca220936239537a1ebe631217a296f69bb226c8a23ad80744101", "responsibility": "TaskGraph capability derivation and host-controlled runtime tool permissions." },
+    { "path": "src/orchestration/tooling/tooling.test.ts", "checksum": "1d1ef5979b611c359dc0a7fdef16256652fd1005e11f9b5d0e22ba9a3968ba52", "responsibility": "Registry, authority, path, result, adapter, and generated-policy boundary tests." }
+  ],
+  "traceability": [
+    { "requirement": "No generic shell/filesystem mutation tool", "authority": "ToolRegistryError and ChangeProposal boundary", "evidence": ["src/orchestration/tooling/registry.ts", "docs/architecture/developer-tooling-capability-layer.md"] },
+    { "requirement": "Task capability and agent permission are separate intersections", "authority": "CAPABILITY_REGISTRY, AgentDefinition.allowedTools, authorizeToolRequest", "evidence": ["src/orchestration/tooling/authority.ts", "src/domain/agents/schema.ts"] },
+    { "requirement": "Generated commands remain fixed host runtime operations", "authority": "GeneratedProjectRuntimeValidator and registered-runtime executor", "evidence": ["src/orchestration/tooling/executors.ts", "src/runtime/validation/contracts.ts"] },
+    { "requirement": "External integration content remains bounded and untrusted", "authority": "operation output schemas, pre-validation size guard, ToolResult.contentTrust", "evidence": ["src/orchestration/tooling/adapters.ts", "src/orchestration/tooling/executors.ts", "src/integrations/context7/contracts.ts", "src/integrations/shadcn/contracts.ts", "src/integrations/codebase-memory/contracts.ts"] }
+  ],
+  "semanticReview": {
+    "freshProviderCallsPerBoundedPass": 5,
+    "boundedCorrectionCyclesUsed": 2,
+    "lastPassEvidenceValid": true,
+    "lastPassResults": [
+      { "reviewer": "architecture-reviewer", "verdict": "CHANGES_REQUIRED", "findingCount": 3 },
+      { "reviewer": "contract-auditor", "verdict": "BLOCKED", "findingCount": 1 },
+      { "reviewer": "code-integration-reviewer", "verdict": "CHANGES_REQUIRED", "findingCount": 3 },
+      { "reviewer": "security-reviewer", "verdict": "CHANGES_REQUIRED", "findingCount": 4 },
+      { "reviewer": "test-quality-reviewer", "verdict": "CHANGES_REQUIRED", "findingCount": 3 }
+    ],
+    "closureNote": "The final bounded reviewer pass was executed before the last deterministic post-review hardening edits. A further provider correction pass was intentionally not run after the two-cycle limit; phase closure therefore remains pending a fresh semantic review in the next authorized review window."
+  },
+  "validation": {
+    "focusedToolingAndIntegrationTests": "PASS",
+    "typecheck": "PASS",
+    "lint": "PASS with 0 errors and 3 pre-existing warnings",
+    "fullTests": "PASS: npm test, 72 files, 866 tests",
+    "build": "PASS: npm run build, Next.js 16.2.12",
+    "audit": "PASS: npm audit --audit-level=high, 0 vulnerabilities",
+    "customerWebsiteGenerationE2E": "NOT RUN by scope"
+  },
+  "next": "Fresh semantic closure review, then Phase 7C only after approval."
+}
