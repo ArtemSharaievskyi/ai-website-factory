@@ -1,0 +1,223 @@
+{
+  "schemaVersion": 1,
+  "documentType": "r2-g2-final-evidence-completion-plan",
+  "planId": "r2-g2-final-evidence-completion-2026-08-11",
+  "status": "BLOCKED_FINAL_EVIDENCE_COMPLETION_READY",
+  "generatedOn": "2026-08-11",
+  "baselineHead": "18baf4c82a0b3926e15dbf59cb4697ff2e7c4223",
+  "sourceCorrectionResultIdentity": {
+    "path": "docs/admin/phase-7b/r2-g2-o2-o4-correction-result-2026-08-11.json",
+    "sha256": "EA627106A0E4E16372FF2065124D36A29160C2087BD0B9913EEE10882096942C",
+    "status": "BLOCKED_REVIEW"
+  },
+  "sourceCandidateId": "r2-g2-o2-o4-corrected-candidate-2026-08-11",
+  "sourceCandidateChecksum": "2b58d78110cc8eaaa17e221a15dcdd4827f4d504a466e9480e4e99d48380bbd4",
+  "candidateFileCount": 16,
+  "candidatePreservation": { "allHashesMatch": true, "sourceOrTestMutationThisRun": false },
+  "candidateFiles": [
+    { "path": "src/integrations/codebase-memory/codebase-memory.test.ts", "sha256": "3854214f7c40d5232a6b87cddd638da86cdfda64366c00b3ae0f60ef9d0d1955" },
+    { "path": "src/integrations/codebase-memory/service.ts", "sha256": "41abee723160bec395fd79534aeaac3e488b35c00451b9bc21a2fe21efdb5557" },
+    { "path": "src/integrations/codebase-memory/transport.ts", "sha256": "bb6b4b6262c0f6122a015e163eb4f01674f2610f4ae0f4dd092dae18cc052277" },
+    { "path": "src/integrations/context7/cache.ts", "sha256": "34363c1adbd116938e76e03b762f1cedf6a800734fc6fde7785157ae284e95e6" },
+    { "path": "src/integrations/context7/context7.test.ts", "sha256": "e5fd8f047852eebbab4a39d95206b9b4a70992a96878c503afa64e475690db7b" },
+    { "path": "src/integrations/context7/contracts.ts", "sha256": "af8442cd5368902188779d478dad5f78c7dcea1e727c7873ad26ae52b5bab238" },
+    { "path": "src/integrations/context7/normalize.ts", "sha256": "0a8bbd9d330e579f3c86f23454f4cf704d791c2cf8865b55cd0d545ba78fef30" },
+    { "path": "src/integrations/context7/service.ts", "sha256": "a1d78e068129ccc7a4d04ece9f329c45746cc4f46ab80bd61a1fe0c116135f59" },
+    { "path": "src/integrations/shadcn/cache.ts", "sha256": "67b9ca28c796593d83b17cedc2370ed0fb10b59feddcc8e55aceadb0694a3a39" },
+    { "path": "src/integrations/shadcn/contracts.ts", "sha256": "d0fb0a5d72cf7cc7fcea4557f012353d140325bea50c0aa374519b2d82403355" },
+    { "path": "src/integrations/shadcn/server.ts", "sha256": "681e9f97b84c6cadf93754ce4d47600325f35368899a3c4c28bfd125336ee5f6" },
+    { "path": "src/integrations/shadcn/service.ts", "sha256": "7b9259d85b584805f198bc89d1666d8ee3c49bc8965aa808cd584806f3e4587a" },
+    { "path": "src/integrations/shadcn/shadcn-registry.test.ts", "sha256": "d572835b4ad8f0d690d12db9bc45cce732e05d0c79ea0990e79ab8bfbe2971cc" },
+    { "path": "src/orchestration/tooling/adapters.ts", "sha256": "3cfce5d4b2a18a2952f9eda0b9db95be277d5acf4972e18e5399491079e73659" },
+    { "path": "src/orchestration/tooling/executors.ts", "sha256": "11f9f8660b60a28e0f012c674669b4b94378097cf3d904bb5e52dda750d4a3b5" },
+    { "path": "src/orchestration/tooling/tooling.test.ts", "sha256": "c48788f27a8d81bfc65d414ca1144d078ab32333b9be64aa559eec20bbbf9d6f" }
+  ],
+  "frozenObligations": {
+    "count": 7,
+    "O1": "PASS",
+    "O2": "DETERMINISTIC_PASS_EVIDENCE_INCOMPLETE",
+    "O3": "PASS",
+    "O4": "IMPLEMENTATION_PASS_DIRECT_NESTED_EVIDENCE_MISSING",
+    "O5": "PASS",
+    "O6": "PASS",
+    "O7": "PASS",
+    "newObligationCount": 0
+  },
+  "o2": {
+    "behavioralStatus": "DETERMINISTIC_PASS",
+    "productionChangeRequired": false,
+    "currentTests": [
+      "src/integrations/codebase-memory/codebase-memory.test.ts:63-67",
+      "src/integrations/codebase-memory/codebase-memory.test.ts:79-80"
+    ],
+    "currentProductionReferences": [
+      "src/integrations/codebase-memory/service.ts:31-40",
+      "src/integrations/codebase-memory/service.ts:112-139"
+    ],
+    "invalidEvidenceReferences": [
+      "src/integrations/context7/cache.ts",
+      "src/integrations/context7/context7.test.ts",
+      "src/integrations/context7/contracts.ts",
+      "src/integrations/context7/normalize.ts",
+      "src/integrations/context7/service.ts",
+      "src/integrations/shadcn/cache.ts",
+      "src/integrations/shadcn/contracts.ts",
+      "src/integrations/shadcn/server.ts",
+      "src/integrations/shadcn/service.ts",
+      "src/integrations/shadcn/shadcn-registry.test.ts",
+      "src/orchestration/tooling/adapters.ts",
+      "src/orchestration/tooling/executors.ts",
+      "src/orchestration/tooling/tooling.test.ts"
+    ],
+    "invalidReferenceReasons": {
+      "classification": "UNSUPPORTED_REFERENCE_TYPE / REFERENCE_NORMALIZATION_ERROR",
+      "reason": "Each reference is a repository path present in the manifest but lacks the required :start[-end] line range. No stale path, checksum mismatch, candidate mismatch, or evidence-pack checksum mismatch was found.",
+      "reviewExecutionId": null,
+      "reviewExecutionIdStatus": "not persisted by the prior run; do not invent one"
+    },
+    "evidenceValidatorContract": {
+      "function": "scripts/factory-self-review.ts:631-662",
+      "acceptedFormat": "repository-relative path:start-end or path:start",
+      "manifestRequirements": "path must be present in the immutable manifest; range must be positive and within manifest lineCount",
+      "excluded": ["admin evidence paths", "absolute paths", "bare paths", "opaque evidence-pack IDs", "property selectors", "candidate/checksum labels"]
+    },
+    "validFutureReferences": [
+      "src/integrations/codebase-memory/service.ts:31-40",
+      "src/integrations/codebase-memory/service.ts:112-139",
+      "src/integrations/codebase-memory/codebase-memory.test.ts:63-67",
+      "src/integrations/codebase-memory/codebase-memory.test.ts:79-80"
+    ],
+    "newTestRequired": false,
+    "finalEvidenceAction": "Rebuild the evidence pack with only manifest-bound line references, validate every reference before reviewer calls, and keep O2 production/test source unchanged."
+  },
+  "o4": {
+    "implementationStatus": "COMPLETE_BY_SOURCE_INSPECTION",
+    "productionChangeRequired": false,
+    "sourceLocationType": "CodeRelationship.sourceLocation?: Partial<CodeSymbolReference>",
+    "sourceLocationFields": {
+      "symbol": "string, optional under partial schema, externally sourced and redacted",
+      "kind": "string, optional under partial schema, externally sourced and redacted",
+      "file": "string, optional under partial schema, externally sourced and redacted",
+      "lineStart": "positive integer, numeric location metadata preserved",
+      "lineEnd": "positive integer, numeric location metadata preserved",
+      "exported": "boolean metadata preserved",
+      "signatureSummary": "string max 1000, externally sourced and redacted",
+      "checksum": "optional 64-hex technical checksum preserved"
+    },
+    "redactedFields": ["sourceLocation.symbol", "sourceLocation.kind", "sourceLocation.file", "sourceLocation.signatureSummary"],
+    "currentRedactionReferences": ["src/integrations/codebase-memory/service.ts:282-302"],
+    "currentTests": ["src/integrations/codebase-memory/codebase-memory.test.ts:76-77"],
+    "missingDirectEvidence": "The current public normalizer does not populate sourceLocation, and the O4 persistence test does not seed a normalized relationship containing sourceLocation. The redaction implementation handles the field, but persisted cache[].result is not directly asserted for this nested path.",
+    "requiredFutureTest": {
+      "file": "src/integrations/codebase-memory/codebase-memory.test.ts",
+      "change": "Extend the existing O4 persistence test, using the existing test seam, with a normalized relationship whose sourceLocation contains synthetic secret-like values in symbol, kind, file, and signatureSummary plus ordinary control values.",
+      "assertions": [
+        "persisted .codebase-memory/<workspace-identity-hash>/codebase-memory.json cache[].result.relationships[].sourceLocation contains no synthetic marker",
+        "canonical [REDACTED] output is present",
+        "ordinary nested file/symbol/signature control remains meaningful",
+        "lineStart, lineEnd, exported, and checksum remain unchanged",
+        "restart/cache-hit retrieval does not reintroduce the marker"
+      ],
+      "testOnlySeam": "Seed an already-normalized CodebaseMemoryResult through the existing in-memory persistence seam; do not modify production normalization solely to manufacture an unreachable fixture."
+    },
+    "restartCacheRequirement": "YES; extend the existing restart/cache-hit assertion in the same test rather than creating a second test.",
+    "nonSecretControl": "A normal nested sourceLocation such as symbol ContactForm, file src/actions/stats.ts, and ordinary signature remains present.",
+    "numericMetadataRequirement": "Preserve lineStart/lineEnd and other numeric/boolean/technical checksum fields.",
+    "finalEvidenceAction": "One minimal test-only extension, then rebuild and prevalidate the same-candidate evidence pack."
+  },
+  "contractEvidence": {
+    "invalidReferences": [
+      "r2-g2-frozen-closure-contract-2026-08-11",
+      "r2-g2-o2-o4-corrected-candidate-2026-08-11:2b58d78110cc8eaaa17e221a15dcdd4827f4d504a466e9480e4e99d48380bbd4",
+      "r2-g2-o2-o4-evidence-pack-2026-08-11:a40ab00ca3be3dee7ae8d799a9382cacb6977ac3d0b26f3b703cbc14d7fa889d",
+      "evidencePack.frozenContract.activeCorrectionIds",
+      "evidencePack.correctionScope.mutableFiles",
+      "evidencePack.correctionScope.immutableRegressionFiles",
+      "evidencePack.candidate.manifest",
+      "r2g2-o2-o4:03:src/integrations/codebase-memory/contracts.ts",
+      "r2g2-o2-o4:04:src/integrations/codebase-memory/metadata.ts"
+    ],
+    "rootCause": "The same evidence-pack generation defect mixed opaque artifact/property references with manifest-bound path ranges.",
+    "adjacentFindingId": "contract-audit-001",
+    "adjacentRoute": "R2-G3 / future hardening",
+    "blocksR2G2": false,
+    "futureContractCall": "Fresh future call required because prior evidence was invalid and the next candidate/evidence identity must be shared by all reviewers."
+  },
+  "evidencePack": {
+    "currentPackId": "r2-g2-o2-o4-evidence-pack-2026-08-11",
+    "currentPackChecksum": "a40ab00ca3be3dee7ae8d799a9382cacb6977ac3d0b26f3b703cbc14d7fa889d",
+    "currentValidationFailures": { "codeIntegration": 13, "testQuality": 8, "contractAuditor": 9, "security": 0 },
+    "rootCause": "Opaque pack IDs, property selectors, bare paths, and non-line references were allowed to reach reviewer output; the prior runner did not require a clean deterministic evidence namespace before calls.",
+    "requiredFutureGeneration": [
+      "Bind pack to the exact candidate ID, 16-file manifest, per-file checksums, and aggregate checksum.",
+      "Expose citeable references only as validated repository-relative path ranges.",
+      "Keep pack IDs, candidate IDs, obligation IDs, and checksums as metadata, never as evidenceRefs.",
+      "Limit reviewer evidence to the bounded O2/O4 source/test slices and immutable regression references actually needed."
+    ],
+    "preReviewerValidationGate": "Build pack -> validate every citeable reference against the current immutable manifest and lineCount -> require zero invalid references and evidenceValid=true -> freeze pack checksum -> call reviewers."
+  },
+  "issueCounts": {
+    "productionDefects": 0,
+    "regressions": 0,
+    "testEvidenceGaps": 1,
+    "evidenceProtocolGaps": 1,
+    "reviewerOutputsWithProtocolFailure": 3,
+    "r2g3Adjacent": 1,
+    "futureHardening": 1,
+    "staleDuplicate": 0
+  },
+  "futureCorrectionType": "R2-G2-FINAL-EVIDENCE-COMPLETION / TEST-ONLY O4 EVIDENCE PLUS EVIDENCE-PACK REPAIR",
+  "futureProductionFiles": [],
+  "futureTestFiles": ["src/integrations/codebase-memory/codebase-memory.test.ts"],
+  "futureMutableFiles": ["src/integrations/codebase-memory/codebase-memory.test.ts"],
+  "futureTestSteps": [
+    "Extend the existing O4 test with an already-normalized relationship sourceLocation fixture.",
+    "Assert persisted cache[].result nested marker absence, [REDACTED], ordinary control, and numeric/technical metadata preservation.",
+    "Assert the same nested result remains redacted after restart/cache hit.",
+    "Do not add an O2 test; reuse current O2 direct service and positive references.",
+    "Run O1/O2/O3/O4/O5/O6/O7 focused guards, typecheck, lint, build, and git diff --check."
+  ],
+  "futureCandidateFreezePolicy": {
+    "newCandidateRequiredIfTestChanges": true,
+    "oldCandidateCannotBeReused": true,
+    "candidateFileCount": 16,
+    "candidateMustIncludeCompleteInherited16FileSet": true,
+    "candidateMustExcludeTransientAndHistoricalArtifacts": true,
+    "allReviewersSameCandidate": true
+  },
+  "futureEvidencePackChecksumPolicy": {
+    "candidateChecksumBound": true,
+    "perFileChecksumsBound": true,
+    "sourceSliceChecksumsBound": true,
+    "lineRangesValidatedBeforeReview": true,
+    "samePackForAllReviewers": true,
+    "evidenceValidRequiredBeforeReviewerCalls": true,
+    "reviewerOutputReferencesMustAlsoValidate": true
+  },
+  "futureReviewerCurrentnessPlan": {
+    "code-integration-reviewer": "MUST_RERUN; prior APPROVED output had invalid evidence and candidate/evidence identity must be refreshed.",
+    "test-quality-reviewer": "MUST_RERUN; direct O4 nested sourceLocation evidence is being completed.",
+    "security-reviewer": "MUST_RERUN; prior approval must bind to the final candidate/evidence pack.",
+    "contract-auditor": "MUST_RERUN; prior evidence was invalid and same-candidate closure is required.",
+    "architecture-reviewer": "NOT_REQUIRED; no architecture or production scope change."
+  },
+  "futureReviewerScopes": {
+    "code-integration-reviewer": ["O2 validated service-boundary references", "O4 test-only redaction evidence", "no production change"],
+    "test-quality-reviewer": ["O2 existing proof", "O4 nested sourceLocation persisted/reloaded proof", "meaningful assertions"],
+    "security-reviewer": ["O4 nested redaction and host metadata preservation", "O2 rejection-before-persistence"],
+    "contract-auditor": ["O2/O4 traceability", "same validated evidence identity", "no new obligation", "R2-G3 remains separate"]
+  },
+  "requiredDeterministicGates": ["O1 guard", "O2 guard", "O3 guard", "O4 full redaction test set", "O5 guard", "O6 guard", "O7 guard", "typecheck", "lint", "build", "git diff --check", "new candidate checksum"],
+  "fullValidationPosition": "Only after all seven frozen obligations are semantically closed with evidenceValid=true for the same candidate/evidence pack.",
+  "acceptedCommitPolicy": "Only after 7/7 closure, valid evidence, full validation, unchanged candidate checksum; stage the complete 16-file accepted candidate explicitly.",
+  "correctionBudget": { "maximumFinalEvidenceCycles": 1, "productionCorrectionCycles": 0, "automaticRetry": false, "reviewFixReviewLoop": false },
+  "nonGoals": ["No production source change", "No O2 test addition", "No reviewer call in reconciliation", "No full validation in reconciliation", "No O8/O9", "No R2-G3", "No Phase 7C/7D/7E", "No cleanup", "No customer E2E", "No deployment", "No new dependency/agent/reviewer/skill/MCP/provider/framework"],
+  "r2g3Status": "NOT_EXECUTED",
+  "nextAction": "R2-G2 FINAL EVIDENCE COMPLETION — EXECUTE",
+  "artifacts": {
+    "machinePlan": "docs/admin/phase-7b/r2-g2-final-evidence-completion-plan-2026-08-11.json",
+    "humanReport": "docs/admin/phase-7b/r2-g2-final-evidence-completion-plan-2026-08-11.md",
+    "sourceCorrectionResult": "docs/admin/phase-7b/r2-g2-o2-o4-correction-result-2026-08-11.json",
+    "sourceCorrectionReport": "docs/admin/phase-7b/r2-g2-o2-o4-correction-result-2026-08-11.md"
+  }
+}

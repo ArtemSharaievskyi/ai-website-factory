@@ -4,9 +4,9 @@
   "generatedOn": "2026-08-11",
   "phase": "7B",
   "revision": "2",
-  "state": "FROZEN_O2_O4_CORRECTION_READY",
-  "sourcePlanIdentity": "r2-g2-final-transport-closure-2026-08-11",
-  "sourcePlanPath": "docs/admin/phase-7b/r2-g2-final-transport-closure-plan-2026-08-11.json",
+  "state": "BLOCKED_FINAL_EVIDENCE_COMPLETION_READY",
+  "sourcePlanIdentity": "r2-g2-final-evidence-completion-2026-08-11",
+  "sourcePlanPath": "docs/admin/phase-7b/r2-g2-final-evidence-completion-plan-2026-08-11.json",
   "sourceReconciliationIdentity": "phase-7b-semantic-reconciliation-2026-08-11",
   "reconciliationStatus": "COMPLETE",
   "reconciliationBaselineHead": "2046614",
@@ -239,6 +239,26 @@
     "r2g3Executed": false,
     "nextAction": "R2-G2 FROZEN O2/O4 CORRECTION — EXECUTE"
   },
+  "finalEvidenceCompletionPlan": {
+    "planId": "r2-g2-final-evidence-completion-2026-08-11",
+    "status": "BLOCKED_FINAL_EVIDENCE_COMPLETION_READY",
+    "path": "docs/admin/phase-7b/r2-g2-final-evidence-completion-plan-2026-08-11.json",
+    "reportPath": "docs/admin/phase-7b/r2-g2-final-evidence-completion-plan-2026-08-11.md",
+    "baselineHead": "18baf4c82a0b3926e15dbf59cb4697ff2e7c4223",
+    "candidateId": "r2-g2-o2-o4-corrected-candidate-2026-08-11",
+    "candidateChecksum": "2b58d78110cc8eaaa17e221a15dcdd4827f4d504a466e9480e4e99d48380bbd4",
+    "candidateFileCount": 16,
+    "productionDefects": 0,
+    "regressions": 0,
+    "testEvidenceGaps": 1,
+    "evidenceProtocolGaps": 1,
+    "futureProductionFiles": [],
+    "futureTestFiles": ["src/integrations/codebase-memory/codebase-memory.test.ts"],
+    "freshGptCallsThisReconciliation": 0,
+    "r2g2RemainsBlocked": true,
+    "r2g3Executed": false,
+    "nextAction": "R2-G2 FINAL EVIDENCE COMPLETION — EXECUTE"
+  },
   "remainingValidFindings": [
     {
       "findingId": "tqr-r2-g2-production-composition-001",
@@ -305,7 +325,7 @@
     }
   ],
   "newlyUnblockedGroups": [],
-  "nextRecommendedGroup": "R2-G2 FROZEN O2/O4 CORRECTION",
+  "nextRecommendedGroup": "R2-G2 FINAL EVIDENCE COMPLETION",
   "validActiveFindingCount": 13,
   "globalRevisionPolicy": {
     "maximumGroupsBeforeReconciliation": 2,
