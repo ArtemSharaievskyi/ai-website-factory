@@ -10,6 +10,34 @@ import { ContractAuditService } from "./reviewers/contracts/service";
 import { CodeIntegrationReviewService } from "./reviewers/code-integration/service";
 import { SecurityReviewService } from "./reviewers/security/service";
 import { TestQualityReviewService } from "./reviewers/test-quality/service";
+import { OpenAiStructuredClient } from "@/integrations/openai/client";
+import { OpenAiTestQualityReviewProvider } from "@/integrations/openai/adapters";
+import { TestQualityReviewProviderOutputSchema } from "@/domain/review/schema";
+
+const reviewerClientConfig = { apiKey: "test-key", model: "test-model", modelLabel: "test", maxRetries: 0, maxConcurrentRequests: 1 };
+const validTestQualityOutput = {
+  verdict: "APPROVED" as const,
+  findings: [],
+  reviewedArtifactRefs: ["test:catalog-reviewer-execution"],
+  policyVersion: "test-quality-review-v1",
+  blockedReason: null,
+};
+
+function reviewerClient(output: unknown) {
+  return new OpenAiStructuredClient(reviewerClientConfig, {
+    client: {
+      chat: {
+        completions: {
+          parse: async () => ({
+            id: "req_catalog_reviewer",
+            choices: [{ message: { parsed: output }, finish_reason: "stop" }],
+            usage: {},
+          }),
+        },
+      },
+    } as never,
+  });
+}
 
 describe("typed agent catalog", () => {
   it("contains exactly the nine current agents", () => expect(agentCatalog.map((agent) => agent.agentId)).toEqual(["lead", "planner", "design", "implementation", "architecture-reviewer", "contract-auditor", "code-integration-reviewer", "security-reviewer", "test-quality-reviewer"]));
@@ -69,5 +97,13 @@ describe("typed agent catalog", () => {
     expect(Object.create(CodeIntegrationReviewService.prototype).getAgentDefinition()).toBe(codeIntegrationReviewerAgentDefinition);
     expect(Object.create(SecurityReviewService.prototype).getAgentDefinition()).toBe(securityReviewerAgentDefinition);
     expect(Object.create(TestQualityReviewService.prototype).getAgentDefinition()).toBe(testQualityReviewerAgentDefinition);
+  });
+  it("executes the Test / Quality reviewer adapter and accepts only its strict output contract", async () => {
+    const result = await new OpenAiTestQualityReviewProvider(reviewerClient(validTestQualityOutput)).review({ idempotencyKey: "catalog-reviewer-execution" } as never);
+    expect(TestQualityReviewProviderOutputSchema.parse(result)).toEqual(validTestQualityOutput);
+    expect(result.verdict).toBe("APPROVED");
+  });
+  it("rejects malformed Test / Quality reviewer output instead of promoting it", async () => {
+    await expect(new OpenAiTestQualityReviewProvider(reviewerClient({ ...validTestQualityOutput, verdict: "APPROVED", unexpected: true })).review({ idempotencyKey: "catalog-reviewer-malformed-output" } as never)).rejects.toMatchObject({ code: "AI_OUTPUT_DOMAIN_INVALID" });
   });
 });
