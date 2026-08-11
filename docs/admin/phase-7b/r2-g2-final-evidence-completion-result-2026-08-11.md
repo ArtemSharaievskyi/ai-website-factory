@@ -113,7 +113,8 @@ The `.qa-foundation-*` count remained 18 before the test-only change, after targ
 
 - Planning commit: `d9d6871dbc7a74a3448f774477f2296e69fbf340`
 - Accepted implementation commit: `be97c3839a494efe2d75d0edb029b2d5f7b9d009`
-- Admin closure commit: recorded after this result and state update
+- Admin closure commit: `da8e832aec32b2055c7b69d061b59c01cda3d78b`
+- State routing follow-up: `493379b` (`R2-G3-EVIDENCE_COMPLETENESS`)
 
 PHASE 7B / R2-G2 FINAL EVIDENCE COMPLETION: COMPLETE
 
