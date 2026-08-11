@@ -1,0 +1,254 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-7b-r2-g2-final-semantic-closure-plan",
+  "generatedOn": "2026-08-11",
+  "phase": "7B",
+  "reconciliationId": "R2-G2.4-FINAL-SEMANTIC-RECONCILIATION",
+  "planId": "r2-g2-final-semantic-closure-2026-08-11",
+  "planStatus": "READY_FOR_ONE_FINAL_BOUNDED_EXECUTION",
+  "baselineHead": "2046614",
+  "freshGptCallsThisReconciliation": 0,
+  "sourceFinalTransportResultIdentity": {
+    "path": "docs/admin/phase-7b/r2-g2-final-transport-closure-result-2026-08-11.json",
+    "status": "BLOCKED",
+    "reviewVerificationPath": "docs/admin/phase-7b/r2-g2-final-transport-closure-review-verification-2026-08-11.json",
+    "freshProviderCalls": 4,
+    "reusedProviderCalls": 0,
+    "evidenceValid": true
+  },
+  "candidateFiles": [
+    { "path": "src/integrations/codebase-memory/codebase-memory.test.ts", "role": "test", "currentSha256": "71c7f4d9f793730f0114e6baf40ab29ac59d3138d2544c74d1c041309d386b1a" },
+    { "path": "src/integrations/codebase-memory/service.ts", "role": "production", "currentSha256": "77ff5d9b6298c6f2bcdb825072171c81d63389746b91efe9d2ed03f179ccc1bd" },
+    { "path": "src/integrations/codebase-memory/transport.ts", "role": "production", "currentSha256": "040b0532aecbe365f0606cce268d9fdc38698fe6411c25579523fc558e4ae507" },
+    { "path": "src/integrations/context7/context7.test.ts", "role": "test", "currentSha256": "e5fd8f047852eebbab4a39d95206b9b4a70992a96878c503afa64e475690db7b" },
+    { "path": "src/integrations/context7/contracts.ts", "role": "production", "currentSha256": "af8442cd5368902188779d478dad5f78c7dcea1e727c7873ad26ae52b5bab238" },
+    { "path": "src/integrations/context7/normalize.ts", "role": "production", "currentSha256": "0a8bbd9d330e579f3c86f23454f4cf704d791c2cf8865b55cd0d545ba78fef30" },
+    { "path": "src/integrations/context7/service.ts", "role": "production", "currentSha256": "a1d78e068129ccc7a4d04ece9f329c45746cc4f46ab80bd61a1fe0c116135f59" },
+    { "path": "src/integrations/shadcn/contracts.ts", "role": "production", "currentSha256": "d0fb0a5d72cf7cc7fcea4557f012353d140325bea50c0aa374519b2d82403355" },
+    { "path": "src/integrations/shadcn/server.ts", "role": "production", "currentSha256": "681e9f97b84c6cadf93754ce4d47600325f35368899a3c4c28bfd125336ee5f6" },
+    { "path": "src/integrations/shadcn/service.ts", "role": "production", "currentSha256": "7b9259d85b584805f198bc89d1666d8ee3c49bc8965aa808cd584806f3e4587a" },
+    { "path": "src/integrations/shadcn/shadcn-registry.test.ts", "role": "test", "currentSha256": "d572835b4ad8f0d690d12db9bc45cce732e05d0c79ea0990e79ab8bfbe2971cc" },
+    { "path": "src/orchestration/tooling/adapters.ts", "role": "production", "currentSha256": "3cfce5d4b2a18a2952f9eda0b9db95be277d5acf4972e18e5399491079e73659" },
+    { "path": "src/orchestration/tooling/executors.ts", "role": "production", "currentSha256": "11f9f8660b60a28e0f012c674669b4b94378097cf3d904bb5e52dda750d4a3b5" },
+    { "path": "src/orchestration/tooling/tooling.test.ts", "role": "test", "currentSha256": "b3b310e499e3b8d2b6794f7c44e36ea309e4b87682cddd0cbbbff021b9c14693" }
+  ],
+  "candidatePreservation": {
+    "candidateFileCount": 14,
+    "startHashesCaptured": true,
+    "endHashesRequired": true,
+    "candidateMustRemainByteForByteUnchanged": true,
+    "verifiedUnchangedAllCandidates": "14/14",
+    "verifiedUnchangedNonMutableCandidates": "12/12",
+    "knownTransientPaths": [".context7-cache/"],
+    "qaFoundationDirectoryCount": 18
+  },
+  "currentReviewerState": {
+    "codeIntegration": { "verdict": "APPROVED", "identityChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945", "current": true },
+    "testQuality": { "verdict": "CHANGES_REQUIRED", "findingIds": ["tqr-r2-g2-production-composition-001"] },
+    "security": { "verdict": "CHANGES_REQUIRED", "findingIds": ["sec-7b-001", "sec-7b-002", "sec-7b-003", "sec-7b-004"] },
+    "contractAuditor": { "verdict": "CHANGES_REQUIRED", "findingIds": ["r2-g2-final-transport-closure-f001", "r2-g2-final-transport-closure-f002", "r2-g2-final-transport-closure-f003"] }
+  },
+  "allReviewerFindings": [
+    {
+      "findingId": "tqr-r2-g2-production-composition-001",
+      "reviewer": "test-quality-reviewer",
+      "severity": "ERROR",
+      "category": "CRITICAL_FLOW_NOT_VERIFIED",
+      "exactClaim": "Real process overflow handling and service oversized-string handling are proven independently, but the complete oversized child stdout through service rejection and downstream suppression is not proven.",
+      "evidenceReferences": ["src/integrations/codebase-memory/codebase-memory.test.ts", "deterministicEvidence.transportProof"],
+      "currentClassification": "MISSING_TEST_EVIDENCE",
+      "normalizedGroup": "R2-G2.4-COMPOSED-PROCESS-SERVICE-EVIDENCE",
+      "requiredAction": "Add one real child-process-to-CodebaseMemoryService oversized scenario with no normalization, cache, persistence, completion event, or ToolResult continuation."
+    },
+    {
+      "findingId": "sec-7b-001",
+      "reviewer": "security-reviewer",
+      "severity": "ERROR",
+      "category": "SECRET_EXPOSURE",
+      "exactClaim": "spawn without an explicit env inherits the parent environment and may expose Factory secrets to the configured Codebase Memory executable.",
+      "evidenceReferences": ["src/integrations/codebase-memory/transport.ts:spawn"],
+      "currentClassification": "ACTUAL_PRODUCTION_DEFECT",
+      "normalizedGroup": "R2-G2.4-CHILD-TRUST-LIFECYCLE",
+      "requiredAction": "Identify required child variables, then pass an explicit minimal environment; never inherit the full Factory environment by default."
+    },
+    {
+      "findingId": "sec-7b-002",
+      "reviewer": "security-reviewer",
+      "severity": "ERROR",
+      "category": "EXTERNAL_INPUT_HANDLING",
+      "exactClaim": "stderr is piped but never consumed, and timeout/cancellation leaves the child running.",
+      "evidenceReferences": ["src/integrations/codebase-memory/transport.ts:stdio and call timeout/abort"],
+      "currentClassification": "ACTUAL_PRODUCTION_DEFECT_WITH_EVIDENCE_GAP",
+      "normalizedGroup": "R2-G2.4-CHILD-TRUST-LIFECYCLE",
+      "requiredAction": "Make stderr non-blocking and bounded or explicitly ignored, and add deterministic timeout/overflow lifecycle proof while preserving shared-request cancellation isolation."
+    },
+    {
+      "findingId": "sec-7b-003",
+      "reviewer": "security-reviewer",
+      "severity": "WARNING",
+      "category": "AUTHENTICATION_FLOW",
+      "exactClaim": "getIndexStatus ignores its signal and shared index work can return an uncancellable existing promise; transport cancellation removes a pending request but leaves shared child work running.",
+      "evidenceReferences": ["src/integrations/codebase-memory/service.ts:getIndexStatus/index/limited", "src/integrations/codebase-memory/transport.ts:call abort"],
+      "currentClassification": "ACTUAL_PRODUCTION_DEFECT_FOR_STATUS_AND_SHARED_INDEX; ALREADY_COVERED_FOR_PENDING-REQUEST ISOLATION",
+      "normalizedGroup": "R2-G2.4-CANCELLATION-ISOLATION",
+      "requiredAction": "Honor status cancellation and isolate shared index callers without killing unrelated requests; document and test orphan-response handling."
+    },
+    {
+      "findingId": "sec-7b-004",
+      "reviewer": "security-reviewer",
+      "severity": "ERROR",
+      "category": "SECRET_EXPOSURE",
+      "exactClaim": "Normalized external output and source excerpts may be persisted to caches/metadata before output-time redaction.",
+      "evidenceReferences": ["src/integrations/context7/cache.ts", "src/integrations/shadcn/cache.ts", "src/integrations/codebase-memory/service.ts:persistStateSnapshot", "src/orchestration/tooling/executors.ts:redaction"],
+      "currentClassification": "ACTUAL_PRODUCTION_DEFECT_PENDING_STORAGE-POLICY-CLOSURE",
+      "normalizedGroup": "R2-G2.4-EXTERNAL-DATA-AT-REST",
+      "requiredAction": "Apply the established bounded redaction policy before cache/metadata persistence or prove an equivalent protected-storage boundary with synthetic secret tests."
+    },
+    {
+      "findingId": "r2-g2-final-transport-closure-f001",
+      "reviewer": "contract-auditor",
+      "severity": "ERROR",
+      "category": "DATA_CONTRACT_MISMATCH",
+      "exactClaim": "Generic tooling expects serialized executor results while typed integration ports return parsed DTOs.",
+      "evidenceReferences": ["src/orchestration/tooling/adapters.ts:SerializedToolExecutor", "src/orchestration/tooling/executors.ts", "src/integrations/codebase-memory/contracts.ts", "src/integrations/context7/contracts.ts", "src/integrations/shadcn/contracts.ts"],
+      "currentClassification": "CONTRACT_EVIDENCE_GAP_WITH_OVERSTATED_DIRECT-MISMATCH-CLAIM",
+      "normalizedGroup": "R2-G2.4-COMPOSED-PROCESS-SERVICE-EVIDENCE",
+      "requiredAction": "Prove the intended typed serializer binding from parsed service DTO to serialized ToolResult input; do not redesign the already coherent Promise<string> transport contract without evidence."
+    },
+    {
+      "findingId": "r2-g2-final-transport-closure-f002",
+      "reviewer": "contract-auditor",
+      "severity": "WARNING",
+      "category": "REQUIREMENT_NOT_TRACED",
+      "exactClaim": "No evidence traces a real Codebase Memory process response through generic tooling dispatch.",
+      "evidenceReferences": ["src/integrations/codebase-memory/codebase-memory.test.ts", "src/orchestration/tooling/adapters.ts", "src/orchestration/tooling/tooling.test.ts"],
+      "currentClassification": "MISSING_TEST_EVIDENCE",
+      "normalizedGroup": "R2-G2.4-COMPOSED-PROCESS-SERVICE-EVIDENCE",
+      "requiredAction": "Add the smallest composition test covering valid and oversized process output through service serialization and registered output validation."
+    },
+    {
+      "findingId": "r2-g2-final-transport-closure-f003",
+      "reviewer": "contract-auditor",
+      "severity": "WARNING",
+      "category": "DATA_CONTRACT_MISMATCH",
+      "exactClaim": "Service excerpt truncation can split a multibyte UTF-8 character despite raw transport byte safety.",
+      "evidenceReferences": ["src/integrations/codebase-memory/service.ts:normalize", "src/integrations/codebase-memory/codebase-memory.test.ts:multibyte boundary"],
+      "currentClassification": "ACTUAL_PRODUCTION_DEFECT",
+      "normalizedGroup": "R2-G2.4-UTF8-NORMALIZATION",
+      "requiredAction": "Use code-point-safe byte truncation at the service excerpt boundary and add a multibyte normalization assertion."
+    }
+  ],
+  "codeIntegrationApprovedEvidence": {
+    "verdict": "APPROVED",
+    "approvedFinding": "The prior executable-object transport claim is resolved; standard JSON.parse without a reviver yields inert JSON data.",
+    "approvedSources": ["src/integrations/codebase-memory/transport.ts", "src/integrations/codebase-memory/service.ts", "src/integrations/codebase-memory/codebase-memory.test.ts", "src/orchestration/tooling/adapters.ts", "src/orchestration/tooling/executors.ts"],
+    "identityChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "processServiceCompositionFlow": [
+    "production-factory-runtime-core.ts creates CodebaseMemoryService(createProcessTransport(...))",
+    "CodebaseMemoryProcessTransport.call writes newline-framed JSON-RPC and returns Promise<string>",
+    "transport bounds raw stdout before JSON.parse and serializes only parsed value.result",
+    "CodebaseMemoryService.limited invokes transport, then parseUpstreamResult enforces the 200000-byte result bound",
+    "runQuery normalizes, caches, persists bounded normalized state, and emits completion evidence",
+    "registeredOutputToToolResult expects serialized JSON text, validates the registered DTO, redacts/bounds, and marks UNTRUSTED_EXTERNAL"
+  ],
+  "transportOverflowEvidenceCurrent": "PASS at the lower process transport: oversized response rejects before parent parse/result access, clears pending/buffer, terminates child, and fresh valid process recovery succeeds.",
+  "composedOverflowEvidenceCurrent": "MISSING: no single test wires an oversized real child response through CodebaseMemoryService and proves service/cache/persistence/ToolResult stages are not reached.",
+  "childProcessTrustModel": "Trusted server-configured optional local codebase-memory-mcp integration, not a user-selected arbitrary executable; nevertheless it is a separate process and should not inherit unrelated Factory secrets.",
+  "childEnvironment": {
+    "spawnBehavior": "spawn(executable, [], { cwd, shell:false, stdio:['pipe','pipe','pipe'] })",
+    "inheritedEnvironment": true,
+    "sensitiveVariableExposurePossible": true,
+    "currentClassification": "ACTUAL_PRODUCTION_DEFECT",
+    "futureAction": "Define required child variables and pass an explicit minimal environment; test with synthetic secret names only."
+  },
+  "stderr": {
+    "collectionBehavior": "stderr is a piped stream with no listener",
+    "bounds": "none at the child pipe boundary",
+    "redaction": "not applicable because stderr is not read",
+    "persistenceModelExposure": "not included in current Codebase Memory errors or model context, but an unconsumed pipe can block the child",
+    "currentClassification": "ACTUAL_PRODUCTION_DEFECT",
+    "futureAction": "Use an explicit non-blocking ignored stderr or a bounded synthetic-safe diagnostic tail, with a deterministic regression."
+  },
+  "cancellation": {
+    "processSharingModel": "one reusable child process with a pending request map keyed by JSON-RPC id",
+    "perRequestBehavior": "abort removes and rejects only that pending id; late response is parsed and discarded because the id is no longer pending",
+    "overflowBehavior": "terminal overflow rejects all pending calls, clears buffer, invalidates and terminates the child",
+    "isolation": "pending-request isolation is preserved; shared index/status cancellation is incomplete",
+    "recovery": "fresh requests can start after terminal overflow; timeout/abort currently leave the shared child alive",
+    "currentClassification": "ACTUAL_PRODUCTION_DEFECT_FOR_STATUS/SHARED-INDEX; EVIDENCE GAP FOR FULL CHILD-LIFECYCLE RECOVERY",
+    "futureAction": "Honor status signals, preserve unrelated shared requests, and add deterministic cancellation/timeout/overflow recovery tests."
+  },
+  "serializedParsedContract": {
+    "producerType": "UpstreamTransport = (tool,args,signal?) => Promise<string>",
+    "producerRepresentation": "serialized JSON of JSON-RPC value.result, after bounded envelope parsing",
+    "consumerType": "CodebaseMemoryService transport input: UpstreamTransport; registered ToolExecutor binding: SerializedToolExecutor<T>",
+    "consumerExpectation": "service bounds and parses serialized result; registeredOutputToToolResult bounds, parses, validates registered DTO, redacts and marks UNTRUSTED_EXTERNAL",
+    "currentConsistency": "The transport/service Promise<string> contract is semantically consistent; the missing proof is the typed service-to-serialized-tool composition binding.",
+    "evidenceGap": true,
+    "futureAction": "Add direct producer-to-consumer composition evidence without introducing a new wrapper type unless implementation proves ambiguity."
+  },
+  "context7CurrentState": "R2-G2 oversized service-path coverage is complete; no future Context7 change is required for this closure.",
+  "shadcnCurrentState": "R2-G2 oversized service-path coverage is complete; no future shadcn change is required for this closure.",
+  "genericToolingCurrentState": "SerializedToolExecutor and registeredOutputToToolResult enforce a primitive serialized boundary; only composition evidence remains, with no generic adapter redesign planned.",
+  "normalizedFinalBlockers": [
+    { "groupId": "R2-G2.4-COMPOSED-PROCESS-SERVICE-EVIDENCE", "findingIds": ["tqr-r2-g2-production-composition-001", "r2-g2-final-transport-closure-f001", "r2-g2-final-transport-closure-f002"], "classification": "MISSING_TEST_EVIDENCE_AND_CONTRACT_EVIDENCE_GAP" },
+    { "groupId": "R2-G2.4-CHILD-TRUST-LIFECYCLE", "findingIds": ["sec-7b-001", "sec-7b-002"], "classification": "ACTUAL_PRODUCTION_DEFECT_WITH_REQUIRED_LIFECYCLE_EVIDENCE" },
+    { "groupId": "R2-G2.4-CANCELLATION-ISOLATION", "findingIds": ["sec-7b-003"], "classification": "ACTUAL_PRODUCTION_DEFECT_FOR_STATUS_SHARED-WORK" },
+    { "groupId": "R2-G2.4-EXTERNAL-DATA-AT-REST", "findingIds": ["sec-7b-004"], "classification": "ACTUAL_PRODUCTION_DEFECT_PENDING_STORAGE-POLICY-CLOSURE" },
+    { "groupId": "R2-G2.4-UTF8-NORMALIZATION", "findingIds": ["r2-g2-final-transport-closure-f003"], "classification": "ACTUAL_PRODUCTION_DEFECT" }
+  ],
+  "finalRootCause": "The lower transport boundary is now bounded and lifecycle-safe, but the final reviewer evidence exposed an incomplete composition proof and several adjacent child/process-data lifecycle contracts that are not yet explicit or fully enforced: inherited environment, unconsumed stderr, shared-work cancellation semantics, cache redaction, and UTF-8-safe normalized excerpts.",
+  "rootCauseConfidence": "HIGH",
+  "finalCorrectionType": "ONE_BOUNDED_R2_G2_SEMANTIC_CLOSURE_CYCLE_WITH_MINIMAL_LIFECYCLE_HARDENING_AND_COMPOSED_EVIDENCE",
+  "futureProductionFiles": [
+    "src/integrations/codebase-memory/transport.ts",
+    "src/integrations/codebase-memory/service.ts",
+    "src/integrations/context7/cache.ts",
+    "src/integrations/shadcn/cache.ts"
+  ],
+  "futureTestFiles": [
+    "src/integrations/codebase-memory/codebase-memory.test.ts",
+    "src/orchestration/tooling/tooling.test.ts"
+  ],
+  "futureCorrectionSteps": [
+    "Preserve the approved inert JSON.parse and lower transport overflow behavior.",
+    "Add an explicit child environment boundary after identifying required executable variables; do not inherit the full Factory environment.",
+    "Make stderr non-blocking and bounded or explicitly ignored, without exposing raw diagnostics.",
+    "Correct getIndexStatus/shared index cancellation semantics while preserving per-request isolation and terminal overflow invalidation.",
+    "Apply or prove the existing redaction/protected-storage policy before external cache and metadata persistence, using synthetic secrets only.",
+    "Make Codebase Memory normalized excerpt truncation UTF-8 code-point safe.",
+    "Add one composed real child -> process transport -> service -> serialized ToolResult test covering oversized rejection and valid recovery."
+  ],
+  "preFixProof": "Existing final transport proof: real oversized stdout rejected with CODEBASE_MEMORY_UNAVAILABLE before parent parsing; pending=0, bufferBytes=0, process=undefined after correction; valid boundary/multibyte and fresh recovery passed. This reconciliation adds no new runtime proof.",
+  "postFixAcceptanceCriteria": [
+    "real oversized child output is rejected before service normalization/cache/persistence/ToolResult",
+    "valid process output traverses service normalization and serialized ToolResult validation",
+    "child receives no unrelated Factory secret environment variables",
+    "stderr cannot block the child and is not exposed raw",
+    "status/shared-index cancellation is isolated and deterministic",
+    "external cache/metadata storage follows an explicit redaction or protected-storage policy",
+    "normalized UTF-8 excerpts never split a code point",
+    "approved Code / Integration inert-input conclusion remains unchanged"
+  ],
+  "requiredDeterministicChecks": ["targeted Codebase Memory/tooling tests", "typecheck", "lint", "build", "git diff --check", "full validation after reviewer approval"],
+  "requiredReviewerRechecks": {
+    "test-quality-reviewer": true,
+    "security-reviewer": true,
+    "contract-auditor": true,
+    "code-integration-reviewer": true,
+    "architecture-reviewer": false
+  },
+  "reviewerQuestions": {
+    "test-quality-reviewer": "Do the supplied tests prove the composed Codebase Memory process-to-service behavior, including oversized failure at the correct layer, downstream suppression, valid recovery, and serialized ToolResult consumption?",
+    "security-reviewer": "Does the final child-process lifecycle prevent Factory-secret inheritance and stderr resource exposure, preserve cross-request cancellation isolation, enforce storage redaction/protection, and retain bounded overflow cleanup?",
+    "contract-auditor": "Does current evidence prove the serialized transport producer, parsed service consumer, typed serializer binding, UTF-8 normalization, and registered ToolResult boundary are compatible and current?",
+    "code-integration-reviewer": "After any transport/service lifecycle changes, are the bounded child environment, stderr, cancellation, UTF-8, and composed ToolResult semantics integrated correctly without reopening the resolved inert JSON claim?"
+  },
+  "correctionBudget": { "maximumImplementationCycles": 1, "automaticRetry": false, "reviewFixLoop": false },
+  "dependencies": { "newDependencies": false, "newAgents": false, "newSkills": false, "newMcp": false, "externalNetwork": false },
+  "rollbackCriteria": ["candidate hash changes outside authorized future files", "new authority or write path appears", "raw secrets enter evidence", "transport JSON provenance changes", "required reviewer blocks"],
+  "nonGoals": ["R2-G3 evidence completeness", "Phase 7C typed task/data contracts", "Phase 7D AST patching", "Phase 7E QA cleanup", "customer E2E", "deployment", "generic process sandbox framework", "architecture redesign"],
+  "r2g3Boundary": "R2-G3 remains NOT_EXECUTED and independent; do not use this future cycle to close general evidence-completeness findings.",
+  "nextAction": "R2-G2 FINAL SEMANTIC CLOSURE - EXECUTE"
+}
