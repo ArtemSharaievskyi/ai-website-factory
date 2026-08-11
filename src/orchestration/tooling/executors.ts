@@ -5,10 +5,12 @@ import { getOperationDefinition, registeredToolOutputIsValid } from "./registry"
 export type ControlledRuntimeOperation = "install-locked" | "npm-ci" | "lint" | "typecheck" | "unit-test" | "build";
 
 const secretPattern = /(-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----|sk-[A-Za-z0-9]{12,}|AKIA[A-Z0-9]{12,}|(?:DATABASE_URL|SUPABASE_SERVICE_ROLE_KEY|OPENAI_API_KEY|CONTEXT7_API_KEY|NPM_TOKEN|API[_-]?KEY|CLIENT[_-]?SECRET|ACCESS[_-]?TOKEN|REFRESH[_-]?TOKEN|PRIVATE[_-]?KEY|PASSWORD|SECRET|TOKEN)\s*[:=]\s*["']?[^\s,}"']+["']?|Bearer\s+\S+)/gi;
+const jsonSecretKeyPattern = /(\\?["'])((?:DATABASE_URL|SUPABASE_SERVICE_ROLE_KEY|OPENAI_API_KEY|CONTEXT7_API_KEY|NPM_TOKEN|API[_-]?KEY|CLIENT[_-]?SECRET|ACCESS[_-]?TOKEN|REFRESH[_-]?TOKEN|PRIVATE[_-]?KEY|PASSWORD|SECRET|TOKEN))\1\s*:\s*(\\?["'])(?:\\.|(?!\3)[^])*?\3/gi;
 const configuredSecretNames = ["DATABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "OPENAI_API_KEY", "CONTEXT7_API_KEY", "NPM_TOKEN"] as const;
+const EXTERNAL_RESULT_PREVALIDATION_MAX_BYTES = 200_000;
 
 export function redactToolText(value: string) {
-  let redacted = value.replace(secretPattern, "[REDACTED]");
+  let redacted = value.replace(jsonSecretKeyPattern, (_match, quote: string, key: string, valueQuote: string) => `${quote}${key}${quote}: ${valueQuote}[REDACTED]${valueQuote}`).replace(secretPattern, "[REDACTED]");
   const configuredSecrets = configuredSecretNames.map((name) => process.env[name]).filter((secret): secret is string => Boolean(secret && secret.length >= 8)).sort((left, right) => right.length - left.length);
   for (const secret of configuredSecrets) redacted = redacted.split(secret).join("[REDACTED]");
   return redacted;
@@ -77,11 +79,18 @@ export function runtimeResultToToolResult(operationId: ControlledRuntimeOperatio
   return ToolResultSchema.parse({ toolId: "generated-runtime-validation", operationId, status, contentTrust: "HOST_VALIDATED", data: dataResult.data, summary: summaryResult.value, ...(stdout ? { stdout } : {}), ...(stderr ? { stderr } : {}), evidenceIdentity: ["sourceChecksum" in result && result.sourceChecksum ? `source:${result.sourceChecksum}` : "runtime-policy:generated-runtime-v1"], durationMs, redactionApplied: dataResult.redactionApplied || Boolean(stdoutResult?.redactionApplied) || Boolean(stderrResult?.redactionApplied) || summaryResult.redactionApplied, outputTruncated: dataResult.truncated || Boolean(command?.outputTruncated), retryable: Boolean(command && !command.passed && !command.cancelled) });
 }
 
-export function registeredOutputToToolResult(toolId: ToolId, operationId: string, value: unknown, durationMs = 0): ToolResult {
+export function registeredOutputToToolResult(toolId: ToolId, operationId: string, serializedValue: string, durationMs = 0): ToolResult {
   const operation = getOperationDefinition(toolId, operationId);
-  const serializedSize = Buffer.byteLength(JSON.stringify(value) ?? "null", "utf8");
-  if (serializedSize > 200_000) throw new Error(`Tool output exceeds the pre-validation resource bound for ${toolId}:${operationId}.`);
-  if (!operation || !registeredToolOutputIsValid(toolId, operationId, value)) throw new Error(`Tool output does not satisfy the registered contract for ${toolId}:${operationId}.`);
+  if (!operation) throw new Error(`No registered operation exists for ${toolId}:${operationId}.`);
+  if (typeof serializedValue !== "string") throw new Error(`Tool output must be serialized JSON text for ${toolId}:${operationId}.`);
+  if (Buffer.byteLength(serializedValue, "utf8") > EXTERNAL_RESULT_PREVALIDATION_MAX_BYTES) throw new Error(`Tool output exceeds the pre-validation resource bound for ${toolId}:${operationId}.`);
+  let value: unknown;
+  try {
+    value = JSON.parse(serializedValue) as unknown;
+  } catch (error) {
+    throw new Error(`Tool output is not valid serialized JSON for ${toolId}:${operationId}.`, { cause: error });
+  }
+  if (!registeredToolOutputIsValid(toolId, operationId, value)) throw new Error(`Tool output does not satisfy the registered contract for ${toolId}:${operationId}.`);
   const dataResult = resultData(value, Math.min(operation.resultPolicy.maxBytes, TOOL_RESULT_MAX_BYTES));
   const summaryResult = boundToolText(`Untrusted result from ${toolId}:${operationId}.`, operation.resultPolicy.maxBytes, operation.resultPolicy.maxLineBytes);
   return ToolResultSchema.parse({ toolId, operationId, status: "passed", contentTrust: "UNTRUSTED_EXTERNAL", data: dataResult.data, summary: summaryResult.value, evidenceIdentity: [`executor:${operation.executorId}`, `tool-policy:${operation.resultPolicy.redactionPolicy}`], durationMs, redactionApplied: dataResult.redactionApplied || summaryResult.redactionApplied, outputTruncated: dataResult.truncated, retryable: false });

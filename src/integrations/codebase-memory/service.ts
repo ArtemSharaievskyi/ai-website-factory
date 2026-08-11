@@ -2,19 +2,43 @@ import { createHash } from "node:crypto";
 import { CodebaseMemoryError } from "./errors";
 import { CodebaseMemoryQueryPlanSchema, CodeSymbolReferenceSchema, CodeRelationshipSchema, ImpactAnalysisSchema, SourceExcerptSchema } from "./contracts";
 import type { CodebaseMemoryConfig } from "./config";
-import type { CodebaseMemoryIndex, CodebaseMemoryPort, CodebaseMemoryQueryPlan, CodebaseMemoryResult, CodebaseMemorySafeEventSink, CodeRelationship, ImpactAnalysis, SourceExcerpt, WorkspaceScope } from "./contracts";
+import type { CodebaseMemoryIndex, CodebaseMemoryPort, CodebaseMemoryQueryPlan, CodebaseMemoryResult, CodebaseMemorySafeEventSink, CodeRelationship, CodeSymbolReference, ImpactAnalysis, SourceExcerpt, WorkspaceScope } from "./contracts";
 import { assertExistingWorkspace, canonicalWorkspaceIdentity, computeSourceManifest, isSafeQueryText, CODEBASE_MEMORY_POLICY_VERSION } from "./policy";
 import { metadataForIndex, parsePersistedIndex, parsePersistedResult, readCodebaseMemoryMetadata, writeCodebaseMemoryMetadata } from "./metadata";
 import type { UpstreamTool, UpstreamTransport } from "./transport";
+import { redactToolText } from "@/orchestration/tooling/executors";
 
 const ADAPTER_VERSION = "codebase-memory-adapter-v1";
 const MAX_IDEMPOTENCY_ENTRIES = 10000;
 const MAX_CACHE_ENTRIES = 10000;
 const sha = (v: string | Buffer) => createHash("sha256").update(v).digest("hex");
 const escapeRegex = (v: string) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function truncateUtf8(text: string, maxBytes: number) {
+  if (Buffer.byteLength(text, "utf8") <= maxBytes) return text;
+  let bytes = 0;
+  let end = 0;
+  for (const character of text) {
+    const characterBytes = Buffer.byteLength(character, "utf8");
+    if (bytes + characterBytes > maxBytes) break;
+    bytes += characterBytes;
+    end += character.length;
+  }
+  return text.slice(0, end);
+}
 type Stored = { index: CodebaseMemoryIndex };
 type CacheEntry = { scopeKey: string; expiresAt: number; result: CodebaseMemoryResult };
 type IdempotencyEntry = { scopeKey: string; inputHash: string };
+export const CODEBASE_MEMORY_RAW_RESULT_MAX_BYTES = 200_000;
+
+function parseUpstreamResult(raw: string): unknown {
+  if (typeof raw !== "string") throw new CodebaseMemoryError("CODEBASE_MEMORY_UNAVAILABLE", "Codebase Memory returned a non-serialized result.");
+  if (Buffer.byteLength(raw, "utf8") > CODEBASE_MEMORY_RAW_RESULT_MAX_BYTES) throw new CodebaseMemoryError("CODEBASE_MEMORY_UNAVAILABLE", "Codebase Memory result exceeded the bounded transport limit.");
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch (error) {
+    throw new CodebaseMemoryError("CODEBASE_MEMORY_UNAVAILABLE", "Codebase Memory result was not valid JSON.", error);
+  }
+}
 
 export class CodebaseMemoryService implements CodebaseMemoryPort {
   private readonly indexes = new Map<string, Stored>();
@@ -33,15 +57,19 @@ export class CodebaseMemoryService implements CodebaseMemoryPort {
   async refreshIndex(scope: WorkspaceScope, taskId?: string, signal?: AbortSignal) { return this.index(scope, true, taskId, signal); }
 
   async getIndexStatus(scope: WorkspaceScope, signal?: AbortSignal) {
-    void signal;
+    this.assertNotCancelled(signal);
     const safe = await assertExistingWorkspace(scope);
+    this.assertNotCancelled(signal);
     const manifest = await computeSourceManifest(safe);
+    this.assertNotCancelled(signal);
     const key = canonicalWorkspaceIdentity(safe);
     await this.ensureStateLoaded(safe, key);
+    this.assertNotCancelled(signal);
     const stored = this.indexes.get(key);
     if (!stored) return this.baseIndex(safe, manifest.checksum, "NOT_INDEXED");
     if (stored.index.manifestChecksum !== manifest.checksum && stored.index.status === "READY") {
       stored.index = { ...stored.index, status: "STALE", updatedAt: new Date().toISOString() };
+      this.assertNotCancelled(signal);
       await this.persistState(safe, key);
       void this.event({ type: "index.stale", ...this.meta(safe), indexChecksum: manifest.checksum });
     }
@@ -68,25 +96,35 @@ export class CodebaseMemoryService implements CodebaseMemoryPort {
   }
 
   private async index(scope: WorkspaceScope, refresh: boolean, taskId?: string, signal?: AbortSignal) {
+    this.assertNotCancelled(signal);
     const safe = await assertExistingWorkspace(scope);
     const key = canonicalWorkspaceIdentity(safe);
     await this.ensureStateLoaded(safe, key);
+    this.assertNotCancelled(signal);
     const existing = this.indexInFlight.get(key);
-    if (existing) return existing;
-    const work = this.indexInternal(safe, key, refresh, taskId, signal);
+    if (existing) return this.awaitWithSignal(existing, signal);
+    const work = this.indexInternal(safe, key, refresh, taskId);
     this.indexInFlight.set(key, work);
-    try { return await work; } finally { this.indexInFlight.delete(key); }
+    void work.then(() => this.clearIndexWork(key, work), () => this.clearIndexWork(key, work));
+    return this.awaitWithSignal(work, signal);
   }
 
-  private async indexInternal(safe: WorkspaceScope, key: string, refresh: boolean, taskId?: string, signal?: AbortSignal) {
+  private async indexInternal(safe: WorkspaceScope, key: string, refresh: boolean, taskId?: string) {
     const manifest = await computeSourceManifest(safe);
     const prior = this.indexes.get(key)?.index;
     if (!refresh && prior?.status === "READY" && prior.manifestChecksum === manifest.checksum) return prior;
     const index = this.baseIndex(safe, manifest.checksum, "INDEXING");
     this.indexes.set(key, { index });
     void this.event({ type: "index.requested", ...this.meta(safe), taskId, indexChecksum: manifest.checksum });
+    let serviceBoundaryRejected = false;
     try {
-      await this.limited((requestSignal) => this.transport("index_repository", { repo_path: safe.workspacePath, project: `${safe.projectId}-v${safe.projectVersion}` }, requestSignal), signal);
+      const raw = await this.limited((requestSignal) => this.transport("index_repository", { repo_path: safe.workspacePath, project: `${safe.projectId}-v${safe.projectVersion}` }, requestSignal));
+      try {
+        parseUpstreamResult(raw);
+      } catch (error) {
+        serviceBoundaryRejected = true;
+        throw error;
+      }
       const ready = { ...index, status: "READY" as const, indexedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
       this.indexes.set(key, { index: ready });
       await this.persistState(safe, key);
@@ -94,6 +132,7 @@ export class CodebaseMemoryService implements CodebaseMemoryPort {
       return ready;
     } catch (error) {
       const mapped = error instanceof CodebaseMemoryError ? error : new CodebaseMemoryError("CODEBASE_MEMORY_INDEX_FAILED", "Indexing failed safely.", error);
+      if (serviceBoundaryRejected) throw mapped;
       this.indexes.set(key, { index: { ...index, status: "FAILED", updatedAt: new Date().toISOString(), errorCode: mapped.code } });
       await this.persistState(safe, key);
       void this.event({ type: "index.failed", ...this.meta(safe), taskId, errorCode: mapped.code });
@@ -115,7 +154,7 @@ export class CodebaseMemoryService implements CodebaseMemoryPort {
     return this.runQuery(plan, operation as CodebaseMemoryQueryPlan["operation"], (requestSignal) => this.transport("trace_path", { project: `${plan.projectId}-v${plan.projectVersion}`, function_name: plan.symbol ?? plan.topic, direction, depth: 3, limit: plan.maxResults }, requestSignal), signal);
   }
 
-  private async runQuery(plan: CodebaseMemoryQueryPlan, operation: CodebaseMemoryQueryPlan["operation"], work: (signal: AbortSignal) => Promise<unknown>, signal?: AbortSignal): Promise<CodebaseMemoryResult> {
+  private async runQuery(plan: CodebaseMemoryQueryPlan, operation: CodebaseMemoryQueryPlan["operation"], work: (signal: AbortSignal) => Promise<string>, signal?: AbortSignal): Promise<CodebaseMemoryResult> {
     CodebaseMemoryQueryPlanSchema.parse({ ...plan, operation });
     if (plan.workspaceScope.projectId !== plan.projectId || plan.workspaceScope.projectVersion !== plan.projectVersion) throw new CodebaseMemoryError("CODEBASE_MEMORY_WORKSPACE_INVALID", "The query workspace scope does not match the query project identity.");
     isSafeQueryText(plan.symbol ?? plan.file ?? plan.topic ?? "");
@@ -127,7 +166,6 @@ export class CodebaseMemoryService implements CodebaseMemoryPort {
     const prior = this.idempotency.get(plan.queryId);
     if (prior && (prior.scopeKey !== scopeKey || prior.inputHash !== key)) throw new CodebaseMemoryError("IDEMPOTENCY_CONFLICT", "Codebase Memory query id was reused with a different input.");
     this.rememberIdempotency(plan.queryId, { scopeKey, inputHash: key });
-    await this.persistState(index.scope, scopeKey);
     const cached = this.cache.get(key);
     if (cached && cached.scopeKey === scopeKey && cached.expiresAt > Date.now()) {
       void this.event({ type: "cache.hit", ...this.meta(plan), operation });
@@ -136,7 +174,7 @@ export class CodebaseMemoryService implements CodebaseMemoryPort {
     void this.event({ type: "cache.miss", ...this.meta(plan), operation });
     if (signal?.aborted) throw new CodebaseMemoryError("CODEBASE_MEMORY_CANCELLED", "Codebase Memory query was cancelled.");
     const raw = await this.limited(work, signal);
-    const normalized = this.normalize(raw, plan, operation, index);
+    const normalized = this.normalize(parseUpstreamResult(raw), plan, operation, index);
     this.rememberCache(key, { scopeKey, expiresAt: Date.now() + this.config.cacheTtlSeconds * 1000, result: normalized });
     await this.persistState(index.scope, scopeKey);
     void this.event({ type: "query.completed", ...this.meta(plan), operation, resultCount: normalized.symbols.length + normalized.relationships.length, sourceByteCount: normalized.totalBytes });
@@ -155,7 +193,7 @@ export class CodebaseMemoryService implements CodebaseMemoryPort {
     }
     const excerpts: SourceExcerpt[] = [];
     const rawText = rows.map((row) => typeof row === "string" ? row : typeof (row as { text?: unknown })?.text === "string" ? (row as { text: string }).text : "").filter(Boolean).join("\n");
-    const text = Buffer.from(rawText, "utf8").subarray(0, plan.maxBytes).toString("utf8");
+    const text = truncateUtf8(rawText, plan.maxBytes);
     if (text) excerpts.push(SourceExcerptSchema.parse({ file: plan.file ?? plan.symbol ?? "result", text, lineStart: 1, lineEnd: text.split(/\r?\n/).length, bytes: Buffer.byteLength(text, "utf8"), checksum: sha(text) }));
     return { queryId: plan.queryId, operation, index, symbols, relationships, excerpts, totalBytes: Buffer.byteLength(text, "utf8"), cache: "miss" };
   }
@@ -205,7 +243,7 @@ export class CodebaseMemoryService implements CodebaseMemoryPort {
       metadata: metadataForIndex(stored.index),
       index: stored.index,
       idempotency: [...this.idempotency.entries()].filter(([, entry]) => entry.scopeKey === key).map(([queryId, entry]) => ({ queryId, inputHash: entry.inputHash })),
-      cache: [...this.cache.entries()].filter(([, entry]) => entry.scopeKey === key && entry.expiresAt > now).map(([cacheKey, entry]) => ({ key: cacheKey, expiresAt: entry.expiresAt, result: { ...entry.result, cache: "miss" as const } })),
+      cache: [...this.cache.entries()].filter(([, entry]) => entry.scopeKey === key && entry.expiresAt > now).map(([cacheKey, entry]) => ({ key: cacheKey, expiresAt: entry.expiresAt, result: this.redactPersistedResult({ ...entry.result, cache: "miss" as const }) })),
     };
     await writeCodebaseMemoryMetadata(scope, state);
   }
@@ -220,6 +258,65 @@ export class CodebaseMemoryService implements CodebaseMemoryPort {
     this.cache.delete(key);
     this.cache.set(key, entry);
     while (this.cache.size > MAX_CACHE_ENTRIES) this.cache.delete(this.cache.keys().next().value as string);
+  }
+
+  private assertNotCancelled(signal?: AbortSignal) {
+    if (signal?.aborted) throw new CodebaseMemoryError("CODEBASE_MEMORY_CANCELLED", "Codebase Memory request was cancelled.");
+  }
+
+  private awaitWithSignal<T>(work: Promise<T>, signal?: AbortSignal): Promise<T> {
+    if (!signal) return work;
+    if (signal.aborted) return Promise.reject(new CodebaseMemoryError("CODEBASE_MEMORY_CANCELLED", "Codebase Memory request was cancelled."));
+    return new Promise<T>((resolve, reject) => {
+      const onAbort = () => { cleanup(); reject(new CodebaseMemoryError("CODEBASE_MEMORY_CANCELLED", "Codebase Memory request was cancelled.")); };
+      const cleanup = () => signal.removeEventListener("abort", onAbort);
+      signal.addEventListener("abort", onAbort, { once: true });
+      work.then((value) => { cleanup(); resolve(value); }, (error) => { cleanup(); reject(error); });
+    });
+  }
+
+  private clearIndexWork(key: string, work: Promise<CodebaseMemoryIndex>) {
+    if (this.indexInFlight.get(key) === work) this.indexInFlight.delete(key);
+  }
+
+  private redactPersistedResult(result: CodebaseMemoryResult): CodebaseMemoryResult {
+    const redactSymbol = (symbol: CodeSymbolReference): CodeSymbolReference => ({
+      ...symbol,
+      symbol: redactToolText(symbol.symbol),
+      kind: redactToolText(symbol.kind),
+      file: redactToolText(symbol.file),
+      ...(symbol.signatureSummary === undefined ? {} : { signatureSummary: redactToolText(symbol.signatureSummary) }),
+    });
+    const redactLocation = (location: Partial<CodeSymbolReference>) => ({
+      ...location,
+      ...(location.symbol === undefined ? {} : { symbol: redactToolText(location.symbol) }),
+      ...(location.kind === undefined ? {} : { kind: redactToolText(location.kind) }),
+      ...(location.file === undefined ? {} : { file: redactToolText(location.file) }),
+      ...(location.signatureSummary === undefined ? {} : { signatureSummary: redactToolText(location.signatureSummary) }),
+    });
+    const redactRelationship = (relationship: CodeRelationship): CodeRelationship => ({
+      ...relationship,
+      sourceSymbol: redactToolText(relationship.sourceSymbol),
+      targetSymbol: redactToolText(relationship.targetSymbol),
+      ...(relationship.sourceLocation === undefined ? {} : { sourceLocation: redactLocation(relationship.sourceLocation) }),
+    });
+    const excerpts = result.excerpts.map((excerpt) => {
+      const text = truncateUtf8(redactToolText(excerpt.text), 20_000);
+      return { ...excerpt, text, bytes: Buffer.byteLength(text, "utf8"), checksum: sha(text) };
+    });
+    const impact = result.impact === undefined ? undefined : {
+      ...result.impact,
+      affectedFiles: result.impact.affectedFiles.map((file) => redactToolText(file)),
+      relationships: result.impact.relationships.map(redactRelationship),
+    };
+    return {
+      ...result,
+      symbols: result.symbols.map(redactSymbol),
+      relationships: result.relationships.map(redactRelationship),
+      excerpts,
+      ...(impact === undefined ? {} : { impact }),
+      totalBytes: excerpts.reduce((total, excerpt) => total + excerpt.bytes, 0),
+    };
   }
 
   private async limited<T>(work: (signal: AbortSignal) => Promise<T>, signal?: AbortSignal): Promise<T> {

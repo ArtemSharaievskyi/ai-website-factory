@@ -7,5 +7,5 @@ export * from "./service";
 export const officialShadcnTransport: ShadcnRegistryTransport = async ({ componentName, signal }) => {
   const response = await fetch(`https://ui.shadcn.com/r/styles/new-york/${componentName}.json`, { signal, headers: { accept: "application/json" } });
   if (!response.ok) throw new Error(`Official shadcn Registry returned HTTP ${response.status}.`);
-  return response.json() as Promise<unknown>;
+  return response.text();
 };

@@ -3,7 +3,7 @@ import { Context7Cache } from "./cache";
 import { readContext7Config, type Context7Config } from "./config";
 import { Context7Error } from "./errors";
 import { Context7LibrarySchema, Context7QueryPlanSchema, type Context7DocumentationPort, type Context7QueryInput, type Context7QueryPlan, type Context7QueryResult, type Context7ResolutionInput, type Context7SafeEventSink, type Context7Transport, type ResolvedContext7Library } from "./contracts";
-import { normalizeContext7Response } from "./normalize";
+import { normalizeContext7Response, parseContext7TransportResponse } from "./normalize";
 import { validatePackageAccess, validateTopic } from "./policy";
 
 const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => { const timer = setTimeout(resolve, ms); signal?.addEventListener("abort", () => { clearTimeout(timer); reject(new Context7Error("CONTEXT7_CANCELLED", "Context7 request was cancelled.")); }, { once: true }); });
@@ -39,7 +39,7 @@ export class Context7Service implements Context7DocumentationPort {
         const transport = Promise.resolve().then(() => this.transport({ libraryId: plan.resolvedLibraryId, packageName: plan.packageName, version: plan.version, topic: plan.topic, symbol: plan.symbol, signal: controller.signal }));
         try {
           const response = await Promise.race([transport, new Promise<never>((_, reject) => { timeout = setTimeout(() => { controller.abort(); reject(new Context7Error("CONTEXT7_TIMEOUT", "Context7 request timed out.")); }, this.config.timeoutMs); }), ...(cancellation ? [cancellation] : [])]);
-          const excerpts = normalizeContext7Response(response, plan); return { queryId: plan.queryId, excerpts, totalBytes: excerpts.reduce((sum, item) => sum + Buffer.byteLength(item.content, "utf8"), 0), cache: "miss", versionUnresolved: !plan.version };
+          const excerpts = normalizeContext7Response(parseContext7TransportResponse(response), plan); return { queryId: plan.queryId, excerpts, totalBytes: excerpts.reduce((sum, item) => sum + Buffer.byteLength(item.content, "utf8"), 0), cache: "miss", versionUnresolved: !plan.version };
         } catch (error) {
           const mapped = error instanceof Context7Error ? error : new Context7Error("CONTEXT7_UNAVAILABLE", "Context7 request failed safely.", error);
           if (mapped.code === "CONTEXT7_TIMEOUT" || mapped.code === "CONTEXT7_CANCELLED") { controller.abort(); await transport.catch(() => undefined); }
@@ -52,4 +52,4 @@ export class Context7Service implements Context7DocumentationPort {
   }
 }
 export function createDisabledContext7Service() { return { resolveLibrary: async () => { throw new Context7Error("CONTEXT7_UNAVAILABLE", "Context7 is disabled."); }, queryDocumentation: async () => { throw new Context7Error("CONTEXT7_UNAVAILABLE", "Context7 is disabled."); } } satisfies Context7DocumentationPort; }
-export function syntheticContext7Transport(): Context7Transport { return async ({ packageName, topic, signal }) => { if (signal.aborted) throw new Context7Error("CONTEXT7_CANCELLED", "Context7 request was cancelled."); return [{ title: `${packageName} documentation`, content: `Synthetic reference for ${topic}.`, sourceReference: "synthetic:context7-smoke", relevanceReason: "Narrow synthetic smoke query" }]; }; }
+export function syntheticContext7Transport(): Context7Transport { return async ({ packageName, topic, signal }) => { if (signal.aborted) throw new Context7Error("CONTEXT7_CANCELLED", "Context7 request was cancelled."); return JSON.stringify([{ title: `${packageName} documentation`, content: `Synthetic reference for ${topic}.`, sourceReference: "synthetic:context7-smoke", relevanceReason: "Narrow synthetic smoke query" }]); }; }

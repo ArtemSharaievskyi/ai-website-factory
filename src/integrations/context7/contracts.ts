@@ -15,6 +15,6 @@ export type Context7SafeEvent = { type: "query.planned" | "cache.hit" | "cache.m
 export type Context7SafeEventSink = (event: Context7SafeEvent) => void | Promise<void>;
 export type Context7ResolutionInput = { packageName: string; ecosystem?: string; dependencyPlan?: Array<{ name: string; version?: string }>; packageJson?: Record<string, string>; configuredVersion?: string; requesterRole: z.infer<typeof Context7RoleSchema>; taskType: string; projectId: string; projectVersion: number; requestId: string; designApprovesMotion?: boolean };
 export type Context7QueryInput = { plan: Context7QueryPlan; cancellation?: AbortSignal; idempotencyKey: string };
-export type Context7Transport = (request: { libraryId: string; packageName: string; version?: string; topic: string; symbol?: string; signal: AbortSignal }) => Promise<unknown>;
+export type Context7Transport = (request: { libraryId: string; packageName: string; version?: string; topic: string; symbol?: string; signal: AbortSignal }) => Promise<string>;
 export interface Context7DocumentationPort { resolveLibrary(input: Context7ResolutionInput): Promise<ResolvedContext7Library>; queryDocumentation(input: Context7QueryInput): Promise<Context7QueryResult>; }
 export function assertContext7Permission(allowedTools: string[], role: z.infer<typeof Context7RoleSchema>) { if (!allowedTools.includes("Context7-read")) throw new Context7Error("CONTEXT7_TOOL_NOT_ALLOWED", `${role} does not have Context7-read permission.`); }

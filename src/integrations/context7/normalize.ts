@@ -4,6 +4,18 @@ import { DocumentationExcerptSchema, type Context7QueryPlan, type DocumentationE
 import { SUSPICIOUS_DOCUMENTATION } from "./policy";
 
 type RawExcerpt = { title?: unknown; content?: unknown; sourceReference?: unknown; documentedVersion?: unknown; relevanceReason?: unknown; symbol?: unknown };
+export const CONTEXT7_RAW_RESPONSE_MAX_BYTES = 200_000;
+
+export function parseContext7TransportResponse(raw: string): unknown {
+  if (typeof raw !== "string") throw new Context7Error("CONTEXT7_UNAVAILABLE", "Context7 returned a non-serialized response.");
+  if (Buffer.byteLength(raw, "utf8") > CONTEXT7_RAW_RESPONSE_MAX_BYTES) throw new Context7Error("CONTEXT7_UNAVAILABLE", "Context7 response exceeded the bounded transport limit.");
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch (error) {
+    throw new Context7Error("CONTEXT7_UNAVAILABLE", "Context7 response was not valid JSON.", error);
+  }
+}
+
 export function normalizeContext7Response(raw: unknown, plan: Context7QueryPlan, retrievedAt = new Date().toISOString()): DocumentationExcerpt[] {
   if (!Array.isArray(raw)) throw new Context7Error("CONTEXT7_UNAVAILABLE", "Context7 returned an invalid response shape.");
   const seen = new Set<string>(); const normalized: DocumentationExcerpt[] = [];
