@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6o-correction-verification",
+  "groupId": "cg-16-implementation-error-recovery-evidence",
+  "findingIds": [
+    "finding-0ec8a840d7bf928fec42"
+  ],
+  "baselineCommit": "067ccb7",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "correctionSnapshot": "working-tree-before-correction-commit",
+  "reviewerResults": [
+    {
+      "reviewerId": "test-quality-reviewer",
+      "state": "RESOLVED",
+      "evidence": [
+        "original-finding",
+        "cg16-implementation-staging-boundary",
+        "atomic-rollback-evidence",
+        "cancellation-and-target-safety",
+        "recovery-regression-evidence",
+        "current:implementation-applier",
+        "current:implementation-service-failure-boundary",
+        "test:atomic-implementation-recovery"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-16-implementation-error-recovery-evidence correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    }
+  ],
+  "selectedSkills": {
+    "test-quality-reviewer": {
+      "selectedSkillIds": [
+        "behavioral-test-quality-review",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "behavioral-test-quality-review",
+          "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "identityChecksum": "ba9aa336998b0950a673e80e6b14791dd857750f890fb7048b008b89563a8e10"
+    }
+  },
+  "provider": {
+    "model": "gpt-5.6-luna",
+    "modelLabel": "GPT-5.6 Luna",
+    "realGptCalls": 1,
+    "requestEvents": [
+      {
+        "type": "request.started",
+        "role": "test-quality-reviewer"
+      },
+      {
+        "type": "request.completed",
+        "role": "test-quality-reviewer",
+        "requestId": "chatcmpl-EBccy6RUMGaEwOqSpwRVrQxVtsvQY"
+      }
+    ]
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "evidenceRefs": [
+      "atomic-rollback-evidence",
+      "cancellation-and-target-safety",
+      "cg16-implementation-staging-boundary",
+      "current:implementation-applier",
+      "current:implementation-service-failure-boundary",
+      "original-finding",
+      "recovery-regression-evidence",
+      "src/agents/implementation/applier.ts",
+      "src/agents/implementation/applier.ts:1-32",
+      "src/agents/implementation/backend.test.ts",
+      "src/agents/implementation/backend.test.ts:46-105",
+      "src/agents/implementation/service.ts",
+      "src/agents/implementation/service.ts:394-457",
+      "test:atomic-implementation-recovery"
+    ],
+    "slices": [
+      {
+        "id": "current:implementation-applier",
+        "relativePath": "src/agents/implementation/applier.ts",
+        "startLine": 1,
+        "endLine": 32,
+        "checksum": "54628daf7b0687ef3e4adb899608f11537e0c30023eae2f21168761a5b8f321e",
+        "currentHead": "067ccb7"
+      },
+      {
+        "id": "current:implementation-service-failure-boundary",
+        "relativePath": "src/agents/implementation/service.ts",
+        "startLine": 394,
+        "endLine": 457,
+        "checksum": "fd9f4d356f529a1c65d892810136d54fb4d970c61866ae8f3e288b1b7221f778",
+        "currentHead": "067ccb7"
+      },
+      {
+        "id": "test:atomic-implementation-recovery",
+        "relativePath": "src/agents/implementation/backend.test.ts",
+        "startLine": 46,
+        "endLine": 105,
+        "checksum": "fb61a3adeae1ceadf7eba4e440dc5222f5343a93804782197b405183ff8b5e04",
+        "currentHead": "067ccb7"
+      }
+    ]
+  },
+  "phaseStatus": "RESOLVED"
+}

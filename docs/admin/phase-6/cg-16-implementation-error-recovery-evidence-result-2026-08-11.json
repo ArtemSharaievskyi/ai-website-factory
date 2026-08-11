@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6o-correction-result",
+  "groupId": "cg-16-implementation-error-recovery-evidence",
+  "title": "Test atomic implementation failure and recovery",
+  "baselineCommit": "0fbe532",
+  "correctionCommit": "067ccb7",
+  "correctionCommitMessage": "test: cover atomic implementation recovery",
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "findingIds": ["finding-0ec8a840d7bf928fec42"],
+  "rootCause": "Exercise and record failure/recovery behavior for atomic file application, not only proposal validation.",
+  "rootCauseConfidence": "HIGH",
+  "dependencies": ["cg-13-reviewer-execution-evidence"],
+  "dependencyStatus": "COMPLETE",
+  "affectedExecutionPath": ["Implementation Agent task identity", "ChangeProposal validation", "AtomicChangeApplier.apply", "atomic file mutation", "rollback/cancellation/error classification"],
+  "affectedTaskTypes": ["Implementation Agent bounded implementation tasks"],
+  "failureDomain": "ATOMIC_APPLY_FAILURE",
+  "attemptEvidenceBefore": "Proposal validation and one result-checksum rejection existed, but no supplied evidence proved that a later operation failure or cancellation restored earlier writes, or that unsafe/symlink targets and stale prior checksums left the workspace unchanged.",
+  "attemptEvidenceAfter": {
+    "laterOperationFailure": "A result-checksum failure in operation two restores operation one's prior file contents.",
+    "cancellation": "Cancellation between operations restores the already-applied first operation.",
+    "unsafeTarget": "Traversal is rejected before mutation.",
+    "symlinkTarget": "A Windows-compatible directory junction is rejected as workspace tampering without changing the linked target.",
+    "stalePriorChecksum": "A stale expectedPriorChecksum is rejected before mutation.",
+    "freshRecoveryCandidate": "A distinct valid proposal applies successfully after the failed proposal has been rolled back."
+  },
+  "attemptIdentity": {
+    "existingIdentity": ["executionId", "projectId", "projectVersion", "taskId", "task attempt", "executionPolicyVersion", "idempotency key"],
+    "regressionIdentity": ["current task projectId/projectVersion/taskId/attempt", "distinct proposalId per failed and recovery candidate", "before/after file contents and checksums"],
+    "newIdentityFields": false,
+    "historyOverwritten": false
+  },
+  "taskIdentity": {
+    "binding": "validateProposal requires proposal projectId, projectVersion, taskId, and taskAttempt to equal the authorized task.",
+    "crossTaskRecoveryAccepted": false,
+    "crossProjectRecoveryAccepted": false,
+    "taskGraphArchitectureChanged": false
+  },
+  "candidateIdentity": {
+    "before": "The temporary staging workspace files and their contents/checksums before the proposal.",
+    "afterFailure": "The same staging workspace is restored to the pre-attempt contents; the failed candidate is not authoritative.",
+    "afterRecovery": "The fresh proposal produces a new file state and returned afterChecksums; no old failed result is reused.",
+    "newFormalCandidateField": false
+  },
+  "failureClassification": {
+    "before": "The implementation error taxonomy already distinguished result checksum, cancellation, path, workspace tampering, and prior checksum failures, but the atomic recovery assertions were not supplied.",
+    "after": ["IMPLEMENTATION_RESULT_CHECKSUM_MISMATCH", "IMPLEMENTATION_CANCELLED", "IMPLEMENTATION_PATH_INVALID", "IMPLEMENTATION_WORKSPACE_TAMPERED", "IMPLEMENTATION_CHECKSUM_MISMATCH"],
+    "classificationSource": "Host-derived ImplementationError codes asserted by deterministic tests"
+  },
+  "providerRetryVsImplementationRepair": "No implementation provider retry or repair policy was changed. Provider transport retry remains distinct from a fresh implementation candidate; the cg-16 regression uses direct deterministic proposals and proves only the atomic apply/recovery boundary.",
+  "changeProposalBehavior": {
+    "preApplyValidation": "validateProposal runs before transaction creation and rejects graph/task/path/content policy violations without mutation.",
+    "invalidBeforeApply": "REJECTED_BEFORE_APPLY; no rollback claim is made because no mutation occurred.",
+    "atomicApply": "Each operation is written through a transaction temporary file and the prior target is captured before mutation.",
+    "rollback": "On failure, prior files are restored and created files are removed; transaction staging is removed. The new tests assert restored file contents."
+  },
+  "validationFailureBehavior": {
+    "exactCg16Failure": "An operation result checksum failure during application aborts the candidate and rolls back earlier operations.",
+    "postApplyTaskValidation": "Existing service-level validateTaskResult behavior is unchanged and outside the exact missing atomic-evidence claim.",
+    "taskCompletion": "The applier alone does not mark a TaskGraph task complete; existing service/orchestrator completion semantics remain unchanged."
+  },
+  "repairBehavior": {
+    "before": "No focused evidence showed a valid fresh candidate after an atomic application failure.",
+    "after": "A distinct valid proposal is applied only after the failed candidate is rolled back; no new Repair Agent, repair task, or repair authority was introduced.",
+    "repairToFailureLinkage": "The bounded test keeps the same authorized task identity and uses distinct proposal IDs; the failed proposal remains failed.",
+    "repairToCandidateLinkage": "The recovery result is asserted through the new proposal's changedFiles and resulting file contents."
+  },
+  "revalidationBehavior": "The targeted regression revalidates the fresh proposal through the existing applier validation and checksum path. It does not claim full lint/typecheck/build or release proof for a recovered candidate.",
+  "currentnessRules": [
+    "A failed proposal is not reused as a successful result.",
+    "A stale expectedPriorChecksum fails before mutation.",
+    "A proposal with a different task/project/version/attempt is rejected by existing validation.",
+    "A fresh proposal must carry its own expected result checksums and be applied against the restored current workspace."
+  ],
+  "staleRecoveryBehavior": "Stale prior checksum is rejected with IMPLEMENTATION_CHECKSUM_MISMATCH and the target remains unchanged.",
+  "retryBudgetBehavior": "Existing task maxAttempts and DEFAULT_EXECUTION_POLICY.defaultTaskAttempts remain bounded and unchanged; no retry budget reset or repair-cycle reset was introduced.",
+  "restartBehavior": "No restart behavior was changed. Existing reconciliation reports a RUNNING task without a live owner as IMPLEMENTATION_INTERRUPTED and requires explicit retry or cancellation.",
+  "interruptedBehavior": "No interrupted task is auto-promoted to PASS; existing reconciliation remains explicit and fail-closed.",
+  "cancellationBehavior": "Cancellation between operations triggers IMPLEMENTATION_CANCELLED and restores earlier writes.",
+  "attemptHistoryBehavior": "No persisted execution-run schema or service history behavior changed; the failed proposal remains a failed attempt in the focused atomic boundary, and the fresh recovery proposal has a distinct proposal identity.",
+  "releaseEvidenceInteraction": {
+    "independentlySetsReleaseEligible": false,
+    "interaction": "Atomic recovery evidence supports implementation correctness only. cg-14 remains the canonical release-evidence authority; TaskGraph smoke still reports releaseEligible=true for its complete fixture."
+  },
+  "filesChanged": ["src/agents/implementation/backend.test.ts", "scripts/phase-6c-cg02-verification.ts"],
+  "productionFilesChanged": [],
+  "testFilesChanged": ["src/agents/implementation/backend.test.ts"],
+  "filesOutsideLikelyFiles": {
+    "scripts/phase-6c-cg02-verification.ts": "Required cg-13-compatible shared verifier extension for the exact test-quality-reviewer evidence pack and current source checksums."
+  },
+  "correctionSummary": "Added four focused deterministic regressions around the existing AtomicChangeApplier: rollback after a later operation failure, cancellation rollback, unsafe/junction target rejection, stale prior checksum rejection, plus a fresh valid proposal after rollback. Added exact cg-16 reviewer evidence and question to the shared verifier.",
+  "schemaChange": false,
+  "migrationAdded": false,
+  "projectMemoryArchitectureChanged": false,
+  "orchestratorArchitectureChanged": false,
+  "providerArchitectureChanged": false,
+  "skillPortfolioChanged": false,
+  "newAgentOrchestratorMcp": false,
+  "testsAdded": ["later-operation failure restores earlier writes", "cancellation restores earlier writes", "unsafe and symlink/junction targets do not mutate", "stale prior checksum does not mutate", "fresh valid recovery candidate succeeds"],
+  "initialFailureReproduction": "Before cg-16, the exact backend test file contained proposal-policy tests but no focused assertions for atomic rollback, cancellation during application, unsafe/symlink targets, or stale prior checksums. The pre-correction targeted baseline passed 22 tests across the two implementation test files while leaving this evidence gap.",
+  "targetedChecks": {
+    "focusedVitest": "PASS; 26 tests across src/agents/implementation/backend.test.ts and src/agents/implementation/implementation.test.ts",
+    "typecheck": "PASS",
+    "lint": "PASS; 3 known pre-existing warnings"
+  },
+  "requiredReviewerRechecks": ["test-quality-reviewer"],
+  "actualReviewerRechecks": [{ "reviewerId": "test-quality-reviewer", "state": "RESOLVED", "providerVerdict": "APPROVED", "structuredOutputValid": true, "evidenceValid": true, "realGptCalls": 1 }],
+  "freshProviderCalls": 1,
+  "reusedReviewerExecutions": 0,
+  "selectedSkills": ["behavioral-test-quality-review", "requirements-evidence-traceability"],
+  "reviewExecutionEvidence": "The cg-13-compatible shared verifier executed one fresh structured-output test-quality-reviewer call against current applier, service failure-boundary, and atomic recovery test slices.",
+  "evidenceValidation": { "valid": true, "verificationArtifact": "docs/admin/phase-6/cg-16-implementation-error-recovery-evidence-verification-2026-08-11.json" },
+  "perFindingResolution": { "finding-0ec8a840d7bf928fec42": { "reviewer": "test-quality-reviewer", "severity": "WARNING", "category": "ERROR_PATH_NOT_VERIFIED", "finalState": "RESOLVED", "resolution": "Recorded deterministic atomic failure, rollback, cancellation, target-safety, checksum-currentness, and fresh-candidate recovery evidence.", "resolvedByGroupId": "cg-16-implementation-error-recovery-evidence" } },
+  "potentiallyImpactedGroups": [],
+  "remainingFindingCountsBefore": { "total": 6, "CRITICAL": 0, "ERROR": 0, "WARNING": 6, "INFO": 0, "arithmeticValid": true },
+  "remainingFindingCounts": { "total": 5, "CRITICAL": 0, "ERROR": 0, "WARNING": 5, "INFO": 0, "arithmeticValid": true },
+  "resolvedCount": 1,
+  "partialCount": 0,
+  "stillActiveCount": 0,
+  "regressionFoundCount": 0,
+  "newlyUnblockedGroups": [],
+  "unblockedGroups": ["cg-17-design-gate-evidence", "cg-18-skill-portfolio-source-of-truth"],
+  "nextRecommendedGroup": "cg-17-design-gate-evidence",
+  "phaseStatus": "COMPLETE"
+}
