@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6l-correction-verification",
+  "groupId": "cg-13-reviewer-execution-evidence",
+  "findingIds": [
+    "finding-51d38dcb2b668ff33332",
+    "finding-f27b5098995ae5bb44c9"
+  ],
+  "baselineCommit": "eb7c35f",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "correctionSnapshot": "working-tree-before-correction-commit",
+  "reviewerResults": [
+    {
+      "reviewerId": "test-quality-reviewer",
+      "state": "RESOLVED",
+      "evidence": [
+        "current:reviewer-catalog",
+        "current:structured-client-validation",
+        "current:test-quality-adapter",
+        "test:reviewer-execution-contract",
+        "test:reviewer-output-contract",
+        "test:reviewer-command",
+        "result:reviewer-vitest"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-13-reviewer-execution-evidence correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    }
+  ],
+  "selectedSkills": {
+    "test-quality-reviewer": {
+      "selectedSkillIds": [
+        "behavioral-test-quality-review",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "behavioral-test-quality-review",
+          "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "identityChecksum": "ba9aa336998b0950a673e80e6b14791dd857750f890fb7048b008b89563a8e10"
+    }
+  },
+  "provider": {
+    "model": "gpt-5.6-luna",
+    "modelLabel": "GPT-5.6 Luna",
+    "realGptCalls": 1,
+    "requestEvents": [
+      {
+        "type": "request.started",
+        "role": "test-quality-reviewer"
+      },
+      {
+        "type": "request.completed",
+        "role": "test-quality-reviewer",
+        "requestId": "chatcmpl-EBbFphX5TeARNFli5nneam8pAC1g5"
+      }
+    ]
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "evidenceRefs": [
+      "cg13-reviewer-execution-contract",
+      "current:reviewer-catalog",
+      "current:structured-client-validation",
+      "current:test-quality-adapter",
+      "docs/admin/phase-6/cg-13-playwright-results-2026-08-11.json",
+      "docs/admin/phase-6/cg-13-playwright-results-2026-08-11.json:1-10",
+      "docs/admin/phase-6/cg-13-reviewer-vitest-results-2026-08-11.json",
+      "docs/admin/phase-6/cg-13-reviewer-vitest-results-2026-08-11.json:1-1",
+      "executed-test-evidence",
+      "original-findings",
+      "package.json",
+      "package.json:1-25",
+      "result:bounded-playwright",
+      "result:reviewer-vitest",
+      "src/agents/catalog.test.ts",
+      "src/agents/catalog.test.ts:1-109",
+      "src/agents/catalog.ts",
+      "src/agents/catalog.ts:82-129",
+      "src/integrations/openai/adapters.ts",
+      "src/integrations/openai/adapters.ts:1023-1052",
+      "src/integrations/openai/client.ts",
+      "src/integrations/openai/client.ts:90-130",
+      "src/integrations/openai/provider.test.ts",
+      "src/integrations/openai/provider.test.ts:20-68",
+      "strict-output-contract",
+      "test-quality-reviewer-boundary",
+      "test:reviewer-command",
+      "test:reviewer-execution-contract",
+      "test:reviewer-output-contract"
+    ],
+    "slices": [
+      {
+        "id": "current:reviewer-catalog",
+        "relativePath": "src/agents/catalog.ts",
+        "startLine": 82,
+        "endLine": 129,
+        "checksum": "0f2a4bb03a6979c3d1807d9942b25695d0c368db63b08b4320c5d033cce2c81d",
+        "currentHead": "eb7c35f"
+      },
+      {
+        "id": "test:reviewer-execution-contract",
+        "relativePath": "src/agents/catalog.test.ts",
+        "startLine": 1,
+        "endLine": 109,
+        "checksum": "2ca042ce49876dbe956f9ffc4b87c32ede9002e21c4fee532ed6d8353b69ee56",
+        "currentHead": "eb7c35f"
+      },
+      {
+        "id": "current:structured-client-validation",
+        "relativePath": "src/integrations/openai/client.ts",
+        "startLine": 90,
+        "endLine": 130,
+        "checksum": "45c3d711c29ccee7a38ab7e47e1639bf6211d84a9a7ccbd93248affe11cf47e5",
+        "currentHead": "eb7c35f"
+      },
+      {
+        "id": "current:test-quality-adapter",
+        "relativePath": "src/integrations/openai/adapters.ts",
+        "startLine": 1023,
+        "endLine": 1052,
+        "checksum": "ff90ea64d4f08c14997215ddc1ad10a86841ed3ad52c9615250e7f799f6664d2",
+        "currentHead": "eb7c35f"
+      },
+      {
+        "id": "test:reviewer-output-contract",
+        "relativePath": "src/integrations/openai/provider.test.ts",
+        "startLine": 20,
+        "endLine": 68,
+        "checksum": "dba6bea0564d5673184dd5bd77b64d771bda627ed3e88e0419a35356574cb8d3",
+        "currentHead": "eb7c35f"
+      },
+      {
+        "id": "test:reviewer-command",
+        "relativePath": "package.json",
+        "startLine": 1,
+        "endLine": 25,
+        "checksum": "393bca887933e472755bbd84e5a3f90aa321bff18137293236ab049af60fa9da",
+        "currentHead": "eb7c35f"
+      },
+      {
+        "id": "result:reviewer-vitest",
+        "relativePath": "docs/admin/phase-6/cg-13-reviewer-vitest-results-2026-08-11.json",
+        "startLine": 1,
+        "endLine": 1,
+        "checksum": "3949d40f8be4f220c2b2e35461e8b8d026e62b68753f9222372b57b0a4fe55c6",
+        "currentHead": "eb7c35f"
+      },
+      {
+        "id": "result:bounded-playwright",
+        "relativePath": "docs/admin/phase-6/cg-13-playwright-results-2026-08-11.json",
+        "startLine": 1,
+        "endLine": 10,
+        "checksum": "0b651aefe055d3b4e0b11159ba270c52fbbc7ba809562ebd2231e44c1e57da94",
+        "currentHead": "eb7c35f"
+      }
+    ]
+  },
+  "phaseStatus": "RESOLVED"
+}

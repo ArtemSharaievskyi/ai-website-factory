@@ -1,0 +1,10 @@
+{
+  "documentType": "phase-6-targeted-playwright-result",
+  "command": "bounded local Playwright smoke via PlaywrightBrowserRunner",
+  "scope": "synthetic localhost fixture only",
+  "status": "passed",
+  "route": "/success",
+  "browserErrors": 0,
+  "customerWebsiteE2E": false,
+  "notes": "The repository playwright:smoke wrapper remains blocked by its validated-workspace build preflight; this bounded local browser result is recorded separately and does not claim customer-project coverage."
+}

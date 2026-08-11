@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6l-correction-result",
+  "groupId": "cg-13-reviewer-execution-evidence",
+  "title": "Provide meaningful reviewer execution and output-contract evidence",
+  "baselineCommit": "eb7c35f",
+  "correctionCommit": "2455cba",
+  "correctionCommitMessage": "fix: add reviewer execution evidence",
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "findingIds": ["finding-51d38dcb2b668ff33332", "finding-f27b5098995ae5bb44c9"],
+  "rootCause": "Test reviewer execution, strict output contracts, and preserve trustworthy executed evidence for the reviewer portfolio.",
+  "rootCauseConfidence": "HIGH",
+  "dependencies": ["cg-12-architecture-review-context"],
+  "dependencyStatus": "COMPLETE",
+  "affectedReviewPath": "SHARED reviewer execution evidence and the bounded Phase 6 verification path",
+  "reviewStage": {
+    "normal": "Reviewer service/provider boundary -> Test / Quality Review",
+    "factorySelfReview": "Phase 5/6 repository evidence-pack review and recorded deterministic execution artifacts"
+  },
+  "affectedConsumer": "Test / Quality Reviewer catalog boundary, OpenAI structured-output adapter, and Phase 6 reviewer evidence verifier",
+  "defectClassification": ["REVIEW_EXECUTION_NOT_VERIFIED", "OUTPUT_CONTRACT_NOT_EVIDENCED", "EXECUTION_EVIDENCE_MISSING"],
+  "contextBefore": {
+    "reviewerExecution": "The catalog test associated reviewer services with definitions but did not execute a reviewer adapter through the production structured-output client or exercise malformed-output rejection.",
+    "executionEvidence": "The prior self-review evidence recorded commands and source inventory but did not preserve a trustworthy executed Vitest/Playwright result artifact for the reviewer evidence pack."
+  },
+  "contextAfter": {
+    "reviewerExecution": "The catalog boundary executes the Test / Quality Reviewer adapter through OpenAiStructuredClient with a valid structured result and proves malformed output is rejected as AI_OUTPUT_DOMAIN_INVALID.",
+    "executionEvidence": "The stable test:reviewers command and recorded Vitest JSON result bind 75 passed tests across 7 reviewer/provider test files; a bounded synthetic localhost Playwright result is recorded separately without claiming customer-project coverage."
+  },
+  "canonicalInputs": ["Test / Quality Reviewer adapter", "strict TestQualityReviewProviderOutputSchema", "OpenAiStructuredClient domain validation", "reviewer test command", "recorded Vitest result"],
+  "supplementalInputs": ["resolver-selected Test / Quality Reviewer skills", "bounded synthetic localhost Playwright result", "current Phase 6 verification source slices"],
+  "excludedInputs": ["customer website E2E", "broad Phase 5 self-review rerun", "new reviewer agent", "new tool permissions", "secrets", "raw model reasoning"],
+  "filesChanged": ["src/agents/catalog.test.ts", "package.json", "scripts/phase-6c-cg02-verification.ts"],
+  "correctionSummary": "Added executable Test / Quality Reviewer adapter evidence at the catalog boundary, strict malformed-output rejection, a stable reviewer test command, and a cg-13 configuration in the existing bounded Phase 6 verifier. Recorded deterministic Vitest and bounded local Playwright evidence without expanding to customer website E2E.",
+  "testsAdded": ["valid Test / Quality Reviewer adapter output crosses the structured client boundary", "malformed Test / Quality Reviewer output is rejected and not promoted"],
+  "targetedChecks": {
+    "reproductionBeforeCorrection": "Targeted catalog evidence had only service-definition association; the first real Test / Quality Reviewer recheck returned CHANGES_REQUIRED because no executed test-result artifact was supplied.",
+    "reviewerTests": "75 passed across 7 files",
+    "vitestResultArtifact": "docs/admin/phase-6/cg-13-reviewer-vitest-results-2026-08-11.json",
+    "playwrightResultArtifact": "docs/admin/phase-6/cg-13-playwright-results-2026-08-11.json",
+    "typecheck": "PASS",
+    "diffCheck": "PASS"
+  },
+  "requiredReviewerRechecks": ["test-quality-reviewer"],
+  "actualReviewerRechecks": [{ "reviewerId": "test-quality-reviewer", "state": "RESOLVED", "providerVerdict": "APPROVED", "evidenceValid": true, "structuredOutputValid": true, "realGptCalls": 1 }],
+  "providerCalls": { "model": "gpt-5.6-luna", "modelLabel": "GPT-5.6 Luna", "realGptCalls": 1 },
+  "evidenceValidation": { "valid": true, "invalidEvidence": [], "verificationArtifact": "docs/admin/phase-6/cg-13-reviewer-execution-evidence-verification-2026-08-11.json" },
+  "perFindingResolution": {
+    "finding-51d38dcb2b668ff33332": { "originalReviewer": "test-quality-reviewer", "originalSeverity": "ERROR", "currentEffectiveSeverity": "ERROR", "category": "CRITICAL_FLOW_NOT_VERIFIED", "finalState": "RESOLVED", "correctionEvidence": ["src/agents/catalog.test.ts:98-109", "src/integrations/openai/client.ts:90-130", "src/integrations/openai/adapters.ts:1023-1052"], "reviewerVerification": "Test / Quality Reviewer returned RESOLVED / APPROVED with valid evidence.", "resolvedByGroupId": "cg-13-reviewer-execution-evidence" },
+    "finding-f27b5098995ae5bb44c9": { "originalReviewer": "test-quality-reviewer", "originalSeverity": "ERROR", "currentEffectiveSeverity": "ERROR", "category": "REQUIREMENT_NOT_VERIFIED", "finalState": "RESOLVED", "correctionEvidence": ["package.json:15-16", "docs/admin/phase-6/cg-13-reviewer-vitest-results-2026-08-11.json:1-1", "docs/admin/phase-6/cg-13-playwright-results-2026-08-11.json:1-10"], "reviewerVerification": "Test / Quality Reviewer returned RESOLVED / APPROVED after the executed result artifact was added to the bounded evidence catalog.", "resolvedByGroupId": "cg-13-reviewer-execution-evidence" }
+  },
+  "potentiallyImpactedGroups": ["cg-14-runtime-release-evidence is now dependency-unblocked; it was not modified or resolved by cg-13"],
+  "remainingFindingCounts": { "total": 10, "CRITICAL": 0, "ERROR": 2, "WARNING": 8, "INFO": 0 },
+  "unblockedGroups": ["cg-14-runtime-release-evidence", "cg-15-persistence-migration-evidence", "cg-16-implementation-error-recovery-evidence", "cg-17-design-gate-evidence", "cg-18-skill-portfolio-source-of-truth"],
+  "nextRecommendedGroup": "cg-14-runtime-release-evidence",
+  "phaseStatus": "COMPLETE",
+  "validation": { "testFiles": 69, "tests": 839, "targetedReviewerTests": 75, "lint": "PASS; 3 known pre-existing warnings", "typecheck": "PASS", "build": "PASS", "npmAudit": "0 vulnerabilities", "dbValidate": "PASS", "dbIntegrity": "PASS", "dockerComposeConfig": "PASS", "taskGraph": "PASS; releaseEligible=true", "gitDiffCheck": "PASS", "customerWebsiteGenerationE2E": "NOT RUN", "repositoryPlaywrightWrapper": "BLOCKED by validated QA workspace build preflight; bounded synthetic localhost result recorded" },
+  "invariants": { "qaFoundationDirectoriesBefore": 15, "qaFoundationDirectoriesAfter": 15, "historicalQaCleanup": "NONE", "context7CacheCommitted": false, "approvedExternalSkills": 4, "approvedInternalSkills": 13, "uniqueApprovedArtifacts": 17, "assignmentRefs": 18, "agents": 9, "deferredSkillUsage": 0, "newToolPermissions": false, "newAgentOrchestratorMcp": false, "otherCorrectionGroupsModified": false }
+}
