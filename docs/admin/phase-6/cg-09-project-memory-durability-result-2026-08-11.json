@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6j-correction-result",
+  "groupId": "cg-09-project-memory-durability",
+  "title": "Persist Project Memory indexes and idempotency state",
+  "baselineCommit": "ff6e090",
+  "correctionCommit": "c759a23",
+  "correctionCommitMessage": "fix: persist Codebase Memory runtime state",
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "findingIds": ["finding-f13df5392f71f7cf58df"],
+  "originalReviewer": "architecture-reviewer",
+  "originalSeverity": "WARNING",
+  "currentEffectiveSeverity": "WARNING",
+  "category": "STORAGE_ARCHITECTURE",
+  "rootCause": "Project Memory declared Codebase Memory metadata, but CodebaseMemoryService kept index records, normalized query cache entries, and query-idempotency hashes only in process-local Maps. A generated-runtime restart therefore forgot a READY index and its query state.",
+  "rootCauseConfidence": "MEDIUM",
+  "dependencies": ["cg-05-design-durable-state-authority"],
+  "dependencyStatus": "COMPLETE",
+  "affectedProjectMemoryOperation": "Codebase Memory index lifecycle, query-cache reuse, and query-idempotency reload; canonical Project Memory document writes are not changed.",
+  "authorityModel": {
+    "canonicalWorkflowAuthority": "Project Memory .factory documents and the existing database-backed Factory workflow authority remain canonical for approved workflow and Design state.",
+    "codebaseMemoryRole": "Read-only structural projection and Factory-managed bounded cache for one generated project version.",
+    "independentlyWritableAuthority": false,
+    "persistenceLocation": "Factory-managed generatedProjectsRoot/.codebase-memory/<canonical-identity-hash>/codebase-memory.json",
+    "databaseRelationship": "None for this correction; no database schema or repository authority is introduced."
+  },
+  "durabilityGuarantee": "After ensureIndex or a query reports success, the project/version/workspace-bound state record has passed schema validation, been written to a unique same-directory temporary file, file-synced, atomically replaced, and directory-synced where supported. Windows uses file sync plus atomic replacement because Node does not provide a reliable directory-handle sync boundary there.",
+  "writeProtocolBefore": [
+    "Validate workspace and compute source manifest.",
+    "Store INDEXING/READY/FAILED index state in a process-local Map.",
+    "Store query idempotency and normalized cache state in process-local Maps.",
+    "Return success without a durable state publication."
+  ],
+  "writeProtocolAfter": [
+    "Validate the exact generated workspace and compute its deterministic source manifest.",
+    "Use canonical projectId, projectVersion, and workspace identity as the state-file binding.",
+    "Update bounded in-memory index/cache/idempotency state with deterministic eviction limits.",
+    "Serialize same-workspace persistence calls through a per-identity promise queue.",
+    "Validate the complete persisted state with CodebaseMemoryPersistedStateSchema.",
+    "Write a unique same-directory temporary JSON file with stable key ordering and mode 0600.",
+    "Sync the temporary file, close it, atomically rename it to codebase-memory.json, then sync its containing directory where supported.",
+    "Acknowledge the index/query success only after durable state publication completes."
+  ],
+  "readProtocolBefore": [
+    "Validate workspace and compute the current source manifest.",
+    "Read only process-local index/cache/idempotency Maps.",
+    "Return NOT_INDEXED after a service restart even when the upstream index remained available."
+  ],
+  "readProtocolAfter": [
+    "Validate the exact workspace and compute the current source manifest.",
+    "Load the identity-hashed metadata record once per service instance and validate JSON, schema, project identity, version, workspace identity, index identity, status, and manifest binding.",
+    "Restore the index, unexpired cache entries, and idempotency hashes.",
+    "Mark a READY index STALE when the current source manifest differs and durably publish that status.",
+    "Reject malformed, cross-project, cross-version, cross-workspace, or internally inconsistent metadata instead of treating it as missing state.",
+    "Require a current READY index and matching source-manifest checksum before structural queries."
+  ],
+  "logicalCommitPoint": "The single JSON metadata target becomes current at the atomic rename after the temporary file has been validated and file-synced; directory sync follows where supported.",
+  "publicationOrder": ["state schema validation", "temporary file write", "temporary file sync", "temporary file close", "atomic rename", "containing-directory sync where supported"],
+  "manifestRole": "The Codebase Memory source manifest remains the freshness boundary for indexed application source; it is not replaced by the metadata file.",
+  "checksumRole": "SHA-256 source-manifest checksums and normalized excerpt checksums provide integrity and freshness binding. They do not by themselves prove filesystem durability.",
+  "tempArtifactRole": "A unique .tmp file inside the Factory-managed state directory is uncommitted and is never loaded as current state; failed publication removes it where possible.",
+  "filesystemDurabilityMechanism": {
+    "file": "open temporary file, handle.sync(), close, rename",
+    "directory": "open/sync/close containing directory on non-Windows platforms when supported; explicit no-op on Windows",
+    "windows": "No Unix shell commands or directory-file-descriptor assumption; tested Windows path uses file sync and atomic replacement."
+  },
+  "atomicityMechanism": "Unique same-directory temporary file followed by atomic replacement of one state target; concurrent same-process publications are serialized per workspace identity.",
+  "failureInjectionPoints": [
+    {"point": "service restart after READY publication", "result": "READY index, cache hit, and idempotency state reload", "test": "persists index, cache, and idempotency state across service restart"},
+    {"point": "malformed metadata JSON", "result": "CODEBASE_MEMORY_METADATA_INVALID; no NOT_INDEXED fallback", "test": "rejects corrupted persisted state instead of treating it as current"},
+    {"point": "project identity tamper", "result": "CODEBASE_MEMORY_METADATA_INVALID", "test": "rejects persisted state bound to another project"},
+    {"point": "concurrent query publications", "result": "both idempotency entries survive serialized publication", "test": "serializes concurrent durable state publication without losing query state"}
+  ],
+  "recoveryBehavior": "Missing metadata is treated as genuinely not indexed. Malformed or mismatched metadata is a typed invalid-state error. A known temporary file is not accepted as current. A persisted READY index with changed source becomes STALE and requires explicit refresh.",
+  "previousSnapshotBehavior": "Atomic replacement leaves the previous complete target visible if temporary write, sync, or rename fails. A successfully published FAILED or STALE state is itself schema-valid current metadata; no hidden rollback or silent rewrite is performed.",
+  "retryBehavior": "Existing bounded upstream timeout/cancellation and refresh serialization remain unchanged. A failed persistence publication does not report success; retry starts from the durable state that was actually published.",
+  "concurrencyBehavior": "Per-workspace state publication is serialized in-process; index work remains serialized per project/version as before; cache and idempotency maps are bounded to 10000 entries and evict oldest entries deterministically.",
+  "projectIdentityBinding": "The persisted record binds projectId, projectVersion, canonical workspace identity, index scope, index identity, and manifest checksum. The storage directory is additionally keyed by a hash of canonical identity.",
+  "databaseAuthorityRelationship": "No DB/Project Memory transaction is claimed. The filesystem record is a Codebase Memory projection/cache and does not become a second canonical workflow or Design authority.",
+  "projectionFailureBehavior": "Codebase Memory state publication failure is returned as CODEBASE_MEMORY_PERSISTENCE_FAILED; the upstream structural service is not reported successful before its durable local state is published.",
+  "filesChanged": [
+    "src/integrations/codebase-memory/service.ts",
+    "src/integrations/codebase-memory/metadata.ts",
+    "src/integrations/codebase-memory/errors.ts",
+    "src/integrations/codebase-memory/codebase-memory.test.ts",
+    "scripts/phase-6c-cg02-verification.ts",
+    "docs/integrations/codebase-memory-index-lifecycle.md",
+    "docs/integrations/codebase-memory-security.md"
+  ],
+  "correctionSummary": "Connected the existing Codebase Memory metadata contract to the lifecycle through strict persisted state, durable index/cache/idempotency reload, identity validation, bounded state, serialized publication, file sync, atomic replacement, and platform-honest directory sync.",
+  "testsAdded": [
+    "restart reload of READY index, cache hit, and idempotency conflict",
+    "malformed metadata rejection",
+    "cross-project metadata binding rejection",
+    "concurrent durable publication without lost query state"
+  ],
+  "targetedChecks": {
+    "codebaseMemoryTests": "11 passed",
+    "projectMemoryStoreTests": "9 passed",
+    "workspaceSyncTests": "2 passed",
+    "persistenceIntegrity": "PASS via ProjectMemoryStore and npm run db:test-integrity",
+    "typecheck": "PASS",
+    "lintTargeted": "PASS"
+  },
+  "requiredReviewerRechecks": ["architecture-reviewer", "code-integration-reviewer"],
+  "actualReviewerRechecks": [
+    {"reviewerId": "architecture-reviewer", "state": "RESOLVED", "providerVerdict": "APPROVED", "evidenceValid": true, "realGptCalls": 1},
+    {"reviewerId": "code-integration-reviewer", "state": "RESOLVED", "providerVerdict": "APPROVED", "evidenceValid": true, "realGptCalls": 1}
+  ],
+  "verificationArtifact": "docs/admin/phase-6/cg-09-project-memory-durability-verification-2026-08-11.json",
+  "selectedSkills": {
+    "architecture-reviewer": ["architecture-tradeoff-review", "module-boundaries-fb20497b5c35", "review-maintainability-d9faf7cb9775"],
+    "code-integration-reviewer": []
+  },
+  "providerCalls": {"model": "gpt-5.6-luna", "modelLabel": "GPT-5.6 Luna", "realGptCalls": 2},
+  "evidenceValidation": {"valid": true, "structuredOutputValid": true, "verificationArtifact": "docs/admin/phase-6/cg-09-project-memory-durability-verification-2026-08-11.json", "invalidEvidence": []},
+  "perFindingResolution": {
+    "finding-f13df5392f71f7cf58df": {
+      "originalReviewer": "architecture-reviewer",
+      "originalSeverity": "WARNING",
+      "currentEffectiveSeverity": "WARNING",
+      "category": "STORAGE_ARCHITECTURE",
+      "rootCause": "Declared metadata was unused; Codebase Memory indexes, cache, and idempotency were process-local.",
+      "authorityModel": "Project Memory/database workflow authority remains canonical; Codebase Memory is a read-only projection/cache.",
+      "preCorrectionWriteProtocol": "In-memory Maps only; no restart-surviving state publication.",
+      "correctionEvidence": ["src/integrations/codebase-memory/service.ts:115-199", "src/integrations/codebase-memory/metadata.ts:20-137"],
+      "durabilityEvidence": "11 targeted Codebase Memory tests pass; file sync, atomic replace, directory-sync branch, restart reload, and concurrent publication are covered by implementation and bounded evidence.",
+      "integrityEvidence": "Strict persisted-state schema, manifest checksum binding, index identity binding, malformed-state rejection, and cross-project tamper rejection pass.",
+      "recoveryEvidence": "Missing, malformed, mismatched, stale, and temporary/uncommitted states have distinct deterministic behavior.",
+      "reviewerVerification": "Architecture Reviewer and Code / Integration Reviewer returned RESOLVED / APPROVED with valid evidence and two real GPT calls.",
+      "finalState": "RESOLVED",
+      "resolvedByGroupId": "cg-09-project-memory-durability"
+    }
+  },
+  "potentiallyImpactedGroups": [],
+  "remainingFindingCounts": {"total": 14, "CRITICAL": 0, "ERROR": 5, "WARNING": 8, "INFO": 1},
+  "unblockedGroups": ["cg-12-architecture-review-context", "cg-15-persistence-migration-evidence", "cg-10-design-request-isolation", "cg-11-codebase-index-identity", "cg-17-design-gate-evidence"],
+  "nextRecommendedGroup": "cg-12-architecture-review-context",
+  "phaseStatus": "COMPLETE"
+}
