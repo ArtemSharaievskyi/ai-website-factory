@@ -10,7 +10,7 @@ loadFactoryCliEnv();
 
 async function main() {
   const preflight = await runRealFactoryE2EPreflight();
-  if (!preflight.optIn) { console.log("REAL_FACTORY_E2E_PENDING"); return; }
+  if (!preflight.optIn) { console.log(JSON.stringify({ status: "not-run", releaseEligible: false, reason: "Factory E2E requires explicit preflight opt-in; customer website E2E was not run in this correction.", evidence: "incomplete" })); process.exitCode = 1; return; }
   if (preflight.status !== "passed") { console.error(JSON.stringify({ status: preflight.status, blockers: preflight.blockers, warnings: preflight.warnings })); process.exitCode = 1; return; }
   const { createProductionFactoryRuntime, validateProductionFactoryRuntime } = await import("../src/runtime/server");
   const root = path.resolve(process.env.GENERATED_PROJECTS_ROOT ?? path.resolve(".factory-generated"));

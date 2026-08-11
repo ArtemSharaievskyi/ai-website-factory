@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "documentType": "cg-14-runtime-smoke-result",
+  "groupId": "cg-14-runtime-release-evidence",
+  "command": "npm run generated:runtime-smoke",
+  "status": "passed",
+  "releaseEligible": false,
+  "overallStatus": "passed",
+  "validationRunId": "93d638e2-ba9d-43c8-98bc-676f4fce30ba",
+  "projectId": "22222222-2222-4222-8222-222222222222",
+  "projectVersion": 1,
+  "workspaceReference": "fixture/1",
+  "packageChecksum": "c64137945c5a9a16b235d4dd40a0ce050e8911915dcc8ade7a75fdfc4b3c58a5",
+  "lockfileChecksum": "5f185055a9bfbe65a287045e614ba884fefa78ee16541ea81bbf38d81a17563a",
+  "commandResults": [
+    { "commandType": "npm-ci", "passed": true, "exitCode": 0 },
+    { "commandType": "lint", "passed": true, "exitCode": 0 },
+    { "commandType": "typecheck", "passed": true, "exitCode": 0 },
+    { "commandType": "tests", "passed": true, "exitCode": 0 },
+    { "commandType": "build", "passed": true, "exitCode": 0 }
+  ],
+  "qualityChecks": [
+    { "name": "npm-ci", "status": "passed" },
+    { "name": "lint", "status": "passed" },
+    { "name": "typecheck", "status": "passed" },
+    { "name": "unit-tests", "status": "passed" },
+    { "name": "build", "status": "passed" }
+  ],
+  "commandCount": 5,
+  "policyVersion": "runtime-v1",
+  "releaseEvidence": "executed-runtime-validation"
+}

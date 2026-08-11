@@ -1,0 +1,269 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6m-correction-verification",
+  "groupId": "cg-14-runtime-release-evidence",
+  "findingIds": [
+    "finding-4970556ab704416b2bf8",
+    "finding-191200ccc58b25e3fd0c",
+    "finding-601d85f09cdb45d46400"
+  ],
+  "baselineCommit": "a7b0131",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "correctionSnapshot": "working-tree-before-correction-commit",
+  "reviewerResults": [
+    {
+      "reviewerId": "test-quality-reviewer",
+      "state": "RESOLVED",
+      "evidence": [
+        "current:release-evaluator",
+        "current:quality-evidence-contract",
+        "test:release-evidence-regressions",
+        "current:backend-boundary-smoke",
+        "current:generated-runtime-smoke",
+        "current:opt-in-evidence-boundaries",
+        "current:factory-e2e-contract",
+        "current:ai-smoke",
+        "current:context7-smoke",
+        "current:codebase-memory-smoke",
+        "result:backend-runtime-smoke",
+        "result:generated-runtime-smoke",
+        "result:browser-evidence"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-14-runtime-release-evidence correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    },
+    {
+      "reviewerId": "code-integration-reviewer",
+      "state": "RESOLVED",
+      "evidence": [
+        "current:release-evaluator",
+        "current:quality-evidence-contract",
+        "test:release-evidence-regressions",
+        "current:backend-boundary-smoke",
+        "current:generated-runtime-smoke",
+        "current:opt-in-evidence-boundaries",
+        "current:factory-e2e-contract",
+        "result:backend-runtime-smoke",
+        "result:generated-runtime-smoke",
+        "result:browser-evidence"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-14-runtime-release-evidence correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    }
+  ],
+  "selectedSkills": {
+    "test-quality-reviewer": {
+      "selectedSkillIds": [
+        "behavioral-test-quality-review",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "behavioral-test-quality-review",
+          "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "identityChecksum": "ba9aa336998b0950a673e80e6b14791dd857750f890fb7048b008b89563a8e10"
+    },
+    "code-integration-reviewer": {
+      "selectedSkillIds": [],
+      "selectedSkillChecksums": [],
+      "identityChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  },
+  "provider": {
+    "model": "gpt-5.6-luna",
+    "modelLabel": "GPT-5.6 Luna",
+    "realGptCalls": 2,
+    "requestEvents": [
+      {
+        "type": "request.started",
+        "role": "test-quality-reviewer"
+      },
+      {
+        "type": "request.completed",
+        "role": "test-quality-reviewer",
+        "requestId": "chatcmpl-EBbqFJiIjRJ6maZyDLJA25rHH3JHe"
+      },
+      {
+        "type": "request.started",
+        "role": "code-integration-reviewer"
+      },
+      {
+        "type": "request.completed",
+        "role": "code-integration-reviewer",
+        "requestId": "chatcmpl-EBbqL10zM81ebcLV8FrpbDF8zi6Td"
+      }
+    ]
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "evidenceRefs": [
+      "backend-boundary-smoke",
+      "candidate-bound-quality-gates",
+      "cg14-release-evidence-contract",
+      "current:ai-smoke",
+      "current:backend-boundary-smoke",
+      "current:codebase-memory-smoke",
+      "current:context7-smoke",
+      "current:factory-e2e-contract",
+      "current:generated-runtime-smoke",
+      "current:opt-in-evidence-boundaries",
+      "current:quality-evidence-contract",
+      "current:release-evaluator",
+      "docs/admin/phase-6/cg-14-backend-runtime-smoke-results-2026-08-11.json",
+      "docs/admin/phase-6/cg-14-backend-runtime-smoke-results-2026-08-11.json:1-20",
+      "docs/admin/phase-6/cg-14-browser-evidence-results-2026-08-11.json",
+      "docs/admin/phase-6/cg-14-browser-evidence-results-2026-08-11.json:1-12",
+      "docs/admin/phase-6/cg-14-generated-runtime-smoke-results-2026-08-11.json",
+      "docs/admin/phase-6/cg-14-generated-runtime-smoke-results-2026-08-11.json:1-30",
+      "executed-runtime-smoke",
+      "original-findings",
+      "result:backend-runtime-smoke",
+      "result:browser-evidence",
+      "result:generated-runtime-smoke",
+      "scripts/ai-smoke.ts",
+      "scripts/ai-smoke.ts:1-13",
+      "scripts/backend-smoke.ts",
+      "scripts/backend-smoke.ts:1-33",
+      "scripts/codebase-memory-smoke.ts",
+      "scripts/codebase-memory-smoke.ts:1-17",
+      "scripts/context7-smoke.ts",
+      "scripts/context7-smoke.ts:1-16",
+      "scripts/factory-e2e-smoke.ts",
+      "scripts/factory-e2e-smoke.ts:8-37",
+      "scripts/generated-runtime-smoke.ts",
+      "scripts/generated-runtime-smoke.ts:1-30",
+      "src/domain/quality/schema.ts",
+      "src/domain/quality/schema.ts:1-9",
+      "src/orchestration/execution/execution.test.ts",
+      "src/orchestration/execution/execution.test.ts:15-25",
+      "src/orchestration/execution/service.ts",
+      "src/orchestration/execution/service.ts:792-940",
+      "src/runtime/e2e/contracts.ts",
+      "src/runtime/e2e/contracts.ts:1-32",
+      "test:release-evidence-regressions"
+    ],
+    "slices": [
+      {
+        "id": "current:release-evaluator",
+        "relativePath": "src/orchestration/execution/service.ts",
+        "startLine": 792,
+        "endLine": 940,
+        "checksum": "60225d3252bcb1fbf1f037a9e10a95bc167b5a33ad4279af4a42c41a61960816",
+        "currentHead": "a7b0131"
+      },
+      {
+        "id": "current:quality-evidence-contract",
+        "relativePath": "src/domain/quality/schema.ts",
+        "startLine": 1,
+        "endLine": 9,
+        "checksum": "936cd0ec457e8328f20fa6536ee14eb6e40842dcbe372e3acc54d46f236682ab",
+        "currentHead": "a7b0131"
+      },
+      {
+        "id": "test:release-evidence-regressions",
+        "relativePath": "src/orchestration/execution/execution.test.ts",
+        "startLine": 15,
+        "endLine": 25,
+        "checksum": "6387a41d9d4fd2fe010c432e47b2ace4637bf6405d61ce2034e219d75d0bc288",
+        "currentHead": "a7b0131"
+      },
+      {
+        "id": "current:backend-boundary-smoke",
+        "relativePath": "scripts/backend-smoke.ts",
+        "startLine": 1,
+        "endLine": 33,
+        "checksum": "be526663fa6183d5d9efc16aebe1cf194e07d9193e9a1e25d18637139c5569dc",
+        "currentHead": "a7b0131"
+      },
+      {
+        "id": "current:generated-runtime-smoke",
+        "relativePath": "scripts/generated-runtime-smoke.ts",
+        "startLine": 1,
+        "endLine": 30,
+        "checksum": "c31568b0e2e84de88e73e349e078995a4c5a45e876d204e0220022b0896d73ac",
+        "currentHead": "a7b0131"
+      },
+      {
+        "id": "current:opt-in-evidence-boundaries",
+        "relativePath": "scripts/factory-e2e-smoke.ts",
+        "startLine": 8,
+        "endLine": 37,
+        "checksum": "e9c8fb650c9762d26860ca624800d2406ca9b3ded9e4b1d1789df02ee68b1c8a",
+        "currentHead": "a7b0131"
+      },
+      {
+        "id": "current:factory-e2e-contract",
+        "relativePath": "src/runtime/e2e/contracts.ts",
+        "startLine": 1,
+        "endLine": 32,
+        "checksum": "d9b75a8d02f604e5484bbacacf78f6bef8cfd9b5dbc449c9d95b8c5cd53721cf",
+        "currentHead": "a7b0131"
+      },
+      {
+        "id": "current:ai-smoke",
+        "relativePath": "scripts/ai-smoke.ts",
+        "startLine": 1,
+        "endLine": 13,
+        "checksum": "51831c688046900493fa7858cf5b08aaeb697bdc72209ec2f3fbcee29f80d46b",
+        "currentHead": "a7b0131"
+      },
+      {
+        "id": "current:context7-smoke",
+        "relativePath": "scripts/context7-smoke.ts",
+        "startLine": 1,
+        "endLine": 16,
+        "checksum": "a7f4a10988123e3f6f9ebb936a6debecde87fe59f9358fa04440c42c37031a19",
+        "currentHead": "a7b0131"
+      },
+      {
+        "id": "current:codebase-memory-smoke",
+        "relativePath": "scripts/codebase-memory-smoke.ts",
+        "startLine": 1,
+        "endLine": 17,
+        "checksum": "725a2c278136bfc1e095e90dbac93180f3c2e598db4a8c19418cfe3074c3aa3a",
+        "currentHead": "a7b0131"
+      },
+      {
+        "id": "result:backend-runtime-smoke",
+        "relativePath": "docs/admin/phase-6/cg-14-backend-runtime-smoke-results-2026-08-11.json",
+        "startLine": 1,
+        "endLine": 20,
+        "checksum": "7e858f10df26ab77bd6f66a77159b4ea04eb1e4fb5b30e001147775d742f9077",
+        "currentHead": "a7b0131"
+      },
+      {
+        "id": "result:generated-runtime-smoke",
+        "relativePath": "docs/admin/phase-6/cg-14-generated-runtime-smoke-results-2026-08-11.json",
+        "startLine": 1,
+        "endLine": 30,
+        "checksum": "1afbd82b10373fd38006b34446c27521b21fb9e56a55f0ac03740dd37693739c",
+        "currentHead": "a7b0131"
+      },
+      {
+        "id": "result:browser-evidence",
+        "relativePath": "docs/admin/phase-6/cg-14-browser-evidence-results-2026-08-11.json",
+        "startLine": 1,
+        "endLine": 12,
+        "checksum": "caf8339972c3b913474df5456d5ed38ecedf26870572f6a9f3acfbf935295e47",
+        "currentHead": "a7b0131"
+      }
+    ]
+  },
+  "phaseStatus": "RESOLVED"
+}

@@ -38,6 +38,8 @@ export const CG12_GROUP_ID = "cg-12-architecture-review-context" as const;
 export const CG12_FINDING_IDS = ["finding-0e21399a0a91b82a05dc", "finding-2484a19307c1536e12e7"] as const;
 export const CG13_GROUP_ID = "cg-13-reviewer-execution-evidence" as const;
 export const CG13_FINDING_IDS = ["finding-51d38dcb2b668ff33332", "finding-f27b5098995ae5bb44c9"] as const;
+export const CG14_GROUP_ID = "cg-14-runtime-release-evidence" as const;
+export const CG14_FINDING_IDS = ["finding-4970556ab704416b2bf8", "finding-191200ccc58b25e3fd0c", "finding-601d85f09cdb45d46400"] as const;
 export const PHASE6A_PLAN_IDENTITY = "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00" as const;
 export const PHASE6A_PLAN_PATH = "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json" as const;
 export const VERIFICATION_MACHINE_PATH = "docs/admin/phase-6/cg-02-authentication-authorization-rls-verification-2026-08-10.json" as const;
@@ -279,6 +281,27 @@ const CG13_CONFIG: CorrectionConfig = {
   idempotencyPrefix: "phase6l1",
 };
 
+const CG14_CONFIG: CorrectionConfig = {
+  groupId: CG14_GROUP_ID,
+  findingIds: CG14_FINDING_IDS,
+  machinePath: "docs/admin/phase-6/cg-14-runtime-release-evidence-verification-2026-08-11.json",
+  reportPath: "docs/admin/phase-6/cg-14-runtime-release-evidence-verification-2026-08-11.md",
+  documentType: "phase-6m-correction-verification",
+  title: "cg-14 Runtime Release Evidence Verification",
+  fixedRefs: ["original-findings", "cg14-release-evidence-contract", "candidate-bound-quality-gates", "executed-runtime-smoke", "backend-boundary-smoke"],
+  originalFindings: [
+    { findingId: CG14_FINDING_IDS[0], severity: "ERROR", category: "CRITICAL_FLOW_NOT_VERIFIED", summary: "Release-critical browser behavior has no execution evidence." },
+    { findingId: CG14_FINDING_IDS[1], severity: "WARNING", category: "FUNCTIONAL_SCENARIO_INCOMPLETE", summary: "Opt-in integration smoke scripts do not provide executed runtime evidence." },
+    { findingId: CG14_FINDING_IDS[2], severity: "WARNING", category: "FALSE_CONFIDENCE_TEST", summary: "Backend smoke evidence validates proposal acceptance rather than runtime backend behavior." },
+  ],
+  correctionGoal: "Record meaningful runtime behavior evidence rather than only proposal acceptance or unexecuted opt-in scripts.",
+  trustBoundary: "Factory-internal finished-candidate eligibility: mandatory quality gates must be present, passed, and bound to the current project/version/TaskGraph/source candidate; standalone smoke scripts report bounded execution evidence without granting release authority.",
+  nonGoals: ["No new product features", "No customer website generation E2E execution", "No deployment or hosting", "No unrelated browser test expansion", "No new reviewer, agent, tool, or evidence framework"],
+  deterministicChecks: ["missing mandatory quality gates cannot produce releaseEligible=true", "quality checks are bound to current candidate evidence", "full mandatory validation remains release eligible", "backend smoke executes a local migration/server-action boundary fixture", "generated runtime smoke records validation identity and command results", "opt-in integration and Factory E2E scripts report explicit not-run evidence when not authorized"],
+  requiredReviewerIds: ["test-quality-reviewer", "code-integration-reviewer"],
+  idempotencyPrefix: "phase6m1",
+};
+
 async function currentSlice(root: string, id: string, relativePath: string, startLine: number, endLine: number): Promise<EvidenceSlice> {
   const bytes = await readFile(path.resolve(root, relativePath));
   const lines = bytes.toString("utf8").split(/\r?\n/);
@@ -287,7 +310,21 @@ async function currentSlice(root: string, id: string, relativePath: string, star
 }
 
 async function buildEvidence(root: string, config: CorrectionConfig) {
-  const slices = await Promise.all(config.groupId === CG13_GROUP_ID ? [
+  const slices = await Promise.all(config.groupId === CG14_GROUP_ID ? [
+    currentSlice(root, "current:release-evaluator", "src/orchestration/execution/service.ts", 792, 940),
+    currentSlice(root, "current:quality-evidence-contract", "src/domain/quality/schema.ts", 1, 9),
+    currentSlice(root, "test:release-evidence-regressions", "src/orchestration/execution/execution.test.ts", 15, 25),
+    currentSlice(root, "current:backend-boundary-smoke", "scripts/backend-smoke.ts", 1, 33),
+    currentSlice(root, "current:generated-runtime-smoke", "scripts/generated-runtime-smoke.ts", 1, 30),
+    currentSlice(root, "current:opt-in-evidence-boundaries", "scripts/factory-e2e-smoke.ts", 8, 37),
+    currentSlice(root, "current:factory-e2e-contract", "src/runtime/e2e/contracts.ts", 1, 32),
+    currentSlice(root, "current:ai-smoke", "scripts/ai-smoke.ts", 1, 13),
+    currentSlice(root, "current:context7-smoke", "scripts/context7-smoke.ts", 1, 16),
+    currentSlice(root, "current:codebase-memory-smoke", "scripts/codebase-memory-smoke.ts", 1, 17),
+    currentSlice(root, "result:backend-runtime-smoke", "docs/admin/phase-6/cg-14-backend-runtime-smoke-results-2026-08-11.json", 1, 20),
+    currentSlice(root, "result:generated-runtime-smoke", "docs/admin/phase-6/cg-14-generated-runtime-smoke-results-2026-08-11.json", 1, 30),
+    currentSlice(root, "result:browser-evidence", "docs/admin/phase-6/cg-14-browser-evidence-results-2026-08-11.json", 1, 12),
+  ] : config.groupId === CG13_GROUP_ID ? [
     currentSlice(root, "current:reviewer-catalog", "src/agents/catalog.ts", 82, 129),
     currentSlice(root, "test:reviewer-execution-contract", "src/agents/catalog.test.ts", 1, 109),
     currentSlice(root, "current:structured-client-validation", "src/integrations/openai/client.ts", 90, 130),
@@ -359,6 +396,7 @@ async function buildEvidence(root: string, config: CorrectionConfig) {
 }
 
 function correctionDiff(root: string, config: CorrectionConfig) {
+  if (config.groupId === CG14_GROUP_ID) return git(root, ["diff", "--no-ext-diff", "--unified=3", "--", "src/orchestration/execution/service.ts", "src/orchestration/execution/contracts.ts", "src/domain/quality/schema.ts", "src/orchestration/execution/execution.test.ts", "scripts/backend-smoke.ts", "scripts/generated-runtime-smoke.ts", "scripts/ai-smoke.ts", "scripts/context7-smoke.ts", "scripts/codebase-memory-smoke.ts", "scripts/factory-e2e-smoke.ts", "package.json"]).slice(0, 30000);
   const files = config.groupId === CG13_GROUP_ID ? ["src/agents/catalog.test.ts", "src/agents/catalog.ts", "src/integrations/openai/client.ts", "src/integrations/openai/adapters.ts", "src/integrations/openai/provider.test.ts", "package.json"] : config.groupId === CG12_GROUP_ID ? ["src/agents/reviewers/architecture/deterministic.ts", "src/agents/reviewers/architecture/service.ts", "src/agents/reviewers/architecture/architecture.test.ts", "docs/architecture/architecture-reviewer.md"] : config.groupId === CG09_GROUP_ID ? ["src/integrations/codebase-memory/service.ts", "src/integrations/codebase-memory/metadata.ts", "src/integrations/codebase-memory/errors.ts", "src/integrations/codebase-memory/codebase-memory.test.ts", "docs/integrations/codebase-memory-index-lifecycle.md", "docs/integrations/codebase-memory-security.md"] : config.groupId === CG08_GROUP_ID ? ["src/integrations/context7/policy.ts", "src/integrations/context7/service.ts", "src/integrations/context7/contracts.ts", "src/integrations/context7/context7.test.ts", "scripts/context7-smoke.ts"] : config.groupId === CG07_GROUP_ID ? ["scripts/factory-e2e-smoke.ts", "src/runtime/e2e/lifecycle.ts", "src/runtime/e2e/lifecycle.test.ts"] : config.groupId === CG06_GROUP_ID ? ["scripts/db-common.mjs", "scripts/db-migrate.mjs", "scripts/db-status.mjs", "scripts/db-verify.mjs", "scripts/db-smoke.ts", "src/persistence/database/db-script-error-propagation.test.ts"] : config.groupId === CG05_GROUP_ID ? ["src/agents/design/service.ts", "src/agents/design/memory.ts", "src/agents/design/server.ts", "src/runtime/production-factory-runtime-core.ts", "src/domain/design/schema.ts", "src/agents/design/design.test.ts"] : config.groupId === CG04_GROUP_ID ? ["src/integrations/openai/config.ts", "src/integrations/openai/client.ts", "src/integrations/openai/limiter.ts", "src/integrations/context7/service.ts", "src/integrations/codebase-memory/service.ts", "src/integrations/openai/provider.test.ts", "src/integrations/context7/context7.test.ts", "src/integrations/codebase-memory/codebase-memory.test.ts"] : ["src/agents/planner/contracts.ts", "src/agents/planner/deterministic.ts", "src/agents/planner/planner.test.ts", "src/agents/implementation/contracts.ts", "src/agents/implementation/service.ts", "src/agents/implementation/policy.ts", "src/agents/implementation/provider.ts", "src/agents/implementation/backend.ts", "src/agents/implementation/backend.test.ts", "src/runtime/validation/security.ts", "src/integrations/openai/adapters.ts", "scripts/backend-smoke.ts"];
   return git(root, ["diff", "--no-ext-diff", "--unified=3", "--", ...files]).slice(0, 30000);
 }
@@ -423,6 +461,8 @@ export async function runTargetedCorrectionVerification(root: string, config: Co
     selections[reviewerId] = await resolveSkills(resolvedRoot, reviewerId, config);
     const beforeCalls = events.filter((event) => event.type === "request.started").length;
     const input = verificationInput(reviewerId, currentHead, evidence, diff, config);
+    if (config.groupId === CG14_GROUP_ID)
+      input.verificationQuestion = "Does the current cg-14 correction either provide candidate-bound browser evidence or explicitly keep release evidence incomplete and non-eligible with truthful missing-gate blockers, while recording the executed backend and generated-runtime evidence and preserving opt-in boundaries? Return APPROVED with no findings only when no standalone smoke status grants release authority, no customer website generation E2E or deployment is claimed, and the canonical evaluator fails closed. Do not report fresh repository findings or unrelated correction groups.";
     const output = reviewerId === "security-reviewer"
       ? await bundle.securityReviewer.review({ ...input, idempotencyKey: `${config.idempotencyPrefix}:${config.groupId}:${reviewerId}:${currentHead}` } as never, undefined, selections[reviewerId].contexts, selections[reviewerId].identityChecksum)
       : reviewerId === "architecture-reviewer"
@@ -466,8 +506,9 @@ export async function runCg08Verification(root = process.cwd()) { return runTarg
 export async function runCg09Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG09_CONFIG); }
 export async function runCg12Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG12_CONFIG); }
 export async function runCg13Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG13_CONFIG); }
+export async function runCg14Verification(root = process.cwd()) { return runTargetedCorrectionVerification(root, CG14_CONFIG); }
 
 if (process.argv[1]?.endsWith("phase-6c-cg02-verification.ts")) {
-  const runner = process.env.PHASE6_CORRECTION_GROUP === CG13_GROUP_ID ? runCg13Verification : process.env.PHASE6_CORRECTION_GROUP === CG12_GROUP_ID ? runCg12Verification : process.env.PHASE6_CORRECTION_GROUP === CG09_GROUP_ID ? runCg09Verification : process.env.PHASE6_CORRECTION_GROUP === CG08_GROUP_ID ? runCg08Verification : process.env.PHASE6_CORRECTION_GROUP === CG07_GROUP_ID ? runCg07Verification : process.env.PHASE6_CORRECTION_GROUP === CG06_GROUP_ID ? runCg06Verification : process.env.PHASE6_CORRECTION_GROUP === CG05_GROUP_ID ? runCg05Verification : process.env.PHASE6_CORRECTION_GROUP === CG04_GROUP_ID ? runCg04Verification : process.env.PHASE6_CORRECTION_GROUP === CG03_GROUP_ID ? runCg03Verification : runCg02Verification;
+  const runner = process.env.PHASE6_CORRECTION_GROUP === CG14_GROUP_ID ? runCg14Verification : process.env.PHASE6_CORRECTION_GROUP === CG13_GROUP_ID ? runCg13Verification : process.env.PHASE6_CORRECTION_GROUP === CG12_GROUP_ID ? runCg12Verification : process.env.PHASE6_CORRECTION_GROUP === CG09_GROUP_ID ? runCg09Verification : process.env.PHASE6_CORRECTION_GROUP === CG08_GROUP_ID ? runCg08Verification : process.env.PHASE6_CORRECTION_GROUP === CG07_GROUP_ID ? runCg07Verification : process.env.PHASE6_CORRECTION_GROUP === CG06_GROUP_ID ? runCg06Verification : process.env.PHASE6_CORRECTION_GROUP === CG05_GROUP_ID ? runCg05Verification : process.env.PHASE6_CORRECTION_GROUP === CG04_GROUP_ID ? runCg04Verification : process.env.PHASE6_CORRECTION_GROUP === CG03_GROUP_ID ? runCg03Verification : runCg02Verification;
   runner().then((result) => console.log(JSON.stringify({ status: result.artifact.phaseStatus, groupId: result.artifact.groupId, realGptCalls: result.artifact.provider.realGptCalls, reviewers: result.artifact.reviewerResults }, null, 2))).catch((error) => { console.error(error instanceof Error ? error.message : "VERIFICATION_FAILED"); process.exitCode = 1; });
 }

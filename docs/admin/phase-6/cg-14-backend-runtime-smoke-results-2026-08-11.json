@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "documentType": "cg-14-runtime-smoke-result",
+  "groupId": "cg-14-runtime-release-evidence",
+  "command": "npm run backend:smoke",
+  "status": "passed",
+  "releaseEligible": false,
+  "proposalValidation": true,
+  "tasksPassed": 2,
+  "migrationBoundaryExecuted": true,
+  "serverActionBoundaryExecuted": true,
+  "fixtureResult": {
+    "migrationBoundaryExecuted": true,
+    "serverActionBoundaryExecuted": true
+  },
+  "npmExecuted": false,
+  "networkRequested": false,
+  "temporaryRoot": true,
+  "releaseEvidence": "executed-local-boundary"
+}

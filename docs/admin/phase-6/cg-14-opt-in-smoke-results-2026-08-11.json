@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "documentType": "cg-14-runtime-smoke-result",
+  "groupId": "cg-14-runtime-release-evidence",
+  "status": "not-run",
+  "releaseEligible": false,
+  "commands": {
+    "ai:smoke": "not-run: explicit AI smoke opt-in and OPENAI_API_KEY required",
+    "context7:smoke": "not-run: explicit Context7 smoke opt-in required",
+    "codebase-memory:smoke": "not-run: explicit Codebase Memory smoke opt-in required",
+    "factory:e2e-smoke": "not-run: explicit Factory E2E preflight opt-in required"
+  },
+  "scopeNote": "Customer website generation E2E was intentionally not executed in cg-14. Standalone smoke results do not grant release authority."
+}

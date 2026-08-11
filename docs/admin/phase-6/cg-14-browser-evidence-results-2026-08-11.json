@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "documentType": "cg-14-browser-evidence-result",
+  "groupId": "cg-14-runtime-release-evidence",
+  "command": "npm run playwright:smoke",
+  "status": "blocked",
+  "blocker": "The validated QA workspace is missing the Next.js production build.",
+  "releaseEligible": false,
+  "customerWebsiteGenerationE2E": "NOT_RUN",
+  "scopeDecision": "Release evidence remains incomplete; no customer website generation E2E or Playwright coverage expansion was performed."
+}

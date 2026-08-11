@@ -27,6 +27,7 @@ import {
   type TaskExecutorPort,
   type TaskGraphExecutionRun,
 } from "./contracts";
+import { QualityCheckSchema, type QualityCheck } from "@/domain/quality/schema";
 import {
   graphChecksum,
   taskCategory,
@@ -53,6 +54,9 @@ const runtimeOperation: Readonly<
   "runtime-tests": "tests",
   "runtime-build": "build",
 };
+const recordsEqual = (left: Record<string, string>, right: Record<string, string>) =>
+  Object.keys(left).length === Object.keys(right).length &&
+  Object.entries(left).every(([key, value]) => right[key] === value);
 
 const defaultRepairer: RepairPort = {
   async create(input) {
@@ -792,10 +796,28 @@ export class FullTaskGraphExecutor {
     repairFor: Map<string, string>,
   ) {
     const executed = [...new Set([...run.executedTaskIds, task.id])];
-    const quality = [
-      ...run.qualityGateSummary,
-      ...(outcome.qualityChecks ?? []),
-    ].reduce(
+    const boundOutcomeChecks = (outcome.qualityChecks ?? []).map((check) =>
+      QualityCheckSchema.parse({
+        ...check,
+        evidence: {
+          projectId: run.projectId,
+          projectVersion: run.projectVersion,
+          taskGraphChecksum: run.taskGraphChecksum,
+          sourceDocumentChecksums: run.sourceDocumentChecksums,
+          ...(outcome.runtimeValidationRunId
+            ? { runtimeValidationRunId: outcome.runtimeValidationRunId }
+            : {}),
+          ...(outcome.qaRunId ? { qaRunId: outcome.qaRunId } : {}),
+          ...(outcome.sourceChecksum
+            ? { sourceChecksum: outcome.sourceChecksum }
+            : {}),
+          ...(outcome.validationPlanChecksum
+            ? { validationPlanChecksum: outcome.validationPlanChecksum }
+            : {}),
+        },
+      }),
+    );
+    const quality = [...run.qualityGateSummary, ...boundOutcomeChecks].reduce(
       (all, check) => [
         ...all.filter((existing) => existing.name !== check.name),
         check,
@@ -888,11 +910,40 @@ export class FullTaskGraphExecutor {
     const quality = snapshot.qualityChecks.length
       ? snapshot.qualityChecks
       : run.qualityGateSummary;
-    const mandatoryPassed = quality
-      .filter((check) =>
-        this.policy.mandatoryQualityCheckNames.includes(check.name),
-      )
-      .every((check) => check.status === "passed");
+    const currentEvidence = (check: QualityCheck) => {
+      const evidence = check.evidence;
+      const executionReference =
+        check.name === "e2e"
+          ? evidence?.qaRunId
+          : ["lint", "typecheck", "unit-tests", "build"].includes(check.name)
+            ? evidence?.runtimeValidationRunId
+            : undefined;
+      return (
+        evidence?.projectId === input.projectId &&
+        evidence.projectVersion === input.projectVersion &&
+        evidence.taskGraphChecksum === run.taskGraphChecksum &&
+        recordsEqual(evidence.sourceDocumentChecksums, run.sourceDocumentChecksums) &&
+        Boolean(executionReference) &&
+        check.command !== undefined &&
+        check.resultSummary !== undefined &&
+        (check.exitCode === undefined || check.exitCode === 0)
+      );
+    };
+    const mandatoryPassed = this.policy.mandatoryQualityCheckNames.every((name) =>
+      quality.some(
+        (check) =>
+          check.name === name &&
+          check.status === "passed" &&
+          currentEvidence(check),
+      ),
+    );
+    const evidenceBlockers = this.policy.mandatoryQualityCheckNames.flatMap((name) => {
+      const check = quality.find((candidate) => candidate.name === name);
+      if (!check) return [`QUALITY_GATE_MISSING_${name.toUpperCase()}`];
+      if (check.status !== "passed" || !currentEvidence(check))
+        return [`QUALITY_GATE_EVIDENCE_INCOMPLETE_${name.toUpperCase()}`];
+      return [];
+    });
     const blockers = graph.tasks
       .filter(
         (task) =>
@@ -902,6 +953,7 @@ export class FullTaskGraphExecutor {
       .map(
         (task) => task.safeFailureCode ?? `TASK_${task.status.toUpperCase()}`,
       );
+    blockers.push(...evidenceBlockers);
     const summary = ExecutionSummarySchema.parse({
       schemaVersion: 1,
       documentType: "full-execution",

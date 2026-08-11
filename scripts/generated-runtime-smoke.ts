@@ -8,7 +8,7 @@ loadFactoryCliEnv();
 
 async function main() {
   if (process.env.ALLOW_GENERATED_RUNTIME_SMOKE !== "true") {
-    console.error("REAL_GENERATED_RUNTIME_SMOKE_PENDING: set ALLOW_GENERATED_RUNTIME_SMOKE=true to run the opt-in npm runtime smoke test.");
+    console.log(JSON.stringify({ status: "not-run", releaseEligible: false, reason: "Explicit generated-runtime smoke opt-in is required.", evidence: "incomplete" }));
     process.exitCode = 1;
   } else {
     const root = await mkdtemp(path.join(os.tmpdir(), "generated-runtime-smoke-"));
@@ -19,7 +19,7 @@ async function main() {
     await writeFile(path.join(workspace, "package-lock.json"), JSON.stringify({ name: "generated-runtime-smoke", version: "1.0.0", lockfileVersion: 3, packages: { "": { name: "generated-runtime-smoke", version: "1.0.0" } } }));
     try {
       const report = await new GeneratedRuntimeValidator().runValidationSequence({ projectId: "22222222-2222-4222-8222-222222222222", projectVersion: 1, workspacePath: workspace, generatedProjectsRoot: root, mutable: true });
-      console.log(JSON.stringify({ overallStatus: report.overallStatus, commandCount: report.commandResults.length, policyVersion: report.policyVersion }));
+      console.log(JSON.stringify({ status: report.overallStatus === "passed" ? "passed" : "failed", releaseEligible: false, overallStatus: report.overallStatus, validationRunId: report.validationRunId, projectId: report.projectId, projectVersion: report.projectVersion, workspaceReference: report.workspaceReference, packageChecksum: report.packageChecksum, lockfileChecksum: report.lockfileChecksum, commandResults: report.commandResults.map((result) => ({ commandType: result.commandType, passed: result.passed, exitCode: result.exitCode })), qualityChecks: report.qualityChecks.map((check) => ({ name: check.name, status: check.status })), commandCount: report.commandResults.length, policyVersion: report.policyVersion, releaseEvidence: report.overallStatus === "passed" ? "executed-runtime-validation" : "incomplete" }));
       if (report.overallStatus !== "passed") process.exitCode = 1;
     } finally {
       await rm(root, { recursive: true, force: true });
