@@ -1,0 +1,366 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6t-correction-result",
+  "phase": "6T",
+  "groupId": "cg-11-codebase-index-identity",
+  "title": "Disambiguate Project Memory workspace index selection",
+  "baselineCommit": "c113d76ce936caa0c99427faf636133d579897cb",
+  "correctionCommit": "a881ee5221525296ae67ac962fbc240a2991e90c",
+  "correctionCommitMessage": "fix: bind query scope to project identity",
+  "correctionCommits": [
+    {
+      "commit": "5fc7d9a50842b442fe75b7dd467b159f0a638b50",
+      "message": "fix: bind Codebase index to workspace identity"
+    },
+    {
+      "commit": "a881ee5221525296ae67ac962fbc240a2991e90c",
+      "message": "fix: bind query scope to project identity"
+    }
+  ],
+  "correctionCyclesUsed": 2,
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "baselineState": "docs/admin/phase-6/phase-6-execution-state-2026-08-11-cg10-result.json",
+  "findingIds": ["finding-9106112c9ba65e4be7ed"],
+  "rootCause": "Make index selection deterministic when multiple workspace paths exist for a project version.",
+  "rootCauseConfidence": "HIGH",
+  "dependencies": ["cg-09-project-memory-durability"],
+  "dependencyStatus": "COMPLETE",
+  "finding": {
+    "originalReviewer": "architecture-reviewer",
+    "originalSeverity": "WARNING",
+    "currentEffectiveSeverity": "WARNING",
+    "category": "IDENTITY_MODEL",
+    "affectedSubsystem": "Codebase Memory workspace path identity",
+    "summary": "Query index selection can be ambiguous when more than one workspace path exists for the same project version.",
+    "originalEvidence": [
+      {
+        "relativePath": "src/integrations/codebase-memory/service.ts",
+        "startLine": 35,
+        "endLine": 41,
+        "checksum": "dd273c5d70da607bf26f591d3795138bef02a5aa2b5cd183747008a8e856b93b",
+        "lineCount": 41,
+        "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+      },
+      {
+        "relativePath": "src/integrations/codebase-memory/contracts.ts",
+        "startLine": 7,
+        "endLine": 26,
+        "checksum": "b452aaf53072343b453ac0c6af03bb94a657249f318fed68b93315d5d95702cf",
+        "lineCount": 26,
+        "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+      },
+      {
+        "relativePath": "src/integrations/codebase-memory/policy.ts",
+        "startLine": 25,
+        "endLine": 28,
+        "checksum": "5890938ba799ced178593c027c72762fd2b95e53af41f2caa6531f9e23a362df",
+        "lineCount": 28,
+        "currentHead": "d9262d922b8408c0754da5b050b4c14be5a4f3e5"
+      }
+    ],
+    "currentnessBefore": "ACTIVE_UNCHANGED",
+    "remainingIssueBefore": "The validated finding remained applicable at current HEAD: a query could select the first in-memory index matching only projectId/projectVersion even though canonical identity included the resolved workspace path.",
+    "recommendedAction": "Require workspace scope for queries or complete canonical workspace identity; do not fall through to first-match project/version selection."
+  },
+  "authorityClassification": "Codebase Memory is a read-only structural projection and bounded Factory-managed cache. The exact WorkspaceScope and source manifest bind local index, query, cache, and idempotency identity; the optional upstream transport does not become a competing Factory authority.",
+  "correction": {
+    "before": "CodebaseMemoryQueryPlan.workspaceScope was optional and findIndex could return the first index matching projectId/projectVersion, allowing two workspace paths for one project version to reuse the wrong index.",
+    "after": "Every query plan requires a complete WorkspaceScope. The plan projectId/projectVersion must match that scope, state is loaded for that exact canonical scope, and findIndex selects only the exact canonical workspace identity.",
+    "productionBehaviorChanged": true,
+    "reproduction": "A deterministic two-workspace fixture with the same projectId/projectVersion and identical source was indexed at the ordinary version path and a valid staging candidate path. Baseline first-match behavior returned the ordinary-path index when the staging candidate was intended. The final regression rejects an unscoped plan, rejects project/scope mismatches, and returns only the intended staging workspace index.",
+    "policyPreserved": "Workspace validation, source-manifest construction, exclusions, secret boundaries, index currentness, cache/idempotency, durable state publication, restart/corruption/concurrency behavior, and the existing implementation consumer scope were preserved."
+  },
+  "identityModel": {
+    "project": {
+      "before": "Query plan projectId was present, but it did not constrain an optional workspace scope and was insufficient to distinguish multiple workspace paths.",
+      "after": "Query plan projectId is required and must equal workspaceScope.projectId; persisted state also validates the project binding."
+    },
+    "projectVersion": {
+      "before": "Query plan projectVersion was present and part of the upstream project argument, but first-match selection could still choose another workspace for the same version.",
+      "after": "Query plan projectVersion must equal workspaceScope.projectVersion and participates in canonicalWorkspaceIdentity and persisted-state validation."
+    },
+    "workspace": {
+      "before": "workspaceScope was optional for queries, so callers could omit the path and trigger first-match reuse.",
+      "after": "WorkspaceScope is required, validated, resolved, generated-root-contained, version-shaped, and included in the exact canonical identity."
+    },
+    "sourceSnapshot": {
+      "before": "The source manifest checksum was already required and checked for READY index currentness, but it did not repair ambiguous workspace selection.",
+      "after": "The content-addressed source manifest remains unchanged and must match the exact scoped READY index before a query can run."
+    },
+    "index": {
+      "before": "Index records already carried workspaceIdentity and indexId, but query lookup could ignore that identity when scope was omitted.",
+      "after": "Lookup uses only canonicalWorkspaceIdentity(workspaceScope); indexId remains sha(canonicalWorkspaceIdentity + manifestChecksum)."
+    },
+    "cache": {
+      "before": "Cache entries were scoped internally, but an unscoped plan could still resolve the wrong index before cache use.",
+      "after": "The exact scope is mandatory and the existing cache key includes project/version/sourceManifest/operation/serialized plan plus the exact scope key."
+    },
+    "query": {
+      "before": "A query plan could omit workspace identity and rely on first matching in-memory index order.",
+      "after": "Query identity is bound to the complete workspace scope, matching project identity, current source manifest, operation, and query idempotency input."
+    },
+    "optionalUpstream": {
+      "role": "The read-only adapter receives a project argument formatted from projectId and projectVersion; its remote project/index naming is not the local Factory workspace authority.",
+      "availability": "UNAVAILABLE; codebase-memory-mcp was not on PATH and live smoke was not configured."
+    }
+  },
+  "canonicalIdentity": {
+    "formula": "${projectId}:${projectVersion}:${path.resolve(workspacePath).toLowerCase()}",
+    "components": ["projectId", "projectVersion", "resolved lowercase absolute workspacePath"],
+    "absolutePathRole": "The resolved absolute path is the workspace discriminator for this Factory-managed generated workspace architecture; it is not a whole-repository hash and is not used to grant write authority.",
+    "sourceManifestRole": "The manifest checksum is a separate content snapshot identity and freshness boundary; it is not replaced by the workspace identity.",
+    "secrets": "No secret values, source contents, credentials, or environment values are added to identity keys or persisted metadata.",
+    "excludedFactoryArtifacts": "The indexed workspace boundary excludes Factory administrative material outside the generated application version. Dotfiles, excluded directories, symlinks, and secret-like files remain excluded by the existing source policy; .context7-cache and .qa-foundation-* remain untracked operational artifacts and do not enter the indexed application workspace identity."
+  },
+  "sourceScope": {
+    "policyVersion": "codebase-memory-policy-v1",
+    "allowedExtensions": ["ts", "tsx", "js", "jsx", "mjs", "cjs", "json", "css", "scss", "html", "md", "yml", "yaml", "toml"],
+    "excludedDirectoryNames": [".git", ".factory", "node_modules", ".next", "dist", "coverage"],
+    "excludedEntries": ["dotfiles and dot-directories", "symbolic links", "secret-like filenames", "non-source extensions"],
+    "secretFilenameRule": "^\\.env(?:\\..*)?$ or names containing secret, credential, password, token, key, or ending in .pem",
+    "manifestAlgorithm": "Sorted recursive file entries record slash-normalized relativePath, sha256, and byte count; the sorted file list is JSON-hashed.",
+    "policyChanged": false
+  },
+  "currentnessAndInvalidation": {
+    "freshnessBoundary": "computeSourceManifest(scope).checksum",
+    "readyQueryRequirement": "The selected exact-scope index must be READY and its manifestChecksum must equal the query sourceManifestChecksum.",
+    "addedOrRemovedSource": "Manifest file membership changes alter the checksum and cause the existing index status/currentness path to require refresh; the direct suite exercises added-source staleness.",
+    "contentChange": "Source bytes are SHA-256 hashed, so content changes alter the manifest checksum.",
+    "irrelevantChange": "Excluded directories, dotfiles, symlinks, secret-like files, and non-source extensions do not enter the manifest.",
+    "sameContent": "Same scoped source content produces the same manifest checksum under the existing deterministic policy; scope identity still distinguishes different workspaces/projects.",
+    "mtime": "Modification time is not used as source identity."
+  },
+  "scenarioMatrix": [
+    {
+      "scenario": "Two workspaces, same project/version, different paths",
+      "result": "PASS",
+      "evidence": "New identity regression indexes both paths and selects only the requested exact canonical workspace."
+    },
+    {
+      "scenario": "Unscoped query plan",
+      "result": "PASS",
+      "evidence": "CodebaseMemoryQueryPlanSchema.parse rejects the plan because workspaceScope is required."
+    },
+    {
+      "scenario": "Project/scope projectId mismatch",
+      "result": "PASS",
+      "evidence": "runQuery rejects CODEBASE_MEMORY_WORKSPACE_INVALID before index or upstream use."
+    },
+    {
+      "scenario": "Project/scope projectVersion mismatch",
+      "result": "PASS",
+      "evidence": "runQuery rejects CODEBASE_MEMORY_WORKSPACE_INVALID before index or upstream use."
+    },
+    {
+      "scenario": "Cross-project or cross-version persisted state",
+      "result": "PASS",
+      "evidence": "Existing cg-09 metadata binding tests remain green and reject foreign identity rather than treating it as missing."
+    },
+    {
+      "scenario": "Current source versus stale index",
+      "result": "PASS",
+      "evidence": "Existing Codebase Memory staleness test remains green; query requires READY plus matching manifest checksum."
+    },
+    {
+      "scenario": "Restart, corruption, idempotency, cache, and concurrent publication",
+      "result": "PASS",
+      "evidence": "Existing cg-09 durability tests remain green; no persistence protocol was redesigned."
+    },
+    {
+      "scenario": "Optional upstream unavailable",
+      "result": "PASS",
+      "evidence": "The optional adapter remains bounded/read-only and no fake fallback or live availability claim was introduced."
+    }
+  ],
+  "cg09DurabilityPreservation": {
+    "stateLocation": "Factory-managed generatedProjectsRoot/.codebase-memory/<sha(canonicalIdentity)>/codebase-memory.json",
+    "preserved": [
+      "schema-validated metadata",
+      "project/version/workspace/index/manifest binding",
+      "READY/STALE currentness",
+      "cache and query-idempotency reload",
+      "malformed/cross-identity rejection",
+      "same-directory temporary file and file sync",
+      "atomic replacement",
+      "per-workspace serialized publication",
+      "restart and concurrent publication behavior"
+    ],
+    "redesignIntroduced": false
+  },
+  "canonicalFactOwners": [
+    { "fact": "Workspace scope validation and canonical workspace identity", "owner": "src/integrations/codebase-memory/policy.ts" },
+    { "fact": "Query plan contract and scope binding", "owner": "src/integrations/codebase-memory/contracts.ts and src/integrations/codebase-memory/service.ts" },
+    { "fact": "Source snapshot manifest and currentness", "owner": "src/integrations/codebase-memory/policy.ts and src/integrations/codebase-memory/service.ts" },
+    { "fact": "Durable Codebase Memory projection/cache state", "owner": "src/integrations/codebase-memory/metadata.ts and src/integrations/codebase-memory/service.ts" },
+    { "fact": "Implementation caller scope", "owner": "src/agents/implementation/policy.ts" }
+  ],
+  "filesChanged": [
+    "src/integrations/codebase-memory/service.ts",
+    "src/integrations/codebase-memory/contracts.ts",
+    "src/integrations/codebase-memory/codebase-memory.test.ts",
+    "scripts/phase-6c-cg02-verification.ts"
+  ],
+  "productionFilesChanged": [
+    "src/integrations/codebase-memory/service.ts",
+    "src/integrations/codebase-memory/contracts.ts"
+  ],
+  "testFilesChanged": ["src/integrations/codebase-memory/codebase-memory.test.ts"],
+  "scriptsChanged": ["scripts/phase-6c-cg02-verification.ts"],
+  "policyFilesReviewedButUnchanged": ["src/integrations/codebase-memory/policy.ts", "src/integrations/codebase-memory/metadata.ts", "src/agents/implementation/policy.ts"],
+  "filesOutsideLikelyFiles": {
+    "src/integrations/codebase-memory/codebase-memory.test.ts": "Required direct two-workspace identity-isolation regression evidence.",
+    "scripts/phase-6c-cg02-verification.ts": "Required cg11 verifier configuration, exact reviewer question, current evidence slices, and dispatcher wiring."
+  },
+  "nonGoalsHonored": [
+    "No workspace storage redesign",
+    "No Codebase Memory/indexer/RAG/vector redesign",
+    "No source policy divergence",
+    "No database schema or migration",
+    "No Project Memory authority merge",
+    "No new agent, reviewer, tool, MCP, orchestrator, or framework",
+    "No unrelated correction group changes",
+    "No customer website-generation E2E or deployment"
+  ],
+  "correctionSummary": "Bound every Factory Codebase Memory query to the complete canonical WorkspaceScope, rejected mismatched project identity, and replaced first-match index reuse with exact canonical workspace lookup while preserving cg-09 durability and source-manifest currentness.",
+  "testsAdded": [
+    "Two valid workspace paths with the same projectId/projectVersion cannot select each other's index.",
+    "An unscoped query plan is rejected by the query-plan contract.",
+    "A projectId or projectVersion mismatch between the query and workspace scope is rejected.",
+    "The intended scoped workspace is returned after both workspaces are indexed."
+  ],
+  "requiredDeterministicChecks": ["targeted Codebase Memory tests", "npm run typecheck"],
+  "targetedChecks": {
+    "focusedVitest": "PASS; 1 file / 12 tests",
+    "typecheck": "PASS",
+    "lint": "PASS; 0 errors and 3 known pre-existing warnings",
+    "productionBuild": "PASS; Next.js 16.2.12",
+    "gitDiffCheck": "PASS"
+  },
+  "requiredReviewerRechecks": ["architecture-reviewer", "code-integration-reviewer"],
+  "actualReviewerRechecks": [
+    { "reviewerId": "architecture-reviewer", "state": "RESOLVED", "providerVerdict": "APPROVED", "structuredOutputValid": true, "evidenceValid": true, "realGptCalls": 1 },
+    { "reviewerId": "code-integration-reviewer", "state": "RESOLVED", "providerVerdict": "APPROVED", "structuredOutputValid": true, "evidenceValid": true, "realGptCalls": 1 }
+  ],
+  "reviewCycles": [
+    {
+      "cycle": 1,
+      "result": "STILL_ACTIVE",
+      "freshProviderCalls": 2,
+      "reviewerOutcome": "architecture-reviewer RESOLVED; code-integration-reviewer CHANGES_REQUIRED",
+      "requestedCorrection": "Bind the required workspace scope to the query plan's project identity."
+    },
+    {
+      "cycle": 2,
+      "result": "RESOLVED",
+      "freshProviderCalls": 2,
+      "reviewerOutcome": "architecture-reviewer RESOLVED; code-integration-reviewer RESOLVED",
+      "requestedCorrection": null
+    }
+  ],
+  "freshProviderCalls": 4,
+  "reusedReviewerExecutions": 0,
+  "verificationArtifact": "docs/admin/phase-6/cg-11-codebase-index-identity-verification-2026-08-11.json",
+  "verificationReport": "docs/admin/phase-6/cg-11-codebase-index-identity-verification-2026-08-11.md",
+  "reviewExecutionEvidence": {
+    "finalStatus": "RESOLVED",
+    "evidenceValid": true,
+    "finalRunFreshProviderCalls": 2,
+    "evidenceRefs": [
+      "current:codebase-memory-service",
+      "current:codebase-memory-index-selection",
+      "current:codebase-memory-contracts",
+      "current:codebase-memory-policy",
+      "current:codebase-memory-metadata",
+      "current:implementation-codebase-scope",
+      "test:codebase-memory-identity",
+      "cg09-durable-state",
+      "read-only-upstream"
+    ]
+  },
+  "selectedSkills": {
+    "architecture-reviewer": {
+      "selectedSkillIds": ["architecture-tradeoff-review", "module-boundaries-fb20497b5c35", "review-maintainability-d9faf7cb9775"],
+      "selectedSkillChecksums": [
+        { "skillId": "architecture-tradeoff-review", "checksum": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd" },
+        { "skillId": "module-boundaries-fb20497b5c35", "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff" },
+        { "skillId": "review-maintainability-d9faf7cb9775", "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9" }
+      ],
+      "identityChecksum": "488df20026a8cdc27a0ea566de496b2de54ab8ce8e047ec9ffa73eb4ad149c59"
+    },
+    "code-integration-reviewer": {
+      "selectedSkillIds": [],
+      "selectedSkillChecksums": [],
+      "identityChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  },
+  "remainingFindingCountsBefore": { "total": 1, "CRITICAL": 0, "ERROR": 0, "WARNING": 1, "INFO": 0, "arithmeticValid": true },
+  "remainingFindingCounts": { "total": 0, "CRITICAL": 0, "ERROR": 0, "WARNING": 0, "INFO": 0, "arithmeticValid": true },
+  "perFindingResolution": {
+    "finding-9106112c9ba65e4be7ed": {
+      "originalReviewer": "architecture-reviewer",
+      "originalSeverity": "WARNING",
+      "category": "IDENTITY_MODEL",
+      "finalState": "RESOLVED",
+      "resolution": "Required complete WorkspaceScope, enforced project/version agreement, and selected indexes by exact canonical workspace identity; direct two-workspace regression and required reviewer rechecks passed.",
+      "resolvedByGroupId": "cg-11-codebase-index-identity",
+      "verificationArtifact": "docs/admin/phase-6/cg-11-codebase-index-identity-verification-2026-08-11.json"
+    }
+  },
+  "resolvedCount": 1,
+  "partialCount": 0,
+  "stillActiveCount": 0,
+  "regressionFoundCount": 0,
+  "fullValidation": {
+    "vitest": "PASS; 70 files / 850 tests",
+    "reviewerSuite": "PASS; 7 files / 77 tests",
+    "targetedCodebaseMemory": "PASS; 1 file / 12 tests",
+    "typecheck": "PASS",
+    "lint": "PASS; 0 errors / 3 known pre-existing warnings",
+    "build": "PASS; Next.js 16.2.12",
+    "npmAudit": "PASS; 0 vulnerabilities",
+    "databaseValidation": "PASS; 2 migrations",
+    "databaseStatus": "PASS; 2 migrations applied",
+    "databaseVerification": "PASS; 17 tables, 84 constraints, 4 indexes, RLS 17/17, public policies 0",
+    "databaseIntegrity": "PASS",
+    "dockerComposeConfig": "PASS",
+    "taskGraphSmoke": "PASS; releaseEligible=true, 6 tasks, 0 repairs",
+    "gitDiffCheck": "PASS",
+    "optionalCodebaseMemoryLiveSmoke": "UNAVAILABLE; codebase-memory-mcp not on PATH and ALLOW_REAL_CODEBASE_MEMORY_SMOKE is unset; no fake fallback used"
+  },
+  "qaFoundationDirectories": {
+    "beforeTargeted": 16,
+    "afterTargeted": 16,
+    "afterFullSuite": 16,
+    "newPersistentDirectory": null,
+    "historicalCleanup": false
+  },
+  "context7Cache": { "path": ".context7-cache/", "tracked": false, "staged": false, "includedInIdentity": false },
+  "phase6Invariants": {
+    "approvedExternalArtifacts": 4,
+    "approvedInternalArtifacts": 13,
+    "approvedUniqueArtifacts": 17,
+    "assignmentRefs": 18,
+    "agentCatalogCount": 9,
+    "deferredRuntimeUsage": 0,
+    "activeSkillMarkdownChanged": 0,
+    "dependencyAuthorityAdded": false,
+    "previewOrDeploymentAdded": false,
+    "newAgentReviewerToolMcpOrchestrator": false,
+    "databaseOrMigrationChanged": false,
+    "customerWebsiteGenerationE2E": false,
+    "historicalArtifactsPreserved": true
+  },
+  "phase6TerminalCriteria": {
+    "allFindingBearingGroupsTerminal": true,
+    "allRequiredReviewersApproved": true,
+    "allEvidenceValid": true,
+    "fullValidationPassed": true,
+    "blockedOrPartialGroups": 0,
+    "remainingUnresolvedFindingIds": [],
+    "remainingCorrectionGroups": [],
+    "nextWorkCategory": "POST-PHASE-6 HARDENING PLAN"
+  },
+  "nextRecommendedGroup": null,
+  "phaseStatus": "COMPLETE"
+}
