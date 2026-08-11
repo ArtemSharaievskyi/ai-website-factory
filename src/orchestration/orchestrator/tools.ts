@@ -5,7 +5,7 @@ const read = ["filesystem-read"] as const;
 const write = ["filesystem-read", "filesystem-write"] as const;
 export function resolveTools(taskType: string, assetSources: string[] = []): { allowed: string[]; denied: string[] } {
   if (taskType === "prepare-workspace") return { allowed: [...write], denied: ["git-write", "Magic-Patterns-design", "npm"] };
-  if (taskType.startsWith("validate-") || taskType === "prepare-release" || taskType === "write-e2e-tests") return { allowed: [...read, ...(taskType === "write-e2e-tests" ? ["filesystem-write"] : []), ...(taskType === "validate-functional-flow" ? ["Playwright-functional"] : [])], denied: ["Magic-Patterns-design", "git-write", "shell-restricted"] };
+  if (taskType.startsWith("validate-") || taskType === "prepare-release" || taskType === "write-e2e-tests") return { allowed: [...read, ...(taskType.startsWith("validate-") ? ["generated-runtime-validation"] : []), ...(taskType === "write-e2e-tests" ? ["filesystem-write"] : []), ...(taskType === "validate-functional-flow" ? ["Playwright-functional", "playwright-functional-qa"] : [])], denied: ["Magic-Patterns-design", "git-write", "shell-restricted"] };
   if (taskType === "implement-database-schema" || taskType === "implement-rls-policy" || taskType === "implement-storage") return { allowed: [...write, "database-read", "database-write"], denied: ["Magic-Patterns-design", "Playwright-functional", "git-write"] };
   if (taskType === "implement-motion") return { allowed: [...write], denied: ["Magic-Patterns-design", "Playwright-functional", "git-write"] };
   const allowed: string[] = [...write];

@@ -1,9 +1,12 @@
 import { z } from "zod";
+import { ToolIdSchema } from "@/domain/tooling/schema";
+
+export { ToolIdSchema } from "@/domain/tooling/schema";
 
 export const AgentIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/, "Agent IDs must be lowercase machine identifiers.");
 export const AgentRoleSchema = z.enum(["generation", "implementation", "review"]);
-export const CapabilityIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+$/, "Capability IDs must use dot-separated machine identifiers.");
-export const AgentToolIdSchema = z.enum(["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read"]);
+export const AgentToolIdSchema = ToolIdSchema;
+export const AgentCapabilityIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+$/, "Agent capability IDs must use dot-separated machine identifiers.");
 export const SkillIdSchema = z.string().regex(/^[a-z0-9]+(?:[-_.][a-z0-9]+)*$/, "Skill IDs must be stable machine identifiers.");
 export const AgentTaskTypeSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/, "Task type references must be machine identifiers.");
 export const AgentVersionSchema = z.string().regex(/^\d+\.\d+\.\d+$/, "Agent versions must use semantic versioning.");
@@ -51,7 +54,7 @@ export const AgentDefinitionSchema = z.object({
   displayName: z.string().min(1),
   role: AgentRoleSchema,
   version: AgentVersionSchema,
-  capabilities: z.array(CapabilityIdSchema).min(1),
+  capabilities: z.array(AgentCapabilityIdSchema).min(1),
   supportedTaskTypes: z.array(AgentTaskTypeSchema).min(1),
   allowedTools: z.array(AgentToolIdSchema),
   allowedSkillIds: z.array(SkillIdSchema),

@@ -1,10 +1,10 @@
-import { AgentDefinitionSchema, AgentToolIdSchema, CapabilityIdSchema, type AgentDefinition } from "@/domain/agents/schema";
+import { AgentCapabilityIdSchema, AgentDefinitionSchema, AgentToolIdSchema, type AgentDefinition } from "@/domain/agents/schema";
 import { ImplementationTaskTypeSchema } from "@/domain/tasks/schema";
 import { z } from "zod";
 
 export const AGENT_TOOL_IDS = ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read"] as const satisfies readonly z.infer<typeof AgentToolIdSchema>[];
 export type AgentToolId = (typeof AGENT_TOOL_IDS)[number];
-export const AGENT_CAPABILITY_IDS = ["requirements.clarify", "requirements.brief", "planning.architecture", "planning.content", "planning.assets", "design.directions", "design.selection", "implementation.code", "implementation.backend", "review.architecture", "review.contracts", "review.integration", "review.security", "review.test-quality"] as const satisfies readonly z.infer<typeof CapabilityIdSchema>[];
+export const AGENT_CAPABILITY_IDS = ["requirements.clarify", "requirements.brief", "planning.architecture", "planning.content", "planning.assets", "design.directions", "design.selection", "implementation.code", "implementation.backend", "review.architecture", "review.contracts", "review.integration", "review.security", "review.test-quality"] as const satisfies readonly z.infer<typeof AgentCapabilityIdSchema>[];
 export type AgentCapabilityId = (typeof AGENT_CAPABILITY_IDS)[number];
 
 const CONTRACT_REFERENCES = new Set(["lead.input", "lead.output", "planner.input", "planner.output", "design.input", "design.output", "implementation.input", "implementation.output", "architecture-reviewer.input", "contract-auditor.input", "code-integration-reviewer.input", "security-reviewer.input", "test-quality-reviewer.input", "review.output"]);

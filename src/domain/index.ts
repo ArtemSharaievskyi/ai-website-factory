@@ -12,5 +12,6 @@ export * from "./review/schema";
 export * from "./shared/errors";
 export * from "./shared/schemas";
 export * from "./tasks/schema";
+export * from "./tooling/schema";
 export * from "./workflow/decision";
 export * from "./workflow/engine";

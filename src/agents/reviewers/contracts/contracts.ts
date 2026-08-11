@@ -4,11 +4,11 @@ import { PlanningPackageSchema } from "@/agents/planner/contracts";
 import { ArchitectureReviewRecordSchema, ContractAuditResultSchema } from "@/domain/review/schema";
 import { SelectedDesignSchema } from "@/domain/design/schema";
 import { TaskGraphSchema } from "@/domain/tasks/schema";
-import { AgentIdSchema, CapabilityIdSchema } from "@/domain/agents/schema";
+import { AgentCapabilityIdSchema, AgentIdSchema } from "@/domain/agents/schema";
 
 export const CONTRACT_AUDIT_POLICY_VERSION = "contract-audit-v1";
 export const CONTRACT_AUDIT_PROMPT_VERSION = "contract-auditor.v1";
-export const ContractExecutorSchema = z.object({ executorId: AgentIdSchema, kind: z.enum(["agent", "runtime"]), current: z.boolean(), capabilities: z.array(z.union([CapabilityIdSchema, z.string().regex(/^[a-z][a-z0-9-]*$/)])).min(1) }).strict();
+export const ContractExecutorSchema = z.object({ executorId: AgentIdSchema, kind: z.enum(["agent", "runtime"]), current: z.boolean(), capabilities: z.array(z.union([AgentCapabilityIdSchema, z.string().regex(/^[a-z][a-z0-9-]*$/)])).min(1) }).strict();
 export type CanonicalProjectIdentity = { projectId: string; projectVersion: number };
 export function projectIdentityMismatches(
   expected: CanonicalProjectIdentity,
