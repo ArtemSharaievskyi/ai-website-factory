@@ -1,0 +1,544 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-7b-r2-g2-revision-2-replan",
+  "planId": "phase-7b-r2-g2-revision-2-2026-08-11",
+  "planStatus": "REVISED_CORRECTION_READY",
+  "generatedOn": "2026-08-11",
+  "phase": "7B",
+  "revision": "2.1",
+  "baselineHead": "fb61e7b",
+  "authoritativePlanBaselineCommit": "bbc9e3a",
+  "sourceRevisionPlanIdentity": {
+    "planId": "phase-7b-revision-2-2026-08-11",
+    "path": "docs/admin/phase-7b/phase-7b-revision-2-plan-2026-08-11.json",
+    "groupId": "R2-G2-EXTERNAL_RESULT_BOUNDARY",
+    "originalCorrectionBudget": 1
+  },
+  "failedCandidateIdentity": {
+    "capturedAtHead": "fb61e7b",
+    "candidatePreservedRequirement": true,
+    "failedCandidateFiles": [
+      {
+        "path": "src/orchestration/tooling/executors.ts",
+        "committedChecksum": "94e9b218d73a50bf94b69fa8db8ccc3b2a928c01",
+        "committedChecksumType": "git-blob-at-HEAD",
+        "dirtyChecksum": "d9db6f8d164bbe2d21e379d7d598c52d007506a60974829d51bb1c46be144f8e",
+        "dirtyChecksumType": "sha256-working-tree-bytes",
+        "dirtyGitBlob": "f9aeff007ed653aa316f8c2305e628e3e3e3bba5",
+        "diffIdentity": "c32a2a9a5f8e6b81b5052b67ec9590d3873f886c",
+        "diffStat": "77 added/changed lines",
+        "linesOrFunctionsChanged": [
+          "lines 7-12: quoted JSON-key redaction and pre-validation limits",
+          "lines 14-75: ExternalResultBoundaryError, cloneBoundedExternalValue, boundedExternalValue",
+          "lines 147-154: registeredOutputToToolResult now clones/bounds before schema validation"
+        ],
+        "attemptedCorrectionContent": [
+          "recursive node/depth/estimated-byte traversal",
+          "cycle and unsupported-value rejection",
+          "quoted JSON-key redaction",
+          "pre-validation conversion changed from JSON.stringify to recursive clone"
+        ]
+      },
+      {
+        "path": "src/orchestration/tooling/tooling.test.ts",
+        "committedChecksum": "788386edf89faccb7b6d8056ee6ea3a5db27c5d3",
+        "committedChecksumType": "git-blob-at-HEAD",
+        "dirtyChecksum": "7f0fba15dd22fe138c22359f0cc799821b31b8a30694d2509f8a30a06f4e24f8",
+        "dirtyChecksumType": "sha256-working-tree-bytes",
+        "dirtyGitBlob": "7861934a96c9ea9d139264e08a82913c74eced2f",
+        "diffIdentity": "6b6bbf647d0103507aa7104c946e2f7ddf7938e5",
+        "diffStat": "97 added/changed lines",
+        "linesOrFunctionsChanged": [
+          "lines 6-7: dependency-authority and implementation-prompt imports",
+          "lines 36-96: Context7, shadcn, and Codebase Memory result fixtures",
+          "lines 230-268: pre-validation, JSON-key redaction, supplemental-content, and prompt-placement regressions"
+        ],
+        "attemptedCorrectionContent": [
+          "cyclic, oversized, and unsupported live-object cases",
+          "quoted password/apiKey redaction fixture",
+          "positive Context7/shadcn/Codebase Memory untrusted-result fixtures",
+          "prompt-injection, dependency-authority, and system/user prompt-separation assertions"
+        ]
+      }
+    ],
+    "unexpectedDirtyPathsAtStart": [],
+    "knownTransientUntracked": [".context7-cache/"],
+    "qaFoundationDirectoryCount": 17
+  },
+  "failedCandidateFiles": [
+    {
+      "path": "src/orchestration/tooling/executors.ts",
+      "committedChecksum": "94e9b218d73a50bf94b69fa8db8ccc3b2a928c01",
+      "dirtyChecksum": "d9db6f8d164bbe2d21e379d7d598c52d007506a60974829d51bb1c46be144f8e",
+      "diffIdentity": "c32a2a9a5f8e6b81b5052b67ec9590d3873f886c"
+    },
+    {
+      "path": "src/orchestration/tooling/tooling.test.ts",
+      "committedChecksum": "788386edf89faccb7b6d8056ee6ea3a5db27c5d3",
+      "dirtyChecksum": "7f0fba15dd22fe138c22359f0cc799821b31b8a30694d2509f8a30a06f4e24f8",
+      "diffIdentity": "6b6bbf647d0103507aa7104c946e2f7ddf7938e5"
+    }
+  ],
+  "groupId": "R2-G2-EXTERNAL_RESULT_BOUNDARY",
+  "findingIds": ["7b-sec-002", "7b-sec-004"],
+  "findingStates": {
+    "7b-sec-002": "VALID_ACTIVE_REBASED",
+    "7b-sec-004": "VALID_ACTIVE",
+    "groupState": "BLOCKED_AFTER_ONE_FAILED_CORRECTION_CYCLE"
+  },
+  "reviewerEvidence": {
+    "existingReconciliationFindings": [
+      {
+        "findingId": "7b-sec-002",
+        "reviewer": "security-reviewer",
+        "severity": "ERROR",
+        "category": "EXTERNAL_INPUT_HANDLING",
+        "semanticClaim": "External responses could cause resource work before the bounded ToolResult envelope because output was serialized before the pre-validation size check.",
+        "evidence": "JSON.stringify(value) executed before the 200000-byte rejection and before registered output schema validation; integration schemas bounded normal outputs, but the public conversion boundary still serialized arbitrary values.",
+        "evidenceReferences": [
+          "src/orchestration/tooling/executors.ts:80-87",
+          "src/integrations/context7/contracts.ts:10-13",
+          "src/integrations/shadcn/contracts.ts:4-6",
+          "src/integrations/codebase-memory/contracts.ts:14-22"
+        ],
+        "reconciliationState": "VALID_ACTIVE_REBASED",
+        "rebasedClaim": "The remaining defect is the pre-validation serialization boundary, not the absence of all output limits."
+      },
+      {
+        "findingId": "7b-sec-004",
+        "reviewer": "security-reviewer",
+        "severity": "WARNING",
+        "category": "SECRET_EXPOSURE",
+        "semanticClaim": "Redaction was limited to fixed environment names and regexes and did not cover common JSON key forms or other credentials.",
+        "evidence": "The regex covered more token, bearer, private-key, API-key, client-secret, access-token, refresh-token, password, secret, and token forms, but serialized JSON such as {\"password\":\"value\"} was not guaranteed to match the quoted key form; configured replacement remained a fixed environment-name list.",
+        "evidenceReferences": [
+          "src/orchestration/tooling/executors.ts:7-14",
+          "src/orchestration/tooling/executors.ts:42-55"
+        ],
+        "reconciliationState": "VALID_ACTIVE"
+      }
+    ],
+    "failedCorrectionReview": {
+      "providerModel": "gpt-5.6-luna",
+      "providerLabel": "GPT-5.6 Luna",
+      "freshCalls": 3,
+      "reusedCalls": 0,
+      "securityReviewer": {
+        "verdict": "CHANGES_REQUIRED",
+        "findingId": "7b-sec-005",
+        "severity": "ERROR",
+        "category": "EXTERNAL_INPUT_HANDLING",
+        "summary": "The new resource bound limits the cloned data size, but traversal of unknown external objects can execute getters and Proxy traps before validation.",
+        "unsafeScenario": "for...in, propertyIsEnumerable, and source[key] can invoke Proxy ownKeys, getPrototypeOf, getOwnPropertyDescriptor, and get behavior or ordinary getters before node and byte limits complete.",
+        "evidenceReferences": [
+          "src/orchestration/tooling/executors.ts:1-145",
+          "src/orchestration/tooling/tooling.test.ts:145-275"
+        ],
+        "recommendedAction": "Harden the boundary by requiring inert JSON-compatible data produced by adapters or remove arbitrary live-object acceptance; preserve typed schemas and UNTRUSTED_EXTERNAL.",
+        "selectedSkills": [],
+        "reviewIdentityChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "codeIntegrationReviewer": {
+        "verdict": "APPROVED",
+        "findings": [],
+        "selectedSkills": [],
+        "reviewIdentityChecksum": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "testQualityReviewer": {
+        "verdict": "CHANGES_REQUIRED",
+        "findingId": "7b-sec-002-004-quality-001",
+        "severity": "WARNING",
+        "category": "REQUIREMENT_NOT_VERIFIED",
+        "summary": "Secret-redaction evidence does not cover all stated redaction patterns.",
+        "missingFixtures": [
+          "representative fake private-key payload",
+          "standalone token-pattern payload"
+        ],
+        "requiredBehavior": "Both patterns must be redacted while surrounding legitimate documentation/source remains usable in the ToolResult/context path.",
+        "evidenceReferences": [
+          "src/orchestration/tooling/executors.ts:1-145",
+          "src/orchestration/tooling/tooling.test.ts:145-275"
+        ],
+        "selectedSkills": [
+          {"skillId": "behavioral-test-quality-review", "checksum": "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09"},
+          {"skillId": "requirements-evidence-traceability", "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"}
+        ],
+        "reviewIdentityChecksum": "ba9aa336998b0950a673e80e6b14791dd857750f890fb7048b008b89563a8e10"
+      }
+    }
+  },
+  "originalRootCause": "The generic external-result converter called JSON.stringify on an arbitrary value before rejecting a value larger than 200000 bytes, and the redaction expression was not reliable for quoted JSON secret keys.",
+  "revisedRootCause": "The generic external-result boundary accepts an unknown live JavaScript value and attempts to make it safe by recursively enumerating and reading it. Because ordinary accessors and Proxy traps can execute during for...in, prototype traversal, property-descriptor checks, and property reads, the boundary can execute external object behavior before schema validation and bounding complete. The affected integration contracts also expose unknown raw transport values to normalizers. The safe boundary must therefore require serialized text or another host-owned inert representation before generic ToolResult conversion; raw transport text must be bounded and parsed by the owning integration before its existing normalization schemas construct supplemental DTOs.",
+  "rootCauseConfidence": {
+    "level": "HIGH",
+    "evidence": [
+      "The failed candidate source directly uses for...in, propertyIsEnumerable, source[key], and Array.map on unknown values.",
+      "The harmless diagnostic observed getter, Proxy ownKeys, getPrototypeOf, descriptor, and get execution before the result reached schema validation.",
+      "Context7 and shadcn transport contracts return Promise<unknown>; Codebase Memory's injected upstream transport also returns Promise<unknown> even though its production process transport parses JSON first.",
+      "The generic converter is exported through src/orchestration/tooling/index.ts and has no non-test production caller found by repository search, so its public internal API is broader than the current live route."
+    ]
+  },
+  "securityBoundaryAnalysis": {
+    "invariant": "No untrusted live JavaScript object is recursively traversed as external supplemental data before an integration-owned inert serialization or JSON parsing boundary.",
+    "selectedArchitecture": "Option B with the smallest required Option C transport split: integration transports deliver bounded serialized JSON text, integration services parse and normalize into existing typed host-created DTOs, adapters serialize only those normalized DTOs, and registeredOutputToToolResult accepts only a bounded JSON string.",
+    "whyNotReflection": "Object.keys, Object.values, Object.entries, descriptors, getPrototypeOf, Reflect operations, spread, Object.assign, JSON.stringify, structuredClone, for...in, and property reads are not a general defense against arbitrary Proxy behavior. Catching their exceptions would still permit attacker-controlled execution before denial.",
+    "authorityAndContentTrust": "Allowlisted Context7 or official shadcn source and local Codebase Memory establish source/transport provenance only. Their text remains supplemental untrusted data. ToolResult contentTrust remains UNTRUSTED_EXTERNAL; host-owned project, task, capability, file-scope, dependency, tool-policy, and ChangeProposal authority remain outside external content.",
+    "affectedIntegrations": ["Context7", "shadcn", "Codebase Memory"],
+    "earliestInertBoundary": "The owning transport/service boundary: receive text or bytes, enforce a byte limit before JSON.parse, parse ordinary JSON, run the existing integration normalizer/schema, and only then produce the host-created normalized DTO that the tooling adapter serializes for ToolResult conversion. A caller-provided live object is not accepted as the raw transport representation.",
+    "validationLayering": [
+      "transport byte bound",
+      "JSON parse with safe failure",
+      "existing integration shape/schema normalization",
+      "existing content/path/dependency/prompt-injection policies",
+      "adapter serialization of the normalized DTO",
+      "generic ToolResult byte bound, redaction, and provenance envelope",
+      "model-context placement as supplemental user-role data"
+    ]
+  },
+  "perIntegration": {
+    "Context7": {
+      "sourceType": "server-side Context7 transport contract; repository has injected and synthetic transports but no concrete HTTP client implementation",
+      "rawTransportRepresentation": "Context7Transport currently returns Promise<unknown>; tests and synthetic transport return arrays/objects, so the contract permits arbitrary live values.",
+      "parseBoundary": "There is no transport-level parse in the current Context7 service. Context7Service.request passes the unknown response to normalizeContext7Response. Cache hits are JSON.parse results.",
+      "normalizationBoundary": "normalizeContext7Response performs Array.isArray, candidate property reads, prompt-injection checks, content cleanup, checksum creation, DocumentationExcerptSchema.parse, and max-excerpt/max-byte bounding.",
+      "currentGenericBoundary": "The typed Context7DocumentationPort result is awaited by adapters and passed as unknown to registeredOutputToToolResult; Implementation policy later places typed excerpts in supplemental ImplementationContext and labels them advisory.",
+      "arbitraryObjectReachable": "Yes at the contract and custom/test injection level; no concrete network object path is present in this repository. A malicious model or agent has no direct call path to the transport or exported converter.",
+      "requiredChange": "Narrow the transport payload to serialized JSON text, enforce a bounded text read before JSON.parse in the service/client integration, then feed the parsed ordinary value to the existing normalizer. Keep cache, retries, allowlist, version resolution, size limits, and prompt-injection rejection. Adapters serialize only the resulting typed Context7QueryResult/ResolvedContext7Library.",
+      "provenance": "Attach host-owned Context7 executor identity and tool policy after normalization; do not let returned text set authority or contentTrust."
+    },
+    "shadcn": {
+      "sourceType": "server-only official allowlisted Registry transport at the fixed ui.shadcn.com endpoint",
+      "rawTransportRepresentation": "officialShadcnTransport currently calls response.json() and returns Promise<unknown>; synthetic/custom transports also return objects.",
+      "parseBoundary": "The Fetch API parses the official response before the service sees it, with no explicit response-byte check before response.json().",
+      "normalizationBoundary": "ShadcnRegistryService.request passes raw to normalizeComponent, which reads object/file properties, enforces file/content/path/dependency/source-safety policies, constructs host-owned metadata, and parses ShadcnComponentReferenceSchema.",
+      "currentGenericBoundary": "The typed ShadcnReferenceResult is awaited by adapters and passed as unknown to registeredOutputToToolResult. Implementation policy treats registry references as read-only advisory material; dependency metadata does not grant installation authority.",
+      "arbitraryObjectReachable": "The official response.json() path yields ordinary parsed JSON, not a Proxy, but the transport contract and service constructor allow arbitrary object injection by custom host/test code.",
+      "requiredChange": "Use the existing fetch transport with response.text(), enforce a bounded UTF-8 response size before JSON.parse, and narrow the transport contract to serialized JSON text. Preserve official allowlisting, normalization, source scanning, dependency checks, cache, retries, and design adaptation. Adapters serialize only the normalized ShadcnReferenceResult.",
+      "provenance": "Keep official-shadcn source metadata host-owned and separate from ToolResult contentTrust; source approval never makes component text executable or authoritative."
+    },
+    "Codebase Memory": {
+      "sourceType": "local read-only executable/JSON-RPC process transport",
+      "rawTransportRepresentation": "CodebaseMemoryProcessTransport receives newline-delimited stdout, JSON.parse's each JSON-RPC line, and resolves value.result. The generic UpstreamTransport type currently returns Promise<unknown>, so injected transports/tests can return live objects directly.",
+      "parseBoundary": "Production process transport JSON.parse's the child-process line before the service; malformed lines are discarded until timeout. Persisted cache/metadata also use readFile plus JSON.parse. The current process buffer has no explicit per-line byte bound.",
+      "normalizationBoundary": "CodebaseMemoryService.normalize reads result/content rows, bounds result count and source bytes, creates CodeSymbolReference/CodeRelationship/SourceExcerpt schema values, and returns a typed CodebaseMemoryResult with workspace/index provenance.",
+      "currentGenericBoundary": "The typed CodebaseMemoryPort result is awaited by adapters and passed as unknown to registeredOutputToToolResult. Implementation policy labels Codebase Memory structural data untrusted and never grants write scope.",
+      "arbitraryObjectReachable": "Not from the production child-process wire after JSON.parse, but yes through the public injected UpstreamTransport and custom/test service construction; the generic port/result API is also exported internally.",
+      "requiredChange": "Preserve the serialized child-process boundary, add a bounded line/text guard before JSON.parse, and narrow injected upstream transport fixtures to serialized result text or a host-owned parsed path. Keep existing workspace identity, read-only allowlist, current-index, query, cache, persistence, result, and source-byte policies. Adapters serialize only normalized CodebaseMemory DTOs.",
+      "provenance": "Retain workspace identity, manifest checksum, adapter version, and Codebase Memory provenance as host-owned evidence; none changes ToolResult contentTrust."
+    }
+  },
+  "unsafeTraversalAnalysis": {
+    "diagnosticFixture": {
+      "fixtureScope": "temporary in-process values only; no filesystem, network, process, or secret access",
+      "observedEvents": [
+        "ordinary getter: getter:packageName",
+        "Proxy ownKeys",
+        "Proxy getPrototypeOf",
+        "Proxy getOwnPropertyDescriptor for each enumerated key, including repeated descriptor checks",
+        "Proxy get for each enumerated value"
+      ],
+      "notObservedOnCurrentCandidate": [
+        "custom toJSON: enumerable function was rejected as unsupported before resultData; non-enumerable toJSON would be omitted from the clone",
+        "custom iterator: the candidate uses for...in for objects and Array.map/property access for arrays, not Symbol.iterator"
+      ],
+      "baselineNote": "The pre-candidate implementation's JSON.stringify(value) could invoke an object's toJSON before its size rejection; the current candidate removed that direct call but still executes accessor/Proxy behavior while cloning."
+    },
+    "mechanisms": [
+      {"mechanism": "getter", "currentAttemptCanTrigger": true, "productionReachability": "possible through unknown transport/custom-port injection; not from JSON.parse output", "revisedHandling": "generic API accepts only primitive JSON text and rejects object inputs by typeof without reading properties"},
+      {"mechanism": "Proxy get", "currentAttemptCanTrigger": true, "productionReachability": "possible through unknown transport/custom-port injection; no direct model/agent path", "revisedHandling": "remove live-object acceptance from the generic boundary and narrow raw transport contracts to text"},
+      {"mechanism": "Proxy ownKeys", "currentAttemptCanTrigger": true, "productionReachability": "possible in current clone's for...in", "revisedHandling": "no reflection or enumeration of caller-provided objects at the protected boundary"},
+      {"mechanism": "Proxy descriptor", "currentAttemptCanTrigger": true, "productionReachability": "possible through for...in and propertyIsEnumerable", "revisedHandling": "no descriptor inspection; reject non-string converter inputs"},
+      {"mechanism": "toJSON", "currentAttemptCanTrigger": false, "productionReachability": "the old baseline stringify path could trigger it; current candidate rejects an enumerable function or omits a non-enumerable hook", "revisedHandling": "JSON.stringify is applied only to host-created normalized DTOs in the adapter; the generic boundary receives text"},
+      {"mechanism": "iterator", "currentAttemptCanTrigger": false, "productionReachability": "not used by the current object clone; array property access can still trigger Proxy get traps", "revisedHandling": "no custom iterator is accepted or relied upon at the generic boundary"}
+    ],
+    "publicApiReachability": {
+      "registeredOutputToToolResult": "exported from executors.ts and re-exported by orchestration/tooling/index.ts; direct repository callers found are adapters.ts and tooling.test.ts",
+      "executeBoundToolOperation": "exported from adapters.ts; no non-test production caller was found by repository search, and it is intended as host dispatch after authorization",
+      "modelOrAgentDirectCall": false,
+      "pluginOrExternalHttpDirectCall": false,
+      "testOrCustomHostInjection": true,
+      "securityInterpretation": "The finding is both a reachable internal exported API defect and a contract-level integration defect, not evidence that JSON.parse itself creates executable Proxy objects. The revised API must make the unsafe input class unrepresentable at runtime rather than relying on caller discipline."
+    }
+  },
+  "proxyAccessorReachability": {
+    "currentAttempt": "Reachable through recursive clone traversal: getter, Proxy ownKeys, getPrototypeOf, descriptor, and get traps executed in the harmless fixture.",
+    "productionBoundary": "Possible through current unknown transport/custom-port contracts; JSON.parse outputs are ordinary data and no direct model/agent path was found.",
+    "revisedBoundary": "Remove arbitrary live-object acceptance from the generic API and narrow raw integration transport inputs to bounded serialized text."
+  },
+  "publicApiReachability": {
+    "registeredOutputToToolResult": "Exported from executors.ts and re-exported by orchestration/tooling/index.ts; direct callers found are adapters.ts and tooling.test.ts.",
+    "executeBoundToolOperation": "Exported host dispatch entry point; no non-test production caller found by repository search.",
+    "modelAgentPluginDirectCall": false,
+    "customHostOrTestInjection": true,
+    "revisedContract": "Runtime string-only input with primitive rejection before parse or property access."
+  },
+  "optionEvaluation": [
+    {
+      "option": "A",
+      "name": "Move validation into each adapter",
+      "fit": "partial",
+      "benefits": ["Integration-specific schemas already exist", "The generic tool layer can remain smaller"],
+      "costs": ["Duplicates or relocates existing normalization", "Does not by itself stop a raw unknown transport value from being inspected by the integration normalizer", "Still leaves the exported generic unknown API unless it is narrowed"],
+      "decision": "not sufficient alone"
+    },
+    {
+      "option": "B",
+      "name": "Make generic ToolResult accept only host-created serialized/normalized data",
+      "fit": "strong",
+      "benefits": ["A primitive string can be size-checked and JSON.parsed without property access on a caller object", "Preserves existing ToolResult bounds, redaction, schemas, provenance, and untrusted status", "Directly removes the failed recursive traversal design"],
+      "costs": ["Adapters must serialize typed normalized outputs", "Direct low-level tests and callers must use serialized fixtures"],
+      "decision": "selected as the generic boundary"
+    },
+    {
+      "option": "C",
+      "name": "Split raw transport result from normalized supplemental result",
+      "fit": "strong but scoped",
+      "benefits": ["Makes the earliest inert boundary explicit for Context7, shadcn, and Codebase Memory", "Preserves useful typed DTOs for ImplementationContext", "Allows response/line byte checks before JSON.parse"],
+      "costs": ["Touches three transport contracts and their tests", "Context7 has no concrete HTTP client in this repository, so the contract and synthetic fixtures must change"],
+      "decision": "selected only where required to prevent unknown raw values reaching normalizers"
+    },
+    {
+      "option": "D",
+      "name": "Keep current architecture and narrow public APIs/reachability",
+      "fit": "insufficient",
+      "benefits": ["Smallest source diff if current production callers are the only concern"],
+      "costs": ["The exported registeredOutputToToolResult still accepts unknown", "The transport contracts still advertise unknown", "Repository evidence cannot prove all custom host implementations are inert"],
+      "decision": "rejected"
+    }
+  ],
+  "failedAttemptAnalysis": {
+    "keepModifyDropDecisions": [
+      {"attemptedChange": "quoted JSON-key redaction pattern", "decision": "KEEP_FOR_REVISION", "reason": "The harmless fixture showed private-key and standalone sk-token forms are already covered; the quoted password/apiKey pattern addresses 7b-sec-004. Add the missing external-result fixtures and preserve precision."},
+      {"attemptedChange": "recursive clone with node, depth, estimated-byte limits", "decision": "DROP_FROM_REVISION", "reason": "The traversal itself executes getters and Proxy traps. Its limits do not establish a safe trust boundary."},
+      {"attemptedChange": "cycle and unsupported-value rejection", "decision": "MODIFY_IN_REVISION", "reason": "Keep denial coverage conceptually, but test that the string-only API rejects an object before reading it; do not traverse a cyclic object to discover the cycle."},
+      {"attemptedChange": "pre-validation bound before schema validation", "decision": "MODIFY_IN_REVISION", "reason": "Retain a byte check before JSON.parse, but apply it to serialized text and retain existing typed schema/content bounds after parsing."},
+      {"attemptedChange": "positive Context7/shadcn/Codebase Memory UNTRUSTED_EXTERNAL fixtures", "decision": "KEEP_FOR_REVISION", "reason": "They prove useful supplemental data, source/content trust separation, prompt-injection inertness, and dependency authority remain intact; update inputs to the revised serialized adapter contract."},
+      {"attemptedChange": "prompt placement and dependency-authority assertions", "decision": "KEEP_FOR_REVISION", "reason": "They are relevant cross-boundary invariants and do not grant external content authority."},
+      {"attemptedChange": "temporary diagnostic scripts", "decision": "UNRELATED_AND_REMOVED", "reason": "Harmless planning diagnostics only; no artifact or production change remains."}
+    ],
+    "usefulAfterBoundaryMove": [
+      "final ToolResult maximum and output truncation",
+      "secret redaction and redactionApplied evidence",
+      "existing integration schema and content/path/dependency bounds",
+      "cycle denial at the string-only API rather than recursive inspection",
+      "UNTRUSTED_EXTERNAL and host-owned evidenceIdentity",
+      "supplemental prompt placement and dependency-authority tests"
+    ]
+  },
+  "redactionEvidence": {
+    "privateKeyCurrentBehavior": {
+      "fixture": "-----BEGIN PRIVATE KEY-----\\nTEST-ONLY-NOT-A-REAL-KEY\\n-----END PRIVATE KEY-----",
+      "observedBehavior": "The current secretPattern redacts the complete fake block to [REDACTED].",
+      "precisionObservation": "Surrounding ordinary hash/source text remained visible in the harmless diagnostic.",
+      "remainingGap": "No external ToolResult fixture proves the structured/context path.",
+      "futureRequirement": "Add a test-only external-result content fixture asserting the fake block is absent from structured and preview data and redactionApplied is true."
+    },
+    "standaloneTokenCurrentBehavior": {
+      "fixture": "sk-123456789012345",
+      "observedBehavior": "The current secretPattern redacts this standalone provider-token shape; the existing runtime tests cover the same shape on host runtime output.",
+      "precisionObservation": "The surrounding documentation/source marker remains visible in the harmless diagnostic.",
+      "remainingGap": "No external ToolResult fixture proves the standalone token without a JSON secret key.",
+      "futureRequirement": "Add the exact standalone sk-token fixture to external ToolResult/context/evidence coverage; do not broaden into a universal DLP scanner or redact ordinary hashes, UUIDs, checksums, versions, or source."
+    }
+  },
+  "revisedCorrectionScope": {
+    "likelyFiles": {
+      "PRIMARY": [
+        "src/orchestration/tooling/executors.ts",
+        "src/orchestration/tooling/adapters.ts",
+        "src/integrations/context7/contracts.ts",
+        "src/integrations/context7/service.ts",
+        "src/integrations/shadcn/contracts.ts",
+        "src/integrations/shadcn/server.ts",
+        "src/integrations/shadcn/service.ts",
+        "src/integrations/codebase-memory/transport.ts",
+        "src/integrations/codebase-memory/service.ts"
+      ],
+      "TEST": [
+        "src/orchestration/tooling/tooling.test.ts",
+        "src/integrations/context7/context7.test.ts",
+        "src/integrations/shadcn/shadcn-registry.test.ts",
+        "src/integrations/codebase-memory/codebase-memory.test.ts"
+      ],
+      "EVIDENCE": [
+        "docs/admin/phase-7b/r2-g2-revision-2-result-2026-08-11.json",
+        "docs/admin/phase-7b/r2-g2-revision-2-result-2026-08-11.md"
+      ],
+      "OPTIONAL_IF_NEEDED": [
+        "src/integrations/context7/config.ts",
+        "src/integrations/shadcn/config.ts",
+        "src/integrations/codebase-memory/config.ts",
+        "src/domain/tooling/schema.ts"
+      ]
+    },
+    "scopeRule": "Do not rewrite provider libraries or introduce a new serializer/framework. Modify only the transport contracts/clients needed to guarantee serialized input, the existing normalizers/services needed to parse it, the generic converter/adapter boundary, and focused tests/evidence."
+  },
+  "likelyFiles": [
+    "src/orchestration/tooling/executors.ts",
+    "src/orchestration/tooling/adapters.ts",
+    "src/integrations/context7/contracts.ts",
+    "src/integrations/context7/service.ts",
+    "src/integrations/shadcn/contracts.ts",
+    "src/integrations/shadcn/server.ts",
+    "src/integrations/shadcn/service.ts",
+    "src/integrations/codebase-memory/transport.ts",
+    "src/integrations/codebase-memory/service.ts",
+    "src/orchestration/tooling/tooling.test.ts",
+    "src/integrations/context7/context7.test.ts",
+    "src/integrations/shadcn/shadcn-registry.test.ts",
+    "src/integrations/codebase-memory/codebase-memory.test.ts"
+  ],
+  "nonGoals": [
+    "R2-G3 evidence completeness; do not execute it",
+    "Phase 7C dependency approval or Planning Acceptance changes",
+    "Phase 7D AST-aware patching",
+    "Phase 7E QA workspace lifecycle or cleanup",
+    "Filesystem MCP",
+    "unrestricted shell or generic command execution",
+    "new agents",
+    "new provider or network discovery",
+    "customer website-generation E2E",
+    "deployment or preview",
+    "external authority expansion",
+    "ChangeProposal or source-mutation redesign",
+    "new dependency, serialization package, VM, worker sandbox, or security framework",
+    "staging .context7-cache/ or cleaning .qa-foundation-*"
+  ],
+  "preFixReproductions": [
+    {
+      "id": "r2-g2.1-accessor",
+      "setup": "Pass an object with an enumerable packageName getter to the current registeredOutputToToolResult.",
+      "observed": "The getter counter increments before registered schema validation completes.",
+      "findingProved": "7b-sec-002 and new 7b-sec-005 boundary mechanism"
+    },
+    {
+      "id": "r2-g2.1-proxy",
+      "setup": "Pass a Proxy with get, ownKeys, getOwnPropertyDescriptor, and getPrototypeOf counters to the current converter.",
+      "observed": "ownKeys, getPrototypeOf, descriptor, and get traps execute during the clone; the clone's bounds do not prevent this.",
+      "findingProved": "7b-sec-002 and new 7b-sec-005 boundary mechanism"
+    },
+    {
+      "id": "r2-g2.1-redaction",
+      "setup": "Use a Context7 external-result fixture containing quoted password/apiKey, a fake private-key block, standalone sk-token, and ordinary source/hash text.",
+      "observed": "Current candidate redacts the known forms, but only the quoted-key fixture is asserted in tooling.test.ts.",
+      "findingProved": "7b-sec-004 and the Test/Quality evidence gap"
+    },
+    {
+      "id": "r2-g2.1-raw-contract",
+      "setup": "Inspect Context7/shadcn Promise<unknown> transports, Codebase Memory Promise<unknown> upstream transport, and normalizers that read unknown properties.",
+      "observed": "The contract permits arbitrary live values before integration normalization; production JSON.parse paths are inert but not expressed as the common contract.",
+      "findingProved": "revised root cause and earliest-boundary requirement"
+    }
+  ],
+  "postFixAcceptanceCriteria": [
+    "registeredOutputToToolResult accepts only a serialized JSON string at runtime, rejects object/Proxy/getter/cyclic inputs by a typeof check before property access, and performs no recursive unknown traversal.",
+    "Serialized input byte size is rejected before JSON.parse; malformed JSON fails closed; parsed JSON then uses the existing registered schemas and ToolResult bounds.",
+    "Context7, shadcn, and Codebase Memory raw transport contracts no longer expose arbitrary live objects to their normalizers; existing normalizers remain the single integration-specific shape/content policy.",
+    "A valid serialized normalized result remains useful for Context7 excerpts, shadcn metadata/files, and Codebase Memory structure.",
+    "ToolResult data remains within TOOL_RESULT_MAX_BYTES, contentTrust remains UNTRUSTED_EXTERNAL, and host-owned evidence identity/provenance remains present.",
+    "Fake private-key and standalone sk-token forms are redacted in external structured/preview context while ordinary documentation, hashes, checksums, versions, and source paths remain usable.",
+    "Prompt-injection text remains inert supplemental data in the user-role context; it cannot become system policy, tool authority, file scope, dependency approval, or a direct ToolRequest execution.",
+    "R2-G1 host-context authenticity, Dependency Authority, ChangeProposal write authority, allowlists, currentness, cancellation, cache, retry, and integration-specific bounds are not weakened."
+  ],
+  "targetedTests": [
+    {
+      "test": "tooling.test.ts: string-only generic boundary",
+      "preFixExpected": "getter and Proxy counters are non-zero; cyclic/unsupported objects are traversed or inspected before denial",
+      "postFixExpected": "object/Proxy/getter/cyclic inputs are rejected with all protected-boundary counters at zero; valid serialized JSON is accepted",
+      "findingProved": "7b-sec-002, 7b-sec-005"
+    },
+    {
+      "test": "tooling.test.ts: serialized byte bound and schema failure",
+      "preFixExpected": "unknown object path performs conversion before the pre-validation decision",
+      "postFixExpected": "oversized serialized text fails before parse; malformed or schema-invalid serialized text fails closed; bounded valid result succeeds",
+      "findingProved": "7b-sec-002"
+    },
+    {
+      "test": "tooling.test.ts: private-key and standalone-token external context",
+      "preFixExpected": "required reviewer coverage is absent",
+      "postFixExpected": "fake PEM and sk-token are redacted in structured/preview output, redactionApplied is true, and surrounding ordinary text remains",
+      "findingProved": "7b-sec-004 and requirement verification"
+    },
+    {
+      "test": "context7.test.ts: serialized transport and positive normalized result",
+      "preFixExpected": "transport may return a live object directly",
+      "postFixExpected": "bounded JSON text parses to the existing typed excerpts; over-limit/malformed/non-string transport values fail before raw property inspection; cache/retry/prompt-injection policy remains",
+      "findingProved": "7b-sec-002 boundary reachability"
+    },
+    {
+      "test": "shadcn-registry.test.ts: response text parse and official normalization",
+      "preFixExpected": "official transport parses without an explicit pre-parse byte guard and custom transport returns unknown",
+      "postFixExpected": "bounded response text parses, official metadata/files remain useful, unsafe source/dependency/path behavior remains unchanged",
+      "findingProved": "7b-sec-002 boundary reachability"
+    },
+    {
+      "test": "codebase-memory.test.ts: serialized process/upstream boundary",
+      "preFixExpected": "injected upstream object reaches normalize(raw)",
+      "postFixExpected": "bounded serialized child-process/upstream response parses to existing typed structure; line/parse failure is safe; workspace/current-index/persistence policies remain",
+      "findingProved": "7b-sec-002 boundary reachability"
+    },
+    {
+      "test": "cross-integration supplemental authority regression",
+      "preFixExpected": "positive result and authority assertions exist only for direct unknown converter fixtures",
+      "postFixExpected": "serialized Context7/shadcn/Codebase Memory results remain UNTRUSTED_EXTERNAL; instruction-like text stays data; dependency and prompt boundaries remain inert",
+      "findingProved": "7b-sec-002, 7b-sec-004, preservation invariants"
+    }
+  ],
+  "requiredDeterministicChecks": [
+    "npm exec vitest run src/orchestration/tooling/tooling.test.ts",
+    "npm run typecheck",
+    "npm run lint",
+    "npm run build",
+    "npm test",
+    "npm audit --audit-level=high",
+    "git diff --check"
+  ],
+  "requiredReviewerRechecks": [
+    "security-reviewer",
+    "code-integration-reviewer",
+    "test-quality-reviewer"
+  ],
+  "reviewerRecheckRationale": "Security and Test/Quality are mandatory for the accessor/Proxy boundary and missing redaction evidence. Code/Integration is also required because the selected correction materially changes the Context7, shadcn, and Codebase Memory transport/adapter contracts and their shared generic conversion path.",
+  "reviewerQuestions": {
+    "security-reviewer": "Does the revised boundary reject arbitrary live getter/Proxy/cyclic objects without inspecting them, require bounded serialized text or adapter-owned inert normalized data before generic ToolResult conversion, preserve source/content trust separation, and retain host authority, dependency authority, and ChangeProposal write authority?",
+    "test-quality-reviewer": "Do the regressions directly prove zero protected-boundary accessor/Proxy trap execution, pre-parse byte rejection, valid external-result usability, and current redaction requirements including fake private-key and standalone sk-token fixtures without over-redacting ordinary source or hashes?",
+    "code-integration-reviewer": "Do Context7, shadcn Registry, Codebase Memory, and the generic developer-tool result boundary share one coherent serialized-transport/normalized-DTO contract without duplicate parsing paths or loss of provenance, currentness, caching, retry, dependency, and prompt-injection semantics?"
+  },
+  "correctionBudget": {
+    "originalMaximumImplementationCycles": 1,
+    "revisedAuthorizedImplementationCycles": 1,
+    "cycleName": "R2-G2 Revision 2",
+    "gptCallsInThisReplan": 0,
+    "expectedFutureReviewerCalls": 3,
+    "closureRule": "One future implementation cycle must either complete with all required approvals or block and return to reconciliation; no unbounded retry loop."
+  },
+  "dependencies": {
+    "satisfied": ["R2-G1-HOST_CONTEXT_AUTHENTICITY"],
+    "remainingIndependentGroup": "R2-G3-EVIDENCE_COMPLETENESS",
+    "newDependencies": [],
+    "newPackages": [],
+    "phaseStateNow": "Phase 7B BLOCKED; R2-G1 COMPLETE; R2-G2 BLOCKED; R2-G3 NOT EXECUTED",
+    "higherPhaseState": {"phase6": "COMPLETE; 0 findings", "phase7A": "COMPLETE"}
+  },
+  "rollbackCriteria": [
+    "Any generic external-result API still accepts unknown live objects or recursively reflects on them before denial.",
+    "Any Context7, shadcn, or Codebase Memory normalizer still receives arbitrary live transport values under its production-facing contract.",
+    "A serialized byte bound occurs after JSON.parse or after an unbounded object serialization step.",
+    "Existing integration-specific normalization, cache/retry, size, path, dependency, prompt-injection, workspace, or currentness policy is duplicated inconsistently or bypassed.",
+    "ToolResult is marked HOST_VALIDATED, provenance becomes caller-controlled, external text enters system policy, or external metadata grants dependency/file/write authority.",
+    "Private-key or standalone-token fixtures leak, or the redaction change over-redacts ordinary documentation/source and reduces useful supplemental data.",
+    "The correction expands into generic shell, network discovery, Filesystem MCP, AST patching, new agents/providers, Phase 7C/7D/7E, deployment, or customer E2E."
+  ],
+  "expectedClosureBehavior": {
+    "ifAccepted": "Record a future R2-G2 Revision 2 correction/result artifact, preserve R2-G1 COMPLETE, and leave R2-G3 untouched until its own authorization/reconciliation. R2-G2 may then be marked COMPLETE only after deterministic gates and all three reviewer approvals.",
+    "ifRejected": "Keep R2-G2 BLOCKED, preserve the failed candidate/evidence, and return to Phase 7B.1 reconciliation. Do not start R2-G3 or a third blind correction cycle.",
+    "currentRun": "No production correction, tooling.test.ts change, executors.ts change, reviewer call, R2-G3 execution, or phase-state closure is performed by this replan."
+  },
+  "nextAction": "R2-G2 REVISION 2 — EXECUTE REVISED EXTERNAL RESULT BOUNDARY",
+  "artifactValidationRequired": [
+    "Parse this JSON artifact successfully",
+    "Run git diff --check",
+    "Commit only this JSON artifact and its companion human report",
+    "Verify the two failed candidate files have unchanged checksums after commit"
+  ]
+}
