@@ -118,7 +118,7 @@ export class CodebaseMemoryService implements CodebaseMemoryPort {
   private async runQuery(plan: CodebaseMemoryQueryPlan, operation: CodebaseMemoryQueryPlan["operation"], work: (signal: AbortSignal) => Promise<unknown>, signal?: AbortSignal): Promise<CodebaseMemoryResult> {
     CodebaseMemoryQueryPlanSchema.parse({ ...plan, operation });
     isSafeQueryText(plan.symbol ?? plan.file ?? plan.topic ?? "");
-    if (plan.workspaceScope) await this.ensureStateLoaded(plan.workspaceScope, canonicalWorkspaceIdentity(plan.workspaceScope));
+    await this.ensureStateLoaded(plan.workspaceScope, canonicalWorkspaceIdentity(plan.workspaceScope));
     const index = this.findIndex(plan);
     if (!index || index.status !== "READY" || index.manifestChecksum !== plan.sourceManifestChecksum) throw new CodebaseMemoryError("CODEBASE_MEMORY_INDEX_STALE", "A current READY Codebase Memory index is required.");
     const scopeKey = canonicalWorkspaceIdentity(index.scope);
@@ -162,7 +162,7 @@ export class CodebaseMemoryService implements CodebaseMemoryPort {
   private relationshipType(operation: string): CodeRelationship["relationshipType"] { return operation.includes("Import") ? "imports" : operation.includes("Caller") ? "called-by" : operation.includes("Callee") ? "calls" : operation.includes("Reference") ? "references" : "depends-on"; }
   private baseIndex(scope: WorkspaceScope, manifestChecksum: string, status: CodebaseMemoryIndex["status"]): CodebaseMemoryIndex { return { indexId: sha(canonicalWorkspaceIdentity(scope) + manifestChecksum), scope, workspaceIdentity: canonicalWorkspaceIdentity(scope), manifestChecksum, policyVersion: CODEBASE_MEMORY_POLICY_VERSION, adapterVersion: ADAPTER_VERSION, status, updatedAt: new Date().toISOString() }; }
   private meta(input: WorkspaceScope | CodebaseMemoryQueryPlan) { return { projectId: input.projectId, projectVersion: input.projectVersion }; }
-  private findIndex(plan: CodebaseMemoryQueryPlan) { return [...this.indexes.values()].map((value) => value.index).find((index) => index.scope.projectId === plan.projectId && index.scope.projectVersion === plan.projectVersion && (!plan.workspaceScope || index.workspaceIdentity === canonicalWorkspaceIdentity(plan.workspaceScope))); }
+  private findIndex(plan: CodebaseMemoryQueryPlan) { const workspaceIdentity = canonicalWorkspaceIdentity(plan.workspaceScope); return [...this.indexes.values()].map((value) => value.index).find((index) => index.workspaceIdentity === workspaceIdentity); }
   private async event(event: Parameters<CodebaseMemorySafeEventSink>[0]) { await this.events?.(event); }
 
   private async ensureStateLoaded(scope: WorkspaceScope, key: string) {
