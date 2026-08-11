@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6-execution-state",
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "baselineState": "docs/admin/phase-6/phase-6-execution-state-2026-08-11-cg09-result.json",
+  "baselineCommit": "ee5f622",
+  "correctionCommit": "e2a1963",
+  "correctionCommitMessage": "fix: preserve complete architecture review context",
+  "planRevision": 1,
+  "completedGroups": ["cg-01-cross-artifact-identity", "cg-02-authentication-authorization-rls", "cg-03-storage-ownership-controls", "cg-04-provider-config-and-lifecycle", "cg-05-design-durable-state-authority", "cg-06-database-error-propagation", "cg-07-runtime-cleanup-lifecycle", "cg-08-context7-authority", "cg-09-project-memory-durability", "cg-12-architecture-review-context"],
+  "groupStates": {
+    "cg-01-cross-artifact-identity": "COMPLETE",
+    "cg-02-authentication-authorization-rls": "COMPLETE",
+    "cg-03-storage-ownership-controls": "COMPLETE",
+    "cg-04-provider-config-and-lifecycle": "COMPLETE",
+    "cg-05-design-durable-state-authority": "COMPLETE",
+    "cg-06-database-error-propagation": "COMPLETE",
+    "cg-07-runtime-cleanup-lifecycle": "COMPLETE",
+    "cg-08-context7-authority": "COMPLETE",
+    "cg-09-project-memory-durability": "COMPLETE",
+    "cg-12-architecture-review-context": "COMPLETE"
+  },
+  "cg12": {
+    "implementationCyclesConsumed": 1,
+    "correctionBudget": 2,
+    "findingIds": ["finding-0e21399a0a91b82a05dc", "finding-2484a19307c1536e12e7"],
+    "findingState": "RESOLVED",
+    "resultArtifact": "docs/admin/phase-6/cg-12-architecture-review-context-result-2026-08-11.json",
+    "resultReport": "docs/admin/phase-6/cg-12-architecture-review-context-result-2026-08-11.md",
+    "verificationArtifact": "docs/admin/phase-6/cg-12-architecture-review-context-verification-2026-08-11.json"
+  },
+  "findingResolutions": {
+    "finding-0e21399a0a91b82a05dc": { "state": "RESOLVED", "resolvedByGroupId": "cg-12-architecture-review-context", "correctionCommit": "e2a1963", "verificationArtifact": "docs/admin/phase-6/cg-12-architecture-review-context-verification-2026-08-11.json" },
+    "finding-2484a19307c1536e12e7": { "state": "RESOLVED", "resolvedByGroupId": "cg-12-architecture-review-context", "correctionCommit": "e2a1963", "verificationArtifact": "docs/admin/phase-6/cg-12-architecture-review-context-verification-2026-08-11.json" }
+  },
+  "correctionReadyFindingsRemaining": 12,
+  "remainingFindingCounts": { "total": 12, "CRITICAL": 0, "ERROR": 4, "WARNING": 8, "INFO": 0 },
+  "dependencyUnblockedGroups": ["cg-13-reviewer-execution-evidence", "cg-15-persistence-migration-evidence", "cg-10-design-request-isolation", "cg-11-codebase-index-identity", "cg-17-design-gate-evidence"],
+  "nextRecommendedGroup": "cg-13-reviewer-execution-evidence",
+  "otherGroupsAutoResolved": [],
+  "otherGroupsModified": [],
+  "dagChanged": false,
+  "dagAcyclic": true,
+  "roadmap": ["cg-01 COMPLETE", "cg-02 COMPLETE", "cg-03 COMPLETE", "cg-04 COMPLETE", "cg-05 revision 2 COMPLETE", "cg-06 COMPLETE", "cg-07 COMPLETE", "cg-08 COMPLETE", "cg-09 COMPLETE", "cg-12 COMPLETE", "NEXT: cg-13-reviewer-execution-evidence"],
+  "phase6KStatus": "COMPLETE",
+  "phaseStatus": "COMPLETE"
+}

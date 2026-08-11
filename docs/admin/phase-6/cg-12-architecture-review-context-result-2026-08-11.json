@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6k-correction-result",
+  "groupId": "cg-12-architecture-review-context",
+  "title": "Complete architecture review context and evidence contract",
+  "baselineCommit": "ee5f622",
+  "correctionCommit": "e2a1963",
+  "correctionCommitMessage": "fix: preserve complete architecture review context",
+  "sourcePlan": "docs/admin/phase-6/factory-findings-currentness-plan-2026-08-10.json",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "findingIds": ["finding-0e21399a0a91b82a05dc", "finding-2484a19307c1536e12e7"],
+  "rootCause": "The normal Architecture Reviewer received the full typed approved Brief and accepted PlanningPackage, but its canonical evidence allowlist exposed only a subset of Brief fields, so material obligations could be rejected as invented evidence. Its idempotency identity also omitted bounded project constraints and the fixed policy. Factory self-review used a separate source evidence pack without an explicit documentation-only boundary.",
+  "rootCauseConfidence": "HIGH",
+  "dependencies": ["cg-01-cross-artifact-identity"],
+  "dependencyStatus": "COMPLETE",
+  "affectedReviewPath": "SHARED (distinct NORMAL_PROJECT_REVIEW and FACTORY_SELF_REVIEW paths)",
+  "reviewStage": {
+    "normal": "Planning Acceptance -> ARCHITECTURE_REVIEW -> Design",
+    "factorySelfReview": "Phase 5/6 bounded Factory repository evidence-pack review"
+  },
+  "affectedConsumer": "ArchitectureReviewService canonical input precheck, review identity, provider context, and normalizeResult evidence validation",
+  "defectClassification": ["EVIDENCE_PACK_INCOMPLETE", "CONTEXT_IDENTITY_INCOMPLETE"],
+  "contextBefore": {
+    "normal": "approvedBrief and acceptedPlanningPackage were typed, project/version/checksum checked, and sent to the provider; canonicalArchitectureEvidence allowed only 8 named Brief fields plus Planning fields, omitting content, SEO, localization, user roles, acceptance criteria, exclusions, and unresolved-item references.",
+    "selfReview": "Factory self-review had bounded repository evidence but no project-specific Brief or PlanningPackage, without a visible documentation-only limitation in the Architecture Reviewer contract.",
+    "identity": "projectId, projectVersion, Brief checksum, Planning checksum, selected skill identity, policy version, and prompt version were hashed; relevantProjectConstraints and factoryArchitecturePolicy were not."
+  },
+  "contextAfter": {
+    "normal": "All material approved Brief fields, identity/approval metadata, accepted Planning identity/acceptance/architecture references, and dynamic page/flow/form/entity/decision references are canonical evidence; invented references remain rejected.",
+    "selfReview": "The architecture contract explicitly states that Factory self-review is documentation-only and cannot establish project-specific requirement traceability or substitute for normal ArchitectureReviewInput.",
+    "identity": "The semantic review identity now includes factoryArchitecturePolicy and relevantProjectConstraints in addition to existing project/artifact/checksum/skill/prompt identity."
+  },
+  "canonicalInputs": ["approved Brief", "accepted PlanningPackage", "projectId", "projectVersion", "approvedBriefChecksum", "acceptedPlanningChecksum", "fixed Factory architecture policy", "bounded relevantProjectConstraints"],
+  "supplementalInputs": ["resolver-selected Architecture Reviewer skills", "resolver-selected Contract Auditor skills", "current bounded verification source slices"],
+  "excludedInputs": ["Design", "TaskGraph", "implementation source in normal review", "customer generated source", "unrestricted Project Memory", "Context7 documentation", "Codebase Memory structural context", "admin reports outside the evidence pack", "secrets"],
+  "projectIdentityBinding": "ArchitectureReviewInput and deterministic prechecks require the Brief and PlanningPackage projectId and projectVersion to equal the requested project/version; the reviewer result preserves both identity fields.",
+  "artifactContentIdentity": "Approved Brief and accepted PlanningPackage checksums remain required and participate in review identity; the fixed policy and bounded constraints now also participate.",
+  "contextIdentity": "checksumPersistedDocument({ projectId, projectVersion, approvedBriefChecksum, acceptedPlanningChecksum, factoryArchitecturePolicy, relevantProjectConstraints, skillContextChecksum, policyVersion, promptVersion })",
+  "currentnessBehavior": {
+    "relevantChange": "A changed bounded project constraint causes idempotency conflict and prevents reuse of the prior review.",
+    "irrelevantChange": "An operational expectedRowVersion change reuses the same semantic result.",
+    "wrongProjectOrVersion": "Deterministic prechecks reject mixed or stale canonical artifacts before provider work.",
+    "historicalRecords": "Prior review records remain immutable; new semantic identity requires a new invocation."
+  },
+  "contextBudget": { "architectureReviewerMaxBytes": 140000, "architectureReviewerMaxItems": 60, "verificationEvidenceSlices": 6, "verificationPackIsBounded": true },
+  "canonicalBudgetPriority": "Typed canonical Brief/Planning evidence is authoritative and remains ahead of supplemental procedural skills; no global budget was increased.",
+  "selectedSkills": {
+    "architecture-reviewer": { "ids": ["architecture-tradeoff-review", "module-boundaries-fb20497b5c35", "review-maintainability-d9faf7cb9775"], "skillMarkdownBytes": 10495, "identityChecksum": "488df20026a8cdc27a0ea566de496b2de54ab8ce8e047ec9ffa73eb4ad149c59" },
+    "contract-auditor": { "ids": ["acceptance-criteria-80493e317476", "requirements-evidence-traceability"], "skillMarkdownBytes": 7161, "identityChecksum": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada" }
+  },
+  "skillContextBytes": { "architectureReviewerMarkdown": 10495, "contractAuditorMarkdown": 7161, "totalMarkdown": 17656 },
+  "promptContractBefore": "The provider received typed input, but the service's evidence allowlist did not represent every material Brief obligation; Factory self-review's absence of project artifacts was not explicitly distinguished in the architecture documentation.",
+  "promptContractAfter": "The provider receives the same bounded typed normal-review input, with complete canonical evidence references and identity-bound constraints; skills remain supplemental procedures. Factory self-review is explicitly documentation-only.",
+  "deterministicPrechecks": ["strict ArchitectureReviewInput schema", "projectId/projectVersion equality", "approved Brief approval/status", "Brief checksum freshness", "Planning acceptance/checksum freshness", "blocking-item rejection", "Planning structural validation", "fixed 15-item architecture stack validation", "canonical evidence reference validation", "semantic context identity includes policy and constraints"],
+  "evidencePackBehavior": { "before": "Material Brief evidence references were absent from the allowlist and provider output citing them was rejected as invented.", "after": "Six current candidate-bound slices cover canonical evidence, identity, output validation, regression tests, review-path documentation, and agent authority; invalid evidence remains rejected." },
+  "filesChanged": ["src/agents/reviewers/architecture/deterministic.ts", "src/agents/reviewers/architecture/service.ts", "src/agents/reviewers/architecture/architecture.test.ts", "docs/architecture/architecture-reviewer.md", "scripts/phase-6c-cg02-verification.ts"],
+  "correctionSummary": "Expanded the canonical Architecture Reviewer evidence contract to preserve all material approved Brief obligations and accepted Planning identity/acceptance references, bound semantic reuse to all verdict-relevant normal-review context, and documented the distinct Factory self-review boundary. Reused the existing Phase 6 verifier for cg-12.",
+  "testsAdded": ["material approved Brief evidence references pass the ArchitectureReviewService output boundary", "bounded context changes invalidate reuse while operational row versions remain non-semantic"],
+  "targetedChecks": { "reproductionBeforeCorrection": "Provider evidenceRefs for brief:contentRequirements were rejected as invented; canonical set size was 25 and seven required refs were missing.", "architectureReviewerTests": "14 passed", "typecheck": "PASS", "diffCheck": "PASS" },
+  "requiredReviewerRechecks": ["architecture-reviewer", "contract-auditor"],
+  "actualReviewerRechecks": [
+    { "reviewerId": "architecture-reviewer", "state": "RESOLVED", "providerVerdict": "APPROVED", "evidenceValid": true, "structuredOutputValid": true, "realGptCalls": 1 },
+    { "reviewerId": "contract-auditor", "state": "RESOLVED", "providerVerdict": "APPROVED", "evidenceValid": true, "structuredOutputValid": true, "realGptCalls": 1 }
+  ],
+  "providerCalls": { "model": "gpt-5.6-luna", "modelLabel": "GPT-5.6 Luna", "realGptCalls": 2 },
+  "evidenceValidation": { "valid": true, "invalidEvidence": [], "verificationArtifact": "docs/admin/phase-6/cg-12-architecture-review-context-verification-2026-08-11.json" },
+  "perFindingResolution": {
+    "finding-0e21399a0a91b82a05dc": { "originalReviewer": "contract-auditor", "originalSeverity": "ERROR", "currentEffectiveSeverity": "ERROR", "category": "REQUIREMENT_NOT_TRACED", "finalState": "RESOLVED", "correctionEvidence": ["src/agents/reviewers/architecture/deterministic.ts:9-19", "src/agents/reviewers/architecture/service.ts:317-323", "src/agents/reviewers/architecture/architecture.test.ts:34-34"], "reviewerVerification": "Architecture Reviewer and Contract Auditor returned RESOLVED / APPROVED with valid evidence.", "resolvedByGroupId": "cg-12-architecture-review-context" },
+    "finding-2484a19307c1536e12e7": { "originalReviewer": "architecture-reviewer", "originalSeverity": "INFO", "currentEffectiveSeverity": "INFO", "category": "REQUIREMENT_TRACEABILITY", "finalState": "RESOLVED", "correctionEvidence": ["docs/architecture/architecture-reviewer.md:23-27", "scripts/phase-6c-cg02-verification.ts"], "reviewerVerification": "Architecture Reviewer and Contract Auditor returned RESOLVED / APPROVED with valid evidence.", "resolvedByGroupId": "cg-12-architecture-review-context" }
+  },
+  "potentiallyImpactedGroups": ["cg-13-reviewer-execution-evidence is now dependency-unblocked; it was not modified or resolved by cg-12"],
+  "remainingFindingCounts": { "total": 12, "CRITICAL": 0, "ERROR": 4, "WARNING": 8, "INFO": 0 },
+  "unblockedGroups": ["cg-13-reviewer-execution-evidence", "cg-15-persistence-migration-evidence", "cg-10-design-request-isolation", "cg-11-codebase-index-identity", "cg-17-design-gate-evidence"],
+  "nextRecommendedGroup": "cg-13-reviewer-execution-evidence",
+  "phaseStatus": "COMPLETE",
+  "validation": { "testFiles": 69, "tests": 837, "lint": "PASS; 3 known pre-existing warnings", "typecheck": "PASS", "build": "PASS", "npmAudit": "0 vulnerabilities", "dbValidate": "PASS", "dbStatus": "PASS", "dbVerify": "PASS", "dbIntegrity": "PASS", "dockerComposeConfig": "PASS", "taskGraph": "PASS; releaseEligible=true", "gitDiffCheck": "PASS", "customerWebsiteGenerationE2E": "NOT RUN" },
+  "invariants": { "qaFoundationDirectoriesBefore": 14, "qaFoundationDirectoriesAfter": 15, "historicalQaCleanup": "NONE", "context7CacheCommitted": false, "approvedExternalSkills": 4, "approvedInternalSkills": 13, "uniqueApprovedArtifacts": 17, "assignmentRefs": 18, "agents": 9, "deferredSkillUsage": 0, "newToolPermissions": false, "newAgentOrchestratorMcp": false, "otherCorrectionGroupsModified": false }
+}

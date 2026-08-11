@@ -1,0 +1,198 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-6k-correction-verification",
+  "groupId": "cg-12-architecture-review-context",
+  "findingIds": [
+    "finding-0e21399a0a91b82a05dc",
+    "finding-2484a19307c1536e12e7"
+  ],
+  "baselineCommit": "e2a1963",
+  "sourcePlanIdentity": "819b825a599793b3bcf3b82ec48df40e13fb1dfc7f1f632585f8ce83b36dfd00",
+  "correctionSnapshot": "working-tree-before-correction-commit",
+  "reviewerResults": [
+    {
+      "reviewerId": "architecture-reviewer",
+      "state": "RESOLVED",
+      "evidence": [
+        "current:architecture-canonical-evidence",
+        "current:architecture-context-identity",
+        "current:architecture-evidence-validation",
+        "test:architecture-context-regressions",
+        "docs:architecture-review-boundary",
+        "current:architecture-agent-authority"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-12-architecture-review-context correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    },
+    {
+      "reviewerId": "contract-auditor",
+      "state": "RESOLVED",
+      "evidence": [
+        "current:architecture-canonical-evidence",
+        "current:architecture-context-identity",
+        "current:architecture-evidence-validation",
+        "test:architecture-context-regressions",
+        "docs:architecture-review-boundary",
+        "current:architecture-agent-authority"
+      ],
+      "invalidEvidence": [],
+      "explanation": "The reviewer approved the bounded cg-12-architecture-review-context correction with no remaining findings.",
+      "remainingIssue": null,
+      "providerVerdict": "APPROVED",
+      "structuredOutputValid": true,
+      "evidenceValid": true,
+      "realGptCalls": 1
+    }
+  ],
+  "selectedSkills": {
+    "architecture-reviewer": {
+      "selectedSkillIds": [
+        "architecture-tradeoff-review",
+        "module-boundaries-fb20497b5c35",
+        "review-maintainability-d9faf7cb9775"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "architecture-tradeoff-review",
+          "checksum": "3b03a4c22d44991059e7d9bbd06614308cb16ede6d84457b8fb80425cabf00dd"
+        },
+        {
+          "skillId": "module-boundaries-fb20497b5c35",
+          "checksum": "5ff94ca54b67326d7c377a33d2e61d108887a96729c2c3ff228b4f3a6ff3c5ff"
+        },
+        {
+          "skillId": "review-maintainability-d9faf7cb9775",
+          "checksum": "4d178cfce7746577253c9addcb2648ceb1c5d3237ff32357a0b382df019ca7f9"
+        }
+      ],
+      "identityChecksum": "488df20026a8cdc27a0ea566de496b2de54ab8ce8e047ec9ffa73eb4ad149c59"
+    },
+    "contract-auditor": {
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        {
+          "skillId": "acceptance-criteria-80493e317476",
+          "checksum": "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec"
+        },
+        {
+          "skillId": "requirements-evidence-traceability",
+          "checksum": "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+        }
+      ],
+      "identityChecksum": "c5ea6805b48b87311c2d693e6697563a3a238f3f7993a85b5b0a9e1d6d426ada"
+    }
+  },
+  "provider": {
+    "model": "gpt-5.6-luna",
+    "modelLabel": "GPT-5.6 Luna",
+    "realGptCalls": 2,
+    "requestEvents": [
+      {
+        "type": "request.started",
+        "role": "architecture-reviewer"
+      },
+      {
+        "type": "request.completed",
+        "role": "architecture-reviewer",
+        "requestId": "chatcmpl-EBao4goBltKE2XHfmIEa15JTgeGmO"
+      },
+      {
+        "type": "request.started",
+        "role": "contract-auditor"
+      },
+      {
+        "type": "request.completed",
+        "role": "contract-auditor",
+        "requestId": "chatcmpl-EBao7reCMwM3aqBw0uXBisc5Tb6iD"
+      }
+    ]
+  },
+  "evidenceValidation": {
+    "valid": true,
+    "evidenceRefs": [
+      "canonical-brief-evidence",
+      "cg12-context-contract",
+      "context-identity-currentness",
+      "current:architecture-agent-authority",
+      "current:architecture-canonical-evidence",
+      "current:architecture-context-identity",
+      "current:architecture-evidence-validation",
+      "deterministic-regressions",
+      "docs/architecture/architecture-reviewer.md",
+      "docs/architecture/architecture-reviewer.md:11-27",
+      "docs:architecture-review-boundary",
+      "factory-self-review-boundary",
+      "normal-project-review",
+      "original-findings",
+      "src/agents/catalog.ts",
+      "src/agents/catalog.ts:65-71",
+      "src/agents/reviewers/architecture/architecture.test.ts",
+      "src/agents/reviewers/architecture/architecture.test.ts:34-38",
+      "src/agents/reviewers/architecture/deterministic.ts",
+      "src/agents/reviewers/architecture/deterministic.ts:5-19",
+      "src/agents/reviewers/architecture/service.ts",
+      "src/agents/reviewers/architecture/service.ts:317-323",
+      "src/agents/reviewers/architecture/service.ts:96-110",
+      "test:architecture-context-regressions"
+    ],
+    "slices": [
+      {
+        "id": "current:architecture-canonical-evidence",
+        "relativePath": "src/agents/reviewers/architecture/deterministic.ts",
+        "startLine": 5,
+        "endLine": 19,
+        "checksum": "a3d6b2fe1f7082f5a1636e681b38d4ae5addc2fc2ac966825b6dd331deedbe34",
+        "currentHead": "e2a1963"
+      },
+      {
+        "id": "current:architecture-context-identity",
+        "relativePath": "src/agents/reviewers/architecture/service.ts",
+        "startLine": 96,
+        "endLine": 110,
+        "checksum": "28752da919599e3da4df3dd06b1820bdfbeffaeb372182a76d0c3e1a6b937ea7",
+        "currentHead": "e2a1963"
+      },
+      {
+        "id": "current:architecture-evidence-validation",
+        "relativePath": "src/agents/reviewers/architecture/service.ts",
+        "startLine": 317,
+        "endLine": 323,
+        "checksum": "28752da919599e3da4df3dd06b1820bdfbeffaeb372182a76d0c3e1a6b937ea7",
+        "currentHead": "e2a1963"
+      },
+      {
+        "id": "test:architecture-context-regressions",
+        "relativePath": "src/agents/reviewers/architecture/architecture.test.ts",
+        "startLine": 34,
+        "endLine": 38,
+        "checksum": "396e758a94c636e338267eeb4e0aa04d72262e5285902076c103e48e811416f2",
+        "currentHead": "e2a1963"
+      },
+      {
+        "id": "docs:architecture-review-boundary",
+        "relativePath": "docs/architecture/architecture-reviewer.md",
+        "startLine": 11,
+        "endLine": 27,
+        "checksum": "908afe975adff3e46176d9002f7e13c1e0e9f0f820622259e30572e42d8dde3d",
+        "currentHead": "e2a1963"
+      },
+      {
+        "id": "current:architecture-agent-authority",
+        "relativePath": "src/agents/catalog.ts",
+        "startLine": 65,
+        "endLine": 71,
+        "checksum": "0f2a4bb03a6979c3d1807d9942b25695d0c368db63b08b4320c5d033cce2c81d",
+        "currentHead": "e2a1963"
+      }
+    ]
+  },
+  "phaseStatus": "RESOLVED"
+}
