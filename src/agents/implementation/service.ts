@@ -33,7 +33,8 @@ import type { ImplementationProvider } from "./contracts";
 import { validateSupportedTask, validateTaskResult } from "./validators";
 import type { BackendPlans } from "./backend";
 import { implementationAgentDefinition } from "@/agents/catalog";
-import { StoragePlanSchema } from "@/agents/planner/contracts";
+import { PlanningPackageSchema, StoragePlanSchema } from "@/agents/planner/contracts";
+import type { DependencyAuthorityContext } from "@/dependencies/authority";
 
 export interface ImplementationMemoryPort {
   writeSnapshot(
@@ -50,6 +51,13 @@ const graphWithoutChecksum = (graph: TaskGraph) => {
 };
 const graphChecksum = (graph: TaskGraph) =>
   checksumPersistedDocument(graphWithoutChecksum(graph));
+const dependencyContextFor = (input: ImplementationAgentInput, taskType: string): DependencyAuthorityContext => {
+  const planning = PlanningPackageSchema.safeParse(input.acceptedPlanningPackage);
+  const plannedDependencies = planning.success
+    ? planning.data.dependencies.dependencies.map((dependency) => ({ name: dependency.name, runtime: dependency.runtime, required: dependency.required }))
+    : [];
+  return { projectId: input.projectId, projectVersion: input.projectVersion, planningChecksum: input.acceptedPlanningChecksum, plannedDependencies, taskType };
+};
 const runBase = (
   input: ImplementationAgentInput,
   status: ImplementationExecutionRun["status"],
@@ -199,6 +207,16 @@ export class ImplementationAgentService {
           "IMPLEMENTATION_DOCUMENT_STALE",
           "Architecture checksum is stale.",
         );
+      const planning = PlanningPackageSchema.safeParse(input.acceptedPlanningPackage);
+      if (
+        planning.success &&
+        input.acceptedPlanningChecksum !== checksumPersistedDocument(planning.data) &&
+        input.acceptedPlanningChecksum !== planning.data.acceptance?.checksum
+      )
+        throw new ImplementationError(
+          "IMPLEMENTATION_DOCUMENT_STALE",
+          "Accepted Planning checksum is stale.",
+        );
       validateSupportedTask(input.task);
       return input;
     } catch (error) {
@@ -298,6 +316,7 @@ export class ImplementationAgentService {
     signal?: AbortSignal,
   ): Promise<ImplementationExecutionRun> {
     const input = this.parse(raw);
+    const dependencyContext = dependencyContextFor(input, input.task.taskType);
     const key = `${input.projectId}:${input.projectVersion}:${input.idempotencyKey}`;
     const skillSelection = await this.context.prepareSkillContext(input);
     const hash = checksumPersistedDocument({ input, skillContextChecksum: skillSelection?.identityChecksum ?? "none" });
@@ -372,6 +391,7 @@ export class ImplementationAgentService {
         proposal,
         input.stagingWorkspacePath,
         this.policy,
+        dependencyContext,
       );
       const applied = await this.applier.apply(
         {
@@ -384,6 +404,7 @@ export class ImplementationAgentService {
         input.stagingWorkspacePath,
         this.policy,
         () => Boolean(signal?.aborted),
+        dependencyContext,
       );
       const acceptedPlanning = input.acceptedPlanningPackage as BackendPlans["planning"];
       if (input.task.taskType === "implement-storage") StoragePlanSchema.parse(acceptedPlanning?.storage);
@@ -396,6 +417,7 @@ export class ImplementationAgentService {
         proposal,
         backendPlans,
         input.stagingWorkspacePath,
+        dependencyContext,
       );
       run = {
         ...run,

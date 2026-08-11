@@ -15,6 +15,7 @@ import { PersistenceError } from "@/persistence/database/errors";
 import {
   buildPlanningPackage,
   planningChecksum,
+  validatePlanningDependencies,
   validatePlanningStructure,
 } from "./deterministic";
 import {
@@ -297,6 +298,7 @@ export class PlannerArchitectService {
     const blockers = [
       ...packageValue.blockers,
       ...validatePlanningStructure(packageValue),
+      ...validatePlanningDependencies(packageValue).filter((item) => !item.approved).map((item) => `${item.code}:${item.packageName}`),
     ];
     if (
       packageValue.traceability.some(

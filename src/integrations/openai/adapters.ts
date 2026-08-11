@@ -82,6 +82,7 @@ import {
 } from "@/agents/planner/contracts";
 import { isWorkflowRequirement } from "@/agents/lead/clarification-policy";
 import type { ApprovedProceduralSkillPromptContext } from "./prompts";
+import { dependencyCatalogPromptContext } from "@/dependencies/authority";
 const OrchestrationPlanSchema = z
   .object({ tasks: z.array(z.unknown()) })
   .strict();
@@ -784,11 +785,12 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
   ): Promise<PlanningPackage> {
     const prompt = rolePrompt("planner", input, false, approvedSkills);
     const languageInstruction = `The generated website locale is the approved Brief localization.defaultLocale: ${input.approvedBrief.localization.defaultLocale}. For every planned form field, output an explicit English machine fieldId independent of that locale and a separate user-facing label in the requested locale. Never derive fieldId from label.`;
+    const dependencyInstruction = `Generated-project direct dependency authority is host-owned. You may express only a project DependencyPlan using this bounded catalog: ${dependencyCatalogPromptContext()}. Do not invent package names, versions, package sources, or package managers; the host validates and owns the resulting manifest.`;
     const result = await this.ai.request<
       z.infer<typeof PlanningPackageStructuredOutputSchema>
     >({
       ...prompt,
-      system: `${prompt.system}\n${languageInstruction}`,
+      system: `${prompt.system}\n${languageInstruction}\n${dependencyInstruction}`,
       role: "planner",
       schema: PlanningPackageStructuredOutputSchema,
       schemaName: "planning-package",

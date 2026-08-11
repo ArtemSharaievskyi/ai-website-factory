@@ -1,24 +1,12 @@
+import {
+  GENERATED_BASELINE_DEPENDENCIES,
+  GENERATED_BASELINE_DEV_DEPENDENCIES,
+} from "@/dependencies/authority";
+
 export const FOUNDATION_PACKAGE_POLICY = {
   packageManager: "npm",
-  dependencies: {
-    next: "16.2.12",
-    react: "19.2.4",
-    "react-dom": "19.2.4",
-    "server-only": "^0.0.1",
-    zod: "^4.4.3",
-  },
-  devDependencies: {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    eslint: "^9",
-    "eslint-config-next": "16.2.12",
-    playwright: "^1.62.1",
-    tailwindcss: "^4",
-    typescript: "^5",
-    vitest: "^3.2.4",
-  },
+  dependencies: GENERATED_BASELINE_DEPENDENCIES,
+  devDependencies: GENERATED_BASELINE_DEV_DEPENDENCIES,
   scripts: {
     "start:test": "next start",
     lint: "eslint",

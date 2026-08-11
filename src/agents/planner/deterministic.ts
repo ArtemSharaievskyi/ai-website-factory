@@ -6,6 +6,7 @@ import { RequirementSpecificationSchema, type RequirementSpecification } from "@
 import { resolveLogoPolicy } from "@/domain/requirements/logo-policy";
 import { SCHEMA_VERSION } from "@/domain/shared/schemas";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
+import { validateDependencyNames, validateDependencyPlan } from "@/dependencies/authority";
 import { AdministrationPlanSchema, AuthenticationPlanSchema, DataModelPlanSchema, DependencyPlanSchema, EmailPlanSchema, EnvironmentVariablePlanSchema, FormPlanSchema, NavigationPlanSchema, PageResponsibilityPlanSchema, PlanningPackageSchema, ProductScopePlanSchema, ProfileSelectionSchema, SecurityPlanSchema, SitemapPlanSchema, StoragePlanSchema, SupabasePlanSchema, TestStrategyPlanSchema, UserFlowPlanSchema, formFieldId, isLegacyFormField, type PlannerAgentInput, type PlanningPackage, type Traceability } from "./contracts";
 
 const createdAt = new Date().toISOString();
@@ -58,4 +59,13 @@ export const planningChecksum = (planningPackage: PlanningPackage) => checksumPe
 
 export function validatePlanningStructure(planningPackage: PlanningPackage) {
   const blockers: string[] = []; const paths = planningPackage.sitemap.routes.map((route) => route.path); if (new Set(paths).size !== paths.length) blockers.push("DUPLICATE_ROUTE"); if (paths.some((path) => /\/:[^/]+\/[^/]+/.test(path))) blockers.push("DYNAMIC_ROUTE_CONFLICT"); const routeIds = new Set(planningPackage.sitemap.routes.map((route) => route.id)); if (planningPackage.navigation.routeReferences.some((routeId) => !routeIds.has(routeId))) blockers.push("NAVIGATION_ROUTE_MISSING"); if (planningPackage.sitemap.routes.some((route) => route.authRequired) && planningPackage.authentication.decision === "none") blockers.push("AUTH_ARCHITECTURE_PENDING"); for (const form of planningPackage.forms.forms) { const ids = form.fields.map(formFieldId); if (form.fields.some(isLegacyFormField)) blockers.push("LEGACY_FORM_FIELD_CONTRACT"); if (ids.some((id) => !id) || new Set(ids).size !== ids.length) blockers.push("FORM_FIELD_ID_INVALID"); } return blockers;
+}
+
+export function validatePlanningDependencies(planningPackage: PlanningPackage) {
+  const dependencyPlan = validateDependencyPlan(planningPackage.dependencies.dependencies);
+  const architectureDependencies = validateDependencyNames(
+    planningPackage.architecture.dependencies.map((dependency) => dependency.name),
+    { plannedDependencies: planningPackage.dependencies.dependencies.map((dependency) => ({ name: dependency.name, runtime: "runtime" as const, required: false })) },
+  );
+  return [...dependencyPlan.decisions, ...architectureDependencies.decisions];
 }

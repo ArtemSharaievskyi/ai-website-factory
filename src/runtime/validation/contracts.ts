@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { QualityCheckSchema } from "@/domain/quality/schema";
+import type { DependencyAuthorityContext } from "@/dependencies/authority";
 export const RuntimeCommandTypeSchema = z.enum(["npm-lockfile", "npm-ci", "lint", "typecheck", "tests", "build"]);
 export type RuntimeCommandType = z.infer<typeof RuntimeCommandTypeSchema>;
 export const RUNTIME_DIAGNOSTIC_POLICY_VERSION = "runtime-diagnostics-v5";
@@ -17,5 +18,5 @@ export type RuntimeReadiness = { projectId: string; projectVersion: number; work
 export type RuntimeRunnerRequest = { executable: string; args: readonly string[]; cwd: string; env: NodeJS.ProcessEnv; timeoutMs: number; signal?: AbortSignal; commandType: RuntimeCommandType; validationRunId: string };
 export type RuntimeRunnerResponse = { exitCode: number | null; stdout: string; stderr: string; terminationReason: "completed" | "timeout" | "cancelled" | "spawn-failed" };
 export interface RuntimeProcessRunner { run(request: RuntimeRunnerRequest): Promise<RuntimeRunnerResponse>; }
-export type RuntimeValidatorInput = { projectId: string; projectVersion: number; workspacePath: string; generatedProjectsRoot: string; mutable?: boolean; validationRunId?: string; environmentPlan?: Array<{ name: string; serverOnly: boolean; secret: boolean }>; signal?: AbortSignal; outputLimitBytes?: number; lineLimitBytes?: number; policyVersion?: string };
+export type RuntimeValidatorInput = { projectId: string; projectVersion: number; workspacePath: string; generatedProjectsRoot: string; mutable?: boolean; validationRunId?: string; environmentPlan?: Array<{ name: string; serverOnly: boolean; secret: boolean }>; dependencyContext?: DependencyAuthorityContext; signal?: AbortSignal; outputLimitBytes?: number; lineLimitBytes?: number; policyVersion?: string };
 export interface GeneratedProjectRuntimeValidator { inspectRuntimeReadiness(input: RuntimeValidatorInput): Promise<RuntimeReadiness>; runNpmCi(input: RuntimeValidatorInput): Promise<RuntimeCommandResult>; runLint(input: RuntimeValidatorInput): Promise<RuntimeCommandResult>; runTypecheck(input: RuntimeValidatorInput): Promise<RuntimeCommandResult>; runTests(input: RuntimeValidatorInput): Promise<RuntimeCommandResult>; runBuild(input: RuntimeValidatorInput): Promise<RuntimeCommandResult>; runValidationSequence(input: RuntimeValidatorInput): Promise<RuntimeValidationReport>; reconcileValidationState(input: { report: RuntimeValidationReport; workspacePath: string; expectedPackageChecksum: string; expectedLockfileChecksum: string; activeProcess?: boolean }): Promise<Array<{ code: string; description: string; automaticRepairAllowed: boolean }>>; }
