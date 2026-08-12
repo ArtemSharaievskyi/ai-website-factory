@@ -1,11 +1,21 @@
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   DEFERRED_SKILLS,
   FACTORY_SELF_REVIEWER_IDS,
+  EvidenceSliceSchema,
+  R2G3EvidencePackSchema,
+  R2G3ReviewExecutionRecordSchema,
+  R2G3TestExecutionSchema,
+  R2G3TraceabilityArtifactSchema,
   EvidenceManifestEntrySchema,
   SelfReviewFindingSchema,
   checksum,
+  checksumR2G3CandidateFiles,
+  checksumR2G3EvidencePack,
+  createR2G3ReviewExecutionRecord,
   getSelfReviewReviewerPlans,
   isExcludedEvidencePath,
   isWithinEvidenceRoot,
@@ -335,5 +345,268 @@ describe("factory self-review evidence controls", () => {
   it("41. contains no manual SKILL.md prompt concatenation", async () => {
     const source = await readFile("scripts/factory-self-review.ts", "utf8");
     expect(source).not.toContain("skillMarkdown");
+  });
+  it("42. persists and reloads a complete R2-G3-O1 review identity trace", async () => {
+    const candidatePaths = [
+      "scripts/factory-self-review.ts",
+      "src/operations/factory-self-review.test.ts",
+      "src/orchestration/orchestrator/graph.ts",
+      "src/orchestration/orchestrator/orchestrator.test.ts",
+      "src/orchestration/orchestrator/tools.ts",
+      "src/orchestration/tooling/authority.ts",
+      "src/orchestration/tooling/registry.ts",
+    ];
+    const evidenceRanges: Record<string, [number, number]> = {
+      "scripts/factory-self-review.ts": [578, 870],
+      "src/operations/factory-self-review.test.ts": [348, 575],
+      "src/orchestration/orchestrator/orchestrator.test.ts": [31, 34],
+      "src/orchestration/orchestrator/graph.ts": [57, 68],
+      "src/orchestration/orchestrator/tools.ts": [6, 22],
+      "src/orchestration/tooling/authority.ts": [75, 116],
+      "src/orchestration/tooling/registry.ts": [154, 180],
+    };
+    const sources = new Map<string, string>();
+    const candidateFiles = [];
+    for (const relativePath of candidatePaths) {
+      const source = await readFile(relativePath, "utf8");
+      sources.set(relativePath, source);
+      candidateFiles.push(
+        EvidenceManifestEntrySchema.parse({
+          relativePath,
+          checksum: checksum(source),
+          byteLength: Buffer.byteLength(source, "utf8"),
+          lineCount: source.split(/\r?\n/).length,
+        }),
+      );
+    }
+    const artifactPath = "src/orchestration/orchestrator/graph.ts";
+    const testPath = "src/operations/factory-self-review.test.ts";
+    const artifactSource = sources.get(artifactPath)!;
+    const testSource = sources.get(testPath)!;
+    const artifactChecksum = checksum(artifactSource);
+    const testSourceChecksum = checksum(testSource);
+    const testEvidenceEndLine = 575;
+    const candidateChecksum = checksumR2G3CandidateFiles(candidateFiles);
+    const testExecution = R2G3TestExecutionSchema.parse({
+      testExecutionId: "44444444-4444-4444-8444-444444444444",
+      command: "npm exec vitest run src/operations/factory-self-review.test.ts",
+      testFile: testPath,
+      testName: "factory self-review evidence controls",
+      testSourceChecksum,
+      status: "PASSED",
+      passedCount: 42,
+      totalCount: 42,
+      startedAt: "2026-08-12T10:00:00.000Z",
+      completedAt: "2026-08-12T10:00:01.000Z",
+    });
+    const slices = candidateFiles.map((entry) => {
+      const [startLine, endLine] = evidenceRanges[entry.relativePath];
+      const content = sources
+        .get(entry.relativePath)!
+        .split(/\r?\n/)
+        .slice(startLine - 1, endLine)
+        .join("\n");
+      return EvidenceSliceSchema.parse({
+        relativePath: entry.relativePath,
+        startLine,
+        endLine,
+        checksum: entry.checksum,
+        content,
+      });
+    });
+    const evidencePackContent = {
+      schemaVersion: 1 as const,
+      documentType: "r2-g3-o1-evidence-pack" as const,
+      evidencePackId: "r2-g3-o1-evidence-pack-2026-08-12",
+      candidateId: "r2-g3-o1-candidate-2026-08-12",
+      candidateChecksum,
+      evidenceManifestChecksum: candidateChecksum,
+      requirementId: "R2-G3-O1-REVIEW-IDENTITY-TRACEABILITY" as const,
+      artifactId: "task-graph:validate-functional-flow",
+      artifactPath,
+      artifactChecksum,
+      testId: "factory-self-review.test:identity-round-trip",
+      testPath,
+      testSourceChecksum,
+      testExecutionId: testExecution.testExecutionId,
+      references: [
+        `${artifactPath}:57-68`,
+        `${testPath}:348-${testEvidenceEndLine}`,
+      ],
+      artifactReferences: [`${artifactPath}:57-68`],
+      testReferences: [`${testPath}:348-${testEvidenceEndLine}`],
+      slices,
+      evidenceValid: true as const,
+      invalidReferenceCount: 0 as const,
+      traceabilityComplete: true as const,
+    };
+    const evidencePack = R2G3EvidencePackSchema.parse({
+      ...evidencePackContent,
+      evidencePackChecksum: checksumR2G3EvidencePack(evidencePackContent),
+    });
+    const finding = SelfReviewFindingSchema.parse({
+      findingId: "finding-r2g3-round-trip",
+      reviewerId: "test-quality-reviewer",
+      scopeId: "r2-g3-o1",
+      severity: "INFO",
+      category: "REQUIREMENT_NOT_VERIFIED",
+      summary: "The persisted identity fields are recoverable.",
+      evidenceRefs: [`${testPath}:348-${testEvidenceEndLine}`],
+      affectedArtifacts: [`${artifactPath}:57-68`],
+      recommendedAction: "Retain the traceability record.",
+      blockingClassification: "INFORMATIONAL",
+      owner: "tests",
+    });
+    const reviewExecutionInput = {
+      reviewerId: "test-quality-reviewer",
+      reviewerVersion: "test-quality-reviewer.v1",
+      capability: "test-quality-review",
+      policyVersion: "policy.test.v1",
+      promptVersion: "prompt.test.v1",
+      candidateId: evidencePack.candidateId,
+      candidateChecksum,
+      evidencePackId: evidencePack.evidencePackId,
+      evidencePackChecksum: evidencePack.evidencePackChecksum,
+      evidenceManifestChecksum: candidateChecksum,
+      requirementId: "R2-G3-O1-REVIEW-IDENTITY-TRACEABILITY" as const,
+      artifactId: evidencePack.artifactId,
+      artifactChecksum,
+      artifactReferences: [`${artifactPath}:57-68`],
+      testId: evidencePack.testId,
+      testReferences: [`${testPath}:348-${testEvidenceEndLine}`],
+      testSourceChecksum,
+      testExecution,
+      obligationIds: ["R2-G3-O1-REVIEW-IDENTITY-TRACEABILITY"],
+      verdict: "APPROVED" as const,
+      findings: [finding],
+      selectedSkillIds: ["requirements-evidence-traceability"],
+      selectedSkillChecksums: [checksum("requirements-evidence-traceability")],
+      createdAt: "2026-08-12T10:00:02.000Z",
+    };
+    const reviewExecution = createR2G3ReviewExecutionRecord(reviewExecutionInput);
+    const secondReviewExecution = createR2G3ReviewExecutionRecord({
+      ...reviewExecutionInput,
+      createdAt: "2026-08-12T10:00:02.001Z",
+    });
+    expect(secondReviewExecution.reviewExecutionId).not.toBe(
+      reviewExecution.reviewExecutionId,
+    );
+    expect(R2G3ReviewExecutionRecordSchema.parse(reviewExecution)).toEqual(
+      reviewExecution,
+    );
+    const artifact = R2G3TraceabilityArtifactSchema.parse({
+      schemaVersion: 1,
+      documentType: "r2-g3-o1-review-identity-traceability",
+      planId: "r2-g3-o1-review-identity-traceability-plan-test",
+      baselineHead: "d4776ace417eb149cc363c5546b0919fea55a90d",
+      planCommit: "7f9f543e0f12156ceb551fc68fb5f0bba28c26d8",
+      candidateId: evidencePack.candidateId,
+      candidateChecksum,
+      candidateFiles,
+      evidencePack,
+      testExecution,
+      reviewExecutions: [reviewExecution, secondReviewExecution],
+      evidenceValid: true,
+      invalidReferenceCount: 0,
+      traceabilityComplete: true,
+      createdAt: "2026-08-12T10:00:03.000Z",
+      updatedAt: "2026-08-12T10:00:03.000Z",
+    });
+    const directory = await mkdtemp(join(tmpdir(), "r2g3-o1-round-trip-"));
+    try {
+      const traceabilityPath = join(directory, "traceability.json");
+      await writeFile(traceabilityPath, JSON.stringify(artifact, null, 2), "utf8");
+      const reloaded = R2G3TraceabilityArtifactSchema.parse(
+        JSON.parse(await readFile(traceabilityPath, "utf8")),
+      );
+      expect(reloaded.reviewExecutions[0].reviewExecutionId).toBe(
+        reviewExecution.reviewExecutionId,
+      );
+      expect(reloaded.reviewExecutions[0].candidateChecksum).toBe(
+        candidateChecksum,
+      );
+      expect(reloaded.reviewExecutions[0].evidencePackChecksum).toBe(
+        evidencePack.evidencePackChecksum,
+      );
+      expect(reloaded.reviewExecutions[0].testExecution.testExecutionId).toBe(
+        testExecution.testExecutionId,
+      );
+      expect(reloaded.testExecution.testExecutionId).toBe(
+        reloaded.evidencePack.testExecutionId,
+      );
+      expect(reloaded.evidencePack.artifactReferences).toEqual([
+        `${artifactPath}:57-68`,
+      ]);
+      expect(reloaded.evidencePack.testReferences).toEqual([
+        `${testPath}:348-${testEvidenceEndLine}`,
+      ]);
+      expect(reloaded.evidencePack.artifactChecksum).toBe(artifactChecksum);
+      expect(reloaded.evidencePack.testSourceChecksum).toBe(testSourceChecksum);
+      expect(reloaded.reviewExecutions[0].findingIds).toEqual([
+        finding.findingId,
+      ]);
+      expect(reloaded.traceabilityComplete).toBe(true);
+      expect(reloaded.reviewExecutions[0].reviewExecutionId).not.toBe(
+        reloaded.reviewExecutions[0].reviewerId,
+      );
+      expect(reloaded.reviewExecutions[1].reviewExecutionId).not.toBe(
+        reloaded.reviewExecutions[0].reviewExecutionId,
+      );
+      expect(reloaded.reviewExecutions[1].evidencePackChecksum).toBe(
+        evidencePack.evidencePackChecksum,
+      );
+      expect(() =>
+        R2G3TraceabilityArtifactSchema.parse({
+          ...reloaded,
+          candidateChecksum: "f".repeat(64),
+        }),
+      ).toThrow();
+      const reboundPackContent = {
+        ...reloaded.evidencePack,
+        testExecutionId: "55555555-5555-4555-8555-555555555555",
+      };
+      const {
+        evidencePackChecksum: reboundStoredChecksum,
+        ...reboundPackWithoutChecksum
+      } =
+        reboundPackContent;
+      expect(reboundStoredChecksum).toBe(reloaded.evidencePack.evidencePackChecksum);
+      expect(() =>
+        R2G3TraceabilityArtifactSchema.parse({
+          ...reloaded,
+          evidencePack: {
+            ...reboundPackContent,
+            evidencePackChecksum: checksumR2G3EvidencePack(
+              reboundPackWithoutChecksum,
+            ),
+          },
+        }),
+      ).toThrow();
+      const reboundReview = {
+        ...reloaded.reviewExecutions[0],
+        testExecution: {
+          ...reloaded.reviewExecutions[0].testExecution,
+          testExecutionId: "66666666-6666-4666-8666-666666666666",
+        },
+      };
+      expect(() =>
+        R2G3TraceabilityArtifactSchema.parse({
+          ...reloaded,
+          reviewExecutions: [reboundReview, reloaded.reviewExecutions[1]],
+        }),
+      ).toThrow();
+      const reboundReferences = {
+        ...reloaded.reviewExecutions[0],
+        artifactReferences: reloaded.evidencePack.testReferences,
+      };
+      expect(() =>
+        R2G3TraceabilityArtifactSchema.parse({
+          ...reloaded,
+          reviewExecutions: [reboundReferences, reloaded.reviewExecutions[1]],
+        }),
+      ).toThrow();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 });

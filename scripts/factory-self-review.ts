@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { extname, relative, resolve, sep } from "node:path";
@@ -574,6 +574,318 @@ export const checksum = (value: string) =>
 const checksumBytes = (value: Buffer) =>
   createHash("sha256").update(value).digest("hex");
 const checksumJson = (value: unknown) => checksum(JSON.stringify(value));
+
+export const R2G3O1 = "R2-G3-O1-REVIEW-IDENTITY-TRACEABILITY" as const;
+export const R2G3O2 = "R2-G3-O2-GENERATED-GRAPH-POLICY-EVIDENCE" as const;
+const R2G3VerdictSchema = z.enum(["APPROVED", "CHANGES_REQUIRED", "BLOCKED"]);
+const R2G3UuidSchema = z.string().uuid();
+const R2G3TimestampSchema = z.string().datetime();
+
+export const R2G3TestExecutionSchema = z
+  .object({
+    testExecutionId: R2G3UuidSchema,
+    command: z.string().min(1).max(500),
+    testFile: z.string().min(1).max(300),
+    testName: z.string().min(1).max(300),
+    testSourceChecksum: z.string().regex(HASH),
+    status: z.literal("PASSED"),
+    passedCount: z.number().int().nonnegative(),
+    totalCount: z.number().int().positive(),
+    startedAt: R2G3TimestampSchema,
+    completedAt: R2G3TimestampSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.passedCount !== value.totalCount)
+      context.addIssue({
+        code: "custom",
+        path: ["passedCount"],
+        message: "A passed R2-G3 execution must pass every targeted test.",
+      });
+  });
+export type R2G3TestExecution = z.infer<typeof R2G3TestExecutionSchema>;
+
+const R2G3EvidenceReferenceSchema = z
+  .string()
+  .regex(/^[^:]+:\d+(?:-\d+)?$/);
+
+export const R2G3ReviewExecutionRecordSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    documentType: z.literal("r2-g3-review-execution"),
+    reviewExecutionId: R2G3UuidSchema,
+    reviewerId: z.string().min(1),
+    reviewerVersion: z.string().min(1),
+    capability: z.string().min(1),
+    policyVersion: z.string().min(1),
+    promptVersion: z.string().min(1),
+    createdAt: R2G3TimestampSchema,
+    updatedAt: R2G3TimestampSchema,
+    candidateId: z.string().min(1),
+    candidateChecksum: z.string().regex(HASH),
+    evidencePackId: z.string().min(1),
+    evidencePackChecksum: z.string().regex(HASH),
+    evidenceManifestChecksum: z.string().regex(HASH),
+    requirementId: z.literal(R2G3O1),
+    artifactId: z.string().min(1),
+    artifactChecksum: z.string().regex(HASH),
+    artifactReferences: z.array(z.string().min(1)).min(1),
+    testId: z.string().min(1),
+    testReferences: z.array(z.string().min(1)).min(1),
+    testSourceChecksum: z.string().regex(HASH),
+    testExecution: R2G3TestExecutionSchema,
+    obligationIds: z.array(z.string().min(1)).min(1),
+    verdict: R2G3VerdictSchema,
+    findings: z.array(SelfReviewFindingSchema),
+    findingIds: z.array(z.string().min(1)),
+    resultChecksum: z.string().regex(HASH),
+    selectedSkillIds: z.array(z.string()),
+    selectedSkillChecksums: z.array(z.string().regex(HASH)),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const findingIds = value.findings.map((finding) => finding.findingId);
+    if (
+      value.findingIds.length !== findingIds.length ||
+      value.findingIds.some((findingId, index) => findingId !== findingIds[index])
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["findingIds"],
+        message: "Finding IDs must be the canonical IDs of the persisted findings.",
+      });
+    if (!value.obligationIds.includes(R2G3O1))
+      context.addIssue({
+        code: "custom",
+        path: ["obligationIds"],
+        message: "The persisted review must bind the frozen R2-G3 O1 obligation.",
+      });
+  });
+export type R2G3ReviewExecutionRecord = z.infer<
+  typeof R2G3ReviewExecutionRecordSchema
+>;
+
+export const R2G3EvidencePackSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    documentType: z.literal("r2-g3-o1-evidence-pack"),
+    evidencePackId: z.string().min(1),
+    candidateId: z.string().min(1),
+    candidateChecksum: z.string().regex(HASH),
+    evidenceManifestChecksum: z.string().regex(HASH),
+    evidencePackChecksum: z.string().regex(HASH),
+    requirementId: z.literal(R2G3O1),
+    artifactId: z.string().min(1),
+    artifactPath: z.string().regex(RELATIVE_PATH),
+    artifactChecksum: z.string().regex(HASH),
+    testId: z.string().min(1),
+    testPath: z.string().regex(RELATIVE_PATH),
+    testSourceChecksum: z.string().regex(HASH),
+    testExecutionId: R2G3UuidSchema,
+    references: z.array(R2G3EvidenceReferenceSchema).min(1),
+    artifactReferences: z.array(R2G3EvidenceReferenceSchema).min(1),
+    testReferences: z.array(R2G3EvidenceReferenceSchema).min(1),
+    slices: z.array(EvidenceSliceSchema).min(1),
+    evidenceValid: z.literal(true),
+    invalidReferenceCount: z.literal(0),
+    traceabilityComplete: z.literal(true),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const allReferences = [...value.artifactReferences, ...value.testReferences];
+    for (const reference of allReferences) {
+      const match = /^([^:]+):(\d+)(?:-(\d+))?$/.exec(reference);
+      const startLine = Number(match?.[2]);
+      const endLine = Number(match?.[3] ?? match?.[2]);
+      const covered = Boolean(
+        match &&
+          value.slices.some(
+            (slice) =>
+              slice.relativePath === match[1] &&
+              startLine >= slice.startLine &&
+              endLine <= slice.endLine,
+          ),
+      );
+      if (!value.references.includes(reference))
+        context.addIssue({
+          code: "custom",
+          path: ["references"],
+          message: `Traceability reference is not included in the evidence reference set: ${reference}`,
+        });
+      if (!covered)
+        context.addIssue({
+          code: "custom",
+          path: ["slices"],
+          message: `Traceability reference is not covered by an evidence slice: ${reference}`,
+        });
+    }
+    if (value.artifactReferences.some((reference) => !reference.startsWith(`${value.artifactPath}:`)))
+      context.addIssue({
+        code: "custom",
+        path: ["artifactReferences"],
+        message: "Artifact references must resolve to the declared artifact path.",
+      });
+    if (value.testReferences.some((reference) => !reference.startsWith(`${value.testPath}:`)))
+      context.addIssue({
+        code: "custom",
+        path: ["testReferences"],
+        message: "Test references must resolve to the declared test path.",
+      });
+  });
+export type R2G3EvidencePack = z.infer<typeof R2G3EvidencePackSchema>;
+export const checksumR2G3CandidateFiles = (
+  files: readonly EvidenceManifestEntry[],
+) => checksumJson(files);
+export const checksumR2G3EvidencePack = (
+  pack: Omit<R2G3EvidencePack, "evidencePackChecksum">,
+) => checksumJson(pack);
+
+export const R2G3TraceabilityArtifactSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    documentType: z.literal("r2-g3-o1-review-identity-traceability"),
+    planId: z.string().min(1),
+    baselineHead: z.string().regex(/^[0-9a-f]{7,40}$/),
+    planCommit: z.string().regex(/^[0-9a-f]{7,40}$/),
+    candidateId: z.string().min(1),
+    candidateChecksum: z.string().regex(HASH),
+    candidateFiles: z.array(EvidenceManifestEntrySchema).min(1),
+    evidencePack: R2G3EvidencePackSchema,
+    testExecution: R2G3TestExecutionSchema,
+    reviewExecutions: z.array(R2G3ReviewExecutionRecordSchema).min(1),
+    evidenceValid: z.literal(true),
+    invalidReferenceCount: z.literal(0),
+    traceabilityComplete: z.literal(true),
+    createdAt: R2G3TimestampSchema,
+    updatedAt: R2G3TimestampSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const { evidencePackChecksum, ...packContent } = value.evidencePack;
+    if (checksumR2G3CandidateFiles(value.candidateFiles) !== value.candidateChecksum)
+      context.addIssue({
+        code: "custom",
+        path: ["candidateChecksum"],
+        message: "Candidate checksum must equal the ordered candidate manifest checksum.",
+      });
+    if (
+      checksumR2G3EvidencePack(packContent) !==
+      evidencePackChecksum
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["evidencePack", "evidencePackChecksum"],
+        message: "Evidence pack checksum must equal its persisted content.",
+      });
+    if (
+      value.evidencePack.candidateId !== value.candidateId ||
+      value.evidencePack.candidateChecksum !== value.candidateChecksum ||
+      value.evidencePack.evidenceManifestChecksum !== value.candidateChecksum
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["evidencePack"],
+        message: "Evidence pack must bind the exact candidate identity.",
+      });
+    for (const reference of value.evidencePack.references) {
+      if (!validateEvidenceReference(reference, value.candidateFiles).valid)
+        context.addIssue({
+          code: "custom",
+          path: ["evidencePack", "references"],
+          message: `Evidence reference is not resolved by the candidate manifest: ${reference}`,
+        });
+    }
+    const artifactEntry = value.candidateFiles.find(
+      (entry) => entry.relativePath === value.evidencePack.artifactPath,
+    );
+    const testEntry = value.candidateFiles.find(
+      (entry) => entry.relativePath === value.evidencePack.testPath,
+    );
+    if (!artifactEntry || artifactEntry.checksum !== value.evidencePack.artifactChecksum)
+      context.addIssue({
+        code: "custom",
+        path: ["evidencePack", "artifactChecksum"],
+        message: "Artifact identity must resolve to its candidate manifest checksum.",
+      });
+    if (!testEntry || testEntry.checksum !== value.evidencePack.testSourceChecksum)
+      context.addIssue({
+        code: "custom",
+        path: ["evidencePack", "testSourceChecksum"],
+        message: "Test identity must resolve to its candidate manifest checksum.",
+      });
+    if (value.testExecution.testExecutionId !== value.evidencePack.testExecutionId)
+      context.addIssue({
+        code: "custom",
+        path: ["testExecution", "testExecutionId"],
+        message: "The top-level test execution must equal the evidence-pack execution.",
+      });
+    if (
+      value.reviewExecutions.some(
+        (record) =>
+          record.candidateId !== value.candidateId ||
+          record.candidateChecksum !== value.candidateChecksum ||
+          record.evidencePackId !== value.evidencePack.evidencePackId ||
+          record.evidencePackChecksum !== value.evidencePack.evidencePackChecksum ||
+          record.evidenceManifestChecksum !== value.evidencePack.evidenceManifestChecksum ||
+          record.testExecution.testExecutionId !== value.testExecution.testExecutionId ||
+          record.artifactId !== value.evidencePack.artifactId ||
+          record.artifactChecksum !== value.evidencePack.artifactChecksum ||
+          record.testId !== value.evidencePack.testId ||
+          record.testSourceChecksum !== value.evidencePack.testSourceChecksum ||
+          record.testExecution.testSourceChecksum !== value.evidencePack.testSourceChecksum ||
+          record.testExecution.testFile !== value.evidencePack.testPath ||
+          JSON.stringify(record.artifactReferences) !==
+            JSON.stringify(value.evidencePack.artifactReferences) ||
+          JSON.stringify(record.testReferences) !==
+            JSON.stringify(value.evidencePack.testReferences),
+      )
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["reviewExecutions"],
+        message: "Every review execution must bind the exact persisted evidence pack.",
+      });
+  });
+export type R2G3TraceabilityArtifact = z.infer<
+  typeof R2G3TraceabilityArtifactSchema
+>;
+
+type R2G3ReviewExecutionInput = Omit<
+  R2G3ReviewExecutionRecord,
+  | "schemaVersion"
+  | "documentType"
+  | "reviewExecutionId"
+  | "createdAt"
+  | "updatedAt"
+  | "resultChecksum"
+  | "findingIds"
+> & {
+  createdAt?: string;
+};
+
+export function createR2G3ReviewExecutionRecord(
+  input: R2G3ReviewExecutionInput,
+): R2G3ReviewExecutionRecord {
+  const createdAt = input.createdAt ?? new Date().toISOString();
+  const findings = SelfReviewFindingSchema.array().parse(input.findings);
+  const findingIds = findings.map((finding) => finding.findingId);
+  const resultChecksum = checksumJson({
+    verdict: input.verdict,
+    findings,
+    obligationIds: input.obligationIds,
+  });
+  return R2G3ReviewExecutionRecordSchema.parse({
+    ...input,
+    schemaVersion: 1,
+    documentType: "r2-g3-review-execution",
+    reviewExecutionId: randomUUID(),
+    createdAt,
+    updatedAt: createdAt,
+    findingIds,
+    resultChecksum,
+  });
+}
+
 const normalizeRelativePath = (value: string) =>
   value.replaceAll("\\", "/").replace(/^\.\//, "");
 export const isWithinEvidenceRoot = (root: string, candidate: string) => {
