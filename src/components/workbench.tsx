@@ -3,13 +3,20 @@
 import { useEffect, useRef, useState } from "react";
 import type { WorkbenchAction, WorkbenchBrief, WorkbenchDesign, WorkbenchPlanning, WorkbenchProjection, WorkbenchRequest } from "@/runtime/workbench/contracts";
 
-type Envelope = { ok: boolean; data?: WorkbenchProjection; error?: string };
+type Envelope = { ok: boolean; data?: WorkbenchProjection; error?: string; code?: string; correlationId?: string; operation?: string; recoverable?: boolean };
 const ACTIVE_PROJECT_KEY = "factory-workbench-active-project";
+
+class WorkbenchRequestError extends Error {
+  constructor(message: string, readonly code?: string, readonly correlationId?: string) {
+    super(message);
+    this.name = "WorkbenchRequestError";
+  }
+}
 
 async function request(input: WorkbenchRequest): Promise<WorkbenchProjection> {
   const response = await fetch("/api/workbench", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
   const body = await response.json() as Envelope;
-  if (!response.ok || !body.ok || !body.data) throw new Error(body.error ?? "We couldn't process this request. The project was not changed.");
+  if (!response.ok || !body.ok || !body.data) throw new WorkbenchRequestError(body.error ?? "We couldn't complete this request. The project was not changed.", body.code, body.correlationId);
   return body.data;
 }
 
@@ -75,13 +82,13 @@ export function Workbench() {
   const run = async (input: WorkbenchRequest) => {
     setLoading(true);
     setError(null);
-    try { apply(await request(input)); } catch (caught) { setError(caught instanceof Error ? caught.message : "We couldn't process this request. The project was not changed."); } finally { setLoading(false); }
+    try { apply(await request(input)); } catch (caught) { setError(caught instanceof WorkbenchRequestError && caught.correlationId ? `${caught.message} Reference: ${caught.correlationId}` : caught instanceof Error ? caught.message : "We couldn't complete this request. The project was not changed."); } finally { setLoading(false); }
   };
 
   useEffect(() => {
     const projectId = new URLSearchParams(window.location.search).get("project") ?? window.localStorage.getItem(ACTIVE_PROJECT_KEY);
     const input: WorkbenchRequest = projectId ? { action: "status", projectId } : { action: "list" };
-    void request(input).then(apply).catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "We couldn't process this request. The project was not changed."));
+    void request(input).then(apply).catch((caught: unknown) => setError(caught instanceof WorkbenchRequestError && caught.correlationId ? `${caught.message} Reference: ${caught.correlationId}` : caught instanceof Error ? caught.message : "We couldn't complete this request. The project was not changed."));
     // The initial hydration intentionally performs one bounded status/list read.
   }, []);
 
