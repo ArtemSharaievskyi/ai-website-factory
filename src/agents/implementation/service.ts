@@ -35,6 +35,7 @@ import type { BackendPlans } from "./backend";
 import { implementationAgentDefinition } from "@/agents/catalog";
 import { PlanningPackageSchema, StoragePlanSchema } from "@/agents/planner/contracts";
 import type { DependencyAuthorityContext } from "@/dependencies/authority";
+import { validatePhase7CContractPackage, validateTaskContractBinding } from "@/domain/contracts/phase7c";
 
 export interface ImplementationMemoryPort {
   writeSnapshot(
@@ -361,6 +362,17 @@ export class ImplementationAgentService {
         input.task.attempt + 1,
       );
       await this.documents.save(graph);
+      if (input.phase7cContractPackage) {
+        try {
+          const contract = input.phase7cContractPackage.taskContracts.find((candidate) => candidate.taskId === input.task.id);
+          if (!contract) throw new Error("TaskContract is missing.");
+          validatePhase7CContractPackage(input.phase7cContractPackage);
+          validateTaskContractBinding(input.task, contract);
+          if (input.task.phase7c?.taskContractChecksum !== contract.checksum) throw new Error("Task binding checksum is stale.");
+        } catch (error) {
+          throw new ImplementationError("IMPLEMENTATION_GRAPH_STALE", "Implementation is blocked by a stale Phase 7C contract package.", error);
+        }
+      }
       if (input.cancellation.requested || signal?.aborted)
         throw new ImplementationError(
           "IMPLEMENTATION_CANCELLED",
@@ -392,6 +404,7 @@ export class ImplementationAgentService {
         input.stagingWorkspacePath,
         this.policy,
         dependencyContext,
+        input.phase7cContractPackage,
       );
       const applied = await this.applier.apply(
         {
@@ -405,6 +418,7 @@ export class ImplementationAgentService {
         this.policy,
         () => Boolean(signal?.aborted),
         dependencyContext,
+        input.phase7cContractPackage,
       );
       const acceptedPlanning = input.acceptedPlanningPackage as BackendPlans["planning"];
       if (input.task.taskType === "implement-storage") StoragePlanSchema.parse(acceptedPlanning?.storage);

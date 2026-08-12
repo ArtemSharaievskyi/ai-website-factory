@@ -7,13 +7,15 @@ import type { TechnicalArchitecture } from "../architecture/schema";
 import type { QualityReport } from "../quality/schema";
 import type { ReleaseReport } from "../release/schema";
 import type { DecisionRecord } from "./decision";
+import type { Phase7CContractPackage } from "@/domain/contracts/phase7c";
+import { validateStartImplementationGate } from "@/domain/contracts/phase7c";
 
 export type WorkflowState = typeof WorkflowStateSchema.options[number];
 export const WORKFLOW_TRANSITIONS: Record<WorkflowState, readonly WorkflowState[]> = {
   DRAFT: ["CLARIFYING"], CLARIFYING: ["AWAITING_BRIEF_APPROVAL"], AWAITING_BRIEF_APPROVAL: ["CLARIFYING", "AWAITING_DESIGN_SELECTION"], AWAITING_DESIGN_SELECTION: ["AWAITING_BRIEF_APPROVAL", "ARCHITECTURE_REVIEW", "READY_FOR_IMPLEMENTATION"], ARCHITECTURE_REVIEW: ["AWAITING_DESIGN_SELECTION", "CLARIFYING", "FAILED"], READY_FOR_IMPLEMENTATION: ["AWAITING_BRIEF_APPROVAL", "AWAITING_DESIGN_SELECTION", "CONTRACT_AUDIT", "IMPLEMENTING"], CONTRACT_AUDIT: ["READY_FOR_IMPLEMENTATION", "CLARIFYING", "FAILED"], IMPLEMENTING: ["CODE_INTEGRATION_REVIEW", "VALIDATING", "FAILED"], CODE_INTEGRATION_REVIEW: ["SECURITY_REVIEW", "VALIDATING", "REPAIRING", "FAILED"], SECURITY_REVIEW: ["VALIDATING", "TEST_QUALITY_REVIEW", "REPAIRING", "FAILED"], VALIDATING: ["CODE_INTEGRATION_REVIEW", "SECURITY_REVIEW", "TEST_QUALITY_REVIEW", "REPAIRING", "PROJECT_READY", "FAILED"], TEST_QUALITY_REVIEW: ["VALIDATING", "PROJECT_READY", "REPAIRING", "FAILED"], REPAIRING: ["VALIDATING", "CODE_INTEGRATION_REVIEW", "SECURITY_REVIEW", "TEST_QUALITY_REVIEW", "FAILED"], PROJECT_READY: [], FAILED: [],
 };
 
-export type TransitionContext = { requirements?: RequirementSpecification; clarificationSession?: ClarificationSession; requirementsChecksum?: string; designSet?: DesignDirectionSet; selectedDesign?: SelectedDesign; selectedDirectionChecksum?: string; architecture?: TechnicalArchitecture; decisions?: DecisionRecord[]; qualityReport?: QualityReport; releaseReport?: ReleaseReport; testQualityReviewApproved?: boolean; knownErrors?: string[]; recovery?: boolean };
+export type TransitionContext = { requirements?: RequirementSpecification; clarificationSession?: ClarificationSession; requirementsChecksum?: string; designSet?: DesignDirectionSet; selectedDesign?: SelectedDesign; selectedDirectionChecksum?: string; architecture?: TechnicalArchitecture; decisions?: DecisionRecord[]; qualityReport?: QualityReport; releaseReport?: ReleaseReport; testQualityReviewApproved?: boolean; knownErrors?: string[]; recovery?: boolean; phase7cContractPackage?: Phase7CContractPackage };
 
 function reject(code: ConstructorParameters<typeof DomainError>[0], message: string): never { throw new DomainError(code, message); }
 
@@ -41,6 +43,9 @@ export function transitionWorkflow(state: WorkflowState, next: WorkflowState, co
     if (!context.requirements?.approval.approved) reject("REQUIREMENTS_NOT_APPROVED", "Requirements must be approved before implementation.");
     if (!context.architecture?.acceptance.accepted) reject("ARCHITECTURE_NOT_ACCEPTED", "Architecture must be accepted before implementation.");
     if (context.decisions?.some((decision) => decision.requirementChange && decision.userApprovalStatus !== "approved")) reject("UNAPPROVED_REQUIREMENT_CHANGE", "An unapproved requirement change is present.");
+    if (context.phase7cContractPackage) {
+      try { validateStartImplementationGate({ contractPackage: context.phase7cContractPackage, databaseTask: context.phase7cContractPackage.taskContracts.some((task) => task.taskType.includes("database") || task.taskType === "implement-rls-policy") }); } catch { reject("WORKFLOW_TRANSITION_INVALID", "Phase 7C start gate rejected implementation."); }
+    }
   }
   if (state === "VALIDATING" && next === "PROJECT_READY") {
     if (context.testQualityReviewApproved === false) reject("QUALITY_GATES_INCOMPLETE", "A current approved Test / Quality Review is required.");

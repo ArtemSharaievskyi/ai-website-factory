@@ -13,6 +13,7 @@ import { PlanningPackageSchema } from "../../agents/planner/contracts";
 import { ImplementationRunsSchema } from "@/domain/implementation/schema";
 import { FunctionalQaMemorySummarySchema } from "@/runtime/qa/contracts";
 import { ExecutionSummarySchema } from "@/orchestration/execution/contracts";
+import { Phase7CContractPackageSchema } from "@/domain/contracts/phase7c";
 
 export const ProjectMemoryDocumentSchema = z.object({ relativePath: z.string(), documentType: z.string(), schemaVersion: z.literal(SCHEMA_VERSION), sha256: z.string().regex(/^[a-f0-9]{64}$/), byteSize: z.number().int().nonnegative(), updatedAt: z.string() }).strict();
 export const ProjectMemoryManifestSchema = DocumentBaseSchema.extend({ documentType: z.literal("manifest"), documents: z.array(ProjectMemoryDocumentSchema) }).strict();
@@ -27,6 +28,7 @@ export const DOCUMENT_SCHEMAS = {
   "content-plan.json": ContentPlanSchema,
   "asset-manifest.json": AssetManifestSchema,
   "planning-package.json": PlanningPackageSchema,
+  "phase-7c-contract-package.json": Phase7CContractPackageSchema,
   "task-graph.json": TaskGraphSchema,
   "implementation-runs.json": ImplementationRunsSchema,
   "quality-report.json": QualityReportSchema,

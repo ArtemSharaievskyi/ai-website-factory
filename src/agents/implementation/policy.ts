@@ -531,6 +531,25 @@ export class TaskContextAssembler {
           ]
         : []),
     ];
+    const phase7cContract = input.phase7cContractPackage
+      ? input.phase7cContractPackage.taskContracts.find((contract) => contract.taskId === input.task.id)
+      : undefined;
+    if (input.phase7cContractPackage && !phase7cContract)
+      throw new ImplementationError(
+        "IMPLEMENTATION_GRAPH_STALE",
+        "The implementation task has no current Phase 7C TaskContract.",
+      );
+    const phase7c = input.phase7cContractPackage && phase7cContract
+      ? {
+          taskContract: phase7cContract,
+          dataContracts: input.phase7cContractPackage.dataContracts.filter((contract) => phase7cContract.inputDataContractIds.includes(contract.dataContractId) || phase7cContract.outputDataContractIds.includes(contract.dataContractId)),
+          databaseDecisionId: input.phase7cContractPackage.databaseDecision.databaseDecisionId,
+          databaseMode: input.phase7cContractPackage.databaseDecision.mode,
+          databaseConnectionStatus: input.phase7cContractPackage.databaseDecision.connectionStatus,
+          safeEnvironmentMetadata: input.phase7cContractPackage.safeEnvironmentMetadata,
+          dependencyApprovals: input.phase7cContractPackage.dependencyProposal.dependencies.filter((dependency) => dependency.approvalStatus === "APPROVED" || dependency.approvalStatus === "NOT_REQUIRED"),
+        }
+      : undefined;
     const context = ImplementationContextSchema.parse({
       task: input.task,
       acceptanceCriteria: input.task.acceptanceCriteria ?? [],
@@ -540,6 +559,7 @@ export class TaskContextAssembler {
       architectureExcerpt,
       contentExcerpt,
       assetExcerpt,
+      ...(phase7c ? { phase7c } : {}),
       ...(storagePlan ? { storagePlan } : {}),
       ...(formPlan ? { formPlan } : {}),
       ...(testArtifactExpectation ? { testArtifactExpectation } : {}),

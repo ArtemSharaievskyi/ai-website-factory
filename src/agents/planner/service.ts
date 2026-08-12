@@ -39,6 +39,7 @@ import {
   type ArchitectureReviewResult,
 } from "@/domain/review/schema";
 import type { AgentSkillSelection } from "@/skills/runtime/resolver";
+import { buildPhase7CContractPackage } from "@/domain/contracts/phase7c";
 
 const now = () => new Date().toISOString();
 export type PlannerServiceDependencies = {
@@ -374,7 +375,21 @@ export class PlannerArchitectService {
       },
       updatedAt: input.acceptedAt,
     });
+    const phase7cContractPackage = buildPhase7CContractPackage({
+      projectId: input.projectId,
+      projectVersion: input.projectVersion,
+      createdAt: input.acceptedAt,
+      approvedBriefChecksum: acceptedPackage.approvedBriefChecksum,
+      planningChecksum: input.planningChecksum,
+      architectureChecksum: checksumPersistedDocument(acceptedArchitecture),
+      designChecksum: "0".repeat(64),
+      planning: acceptedPackage,
+    });
     await this.persistPackage(acceptedPackage, input.idempotencyKey);
+    await this.documents.save(
+      phase7cContractPackage,
+      `planning-phase-7c-${input.projectId}-${input.projectVersion}-${input.idempotencyKey}`,
+    );
     this.packages.set(
       this.packageKey(input.projectId, input.projectVersion),
       acceptedPackage,
@@ -411,6 +426,7 @@ export class PlannerArchitectService {
         "architecture.json": acceptedArchitecture,
         "content-plan.json": acceptedPackage.content,
         "asset-manifest.json": acceptedPackage.assets,
+        "phase-7c-contract-package.json": phase7cContractPackage,
       },
     );
     const transition = await this.workflow.transition({

@@ -363,6 +363,7 @@ const StrictFormPlanSchema = z
   .strict();
 export const PlanningPackageStructuredOutputSchema =
   PlanningPackageSchema.extend({
+    databaseRecommendation: z.object({ recommendation: z.enum(["REQUIRED", "NOT_REQUIRED", "UNCERTAIN"]), rationale: z.string().min(1), requirementReferences: z.array(z.string().min(1)).min(1), userDecisionRequired: z.literal(true), selectedMode: z.enum(["NONE", "SUPABASE_NEW", "SUPABASE_EXISTING"]).nullable() }).strict().nullable(),
     productScope: PlanningPackageSchema.shape.productScope.extend({
       traceability: z.array(StrictTraceabilitySchema),
     }),
@@ -431,6 +432,7 @@ function normalizePlanningPackage(
     references.map((reference) => routeIdsByPath.get(reference) ?? reference);
   const normalized = {
     ...value,
+    ...(value.databaseRecommendation === null ? { databaseRecommendation: undefined } : {}),
     blockers: value.blockers.filter(
       (blocker) =>
         !/design[- ]direction selection.*(pending|existing design stage|not select|defer)/i.test(
