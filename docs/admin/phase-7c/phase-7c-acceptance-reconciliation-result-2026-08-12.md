@@ -27,7 +27,7 @@ checksum, and all before/after hashes matched.
 | Canonical Phase 7C result JSON and Markdown | PHASE_7C_CANONICAL_ADMIN | Yes | `7aef687a9b9503615ea499659ce0653f342ce016` | Clean |
 | This reconciliation JSON and Markdown | PHASE_7C_CANONICAL_ADMIN | Yes | This closure record | Pending explicit staging |
 | Phase 7B R2-G2 historical artifacts | PRE_PHASE_7C_HISTORICAL_ADMIN | No | Not staged | Preserved |
-| `.context7-cache/` and `.qa-foundation-*` | KNOWN_TRANSIENT | No | Not staged | Preserved |
+| `.context7-cache/` and `.qa-foundation-*` (19 directories) | KNOWN_TRANSIENT | No | Not staged | Preserved |
 
 No unrelated source, test, configuration, package, migration, or database
 schema changes were found.
