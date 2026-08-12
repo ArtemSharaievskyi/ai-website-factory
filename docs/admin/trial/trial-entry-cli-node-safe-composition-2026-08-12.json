@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "documentType": "trial-entry-cli-node-safe-composition-repair",
+  "generatedOn": "2026-08-12",
+  "initialHead": "0932edd85560d07e02257872c5ca044ac05890d3",
+  "implementationHead": "cf24dad",
+  "implementationHeadMeaning": "bounded Node-safe Trial Entry CLI repair before this separate docs/admin commit",
+  "scope": "Repair standalone factory:new, factory:respond, and factory:status composition under Node/tsx without mutating the real customer project or changing Web 409 behavior.",
+  "baseline": {
+    "trackedWorktreeClean": true,
+    "candidateId": "web-workbench-2026-08-12",
+    "candidateChecksum": "758b623b29bf8d61a2f224571869e3522453fb6eff3b7de16ef618059c41b3c6",
+    "r4EvidencePackId": "web-workbench-evidence-pack-r4-2026-08-12",
+    "r4EvidencePackChecksum": "4da68c2066089986d620d0d752fe2754ec97bd28d4733c97a54fe2523f5537ab",
+    "r4EvidenceValid": true,
+    "r4InvalidReferenceCount": 0
+  },
+  "architecture": {
+    "previousFailureChain": "factory CLI -> src/runtime/trial-entry/production.ts -> import server-only -> standalone tsx failure",
+    "rootCause": "The standalone CLI imported the Next.js server adapter rather than a Node-safe composition.",
+    "nodeAdapter": "src/runtime/trial-entry/node.ts",
+    "nextAdapter": "src/runtime/trial-entry/production.ts",
+    "nextAdapterServerOnlyPreserved": true,
+    "workbenchAdapter": "src/runtime/workbench/production.ts",
+    "canonicalTrialEntryService": "src/runtime/trial-entry/service.ts",
+    "canonicalLeadService": "src/agents/lead/service.ts",
+    "canonicalProjectMemory": "LeadMemoryAdapter -> FilesystemProjectMemorySyncPort -> ProjectMemoryStore",
+    "canonicalPersistence": "PostgresPersistenceDatabase and existing repositories",
+    "canonicalWorkflowAuthority": "TrialEntryService status/action calculation plus existing workflow persistence/transition authorities",
+    "canonicalCliEnvironment": "scripts/cli-env.ts -> @next/env loadEnvConfig",
+    "statusRequiresAi": false,
+    "duplicateTrialEntryService": false,
+    "duplicateWorkflowStateMachine": false,
+    "duplicatePersistenceAuthority": false
+  },
+  "cliPaths": [
+    { "command": "factory:new", "script": "scripts/factory-new.ts", "composition": "src/runtime/trial-entry/node.ts", "requiresAi": true, "serverOnlyTransitiveImport": false },
+    { "command": "factory:respond", "script": "scripts/factory-respond.ts", "composition": "src/runtime/trial-entry/node.ts", "requiresAi": true, "serverOnlyTransitiveImport": false },
+    { "command": "factory:status", "script": "scripts/factory-status.ts", "composition": "src/runtime/trial-entry/node.ts", "requiresAi": false, "serverOnlyTransitiveImport": false }
+  ],
+  "changedFiles": [
+    "scripts/factory-new.ts",
+    "scripts/factory-respond.ts",
+    "scripts/factory-status.ts",
+    "src/runtime/module-boundary.test.ts",
+    "src/runtime/trial-entry/cli-boundary.test.ts",
+    "src/runtime/trial-entry/cli.ts",
+    "src/runtime/trial-entry/node.ts"
+  ],
+  "packageChanges": { "packageJsonChanged": false, "packageLockChanged": false, "newDependency": false, "databaseSchemaChanged": false, "migrationChanged": false },
+  "cliBoundaryMatrix": { "cases": 24, "passed": 24, "failed": 0, "testFile": "src/runtime/trial-entry/cli-boundary.test.ts" },
+  "focusedTests": {
+    "cliModuleTrialEntry": { "command": "npx vitest run src/runtime/trial-entry/cli-boundary.test.ts src/runtime/trial-entry/service.test.ts src/runtime/module-boundary.test.ts", "testFiles": 3, "tests": 61, "result": "PASS" },
+    "workbench": { "command": "npx vitest run src/runtime/workbench/workbench.test.ts", "testFiles": 1, "tests": 45, "result": "PASS" },
+    "reviewers": { "command": "npm run test:reviewers", "testFiles": 7, "tests": 77, "result": "PASS" }
+  },
+  "directCliChecks": {
+    "humanCommand": "npm.cmd run factory:status -- \"--project\" \"b7a0829d-a077-487c-844a-3232efc21bc3\"",
+    "jsonCommand": "npm.cmd run factory:status -- \"--project\" \"b7a0829d-a077-487c-844a-3232efc21bc3\" \"--json\"",
+    "humanResult": "PASS: exit 0 and CLARIFYING status",
+    "jsonResult": "PASS: exit 0 and valid machine-readable status",
+    "unquotedNpmSyntax": "npm 11 forwards --project as an npm option/config warning and does not reach the intended project value; quoted argument forwarding is the verified safe syntax.",
+    "malformedProjectId": "PASS: safe exit 1",
+    "unknownUuid": "PASS: safe exit 1",
+    "newImportBoundary": "PASS: malformed synthetic invocation reaches CLI-safe error, not server-only crash",
+    "respondImportBoundary": "PASS: malformed synthetic invocation reaches CLI-safe error, not server-only crash"
+  },
+  "realProjectIntegrity": {
+    "projectId": "b7a0829d-a077-487c-844a-3232efc21bc3",
+    "before": { "currentVersion": 1, "workflowState": "CLARIFYING", "rowVersion": 2, "updatedAt": "2026-08-12T20:17:13.698Z", "clarificationVersion": 1, "answerStatuses": ["unresolved", "unresolved", "unresolved", "unresolved", "unresolved", "unresolved"], "requirementsDocument": null },
+    "after": { "currentVersion": 1, "workflowState": "CLARIFYING", "rowVersion": 2, "updatedAt": "2026-08-12T20:17:13.698Z", "clarificationVersion": 1, "answerStatuses": ["unresolved", "unresolved", "unresolved", "unresolved", "unresolved", "unresolved"], "requirementsDocument": null },
+    "currentQuestionIds": [
+      "c1f4a6d2-8b71-4e3a-9c05-1a2d7f6b8e40",
+      "d2e5b7f4-6a83-4c10-b927-3f1d8e5a6c72",
+      "e3f6c8a5-7b94-4d21-a638-4e2f9b6c7d83",
+      "f4a7c9b6-8d05-4e32-b749-5a3c1f8d9e64",
+      "a5b8d1c7-9e26-4f43-ba50-6c4d2e9f7a15",
+      "b6c9e2d8-1f37-4a54-8b61-7d5e3f0a2c86"
+    ],
+    "webPayloadQuestionIdsStillCurrent": true,
+    "pendingUserAction": "ANSWER_LEAD_CLARIFICATIONS",
+    "allowedActions": ["ANSWER_LEAD_CLARIFICATIONS"],
+    "blockingReasons": [
+      "CLARIFICATION_REQUIRED:c1f4a6d2-8b71-4e3a-9c05-1a2d7f6b8e40",
+      "CLARIFICATION_REQUIRED:d2e5b7f4-6a83-4c10-b927-3f1d8e5a6c72",
+      "CLARIFICATION_REQUIRED:e3f6c8a5-7b94-4d21-a638-4e2f9b6c7d83",
+      "CLARIFICATION_REQUIRED:f4a7c9b6-8d05-4e32-b749-5a3c1f8d9e64",
+      "CLARIFICATION_REQUIRED:a5b8d1c7-9e26-4f43-ba50-6c4d2e9f7a15",
+      "CLARIFICATION_REQUIRED:b6c9e2d8-1f37-4a54-8b61-7d5e3f0a2c86"
+    ],
+    "mutated": false,
+    "answersSubmitted": false,
+    "briefApproved": false,
+    "customerSourceGenerated": false,
+    "secondCustomerProjectCreated": false
+  },
+  "web409": { "observed": true, "diagnosed": false, "repaired": false, "retried": false, "rootCauseProven": false },
+  "fullValidation": {
+    "typecheck": "PASS",
+    "lint": "PASS_WITH_2_PREEXISTING_WARNINGS",
+    "npmTest": "PARTIAL: 1203/1205 tests passed; 2 unrelated QA-server tests failed on Windows EPERM creating node_modules/pg symlinks",
+    "build": "PASS",
+    "auditHigh": "PASS: 0 vulnerabilities",
+    "dbValidate": "PASS: 2 migrations",
+    "dbStatus": "PASS: current migration history",
+    "dbVerify": "PASS: 17 tables, 84 constraints, 17/17 RLS, 0 public policies",
+    "dbTestIntegrity": "PASS",
+    "dockerComposeConfig": "PASS",
+    "taskgraphSmoke": "PASS",
+    "backendSmoke": "PASS",
+    "generatedRuntimeSmoke": "PASS",
+    "gitDiffCheck": "PASS"
+  },
+  "semanticReviewPolicy": {
+    "rerunRequired": false,
+    "reason": "The change is a bounded non-candidate CLI adapter/module-boundary repair; deterministic tests and existing approved Workbench semantic evidence remain current.",
+    "existingApprovedReviewsPreserved": true
+  },
+  "commits": { "implementation": "cf24dad", "docsAdmin": "separate docs/admin commit" },
+  "nextAction": "Do not run factory:respond or retry Web 409; perform a separate bounded 409 root-cause repair only after direction is explicitly requested."
+}
