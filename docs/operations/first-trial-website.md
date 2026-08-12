@@ -1,80 +1,79 @@
-# First Trial Website — operator entry
+# First Trial Website - operator entry
 
-The first-trial entry point is ready. This guide prepares the door; it does not submit or generate the real trial website.
+The Factory Web Workbench is the primary local entry point. It keeps the full project request, Lead clarification, typed approvals, and workflow state on the server side. The browser never calls the model provider directly and never displays generated source or a website preview.
 
-## 1. Start the local Factory entry
+This guide describes the normal trial procedure. It does not submit the real Haus & Garten request and does not generate customer-facing source during preparation.
 
-From `D:\Visual Studio Code\save\ai-website-factory`, use the configured server environment and OpenAI provider, then submit a request with:
+## 1. Start the Factory Web Workbench
+
+From `D:\Visual Studio Code\save\ai-website-factory`, start the configured local server:
+
+```powershell
+npm run dev
+```
+
+Open the local URL printed by Next.js, normally `http://localhost:3000`.
+
+The CLI remains available as a fallback:
 
 ```powershell
 npm run factory:new -- --prompt-file ".\trial-site-prompt.txt"
 ```
 
-The command creates the host-owned project identity, stores the original request through the existing Lead/Project Memory authorities, invokes Lead first, and prints either clarification questions or the brief-approval stage.
+## 2. Submit the full English project request
 
-## 2. Supply the large English trial request
+In the Workbench composer, paste the complete English project request and choose **Create project**. Use the real approved request only during the authorized trial. Do not commit the request text, and do not submit it through a URL or shell argument.
 
-Save the approved English request locally as `trial-site-prompt.txt`. Its contents are the natural-language request only. Do not pass a long request as `--prompt "..." `, and do not commit the file.
+The request may ask for a German customer-facing website. Keep the instruction language and the requested customer-facing locale explicit; internal IDs and contracts remain English and host-owned.
 
-For this preparation run, use this placeholder only:
-
-```text
-<PROJECT_REQUEST>
-```
-
-The instruction language may be English while the requested customer-facing website language is German. Put that German locale requirement in the request; internal IDs and contracts remain English and host-owned.
-
-The entry layer also supports:
+The CLI also accepts a local file or stdin for long requests:
 
 ```powershell
+npm run factory:new -- --prompt-file ".\trial-site-prompt.txt"
 Get-Content .\trial-site-prompt.txt -Raw | npm run factory:new -- --stdin
 ```
 
-Interactive mode is available with `npm run factory:new`; paste the request, finish with a line containing `END`, and confirm with `y`.
+## 3. Answer Lead clarification in the same project
 
-## 3. Read Lead clarification
+After submission, the Workbench shows the project identity, current stage, conversation, and Lead questions. Answer the required fields in the clarification card and choose **Send answers to Lead**. The same project is resumed; a second project is not created.
 
-The command prints the project slug, host-owned project ID, current stage, and Lead questions. It does not print the full raw request. At this point the project is normally `CLARIFYING`; no Planner, Design Agent, Orchestrator, Implementation Agent, source generation, or QA execution has started.
+At this point the project is normally `CLARIFYING`. Planner, Design, Orchestrator, Implementation, source generation, and QA do not start merely because the request was submitted.
 
-## 4. Answer Lead and resume the same project
+## 4. Review and approve the Project Brief
 
-Use an answers file for long answers:
+When Lead has enough information, the Workbench shows the bounded Project Brief. Review the goals, audience, pages, features, forms, and image strategy.
 
-```json
-{
-  "<QUESTION_ID>": "<ANSWER>"
-}
-```
+- Choose **Approve Brief** when the requirements are correct.
+- Choose **Request changes**, describe the correction in the composer, and submit it when the Brief needs revision.
 
-Then run:
+Approval remains an explicit typed workflow action. Silence is never approval.
+
+## 5. Approve Planning and governed decisions
+
+After Brief approval, choose **Prepare planning**. The canonical Planner and Architecture Reviewer then produce the current planning package. Review and explicitly approve it, request planning changes when needed, approve the database recommendation, and approve the optional dependency set when shown.
+
+The Workbench does not bypass currentness, checksums, row versions, reviewer verdicts, or the existing Phase 7C contract authority.
+
+## 6. Choose one of exactly three Design Directions
+
+When the current design set is available, the Workbench shows exactly three Design Direction cards. No direction is preselected. Review the typography, layout, imagery, component character, motion policy, and trade-offs, then choose **Use this direction** on exactly one card.
+
+## 7. Start implementation explicitly
+
+Only after the current Brief, Planning, database and dependency decisions, selected Design Direction, Contract Audit approval, and task graph gates are current does the Workbench show **Start implementation**. Choose it deliberately. The existing Orchestrator remains the implementation authority; the Workbench does not execute source generation itself.
+
+## 8. CLI fallback and status inspection
+
+The CLI can resume the same canonical workflow when the web UI is unavailable:
 
 ```powershell
 npm run factory:respond -- --project <PROJECT_ID> --answers-file ".\trial-site-answers.json"
-```
-
-Without `--answers-file`, the command asks the unresolved questions interactively. The project ID is trusted host state; the prior conversation does not need to be pasted again. Answers are persisted to the existing clarification log, and the same project/version resumes. When all blocking clarification is complete, Lead creates the candidate Project Brief and leaves approval explicit.
-
-## 5. Inspect state
-
-```powershell
 npm run factory:status -- --project <PROJECT_ID>
 npm run factory:status -- --project <PROJECT_ID> --json
 ```
 
-Status reports the current workflow state, revision/row version, pending user action, blocking reasons, and next allowed actions. It does not dump Project Memory, the raw request, or secrets.
+The status output reports the workflow state, revision/row version, pending user action, blocking reasons, and next allowed actions. It does not dump the raw request, Project Memory, or secrets.
 
-## 6. Later canonical actions
+## 9. Preparation stopping point
 
-This preparation adds only the minimum new-user entry, clarification continuation, and status commands. Existing typed workflow authorities remain responsible for later actions:
-
-- Brief approval or revision: `LeadAgentService.approveBrief` / `requestBriefRevision`.
-- Planning: `PlannerArchitectService.planApprovedProject`, then `acceptPlanningPackage`.
-- Database decision, dependency approval, and planning approval: `Phase7CContractService.approveDatabase`, `approveDependencies`, and `approvePlanning`.
-- Design directions and explicit selection: `DesignAgentService.generateDesignDirections`, then `selectDesignDirection`.
-- Explicit implementation start: `OrchestratorService.startImplementation`; task execution remains separately gated.
-
-Silence is never approval. Currentness, checksums, row versions, and workflow transitions remain enforced by the existing domain and persistence authorities.
-
-## 7. Required stopping point for this preparation
-
-For the first real trial, save the approved English request to `trial-site-prompt.txt`, run `factory:new`, and stop after Lead returns clarification/questions or a brief proposal. Do not continue into Planner, Design, Implementation, hardening, QA, or deployment during the preparation run.
+For a preparation run, use synthetic local test data only and stop after Lead returns clarification/questions or a Brief proposal. Do not continue into Planner, Design, Implementation, hardening, QA, or deployment until the real trial is authorized.
