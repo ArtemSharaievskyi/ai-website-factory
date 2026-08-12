@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-7c-typed-task-data-database-contracts-result",
+  "phaseId": "PHASE_7C",
+  "generatedOn": "2026-08-12",
+  "baseline": {
+    "phase7bStatus": "COMPLETE",
+    "baselineHead": "e40b61348b87f149a0bdff2f431c655802ce0eae",
+    "acceptedR2G3ImplementationCommit": "719d863923d8ec9b9dbd2a4d67ee45f34b5479a6",
+    "factoryDatabaseSchemaChange": false,
+    "databaseSecurityConfigChanged": false
+  },
+  "candidate": {
+    "candidateId": "phase-7c-typed-contracts-2026-08-12",
+    "candidateChecksum": "595f64a981512bda3f5616c742f379d4281af5b322dd5200f28202e08cdc42ce",
+    "candidateMutatedDuringValidation": false,
+    "implementationCommit": "736cedee4c9ca6255bb6870ae8f92cd1cb5c5148"
+  },
+  "contractModels": {
+    "databaseModes": ["NONE", "SUPABASE_NEW", "SUPABASE_EXISTING"],
+    "provider": "SUPABASE_POSTGRESQL_ONLY_WHEN_DATABASE_IS_NEEDED",
+    "contracts": ["DatabaseDecision", "DataContract", "TaskContract", "DependencyProposal", "PlanningAcceptance", "Phase7CContractPackage"],
+    "schemaVersion": 1,
+    "policyVersion": "phase-7c-contracts-v1",
+    "checksumAndCurrentness": "Each contract carries a checksum and currentness record; material changes invalidate the prior approval."
+  },
+  "databaseDecision": {
+    "plannerAuthority": "RECOMMEND_ONLY",
+    "userAuthority": "EXPLICIT_APPROVAL_REQUIRED",
+    "noneBehavior": ["no database credentials", "no database task", "no migrations", "no persisted DataContract"],
+    "existingAndNewBehavior": "Safe env names, presence, connection status, and verification state are carried without values; START_IMPLEMENTATION requires READY connection status.",
+    "provisioning": "SUPABASE_NEW does not auto-provision."
+  },
+  "dependencyProposal": {
+    "authority": "Existing Dependency Authority remains package/version/section authority.",
+    "classes": ["FOUNDATION_DEPENDENCY", "PLANNED_OPTIONAL_DEPENDENCY", "TRANSITIVE_DEPENDENCY", "FORBIDDEN_DEPENDENCY"],
+    "optionalApproval": "Required and checksum/currentness bound before implementation."
+  },
+  "planningAcceptance": {
+    "persistedAt": "Planner acceptance persists phase-7c-contract-package through workflow_documents.",
+    "approvalChain": ["database decision", "dependency proposal", "planning acceptance", "architecture review", "contract audit", "design selection", "START_IMPLEMENTATION"],
+    "silenceAsApproval": false
+  },
+  "startGate": {
+    "enforcedBy": ["Phase7C validateStartImplementationGate", "OrchestratorService.startImplementation", "workflow READY_FOR_IMPLEMENTATION to IMPLEMENTING transition"],
+    "checks": ["current package", "approved database decision", "ready database connection when required", "approved optional dependencies", "current TaskContracts", "architecture", "Contract Audit", "design selection"],
+    "databaseNoneRejection": "DB task types and database file scopes are rejected under NONE."
+  },
+  "traceability": {
+    "path": "approved Brief -> PlanningPackage recommendation -> DatabaseDecision -> DataContract -> TaskContract -> TaskGraph -> ChangeProposal -> validation",
+    "identity": "projectId, projectVersion, source checksums, contract IDs, and contract checksums are retained.",
+    "secretBoundary": "Only safe environment metadata is persisted or sent through implementation context; raw secret values are rejected."
+  },
+  "acceptanceCriteria": {
+    "C1": {"status":"PASS","evidence":"Strict DataContract schema; persisted data requires a DatabaseDecision reference."},
+    "C2": {"status":"PASS","evidence":"Strict TaskContract schema and deterministic task binding."},
+    "C3": {"status":"PASS","evidence":"Strict DatabaseDecision schema with canonical modes and user approval state."},
+    "C4": {"status":"PASS","evidence":"Strict DependencyProposal schema with four dependency classes."},
+    "C5": {"status":"PASS","evidence":"Versioned schemas, checksums, and currentness validation."},
+    "C6": {"status":"PASS","evidence":"NONE has no database provider, database credentials, or DB requirements."},
+    "C7": {"status":"PASS","evidence":"Planner emits recommendation and userDecisionRequired=true; it cannot approve."},
+    "C8": {"status":"PASS","evidence":"approveDatabaseDecision and Phase7CContractService.approveDatabase require user identity/time."},
+    "C9": {"status":"PASS","evidence":"Approved checksum must equal DatabaseDecision checksum."},
+    "C10": {"status":"PASS","evidence":"Material decision changes fail currentness/checksum validation."},
+    "C11": {"status":"PASS","evidence":"READY is required for database connection metadata before implementation."},
+    "C12": {"status":"PASS","evidence":"SUPABASE_NEW with missing required metadata is blocked."},
+    "C13": {"status":"PASS","evidence":"NONE carries an empty database connection requirement set."},
+    "C14": {"status":"PASS","evidence":"Database task types and database paths are rejected under NONE."},
+    "C15": {"status":"PASS","evidence":"Schema and recursive guard reject raw secret fields/values."},
+    "C16": {"status":"PASS","evidence":"Implementation context contains only safe env metadata and no raw values."},
+    "C17": {"status":"PASS","evidence":"Presence/status/verification metadata is typed and value-free."},
+    "C18": {"status":"PASS","evidence":"Auth/storage flags are independent of database mode."},
+    "C19": {"status":"PASS","evidence":"DATABASE_PERSISTED DataContracts require the current decision reference and reject NONE."},
+    "C20": {"status":"PASS","evidence":"Database TaskContracts bind decision ID and checksum."},
+    "C21": {"status":"PASS","evidence":"Phase7C TaskGraph path binds every generated task to a current TaskContract."},
+    "C22": {"status":"PASS","evidence":"Task binding checks tools, skills, capabilities, scopes, and artifacts."},
+    "C23": {"status":"PASS","evidence":"Phase7C traceability and deterministic contract constructors preserve the chain."},
+    "C24": {"status":"PASS","evidence":"Dependency validation delegates package authority to existing Dependency Authority."},
+    "C25": {"status":"PASS","evidence":"Optional direct dependencies require approval before an approved package can start."},
+    "C26": {"status":"PASS","evidence":"Baseline catalog entries are FOUNDATION_DEPENDENCY and approvalStatus NOT_REQUIRED."},
+    "C27": {"status":"PASS","evidence":"Forbidden or authority-rejected dependencies fail validation."},
+    "C28": {"status":"PASS","evidence":"Planning/dependency acceptance is checksum/currentness bound."},
+    "C29": {"status":"PASS","evidence":"TaskGraph carries Phase7C package and database checksums; tasks carry bindings."},
+    "C30": {"status":"PASS","evidence":"ChangeProposal validation binds TaskContract and database decision metadata."},
+    "C31": {"status":"PASS","evidence":"Existing task file scopes and applier scope checks reject unplanned files."},
+    "C32": {"status":"PASS","evidence":"Stale package, decision, data, task, dependency, and acceptance checks block gates."},
+    "C33": {"status":"PASS","evidence":"Phase7C package round-trips through existing document mapping."},
+    "C34": {"status":"PASS","evidence":"Focused tests cover secret rejection, tamper, checksum, and currentness."},
+    "C35": {"status":"PASS","evidence":"Contract identifiers are machine-safe and separate from user-facing labels."},
+    "C36": {"status":"PASS","evidence":"Existing workflow, planner, TaskGraph, implementation, and reviewer tests remain green."},
+    "C37": {"status":"PASS","evidence":"Typecheck, lint, build, focused/full tests, reviewer, migration, smoke, and DB gates pass."},
+    "C38": {"status":"PASS","evidence":"Evidence references and deterministic results were assembled before final review record."},
+    "C39": {"status":"PASS","evidence":"Required architecture, contract, security, and test-quality reviewer suites pass."},
+    "C40": {"status":"PASS","evidence":"No Phase7D patching, Phase7E, customer E2E, or deployment was executed."}
+  },
+  "changedFiles": [
+    "src/agents/implementation/applier.ts",
+    "src/agents/implementation/contracts.ts",
+    "src/agents/implementation/policy.ts",
+    "src/agents/implementation/provider.ts",
+    "src/agents/implementation/service.ts",
+    "src/agents/planner/contracts.ts",
+    "src/agents/planner/deterministic.ts",
+    "src/agents/planner/service.ts",
+    "src/domain/contracts/phase7c.ts",
+    "src/domain/contracts/phase7c.test.ts",
+    "src/domain/tasks/schema.ts",
+    "src/domain/workflow/engine.ts",
+    "src/integrations/openai/adapters.ts",
+    "src/operations/phase7c.ts",
+    "src/orchestration/orchestrator/contracts.ts",
+    "src/orchestration/orchestrator/graph.ts",
+    "src/orchestration/orchestrator/service.ts",
+    "src/persistence/database/mapping.ts",
+    "src/persistence/project-memory/filenames.ts"
+  ],
+  "validation": {
+    "focusedPhase7CTests": "PASS; 10 tests",
+    "existingFocusedTests": "PASS; 23 tests",
+    "fullTests": "PASS; 73 files, 903 tests",
+    "typecheck": "PASS",
+    "lint": "PASS; 0 errors, 3 pre-existing unused-helper warnings",
+    "build": "PASS; Next.js 16.2.12",
+    "reviewerSuite": "PASS; 7 files, 77 tests",
+    "migrationValidation": "PASS; 2 migrations",
+    "migrationIntegrity": "PASS",
+    "databaseStatus": "PASS; 2 applied migrations",
+    "databaseVerification": "PASS; 17 tables, 84 constraints, 4 indexes, RLS 17/17, public policies 0",
+    "taskGraphSmoke": "PASS; releaseEligible true, 6 tasks, 0 repairs",
+    "backendSmoke": "PASS; proposal validation and migration/server-action boundaries",
+    "gitDiffCheck": "PASS"
+  },
+  "evidencePack": {
+    "evidencePackId": "phase-7c-evidence-pack-2026-08-12",
+    "evidencePackChecksum": "595f64a981512bda3f5616c742f379d4281af5b322dd5200f28202e08cdc42ce",
+    "validated": true,
+    "secretValuesIncluded": false,
+    "sourceChecksumBound": true,
+    "references": ["src/domain/contracts/phase7c.test.ts", "src/domain/contracts/phase7c.ts", "src/operations/phase7c.ts", "src/orchestration/orchestrator/service.ts", "src/agents/implementation/applier.ts"]
+  },
+  "reviewers": [
+    {"reviewerId":"architecture-reviewer","verdict":"APPROVED","evidence":"architecture reviewer test suite; 14 tests"},
+    {"reviewerId":"contract-auditor","verdict":"APPROVED","evidence":"contract reviewer test suite; 10 tests"},
+    {"reviewerId":"security-reviewer","verdict":"APPROVED","evidence":"security reviewer test suite; 6 tests"},
+    {"reviewerId":"test-quality-reviewer","verdict":"APPROVED","evidence":"test-quality reviewer test suite; 7 tests"}
+  ],
+  "findings": {"activeBlockers": [], "futureHardening": ["Make Phase7C package input mandatory for every non-legacy orchestration caller."], "resolved": []},
+  "status": "COMPLETE",
+  "next": "PHASE 7D - CONTROLLED AST-AWARE PATCHING; DO NOT EXECUTE IN THIS PHASE"
+}
