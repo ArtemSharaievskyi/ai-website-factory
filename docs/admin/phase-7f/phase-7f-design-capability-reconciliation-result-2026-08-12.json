@@ -1,0 +1,139 @@
+{
+  "phase": "7F",
+  "status": "COMPLETE",
+  "initialHead": "269d29fab409a37cb67186db261e5471ed2a31f2",
+  "candidateFreezeHead": "27bc0833f500e68fdb9d05cf2acbda2f31d6d8ff",
+  "preservedBaselineCommits": {
+    "implementation": "e994559",
+    "administrative": "269d29f"
+  },
+  "policyVersion": "professional-design-capability-v1",
+  "historicalBlockedReport": "docs/admin/phase-7f/phase-7f-capability-evidence-2026-08-12.json",
+  "excludedCommercialGenerator": {
+    "decision": "EXCLUDED_BY_USER_POLICY",
+    "required": false,
+    "active": false,
+    "credentialRequired": false,
+    "runtimeTool": false,
+    "apiPath": false,
+    "mcpPath": false,
+    "credentialPath": false,
+    "priorBlockerDisposition": "historical-only; superseded by explicit exclusion"
+  },
+  "changedReconciliationFiles": [
+    "docs/architecture/implementation-roadmap.md",
+    "docs/architecture/professional-design-capability-layer.md",
+    "scripts/phase7f-approve-design-skills.ts",
+    "scripts/phase7f-live-check.ts",
+    "scripts/phase7f-reconcile-evidence.ts",
+    "scripts/shadcn-smoke.ts",
+    "src/agents/catalog.test.ts",
+    "src/agents/catalog.ts",
+    "src/agents/design/deterministic.ts",
+    "src/agents/design/errors.ts",
+    "src/agents/design/professional.test.ts",
+    "src/agents/design/professional.ts",
+    "src/agents/design/service.ts",
+    "src/domain/design/capability.test.ts",
+    "src/domain/design/capability.ts",
+    "src/domain/tooling/schema.ts",
+    "src/integrations/design/component-sources.ts",
+    "src/integrations/design/contracts.ts",
+    "src/integrations/design/design.test.ts",
+    "src/integrations/design/fontpair.ts",
+    "src/integrations/design/magic-patterns.ts",
+    "src/integrations/design/skill-evidence.ts",
+    "src/integrations/skills-sh/adapter.test.ts",
+    "src/integrations/skills-sh/adapter.ts",
+    "src/operations/phase7d-evidence.test.ts",
+    "src/orchestration/orchestrator/contracts.ts",
+    "src/orchestration/orchestrator/tools.ts",
+    "src/orchestration/tooling/adapters.ts",
+    "src/orchestration/tooling/design-adapters.test.ts",
+    "src/orchestration/tooling/executor-ids.ts",
+    "src/orchestration/tooling/registry.ts",
+    "src/orchestration/tooling/tooling.test.ts",
+    "src/phase7f-matrix.test.ts",
+    "src/skills/curation/active-portfolio.test.ts",
+    "src/skills/curation/portfolio.ts",
+    "docs/admin/phase-7f/phase-7f-design-capability-reconciliation-result-2026-08-12.json",
+    "docs/admin/phase-7f/phase-7f-design-capability-reconciliation-result-2026-08-12.md"
+  ],
+  "fontpair": {
+    "origin": "https://fontpair.co/",
+    "operations": ["searchPairings", "listPairings", "getFontPairing", "getFontMetadata", "getUseCasePairings"],
+    "bounds": { "httpsOnly": true, "maxResponseBytes": 300000, "timeoutMs": 15000, "maxRetries": 1, "redirects": "manual-and-rejected", "contentType": "text/html", "cache": "idempotency-key", "deduplication": "normalized-display-body" },
+    "live": { "status": "PASS", "candidateCount": 24, "sourceChecksum": "fa92655d60d46f4febec51ca61fc0b165c185bdb2eeaad4371db91a1f3afca20", "samplePair": "Young Serif + Geist" }
+  },
+  "componentSources": {
+    "readOnly": true,
+    "writeAuthority": "NONE",
+    "sources": [
+      { "source": "twenty-first-dev", "origin": "https://21st.dev/", "policy": "FREE_PUBLIC_READ_ONLY", "live": true, "candidatesPerDirection": 4, "sourceChecksum": "6d0816394552b4ce87cd3c4ca586a72ab889f2afeae89b8122f41ee9dc1f6569" },
+      { "source": "react-bits", "origin": "https://reactbits.dev/", "policy": "FREE_PUBLIC_READ_ONLY", "live": true, "candidatesPerDirection": 2, "sourceChecksum": "dc0ee2e678b5edb323f3c5cc5863c362b17be00deca23a0c595b5e5719fe9df8" },
+      { "source": "magic-ui", "origin": "https://raw.githubusercontent.com/magicuidesign/magicui/main/registry.json", "policy": "FREE_OPEN_SOURCE", "proExcluded": true, "live": true, "candidatesPerDirection": 6, "sourceChecksum": "a33da28f835aea7fca9312abb02a083c3e2481062971f7084d6d3235546ce20f" },
+      { "source": "shadcn-ui", "origin": "https://ui.shadcn.com/", "policy": "EXISTING_APPROVED", "live": true, "candidatesPerDirection": 1, "sourceChecksum": "0229cf3f9f14ee55f06abfff084cd8cb7ac7022c10b28cb5dcd026cfb20e919f" }
+    ],
+    "deduplication": "12 bounded candidates per direction after cross-source comparison"
+  },
+  "skills": {
+    "sourceAdapter": "skills.sh public read-only page route",
+    "stagingScannerApprovalRegistry": "PASS",
+    "approvedSkillCount": 7,
+    "capabilityCoverage": "PASS",
+    "assignments": { "design": ["responsive-form-ux-design", "impeccable", "emil-design-eng", "find-animation-opportunities", "review-animations", "improve-animations", "animation-vocabulary", "transitions-dev"] },
+    "approved": [
+      { "skillId": "impeccable", "externalSkillId": "pbakaus/impeccable/impeccable", "repository": "pbakaus/impeccable", "sourceChecksum": "8cf8953e23ba3fb8eefe6cb65eba2de8c8df412c382b14829bffba05b23fbda5" },
+      { "skillId": "emil-design-eng", "externalSkillId": "emilkowalski/skills/emil-design-eng", "repository": "emilkowalski/skills", "sourceChecksum": "1b614685eeb298d153e162e6e7805eae7c54866c289cc6763303b2f9285f01ea" },
+      { "skillId": "find-animation-opportunities", "externalSkillId": "emilkowalski/skills/find-animation-opportunities", "repository": "emilkowalski/skills", "sourceChecksum": "b16b9d2cc090e23f54014de873ba591bf2d4f116658f6bc013fcdf463617e493" },
+      { "skillId": "review-animations", "externalSkillId": "emilkowalski/skills/review-animations", "repository": "emilkowalski/skills", "sourceChecksum": "227d016db16ea1cfdccc22fdbaa9cf3917ff31fac32179d8d10fe9ecccd4f411" },
+      { "skillId": "improve-animations", "externalSkillId": "emilkowalski/skills/improve-animations", "repository": "emilkowalski/skills", "sourceChecksum": "ada860dac8685ae1b4e7ac92ca0b5656e6905a44a0e93e2ede09d9d3b1f1dd98" },
+      { "skillId": "animation-vocabulary", "externalSkillId": "emilkowalski/skills/animation-vocabulary", "repository": "emilkowalski/skills", "sourceChecksum": "49a94d95d6f2367d2b770df1da06ce7b350f040f1fbe6356c34896912807774f" },
+      { "skillId": "transitions-dev", "externalSkillId": "Jakubantalik/transitions.dev/transitions-dev", "repository": "Jakubantalik/transitions.dev", "sourceChecksum": "b66b89aab50a16d41199539f0055934f07f226b33f42ab808343fc2914be4cc3" }
+    ]
+  },
+  "directions": [
+    { "index": 1, "shortName": "Editorial", "id": "e2cb84c1-58f2-49b6-b271-cf706c51eb87", "contractChecksum": "ea2522477e20a32f7d48e863e771dba89b4eb822d1b83c9ec828d09cbbb4d160", "typography": "Young Serif + Geist", "motion": "NONE", "allFourSourcesLive": true, "passCount": 15 },
+    { "index": 2, "shortName": "Precision", "id": "286f90e8-011b-41de-987d-92cf58c4df21", "contractChecksum": "1b9188b345b1cd3ee5166d415dd21dab6620b0ef1c91ae64061c43b90358f45f", "typography": "Young Serif + DM Sans", "motion": "CSS_NATIVE", "allFourSourcesLive": true, "passCount": 15 },
+    { "index": 3, "shortName": "Dynamic", "id": "4820892f-f70b-4fc3-90ef-689f16f6bbfa", "contractChecksum": "0637e5208aed3781327feff98cb441807ba943ffe9d391c26473585f39da49c6", "typography": "Young Serif + Space Mono", "motion": "MOTION", "allFourSourcesLive": true, "passCount": 15 }
+  ],
+  "selection": { "status": "PASS", "selectedBy": "user", "selectedDirection": "Precision", "selectedDirectionId": "286f90e8-011b-41de-987d-92cf58c4df21", "selectedDirectionChecksum": "7ca59293f7a41553e9c8d11f9eb29aa809b662290f628531c9f1c2c4b44d715d", "directionSetChecksum": "5ae3d8d77fa01d3922ec9c390134ecc831c8534046f6324710e4dedad0395d32" },
+  "motion": { "optional": true, "dependencyAuthority": "PASS", "requested": "motion@12.43.0", "approvedAmendment": "USER_APPROVED", "amendmentChecksum": "d263902c0c1e18d1bd18cf2da2e7012205a43e9b0203275518e604d21415a615", "dynamicDirectionId": "4820892f-f70b-4fc3-90ef-689f16f6bbfa" },
+  "candidateEvidenceBinding": { "candidateChecksum": "4fdd770d5587a80a529fe5bdcacbdaf513d053584c0f58bc835c3dc3e4d58e66", "evidenceChecksum": "4fdd770d5587a80a529fe5bdcacbdaf513d053584c0f58bc835c3dc3e4d58e66", "professionalPackageChecksum": "4fdd770d5587a80a529fe5bdcacbdaf513d053584c0f58bc835c3dc3e4d58e66", "mutationAfterFreeze": false },
+  "semanticReviewers": [
+    { "reviewerId": "architecture-reviewer", "status": "APPROVED", "mode": "bounded-read-only-contract-review", "providerCalls": 0, "readOnly": true, "findingCount": 0, "candidateChecksum": "4fdd770d5587a80a529fe5bdcacbdaf513d053584c0f58bc835c3dc3e4d58e66", "evidenceChecksum": "4fdd770d5587a80a529fe5bdcacbdaf513d053584c0f58bc835c3dc3e4d58e66" },
+    { "reviewerId": "contract-auditor", "status": "APPROVED", "mode": "bounded-read-only-contract-review", "providerCalls": 0, "readOnly": true, "findingCount": 0, "candidateChecksum": "4fdd770d5587a80a529fe5bdcacbdaf513d053584c0f58bc835c3dc3e4d58e66", "evidenceChecksum": "4fdd770d5587a80a529fe5bdcacbdaf513d053584c0f58bc835c3dc3e4d58e66" },
+    { "reviewerId": "code-integration-reviewer", "status": "APPROVED", "mode": "bounded-read-only-contract-review", "providerCalls": 0, "readOnly": true, "findingCount": 0, "candidateChecksum": "4fdd770d5587a80a529fe5bdcacbdaf513d053584c0f58bc835c3dc3e4d58e66", "evidenceChecksum": "4fdd770d5587a80a529fe5bdcacbdaf513d053584c0f58bc835c3dc3e4d58e66" },
+    { "reviewerId": "security-reviewer", "status": "APPROVED", "mode": "bounded-read-only-contract-review", "providerCalls": 0, "readOnly": true, "findingCount": 0, "candidateChecksum": "4fdd770d5587a80a529fe5bdcacbdaf513d053584c0f58bc835c3dc3e4d58e66", "evidenceChecksum": "4fdd770d5587a80a529fe5bdcacbdaf513d053584c0f58bc835c3dc3e4d58e66" },
+    { "reviewerId": "test-quality-reviewer", "status": "APPROVED", "mode": "bounded-read-only-contract-review", "providerCalls": 0, "readOnly": true, "findingCount": 0, "candidateChecksum": "4fdd770d5587a80a529fe5bdcacbdaf513d053584c0f58bc835c3dc3e4d58e66", "evidenceChecksum": "4fdd770d5587a80a529fe5bdcacbdaf513d053584c0f58bc835c3dc3e4d58e66" }
+  ],
+  "validation": {
+    "typecheck": "PASS",
+    "lint": "PASS; 0 errors, 2 pre-existing warnings",
+    "build": "PASS; Next.js 16.2.12",
+    "tests": "PASS; 82 files, 1018 tests",
+    "reviewerTests": "PASS; 7 files, 77 tests",
+    "auditHigh": "PASS; 0 vulnerabilities",
+    "database": "PASS; migrations, integrity, status, verification, smoke",
+    "taskGraph": "PASS; 6 tasks, 0 repairs, releaseEligible true",
+    "generatedRuntime": "PASS; npm-ci, lint, typecheck, tests, build",
+    "backend": "PASS; migration and Server Action boundaries",
+    "componentSmokes": "PASS; 21st.dev, React Bits, Magic UI, shadcn/ui",
+    "skillsLiveSmoke": "PASS",
+    "aiSmoke": "NOT_RUN; explicit provider opt-in not authorized",
+    "codebaseMemorySmoke": "NOT_RUN; executable not configured",
+    "customerPlaywrightSmoke": "OUT_OF_SCOPE; validated QA workspace not present",
+    "deployment": "OUT_OF_SCOPE"
+  },
+  "evidenceRefs": [
+    "src/integrations/design/fontpair.ts:1",
+    "src/integrations/design/component-sources.ts:1",
+    "src/integrations/skills-sh/adapter.ts:1",
+    "src/integrations/design/skill-evidence.ts:1",
+    "src/agents/design/professional.ts:1",
+    "src/domain/design/capability.ts:1",
+    "src/phase7f-matrix.test.ts:1",
+    "scripts/phase7f-live-check.ts:1"
+  ],
+  "deferred": ["FINAL_HARDENING_AUDIT", "CLEAN_CUSTOMER_E2E", "DEPLOYMENT"]
+}
