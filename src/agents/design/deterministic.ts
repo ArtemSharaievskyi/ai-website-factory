@@ -22,9 +22,16 @@ const professionalDesign = (input: DesignAgentInput, variant: string, directionI
   const motion = { ...motionBase, checksum: stableDesignChecksum(motionBase) };
   const interaction = { ...interactionBase, checksum: stableDesignChecksum(interactionBase) };
   const toolProvenance = [{ toolId: "host-deterministic" as const, status: "AVAILABLE" as const, source: "host-deterministic" as const, sourceVersion: "deterministic-design-provider", sourceChecksum: stableDesignChecksum({ variant, now }), retrievedAt: now, liveEvidence: false, contentTrust: "HOST_VALIDATED" as const, redacted: false }];
-  const passEvidence: DesignCapabilityPassEvidence[] = ["fontpair-normalization", "impeccable-semantic-skill", "impeccable-antipattern-detector", "emil-design-review", "emil-animation-review", "transitions-pattern-mapping"].map((capabilityId) => ({ capabilityId: capabilityId as DesignCapabilityPassEvidence["capabilityId"], status: "NOT_RUN" as const, evidenceId: `${directionId}:${capabilityId}:not-run`, summary: "External professional design capability was not run by the deterministic fallback.", checkedAt: now }));
+  const capabilityIds: DesignCapabilityPassEvidence["capabilityId"][] = ["fontpair-normalization", "fontpair-multiple-candidates", "twenty-first-discovery", "react-bits-discovery", "magic-ui-discovery", "shadcn-base-discovery", "impeccable-semantic-skill", "impeccable-critique", "impeccable-antipattern-detector", "emil-design-review", "emil-animation-opportunities", "emil-animation-review", "transitions-pattern-mapping", "transitions-polish"];
+  const passEvidence: DesignCapabilityPassEvidence[] = capabilityIds.map((capabilityId) => ({ capabilityId, status: "NOT_RUN" as const, evidenceId: `${directionId}:${capabilityId}:not-run`, summary: "External professional design capability was not run by the deterministic fallback.", checkedAt: now }));
   passEvidence.push({ capabilityId: "motion-suitability", status: "PASS", evidenceId: `${directionId}:motion-suitability`, summary: "Motion suitability was selected deterministically with reduced-motion guidance.", checkedAt: now });
-  const capabilityBase = { visualSystem, typography, motion, interactions: [interaction], toolProvenance, passEvidence, currentness: { status: "CURRENT" as const, checkedAt: now } };
+  const componentDiscovery = ([
+    ["twenty-first-dev", "https://21st.dev/"],
+    ["react-bits", "https://reactbits.dev/"],
+    ["magic-ui", "https://magicui.design/"],
+    ["shadcn-ui", "https://ui.shadcn.com/"],
+  ] as const).map(([source, sourceReference]) => ({ source, query: `${variant} component discovery`, sourceReference, sourceChecksum: stableDesignChecksum({ source, variant, now }), liveEvidence: false, writeAuthority: "NONE" as const, candidates: [{ candidateId: `host-${source}`, componentIdentity: `${variant} bounded source reference`, disposition: "NOT_APPLICABLE_AFTER_ANALYSIS" as const, decisionReason: "The deterministic fallback records that live source research was not run; the professional pipeline must replace this evidence before closure.", dependencies: [] }], deduplicatedCandidateCount: 1 }));
+  const capabilityBase = { visualSystem, typography, motion, interactions: [interaction], componentDiscovery, toolProvenance, passEvidence, currentness: { status: "CURRENT" as const, checkedAt: now } };
   return DirectionDesignCapabilitySchema.parse({ ...capabilityBase, contractChecksum: stableDesignChecksum(capabilityBase) });
 };
 

@@ -1,46 +1,33 @@
 import { FontpairAdapter } from "@/integrations/design/fontpair";
-import { MagicPatternsAdapter, readMagicPatternsCredential } from "@/integrations/design/magic-patterns";
-import { inspectApprovedDesignSkills } from "@/integrations/design/skill-evidence";
+import { TwentyFirstDevAdapter, ReactBitsAdapter, MagicUiAdapter } from "@/integrations/design/component-sources";
+import { inspectApprovedDesignSkills, validateDesignSkillCoverage } from "@/integrations/design/skill-evidence";
 
-const blocked = new Set<string>();
-const block = (code: string) => { blocked.add(code); console.log(`BLOCKER: ${code}`); };
+const blockers: string[] = [];
+const block = (code: string) => { blockers.push(code); console.log(`BLOCKER: ${code}`); };
 
 async function main() {
-  const credential = readMagicPatternsCredential();
-  if (!credential) {
-    console.log("PHASE 7F: BLOCKED");
-    console.log("BLOCKER:");
-    console.log("MAGIC_PATTERNS_CREDENTIAL_REQUIRED");
-    console.log("REQUIRED ENVIRONMENT VARIABLE:");
-    console.log("MAGIC_PATTERNS_API_KEY");
-    blocked.add("MAGIC_PATTERNS_CREDENTIAL_REQUIRED");
-  } else {
-    const magic = new MagicPatternsAdapter();
-    const health = await magic.health();
-    console.log(`MAGIC_PATTERNS_HEALTH: ${health.status}${health.httpStatus ? ` (${health.httpStatus})` : ""}`);
-    if (health.status !== "AVAILABLE") block(`MAGIC_PATTERNS_${health.status}`);
-    else {
-      const artifact = await magic.createMinimalArtifact({ prompt: "Create one bounded professional design direction reference. Do not publish, deploy, sync Git, or write source files.", idempotencyKey: "phase7f-live-check" });
-      console.log(`MAGIC_PATTERNS_ARTIFACT: ${artifact.artifactId} (${artifact.responseChecksum})`);
-    }
-  }
+  console.log("PAID_DESIGN_GENERATOR: EXCLUDED_BY_USER / required=false / active=false / credentialRequired=false");
 
   try {
-    const pair = await new FontpairAdapter().recommendPair({ idempotencyKey: "phase7f-live-check" });
-    console.log(`FONTPAIR_LIVE: ${pair.displayFamily} + ${pair.bodyFamily} (${pair.sourceChecksum})`);
+    const pairs = await new FontpairAdapter().listPairings({ idempotencyKey: "phase7f-reconciliation-live-fontpair" });
+    console.log(`FONTPAIR_LIVE: PASS (${pairs.length} candidates; ${pairs[0]?.displayFamily} + ${pairs[0]?.bodyFamily})`);
   } catch (error) {
-    block(error instanceof Error && error.message.startsWith("FONTPAIR_") ? "FONTPAIR_SOURCE_INTEGRATION_UNRESOLVED" : "FONTPAIR_SOURCE_INTEGRATION_ERROR");
+    block(error instanceof Error ? error.message : "FONTPAIR_SOURCE_INTEGRATION_UNRESOLVED");
   }
-
+  for (const [name, adapter] of [["21ST_DEV", new TwentyFirstDevAdapter()], ["REACT_BITS", new ReactBitsAdapter()], ["MAGIC_UI", new MagicUiAdapter()]] as const) {
+    try {
+      const result = await adapter.searchComponents({ category: "design", directionId: "00000000-0000-4000-8000-000000000007" });
+      console.log(`${name}_LIVE: PASS (${result.candidates.length} bounded candidates; writeAuthority=${result.writeAuthority})`);
+    } catch (error) {
+      block(`${name}_SOURCE_UNRESOLVED:${error instanceof Error ? error.message : "unknown"}`);
+    }
+  }
   const skills = await inspectApprovedDesignSkills();
-  const unavailable = skills.filter((skill) => skill.status !== "APPROVED_IMMUTABLE");
-  console.log(`DESIGN_SKILLS_APPROVED: ${skills.length - unavailable.length}/${skills.length}`);
-  if (unavailable.length) block("DESIGN_SKILL_NOT_AVAILABLE_THROUGH_APPROVED_SOURCE");
-  if (blocked.size === 0) console.log("PHASE 7F LIVE CHECK: PASS");
-  else process.exitCode = 1;
+  const coverage = validateDesignSkillCoverage(skills);
+  console.log(`DESIGN_SKILLS_APPROVED: ${coverage.approvedSkillCount} (capability coverage ${coverage.valid ? "PASS" : "MISSING " + coverage.missing.join(",")})`);
+  if (!coverage.valid) block("PHASE_7F_REQUIRED_DESIGN_CAPABILITY_SOURCE_MISSING");
+  if (blockers.length === 0) console.log("PHASE 7F LIVE CHECK: PASS");
+  else { console.log("PHASE 7F: BLOCKED"); process.exitCode = 1; }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : "PHASE_7F_LIVE_CHECK_FAILED");
-  process.exitCode = 1;
-});
+main().catch((error) => { console.error(error instanceof Error ? error.message : "PHASE_7F_LIVE_CHECK_FAILED"); process.exitCode = 1; });

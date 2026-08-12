@@ -19,12 +19,15 @@ export const DesignCapabilityAvailabilitySchema = z.enum([
 export type DesignCapabilityAvailability = z.infer<typeof DesignCapabilityAvailabilitySchema>;
 
 export const DesignToolIdSchema = z.enum([
-  "magic-patterns",
   "fontpair",
   "impeccable",
   "emil-design-eng",
   "emil-animation-review",
   "transitions-dev",
+  "twenty-first-dev",
+  "react-bits",
+  "magic-ui",
+  "shadcn-ui",
   "motion-for-react",
   "host-deterministic",
 ]);
@@ -33,7 +36,7 @@ export type DesignToolId = z.infer<typeof DesignToolIdSchema>;
 export const DesignToolProvenanceSchema = z.object({
   toolId: DesignToolIdSchema,
   status: DesignCapabilityAvailabilitySchema,
-  source: z.enum(["official-api", "approved-skill-registry", "official-package", "host-deterministic"]),
+  source: z.enum(["official-api", "official-public-read-only", "official-registry", "approved-skill-registry", "official-package", "host-deterministic"]),
   sourceRef: z.string().url().optional(),
   sourceVersion: NonEmptyStringSchema.optional(),
   sourceChecksum: HashSchema.optional(),
@@ -46,13 +49,20 @@ export type DesignToolProvenance = z.infer<typeof DesignToolProvenanceSchema>;
 
 export const DesignCapabilityPassEvidenceSchema = z.object({
   capabilityId: z.enum([
-    "magic-patterns-artifact",
     "fontpair-normalization",
+    "fontpair-multiple-candidates",
+    "twenty-first-discovery",
+    "react-bits-discovery",
+    "magic-ui-discovery",
+    "shadcn-base-discovery",
     "impeccable-semantic-skill",
+    "impeccable-critique",
     "impeccable-antipattern-detector",
     "emil-design-review",
+    "emil-animation-opportunities",
     "emil-animation-review",
     "transitions-pattern-mapping",
+    "transitions-polish",
     "motion-suitability",
   ]),
   status: z.enum(["PASS", "FAIL", "NOT_RUN"]),
@@ -62,6 +72,24 @@ export const DesignCapabilityPassEvidenceSchema = z.object({
   checkedAt: IsoDateTimeSchema,
 }).strict();
 export type DesignCapabilityPassEvidence = z.infer<typeof DesignCapabilityPassEvidenceSchema>;
+
+const DesignComponentEvidenceSchema = z.object({
+  source: z.enum(["twenty-first-dev", "react-bits", "magic-ui", "shadcn-ui"]),
+  query: NonEmptyStringSchema,
+  sourceReference: z.string().url(),
+  sourceChecksum: HashSchema,
+  liveEvidence: z.boolean(),
+  writeAuthority: z.literal("NONE"),
+  candidates: z.array(z.object({
+    candidateId: z.string().regex(/^[a-z0-9-]+$/),
+    componentIdentity: NonEmptyStringSchema,
+    disposition: z.enum(["USED_FOR_RESEARCH_NOT_SELECTED", "USED_AND_SELECTED", "USED_AND_REJECTED_WITH_REASON", "NOT_APPLICABLE_AFTER_ANALYSIS"]),
+    decisionReason: NonEmptyStringSchema,
+    dependencies: z.array(z.string().max(160)).max(20),
+  }).strict()).min(1).max(12),
+  deduplicatedCandidateCount: z.number().int().positive().max(48),
+}).strict();
+export type DesignComponentEvidence = z.infer<typeof DesignComponentEvidenceSchema>;
 
 const ColorTokenSchema = z.object({
   name: z.string().regex(/^[a-z][a-z0-9-]*$/),
@@ -145,6 +173,7 @@ export const DirectionDesignCapabilitySchema = z.object({
   typography: TypographyDecisionSchema,
   motion: MotionDecisionSchema,
   interactions: z.array(InteractionContractSchema).min(1).max(30),
+  componentDiscovery: z.array(DesignComponentEvidenceSchema).length(4),
   toolProvenance: z.array(DesignToolProvenanceSchema).min(1).max(20),
   passEvidence: z.array(DesignCapabilityPassEvidenceSchema).min(1).max(30),
   contractChecksum: HashSchema,
@@ -214,7 +243,7 @@ export function stableDesignChecksum(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
-export type DesignContractValidationCode = "DESIGN_CONTRACT_STALE" | "TYPOGRAPHY_CONTRACT_MISMATCH" | "UNAPPROVED_DESIGN_DEPENDENCY" | "MOTION_STRATEGY_MISMATCH" | "INTERACTION_CONTRACT_MISSING" | "VISUAL_TOKEN_VIOLATION" | "DESIGN_TOOL_EVIDENCE_MISSING" | "IMPECCABLE_DETECTOR_FAILED";
+export type DesignContractValidationCode = "DESIGN_CONTRACT_STALE" | "TYPOGRAPHY_CONTRACT_MISMATCH" | "UNAPPROVED_DESIGN_DEPENDENCY" | "MOTION_STRATEGY_MISMATCH" | "INTERACTION_CONTRACT_MISSING" | "VISUAL_TOKEN_VIOLATION" | "DESIGN_TOOL_EVIDENCE_MISSING" | "IMPECCABLE_DETECTOR_FAILED" | "COMPONENT_SOURCE_EVIDENCE_MISSING";
 export type DesignContractValidationIssue = { code: DesignContractValidationCode; directionId: string; message: string };
 
 export function validateDirectionDesignCapability(directionId: string, capability: DirectionDesignCapability, options: { requireLiveEvidence?: boolean; approvedDependencies?: ReadonlySet<string> } = {}) {
@@ -225,11 +254,12 @@ export function validateDirectionDesignCapability(directionId: string, capabilit
   if (!capability.interactions.length) issues.push({ code: "INTERACTION_CONTRACT_MISSING", directionId, message: "At least one interaction contract is required." });
   if (capability.motion.suitability === "MOTION" && (!capability.motion.dependency || !(options.approvedDependencies?.has("motion@12.43.0") ?? false))) issues.push({ code: "UNAPPROVED_DESIGN_DEPENDENCY", directionId, message: "Motion was selected without an approved Dependency Authority decision." });
   if (capability.motion.suitability !== "MOTION" && capability.motion.dependency) issues.push({ code: "MOTION_STRATEGY_MISMATCH", directionId, message: "The motion dependency is present for a non-Motion strategy." });
-  const requiredPass: DesignCapabilityPassEvidence["capabilityId"][] = ["fontpair-normalization", "impeccable-semantic-skill", "impeccable-antipattern-detector", "emil-design-review", "emil-animation-review", "transitions-pattern-mapping", "motion-suitability"];
+  const requiredPass: DesignCapabilityPassEvidence["capabilityId"][] = ["fontpair-normalization", "fontpair-multiple-candidates", "twenty-first-discovery", "react-bits-discovery", "magic-ui-discovery", "shadcn-base-discovery", "impeccable-semantic-skill", "impeccable-critique", "impeccable-antipattern-detector", "emil-design-review", "emil-animation-opportunities", "emil-animation-review", "transitions-pattern-mapping", "transitions-polish", "motion-suitability"];
   for (const capabilityId of requiredPass) {
     const pass = capability.passEvidence.find((item) => item.capabilityId === capabilityId);
     if (!pass || pass.status !== "PASS") issues.push({ code: capabilityId === "impeccable-antipattern-detector" ? "IMPECCABLE_DETECTOR_FAILED" : "DESIGN_TOOL_EVIDENCE_MISSING", directionId, message: `${capabilityId} does not have passing evidence.` });
   }
+  if (capability.componentDiscovery.length !== 4 || new Set(capability.componentDiscovery.map((item) => item.source)).size !== 4 || capability.componentDiscovery.some((item) => !item.candidates.length || item.writeAuthority !== "NONE")) issues.push({ code: "COMPONENT_SOURCE_EVIDENCE_MISSING", directionId, message: "Every direction must include bounded read-only evidence from 21st.dev, React Bits, Magic UI, and shadcn/ui." });
   if (options.requireLiveEvidence && capability.toolProvenance.some((item) => item.status !== "AVAILABLE" || !item.liveEvidence)) issues.push({ code: "DESIGN_TOOL_EVIDENCE_MISSING", directionId, message: "Every required professional design tool must have live available evidence." });
   return { valid: issues.length === 0, issues };
 }

@@ -4,24 +4,24 @@ import type { AgentTask } from "@/domain/tasks/schema";
 const read = ["filesystem-read"] as const;
 const write = ["filesystem-read", "filesystem-write"] as const;
 const controlledEdit = ["controlled-edit"] as const;
-const professionalDesign = ["magic-patterns-design", "fontpair-read", "design-quality-validation"] as const;
+const professionalDesign = ["fontpair-read", "design-quality-validation", "design-source-discovery"] as const;
 export function resolveTools(taskType: string, assetSources: string[] = []): { allowed: string[]; denied: string[] } {
-  if (taskType === "create-design-directions") return { allowed: [...professionalDesign], denied: ["git-write", "shell-restricted", "Magic-Patterns-design", "npm"] };
-  if (taskType === "prepare-workspace") return { allowed: [...write], denied: ["git-write", "Magic-Patterns-design", "npm"] };
-  if (taskType.startsWith("validate-") || taskType === "prepare-release" || taskType === "write-e2e-tests") return { allowed: [...read, ...(taskType.startsWith("validate-") ? ["generated-runtime-validation"] : []), ...(taskType === "write-e2e-tests" ? ["filesystem-write"] : []), ...(taskType === "validate-functional-flow" ? ["Playwright-functional", "playwright-functional-qa"] : [])], denied: ["Magic-Patterns-design", "git-write", "shell-restricted"] };
-  if (taskType === "implement-database-schema" || taskType === "implement-rls-policy" || taskType === "implement-storage") return { allowed: [...write, ...controlledEdit, "database-read", "database-write"], denied: ["Magic-Patterns-design", "Playwright-functional", "git-write"] };
-  if (taskType === "implement-motion") return { allowed: [...write, ...controlledEdit], denied: ["Magic-Patterns-design", "Playwright-functional", "git-write"] };
+  if (taskType === "create-design-directions") return { allowed: [...professionalDesign], denied: ["git-write", "shell-restricted", "npm"] };
+  if (taskType === "prepare-workspace") return { allowed: [...write], denied: ["git-write", "npm"] };
+  if (taskType.startsWith("validate-") || taskType === "prepare-release" || taskType === "write-e2e-tests") return { allowed: [...read, ...(taskType.startsWith("validate-") ? ["generated-runtime-validation"] : []), ...(taskType === "write-e2e-tests" ? ["filesystem-write"] : []), ...(taskType === "validate-functional-flow" ? ["Playwright-functional", "playwright-functional-qa"] : [])], denied: ["git-write", "shell-restricted"] };
+  if (taskType === "implement-database-schema" || taskType === "implement-rls-policy" || taskType === "implement-storage") return { allowed: [...write, ...controlledEdit, "database-read", "database-write"], denied: ["Playwright-functional", "git-write"] };
+  if (taskType === "implement-motion") return { allowed: [...write, ...controlledEdit], denied: ["Playwright-functional", "git-write"] };
   const allowed: string[] = [...write];
   if (taskType.startsWith("implement-") || taskType.startsWith("write-") || taskType === "repair-targeted-failure") { allowed.push(...controlledEdit, "Context7-read", "codebase-memory-read"); }
   if (["implement-design-system", "implement-shared-layout", "implement-navigation", "implement-page", "implement-shared-component", "implement-form"].includes(taskType)) allowed.push("shadcn-registry-read");
   if (assetSources.some((source) => source === "ai-generated" || source === "ai-plus-user-supplied")) allowed.push("image-generation");
-  return { allowed, denied: ["Magic-Patterns-design", "Playwright-functional", "git-write", "npm"] };
+  return { allowed, denied: ["Playwright-functional", "git-write", "npm"] };
 }
 
 export function validateToolPolicy(task: AgentTask) {
   const professionalDesignRequested = task.allowedTools.some((tool) => professionalDesign.includes(tool as (typeof professionalDesign)[number]));
   if (professionalDesignRequested && task.taskType !== "create-design-directions") throw new OrchestratorError("TASK_TOOL_POLICY_VIOLATION", "Professional design integrations are limited to direction generation.");
-  if (task.allowedTools.includes("Magic-Patterns-design") || task.allowedTools.includes("git-write")) throw new OrchestratorError("TASK_TOOL_POLICY_VIOLATION", "The task requests a tool reserved for another workflow boundary.");
+  if (task.allowedTools.includes("git-write")) throw new OrchestratorError("TASK_TOOL_POLICY_VIOLATION", "The task requests a tool reserved for another workflow boundary.");
   if (task.taskType.startsWith("validate-") && task.allowedTools.includes("Playwright-functional") && task.taskType !== "validate-functional-flow") throw new OrchestratorError("TASK_TOOL_POLICY_VIOLATION", "Playwright is limited to functional-flow validation.");
   if (task.taskType === "validate-functional-flow" && !task.allowedTools.includes("Playwright-functional")) throw new OrchestratorError("TASK_TOOL_POLICY_VIOLATION", "Functional-flow validation requires its controlled browser tool.");
   if (task.allowedTools.includes("Context7-read") && (!task.taskType.startsWith("implement-") && !task.taskType.startsWith("write-") && task.taskType !== "repair-targeted-failure")) throw new OrchestratorError("CONTEXT7_TOOL_NOT_ALLOWED", "Context7-read is limited to relevant implementation tasks.");

@@ -7,9 +7,9 @@ export const REGISTERED_TOOL_EXECUTOR_IDS = [
   "generated-runtime-validator",
   "functional-qa-service",
   "controlled-edit-layer",
-  "magic-patterns-design-service",
   "fontpair-read-service",
   "design-quality-validation-service",
+  "design-source-discovery-service",
 ] as const;
 
 export type RegisteredToolExecutorId = (typeof REGISTERED_TOOL_EXECUTOR_IDS)[number];

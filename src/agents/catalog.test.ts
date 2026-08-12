@@ -67,12 +67,12 @@ describe("typed agent catalog", () => {
     expect(() => assertAgentSupportsCapability("lead", "implementation.code")).toThrowError(/does not support/i);
   });
   it("keeps tool, skill, contract, and policy permissions explicit", () => {
-    expect(AGENT_TOOL_IDS).toEqual(["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit", "magic-patterns-design", "fontpair-read", "design-quality-validation"]);
+    expect(AGENT_TOOL_IDS).toEqual(["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit", "fontpair-read", "design-quality-validation", "design-source-discovery"]);
     expect(agentCatalog.filter((agent) => agent.allowedSkillIds.length > 0).map((agent) => agent.agentId)).toEqual(["lead", "planner", "design", "implementation", "architecture-reviewer", "contract-auditor", "code-integration-reviewer", "security-reviewer", "test-quality-reviewer"]);
     expect(Object.fromEntries(agentCatalog.map((agent) => [agent.agentId, agent.allowedSkillIds]))).toEqual({
       lead: ["lead-requirements-completeness"],
       planner: ["project-data-model-planning", "technical-risk-planning"],
-      design: ["responsive-form-ux-design"],
+      design: ["responsive-form-ux-design", "impeccable", "emil-design-eng", "find-animation-opportunities", "review-animations", "improve-animations", "animation-vocabulary", "transitions-dev"],
       implementation: ["nextjs-server-client-implementation", "typed-form-implementation", "supabase-application-integration", "maintainable-performance-implementation"],
       "architecture-reviewer": ["module-boundaries-fb20497b5c35", "review-maintainability-d9faf7cb9775", "architecture-tradeoff-review"],
       "contract-auditor": ["acceptance-criteria-80493e317476", "requirements-evidence-traceability"],
@@ -105,8 +105,8 @@ describe("typed agent catalog", () => {
     expect(roadmap).toContain("Status: ROADMAP");
     expect(roadmap).toContain("State: CURRENT");
     expect(roadmap).toContain("State: PLANNED_FUTURE / DEFERRED_WORK");
-    expect(roadmap).toContain("`Dependency Authority`: **PLANNED_FUTURE**");
-    expect(roadmap).toContain("`Magic Patterns`: **PLANNED_FUTURE**");
+    expect(roadmap).toContain("`Dependency Authority`: **CURRENT_IMPLEMENTATION**");
+    expect(roadmap).toContain("Paid design-generator integration: **EXCLUDED**");
     expect(roadmap).toContain("`Preview` and `Deployment`: **DEFERRED_WORK**");
     expect(structure).toContain("Status: CURRENT_ARCHITECTURE");
     expect(structure).toContain("src/agents/reviewers/<role>/");

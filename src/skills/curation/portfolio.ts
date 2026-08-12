@@ -89,7 +89,7 @@ export const agentResponsibilityProfiles: readonly AgentResponsibilityProfile[] 
     role: "Generation agent for design directions and selected design contracts.",
     capabilities: ["design.directions", "design.selection"],
     taskTypes: ["create-design-directions"],
-    tools: ["openai-generation", "magic-patterns-design", "fontpair-read", "design-quality-validation"],
+    tools: ["openai-generation", "fontpair-read", "design-quality-validation", "design-source-discovery"],
     contextCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "SUPPLIED_FILES_METADATA", "PREVIOUS_FINDINGS"],
     readOnly: false,
     responsibilities: ["create materially distinct web design directions", "define hierarchy, rhythm, typography and component composition", "specify responsive and accessible interaction behavior", "select a coherent visual direction without writing production code"],

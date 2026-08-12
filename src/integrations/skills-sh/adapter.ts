@@ -142,6 +142,84 @@ export function validateSkillsShUrl(
   return url;
 }
 
+function validateSkillsShPublicUrl(raw: string) {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new SkillsShError("SKILLS_SH_RESPONSE_INVALID", "The public skills.sh URL is invalid.");
+  }
+  if (
+    url.protocol !== "https:" ||
+    !["skills.sh", "www.skills.sh"].includes(url.hostname) ||
+    url.username ||
+    url.password ||
+    url.port ||
+    url.search ||
+    url.hash
+  )
+    throw new SkillsShError("SKILLS_SH_RESPONSE_INVALID", "Only the official HTTPS skills.sh public pages are allowed.");
+  const parts = url.pathname.split("/").filter(Boolean);
+  if (parts.length !== 3 || parts.some((part) => !/^[A-Za-z0-9._-]+$/.test(part)))
+    throw new SkillsShError("SKILLS_SH_RESPONSE_INVALID", "The public skills.sh skill path is invalid.");
+  return url;
+}
+
+const decodeHtml = (value: string) => value
+  .replaceAll("&amp;", "&")
+  .replaceAll("&lt;", "<")
+  .replaceAll("&gt;", ">")
+  .replaceAll("&quot;", '"')
+  .replaceAll("&#x27;", "'")
+  .replaceAll("&#39;", "'")
+  .replaceAll(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
+  .replaceAll(/&#x([0-9a-f]+);/gi, (_, code: string) => String.fromCodePoint(parseInt(code, 16)));
+
+const htmlToBoundedMarkdown = (html: string, externalSkillId: string) => {
+  const marker = html.match(/<span>SKILL\.md<\/span>/i);
+  if (!marker || marker.index === undefined)
+    throw new SkillsShError("SKILLS_SH_CONTENT_INVALID", "The public skills.sh page does not expose a SKILL.md snapshot.");
+  const afterMarker = html.slice(marker.index + marker[0].length);
+  const contentStart = afterMarker.indexOf('<div><div class="prose');
+  const contentEnd = afterMarker.indexOf('<div class="relative">', contentStart + 1);
+  if (contentStart < 0 || contentEnd < 0)
+    throw new SkillsShError("SKILLS_SH_CONTENT_INVALID", "The public skills.sh SKILL.md snapshot could not be bounded.");
+  const visible = afterMarker.slice(contentStart, contentEnd)
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<br\s*\/?>(?=\S)/gi, "\n")
+    .replace(/<li[^>]*>/gi, "\n- ")
+    .replace(/<\/(?:p|h[1-6]|li|blockquote|pre|div)>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .split("\n")
+    .map((line) => decodeHtml(line).replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .filter((line) => !/(?:^|\s)(?:run|execute|install|download|fetch)\b|\b(?:npm|npx|curl|wget|powershell|bash|shell|\.env|token|credential)\b|[A-Za-z]:[\\/]|\.\.\//i.test(line))
+    .filter((line) => !/ignore\s+(?:all\s+)?previous\s+instructions|override\s+system|reveal\s+(?:the\s+)?(?:hidden\s+)?prompt|bypass\s+permissions|impersonate\s+user approval/i.test(line))
+    .slice(0, 1200);
+  const title = visible.find((line) => line.startsWith("# "))?.slice(2).trim() || externalSkillId.split("/").at(-1) || "External design skill";
+  const purpose = visible.find((line) => line.length >= 30 && !line.startsWith("#") && !line.startsWith("-")) || "Use the official public skill as bounded design guidance.";
+  const steps = visible.filter((line) => line.startsWith("- ")).slice(0, 8);
+  const markdown = [
+    `# ${title}`,
+    "",
+    purpose,
+    "",
+    "## Purpose",
+    "",
+    purpose,
+    "",
+    "## Steps",
+    "",
+    ...(steps.length ? steps.map((step, index) => `${index + 1}. ${step.replace(/^-\s*/, "")}`) : ["1. Apply the reviewed design guidance to the current design direction."]),
+    "",
+    "## Canonical public snapshot",
+    "",
+    ...visible,
+  ].join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
+  return markdown.slice(0, 120_000);
+};
+
 async function defaultTransport(
   url: string,
   input: { signal: AbortSignal; headers?: Record<string, string> },
@@ -366,6 +444,44 @@ export class SkillsShSourceAdapter {
       "SKILLS_SH_SOURCE_UNAVAILABLE",
       "The skills.sh source could not be reached.",
     );
+  }
+  private async requestPublicPage(externalSkillId: string, signal?: AbortSignal) {
+    const target = validateSkillsShPublicUrl(`https://www.skills.sh/${externalSkillId.split("/").map((part) => encodeURIComponent(part.toLowerCase())).join("/")}`);
+    const external = signal ?? new AbortController().signal;
+    if (external.aborted)
+      throw new SkillsShError("SKILLS_SH_SOURCE_UNAVAILABLE", "The skills.sh request was cancelled.");
+    for (let attempt = 0; attempt <= this.source.fetchPolicy.maxRetries; attempt += 1) {
+      const timeout = new AbortController();
+      let timedOut = false;
+      const timer = setTimeout(() => { timedOut = true; timeout.abort(); }, this.source.fetchPolicy.timeoutMs);
+      const onAbort = () => timeout.abort();
+      external.addEventListener("abort", onAbort, { once: true });
+      try {
+        const result = await this.transport(target.toString(), { signal: timeout.signal, headers: { accept: "text/html" } });
+        const contentType = Object.entries(result.headers).find(([key]) => key.toLowerCase() === "content-type")?.[1];
+        if (contentType && !/text\/html(?:\s*;|$)/i.test(contentType))
+          throw new SkillsShError("SKILLS_SH_RESPONSE_INVALID", "The public skills.sh response content type is not HTML.");
+        if (result.status >= 300 && result.status < 400)
+          throw new SkillsShError("SKILLS_SH_UNSAFE_REDIRECT", "Redirects are not permitted for public skills.sh retrieval.");
+        if (result.status < 200 || result.status >= 300)
+          throw new SkillsShError("SKILLS_SH_SOURCE_UNAVAILABLE", "The public skills.sh page could not be read.");
+        if (Buffer.byteLength(result.body, "utf8") > this.source.fetchPolicy.maxResponseBytes)
+          throw new SkillsShError("SKILLS_SH_RESPONSE_TOO_LARGE", "The public skills.sh response is too large.");
+        return result;
+      } catch (error) {
+        if (error instanceof SkillsShError) throw error;
+        if (external.aborted) throw new SkillsShError("SKILLS_SH_SOURCE_UNAVAILABLE", "The skills.sh request was cancelled.");
+        if (timedOut && attempt >= this.source.fetchPolicy.maxRetries)
+          throw new SkillsShError("SKILLS_SH_REQUEST_TIMEOUT", "The public skills.sh request timed out.");
+        if (attempt >= this.source.fetchPolicy.maxRetries)
+          throw new SkillsShError("SKILLS_SH_NETWORK_FAILED", "The public skills.sh page could not be reached.");
+        await sleep(25 * (attempt + 1), external);
+      } finally {
+        clearTimeout(timer);
+        external.removeEventListener("abort", onAbort);
+      }
+    }
+    throw new SkillsShError("SKILLS_SH_SOURCE_UNAVAILABLE", "The public skills.sh page could not be reached.");
   }
   private header(headers: Record<string, string | undefined>, name: string) {
     return Object.entries(headers).find(
@@ -613,6 +729,35 @@ export class SkillsShSourceAdapter {
       normalizedContentChecksum,
     };
   }
+  async fetchPublicSkillCandidate(
+    externalSkillId: string,
+    signal?: AbortSignal,
+  ): Promise<SkillsShCandidate> {
+    const id = sourceIdSafe(externalSkillId);
+    const response = await this.requestPublicPage(id, signal);
+    const markdown = htmlToBoundedMarkdown(response.body, id);
+    const files = [{ path: "SKILL.md", contents: markdown }];
+    const retrievedAt = new Date().toISOString();
+    const sourceVersion = `public-page-${sha256(response.body).slice(0, 12)}`;
+    const sourceUrl = `https://www.skills.sh/${id.toLowerCase()}`;
+    const retrievedContentChecksum = sha256(JSON.stringify({ id, sourceUrl, body: response.body }));
+    const normalizedContentChecksum = sha256(JSON.stringify({ id, sourceVersion, files }));
+    const slug = id.split("/").at(-1)?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "skill";
+    const descriptor = SkillsShDescriptorSchema.parse({
+      externalSkillId: id,
+      sourceId: SKILLS_SH_SOURCE_ID,
+      name: slug,
+      slug,
+      summary: "Bounded public SKILL.md snapshot from skills.sh.",
+      source: id.split("/").slice(0, 2).join("/"),
+      sourceVersion,
+      canonicalSourceRef: sourceUrl,
+      contentChecksum: normalizedContentChecksum,
+      discoveredAt: retrievedAt,
+      metadata: { retrievalMode: "public-read-only-page", contentType: "text/html", writeAuthority: "NONE" },
+    });
+    return SkillsShCandidateSchema.parse({ descriptor, files, retrievedAt, retrievedContentChecksum, normalizedContentChecksum });
+  }
   async stageSkillCandidate(
     candidate: SkillsShCandidate,
     registry: SkillRegistry,
@@ -620,6 +765,7 @@ export class SkillsShSourceAdapter {
       idempotencyKey?: string;
       reviewer?: string;
       license?: string;
+      skillId?: string;
     } = {},
   ) {
     let parsed: SkillsShCandidate;
@@ -643,9 +789,10 @@ export class SkillsShSourceAdapter {
       return await registry.stageLocalImport(temp, {
         sourceType: "skills-sh",
         displayName: parsed.descriptor.name,
+        skillId: options.skillId,
         version: parsed.descriptor.sourceVersion ?? "0.1.0",
         license: options.license,
-        sourceRepository: parsed.descriptor.canonicalSourceRef,
+        sourceRepository: `https://github.com/${parsed.descriptor.source}`,
         sourceCommit: parsed.retrievedContentChecksum,
         reviewer: options.reviewer,
         idempotencyKey: options.idempotencyKey,

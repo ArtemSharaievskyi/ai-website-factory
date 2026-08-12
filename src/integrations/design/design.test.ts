@@ -1,39 +1,48 @@
 import { describe, expect, it } from "vitest";
-import { FontpairAdapter } from "./fontpair";
+import { FontpairAdapter, FONTPAIR_ORIGIN } from "./fontpair";
+import { MagicUiAdapter, ReactBitsAdapter, TwentyFirstDevAdapter, MAGIC_UI_REGISTRY_URL, normalizeAndDeduplicateCandidates } from "./component-sources";
 import { detectImpeccableAntiPatterns } from "./impeccable";
-import { MAGIC_PATTERNS_API_ORIGIN, MagicPatternsAdapter } from "./magic-patterns";
-import { FONTPAIR_ORIGIN } from "./fontpair";
 
-const response = (status: number, body: string) => ({ status, headers: {}, body });
+const response = (status: number, body: string, contentType = "text/html") => ({ status, headers: { "content-type": contentType }, body });
+const fontpairBody = "<html><head><link href=\"https://fonts.googleapis.com/css2?family=Young+Serif&family=DM+Sans\" /></head><body><h2>Headline Fraunces</h2><p>Body Sora</p><script>Headline Fake Body Fake</script></body></html>";
 
 describe("Phase 7F bounded design integrations", () => {
-  it("fails closed without printing or accepting a Magic Patterns credential", async () => {
-    const adapter = new MagicPatternsAdapter({ credentialProvider: () => undefined });
-    await expect(adapter.createMinimalArtifact({ prompt: "bounded", idempotencyKey: "missing-key" })).rejects.toThrow("MAGIC_PATTERNS_CREDENTIAL_REQUIRED");
-    await expect(adapter.health()).resolves.toMatchObject({ status: "AUTH_REQUIRED" });
+  it("normalizes multiple real Fontpair candidates through its dedicated allowlisted root", async () => {
+    const adapter = new FontpairAdapter({ transport: async (url, input) => { expect(url).toBe(`${FONTPAIR_ORIGIN}/`); expect(input.method).toBe("GET"); return response(200, fontpairBody); } });
+    const pairs = await adapter.listPairings({ idempotencyKey: "fontpair-1" });
+    expect(pairs.length).toBeGreaterThanOrEqual(2);
+    expect(pairs[0]).toMatchObject({ displayFamily: "Fraunces", bodyFamily: "Sora", sourceUrl: `${FONTPAIR_ORIGIN}/` });
+    await expect(adapter.getFontPairing({ idempotencyKey: "fontpair-1", pairingId: pairs[0]!.pairingId })).resolves.toMatchObject({ pairingId: pairs[0]!.pairingId });
   });
 
-  it("uses only the current Magic Patterns API origin and bounded create operation", async () => {
-    const calls: Array<{ url: string; method: string; headers: Record<string, string>; body?: string }> = [];
-    const adapter = new MagicPatternsAdapter({ credentialProvider: () => "test-secret", maxRetries: 0, transport: async (url, input) => { calls.push({ url, method: input.method, headers: input.headers, body: input.body }); return response(201, JSON.stringify({ id: "artifact-1", editorUrl: "https://magicpatterns.com/editor/artifact-1", sourceFiles: [{ name: "reference.json" }] })); } });
-    const artifact = await adapter.createMinimalArtifact({ prompt: "Create exactly one bounded direction reference.", idempotencyKey: "magic-1" });
-    expect(calls).toHaveLength(1);
-    expect(calls[0]).toMatchObject({ url: `${MAGIC_PATTERNS_API_ORIGIN}/api/v3/designs`, method: "POST" });
-    expect(calls[0]?.headers["x-mp-api-key"]).toBe("test-secret");
-    expect(JSON.parse(calls[0]?.body ?? "{}")).toEqual({ prompt: "Create exactly one bounded direction reference.", mode: "fast" });
-    expect(artifact).toMatchObject({ artifactId: "artifact-1", sourceFileNames: ["reference.json"] });
-  });
-
-  it("normalizes a live Fontpair page through the dedicated allowlisted root", async () => {
-    const adapter = new FontpairAdapter({ transport: async (url, input) => { expect(url).toBe(`${FONTPAIR_ORIGIN}/`); expect(input.method).toBe("GET"); return response(200, "<html><body><h2>Headline Fraunces</h2><p>Body Sora</p><script>Headline Fake Body Fake</script></body></html>"); } });
-    await expect(adapter.recommendPair({ idempotencyKey: "fontpair-1" })).resolves.toMatchObject({ displayFamily: "Fraunces", bodyFamily: "Sora", sourceUrl: `${FONTPAIR_ORIGIN}/` });
-  });
-
-  it("rejects redirects and malformed/empty Fontpair source content", async () => {
+  it("fails closed on redirects and malformed/empty Fontpair source content", async () => {
     const redirecting = new FontpairAdapter({ transport: async () => response(302, "") });
-    await expect(redirecting.recommendPair({ idempotencyKey: "fontpair-redirect" })).rejects.toThrow("FONTPAIR_HTTP_302");
+    await expect(redirecting.listPairings({ idempotencyKey: "fontpair-redirect" })).rejects.toThrow("FONTPAIR_HTTP_302");
     const empty = new FontpairAdapter({ transport: async () => response(200, "<html><body>No curated pairs.</body></html>") });
-    await expect(empty.recommendPair({ idempotencyKey: "fontpair-empty" })).rejects.toThrow("FONTPAIR_PAIR_NOT_FOUND");
+    await expect(empty.listPairings({ idempotencyKey: "fontpair-empty" })).rejects.toThrow("FONTPAIR_PAIR_NOT_FOUND");
+  });
+
+  it("uses exact bounded first-party sources for 21st.dev and React Bits discovery", async () => {
+    const calls: string[] = [];
+    const transport = async (url: string) => { calls.push(url); return response(200, '{"name":"Hero","name":"Dashboard"}'); };
+    const twentyFirst = await new TwentyFirstDevAdapter({ transport }).searchComponents({ category: "hero", directionId: "00000000-0000-4000-8000-000000000001" });
+    const reactBits = await new ReactBitsAdapter({ transport }).searchComponents({ category: "motion", directionId: "00000000-0000-4000-8000-000000000002" });
+    expect(calls).toEqual(["https://21st.dev/", "https://reactbits.dev/"]);
+    expect(twentyFirst.writeAuthority).toBe("NONE");
+    expect(reactBits.writeAuthority).toBe("NONE");
+    expect(twentyFirst.candidates.length).toBeGreaterThan(0);
+  });
+
+  it("reads only the free public Magic UI registry and excludes paid names", async () => {
+    const adapter = new MagicUiAdapter({ transport: async (url) => { expect(url).toBe(MAGIC_UI_REGISTRY_URL); return response(200, JSON.stringify({ items: [{ name: "magic-card", type: "registry:ui", description: "Free card", dependencies: ["motion"] }, { name: "pro-template", type: "registry:ui", description: "Premium template" }] }), "application/json"); } });
+    const result = await adapter.searchComponents({ category: "card", directionId: "00000000-0000-4000-8000-000000000003" });
+    expect(result.candidates.map((item) => item.componentIdentity)).toEqual(["magic-card"]);
+    expect(result.candidates[0]).toMatchObject({ freePolicy: "FREE_OPEN_SOURCE", disposition: "USED_FOR_RESEARCH_NOT_SELECTED" });
+  });
+
+  it("deduplicates equivalent bounded candidates without granting write authority", () => {
+    const source = { source: "react-bits" as const, query: "hero", sourceReference: "https://reactbits.dev/", sourceChecksum: "a".repeat(64), retrievedAt: "2026-01-01T00:00:00.000Z", liveEvidence: true, writeAuthority: "NONE" as const, candidates: [{ candidateId: "hero", source: "react-bits" as const, componentIdentity: "Hero", category: "hero", purpose: "Hero", dependencies: [], motionCharacteristics: "none", compatibility: "adaptation-required" as const, sourceReference: "https://reactbits.dev/", sourceChecksum: "a".repeat(64), retrievedAt: "2026-01-01T00:00:00.000Z", freePolicy: "FREE_PUBLIC_READ_ONLY" as const, disposition: "USED_FOR_RESEARCH_NOT_SELECTED" as const, decisionReason: "Compared." }] };
+    expect(normalizeAndDeduplicateCandidates([source, { ...source, source: "twenty-first-dev", candidates: [{ ...source.candidates[0]!, source: "twenty-first-dev", candidateId: "hero-2" }] }])).toHaveLength(1);
   });
 
   it("runs the host-controlled Impeccable detector without executing external skill code", () => {

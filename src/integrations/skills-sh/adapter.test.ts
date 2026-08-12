@@ -68,6 +68,15 @@ describe("skills.sh source adapter", () => {
     ])
       expect(() => validateSkillsShUrl(url)).toThrow(SkillsShError);
   });
+  it("retrieves a bounded public SKILL.md page without API authentication", async () => {
+    const html = '<span>SKILL.md</span><div><div class="prose"><h1>Design Skill</h1><p>Use deliberate visual hierarchy and accessible interaction detail.</p><h2>Purpose</h2><p>Improve the quality of a design direction.</p><h2>Steps</h2><ol><li>Review hierarchy.</li><li>Record motion restraint.</li></ol></div><div class="relative">';
+    const adapter = new SkillsShSourceAdapter({ requireAuthentication: false, transport: async (url) => { expect(url).toBe("https://www.skills.sh/owner/repository/design-skill"); return { status: 200, headers: { "content-type": "text/html; charset=utf-8" }, body: html }; } });
+    const candidate = await adapter.fetchPublicSkillCandidate("owner/repository/design-skill");
+    expect(candidate.descriptor.canonicalSourceRef).toBe("https://www.skills.sh/owner/repository/design-skill");
+    expect(candidate.files[0]?.contents).toContain("## Purpose");
+    expect(candidate.files[0]?.contents).toContain("1. Review hierarchy.");
+    expect(candidate.normalizedContentChecksum).toMatch(/^[a-f0-9]{64}$/);
+  });
   it("searches the bounded official API and normalizes descriptors", async () => {
     const fixture = transportFor({
       data: [

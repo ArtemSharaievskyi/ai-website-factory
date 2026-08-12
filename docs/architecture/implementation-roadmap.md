@@ -20,8 +20,8 @@
 
 - Complete customer-project source generation, generated-project npm/build/test execution, customer migration execution, and full generated-project browser validation remain future work.
 - Repair-loop hardening, versioning/export finishing, local Git, optional GitHub creation, customer repository automation, automatic shadcn installation, and backend task-handler integration remain future work where not already covered by the current foundations above.
-- `Magic Patterns`: **PLANNED_FUTURE** and design-stage-only; it is not a current production integration.
-- `Dependency Authority`: **PLANNED_FUTURE** after Phase 6; controlled package-allowlist hardening is not current production functionality.
+- Paid design-generator integration: **EXCLUDED** by the current capability policy; it is not a current production integration and has no runtime credential or tool path.
+- `Dependency Authority`: **CURRENT_IMPLEMENTATION** for bounded package decisions; Phase 7F uses it for the optional exact `motion@12.43.0` request and user-approved amendment.
 - `Preview` and `Deployment`: **DEFERRED_WORK** and excluded from the current Factory; no Preview Agent, Deployment Agent, deployment stage, or customer deployment is implemented.
 
 The active skill portfolio snapshot is documented in [`../admin/skill-curation/active-agent-skill-portfolio-2026-08-09.json`](../admin/skill-curation/active-agent-skill-portfolio-2026-08-09.json) as a derived historical/admin view.

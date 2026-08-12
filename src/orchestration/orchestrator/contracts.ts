@@ -10,7 +10,7 @@ import { PlanningPackageSchema } from "../../agents/planner/contracts";
 import { SkillDefinitionSchema } from "@/skills/registry/contracts";
 import { Phase7CContractPackageSchema } from "@/domain/contracts/phase7c";
 
-export const ToolCategorySchema = z.enum(["filesystem-read", "filesystem-write", "npm", "git-read", "git-write", "database-read", "database-write", "Context7-read", "shadcn-registry-read", "Magic-Patterns-design", "Playwright-functional", "image-generation", "shell-restricted"]);
+export const ToolCategorySchema = z.enum(["filesystem-read", "filesystem-write", "npm", "git-read", "git-write", "database-read", "database-write", "Context7-read", "shadcn-registry-read", "design-source-read", "Playwright-functional", "image-generation", "shell-restricted"]);
 export const ApprovedSkillSnapshotSchema = z.object({ schemaVersion: z.literal(1), checksum: z.string().regex(/^[a-f0-9]{64}$/), skills: z.array(SkillDefinitionSchema) }).strict();
 export const OrchestrationPolicySchema = z.object({ version: z.string().min(1), maxConcurrency: z.number().int().positive().max(8), implementationMaxAttempts: z.number().int().positive().max(3), validationMaxAttempts: z.number().int().positive().max(2), releaseMaxAttempts: z.literal(1), maxContextBytes: z.number().int().positive() }).strict();
 export const DEFAULT_ORCHESTRATION_POLICY = OrchestrationPolicySchema.parse({ version: "orchestrator-v1", maxConcurrency: 3, implementationMaxAttempts: 3, validationMaxAttempts: 2, releaseMaxAttempts: 1, maxContextBytes: 120000 });

@@ -14,7 +14,7 @@ import { Context7LibrarySchema, Context7QueryResultSchema } from "@/integrations
 import { ShadcnComponentQueryPlanSchema, ShadcnReferenceResultSchema } from "@/integrations/shadcn/contracts";
 import { CodebaseMemoryIndexSchema, CodebaseMemoryResultSchema } from "@/integrations/codebase-memory/contracts";
 import { FunctionalQaReportSchema } from "@/runtime/qa/contracts";
-import { MagicPatternsArtifactSchema, FontpairNormalizedPairSchema, ImpeccableDetectorResultSchema } from "@/integrations/design/contracts";
+import { FontpairNormalizedPairSchema, ImpeccableDetectorResultSchema, DesignSourceResearchSchema } from "@/integrations/design/contracts";
 import { REGISTERED_TOOL_EXECUTOR_IDS } from "./executor-ids";
 
 const resultPolicy = {
@@ -100,13 +100,6 @@ export const TOOL_REGISTRY: Readonly<Record<ToolId, ToolDefinition>> = Object.fr
     availability: "AVAILABLE",
     operations: [operation({ operationId: "ast-patch", requiredCapabilities: ["edit.ast-patch"], mutationMode: "MUTATION_VIA_CHANGE_PROPOSAL", networkMode: "NO_NETWORK", workspaceScope: "CURRENT_TASK_WORKSPACE", executorId: "controlled-edit-layer", inputSchemaRef: "controlled-edit.ast-patch.input", outputSchemaRef: "controlled-edit.ast-patch.output" })],
   }),
-  "magic-patterns-design": definition({
-    id: "magic-patterns-design",
-    version: "1.0.0",
-    kind: "developer-tool",
-    availability: "AVAILABLE",
-    operations: [operation({ operationId: "create-direction-artifact", requiredCapabilities: ["design.magic-patterns"], mutationMode: "CONTROLLED_TRANSFORM", networkMode: "CURRENT_EXISTING_INTEGRATION", workspaceScope: "NONE", executorId: "magic-patterns-design-service", inputSchemaRef: "design.magic-patterns.create-direction-artifact.input", outputSchemaRef: "design.magic-patterns.create-direction-artifact.output", timeoutMs: 60_000 })],
-  }),
   "fontpair-read": definition({
     id: "fontpair-read",
     version: "1.0.0",
@@ -120,6 +113,18 @@ export const TOOL_REGISTRY: Readonly<Record<ToolId, ToolDefinition>> = Object.fr
     kind: "developer-tool",
     availability: "AVAILABLE",
     operations: [operation({ operationId: "detect-antipatterns", requiredCapabilities: ["design.quality-detect"], mutationMode: "READ_ONLY", networkMode: "NO_NETWORK", workspaceScope: "CURRENT_TASK_WORKSPACE", executorId: "design-quality-validation-service", inputSchemaRef: "design.quality.detect-antipatterns.input", outputSchemaRef: "design.quality.detect-antipatterns.output" })],
+  }),
+  "design-source-discovery": definition({
+    id: "design-source-discovery",
+    version: "1.0.0",
+    kind: "developer-tool",
+    availability: "AVAILABLE",
+    operations: [
+      operation({ operationId: "search-21st-components", requiredCapabilities: ["design.twenty-first-read"], mutationMode: "READ_ONLY", networkMode: "APPROVED_EXTERNAL_READ_ONLY", workspaceScope: "NONE", executorId: "design-source-discovery-service", inputSchemaRef: "design.component-discovery.input", outputSchemaRef: "design.component-discovery.output", timeoutMs: 30_000 }),
+      operation({ operationId: "search-react-bits-components", requiredCapabilities: ["design.react-bits-read"], mutationMode: "READ_ONLY", networkMode: "APPROVED_EXTERNAL_READ_ONLY", workspaceScope: "NONE", executorId: "design-source-discovery-service", inputSchemaRef: "design.component-discovery.input", outputSchemaRef: "design.component-discovery.output", timeoutMs: 30_000 }),
+      operation({ operationId: "search-magic-ui-components", requiredCapabilities: ["design.magic-ui-read"], mutationMode: "READ_ONLY", networkMode: "APPROVED_EXTERNAL_READ_ONLY", workspaceScope: "NONE", executorId: "design-source-discovery-service", inputSchemaRef: "design.component-discovery.input", outputSchemaRef: "design.component-discovery.output", timeoutMs: 30_000 }),
+      operation({ operationId: "discover-shadcn-base", requiredCapabilities: ["design.shadcn-discovery"], mutationMode: "READ_ONLY", networkMode: "CURRENT_EXISTING_INTEGRATION", workspaceScope: "NONE", executorId: "design-source-discovery-service", inputSchemaRef: "design.component-discovery.input", outputSchemaRef: "design.component-discovery.output" }),
+    ],
   }),
 });
 
@@ -135,9 +140,12 @@ export const CAPABILITY_REGISTRY: readonly CapabilityDefinition[] = Object.freez
   CapabilityDefinitionSchema.parse({ id: "validation.functional", description: "Run the approved functional QA scenario plan.", eligibleOperations: [{ toolId: "playwright-functional-qa", operationId: "run-functional-flow" }], taskTypes: ["validate-functional-flow"], availability: "AVAILABLE" }),
   CapabilityDefinitionSchema.parse({ id: "dependency.materialize", description: "Materialize only the current host-authorized generated dependency state.", eligibleOperations: [{ toolId: "generated-runtime-validation", operationId: "install-locked" }, { toolId: "generated-runtime-validation", operationId: "npm-ci" }], taskTypes: ["implement-project-foundation", "validate-typecheck", "validate-lint", "validate-unit-tests", "validate-build"], availability: "AVAILABLE" }),
   CapabilityDefinitionSchema.parse({ id: "edit.ast-patch", description: "Apply a bounded TypeScript structural patch through the current ChangeProposal transaction.", eligibleOperations: [{ toolId: "controlled-edit", operationId: "ast-patch" }], taskTypes: ["implement-*", "repair-targeted-failure"], availability: "AVAILABLE" }),
-  CapabilityDefinitionSchema.parse({ id: "design.magic-patterns", description: "Create one bounded Magic Patterns design artifact for direction evidence; no publish, Git sync, or source mutation.", eligibleOperations: [{ toolId: "magic-patterns-design", operationId: "create-direction-artifact" }], taskTypes: ["create-design-directions"], availability: "AVAILABLE" }),
   CapabilityDefinitionSchema.parse({ id: "design.fontpair-read", description: "Read one curated Fontpair recommendation through the dedicated allowlisted adapter.", eligibleOperations: [{ toolId: "fontpair-read", operationId: "resolve-curated-pair" }], taskTypes: ["create-design-directions"], availability: "AVAILABLE" }),
   CapabilityDefinitionSchema.parse({ id: "design.quality-detect", description: "Run the host-controlled deterministic Impeccable anti-pattern detector over bounded source text.", eligibleOperations: [{ toolId: "design-quality-validation", operationId: "detect-antipatterns" }], taskTypes: ["create-design-directions", "implement-design-system", "implement-page", "validate-lint"], availability: "AVAILABLE" }),
+  CapabilityDefinitionSchema.parse({ id: "design.twenty-first-read", description: "Read bounded public 21st.dev composition metadata without source-write authority.", eligibleOperations: [{ toolId: "design-source-discovery", operationId: "search-21st-components" }], taskTypes: ["create-design-directions"], availability: "AVAILABLE" }),
+  CapabilityDefinitionSchema.parse({ id: "design.react-bits-read", description: "Read bounded free React Bits discovery metadata without source-write authority.", eligibleOperations: [{ toolId: "design-source-discovery", operationId: "search-react-bits-components" }], taskTypes: ["create-design-directions"], availability: "AVAILABLE" }),
+  CapabilityDefinitionSchema.parse({ id: "design.magic-ui-read", description: "Read bounded free Magic UI registry metadata without source-write authority.", eligibleOperations: [{ toolId: "design-source-discovery", operationId: "search-magic-ui-components" }], taskTypes: ["create-design-directions"], availability: "AVAILABLE" }),
+  CapabilityDefinitionSchema.parse({ id: "design.shadcn-discovery", description: "Resolve the existing approved shadcn/ui base primitive authority for design evidence.", eligibleOperations: [{ toolId: "design-source-discovery", operationId: "discover-shadcn-base" }], taskTypes: ["create-design-directions"], availability: "AVAILABLE" }),
 ]);
 
 const noArguments = z.object({}).strict();
@@ -159,9 +167,9 @@ const TOOL_INPUT_SCHEMAS: Readonly<Record<string, z.ZodType>> = Object.freeze({
   "runtime.build.input": input(noArguments),
   "qa.run-functional-flow.input": input(z.object({ scenarioId: z.string().min(1) }).strict()),
   "controlled-edit.ast-patch.input": input(z.object({ proposalId: z.string().uuid(), operationId: z.string().uuid(), relativePath: z.string().min(1).max(240), expectedFileChecksum: z.string().regex(/^[a-f0-9]{64}$/) }).strict()),
-  "design.magic-patterns.create-direction-artifact.input": input(z.object({ prompt: z.string().min(1).max(4000), idempotencyKey: z.string().min(1).max(200) }).strict()),
   "design.fontpair.resolve-curated-pair.input": input(z.object({ idempotencyKey: z.string().min(1).max(200), displayFamily: z.string().min(1).max(120).optional(), bodyFamily: z.string().min(1).max(120).optional() }).strict()),
   "design.quality.detect-antipatterns.input": input(z.object({ files: z.array(z.object({ path: z.string().min(1).max(240), content: z.string().max(100_000) }).strict()).max(80) }).strict()),
+  "design.component-discovery.input": input(z.object({ category: z.string().min(1).max(100), directionId: z.string().uuid() }).strict()),
 });
 
 const genericToolOutputSchema = z.record(z.string(), z.unknown());
@@ -177,9 +185,9 @@ const TOOL_OUTPUT_SCHEMAS: Readonly<Record<string, z.ZodType>> = Object.freeze({
   "runtime.command-result.output": RuntimeCommandResultSchema,
   "qa.run-functional-flow.output": FunctionalQaReportSchema,
   "controlled-edit.ast-patch.output": input(z.object({ operationId: z.string().uuid(), status: z.enum(["accepted", "applied", "idempotent", "denied"]), evidenceId: z.string().min(1).max(300) }).strict()),
-  "design.magic-patterns.create-direction-artifact.output": MagicPatternsArtifactSchema,
   "design.fontpair.resolve-curated-pair.output": FontpairNormalizedPairSchema,
   "design.quality.detect-antipatterns.output": ImpeccableDetectorResultSchema,
+  "design.component-discovery.output": DesignSourceResearchSchema,
 });
 
 export function registeredToolInputIsValid(toolId: string, operationId: string, value: ToolInput) {

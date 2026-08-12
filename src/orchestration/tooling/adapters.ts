@@ -21,14 +21,17 @@ export type ControlledEditHost = Readonly<{
   applyAstPatch: (input: { proposalId: string; operationId: string; relativePath: string; expectedFileChecksum: string }) => Promise<string>;
 }>;
 
-export type MagicPatternsDesignHost = Readonly<{
-  createDirectionArtifact: (input: { prompt: string; idempotencyKey: string }) => Promise<string>;
-}>;
 export type FontpairReadHost = Readonly<{
   resolveCuratedPair: (input: { idempotencyKey: string; displayFamily?: string; bodyFamily?: string }) => Promise<string>;
 }>;
 export type DesignQualityValidationHost = Readonly<{
   detectAntipatterns: (input: { files: Array<{ path: string; content: string }> }) => Promise<string>;
+}>;
+export type DesignSourceDiscoveryHost = Readonly<{
+  search21stComponents: (input: { category: string; directionId: string }) => Promise<string>;
+  searchReactBitsComponents: (input: { category: string; directionId: string }) => Promise<string>;
+  searchMagicUiComponents: (input: { category: string; directionId: string }) => Promise<string>;
+  discoverShadcnBase: (input: { category: string; directionId: string }) => Promise<string>;
 }>;
 
 export type ToolExecutorBindings = Readonly<{
@@ -39,9 +42,9 @@ export type ToolExecutorBindings = Readonly<{
   "generated-runtime-validator": GeneratedProjectRuntimeValidator;
   "functional-qa-service": SerializedToolExecutor<FunctionalQaService>;
   "controlled-edit-layer": ControlledEditHost;
-  "magic-patterns-design-service": MagicPatternsDesignHost;
   "fontpair-read-service": FontpairReadHost;
   "design-quality-validation-service": DesignQualityValidationHost;
+  "design-source-discovery-service": DesignSourceDiscoveryHost;
 }>;
 
 export type BoundToolOperation =
@@ -54,9 +57,9 @@ export type BoundToolOperation =
   | { toolId: "codebase-memory-read"; operationId: "get-relevant-source"; executor: SerializedToolExecutor<CodebaseMemoryPort>; input: { plan: CodebaseMemoryQueryPlan; signal?: AbortSignal } }
   | { toolId: "playwright-functional-qa"; operationId: "run-functional-flow"; executor: SerializedToolExecutor<FunctionalQaService>; input: FunctionalQaServiceInput }
   | { toolId: "controlled-edit"; operationId: "ast-patch"; executor: ControlledEditHost; input: { proposalId: string; operationId: string; relativePath: string; expectedFileChecksum: string } }
-  | { toolId: "magic-patterns-design"; operationId: "create-direction-artifact"; executor: MagicPatternsDesignHost; input: { prompt: string; idempotencyKey: string } }
   | { toolId: "fontpair-read"; operationId: "resolve-curated-pair"; executor: FontpairReadHost; input: { idempotencyKey: string; displayFamily?: string; bodyFamily?: string } }
-  | { toolId: "design-quality-validation"; operationId: "detect-antipatterns"; executor: DesignQualityValidationHost; input: { files: Array<{ path: string; content: string }> } };
+  | { toolId: "design-quality-validation"; operationId: "detect-antipatterns"; executor: DesignQualityValidationHost; input: { files: Array<{ path: string; content: string }> } }
+  | { toolId: "design-source-discovery"; operationId: "search-21st-components" | "search-react-bits-components" | "search-magic-ui-components" | "discover-shadcn-base"; executor: DesignSourceDiscoveryHost; input: { category: string; directionId: string } };
 
 /** Host dispatch after authorizeToolRequest; the discriminated input prevents raw shell, URL, or executor selection. */
 export async function executeBoundToolOperation(input: BoundToolOperation): Promise<ToolResult> {
@@ -71,8 +74,11 @@ export async function executeBoundToolOperation(input: BoundToolOperation): Prom
     case "get-relevant-source": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.getRelevantSource(input.input.plan, input.input.signal), Date.now() - started);
     case "run-functional-flow": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.run(input.input), Date.now() - started);
     case "ast-patch": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.applyAstPatch(input.input), Date.now() - started);
-    case "create-direction-artifact": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.createDirectionArtifact(input.input), Date.now() - started);
     case "resolve-curated-pair": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.resolveCuratedPair(input.input), Date.now() - started);
     case "detect-antipatterns": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.detectAntipatterns(input.input), Date.now() - started);
+    case "search-21st-components": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.search21stComponents(input.input), Date.now() - started);
+    case "search-react-bits-components": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.searchReactBitsComponents(input.input), Date.now() - started);
+    case "search-magic-ui-components": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.searchMagicUiComponents(input.input), Date.now() - started);
+    case "discover-shadcn-base": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.discoverShadcnBase(input.input), Date.now() - started);
   }
 }
