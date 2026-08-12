@@ -15,6 +15,7 @@ import {
   type DesignAgentService,
 } from "@/agents/design/service";
 import { DesignMemoryAdapter } from "@/agents/design/memory";
+import { ProfessionalDesignCapabilityPipeline } from "@/agents/design/professional";
 import { ArchitectureReviewService } from "@/agents/reviewers/architecture/service";
 import { ArchitectureReviewOrchestrationService } from "@/orchestration/architecture-review/service";
 import { ContractAuditService } from "@/agents/reviewers/contracts/service";
@@ -409,6 +410,7 @@ export function createProductionFactoryRuntime(
         provider: ai.design,
         memory: new DesignMemoryAdapter(sync, workspaceRoot),
         resolveSkills: resolveDesignSkills,
+        professionalPipeline: new ProfessionalDesignCapabilityPipeline(),
       });
       const architectureReviewer = new ArchitectureReviewOrchestrationService(
         database,

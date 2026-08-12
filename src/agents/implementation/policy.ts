@@ -565,6 +565,7 @@ export class TaskContextAssembler {
       requirementReferences: input.task.requirementReferences ?? [],
       planningReferences: input.task.planningReferences ?? [],
       selectedDesignReferences: input.task.selectedDesignReferences ?? [],
+      ...(input.selectedDesign.selectedDirectionContract ? { selectedDesignContract: input.selectedDesign.selectedDirectionContract } : {}),
       architectureExcerpt,
       contentExcerpt,
       assetExcerpt,
@@ -584,6 +585,7 @@ export class TaskContextAssembler {
       conventions,
       contextChecksum: checksumPersistedDocument({
         task: input.task,
+        selectedDesignContract: input.selectedDesign.selectedDirectionContract,
         files,
         structuralContext,
         allowedEditStrategies,

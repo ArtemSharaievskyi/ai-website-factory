@@ -46,6 +46,8 @@ import {
 } from "./ports";
 import { designAgentDefinition } from "@/agents/catalog";
 import type { AgentSkillSelection } from "@/skills/runtime/resolver";
+import { ProfessionalDesignCapabilityPipeline } from "./professional";
+import { approveDesignDependencyAmendment, buildDesignDependencyAmendment, DesignDependencyAmendmentSchema, stableDesignChecksum } from "@/domain/design/capability";
 
 const now = () => new Date().toISOString();
 type DesignServiceDependencies = {
@@ -55,6 +57,7 @@ type DesignServiceDependencies = {
   skills?: DesignSkillSelectionPort;
   explorationTool?: DesignExplorationToolPort;
   resolveSkills?: (input: DesignAgentInput) => Promise<AgentSkillSelection>;
+  professionalPipeline?: ProfessionalDesignCapabilityPipeline;
 };
 
 export class DesignAgentService {
@@ -67,6 +70,7 @@ export class DesignAgentService {
   private readonly skills: DesignSkillSelectionPort;
   private readonly explorationTool: DesignExplorationToolPort;
   private readonly resolveSkills?: DesignServiceDependencies["resolveSkills"];
+  private readonly professionalPipeline?: ProfessionalDesignCapabilityPipeline;
   constructor(private readonly dependencies: DesignServiceDependencies) {
     this.projects = new ProjectRepository(dependencies.database);
     this.documents = new DocumentRepository(dependencies.database);
@@ -80,6 +84,7 @@ export class DesignAgentService {
     this.explorationTool =
       dependencies.explorationTool ?? new EmptyDesignExplorationToolPort();
     this.resolveSkills = dependencies.resolveSkills;
+    this.professionalPipeline = dependencies.professionalPipeline;
   }
   getAgentDefinition() {
     return designAgentDefinition;
@@ -271,6 +276,15 @@ export class DesignAgentService {
         error,
       );
     }
+    if (this.professionalPipeline) {
+      try {
+        set = (await this.professionalPipeline.run({ projectId: input.projectId, projectVersion: input.projectVersion, directionSet: set, prompt: input.approvedBrief.projectSummary, idempotencyKey: input.idempotencyKey })).directionSet;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        const code = message.startsWith("MAGIC_PATTERNS_CREDENTIAL_REQUIRED") ? "MAGIC_PATTERNS_CREDENTIAL_REQUIRED" : message.startsWith("DESIGN_SKILL_NOT_AVAILABLE_THROUGH_APPROVED_SOURCE") ? "DESIGN_SKILL_NOT_AVAILABLE_THROUGH_APPROVED_SOURCE" : message.startsWith("FONTPAIR_") ? "FONTPAIR_SOURCE_INTEGRATION_UNRESOLVED" : message.startsWith("IMPECCABLE_") ? "IMPECCABLE_DETECTOR_INTEGRATION_UNRESOLVED" : message.startsWith("PHASE_7F_EVIDENCE_INVALID") ? "PHASE_7F_EVIDENCE_INVALID" : message.startsWith("UNAPPROVED_DESIGN_DEPENDENCY") ? "UNAPPROVED_DESIGN_DEPENDENCY" : "DESIGN_PROVIDER_FAILED";
+        throw new DesignError(code, "Professional design capability pipeline failed.", error);
+      }
+    }
     if (
       set.projectId !== input.projectId ||
       set.projectVersion !== input.projectVersion ||
@@ -420,6 +434,10 @@ export class DesignAgentService {
         "DESIGN_SELECTION_STALE",
         "The selected direction checksum is stale.",
       );
+    if (direction.professionalDesign?.motion.suitability === "MOTION") {
+      const amendment = await this.documents.get(request.projectId, request.projectVersion, "design-dependency-amendment");
+      if (!amendment || amendment.documentType !== "design-dependency-amendment" || DesignDependencyAmendmentSchema.parse(amendment).status !== "USER_APPROVED" || amendment.directionId !== direction.id) throw new DesignError("UNAPPROVED_DESIGN_DEPENDENCY", "The selected direction requires a user-approved Motion dependency amendment before implementation.");
+    }
     if (existing?.documentType === "selected-design") {
       if (existing.selectionIdempotencyKey && existing.selectionIdempotencyKey !== request.idempotencyKey) throw new DesignError("DESIGN_SELECTION_CONFLICT", "Design selection idempotency key was reused with different input.");
       if (existing.directionSetId === request.designDirectionSetId && existing.selectedDirectionId === request.selectedDirectionId && existing.selectedDirectionChecksum === request.selectedDirectionChecksum) return { selectedDesign: existing, projectState: "READY_FOR_IMPLEMENTATION" as const, rowVersion: (await this.projects.getWithVersion(request.projectId))?.rowVersion ?? request.expectedRowVersion };
@@ -494,6 +512,8 @@ export class DesignAgentService {
       selectionNotes: request.selectionNotes ?? "",
       selectedDirectionChecksum: request.selectedDirectionChecksum,
       selectionIdempotencyKey: request.idempotencyKey,
+      ...(direction.professionalDesign ? { selectedDirectionContract: direction.professionalDesign } : {}),
+      ...(direction.professionalDesign ? { designContract: { directionSetChecksum: directionSetChecksum(set), selectedDirectionChecksum: request.selectedDirectionChecksum, visualSystemChecksum: direction.professionalDesign.visualSystem.tokenChecksum, typographyChecksum: direction.professionalDesign.typography.checksum, motionChecksum: direction.professionalDesign.motion.checksum, interactionChecksum: stableDesignChecksum(direction.professionalDesign.interactions), selectedAt: request.selectedAt, currentness: { status: "CURRENT" as const, checkedAt: request.selectedAt } } } : {}),
     });
     if (selected.directionSetId !== set.setId)
       throw new DesignError(
@@ -555,6 +575,24 @@ export class DesignAgentService {
       projectState: "READY_FOR_IMPLEMENTATION" as const,
       rowVersion: transition.rowVersion,
     };
+  }
+  async proposeDesignDependencyAmendment(input: { projectId: string; projectVersion: number; directionId: string; reason: string; requestedBy: string; requestedAt?: string }) {
+    const set = await this.getDesignDirectionSet(input.projectId, input.projectVersion);
+    const direction = set.directions.find((candidate) => candidate.id === input.directionId);
+    if (!direction) throw new DesignError("DESIGN_DIRECTION_NOT_FOUND", "The dependency amendment must reference a current direction.");
+    if (direction.professionalDesign?.motion.suitability !== "MOTION") throw new DesignError("MOTION_STRATEGY_MISMATCH", "The selected direction does not request Motion.");
+    const amendment = buildDesignDependencyAmendment({ amendmentId: randomUUID(), projectId: input.projectId, projectVersion: input.projectVersion, directionId: input.directionId, reason: input.reason, requestedBy: input.requestedBy, requestedAt: input.requestedAt ?? now() }, { projectId: input.projectId, projectVersion: input.projectVersion, plannedDependencies: [{ name: "motion", runtime: "runtime", required: true }] });
+    await this.documents.save(amendment, `design-dependency-amendment-${input.projectId}-${input.projectVersion}`);
+    await this.dependencies.memory.writeSnapshot(input.projectId, input.projectVersion, { "design-dependency-amendment.json": amendment });
+    return amendment;
+  }
+  async approveDesignDependencyAmendment(input: { projectId: string; projectVersion: number; approvedBy: string; approvedAt?: string }) {
+    const current = await this.documents.get(input.projectId, input.projectVersion, "design-dependency-amendment");
+    if (!current || current.documentType !== "design-dependency-amendment") throw new DesignError("UNAPPROVED_DESIGN_DEPENDENCY", "No proposed design dependency amendment is available.");
+    const amendment = approveDesignDependencyAmendment(DesignDependencyAmendmentSchema.parse(current), { approvedBy: input.approvedBy, approvedAt: input.approvedAt ?? now() }, { projectId: input.projectId, projectVersion: input.projectVersion, plannedDependencies: [{ name: "motion", runtime: "runtime", required: true }] });
+    await this.documents.save(amendment, `design-dependency-amendment-approved-${amendment.amendmentId}`);
+    await this.dependencies.memory.writeSnapshot(input.projectId, input.projectVersion, { "design-dependency-amendment.json": amendment });
+    return amendment;
   }
   async rejectDesignDirectionSet(rawInput: DesignRevisionRequest) {
     return this.regenerateDesignDirections(rawInput);

@@ -16,6 +16,9 @@ export const ToolIdSchema = z.enum([
   "generated-runtime-validation",
   "playwright-functional-qa",
   "controlled-edit",
+  "magic-patterns-design",
+  "fontpair-read",
+  "design-quality-validation",
 ]);
 export type ToolId = z.infer<typeof ToolIdSchema>;
 

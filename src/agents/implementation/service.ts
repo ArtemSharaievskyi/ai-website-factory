@@ -36,6 +36,7 @@ import { implementationAgentDefinition } from "@/agents/catalog";
 import { PlanningPackageSchema, StoragePlanSchema } from "@/agents/planner/contracts";
 import type { DependencyAuthorityContext } from "@/dependencies/authority";
 import { validatePhase7CContractPackage, validateTaskContractBinding } from "@/domain/contracts/phase7c";
+import { validateDirectionDesignCapability } from "@/domain/design/capability";
 
 export interface ImplementationMemoryPort {
   writeSnapshot(
@@ -200,6 +201,12 @@ export class ImplementationAgentService {
           "IMPLEMENTATION_DESIGN_STALE",
           "Selected design checksum is stale.",
         );
+      if (input.selectedDesign.selectedDirectionContract) {
+        const approvedDependencies = new Set((input.phase7cContractPackage?.dependencyProposal.dependencies ?? []).filter((dependency) => dependency.packageName === "motion" && (dependency.approvalStatus === "APPROVED" || dependency.approvalStatus === "NOT_REQUIRED")).map((dependency) => `${dependency.packageName}@${dependency.versionSpec}`));
+        const contractReadiness = validateDirectionDesignCapability(input.selectedDesign.selectedDirectionId, input.selectedDesign.selectedDirectionContract, { approvedDependencies });
+        const binding = input.selectedDesign.designContract;
+        if (!binding || binding.visualSystemChecksum !== input.selectedDesign.selectedDirectionContract.visualSystem.tokenChecksum || binding.typographyChecksum !== input.selectedDesign.selectedDirectionContract.typography.checksum || binding.motionChecksum !== input.selectedDesign.selectedDirectionContract.motion.checksum || binding.interactionChecksum !== checksumPersistedDocument(input.selectedDesign.selectedDirectionContract.interactions) || binding.currentness.status !== "CURRENT" || !contractReadiness.valid) throw new ImplementationError("IMPLEMENTATION_DESIGN_VIOLATION", "The selected professional design contract is missing, stale, or not approved for implementation.", contractReadiness.issues[0]);
+      }
       if (
         input.architectureChecksum !==
         checksumPersistedDocument(input.technicalArchitecture)

@@ -61,9 +61,14 @@ export const GENERATED_BASELINE_DEV_DEPENDENCIES = {
   vitest: "^3.2.4",
 } as const;
 
+export const APPROVED_OPTIONAL_DESIGN_DEPENDENCIES = {
+  motion: "12.43.0",
+} as const;
+
 const baselineEntries: DependencyCatalogEntry[] = [
   ...Object.entries(GENERATED_BASELINE_DEPENDENCIES).map(([packageName, allowedVersionSpec]) => ({ packageName, allowedVersionSpec, dependencyClass: "BASELINE_REQUIRED" as const, baselineRequired: true, allowedDependencySection: "dependencies" as const, allowedCapabilities: ["baseline"], reason: "Required by the current generated-project runtime foundation." })),
   ...Object.entries(GENERATED_BASELINE_DEV_DEPENDENCIES).map(([packageName, allowedVersionSpec]) => ({ packageName, allowedVersionSpec, dependencyClass: "BASELINE_REQUIRED" as const, baselineRequired: true, allowedDependencySection: "devDependencies" as const, allowedCapabilities: ["baseline"], reason: "Required by the current generated-project development and validation foundation." })),
+  ...Object.entries(APPROVED_OPTIONAL_DESIGN_DEPENDENCIES).map(([packageName, allowedVersionSpec]) => ({ packageName, allowedVersionSpec, dependencyClass: "OPTIONAL_CAPABILITY" as const, baselineRequired: false, allowedDependencySection: "dependencies" as const, allowedCapabilities: ["design.motion"], reason: "Optional Motion for React runtime selected only by an approved professional design contract." })),
 ];
 
 /**

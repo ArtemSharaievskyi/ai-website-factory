@@ -29,7 +29,7 @@ const baselineLockfile = {
 
 describe("dependency authority", () => {
   it("uses the generated foundation as the complete baseline catalog", () => {
-    expect(DEPENDENCY_CATALOG).toHaveLength(15);
+    expect(DEPENDENCY_CATALOG).toHaveLength(16);
     expect(BASELINE_REQUIRED_PACKAGE_NAMES).toEqual([
       ...Object.keys(GENERATED_BASELINE_DEPENDENCIES),
       ...Object.keys(GENERATED_BASELINE_DEV_DEPENDENCIES),

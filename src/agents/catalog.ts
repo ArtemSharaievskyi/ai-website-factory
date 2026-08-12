@@ -2,7 +2,7 @@ import { AgentCapabilityIdSchema, AgentDefinitionSchema, AgentToolIdSchema, type
 import { ImplementationTaskTypeSchema } from "@/domain/tasks/schema";
 import { z } from "zod";
 
-export const AGENT_TOOL_IDS = ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit"] as const satisfies readonly z.infer<typeof AgentToolIdSchema>[];
+export const AGENT_TOOL_IDS = ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit", "magic-patterns-design", "fontpair-read", "design-quality-validation"] as const satisfies readonly z.infer<typeof AgentToolIdSchema>[];
 export type AgentToolId = (typeof AGENT_TOOL_IDS)[number];
 export const AGENT_CAPABILITY_IDS = ["requirements.clarify", "requirements.brief", "planning.architecture", "planning.content", "planning.assets", "design.directions", "design.selection", "implementation.code", "implementation.backend", "review.architecture", "review.contracts", "review.integration", "review.security", "review.test-quality"] as const satisfies readonly z.infer<typeof AgentCapabilityIdSchema>[];
 export type AgentCapabilityId = (typeof AGENT_CAPABILITY_IDS)[number];
@@ -46,7 +46,7 @@ export const plannerAgentDefinition = definition({
 export const designAgentDefinition = definition({
   agentId: "design", displayName: "Design Agent", role: "generation", version: "1.0.0",
   capabilities: ["design.directions", "design.selection"], supportedTaskTypes: ["create-design-directions"],
-  allowedTools: ["openai-generation"], allowedSkillIds: ["responsive-form-ux-design"],
+  allowedTools: ["openai-generation", "magic-patterns-design", "fontpair-read", "design-quality-validation"], allowedSkillIds: ["responsive-form-ux-design"],
   contextPolicy: { version: "design-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "SUPPLIED_FILES_METADATA", "PREVIOUS_FINDINGS"], maxBytes: 120000, maxItems: 80 },
   inputContract: { schemaId: "design.input", version: "1" }, outputContract: { schemaId: "design.output", version: "1" },
   promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "design.v1", policyVersions: { context: "design-context-v1", execution: "design-execution-v1" },

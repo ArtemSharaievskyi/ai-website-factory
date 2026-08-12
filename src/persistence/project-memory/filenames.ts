@@ -3,6 +3,7 @@ import { AssetManifestSchema } from "@/domain/assets/schema";
 import { TechnicalArchitectureSchema } from "@/domain/architecture/schema";
 import { ContentPlanSchema } from "@/domain/content/schema";
 import { DesignDirectionSetSchema, SelectedDesignSchema } from "@/domain/design/schema";
+import { DesignDependencyAmendmentSchema } from "@/domain/design/capability";
 import { FactoryProjectSchema } from "@/domain/project/schema";
 import { QualityReportSchema } from "@/domain/quality/schema";
 import { RequirementSpecificationSchema, ClarificationSessionSchema } from "@/domain/requirements/schema";
@@ -24,6 +25,7 @@ export const DOCUMENT_SCHEMAS = {
   "requirements.json": RequirementSpecificationSchema,
   "design-directions.json": DesignDirectionSetSchema,
   "selected-design.json": SelectedDesignSchema,
+  "design-dependency-amendment.json": DesignDependencyAmendmentSchema,
   "architecture.json": TechnicalArchitectureSchema,
   "content-plan.json": ContentPlanSchema,
   "asset-manifest.json": AssetManifestSchema,

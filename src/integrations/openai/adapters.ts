@@ -228,7 +228,10 @@ export const BriefDraftStructuredOutputSchema = BriefDraftSchema.extend({
     briefApprovalNote: z.string().nullable(),
   }),
 });
-const StrictDesignDirectionSchema = DesignDirectionSchema.required();
+// Professional design contracts are host-bound after model generation; they
+// are intentionally excluded from the model transport shape so the strict
+// provider schema does not become a second source of design authority.
+const StrictDesignDirectionSchema = DesignDirectionSchema.omit({ professionalDesign: true }).required();
 const StrictDesignProviderSchema = z
   .object({
     name: NonEmptyStringSchema,
@@ -237,9 +240,11 @@ const StrictDesignProviderSchema = z
     outputTokens: z.number().int().nonnegative(),
   })
   .strict();
+const { professionalCapability: _professionalCapability, ...DesignDirectionSetTransportShape } = DesignDirectionSetSchema.shape;
+void _professionalCapability;
 export const DesignDirectionStructuredOutputSchema = z
   .object({
-    ...DesignDirectionSetSchema.shape,
+    ...DesignDirectionSetTransportShape,
     directions: z.array(StrictDesignDirectionSchema).length(3),
     approvedBriefChecksum: z.string().nullable(),
     acceptedPlanningChecksum: z.string().nullable(),
