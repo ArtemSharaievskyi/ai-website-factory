@@ -25,7 +25,7 @@ checksum, and all before/after hashes matched.
 | 18 production source files listed in the machine result | PHASE_7C_ACCEPTED_SOURCE | Yes | `736cedee4c9ca6255bb6870ae8f92cd1cb5c5148` | Clean |
 | `src/domain/contracts/phase7c.test.ts` | PHASE_7C_ACCEPTED_TEST | Yes | `736cedee4c9ca6255bb6870ae8f92cd1cb5c5148` | Clean |
 | Canonical Phase 7C result JSON and Markdown | PHASE_7C_CANONICAL_ADMIN | Yes | `7aef687a9b9503615ea499659ce0653f342ce016` | Clean |
-| This reconciliation JSON and Markdown | PHASE_7C_CANONICAL_ADMIN | Yes | This closure record | Pending explicit staging |
+| This reconciliation JSON and Markdown | PHASE_7C_CANONICAL_ADMIN | Yes | `4177277` | Clean |
 | Phase 7B R2-G2 historical artifacts | PRE_PHASE_7C_HISTORICAL_ADMIN | No | Not staged | Preserved |
 | `.context7-cache/` and `.qa-foundation-*` (19 directories) | KNOWN_TRANSIENT | No | Not staged | Preserved |
 
