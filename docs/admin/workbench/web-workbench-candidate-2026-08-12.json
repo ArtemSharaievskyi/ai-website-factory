@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "documentType": "web-workbench-candidate",
+  "phaseOrFeatureId": "WEB_WORKBENCH",
+  "baselineHead": "97bd700fef997326477c72561fb8d5890c1178af",
+  "implementationCommit": "b86027a7f0ef8e1b6dd3caec8b29e70a640c8b34",
+  "documentationCommit": "1624b3c35a6efb89f8f700dce20db785e3dd586e",
+  "finalHeadBeforeClosure": "1624b3c35a6efb89f8f700dce20db785e3dd586e",
+  "candidate": {
+    "candidateId": "web-workbench-2026-08-12",
+    "baselineIdentity": {
+      "baselineHead": "97bd700fef997326477c72561fb8d5890c1178af",
+      "implementationCommit": "b86027a7f0ef8e1b6dd3caec8b29e70a640c8b34",
+      "documentationCommit": "1624b3c35a6efb89f8f700dce20db785e3dd586e",
+      "finalHeadBeforeClosure": "1624b3c35a6efb89f8f700dce20db785e3dd586e"
+    },
+    "exactFileManifest": [
+      { "relativePath": "package.json", "checksum": "60fa8c43498fd8ddb33d5ff616724971c3b78d5bac02df1b04f997a002eedfd0", "byteLength": 2714, "lineCount": 71 },
+      { "relativePath": "scripts/clean-next-trace.mjs", "checksum": "ddcd671b6e2d456d6373f8dcf4e7694755b736c91ca055245392ef3fb19d22df", "byteLength": 577, "lineCount": 10 },
+      { "relativePath": "scripts/workbench-playwright-smoke.ts", "checksum": "c711e77c29bab60c0df14c0a7d9194c53dc9dc50c334df6529b532241e974584", "byteLength": 6579, "lineCount": 86 },
+      { "relativePath": "src/app/api/workbench/route.ts", "checksum": "0b0ba9ee1674f56b7d8e7315166bede7204db1d026c1e303c7a51bff2da0e636", "byteLength": 1734, "lineCount": 29 },
+      { "relativePath": "src/app/globals.css", "checksum": "e52e52ddee84b5df6e228a3f2e8bb55c2013d36bf34bb7b334d1492e77e4cd40", "byteLength": 15958, "lineCount": 123 },
+      { "relativePath": "src/app/layout.tsx", "checksum": "fd3e43449b4ae3bc845e7f28b1367309ee9378da4ca26a19896b76470784e682", "byteLength": 460, "lineCount": 16 },
+      { "relativePath": "src/app/page.tsx", "checksum": "7ffeb43f45024c74a57d970d59f5e9503a7d7bcbb46b756c08d721855deca72e", "byteLength": 112, "lineCount": 6 },
+      { "relativePath": "src/components/workbench.tsx", "checksum": "5d66aaf1bd15e39eb7832765764edea480df21993053322b60c3e7ce181c7d5c", "byteLength": 22699, "lineCount": 126 },
+      { "relativePath": "src/persistence/database/fake.ts", "checksum": "6cb3be63f1a2ece2cbeaf54f358d77abd80accb186f3e02faf1ee19c9429667c", "byteLength": 8959, "lineCount": 76 },
+      { "relativePath": "src/persistence/database/postgres.ts", "checksum": "17451dff7be6e315e1c5bf650aaca3b5f2a6f7dad2ddf5d2f3a3d32f7aa398a3", "byteLength": 16077, "lineCount": 76 },
+      { "relativePath": "src/persistence/database/repositories.ts", "checksum": "4585edcc560dbf6f775a8eee9324d98880dbd791b861e2f7c6df168334ba2a74", "byteLength": 11329, "lineCount": 94 },
+      { "relativePath": "src/persistence/database/types.ts", "checksum": "973c3e0e196e5e3ca66e339be4c3521ce9b90a7135bd8175b762cc2cba4139b7", "byteLength": 3100, "lineCount": 34 },
+      { "relativePath": "src/runtime/production-factory-runtime-core.ts", "checksum": "18f28d23dd810a5a1c291c191b470e0784c225189d3a179fdbdd8923d2f05381", "byteLength": 23499, "lineCount": 584 },
+      { "relativePath": "src/runtime/trial-entry/production.ts", "checksum": "f3388928384cc367723a810e9fe4ff35db2fbfe08bc3eed19f8eb3252c14c220", "byteLength": 2396, "lineCount": 67 },
+      { "relativePath": "src/runtime/trial-entry/service.ts", "checksum": "a06fe5583f6dffd7e8c07c51d23132153016325c2cdb52b716e25e08f6c7e32b", "byteLength": 14598, "lineCount": 357 },
+      { "relativePath": "src/runtime/workbench/application.ts", "checksum": "ee4fe4868336f6451beb60fd574d3302c408345470e0629ae038ed024cb78d78", "byteLength": 24702, "lineCount": 323 },
+      { "relativePath": "src/runtime/workbench/contracts.ts", "checksum": "1f75877de270806319d15bd496f49c30d0d3310ab5d9fb06d7028e0ae1d8abd7", "byteLength": 9121, "lineCount": 212 },
+      { "relativePath": "src/runtime/workbench/production.ts", "checksum": "5746760db37336f1ba292a61221b9469626108725c45048341bf33ce5ba6e09a", "byteLength": 1446, "lineCount": 35 },
+      { "relativePath": "src/runtime/workbench/workbench.test.ts", "checksum": "7b24a28f262a8ba9b373b7d3ad72ff37c7866e557d2adb45f9b934cb602a6b4e", "byteLength": 14448, "lineCount": 152 }
+    ],
+    "candidateChecksum": "758b623b29bf8d61a2f224571869e3522453fb6eff3b7de16ef618059c41b3c6",
+    "fileCount": 19,
+    "frozenAt": "2026-08-12T20:38:30+02:00"
+  },
+  "scope": {
+    "sourceFiles": 15,
+    "testFiles": ["src/runtime/workbench/workbench.test.ts", "scripts/workbench-playwright-smoke.ts"],
+    "configFiles": ["package.json"],
+    "operationalDocumentation": "docs/operations/first-trial-website.md",
+    "administrativeClosureExcludedFromCandidate": true,
+    "historicalPhase7eArtifactsUntouched": true
+  },
+  "candidateCurrent": true,
+  "candidateSourceTestConfigMutatedAfterFreeze": false
+}
