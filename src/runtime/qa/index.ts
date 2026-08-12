@@ -7,3 +7,4 @@ export * from "./reconcile";
 export * from "./server";
 export * from "./service";
 export * from "./task";
+export * from "./workspace";

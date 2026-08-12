@@ -29,6 +29,8 @@ describe("Factory Git hygiene", () => {
   it("keeps QA fixture cleanup in a finally block", () => {
     const source = readFileSync(path.join(root, "src/runtime/qa/server.test.ts"), "utf8");
     expect(source).toContain("finally");
-    expect(source).toContain("rm(root, { recursive: true, force: true })");
+    expect(source).toContain("QaWorkspaceLifecycle");
+    expect(source).toContain("qa.cleanup");
+    expect(source).not.toContain("rm(root, { recursive: true, force: true })");
   });
 });
