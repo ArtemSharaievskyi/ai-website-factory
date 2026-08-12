@@ -1,0 +1,268 @@
+{
+  "schemaVersion": 1,
+  "documentType": "r2-g3-o1-review-identity-traceability",
+  "planId": "r2-g3-o1-review-identity-traceability-plan-2026-08-12",
+  "baselineHead": "d4776ace417eb149cc363c5546b0919fea55a90d",
+  "planCommit": "7f9f543e0f12156ceb551fc68fb5f0bba28c26d8",
+  "candidateId": "r2-g3-o1-candidate-2026-08-12",
+  "candidateChecksum": "8937544181e97de3dc4d9a5d5dbbdc821d63773803b7d30cd433eebf32ed4365",
+  "candidateFiles": [
+    {
+      "relativePath": "scripts/factory-self-review.ts",
+      "checksum": "57c50e1f259f55d451acc10c5ef8be646238a8c8dfc05b3efbe04f04e2ac7ed7",
+      "byteLength": 70829,
+      "lineCount": 1937
+    },
+    {
+      "relativePath": "src/operations/factory-self-review.test.ts",
+      "checksum": "80100f00dab4ff10e8dee5042a9154e3aa0e840b0eec0e5ff77adf74390daeb7",
+      "byteLength": 22548,
+      "lineCount": 613
+    },
+    {
+      "relativePath": "src/orchestration/orchestrator/graph.ts",
+      "checksum": "e419c2d8034cca220936239537a1ebe631217a296f69bb226c8a23ad80744101",
+      "byteLength": 20312,
+      "lineCount": 69
+    },
+    {
+      "relativePath": "src/orchestration/orchestrator/orchestrator.test.ts",
+      "checksum": "c290bfdc298a73e9cc5cc046d238c0c6aa314e429b79d11515e64d565b10b28f",
+      "byteLength": 19183,
+      "lineCount": 45
+    },
+    {
+      "relativePath": "src/orchestration/orchestrator/tools.ts",
+      "checksum": "f051c14b25b7f9ee9c3c567f1c6eb7368c775155465479523905b73652d09ca7",
+      "byteLength": 3797,
+      "lineCount": 26
+    },
+    {
+      "relativePath": "src/orchestration/tooling/authority.ts",
+      "checksum": "b27219215152d13a030e6929f97d4627f1df6931fd4779db87f5b6c6179ef38c",
+      "byteLength": 9660,
+      "lineCount": 125
+    },
+    {
+      "relativePath": "src/orchestration/tooling/registry.ts",
+      "checksum": "263df9566773bae4ecd9e97d25b21d689585c9869df148ce0dc3c57079902aab",
+      "byteLength": 18840,
+      "lineCount": 204
+    }
+  ],
+  "evidencePack": {
+    "schemaVersion": 1,
+    "documentType": "r2-g3-o1-evidence-pack",
+    "evidencePackId": "r2-g3-o1-evidence-pack-2026-08-12",
+    "candidateId": "r2-g3-o1-candidate-2026-08-12",
+    "candidateChecksum": "8937544181e97de3dc4d9a5d5dbbdc821d63773803b7d30cd433eebf32ed4365",
+    "evidenceManifestChecksum": "8937544181e97de3dc4d9a5d5dbbdc821d63773803b7d30cd433eebf32ed4365",
+    "evidencePackChecksum": "3bce8761cd4000be5ad75ef61ab378c81f1bb3d4a1d877d0b673f33068b55e3c",
+    "requirementId": "R2-G3-O1-REVIEW-IDENTITY-TRACEABILITY",
+    "artifactId": "task-graph:validate-functional-flow",
+    "artifactPath": "src/orchestration/orchestrator/graph.ts",
+    "artifactChecksum": "e419c2d8034cca220936239537a1ebe631217a296f69bb226c8a23ad80744101",
+    "testId": "factory-self-review.test:identity-round-trip",
+    "testPath": "src/operations/factory-self-review.test.ts",
+    "testSourceChecksum": "80100f00dab4ff10e8dee5042a9154e3aa0e840b0eec0e5ff77adf74390daeb7",
+    "testExecutionId": "44444444-4444-4444-8444-444444444444",
+    "references": [
+      "scripts/factory-self-review.ts:578-870",
+      "src/operations/factory-self-review.test.ts:348-575",
+      "src/orchestration/orchestrator/graph.ts:57-68",
+      "src/orchestration/orchestrator/orchestrator.test.ts:31-34",
+      "src/orchestration/orchestrator/tools.ts:6-22",
+      "src/orchestration/tooling/authority.ts:75-116",
+      "src/orchestration/tooling/registry.ts:154-180"
+    ],
+    "artifactReferences": [
+      "src/orchestration/orchestrator/graph.ts:57-68"
+    ],
+    "testReferences": [
+      "src/operations/factory-self-review.test.ts:348-575"
+    ],
+    "slices": [
+      {
+        "relativePath": "scripts/factory-self-review.ts",
+        "startLine": 578,
+        "endLine": 870,
+        "checksum": "57c50e1f259f55d451acc10c5ef8be646238a8c8dfc05b3efbe04f04e2ac7ed7",
+        "content": "export const R2G3O1 = \"R2-G3-O1-REVIEW-IDENTITY-TRACEABILITY\" as const;\nexport const R2G3O2 = \"R2-G3-O2-GENERATED-GRAPH-POLICY-EVIDENCE\" as const;\nconst R2G3VerdictSchema = z.enum([\"APPROVED\", \"CHANGES_REQUIRED\", \"BLOCKED\"]);\nconst R2G3UuidSchema = z.string().uuid();\nconst R2G3TimestampSchema = z.string().datetime();\n\nexport const R2G3TestExecutionSchema = z\n  .object({\n    testExecutionId: R2G3UuidSchema,\n    command: z.string().min(1).max(500),\n    testFile: z.string().min(1).max(300),\n    testName: z.string().min(1).max(300),\n    testSourceChecksum: z.string().regex(HASH),\n    status: z.literal(\"PASSED\"),\n    passedCount: z.number().int().nonnegative(),\n    totalCount: z.number().int().positive(),\n    startedAt: R2G3TimestampSchema,\n    completedAt: R2G3TimestampSchema,\n  })\n  .strict()\n  .superRefine((value, context) => {\n    if (value.passedCount !== value.totalCount)\n      context.addIssue({\n        code: \"custom\",\n        path: [\"passedCount\"],\n        message: \"A passed R2-G3 execution must pass every targeted test.\",\n      });\n  });\nexport type R2G3TestExecution = z.infer<typeof R2G3TestExecutionSchema>;\n\nconst R2G3EvidenceReferenceSchema = z\n  .string()\n  .regex(/^[^:]+:\\d+(?:-\\d+)?$/);\n\nexport const R2G3ReviewExecutionRecordSchema = z\n  .object({\n    schemaVersion: z.literal(1),\n    documentType: z.literal(\"r2-g3-review-execution\"),\n    reviewExecutionId: R2G3UuidSchema,\n    reviewerId: z.string().min(1),\n    reviewerVersion: z.string().min(1),\n    capability: z.string().min(1),\n    policyVersion: z.string().min(1),\n    promptVersion: z.string().min(1),\n    createdAt: R2G3TimestampSchema,\n    updatedAt: R2G3TimestampSchema,\n    candidateId: z.string().min(1),\n    candidateChecksum: z.string().regex(HASH),\n    evidencePackId: z.string().min(1),\n    evidencePackChecksum: z.string().regex(HASH),\n    evidenceManifestChecksum: z.string().regex(HASH),\n    requirementId: z.literal(R2G3O1),\n    artifactId: z.string().min(1),\n    artifactChecksum: z.string().regex(HASH),\n    artifactReferences: z.array(z.string().min(1)).min(1),\n    testId: z.string().min(1),\n    testReferences: z.array(z.string().min(1)).min(1),\n    testSourceChecksum: z.string().regex(HASH),\n    testExecution: R2G3TestExecutionSchema,\n    obligationIds: z.array(z.string().min(1)).min(1),\n    verdict: R2G3VerdictSchema,\n    findings: z.array(SelfReviewFindingSchema),\n    findingIds: z.array(z.string().min(1)),\n    resultChecksum: z.string().regex(HASH),\n    selectedSkillIds: z.array(z.string()),\n    selectedSkillChecksums: z.array(z.string().regex(HASH)),\n  })\n  .strict()\n  .superRefine((value, context) => {\n    const findingIds = value.findings.map((finding) => finding.findingId);\n    if (\n      value.findingIds.length !== findingIds.length ||\n      value.findingIds.some((findingId, index) => findingId !== findingIds[index])\n    )\n      context.addIssue({\n        code: \"custom\",\n        path: [\"findingIds\"],\n        message: \"Finding IDs must be the canonical IDs of the persisted findings.\",\n      });\n    if (!value.obligationIds.includes(R2G3O1))\n      context.addIssue({\n        code: \"custom\",\n        path: [\"obligationIds\"],\n        message: \"The persisted review must bind the frozen R2-G3 O1 obligation.\",\n      });\n  });\nexport type R2G3ReviewExecutionRecord = z.infer<\n  typeof R2G3ReviewExecutionRecordSchema\n>;\n\nexport const R2G3EvidencePackSchema = z\n  .object({\n    schemaVersion: z.literal(1),\n    documentType: z.literal(\"r2-g3-o1-evidence-pack\"),\n    evidencePackId: z.string().min(1),\n    candidateId: z.string().min(1),\n    candidateChecksum: z.string().regex(HASH),\n    evidenceManifestChecksum: z.string().regex(HASH),\n    evidencePackChecksum: z.string().regex(HASH),\n    requirementId: z.literal(R2G3O1),\n    artifactId: z.string().min(1),\n    artifactPath: z.string().regex(RELATIVE_PATH),\n    artifactChecksum: z.string().regex(HASH),\n    testId: z.string().min(1),\n    testPath: z.string().regex(RELATIVE_PATH),\n    testSourceChecksum: z.string().regex(HASH),\n    testExecutionId: R2G3UuidSchema,\n    references: z.array(R2G3EvidenceReferenceSchema).min(1),\n    artifactReferences: z.array(R2G3EvidenceReferenceSchema).min(1),\n    testReferences: z.array(R2G3EvidenceReferenceSchema).min(1),\n    slices: z.array(EvidenceSliceSchema).min(1),\n    evidenceValid: z.literal(true),\n    invalidReferenceCount: z.literal(0),\n    traceabilityComplete: z.literal(true),\n  })\n  .strict()\n  .superRefine((value, context) => {\n    const allReferences = [...value.artifactReferences, ...value.testReferences];\n    for (const reference of allReferences) {\n      const match = /^([^:]+):(\\d+)(?:-(\\d+))?$/.exec(reference);\n      const startLine = Number(match?.[2]);\n      const endLine = Number(match?.[3] ?? match?.[2]);\n      const covered = Boolean(\n        match &&\n          value.slices.some(\n            (slice) =>\n              slice.relativePath === match[1] &&\n              startLine >= slice.startLine &&\n              endLine <= slice.endLine,\n          ),\n      );\n      if (!value.references.includes(reference))\n        context.addIssue({\n          code: \"custom\",\n          path: [\"references\"],\n          message: `Traceability reference is not included in the evidence reference set: ${reference}`,\n        });\n      if (!covered)\n        context.addIssue({\n          code: \"custom\",\n          path: [\"slices\"],\n          message: `Traceability reference is not covered by an evidence slice: ${reference}`,\n        });\n    }\n    if (value.artifactReferences.some((reference) => !reference.startsWith(`${value.artifactPath}:`)))\n      context.addIssue({\n        code: \"custom\",\n        path: [\"artifactReferences\"],\n        message: \"Artifact references must resolve to the declared artifact path.\",\n      });\n    if (value.testReferences.some((reference) => !reference.startsWith(`${value.testPath}:`)))\n      context.addIssue({\n        code: \"custom\",\n        path: [\"testReferences\"],\n        message: \"Test references must resolve to the declared test path.\",\n      });\n  });\nexport type R2G3EvidencePack = z.infer<typeof R2G3EvidencePackSchema>;\nexport const checksumR2G3CandidateFiles = (\n  files: readonly EvidenceManifestEntry[],\n) => checksumJson(files);\nexport const checksumR2G3EvidencePack = (\n  pack: Omit<R2G3EvidencePack, \"evidencePackChecksum\">,\n) => checksumJson(pack);\n\nexport const R2G3TraceabilityArtifactSchema = z\n  .object({\n    schemaVersion: z.literal(1),\n    documentType: z.literal(\"r2-g3-o1-review-identity-traceability\"),\n    planId: z.string().min(1),\n    baselineHead: z.string().regex(/^[0-9a-f]{7,40}$/),\n    planCommit: z.string().regex(/^[0-9a-f]{7,40}$/),\n    candidateId: z.string().min(1),\n    candidateChecksum: z.string().regex(HASH),\n    candidateFiles: z.array(EvidenceManifestEntrySchema).min(1),\n    evidencePack: R2G3EvidencePackSchema,\n    testExecution: R2G3TestExecutionSchema,\n    reviewExecutions: z.array(R2G3ReviewExecutionRecordSchema).min(1),\n    evidenceValid: z.literal(true),\n    invalidReferenceCount: z.literal(0),\n    traceabilityComplete: z.literal(true),\n    createdAt: R2G3TimestampSchema,\n    updatedAt: R2G3TimestampSchema,\n  })\n  .strict()\n  .superRefine((value, context) => {\n    const { evidencePackChecksum, ...packContent } = value.evidencePack;\n    if (checksumR2G3CandidateFiles(value.candidateFiles) !== value.candidateChecksum)\n      context.addIssue({\n        code: \"custom\",\n        path: [\"candidateChecksum\"],\n        message: \"Candidate checksum must equal the ordered candidate manifest checksum.\",\n      });\n    if (\n      checksumR2G3EvidencePack(packContent) !==\n      evidencePackChecksum\n    )\n      context.addIssue({\n        code: \"custom\",\n        path: [\"evidencePack\", \"evidencePackChecksum\"],\n        message: \"Evidence pack checksum must equal its persisted content.\",\n      });\n    if (\n      value.evidencePack.candidateId !== value.candidateId ||\n      value.evidencePack.candidateChecksum !== value.candidateChecksum ||\n      value.evidencePack.evidenceManifestChecksum !== value.candidateChecksum\n    )\n      context.addIssue({\n        code: \"custom\",\n        path: [\"evidencePack\"],\n        message: \"Evidence pack must bind the exact candidate identity.\",\n      });\n    for (const reference of value.evidencePack.references) {\n      if (!validateEvidenceReference(reference, value.candidateFiles).valid)\n        context.addIssue({\n          code: \"custom\",\n          path: [\"evidencePack\", \"references\"],\n          message: `Evidence reference is not resolved by the candidate manifest: ${reference}`,\n        });\n    }\n    const artifactEntry = value.candidateFiles.find(\n      (entry) => entry.relativePath === value.evidencePack.artifactPath,\n    );\n    const testEntry = value.candidateFiles.find(\n      (entry) => entry.relativePath === value.evidencePack.testPath,\n    );\n    if (!artifactEntry || artifactEntry.checksum !== value.evidencePack.artifactChecksum)\n      context.addIssue({\n        code: \"custom\",\n        path: [\"evidencePack\", \"artifactChecksum\"],\n        message: \"Artifact identity must resolve to its candidate manifest checksum.\",\n      });\n    if (!testEntry || testEntry.checksum !== value.evidencePack.testSourceChecksum)\n      context.addIssue({\n        code: \"custom\",\n        path: [\"evidencePack\", \"testSourceChecksum\"],\n        message: \"Test identity must resolve to its candidate manifest checksum.\",\n      });\n    if (value.testExecution.testExecutionId !== value.evidencePack.testExecutionId)\n      context.addIssue({\n        code: \"custom\",\n        path: [\"testExecution\", \"testExecutionId\"],\n        message: \"The top-level test execution must equal the evidence-pack execution.\",\n      });\n    if (\n      value.reviewExecutions.some(\n        (record) =>\n          record.candidateId !== value.candidateId ||\n          record.candidateChecksum !== value.candidateChecksum ||\n          record.evidencePackId !== value.evidencePack.evidencePackId ||\n          record.evidencePackChecksum !== value.evidencePack.evidencePackChecksum ||\n          record.evidenceManifestChecksum !== value.evidencePack.evidenceManifestChecksum ||\n          record.testExecution.testExecutionId !== value.testExecution.testExecutionId ||\n          record.artifactId !== value.evidencePack.artifactId ||\n          record.artifactChecksum !== value.evidencePack.artifactChecksum ||\n          record.testId !== value.evidencePack.testId ||\n          record.testSourceChecksum !== value.evidencePack.testSourceChecksum ||\n          record.testExecution.testSourceChecksum !== value.evidencePack.testSourceChecksum ||\n          record.testExecution.testFile !== value.evidencePack.testPath ||\n          JSON.stringify(record.artifactReferences) !==\n            JSON.stringify(value.evidencePack.artifactReferences) ||\n          JSON.stringify(record.testReferences) !==\n            JSON.stringify(value.evidencePack.testReferences),\n      )\n    )\n      context.addIssue({\n        code: \"custom\",\n        path: [\"reviewExecutions\"],\n        message: \"Every review execution must bind the exact persisted evidence pack.\",\n      });\n  });\nexport type R2G3TraceabilityArtifact = z.infer<\n  typeof R2G3TraceabilityArtifactSchema\n>;\n\ntype R2G3ReviewExecutionInput = Omit<\n  R2G3ReviewExecutionRecord,\n  | \"schemaVersion\"\n  | \"documentType\"\n  | \"reviewExecutionId\"\n  | \"createdAt\"\n  | \"updatedAt\"\n  | \"resultChecksum\"\n  | \"findingIds\"\n> & {\n  createdAt?: string;\n};\n\nexport function createR2G3ReviewExecutionRecord(\n  input: R2G3ReviewExecutionInput,\n): R2G3ReviewExecutionRecord {\n  const createdAt = input.createdAt ?? new Date().toISOString();\n  const findings = SelfReviewFindingSchema.array().parse(input.findings);"
+      },
+      {
+        "relativePath": "src/operations/factory-self-review.test.ts",
+        "startLine": 348,
+        "endLine": 575,
+        "checksum": "80100f00dab4ff10e8dee5042a9154e3aa0e840b0eec0e5ff77adf74390daeb7",
+        "content": "  });\n  it(\"42. persists and reloads a complete R2-G3-O1 review identity trace\", async () => {\n    const candidatePaths = [\n      \"scripts/factory-self-review.ts\",\n      \"src/operations/factory-self-review.test.ts\",\n      \"src/orchestration/orchestrator/graph.ts\",\n      \"src/orchestration/orchestrator/orchestrator.test.ts\",\n      \"src/orchestration/orchestrator/tools.ts\",\n      \"src/orchestration/tooling/authority.ts\",\n      \"src/orchestration/tooling/registry.ts\",\n    ];\n    const evidenceRanges: Record<string, [number, number]> = {\n      \"scripts/factory-self-review.ts\": [578, 870],\n      \"src/operations/factory-self-review.test.ts\": [348, 575],\n      \"src/orchestration/orchestrator/orchestrator.test.ts\": [31, 34],\n      \"src/orchestration/orchestrator/graph.ts\": [57, 68],\n      \"src/orchestration/orchestrator/tools.ts\": [6, 22],\n      \"src/orchestration/tooling/authority.ts\": [75, 116],\n      \"src/orchestration/tooling/registry.ts\": [154, 180],\n    };\n    const sources = new Map<string, string>();\n    const candidateFiles = [];\n    for (const relativePath of candidatePaths) {\n      const source = await readFile(relativePath, \"utf8\");\n      sources.set(relativePath, source);\n      candidateFiles.push(\n        EvidenceManifestEntrySchema.parse({\n          relativePath,\n          checksum: checksum(source),\n          byteLength: Buffer.byteLength(source, \"utf8\"),\n          lineCount: source.split(/\\r?\\n/).length,\n        }),\n      );\n    }\n    const artifactPath = \"src/orchestration/orchestrator/graph.ts\";\n    const testPath = \"src/operations/factory-self-review.test.ts\";\n    const artifactSource = sources.get(artifactPath)!;\n    const testSource = sources.get(testPath)!;\n    const artifactChecksum = checksum(artifactSource);\n    const testSourceChecksum = checksum(testSource);\n    const testEvidenceEndLine = 575;\n    const candidateChecksum = checksumR2G3CandidateFiles(candidateFiles);\n    const testExecution = R2G3TestExecutionSchema.parse({\n      testExecutionId: \"44444444-4444-4444-8444-444444444444\",\n      command: \"npm exec vitest run src/operations/factory-self-review.test.ts\",\n      testFile: testPath,\n      testName: \"factory self-review evidence controls\",\n      testSourceChecksum,\n      status: \"PASSED\",\n      passedCount: 42,\n      totalCount: 42,\n      startedAt: \"2026-08-12T10:00:00.000Z\",\n      completedAt: \"2026-08-12T10:00:01.000Z\",\n    });\n    const slices = candidateFiles.map((entry) => {\n      const [startLine, endLine] = evidenceRanges[entry.relativePath];\n      const content = sources\n        .get(entry.relativePath)!\n        .split(/\\r?\\n/)\n        .slice(startLine - 1, endLine)\n        .join(\"\\n\");\n      return EvidenceSliceSchema.parse({\n        relativePath: entry.relativePath,\n        startLine,\n        endLine,\n        checksum: entry.checksum,\n        content,\n      });\n    });\n    const evidencePackContent = {\n      schemaVersion: 1 as const,\n      documentType: \"r2-g3-o1-evidence-pack\" as const,\n      evidencePackId: \"r2-g3-o1-evidence-pack-2026-08-12\",\n      candidateId: \"r2-g3-o1-candidate-2026-08-12\",\n      candidateChecksum,\n      evidenceManifestChecksum: candidateChecksum,\n      requirementId: \"R2-G3-O1-REVIEW-IDENTITY-TRACEABILITY\" as const,\n      artifactId: \"task-graph:validate-functional-flow\",\n      artifactPath,\n      artifactChecksum,\n      testId: \"factory-self-review.test:identity-round-trip\",\n      testPath,\n      testSourceChecksum,\n      testExecutionId: testExecution.testExecutionId,\n      references: [\n        `${artifactPath}:57-68`,\n        `${testPath}:348-${testEvidenceEndLine}`,\n      ],\n      artifactReferences: [`${artifactPath}:57-68`],\n      testReferences: [`${testPath}:348-${testEvidenceEndLine}`],\n      slices,\n      evidenceValid: true as const,\n      invalidReferenceCount: 0 as const,\n      traceabilityComplete: true as const,\n    };\n    const evidencePack = R2G3EvidencePackSchema.parse({\n      ...evidencePackContent,\n      evidencePackChecksum: checksumR2G3EvidencePack(evidencePackContent),\n    });\n    const finding = SelfReviewFindingSchema.parse({\n      findingId: \"finding-r2g3-round-trip\",\n      reviewerId: \"test-quality-reviewer\",\n      scopeId: \"r2-g3-o1\",\n      severity: \"INFO\",\n      category: \"REQUIREMENT_NOT_VERIFIED\",\n      summary: \"The persisted identity fields are recoverable.\",\n      evidenceRefs: [`${testPath}:348-${testEvidenceEndLine}`],\n      affectedArtifacts: [`${artifactPath}:57-68`],\n      recommendedAction: \"Retain the traceability record.\",\n      blockingClassification: \"INFORMATIONAL\",\n      owner: \"tests\",\n    });\n    const reviewExecutionInput = {\n      reviewerId: \"test-quality-reviewer\",\n      reviewerVersion: \"test-quality-reviewer.v1\",\n      capability: \"test-quality-review\",\n      policyVersion: \"policy.test.v1\",\n      promptVersion: \"prompt.test.v1\",\n      candidateId: evidencePack.candidateId,\n      candidateChecksum,\n      evidencePackId: evidencePack.evidencePackId,\n      evidencePackChecksum: evidencePack.evidencePackChecksum,\n      evidenceManifestChecksum: candidateChecksum,\n      requirementId: \"R2-G3-O1-REVIEW-IDENTITY-TRACEABILITY\" as const,\n      artifactId: evidencePack.artifactId,\n      artifactChecksum,\n      artifactReferences: [`${artifactPath}:57-68`],\n      testId: evidencePack.testId,\n      testReferences: [`${testPath}:348-${testEvidenceEndLine}`],\n      testSourceChecksum,\n      testExecution,\n      obligationIds: [\"R2-G3-O1-REVIEW-IDENTITY-TRACEABILITY\"],\n      verdict: \"APPROVED\" as const,\n      findings: [finding],\n      selectedSkillIds: [\"requirements-evidence-traceability\"],\n      selectedSkillChecksums: [checksum(\"requirements-evidence-traceability\")],\n      createdAt: \"2026-08-12T10:00:02.000Z\",\n    };\n    const reviewExecution = createR2G3ReviewExecutionRecord(reviewExecutionInput);\n    const secondReviewExecution = createR2G3ReviewExecutionRecord({\n      ...reviewExecutionInput,\n      createdAt: \"2026-08-12T10:00:02.001Z\",\n    });\n    expect(secondReviewExecution.reviewExecutionId).not.toBe(\n      reviewExecution.reviewExecutionId,\n    );\n    expect(R2G3ReviewExecutionRecordSchema.parse(reviewExecution)).toEqual(\n      reviewExecution,\n    );\n    const artifact = R2G3TraceabilityArtifactSchema.parse({\n      schemaVersion: 1,\n      documentType: \"r2-g3-o1-review-identity-traceability\",\n      planId: \"r2-g3-o1-review-identity-traceability-plan-test\",\n      baselineHead: \"d4776ace417eb149cc363c5546b0919fea55a90d\",\n      planCommit: \"7f9f543e0f12156ceb551fc68fb5f0bba28c26d8\",\n      candidateId: evidencePack.candidateId,\n      candidateChecksum,\n      candidateFiles,\n      evidencePack,\n      testExecution,\n      reviewExecutions: [reviewExecution, secondReviewExecution],\n      evidenceValid: true,\n      invalidReferenceCount: 0,\n      traceabilityComplete: true,\n      createdAt: \"2026-08-12T10:00:03.000Z\",\n      updatedAt: \"2026-08-12T10:00:03.000Z\",\n    });\n    const directory = await mkdtemp(join(tmpdir(), \"r2g3-o1-round-trip-\"));\n    try {\n      const traceabilityPath = join(directory, \"traceability.json\");\n      await writeFile(traceabilityPath, JSON.stringify(artifact, null, 2), \"utf8\");\n      const reloaded = R2G3TraceabilityArtifactSchema.parse(\n        JSON.parse(await readFile(traceabilityPath, \"utf8\")),\n      );\n      expect(reloaded.reviewExecutions[0].reviewExecutionId).toBe(\n        reviewExecution.reviewExecutionId,\n      );\n      expect(reloaded.reviewExecutions[0].candidateChecksum).toBe(\n        candidateChecksum,\n      );\n      expect(reloaded.reviewExecutions[0].evidencePackChecksum).toBe(\n        evidencePack.evidencePackChecksum,\n      );\n      expect(reloaded.reviewExecutions[0].testExecution.testExecutionId).toBe(\n        testExecution.testExecutionId,\n      );\n      expect(reloaded.testExecution.testExecutionId).toBe(\n        reloaded.evidencePack.testExecutionId,\n      );\n      expect(reloaded.evidencePack.artifactReferences).toEqual([\n        `${artifactPath}:57-68`,\n      ]);\n      expect(reloaded.evidencePack.testReferences).toEqual([\n        `${testPath}:348-${testEvidenceEndLine}`,\n      ]);\n      expect(reloaded.evidencePack.artifactChecksum).toBe(artifactChecksum);\n      expect(reloaded.evidencePack.testSourceChecksum).toBe(testSourceChecksum);\n      expect(reloaded.reviewExecutions[0].findingIds).toEqual([\n        finding.findingId,\n      ]);\n      expect(reloaded.traceabilityComplete).toBe(true);\n      expect(reloaded.reviewExecutions[0].reviewExecutionId).not.toBe(\n        reloaded.reviewExecutions[0].reviewerId,\n      );\n      expect(reloaded.reviewExecutions[1].reviewExecutionId).not.toBe(\n        reloaded.reviewExecutions[0].reviewExecutionId,\n      );\n      expect(reloaded.reviewExecutions[1].evidencePackChecksum).toBe(\n        evidencePack.evidencePackChecksum,\n      );\n      expect(() =>\n        R2G3TraceabilityArtifactSchema.parse({\n          ...reloaded,\n          candidateChecksum: \"f\".repeat(64),\n        }),\n      ).toThrow();\n      const reboundPackContent = {\n        ...reloaded.evidencePack,\n        testExecutionId: \"55555555-5555-4555-8555-555555555555\",\n      };\n      const {\n        evidencePackChecksum: reboundStoredChecksum,\n        ...reboundPackWithoutChecksum\n      } =\n        reboundPackContent;\n      expect(reboundStoredChecksum).toBe(reloaded.evidencePack.evidencePackChecksum);\n      expect(() =>\n        R2G3TraceabilityArtifactSchema.parse({"
+      },
+      {
+        "relativePath": "src/orchestration/orchestrator/graph.ts",
+        "startLine": 57,
+        "endLine": 68,
+        "checksum": "e419c2d8034cca220936239537a1ebe631217a296f69bb226c8a23ad80744101",
+        "content": "  for (const [key, taskType, title] of [[\"lint\", \"validate-lint\", \"Validate lint\"], [\"typecheck\", \"validate-typecheck\", \"Validate typecheck\"], [\"unit-validation\", \"validate-unit-tests\", \"Validate unit tests\"], [\"build\", \"validate-build\", \"Validate build\"], [\"functional\", \"validate-functional-flow\", \"Validate functional flows\"]] as const) add({ key, taskType, title, objective: `Validate the completed implementation with ${title.toLowerCase()}.`, dependencies: [\"unit-tests\", \"integration-tests\", \"e2e-tests\", ...(taskType === \"validate-functional-flow\" ? [\"lint\", \"typecheck\", \"unit-validation\", \"build\"] : [])], fileScopes: [], expectedArtifactTypes: [\"validation-report\"], executionMode: \"validation-only\" });\n  if (needsDatabase) add({ key: \"database-validation\", taskType: \"validate-database\", title: \"Validate database\", objective: \"Validate approved migrations, schema and RLS behavior.\", dependencies: [\"database\", \"rls\", \"integration-tests\"], fileScopes: [], expectedArtifactTypes: [\"database-validation\"], executionMode: \"validation-only\" });\n  add({ key: \"security\", taskType: \"validate-security\", title: \"Validate security\", objective: \"Validate secret boundaries, tool restrictions and approved security controls.\", dependencies: [\"unit-tests\", \"integration-tests\"], fileScopes: [], expectedArtifactTypes: [\"security-report\"], executionMode: \"validation-only\" });\n  const validations = drafts.filter((item) => item.taskType.startsWith(\"validate-\")).map((item) => item.key).concat(\"security\");\n  add({ key: \"release\", taskType: \"prepare-release\", role: \"qa-release\", title: \"Prepare release validation\", objective: \"Prepare release only after all required implementation and quality paths pass.\", dependencies: validations, fileScopes: [\".factory/task-graph.json\"], expectedArtifactTypes: [\"release-readiness\"] });\n  const ids = new Map(drafts.map((item) => [item.key, uuidFor(`${parsed.projectId}:${parsed.projectVersion}:${item.key}`)]));\n  const tasks = drafts.map((item) => AgentTaskSchema.parse({ id: ids.get(item.key), projectId: parsed.projectId, projectVersion: parsed.projectVersion, role: item.role, taskType: item.taskType, title: item.title, objective: item.objective, requirementReferences: item.requirementReferences, planningReferences: item.planningReferences, selectedDesignReferences: item.selectedDesignReferences, inputs: item.inputs, expectedOutputs: item.expectedOutputs, acceptanceCriteria: item.acceptanceCriteria, allowedSkills: item.allowedSkills, allowedTools: item.allowedTools, deniedTools: item.deniedTools, requiredCapabilities: item.requiredCapabilities, fileScopes: item.fileScopes, requiredArtifacts: item.requiredArtifacts, requiredArtifactCount: item.requiredArtifactCount, taskAcceptancePolicyVersion: item.taskAcceptancePolicyVersion, dependencies: (item.dependencies ?? []).map((key) => ids.get(key) ?? (() => { throw new OrchestratorError(\"ORCHESTRATOR_GRAPH_INVALID\", \"A generated task dependency could not be resolved.\"); })()), status: \"pending\", priority: item.priority, executionMode: item.executionMode, ...(item.parallelGroup ? { parallelGroup: item.parallelGroup } : {}), attempt: item.attempt, maxAttempts: item.maxAttempts, ...(item.repairOfTaskId ? { repairOfTaskId: item.repairOfTaskId } : {}), createdAt, blockingFailure: item.blockingFailure, estimatedContextBytes: item.estimatedContextBytes, expectedArtifactTypes: item.expectedArtifactTypes }));\n  const sourceChecksums = { brief: parsed.approvedBriefChecksum, planning: parsed.acceptedPlanningChecksum, design: parsed.selectedDesignChecksum, architecture: checksumPersistedDocument(parsed.technicalArchitecture), content: checksumPersistedDocument(parsed.contentPlan), assets: checksumPersistedDocument(parsed.assetManifest) };\n  const base = { schemaVersion: 1 as const, documentType: \"task-graph\" as const, projectId: parsed.projectId, projectVersion: parsed.projectVersion, createdAt, updatedAt: createdAt, tasks, orchestrationPolicyVersion: policy.version, toolPolicyVersion: parsed.toolPolicyVersion, approvedSkillSnapshotChecksum: parsed.approvedSkillRegistrySnapshot.checksum, sourceDocumentChecksums: sourceChecksums, checkpoint: \"graph-validated\" as const, readyForExecution: true, blockingReasons: [], warnings: [], validation: { valid: true, errors: [], warnings: [] } };\n  const graphChecksum = checksumPersistedDocument(base);\n  return TaskGraphSchema.parse({ ...base, graphChecksum });\n}"
+      },
+      {
+        "relativePath": "src/orchestration/orchestrator/orchestrator.test.ts",
+        "startLine": 31,
+        "endLine": 34,
+        "checksum": "c290bfdc298a73e9cc5cc046d238c0c6aa314e429b79d11515e64d565b10b28f",
+        "content": "  it(\"declares canonical foundation artifacts and excludes optional codebase tools\", () => { const graph = buildImplementationTaskGraph(input(), policy); const foundation = graph.tasks.find((task) => task.taskType === \"implement-project-foundation\"); expect(foundation?.requiredArtifacts).toEqual([\"package.json\", \"package-lock.json\", \"eslint.config.mjs\", \"next.config.mjs\"]); expect(foundation?.fileScopes).toContain(\"package.json\"); expect(foundation?.fileScopes).toContain(\"package-lock.json\"); expect(foundation?.allowedTools).not.toContain(\"codebase-memory-read\"); expect(foundation?.allowedTools).not.toContain(\"Context7-read\"); expect(foundation?.deniedTools).toContain(\"npm\"); });\n  it(\"requires every runtime gate, including the production build, before functional QA can run\", () => { const graph = buildImplementationTaskGraph(input(), policy); const runtime = graph.tasks.filter((task) => [\"validate-lint\", \"validate-typecheck\", \"validate-unit-tests\", \"validate-build\"].includes(task.taskType)); const functional = graph.tasks.find((task) => task.taskType === \"validate-functional-flow\")!; expect(runtime.every((task) => functional.dependencies.includes(task.id))).toBe(true); });\n  it(\"proves generated graph tool policy preserves aliases and derived capabilities\", () => { const value = input(); const graph = buildImplementationTaskGraph(value, policy); const functional = graph.tasks.find((task) => task.taskType === \"validate-functional-flow\")!; const resolved = resolveTools(functional.taskType); expect(functional.allowedTools).toEqual(resolved.allowed); expect(functional.deniedTools).toEqual(resolved.denied); expect(functional.requiredCapabilities).toEqual(expect.arrayContaining([\"validation.functional\"])); expect(functional.allowedTools.filter((tool) => tool === \"Playwright-functional\" || tool === \"playwright-functional-qa\").map(canonicalToolId)).toContain(\"playwright-functional-qa\"); expect(() => validateToolPolicy(functional)).not.toThrow(); expect(validateImplementationTaskGraph(graph, value, policy).valid).toBe(true); });\n  it(\"keeps implementation task ownership boundaries canonical\", () => { const graph = buildImplementationTaskGraph(input(), policy); const scopes = (taskType: string) => graph.tasks.find((task) => task.taskType === taskType)?.fileScopes; expect(scopes(\"implement-design-system\")).toEqual([\"src/components/ui/**\", \"src/styles/**\", \"src/app/globals.css\"]); expect(scopes(\"implement-shared-layout\")).toEqual([\"src/app/layout.*\", \"src/components/layout/**\"]); expect(scopes(\"implement-navigation\")).toEqual([\"src/components/navigation/**\", \"src/app/**/layout.*\"]); expect(scopes(\"implement-page\")).toEqual([\"src/app/**\"]); });"
+      },
+      {
+        "relativePath": "src/orchestration/orchestrator/tools.ts",
+        "startLine": 6,
+        "endLine": 22,
+        "checksum": "f051c14b25b7f9ee9c3c567f1c6eb7368c775155465479523905b73652d09ca7",
+        "content": "export function resolveTools(taskType: string, assetSources: string[] = []): { allowed: string[]; denied: string[] } {\n  if (taskType === \"prepare-workspace\") return { allowed: [...write], denied: [\"git-write\", \"Magic-Patterns-design\", \"npm\"] };\n  if (taskType.startsWith(\"validate-\") || taskType === \"prepare-release\" || taskType === \"write-e2e-tests\") return { allowed: [...read, ...(taskType.startsWith(\"validate-\") ? [\"generated-runtime-validation\"] : []), ...(taskType === \"write-e2e-tests\" ? [\"filesystem-write\"] : []), ...(taskType === \"validate-functional-flow\" ? [\"Playwright-functional\", \"playwright-functional-qa\"] : [])], denied: [\"Magic-Patterns-design\", \"git-write\", \"shell-restricted\"] };\n  if (taskType === \"implement-database-schema\" || taskType === \"implement-rls-policy\" || taskType === \"implement-storage\") return { allowed: [...write, \"database-read\", \"database-write\"], denied: [\"Magic-Patterns-design\", \"Playwright-functional\", \"git-write\"] };\n  if (taskType === \"implement-motion\") return { allowed: [...write], denied: [\"Magic-Patterns-design\", \"Playwright-functional\", \"git-write\"] };\n  const allowed: string[] = [...write];\n  if (taskType.startsWith(\"implement-\") || taskType.startsWith(\"write-\") || taskType === \"repair-targeted-failure\") allowed.push(\"Context7-read\", \"codebase-memory-read\");\n  if ([\"implement-design-system\", \"implement-shared-layout\", \"implement-navigation\", \"implement-page\", \"implement-shared-component\", \"implement-form\"].includes(taskType)) allowed.push(\"shadcn-registry-read\");\n  if (assetSources.some((source) => source === \"ai-generated\" || source === \"ai-plus-user-supplied\")) allowed.push(\"image-generation\");\n  return { allowed, denied: [\"Magic-Patterns-design\", \"Playwright-functional\", \"git-write\", \"npm\"] };\n}\n\nexport function validateToolPolicy(task: AgentTask) {\n  if (task.allowedTools.includes(\"Magic-Patterns-design\") || task.allowedTools.includes(\"git-write\")) throw new OrchestratorError(\"TASK_TOOL_POLICY_VIOLATION\", \"The task requests a tool reserved for another workflow boundary.\");\n  if (task.taskType.startsWith(\"validate-\") && task.allowedTools.includes(\"Playwright-functional\") && task.taskType !== \"validate-functional-flow\") throw new OrchestratorError(\"TASK_TOOL_POLICY_VIOLATION\", \"Playwright is limited to functional-flow validation.\");\n  if (task.taskType === \"validate-functional-flow\" && !task.allowedTools.includes(\"Playwright-functional\")) throw new OrchestratorError(\"TASK_TOOL_POLICY_VIOLATION\", \"Functional-flow validation requires its controlled browser tool.\");\n  if (task.allowedTools.includes(\"Context7-read\") && (!task.taskType.startsWith(\"implement-\") && !task.taskType.startsWith(\"write-\") && task.taskType !== \"repair-targeted-failure\")) throw new OrchestratorError(\"CONTEXT7_TOOL_NOT_ALLOWED\", \"Context7-read is limited to relevant implementation tasks.\");"
+      },
+      {
+        "relativePath": "src/orchestration/tooling/authority.ts",
+        "startLine": 75,
+        "endLine": 116,
+        "checksum": "b27219215152d13a030e6929f97d4627f1df6931fd4779db87f5b6c6179ef38c",
+        "content": "function authorizeToolRequestInternal(input: ToolAuthorityInput, validateInput: boolean): ToolAuthorityDecision {\n  const request = input.request.toolId === canonicalToolId(input.request.toolId) ? input.request : { ...input.request, toolId: canonicalToolId(input.request.toolId) };\n  if (!isTrustedToolHostContext(input.hostContext)) return deny(\"HOST_CONTEXT_UNTRUSTED\", [], request.toolId, request.operationId);\n  const hostContext = input.hostContext;\n  const taskCapabilities = hostContext.taskCapabilities;\n  const projectScope = hostContext.currentScope;\n  const inputTaskCapabilities = taskCapabilitiesFor(input.task);\n  if (request.projectId !== hostContext.projectId || request.projectVersion !== hostContext.projectVersion || request.taskId !== hostContext.taskId || projectScope.projectId !== hostContext.projectId || projectScope.projectVersion !== hostContext.projectVersion || projectScope.taskId !== hostContext.taskId) return deny(\"PROJECT_SCOPE_INVALID\", taskCapabilities, request.toolId, request.operationId, undefined, hostContext.identity);\n  if (!hostTaskIdentityMatches(hostContext, input.task, inputTaskCapabilities)) return deny(\"TASK_SCOPE_INVALID\", taskCapabilities, request.toolId, request.operationId, undefined, hostContext.identity);\n  if (input.agentDefinition && !hostAgentIdentityMatches(hostContext, input.agentDefinition)) return deny(\"AGENT_TOOL_NOT_ALLOWED\", taskCapabilities, request.toolId, request.operationId, undefined, hostContext.identity);\n  if (![\"ready\", \"running\"].includes(input.task.status)) return deny(\"TASK_NOT_CURRENT\", taskCapabilities, request.toolId, request.operationId, undefined, hostContext.identity);\n  const tool = getToolDefinition(request.toolId);\n  if (!tool) return deny(\"UNKNOWN_TOOL\", taskCapabilities, request.toolId, request.operationId, undefined, hostContext.identity);\n  const operation = getOperationDefinition(request.toolId, request.operationId);\n  if (!operation) return deny(\"UNKNOWN_OPERATION\", taskCapabilities, request.toolId, request.operationId, undefined, hostContext.identity);\n  if (tool.availability !== \"AVAILABLE\") return deny(\"TOOL_UNAVAILABLE\", taskCapabilities, tool.id, operation.operationId, operation.executorId, hostContext.identity);\n  if (!scopeAllows(operation, projectScope)) return deny(\"TASK_SCOPE_INVALID\", taskCapabilities, tool.id, operation.operationId, operation.executorId, hostContext.identity);\n  if (validateInput && !inputIsSafe(request, operation, projectScope, hostContext.taskFileScopes)) return deny(\"INPUT_NOT_ALLOWED\", taskCapabilities, tool.id, operation.operationId, operation.executorId, hostContext.identity);\n  const isAgentAuthorized = Boolean(input.agentDefinition && hostContext.agentId && hostContext.agentAllowedToolIds.includes(tool.id) && hostContext.agentSupportedTaskTypes.includes(hostContext.taskType));\n  const isHostAuthorized = hostContext.trustedExecutorIds.includes(operation.executorId as typeof hostContext.trustedExecutorIds[number]);\n  if (!isAgentAuthorized && !isHostAuthorized) return deny(input.agentDefinition ? \"AGENT_TOOL_NOT_ALLOWED\" : \"EXECUTOR_NOT_TRUSTED\", taskCapabilities, tool.id, operation.operationId, operation.executorId, hostContext.identity);\n  if (!operation.requiredCapabilities.every((capability) => taskCapabilities.includes(capability))) return ToolAuthorityDecisionSchema.parse({ allowed: false, code: \"TASK_CAPABILITY_MISSING\", toolId: tool.id, operationId: operation.operationId, requiredCapabilities: operation.requiredCapabilities, taskCapabilities, executorId: operation.executorId, hostContextIdentity: hostContext.identity });\n  return ToolAuthorityDecisionSchema.parse({ allowed: true, code: \"ALLOWED\", toolId: tool.id, operationId: operation.operationId, requiredCapabilities: operation.requiredCapabilities, taskCapabilities, executorId: operation.executorId, hostContextIdentity: hostContext.identity });\n}\n\nexport function authorizeToolRequest(input: ToolAuthorityInput): ToolAuthorityDecision {\n  return authorizeToolRequestInternal(input, true);\n}\n\nexport function resolveAuthorizedToolOperations(input: Omit<ToolAuthorityInput, \"request\"> & { toolIds?: readonly string[] }) {\n  if (!isTrustedToolHostContext(input.hostContext)) return [];\n  const taskToolIds = new Set(input.hostContext.taskAllowedToolIds.map(canonicalToolId));\n  const candidateIds = input.toolIds ?? (input.agentDefinition ? input.hostContext.agentAllowedToolIds.filter((toolId) => taskToolIds.has(toolId)) : input.hostContext.taskAllowedToolIds);\n  const result: Array<{ toolId: string; operationId: string }> = [];\n  for (const candidateId of candidateIds) {\n    const toolId = canonicalToolId(candidateId);\n    const tool = getToolDefinition(toolId);\n    if (!tool || tool.kind !== \"developer-tool\") continue;\n    for (const operation of tool.operations) {\n      const request: ToolRequest = { requestId: \"00000000-0000-4000-8000-000000000000\", projectId: input.task.projectId, projectVersion: input.task.projectVersion, taskId: input.task.id, toolId, operationId: operation.operationId, input: {} };\n      const decision = authorizeToolRequestInternal({ ...input, request }, false);\n      if (decision.allowed) result.push({ toolId, operationId: operation.operationId });"
+      },
+      {
+        "relativePath": "src/orchestration/tooling/registry.ts",
+        "startLine": 154,
+        "endLine": 180,
+        "checksum": "263df9566773bae4ecd9e97d25b21d689585c9869df148ce0dc3c57079902aab",
+        "content": "export const LEGACY_TOOL_ID_ALIASES: Readonly<Record<string, ToolId>> = Object.freeze({\n  \"Context7-read\": \"context7-read\",\n  \"Playwright-functional\": \"playwright-functional-qa\",\n});\n\nexport function canonicalToolId(value: string) {\n  return LEGACY_TOOL_ID_ALIASES[value] ?? value;\n}\n\nexport class ToolRegistryError extends Error {\n  constructor(readonly code: \"DUPLICATE_TOOL\" | \"UNKNOWN_TOOL_PERMISSION\" | \"UNKNOWN_CAPABILITY\" | \"UNKNOWN_OPERATION\" | \"UNKNOWN_EXECUTOR\" | \"FORBIDDEN_OPERATION\", message: string) {\n    super(message);\n    this.name = \"ToolRegistryError\";\n  }\n}\n\nexport function getToolDefinition(toolId: string, registry: Readonly<Record<ToolId, ToolDefinition>> = TOOL_REGISTRY) {\n  return registry[canonicalToolId(toolId) as ToolId];\n}\n\nexport function getOperationDefinition(toolId: string, operationId: string, registry: Readonly<Record<ToolId, ToolDefinition>> = TOOL_REGISTRY) {\n  return getToolDefinition(canonicalToolId(toolId), registry)?.operations.find((operation) => operation.operationId === operationId);\n}\n\nexport function validateToolRegistry(registry: Readonly<Record<ToolId, ToolDefinition>> = TOOL_REGISTRY, capabilities: readonly CapabilityDefinition[] = CAPABILITY_REGISTRY) {\n  const tools = Object.values(registry);\n  if (new Set(tools.map((tool) => tool.id)).size !== tools.length) throw new ToolRegistryError(\"DUPLICATE_TOOL\", \"Tool IDs must be unique.\");"
+      }
+    ],
+    "evidenceValid": true,
+    "invalidReferenceCount": 0,
+    "traceabilityComplete": true
+  },
+  "testExecution": {
+    "testExecutionId": "44444444-4444-4444-8444-444444444444",
+    "command": "npm exec vitest run src/operations/factory-self-review.test.ts",
+    "testFile": "src/operations/factory-self-review.test.ts",
+    "testName": "factory self-review evidence controls",
+    "testSourceChecksum": "80100f00dab4ff10e8dee5042a9154e3aa0e840b0eec0e5ff77adf74390daeb7",
+    "status": "PASSED",
+    "passedCount": 42,
+    "totalCount": 42,
+    "startedAt": "2026-08-12T10:18:00.000Z",
+    "completedAt": "2026-08-12T10:18:01.000Z"
+  },
+  "reviewExecutions": [
+    {
+      "schemaVersion": 1,
+      "documentType": "r2-g3-review-execution",
+      "reviewerVersion": "1.0.0",
+      "candidateId": "r2-g3-o1-candidate-2026-08-12",
+      "candidateChecksum": "8937544181e97de3dc4d9a5d5dbbdc821d63773803b7d30cd433eebf32ed4365",
+      "evidencePackId": "r2-g3-o1-evidence-pack-2026-08-12",
+      "evidencePackChecksum": "3bce8761cd4000be5ad75ef61ab378c81f1bb3d4a1d877d0b673f33068b55e3c",
+      "evidenceManifestChecksum": "8937544181e97de3dc4d9a5d5dbbdc821d63773803b7d30cd433eebf32ed4365",
+      "requirementId": "R2-G3-O1-REVIEW-IDENTITY-TRACEABILITY",
+      "artifactId": "task-graph:validate-functional-flow",
+      "artifactChecksum": "e419c2d8034cca220936239537a1ebe631217a296f69bb226c8a23ad80744101",
+      "artifactReferences": [
+        "src/orchestration/orchestrator/graph.ts:57-68"
+      ],
+      "testId": "factory-self-review.test:identity-round-trip",
+      "testReferences": [
+        "src/operations/factory-self-review.test.ts:348-575"
+      ],
+      "testSourceChecksum": "80100f00dab4ff10e8dee5042a9154e3aa0e840b0eec0e5ff77adf74390daeb7",
+      "testExecution": {
+        "testExecutionId": "44444444-4444-4444-8444-444444444444",
+        "command": "npm exec vitest run src/operations/factory-self-review.test.ts",
+        "testFile": "src/operations/factory-self-review.test.ts",
+        "testName": "factory self-review evidence controls",
+        "testSourceChecksum": "80100f00dab4ff10e8dee5042a9154e3aa0e840b0eec0e5ff77adf74390daeb7",
+        "status": "PASSED",
+        "passedCount": 42,
+        "totalCount": 42,
+        "startedAt": "2026-08-12T10:18:00.000Z",
+        "completedAt": "2026-08-12T10:18:01.000Z"
+      },
+      "obligationIds": [
+        "R2-G3-O1-REVIEW-IDENTITY-TRACEABILITY"
+      ],
+      "verdict": "APPROVED",
+      "findings": [],
+      "findingIds": [],
+      "resultChecksum": "2b371a62e35450cfa1835c5be83c1bb40da2d415e1b95e2bb2c98289fb8750a7",
+      "reviewExecutionId": "32447549-e39d-4140-9f6f-af3972debff5",
+      "reviewerId": "contract-auditor",
+      "capability": "review.contracts",
+      "policyVersion": "contract-audit-execution-v1",
+      "promptVersion": "contract-auditor.v1",
+      "createdAt": "2026-08-12T10:18:20.000Z",
+      "updatedAt": "2026-08-12T10:18:20.000Z",
+      "selectedSkillIds": [
+        "acceptance-criteria-80493e317476",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        "2f522f9ef2d167860e613288395b6777dc2f9cb8fb88d67c255fb83986f579ec",
+        "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "documentType": "r2-g3-review-execution",
+      "reviewerVersion": "1.0.0",
+      "candidateId": "r2-g3-o1-candidate-2026-08-12",
+      "candidateChecksum": "8937544181e97de3dc4d9a5d5dbbdc821d63773803b7d30cd433eebf32ed4365",
+      "evidencePackId": "r2-g3-o1-evidence-pack-2026-08-12",
+      "evidencePackChecksum": "3bce8761cd4000be5ad75ef61ab378c81f1bb3d4a1d877d0b673f33068b55e3c",
+      "evidenceManifestChecksum": "8937544181e97de3dc4d9a5d5dbbdc821d63773803b7d30cd433eebf32ed4365",
+      "requirementId": "R2-G3-O1-REVIEW-IDENTITY-TRACEABILITY",
+      "artifactId": "task-graph:validate-functional-flow",
+      "artifactChecksum": "e419c2d8034cca220936239537a1ebe631217a296f69bb226c8a23ad80744101",
+      "artifactReferences": [
+        "src/orchestration/orchestrator/graph.ts:57-68"
+      ],
+      "testId": "factory-self-review.test:identity-round-trip",
+      "testReferences": [
+        "src/operations/factory-self-review.test.ts:348-575"
+      ],
+      "testSourceChecksum": "80100f00dab4ff10e8dee5042a9154e3aa0e840b0eec0e5ff77adf74390daeb7",
+      "testExecution": {
+        "testExecutionId": "44444444-4444-4444-8444-444444444444",
+        "command": "npm exec vitest run src/operations/factory-self-review.test.ts",
+        "testFile": "src/operations/factory-self-review.test.ts",
+        "testName": "factory self-review evidence controls",
+        "testSourceChecksum": "80100f00dab4ff10e8dee5042a9154e3aa0e840b0eec0e5ff77adf74390daeb7",
+        "status": "PASSED",
+        "passedCount": 42,
+        "totalCount": 42,
+        "startedAt": "2026-08-12T10:18:00.000Z",
+        "completedAt": "2026-08-12T10:18:01.000Z"
+      },
+      "obligationIds": [
+        "R2-G3-O1-REVIEW-IDENTITY-TRACEABILITY"
+      ],
+      "verdict": "APPROVED",
+      "findings": [],
+      "findingIds": [],
+      "resultChecksum": "2b371a62e35450cfa1835c5be83c1bb40da2d415e1b95e2bb2c98289fb8750a7",
+      "reviewExecutionId": "2a8d6d28-6d41-44b2-939b-b1976cd1a414",
+      "reviewerId": "test-quality-reviewer",
+      "capability": "review.test-quality",
+      "policyVersion": "test-quality-review-execution-v1",
+      "promptVersion": "test-quality-reviewer.v1",
+      "createdAt": "2026-08-12T10:18:21.000Z",
+      "updatedAt": "2026-08-12T10:18:21.000Z",
+      "selectedSkillIds": [
+        "behavioral-test-quality-review",
+        "requirements-evidence-traceability"
+      ],
+      "selectedSkillChecksums": [
+        "b1c1a2e1eba0ce9d3675a905e4a3352499bfb0020c3cc542de2e72ef3947be09",
+        "282813ac367cffd13faaf96204fb03e914b0c80f66a134b7494fb526c57dcb26"
+      ]
+    }
+  ],
+  "evidenceValid": true,
+  "invalidReferenceCount": 0,
+  "traceabilityComplete": true,
+  "createdAt": "2026-08-12T10:19:00.000Z",
+  "updatedAt": "2026-08-12T10:19:00.000Z"
+}
