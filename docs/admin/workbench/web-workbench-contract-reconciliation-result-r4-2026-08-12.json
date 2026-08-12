@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "documentType": "web-workbench-contract-reconciliation-result",
+  "phaseOrFeatureId": "WEB_WORKBENCH",
+  "status": "WEB_WORKBENCH_CONTRACT_REVIEW_BLOCKED",
+  "cycle": 4,
+  "candidateId": "web-workbench-2026-08-12",
+  "candidateChecksum": "758b623b29bf8d61a2f224571869e3522453fb6eff3b7de16ef618059c41b3c6",
+  "baselineCommit": "47dafa66618b3072b012f361855272836987f6a5",
+  "candidateSourceTestConfigMutated": false,
+  "customerProjectStarted": false,
+  "implementationStartInvoked": false,
+  "codexProviderAdded": false,
+  "databaseMigration": false,
+  "repairScope": "Only Contract Auditor findings ca-001, ca-003, ca-004, ca-005 were reconciled; ca-002 remained resolved. No candidate-owned production, test, or config files were changed.",
+  "reviewPolicy": {
+    "scope": "Contract Auditor only: ca-001, ca-003, ca-004, ca-005; ca-002 preserved resolved",
+    "freshContractCallsPermitted": 1,
+    "freshContractCallsUsed": 1,
+    "providerRequestSent": false,
+    "providerRequestId": null,
+    "secondRepairOrRerunAttempted": false,
+    "otherSemanticReviewersRerun": false
+  },
+  "priorCurrentContractReview": {
+    "executionId": "8fac3b5e-4179-4361-94b4-dd2d7819de39",
+    "providerRequestId": "chatcmpl-EC8ty7UtoEnGztVLfJd8651BdbznF",
+    "verdict": "CHANGES_REQUIRED",
+    "candidateId": "web-workbench-2026-08-12",
+    "candidateChecksum": "758b623b29bf8d61a2f224571869e3522453fb6eff3b7de16ef618059c41b3c6",
+    "findings": [
+      { "findingId": "ca-001", "severity": "ERROR", "category": "REQUIREMENT_NOT_TRACED", "summary": "The approved interactive requirements have references in tasks but no semantic implementation or validation trace.", "correctionTarget": "PLANNING" },
+      { "findingId": "ca-003", "severity": "CRITICAL", "category": "TASK_CAPABILITY_MISSING", "summary": "The sole current executor does not declare the capability identifiers required by the TaskGraph tasks.", "correctionTarget": "TASKGRAPH" },
+      { "findingId": "ca-004", "severity": "CRITICAL", "category": "DATA_CONTRACT_MISMATCH", "summary": "The package declares databaseMode NONE while planning and execution still require persisted approved_requests data, RLS, Supabase variables, and database validation.", "correctionTarget": "PLANNING" },
+      { "findingId": "ca-005", "severity": "WARNING", "category": "REFERENCE_NOT_FOUND", "summary": "The fixture names InitialProjectRequest separately from Brief, but supplies no artifact or reference that makes the distinction auditable or enforces the stated START_IMPLEMENTATION gate.", "correctionTarget": "WORKFLOW_CONTRACT" }
+    ],
+    "ca002PreservedResolved": true
+  },
+  "repairClassification": {
+    "ca-001": { "classification": "SYNTHETIC_TRACEABILITY_DEFECT", "repairApplied": "Canonical planning now has explicit home, contact, and form responsibilities; canonical TaskGraph tasks have dedicated project-creation, Lead-clarification, and contact-form objectives, ownership, acceptance, and validation traceability.", "deterministicStatus": "PASS" },
+    "ca-002": { "classification": "CURRENTNESS_BINDING_DEFECT", "repairApplied": "TaskGraph sourceDocumentChecksums.design remains bound to the current selected Design checksum.", "deterministicStatus": "PASS; preserved resolved" },
+    "ca-003": { "classification": "SYNTHETIC_TASK_CONTRACT_DEFECT", "repairApplied": "The current executor catalog declares all registered detailed TaskGraph capabilities and current TaskContracts bind those capabilities.", "deterministicStatus": "PASS" },
+    "ca-004": { "classification": "SYNTHETIC_DATA_CONTRACT_DEFECT", "repairApplied": "Canonical planning and architecture contain zero persistent entities and no Supabase/schema/RLS/environment/database-task obligations; the contact DataContract is NOT_PERSISTED and DatabaseDecision is approved NONE.", "deterministicStatus": "PASS" },
+    "ca-005": { "classification": "REFERENCE_RESOLUTION_DEFECT", "repairApplied": "InitialProjectRequest is created by the canonical constructor with requestId/reference/checksum, traced to the Lead-derived Brief, and checked by the START_IMPLEMENTATION gate before implementation eligibility.", "deterministicStatus": "PASS" }
+  },
+  "evidence": {
+    "syntheticFixturePath": "docs/admin/workbench/web-workbench-synthetic-traceability-fixture-r4-2026-08-12.json",
+    "syntheticFixtureChecksum": "b84aae413b8d88801f7d9d7e7bc3cd228c404074d12a2e1e0e79143515fa4749",
+    "evidencePackPath": "docs/admin/workbench/web-workbench-evidence-pack-r4-2026-08-12.json",
+    "evidencePackId": "web-workbench-evidence-pack-r4-2026-08-12",
+    "evidencePackChecksum": "4da68c2066089986d620d0d752fe2754ec97bd28d4733c97a54fe2523f5537ab",
+    "evidencePersisted": true,
+    "evidenceFrozen": true,
+    "evidenceValid": true,
+    "validReferenceCount": 18,
+    "invalidReferenceCount": 0,
+    "contextSufficiency": "PASS; missingAfter=[]",
+    "createdBeforeReview": true
+  },
+  "deterministicContractPreflight": {
+    "requirementNotTracedCount": 0,
+    "taskCapabilityMissingCount": 0,
+    "dataContractMismatchCount": 0,
+    "referenceNotFoundCount": 0,
+    "currentnessErrorCount": 0,
+    "checksumErrorCount": 0,
+    "missingReviewContextCategoryCount": 0,
+    "invalidEvidenceReferenceCount": 0,
+    "deterministicFindingCount": 0,
+    "planningStructureFindings": [],
+    "planningDependencyFindings": [],
+    "staleRequirementReferenceRejected": true,
+    "passed": true
+  },
+  "validation": {
+    "focusedContractTests": "10 passed",
+    "workbenchFocusedTests": "45 passed",
+    "reviewerSuite": "7 files / 77 passed",
+    "taskGraphSmoke": "PASS; releaseEligible=true; passedTasks=6; repairs=0; network=false; npm=false; browser=false",
+    "typecheck": "PASS",
+    "lint": "PASS with 2 pre-existing warnings",
+    "gitDiffCheck": "PASS",
+    "sourceMutationAfterFreeze": false
+  },
+  "providerTelemetry": {
+    "status": "BLOCKED_BEFORE_REQUEST",
+    "provider": "openai",
+    "executionId": null,
+    "providerRequestId": null,
+    "apiRequestAttempted": false,
+    "errorCode": "OPENAI_API_KEY_MISSING_OR_INVALID_CONFIGURATION",
+    "error": "OPENAI_API_KEY and valid provider configuration are required.",
+    "retryCount": 0,
+    "usage": null,
+    "freshSemanticVerdict": null
+  },
+  "closure": {
+    "eligible": false,
+    "closureCommitCreated": false,
+    "reason": "The single permitted Contract Auditor invocation was blocked before an API request because the production OpenAI provider configuration lacked OPENAI_API_KEY. No retry is permitted in this cycle.",
+    "nextAction": "Provide valid provider configuration in a separately authorized cycle, then revalidate a new pre-call evidence pack before its single Contract Auditor call."
+  },
+  "createdAt": "2026-08-12T22:00:00.000Z"
+}

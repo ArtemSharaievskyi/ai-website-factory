@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "documentType": "web-workbench-contract-closure-preflight",
+  "phaseOrFeatureId": "WEB_WORKBENCH",
+  "preflightId": "web-workbench-contract-closure-preflight-r4-2026-08-12",
+  "candidateId": "web-workbench-2026-08-12",
+  "candidateChecksum": "758b623b29bf8d61a2f224571869e3522453fb6eff3b7de16ef618059c41b3c6",
+  "expectedHead": "47dafa66618b3072b012f361855272836987f6a5",
+  "trackedBaselineDirty": false,
+  "candidateSourceTestConfigMutated": false,
+  "customerProjectStarted": false,
+  "implementationStartInvoked": false,
+  "syntheticFixturePath": "docs/admin/workbench/web-workbench-synthetic-traceability-fixture-r4-2026-08-12.json",
+  "syntheticFixtureChecksum": "b84aae413b8d88801f7d9d7e7bc3cd228c404074d12a2e1e0e79143515fa4749",
+  "deterministicContractPreflight": {
+    "requirementNotTracedCount": 0,
+    "taskCapabilityMissingCount": 0,
+    "dataContractMismatchCount": 0,
+    "referenceNotFoundCount": 0,
+    "currentnessErrorCount": 0,
+    "checksumErrorCount": 0,
+    "missingReviewContextCategoryCount": 0,
+    "invalidEvidenceReferenceCount": 0,
+    "planningStructureFindings": [],
+    "planningDependencyFindings": [],
+    "deterministicContractFindingCount": 0,
+    "passed": true
+  },
+  "canonicalValidation": {
+    "InitialProjectRequest": "PASS",
+    "RequirementSpecification": "PASS",
+    "PlanningPackage": "PASS",
+    "SelectedDesign": "PASS",
+    "ArchitectureReviewRecord": "PASS",
+    "Phase7CContractPackage": "PASS",
+    "DataContract": "PASS",
+    "TaskContractBindings": "PASS",
+    "START_IMPLEMENTATION_GATE": "PASS; eligible but not invoked"
+  },
+  "evidenceReferenceValidation": {
+    "validReferenceCount": 18,
+    "invalidReferenceCount": 0,
+    "sourceReferencesResolved": true,
+    "documentReferencesResolved": true,
+    "typeNameOnlyReferenceRejected": true
+  },
+  "reviewContextSufficiency": {
+    "result": "PASS",
+    "requiredCategories": ["candidate identity", "candidate checksum", "evidence identity", "InitialProjectRequest source/document reference", "Brief contracts", "Brief approval/currentness", "Planning contracts", "Planning Acceptance", "DatabaseDecision", "Dependency decisions", "Design package", "exactly three directions invariant", "selected design identity/checksum", "TaskGraph", "TaskContract", "capability registration", "DataContract binding", "START_IMPLEMENTATION guard", "synthetic lifecycle traceability", "deterministic preflight PASS", "current contract tests"],
+    "missingCategoriesBefore": [],
+    "missingCategoriesAfter": [],
+    "categoryCount": 21
+  },
+  "currentAdjacentApprovalsPreserved": {
+    "architecture-reviewer": { "executionId": "a02c25e4-98b2-44a6-a9a6-80db7573c385", "verdict": "APPROVED", "current": true },
+    "code-integration-reviewer": { "executionId": "24b3487b-e8d5-4f7b-af0f-e74691ec3541", "verdict": "APPROVED", "current": true },
+    "security-reviewer": { "executionId": "f406ff37-4453-4b0a-b29b-9a107d01a49c", "verdict": "APPROVED", "current": true },
+    "test-quality-reviewer": { "executionId": "28b6eb8f-5fc8-4dd2-b0e9-aeba57d5b538", "verdict": "APPROVED", "current": true }
+  },
+  "reviewPolicy": { "scope": "Contract Auditor findings ca-001, ca-003, ca-004, ca-005 only; ca-002 preserved resolved", "freshContractCallsPermitted": 1, "freshContractCallsUsed": 0, "otherSemanticReviewersRerun": false },
+  "createdAt": "2026-08-12T18:00:00.000Z",
+  "frozen": true,
+  "evidenceValid": true
+}

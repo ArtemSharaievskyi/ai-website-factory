@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "documentType": "web-workbench-evidence-pack",
+  "phaseOrFeatureId": "WEB_WORKBENCH",
+  "evidencePackId": "web-workbench-evidence-pack-r4-2026-08-12",
+  "revisionOf": "web-workbench-evidence-pack-r3-2026-08-12",
+  "candidateId": "web-workbench-2026-08-12",
+  "candidateChecksum": "758b623b29bf8d61a2f224571869e3522453fb6eff3b7de16ef618059c41b3c6",
+  "evidenceManifestChecksum": "758b623b29bf8d61a2f224571869e3522453fb6eff3b7de16ef618059c41b3c6",
+  "evidencePackChecksum": "4da68c2066089986d620d0d752fe2754ec97bd28d4733c97a54fe2523f5537ab",
+  "references": [
+    "src/runtime/trial-entry/service.ts:137-250",
+    "src/runtime/trial-entry/service.ts:317-354",
+    "src/runtime/workbench/application.ts:47-86",
+    "src/runtime/workbench/application.ts:212-278",
+    "src/runtime/workbench/contracts.ts:19-39",
+    "src/runtime/workbench/contracts.ts:176-208",
+    "src/persistence/database/repositories.ts:19-93",
+    "src/runtime/workbench/workbench.test.ts:103-147",
+    "scripts/workbench-playwright-smoke.ts:1-85",
+    "package.json:1-70"
+  ],
+  "contextSourceReferences": [
+    "src/domain/project/initial-request.ts:13-55",
+    "src/agents/planner/deterministic.ts:27-65",
+    "src/agents/planner/contracts.ts:48-92",
+    "src/orchestration/orchestrator/graph.ts:1-77",
+    "src/domain/contracts/phase7c.ts:298-387",
+    "src/domain/contracts/phase7c.ts:431-474",
+    "src/orchestration/tooling/registry.ts:131-149",
+    "src/agents/reviewers/contracts/deterministic.ts:29-69"
+  ],
+  "claims": [
+    { "id": "CA-R4-001", "claim": "The canonical synthetic lifecycle records a distinct InitialProjectRequest document reference, Lead-approved Brief, accepted Planning Package, planning acceptance, explicit decisions, Design Direction Set, single Design selection, TaskGraph, TaskContracts, and an uninvoked START_IMPLEMENTATION gate without customer artifacts.", "references": ["src/runtime/trial-entry/service.ts:137-250", "src/runtime/workbench/application.ts:212-278", "src/domain/project/initial-request.ts:13-55"] },
+    { "id": "CA-R4-002", "claim": "Project creation, Lead clarification, and non-persistent contact-form behavior each have explicit planning responsibilities, requirement edges, TaskGraph ownership, acceptance criteria, and validation traceability.", "references": ["src/runtime/workbench/application.ts:212-278", "src/runtime/workbench/workbench.test.ts:103-147"] },
+    { "id": "CA-R4-003", "claim": "The sole current executor declares every detailed capability required by the canonical TaskGraph and each current TaskContract is bound to the task capability, tool, skill, file, and artifact scopes.", "references": ["src/orchestration/tooling/registry.ts:131-149", "src/orchestration/orchestrator/graph.ts:1-77", "src/runtime/workbench/contracts.ts:176-208"] },
+    { "id": "CA-R4-004", "claim": "The accepted planning package, architecture, environment, DatabaseDecision, DataContract, and START_IMPLEMENTATION guard consistently express NONE with no persistent entity, Supabase variable, schema, RLS, migration, or database task; the contact intent is NOT_PERSISTED.", "references": ["src/agents/planner/deterministic.ts:27-65", "src/domain/contracts/phase7c.ts:298-387", "src/runtime/workbench/application.ts:236-249"] },
+    { "id": "CA-R4-005", "claim": "The selected Design checksum is current in TaskGraph sourceDocumentChecksums.design and the exactly-three-direction invariant is deterministically exercised.", "references": ["src/runtime/workbench/application.ts:252-278", "src/runtime/workbench/workbench.test.ts:119-129"] },
+    { "id": "CA-R4-006", "claim": "Deterministic currentness, checksum, source/document reference, planning, capability, DataContract, TaskContract, and Contract Auditor checks all pass; stale references are rejected.", "references": ["src/runtime/trial-entry/service.ts:317-354", "src/domain/contracts/phase7c.ts:298-387"] }
+  ],
+  "priorCurrentContractFindings": [
+    { "findingId": "ca-001", "severity": "ERROR", "category": "REQUIREMENT_NOT_TRACED", "summary": "The approved interactive requirements have references in tasks but no semantic implementation or validation trace.", "correctionTarget": "PLANNING" },
+    { "findingId": "ca-003", "severity": "CRITICAL", "category": "TASK_CAPABILITY_MISSING", "summary": "The sole current executor does not declare the capability identifiers required by the TaskGraph tasks.", "correctionTarget": "TASKGRAPH" },
+    { "findingId": "ca-004", "severity": "CRITICAL", "category": "DATA_CONTRACT_MISMATCH", "summary": "The package declares databaseMode NONE while planning and execution still require persisted approved_requests data, RLS, Supabase variables, and database validation.", "correctionTarget": "PLANNING" },
+    { "findingId": "ca-005", "severity": "WARNING", "category": "REFERENCE_NOT_FOUND", "summary": "The fixture names InitialProjectRequest separately from Brief, but supplies no artifact or reference that makes the distinction auditable or enforces the stated START_IMPLEMENTATION gate.", "correctionTarget": "WORKFLOW_CONTRACT" }
+  ],
+  "findingReconciliation": {
+    "ca-001": { "classification": "SYNTHETIC_FIXTURE_DEFECT", "rootCause": "The R3 fixture had requirement references but no semantically dedicated planning/task responsibility for the approved interactive requirements.", "repairApplied": "Canonical planning now has explicit home, contact, and form responsibilities; canonical TaskGraph tasks have dedicated project-creation, Lead-clarification, and contact-form objectives, ownership, acceptance, and validation traceability.", "remainingState": "Resolved deterministically; fresh semantic call is the final authorization check." },
+    "ca-002": { "classification": "CURRENTNESS_BINDING_DEFECT", "rootCause": "The prior fixture left TaskGraph sourceDocumentChecksums.design empty.", "repairApplied": "TaskGraph sourceDocumentChecksums.design is bound to the current selected Design checksum.", "remainingState": "Preserved resolved; deterministic currentness check passes and ca-002 is not in the R4 scope." },
+    "ca-003": { "classification": "SYNTHETIC_FIXTURE_DEFECT", "rootCause": "The R3 executor catalog covered coarse execution labels but not every detailed capability identifier required by TaskGraph tasks.", "repairApplied": "The current executor catalog declares all registered detailed TaskGraph capabilities, and canonical current TaskContracts bind those capabilities to every task.", "remainingState": "Resolved deterministically; fresh semantic call is the final authorization check." },
+    "ca-004": { "classification": "SYNTHETIC_FIXTURE_DEFECT", "rootCause": "The R3 fixture mixed a NONE database decision with generated persistence, Supabase, schema, RLS, environment, and database-task obligations.", "repairApplied": "Canonical planning is normalized to zero entities, empty Supabase/schema/RLS/environment obligations, no database tasks, and an explicit NONE DatabaseDecision; the only contact DataContract is NOT_PERSISTED.", "remainingState": "Resolved deterministically; no customer persistence was invented." },
+    "ca-005": { "classification": "WORKFLOW_CONTRACT_DEFECT", "rootCause": "The R3 fixture mentioned InitialProjectRequest as a lifecycle label without a distinct auditable artifact identity and checksum-bound reference.", "repairApplied": "InitialProjectRequest is created through createInitialProjectRequest, persisted in the fixture with requestId/reference/checksum, traced to Lead-derived Brief, and checked by the START_IMPLEMENTATION gate before implementation is eligible.", "remainingState": "Resolved deterministically; implementation start remains uninvoked." }
+  },
+  "reviewContextSufficiency": {
+    "result": "PASS",
+    "requiredCategories": ["candidate identity", "candidate checksum", "evidence identity", "InitialProjectRequest source/document reference", "Brief contracts", "Brief approval/currentness", "Planning contracts", "Planning Acceptance", "DatabaseDecision", "Dependency decisions", "Design package", "exactly three directions invariant", "selected design identity/checksum", "TaskGraph", "TaskContract", "capability registration", "DataContract binding", "START_IMPLEMENTATION guard", "synthetic lifecycle traceability", "deterministic preflight PASS", "current contract tests"],
+    "missingCategoriesBeforeRepair": [],
+    "missingCategoriesAfterRepair": [],
+    "categoryCount": 21
+  },
+  "deterministicValidation": {
+    "fixturePath": "docs/admin/workbench/web-workbench-synthetic-traceability-fixture-r4-2026-08-12.json",
+    "fixtureChecksum": "b84aae413b8d88801f7d9d7e7bc3cd228c404074d12a2e1e0e79143515fa4749",
+    "preflightPath": "docs/admin/workbench/web-workbench-contract-closure-preflight-r4-2026-08-12.json",
+    "focusedContractTests": "10 passed",
+    "workbenchFocusedTests": "45 passed",
+    "reviewerSuite": "7 files / 77 passed",
+    "taskGraphSmoke": "PASS; releaseEligible=true; passedTasks=6; repairs=0",
+    "typecheck": "PASS",
+    "lint": "PASS with 2 pre-existing warnings",
+    "gitDiffCheck": "PASS",
+    "planningStructure": "PASS",
+    "planningDependencies": "PASS",
+    "deterministicContractChecks": "PASS; 0 findings",
+    "allEightPreflightCounters": "0",
+    "validReferenceCount": 18,
+    "invalidReferenceCount": 0,
+    "sourceMutationAfterFreeze": false,
+    "implementationStartInvoked": false
+  },
+  "previousCurrentApprovals": {
+    "architecture-reviewer": { "executionId": "a02c25e4-98b2-44a6-a9a6-80db7573c385", "verdict": "APPROVED", "current": true },
+    "code-integration-reviewer": { "executionId": "24b3487b-e8d5-4f7b-af0f-e74691ec3541", "verdict": "APPROVED", "current": true },
+    "security-reviewer": { "executionId": "f406ff37-4453-4b0a-b29b-9a107d01a49c", "verdict": "APPROVED", "current": true },
+    "test-quality-reviewer": { "executionId": "28b6eb8f-5fc8-4dd2-b0e9-aeba57d5b538", "verdict": "APPROVED", "current": true }
+  },
+  "reviewPolicy": { "scope": "Contract Auditor only: ca-001, ca-003, ca-004, ca-005; ca-002 preserved resolved", "freshContractCallsPermitted": 1, "freshContractCallsUsed": 0, "secondRepairOrRerunAttempted": false, "otherSemanticReviewersRerun": false },
+  "evidencePersisted": true,
+  "evidenceFrozen": true,
+  "evidenceValid": true,
+  "traceabilityComplete": true,
+  "validReferenceCount": 18,
+  "invalidReferenceCount": 0,
+  "createdBeforeReview": true,
+  "createdAt": "2026-08-12T18:00:00.000Z"
+}

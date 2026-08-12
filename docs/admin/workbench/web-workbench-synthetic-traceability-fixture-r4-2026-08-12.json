@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "documentType": "web-workbench-synthetic-traceability-fixture",
+  "phaseOrFeatureId": "WEB_WORKBENCH",
+  "fixtureId": "synthetic-local-business-r4-2026-08-12",
+  "candidateId": "web-workbench-2026-08-12",
+  "candidateChecksum": "758b623b29bf8d61a2f224571869e3522453fb6eff3b7de16ef618059c41b3c6",
+  "customerArtifact": false,
+  "customerProjectStarted": false,
+  "implementationStarted": false,
+  "websiteLanguage": "de",
+  "databaseMode": "NONE",
+  "workflowState": "CONTRACT_AUDIT",
+  "initialProjectRequest": {
+    "requestId": "11111111-1111-4111-8111-111111111111",
+    "reference": "initial-project-request:11111111-1111-4111-8111-111111111111",
+    "checksum": "b3189563c07858cd47056f09540c104094e935e5d15d26aede2f4258ab96ec3d",
+    "documentType": "initial-project-request",
+    "source": "Lead",
+    "implementationStartInvoked": false
+  },
+  "brief": {
+    "documentType": "requirements",
+    "checksum": "35576e5738a43cc579abcedb0e2318c12cd38d87a56efd42b908d277c51c0b10",
+    "approval": { "approved": true, "approvedBy": "lead", "approvedAt": "2026-08-12T18:00:00.000Z", "approvedChecksum": "35576e5738a43cc579abcedb0e2318c12cd38d87a56efd42b908d277c51c0b10" },
+    "features": ["Projekt anlegen", "Lead-Klärung beantworten", "Kontaktanfrage ohne Persistenz bestätigen"],
+    "forms": ["Synthetisches Kontaktformular"],
+    "backendRequirements": [],
+    "supabaseRequirements": [],
+    "storageDecision": "not-needed",
+    "authenticationDecision": "no-authentication-guest-first"
+  },
+  "planning": {
+    "documentType": "planning-package",
+    "checksum": "4820dea142bce0f649269507a9f51d73712d4ff95f7c32ac68e074d995a39a77",
+    "accepted": true,
+    "acceptedAt": "2026-08-12T18:00:00.000Z",
+    "acceptedBy": "synthetic-user",
+    "responsibilities": [
+      { "planningReference": "page-route-home", "routeId": "route-home", "owner": "implementation", "requirements": ["Projekt anlegen", "Lead-Klärung beantworten"], "dataReads": [], "dataWrites": [] },
+      { "planningReference": "page-route-contact", "routeId": "route-contact", "owner": "implementation", "requirements": ["Kontaktanfrage ohne Persistenz bestätigen"], "dataReads": [], "dataWrites": ["Ephemeral validated contact intent only"] },
+      { "planningReference": "form-contact", "formId": "form-contact", "owner": "implementation", "requirements": ["Synthetisches Kontaktformular"], "validation": ["Non-empty message", "Length limit", "Discard after confirmation"] }
+    ],
+    "forms": [{ "formId": "form-contact", "databaseWrite": "No persistent write approved; discard after confirmation.", "requirementReferences": ["brief:forms", "requirement:feature:Kontaktanfrage ohne Persistenz bestätigen", "requirement:form:Synthetisches Kontaktformular"] }],
+    "userFlows": [{ "flowId": "flow-contact", "dataCreated": [], "dataRead": [], "dataUpdated": [], "formRequirements": ["form-contact"], "storageRequirements": [], "requirementReferences": ["brief:forms", "requirement:feature:Kontaktanfrage ohne Persistenz bestätigen", "requirement:form:Synthetisches Kontaktformular"] }],
+    "dataModel": { "entities": [], "traceability": [{ "decisionId": "77777777-7777-4777-8777-777777777777", "category": "data-model", "rationale": "No persistent data entity is approved for the synthetic workflow." }] },
+    "supabase": { "postgres": false, "auth": false, "storage": false, "realtime": false, "environmentVariables": [], "schemaPlan": [], "rlsRequirements": [], "migrationNeeds": [] },
+    "environmentVariables": [],
+    "databaseRecommendation": { "recommendation": "NOT_REQUIRED", "selectedMode": "NONE", "userDecisionRequired": true }
+  },
+  "design": {
+    "directionSetId": "263fc2bc-d0f0-5439-a5e4-5efb84513224",
+    "directionSetChecksum": "3139943f6491bb050c18b9f78a24491665a3773a7ab4a3ab3ce70d32432ebfae",
+    "directionCount": 3,
+    "directionIds": ["560ee451-e766-598f-a7aa-03540c4d1049", "e8f3b80d-c87c-5f4a-97e5-ff20be5ab4ad", "66f90c37-08a9-5e0a-8f90-5a661e101ca2"],
+    "selectedDirectionId": "e8f3b80d-c87c-5f4a-97e5-ff20be5ab4ad",
+    "selectedDirectionChecksum": "5b458ff730846ba5f7fd20c09e2b11c480855937c800d2eda9502ba3e7e7c54c",
+    "selectedDesignChecksum": "fbbc1db2a5943ec037d1d932d8652320894119db1c2b4e43fb22336d168504f7",
+    "singleSelection": true,
+    "exactlyThreeDirections": true
+  },
+  "architecture": {
+    "reviewVerdict": "APPROVED",
+    "reviewId": "33333333-3333-4333-8333-333333333333",
+    "reviewedBy": "architecture-reviewer",
+    "supabaseDatabaseRequirements": [],
+    "schemaPlan": [],
+    "rlsRequirements": [],
+    "environmentVariables": [],
+    "databaseMode": "NONE"
+  },
+  "phase7c": {
+    "packageChecksum": "b9d68a85f00c0a03a23842fbfad3757e526f566d920a950750868e931d8415c3",
+    "status": "APPROVED",
+    "databaseDecision": { "databaseDecisionId": "e49c9041-c17d-419c-8aa9-9b604a7f74f6", "mode": "NONE", "checksum": "b56332a1f4dfaf636cf17040c1e9437bed9ab8fd161351967c245849ffad3b5b", "userDecision": "APPROVED", "approvalStatus": "APPROVED" },
+    "dataContracts": [{ "dataContractId": "22222222-2222-4222-8222-222222222222", "checksum": "4686539d3d3df83fc5691e737ebb735b76214771a8b022bcfc0a982b342f0eeb", "name": "synthetic-contact-intent", "persistence": "NOT_PERSISTED", "fields": [{ "fieldId": "message", "type": "short text", "required": true, "sensitivity": "PUBLIC" }], "databaseDecisionRef": null }],
+    "taskContracts": {
+      "count": 22,
+      "homeTaskId": "51d7e2b4-5d3e-4f32-8549-89a41acb66f4",
+      "contactTaskId": "5a7e3c40-b5e2-4f6a-81e1-29c6ec59aba2",
+      "formTaskId": "0b029421-8e48-45ac-8e92-8fa9bf550794",
+      "validationTaskId": "97542d44-e713-4a5a-85d6-cc218a9b0ff5",
+      "formInputDataContractIds": ["22222222-2222-4222-8222-222222222222"],
+      "formOutputDataContractIds": ["22222222-2222-4222-8222-222222222222"],
+      "allCurrent": true,
+      "allRequiredCapabilitiesBound": true
+    },
+    "startImplementationGate": { "valid": true, "databaseTask": false, "invoked": false }
+  },
+  "requirementTraceability": {
+    "materialRequirements": ["Projekt anlegen", "Lead-Klärung beantworten", "Kontaktanfrage ohne Persistenz bestätigen", "Synthetisches Kontaktformular"],
+    "requirementReferences": ["requirement:feature:Projekt anlegen", "requirement:feature:Lead-Klärung beantworten", "requirement:feature:Kontaktanfrage ohne Persistenz bestätigen", "requirement:form:Synthetisches Kontaktformular"],
+    "planningReferences": ["page-route-home", "page-route-contact", "form-contact"],
+    "dedicatedTaskObjectives": { "projectCreation": true, "leadClarification": true, "contactFormValidationConfirmation": true },
+    "orphanRequirementCount": 0,
+    "untracedRequirementCount": 0,
+    "requirementEdgesPresent": true,
+    "planningEdgesPresent": true
+  },
+  "capabilityBinding": {
+    "registrySource": "src/orchestration/tooling/registry.ts:131-149",
+    "requiredCapabilities": ["source.inspect", "docs.library-read", "codebase.structure-read", "dependency.materialize", "edit.ast-patch", "ui.registry-read", "design.quality-detect", "validation.lint", "validation.typecheck", "validation.unit-test", "validation.build", "validation.functional"],
+    "currentExecutor": { "executorId": "implementation", "kind": "agent", "current": true, "declaresAllRequiredCapabilities": true },
+    "unknownCapabilityCount": 0,
+    "uncoveredCapabilityCount": 0
+  },
+  "sourceDocumentChecksums": { "brief": "35576e5738a43cc579abcedb0e2318c12cd38d87a56efd42b908d277c51c0b10", "planning": "4820dea142bce0f649269507a9f51d73712d4ff95f7c32ac68e074d995a39a77", "design": "fbbc1db2a5943ec037d1d932d8652320894119db1c2b4e43fb22336d168504f7", "architecture": "f3091b4c6580be44d6a210fe9d7218aecede5d376e3f713c3262777b6dda1b34", "content": "6b4c1314082f51b8467530ecf1419d1e0082e8e3203d7de6e007b9412d92e6c2", "assets": "5b13edf23923d2fcf0821c5812fef9423c61ab60ee669ce0e7f32cadcb46488e" },
+  "taskGraph": { "taskGraphChecksum": "a8448964aea7f9a21a3a5a3078f7578d8b17d8a4542827cff2485754c9888bec", "taskCount": 22, "sourceDocumentChecksumsDesignBound": true, "routeOwnersComplete": true, "deterministicContractFindings": 0 },
+  "referenceResolution": { "initialProjectRequest": "DOCUMENT_REFERENCE", "initialProjectRequestChecksumBound": true, "sourceReference": "src/domain/project/initial-request.ts:13-55", "sourceReferenceResolved": true, "typeNameAloneRejected": true, "invalidReferenceCount": 0 },
+  "deterministicChecks": { "planningStructure": "PASS", "planningDependencies": "PASS", "phase7cPackage": "PASS", "dataContract": "PASS", "taskContractBindings": "PASS", "startImplementationGate": "PASS", "staleReferencesRejected": true, "currentness": "PASS", "checksums": "PASS", "contractAudit": "PASS", "exactlyThreeDirections": "PASS", "ca002DesignBindingCurrent": true },
+  "preflight": { "requirementNotTracedCount": 0, "taskCapabilityMissingCount": 0, "dataContractMismatchCount": 0, "referenceNotFoundCount": 0, "currentnessErrorCount": 0, "checksumErrorCount": 0, "missingReviewContextCategoryCount": 0, "invalidEvidenceReferenceCount": 0, "passed": true },
+  "createdAt": "2026-08-12T18:00:00.000Z"
+}
