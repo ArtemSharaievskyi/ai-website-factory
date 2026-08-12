@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "documentType": "first-trial-entry-point-readiness",
+  "generatedOn": "2026-08-12",
+  "initialHead": "85497297ad8dd69b18c581ab96f732d84f6308c8",
+  "finalHead": "7db318bde6a4948b62623bed581a2bb7605f83e9",
+  "finalHeadMeaning": "bounded implementation source snapshot before this separate docs/admin commit",
+  "phaseState": {
+    "phase6": "COMPLETE",
+    "phase7A": "COMPLETE",
+    "phase7B": "COMPLETE",
+    "phase7C": "COMPLETE",
+    "phase7D": "COMPLETE",
+    "phase7E": "COMPLETE",
+    "phase7F": "COMPLETE",
+    "phase7G": "COMPLETE"
+  },
+  "existingEntryPoints": [
+    { "path": "src/app/page.tsx", "kind": "placeholder UI", "usable": false, "finding": "Foundation landing page; no project submission." },
+    { "path": "src/app/api/health/route.ts", "kind": "health API", "usable": false, "finding": "Health only; no project/workflow input." },
+    { "path": "src/agents/lead/server.ts", "kind": "server composition", "usable": false, "finding": "Requires a caller-provided project root and slug; no normal caller." },
+    { "path": "src/agents/lead/service.ts", "kind": "canonical domain authority", "usable": false, "finding": "Owns intake, Lead analysis, clarification, brief, and approval but had no user-facing entry." }
+  ],
+  "canonicalEntryPoint": "npm run factory:new -- --prompt-file .\\trial-site-prompt.txt",
+  "entryPointWasAlreadyPresent": false,
+  "implementationRequired": true,
+  "implementationScope": [
+    "scripts/factory-new.ts",
+    "scripts/factory-respond.ts",
+    "scripts/factory-status.ts",
+    "src/domain/project/initial-request.ts",
+    "src/runtime/trial-entry/cli.ts",
+    "src/runtime/trial-entry/production.ts",
+    "src/runtime/trial-entry/service.ts"
+  ],
+  "promptInputModes": ["prompt-file", "redirected-stdin", "interactive-stdin"],
+  "continuationMechanism": "npm run factory:respond -- --project <PROJECT_ID> [--answers-file .\\trial-site-answers.json]",
+  "statusMechanism": "npm run factory:status -- --project <PROJECT_ID> [--json]",
+  "initialRequestContract": {
+    "path": "src/domain/project/initial-request.ts",
+    "type": "InitialProjectRequest",
+    "strict": true,
+    "version": 1,
+    "maxUtf8Bytes": 131072,
+    "rawRequestIsBrief": false
+  },
+  "leadRouting": {
+    "firstSemanticOwner": "Lead Agent",
+    "path": "src/runtime/trial-entry/service.ts -> LeadAgentService.startProjectIntake -> analyzeProjectPrompt -> planClarifications",
+    "plannerDirectPath": false,
+    "designDirectPath": false,
+    "implementationDirectPath": false
+  },
+  "projectIdentityAuthority": "Host entry layer creates requestId/projectId; LeadAgentService creates the canonical FactoryProject and version. User/LLM cannot choose canonical IDs.",
+  "workflowStateAuthority": "WorkflowPersistenceService and transitionWorkflow",
+  "projectMemoryAuthority": "LeadMemoryAdapter -> FilesystemProjectMemorySyncPort -> ProjectMemoryStore",
+  "contextAssemblerIntegration": {
+    "preserved": true,
+    "path": "src/integrations/openai/adapters.ts -> src/runtime/context/bridge.ts -> ContextAssembler",
+    "rawPromptBodyForwarded": false
+  },
+  "providerTelemetryIntegration": {
+    "preserved": true,
+    "path": "src/runtime/trial-entry/production.ts -> createProductionProviderBundle",
+    "usageSink": true,
+    "cachedTokenTelemetry": true,
+    "invocationIdentity": "existing OpenAI structured client"
+  },
+  "securityBounds": {
+    "utf8ByteLimit": 131072,
+    "emptyRejected": true,
+    "nulRejected": true,
+    "promptFileRegularFileOnly": true,
+    "secretLikePromptFileNamesRejected": true,
+    "promptNotShellInterpolated": true,
+    "promptCannotChooseWorkspacePath": true,
+    "routineFullPromptLogging": false,
+    "secretsPrinted": false
+  },
+  "testMatrix": {
+    "T1": "PASS", "T2": "PASS", "T3": "PASS", "T4": "PASS", "T5": "PASS",
+    "T6": "PASS", "T7": "PASS", "T8": "PASS", "T9": "PASS", "T10": "PASS",
+    "T11": "PASS", "T12": "PASS", "T13": "PASS", "T14": "PASS", "T15": "PASS",
+    "T16": "PASS", "T17": "PASS", "T18": "PASS", "T19": "PASS", "T20": "PASS",
+    "T21": "PASS", "T22": "PASS", "T23": "PASS", "T24": "PASS", "T25": "PASS",
+    "T26": "PASS", "T27": "PASS", "T28": "PASS", "T29": "PASS", "T30": "PASS"
+  },
+  "focusedValidation": {
+    "command": "npx vitest run src/runtime/trial-entry/service.test.ts",
+    "testFiles": 1,
+    "tests": 30,
+    "result": "PASS"
+  },
+  "fullValidation": {
+    "npmTest": { "testFiles": 85, "tests": 1133, "result": "PASS" },
+    "testReviewers": { "testFiles": 7, "tests": 77, "result": "PASS" },
+    "typecheck": "PASS",
+    "lint": "PASS_WITH_2_PREEXISTING_WARNINGS",
+    "build": "PASS",
+    "npmAuditHigh": "PASS: 0 vulnerabilities",
+    "dbValidate": "PASS: 2 migrations",
+    "dbStatus": "PASS: current migration history",
+    "dbVerify": "PASS: 17 tables, 84 constraints, 17/17 RLS",
+    "dbTestIntegrity": "PASS",
+    "dockerComposeConfig": "PASS",
+    "taskgraphSmoke": "PASS",
+    "backendSmoke": "PASS",
+    "generatedRuntimeSmoke": "PASS",
+    "gitDiffCheck": "PASS"
+  },
+  "qaWorkspaceClosure": {
+    "factoryOwnedStaleCount": 0,
+    "activeCount": 0,
+    "unverifiedHistoricalPrefixMatchPreserved": ".qa-foundation-TtJjjb",
+    "verifiedStaleWorkspaceReconciled": true,
+    "unverifiedHistoricalWorkspaceDeleted": false
+  },
+  "realCustomerProjectCreated": false,
+  "realTrialPromptSubmitted": false,
+  "customerSourceGenerated": false,
+  "codexProviderAdded": false,
+  "databaseChange": false,
+  "migration": false,
+  "newDependency": false,
+  "packageLockChanged": false,
+  "implementationCommit": "7db318bde6a4948b62623bed581a2bb7605f83e9",
+  "nextAction": "Save the approved English Haus & Garten request locally as trial-site-prompt.txt, run the reported factory:new command, and stop after Lead clarification/questions or a Brief proposal.",
+  "readiness": "FIRST TRIAL WEBSITE ENTRY POINT: READY",
+  "generationStatus": "NOT_STARTED",
+  "hardeningStatus": "NOT_STARTED",
+  "deploymentStatus": "NOT_STARTED"
+}
