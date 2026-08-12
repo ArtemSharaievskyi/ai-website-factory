@@ -31,7 +31,7 @@ export type BackendPlans = {
 };
 
 export const FORM_VALIDATION_POLICY_VERSION = "form-validation-v2";
-const text = (operation: ImplementationOperation) => operation.type === "delete-file" ? "" : operation.type === "patch-text" ? operation.newText : operation.content;
+const text = (operation: ImplementationOperation) => operation.type === "delete-file" ? "" : operation.type === "patch-text" ? operation.newText : operation.type === "ast-patch" ? ("body" in operation.payload ? operation.payload.body : "source" in operation.payload ? operation.payload.source : "value" in operation.payload ? operation.payload.value : `${operation.patchKind}:${operation.payload.importedName}`) : operation.content;
 const allText = (proposal: ImplementationChangeProposal) => proposal.operations.map(text).join("\n");
 const compactFieldName = (value: string) => value.trim().toLowerCase().replaceAll(/[^a-z0-9]/g, "");
 const explicitFormFieldAliases: Record<string, string[]> = { name: ["name"], email: ["email", "e-mail"], fahrradtyp: ["fahrradtyp", "bicycletype", "bicycle-type", "bikeType"], beschreibungdesproblems: ["beschreibung des problems", "problem description", "problembeschreibung", "problemdescription"] };

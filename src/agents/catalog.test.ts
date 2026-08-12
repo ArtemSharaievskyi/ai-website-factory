@@ -67,7 +67,7 @@ describe("typed agent catalog", () => {
     expect(() => assertAgentSupportsCapability("lead", "implementation.code")).toThrowError(/does not support/i);
   });
   it("keeps tool, skill, contract, and policy permissions explicit", () => {
-    expect(AGENT_TOOL_IDS).toEqual(["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read"]);
+    expect(AGENT_TOOL_IDS).toEqual(["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit"]);
     expect(agentCatalog.filter((agent) => agent.allowedSkillIds.length > 0).map((agent) => agent.agentId)).toEqual(["lead", "planner", "design", "implementation", "architecture-reviewer", "contract-auditor", "code-integration-reviewer", "security-reviewer", "test-quality-reviewer"]);
     expect(Object.fromEntries(agentCatalog.map((agent) => [agent.agentId, agent.allowedSkillIds]))).toEqual({
       lead: ["lead-requirements-completeness"],

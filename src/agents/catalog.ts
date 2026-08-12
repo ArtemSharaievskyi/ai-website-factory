@@ -2,7 +2,7 @@ import { AgentCapabilityIdSchema, AgentDefinitionSchema, AgentToolIdSchema, type
 import { ImplementationTaskTypeSchema } from "@/domain/tasks/schema";
 import { z } from "zod";
 
-export const AGENT_TOOL_IDS = ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read"] as const satisfies readonly z.infer<typeof AgentToolIdSchema>[];
+export const AGENT_TOOL_IDS = ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit"] as const satisfies readonly z.infer<typeof AgentToolIdSchema>[];
 export type AgentToolId = (typeof AGENT_TOOL_IDS)[number];
 export const AGENT_CAPABILITY_IDS = ["requirements.clarify", "requirements.brief", "planning.architecture", "planning.content", "planning.assets", "design.directions", "design.selection", "implementation.code", "implementation.backend", "review.architecture", "review.contracts", "review.integration", "review.security", "review.test-quality"] as const satisfies readonly z.infer<typeof AgentCapabilityIdSchema>[];
 export type AgentCapabilityId = (typeof AGENT_CAPABILITY_IDS)[number];
@@ -55,7 +55,7 @@ export const designAgentDefinition = definition({
 export const implementationAgentDefinition = definition({
   agentId: "implementation", displayName: "Implementation Agent", role: "implementation", version: "1.0.0",
   capabilities: ["implementation.code", "implementation.backend"], supportedTaskTypes: IMPLEMENTATION_TASK_TYPES,
-  allowedTools: ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read"], allowedSkillIds: ["nextjs-server-client-implementation", "typed-form-implementation", "supabase-application-integration", "maintainable-performance-implementation"],
+  allowedTools: ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit"], allowedSkillIds: ["nextjs-server-client-implementation", "typed-form-implementation", "supabase-application-integration", "maintainable-performance-implementation"],
   contextPolicy: { version: "implementation-context-v1", allowedCategories: ["TASK_SLICE", "PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "CODEBASE_CONTEXT", "VALIDATION_DIAGNOSTIC", "PREVIOUS_FINDINGS"], maxBytes: 120000, maxItems: 80 },
   inputContract: { schemaId: "implementation.input", version: "1" }, outputContract: { schemaId: "implementation.output", version: "1" },
   promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "implementation.v1", policyVersions: { context: "implementation-context-v1", execution: "implementation-v1" },

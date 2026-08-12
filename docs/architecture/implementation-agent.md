@@ -8,6 +8,8 @@ This foundation supports deterministic execution for workspace preparation, proj
 
 Functional QA is a separate `validate-functional-flow` task and uses only the controlled Playwright-functional boundary after runtime validation.
 
+Existing `.ts` and `.tsx` files may also use the bounded `AST_PATCH_EXISTING` strategy when the current TaskContract grants `controlled-edit` and `edit.ast-patch`. Selectors are typed structural descriptors rather than text or regular expressions; the host requires the current file, TaskContract, TaskGraph, scope, dependency, and expected-result checksums, preserves untouched source spans, reparses the result, and records only bounded patch evidence. Full-file create/replace and patch-text remain available through the same ChangeProposal transaction.
+
 Full execution invokes this agent through its existing single-task contract and does not duplicate proposal, scope, skill, or atomic-apply logic.
 # Implementation may receive only relevant, bounded Context7 excerpts when the task includes Context7-read. Existing scope and proposal validators remain authoritative.
 

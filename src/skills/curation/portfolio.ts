@@ -107,7 +107,7 @@ export const agentResponsibilityProfiles: readonly AgentResponsibilityProfile[] 
     role: "Implementation agent for bounded source changes, backend work, and tests.",
     capabilities: ["implementation.code", "implementation.backend"],
     taskTypes: ["prepare-workspace", "implement-project-foundation", "implement-page", "implement-form", "implement-server-action", "implement-route-handler", "implement-database-schema", "implement-rls-policy", "implement-authentication", "implement-storage", "write-unit-tests", "write-integration-tests", "write-e2e-tests", "repair-targeted-failure"],
-    tools: ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read"],
+    tools: ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit"],
     contextCategories: ["TASK_SLICE", "PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "CODEBASE_CONTEXT", "VALIDATION_DIAGNOSTIC", "PREVIOUS_FINDINGS"],
     readOnly: false,
     responsibilities: ["execute one authorized task in staging", "apply typed proposals with bounded filesystem authority", "implement frontend, backend, auth, storage and persistence slices", "produce test changes and repair targeted validation failures"],

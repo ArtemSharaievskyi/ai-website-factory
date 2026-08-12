@@ -15,6 +15,7 @@ export const ToolIdSchema = z.enum([
   "codebase-memory-read",
   "generated-runtime-validation",
   "playwright-functional-qa",
+  "controlled-edit",
 ]);
 export type ToolId = z.infer<typeof ToolIdSchema>;
 

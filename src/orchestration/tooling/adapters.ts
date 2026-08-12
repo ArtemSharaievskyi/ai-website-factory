@@ -17,6 +17,10 @@ export type SerializedToolExecutor<T> = Readonly<{
   [K in keyof T]: T[K] extends (...args: infer Args) => Promise<unknown> ? (...args: Args) => Promise<string> : never;
 }>;
 
+export type ControlledEditHost = Readonly<{
+  applyAstPatch: (input: { proposalId: string; operationId: string; relativePath: string; expectedFileChecksum: string }) => Promise<string>;
+}>;
+
 export type ToolExecutorBindings = Readonly<{
   "openai-structured-output-provider": unknown;
   "context7-documentation-service": SerializedToolExecutor<Context7DocumentationPort>;
@@ -24,6 +28,7 @@ export type ToolExecutorBindings = Readonly<{
   "codebase-memory-service": SerializedToolExecutor<CodebaseMemoryPort>;
   "generated-runtime-validator": GeneratedProjectRuntimeValidator;
   "functional-qa-service": SerializedToolExecutor<FunctionalQaService>;
+  "controlled-edit-layer": ControlledEditHost;
 }>;
 
 export type BoundToolOperation =
@@ -34,7 +39,8 @@ export type BoundToolOperation =
   | { toolId: "codebase-memory-read"; operationId: "ensure-index"; executor: SerializedToolExecutor<CodebaseMemoryPort>; input: { scope: WorkspaceScope; taskId?: string; signal?: AbortSignal } }
   | { toolId: "codebase-memory-read"; operationId: "find-symbol"; executor: SerializedToolExecutor<CodebaseMemoryPort>; input: { plan: CodebaseMemoryQueryPlan; signal?: AbortSignal } }
   | { toolId: "codebase-memory-read"; operationId: "get-relevant-source"; executor: SerializedToolExecutor<CodebaseMemoryPort>; input: { plan: CodebaseMemoryQueryPlan; signal?: AbortSignal } }
-  | { toolId: "playwright-functional-qa"; operationId: "run-functional-flow"; executor: SerializedToolExecutor<FunctionalQaService>; input: FunctionalQaServiceInput };
+  | { toolId: "playwright-functional-qa"; operationId: "run-functional-flow"; executor: SerializedToolExecutor<FunctionalQaService>; input: FunctionalQaServiceInput }
+  | { toolId: "controlled-edit"; operationId: "ast-patch"; executor: ControlledEditHost; input: { proposalId: string; operationId: string; relativePath: string; expectedFileChecksum: string } };
 
 /** Host dispatch after authorizeToolRequest; the discriminated input prevents raw shell, URL, or executor selection. */
 export async function executeBoundToolOperation(input: BoundToolOperation): Promise<ToolResult> {
@@ -48,5 +54,6 @@ export async function executeBoundToolOperation(input: BoundToolOperation): Prom
     case "find-symbol": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.findSymbol(input.input.plan, input.input.signal), Date.now() - started);
     case "get-relevant-source": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.getRelevantSource(input.input.plan, input.input.signal), Date.now() - started);
     case "run-functional-flow": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.run(input.input), Date.now() - started);
+    case "ast-patch": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.applyAstPatch(input.input), Date.now() - started);
   }
 }

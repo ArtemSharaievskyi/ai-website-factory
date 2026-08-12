@@ -78,7 +78,7 @@ There is no `shell`, `terminal`, `execute-command`, `powershell`, `cmd`, or arbi
 
 ## Mutation and integration boundaries
 
-The registry contains no generic write, edit, delete, rename, or move operation. The Implementation Agent still emits a structured `ImplementationChangeProposal`; existing scope, dependency, checksum, and atomic-apply validators remain the sole normal source mutation path. AST-aware patching is deferred to Phase 7D.
+The registry contains no generic write, edit, delete, rename, or move operation. The Implementation Agent emits a structured `ImplementationChangeProposal`; existing scope, dependency, checksum, and atomic-apply validators remain the sole source mutation path. Phase 7D adds only the typed `controlled-edit:ast-patch` permission marker. The host-owned `AtomicChangeApplier` validates the checksum-bound `AstPatchOperation`, locates one TypeScript AST target with the compiler API, applies bounded span edits, reparses the complete file, records safe evidence, and commits through the same transaction/rollback boundary. The registered controlled-edit adapter carries identifiers and evidence metadata only; it is not a second mutation authority.
 
 Context7 remains allowlisted, version-aware, bounded, retry-limited, optionally unavailable, and advisory. It cannot install a package or expand architecture. The official shadcn Registry remains read-only, approved-source-only, bounded, and non-installing. Codebase Memory remains durable, read-only, currentness-bound structural context. Playwright remains controlled functional QA; no screenshots, visual regression, arbitrary evaluate, video, or trace tooling was added.
 

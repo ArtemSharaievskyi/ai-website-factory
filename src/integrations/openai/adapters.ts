@@ -88,6 +88,11 @@ const OrchestrationPlanSchema = z
   .strict();
 const checksumText = (value: string) =>
   createHash("sha256").update(value, "utf8").digest("hex");
+const dropNullFields = (value: Record<string, unknown>) => Object.fromEntries(Object.entries(value).filter(([, nested]) => nested !== null));
+const normalizeAstTransportOperation = (operation: Record<string, unknown>) => {
+  const { artifactId, expectedTarget, selector, payload, ...rest } = operation;
+  return { ...rest, ...(artifactId === null ? {} : { artifactId }), ...(expectedTarget === null ? {} : { expectedTarget: dropNullFields(expectedTarget as Record<string, unknown>) }), selector: dropNullFields(selector as Record<string, unknown>), payload: dropNullFields(payload as Record<string, unknown>) };
+};
 
 const ImplementationOperationStructuredBaseSchema = z
   .object({
@@ -104,7 +109,48 @@ const ImplementationOperationStructuredBaseSchema = z
     selectedDesignReferences: z.array(z.string().min(1)),
   })
   .strict();
-const ImplementationOperationStructuredSchema = z.discriminatedUnion("type", [
+const AstSelectorStructuredSchema = z.discriminatedUnion("selectorKind", [
+  z.object({ selectorKind: z.literal("function"), name: z.string(), exported: z.boolean().nullable(), defaultExport: z.boolean().nullable() }).strict(),
+  z.object({ selectorKind: z.literal("arrow-function"), name: z.string(), exported: z.boolean().nullable(), defaultExport: z.boolean().nullable() }).strict(),
+  z.object({ selectorKind: z.literal("variable"), name: z.string() }).strict(),
+  z.object({ selectorKind: z.literal("object-property"), objectName: z.string(), propertyName: z.string() }).strict(),
+  z.object({ selectorKind: z.literal("import-declaration"), moduleSpecifier: z.string(), typeOnly: z.boolean().nullable() }).strict(),
+  z.object({ selectorKind: z.literal("import-specifier"), moduleSpecifier: z.string(), importedName: z.string(), localName: z.string().nullable(), typeOnly: z.boolean().nullable() }).strict(),
+  z.object({ selectorKind: z.literal("class-method"), className: z.string(), methodName: z.string(), exported: z.boolean().nullable(), defaultExport: z.boolean().nullable() }).strict(),
+]);
+const AstExpectedTargetStructuredSchema = z.object({ nodeKind: z.string(), structuralFingerprint: z.string().nullable() }).strict();
+const AstPatchStructuredBaseSchema = z.object({
+  type: z.literal("ast-patch"),
+  operationId: z.string().uuid(),
+  operationVersion: z.literal("1.0.0"),
+  relativePath: z.string().min(1),
+  expectedFileChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+  expectedResultChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+  encoding: z.literal("utf-8"),
+  taskId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  projectVersion: z.number().int().positive(),
+  taskContractId: z.string().uuid(),
+  taskContractChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+  taskGraphChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+  artifactId: z.string().nullable(),
+  reason: z.string().min(1).max(500),
+  requirementReferences: z.array(z.string().min(1)),
+  planningReferences: z.array(z.string().min(1)),
+  selectedDesignReferences: z.array(z.string().min(1)),
+  selector: AstSelectorStructuredSchema,
+  expectedTarget: AstExpectedTargetStructuredSchema.nullable(),
+  resultValidation: z.object({ parseRequired: z.literal(true), validationVersion: z.literal("1") }).strict(),
+}).strict();
+const AstPatchStructuredSchema = z.discriminatedUnion("patchKind", [
+  AstPatchStructuredBaseSchema.extend({ patchKind: z.literal("REPLACE_NODE_BODY"), payload: z.object({ body: z.string() }).strict() }),
+  AstPatchStructuredBaseSchema.extend({ patchKind: z.literal("INSERT_BEFORE_NODE"), payload: z.object({ source: z.string() }).strict() }),
+  AstPatchStructuredBaseSchema.extend({ patchKind: z.literal("INSERT_AFTER_NODE"), payload: z.object({ source: z.string() }).strict() }),
+  AstPatchStructuredBaseSchema.extend({ patchKind: z.literal("ADD_NAMED_IMPORT"), payload: z.object({ moduleSpecifier: z.string(), importedName: z.string(), localName: z.string().nullable(), typeOnly: z.boolean() }).strict() }),
+  AstPatchStructuredBaseSchema.extend({ patchKind: z.literal("REMOVE_IMPORT_SPECIFIER"), payload: z.object({}).strict() }),
+  AstPatchStructuredBaseSchema.extend({ patchKind: z.literal("ADD_OBJECT_PROPERTY"), payload: z.object({ propertyName: z.string(), value: z.string() }).strict() }),
+]);
+const ImplementationOperationStructuredSchema = z.union([
   ImplementationOperationStructuredBaseSchema.extend({
     type: z.literal("create-file"),
     content: z.string(),
@@ -116,7 +162,16 @@ const ImplementationOperationStructuredSchema = z.discriminatedUnion("type", [
   ImplementationOperationStructuredBaseSchema.extend({
     type: z.literal("delete-file"),
   }),
+  AstPatchStructuredSchema,
 ]);
+const Phase7CStructuredBindingSchema = z.object({
+  taskContractId: z.string().uuid(),
+  taskContractChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+  dataContractIds: z.array(z.string().uuid()),
+  databaseDecisionId: z.string().uuid().nullable(),
+  databaseDecisionChecksum: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
+  dependencyProposalId: z.string().uuid().nullable(),
+}).strict();
 export const ImplementationChangeProposalStructuredOutputSchema = z
   .object({
     proposalId: z.string().uuid(),
@@ -133,6 +188,7 @@ export const ImplementationChangeProposalStructuredOutputSchema = z
     requirementReferences: z.array(z.string().min(1)),
     planningReferences: z.array(z.string().min(1)),
     selectedDesignReferences: z.array(z.string().min(1)),
+    phase7c: Phase7CStructuredBindingSchema.nullable(),
     providerMetadata: z
       .object({
         provider: z.string().min(1),
@@ -872,7 +928,7 @@ export class OpenAiImplementationProvider implements ImplementationProvider {
       z.infer<typeof ImplementationChangeProposalStructuredOutputSchema>
     >({
       ...prompt,
-      system: `${prompt.system}\n${foundationInstruction}\n${formRetryInstruction}\n${testArtifactInstruction}\n${repairInstruction}\nFor every create-file or replace-file operation, expectedResultChecksum must be the lowercase SHA-256 checksum of the exact UTF-8 content string. For patch-text, checksum the exact resulting UTF-8 file content. Preserve authorized relative paths and do not invent Factory metadata paths.`,
+      system: `${prompt.system}\n${foundationInstruction}\n${formRetryInstruction}\n${testArtifactInstruction}\n${repairInstruction}\nFor every create-file or replace-file operation, expectedResultChecksum must be the lowercase SHA-256 checksum of the exact UTF-8 content string. For patch-text, checksum the exact resulting UTF-8 file content. AST_PATCH_EXISTING is allowed only when the context advertises it: use one typed structural selector against an existing .ts/.tsx file, include the current expectedFileChecksum, current TaskContract/TaskGraph identity, and the exact expectedResultChecksum. AST patches must be narrow, parse-valid, dependency-authorized, and must never contain executable callbacks, shell instructions, or raw source outside the bounded payload. Preserve authorized relative paths and do not invent Factory metadata paths.`,
       role: "implementation",
       schema: ImplementationChangeProposalStructuredOutputSchema,
       schemaName: "implementation-change-proposal",
@@ -882,17 +938,12 @@ export class OpenAiImplementationProvider implements ImplementationProvider {
     const normalized = {
       ...result.value,
       operations: result.value.operations.map((operation) => {
+        if (operation.type === "ast-patch") return normalizeAstTransportOperation(operation as unknown as Record<string, unknown>);
         const { expectedPriorChecksum, ...rest } = operation;
-        const expectedResultChecksum =
-          rest.type === "create-file" || rest.type === "replace-file"
-            ? checksumText(rest.content)
-            : rest.expectedResultChecksum;
-        return {
-          ...rest,
-          expectedResultChecksum,
-          ...(expectedPriorChecksum === null ? {} : { expectedPriorChecksum }),
-        };
+        const expectedResultChecksum = rest.type === "create-file" || rest.type === "replace-file" ? checksumText(rest.content) : rest.expectedResultChecksum;
+        return { ...rest, expectedResultChecksum, ...(expectedPriorChecksum === null ? {} : { expectedPriorChecksum }) };
       }),
+      ...(result.value.phase7c ? { phase7c: (() => { const { databaseDecisionId, databaseDecisionChecksum, dependencyProposalId, ...binding } = result.value.phase7c; return { ...binding, ...(databaseDecisionId === null ? {} : { databaseDecisionId }), ...(databaseDecisionChecksum === null ? {} : { databaseDecisionChecksum }), ...(dependencyProposalId === null ? {} : { dependencyProposalId }) }; })() } : {}),
       providerMetadata: {
         provider: result.value.providerMetadata.provider,
         ...(result.value.providerMetadata.inputTokens === null

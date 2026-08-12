@@ -92,6 +92,13 @@ export const TOOL_REGISTRY: Readonly<Record<ToolId, ToolDefinition>> = Object.fr
     availability: "AVAILABLE",
     operations: [operation({ operationId: "run-functional-flow", requiredCapabilities: ["validation.functional"], mutationMode: "VALIDATION_EXECUTION", networkMode: "NO_NETWORK", workspaceScope: "CURRENT_TASK_WORKSPACE", executorId: "functional-qa-service", inputSchemaRef: "qa.run-functional-flow.input", outputSchemaRef: "qa.run-functional-flow.output", timeoutMs: 120_000 })],
   }),
+  "controlled-edit": definition({
+    id: "controlled-edit",
+    version: "1.0.0",
+    kind: "developer-tool",
+    availability: "AVAILABLE",
+    operations: [operation({ operationId: "ast-patch", requiredCapabilities: ["edit.ast-patch"], mutationMode: "MUTATION_VIA_CHANGE_PROPOSAL", networkMode: "NO_NETWORK", workspaceScope: "CURRENT_TASK_WORKSPACE", executorId: "controlled-edit-layer", inputSchemaRef: "controlled-edit.ast-patch.input", outputSchemaRef: "controlled-edit.ast-patch.output" })],
+  }),
 });
 
 export const CAPABILITY_REGISTRY: readonly CapabilityDefinition[] = Object.freeze([
@@ -105,6 +112,7 @@ export const CAPABILITY_REGISTRY: readonly CapabilityDefinition[] = Object.freez
   CapabilityDefinitionSchema.parse({ id: "validation.build", description: "Run the fixed generated-project build validation.", eligibleOperations: [{ toolId: "generated-runtime-validation", operationId: "build" }], taskTypes: ["validate-build"], availability: "AVAILABLE" }),
   CapabilityDefinitionSchema.parse({ id: "validation.functional", description: "Run the approved functional QA scenario plan.", eligibleOperations: [{ toolId: "playwright-functional-qa", operationId: "run-functional-flow" }], taskTypes: ["validate-functional-flow"], availability: "AVAILABLE" }),
   CapabilityDefinitionSchema.parse({ id: "dependency.materialize", description: "Materialize only the current host-authorized generated dependency state.", eligibleOperations: [{ toolId: "generated-runtime-validation", operationId: "install-locked" }, { toolId: "generated-runtime-validation", operationId: "npm-ci" }], taskTypes: ["implement-project-foundation", "validate-typecheck", "validate-lint", "validate-unit-tests", "validate-build"], availability: "AVAILABLE" }),
+  CapabilityDefinitionSchema.parse({ id: "edit.ast-patch", description: "Apply a bounded TypeScript structural patch through the current ChangeProposal transaction.", eligibleOperations: [{ toolId: "controlled-edit", operationId: "ast-patch" }], taskTypes: ["implement-*", "repair-targeted-failure"], availability: "AVAILABLE" }),
 ]);
 
 const noArguments = z.object({}).strict();
@@ -125,6 +133,7 @@ const TOOL_INPUT_SCHEMAS: Readonly<Record<string, z.ZodType>> = Object.freeze({
   "runtime.unit-test.input": input(noArguments),
   "runtime.build.input": input(noArguments),
   "qa.run-functional-flow.input": input(z.object({ scenarioId: z.string().min(1) }).strict()),
+  "controlled-edit.ast-patch.input": input(z.object({ proposalId: z.string().uuid(), operationId: z.string().uuid(), relativePath: z.string().min(1).max(240), expectedFileChecksum: z.string().regex(/^[a-f0-9]{64}$/) }).strict()),
 });
 
 const genericToolOutputSchema = z.record(z.string(), z.unknown());
@@ -139,6 +148,7 @@ const TOOL_OUTPUT_SCHEMAS: Readonly<Record<string, z.ZodType>> = Object.freeze({
   "codebase-memory.get-relevant-source.output": CodebaseMemoryResultSchema,
   "runtime.command-result.output": RuntimeCommandResultSchema,
   "qa.run-functional-flow.output": FunctionalQaReportSchema,
+  "controlled-edit.ast-patch.output": input(z.object({ operationId: z.string().uuid(), status: z.enum(["accepted", "applied", "idempotent", "denied"]), evidenceId: z.string().min(1).max(300) }).strict()),
 });
 
 export function registeredToolInputIsValid(toolId: string, operationId: string, value: ToolInput) {

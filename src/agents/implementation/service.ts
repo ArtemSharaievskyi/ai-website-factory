@@ -405,6 +405,7 @@ export class ImplementationAgentService {
         this.policy,
         dependencyContext,
         input.phase7cContractPackage,
+        { taskGraphChecksum: input.taskGraphChecksum },
       );
       const applied = await this.applier.apply(
         {
@@ -419,6 +420,7 @@ export class ImplementationAgentService {
         () => Boolean(signal?.aborted),
         dependencyContext,
         input.phase7cContractPackage,
+        { taskGraphChecksum: input.taskGraphChecksum },
       );
       const acceptedPlanning = input.acceptedPlanningPackage as BackendPlans["planning"];
       if (input.task.taskType === "implement-storage") StoragePlanSchema.parse(acceptedPlanning?.storage);
@@ -443,6 +445,7 @@ export class ImplementationAgentService {
         deletedFiles: applied.deletedFiles,
         beforeChecksums: applied.beforeChecksums,
         afterChecksums: applied.afterChecksums,
+        ...(applied.astPatchEvidence?.length ? { astPatchEvidence: applied.astPatchEvidence } : {}),
         validationResults: validations,
         completedAt: now(),
         providerUsageMetadata: proposal.providerMetadata,

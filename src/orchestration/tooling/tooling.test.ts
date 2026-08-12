@@ -118,7 +118,7 @@ function codebaseMemoryResult(text: string) {
 
 describe("Phase 7B developer tooling authority", () => {
   it("has a deterministic registry with no generic mutation or shell operations", () => {
-    expect(validateToolRegistry()).toEqual({ tools: 6, operations: 15, capabilities: 10 });
+    expect(validateToolRegistry()).toEqual({ tools: 7, operations: 16, capabilities: 11 });
     const operations = Object.values(TOOL_REGISTRY).flatMap((tool) => tool.operations.map((operation) => operation.operationId));
     expect(operations).not.toEqual(expect.arrayContaining(["write-file", "edit-file", "delete-file", "move-file", "shell", "terminal", "execute-command"]));
     expect(CAPABILITY_REGISTRY.every((capability) => capability.eligibleOperations.length > 0)).toBe(true);
