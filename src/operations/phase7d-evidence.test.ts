@@ -28,6 +28,10 @@ const laterPhaseDrift = new Set([
   "src/orchestration/tooling/registry.ts",
   "src/orchestration/tooling/tooling.test.ts",
   "src/skills/curation/portfolio.ts",
+  "src/integrations/openai/client.ts",
+  "src/integrations/openai/prompts.ts",
+  "src/integrations/openai/usage.ts",
+  "src/runtime/production-factory-runtime-core.ts",
 ]);
 const fileChecksum = (content: Buffer) => createHash("sha256").update(content).digest("hex");
 const manifestChecksum = (files: readonly CandidateFile[]) =>

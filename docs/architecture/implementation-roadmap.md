@@ -13,6 +13,7 @@
 - The Orchestrator provides deterministic TaskGraph planning, and production execution-state/task-executor adapters bridge the existing FullTaskGraph scheduler to application services.
 - The Planner / Architect foundation consumes only approved Briefs and accepts them without advancing beyond `AWAITING_DESIGN_SELECTION`. The Design Agent creates exactly three deterministic directions and waits for explicit selection before `READY_FOR_IMPLEMENTATION`.
 - Read-only Context7 documentation enrichment, approved read-only shadcn Registry references, the backend task-handler foundation, npm-only runtime validation, controlled Playwright QA, bounded full TaskGraph execution, and optional read-only Codebase Memory are implemented current foundations.
+- Phase 7G token/context efficiency is CURRENT: role-provider adapters route through the canonical bounded ContextBundle assembler with checksum-bound provenance, TypeScript skeleton/snippet selection, approved-skill and Context7 slicing, diagnostic narrowing, deterministic prefilters, bounded expansion, stable prompt-prefix identity, and non-secret efficiency telemetry.
 
 ## Planned and deferred work
 
@@ -23,6 +24,7 @@
 - Paid design-generator integration: **EXCLUDED** by the current capability policy; it is not a current production integration and has no runtime credential or tool path.
 - `Dependency Authority`: **CURRENT_IMPLEMENTATION** for bounded package decisions; Phase 7F uses it for the optional exact `motion@12.43.0` request and user-approved amendment.
 - `Preview` and `Deployment`: **DEFERRED_WORK** and excluded from the current Factory; no Preview Agent, Deployment Agent, deployment stage, or customer deployment is implemented.
+- Final hardening audit, customer-project E2E, and deployment remain the next/out-of-scope boundaries after Phase 7G; this phase does not claim those outcomes.
 
 The active skill portfolio snapshot is documented in [`../admin/skill-curation/active-agent-skill-portfolio-2026-08-09.json`](../admin/skill-curation/active-agent-skill-portfolio-2026-08-09.json) as a derived historical/admin view.
 

@@ -190,8 +190,8 @@ export function createProductionFactoryRuntime(
     env,
     usageSink: async (usage) => {
       evidence.providerRequests += usage.requestCount;
-      evidence.inputTokens += usage.inputTokens;
-      evidence.outputTokens += usage.outputTokens;
+      evidence.inputTokens += usage.inputTokens ?? 0;
+      evidence.outputTokens += usage.outputTokens ?? 0;
       evidence.roles[usage.role] =
         (evidence.roles[usage.role] ?? 0) + usage.requestCount;
     },

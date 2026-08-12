@@ -30,7 +30,7 @@ import type {
 } from "@/agents/implementation/contracts";
 import { ImplementationChangeProposalSchema } from "@/agents/implementation/contracts";
 import { OpenAiStructuredClient } from "./client";
-import { rolePrompt } from "./prompts";
+import { boundedRolePrompt as rolePrompt } from "@/runtime/context/bridge";
 import type { ProviderUsageSink } from "./usage";
 import type { OrchestrationPlanningProvider } from "@/orchestration/orchestrator/service";
 import {
@@ -83,6 +83,7 @@ import {
 import { isWorkflowRequirement } from "@/agents/lead/clarification-policy";
 import type { ApprovedProceduralSkillPromptContext } from "./prompts";
 import { dependencyCatalogPromptContext } from "@/dependencies/authority";
+import { sliceDocumentationExcerpt } from "@/runtime/context/slicing";
 const OrchestrationPlanSchema = z
   .object({ tasks: z.array(z.unknown()) })
   .strict();
@@ -900,9 +901,17 @@ export class OpenAiImplementationProvider implements ImplementationProvider {
     context: ImplementationContext,
     signal?: AbortSignal,
   ): Promise<ImplementationChangeProposal> {
+    const promptContext = {
+      ...context,
+      skills: (context.skills ?? []).map(({ skillId, approvedChecksum, coverageKeys }) => ({ skillId, approvedChecksum, coverageKeys })),
+      context7Excerpts: context.context7Excerpts?.map((excerpt) => {
+        const slice = sliceDocumentationExcerpt(excerpt, context.task.objective.split(/\W+/).filter((term) => term.length >= 4).slice(0, 8), 8_000);
+        return { ...excerpt, content: slice.content, checksum: slice.checksum, truncationState: slice.selectedBytes < slice.candidateBytes ? "excerpt-truncated" as const : excerpt.truncationState };
+      }),
+    };
     const prompt = rolePrompt(
       "implementation",
-      context,
+      promptContext,
       false,
       (context.skills ?? []).map((skill) => ({
         skillId: skill.skillId,

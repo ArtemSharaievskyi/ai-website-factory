@@ -36,7 +36,8 @@
     "skills:activate": "tsx scripts/activate-initial-skill-portfolio.ts",
     "factory:e2e-smoke": "tsx scripts/factory-e2e-smoke.ts",
     "codebase-memory:smoke": "tsx scripts/codebase-memory-smoke.ts",
-    "phase7f:live-check": "tsx scripts/phase7f-live-check.ts"
+    "phase7f:live-check": "tsx scripts/phase7f-live-check.ts",
+    "phase7g:efficiency-report": "tsx scripts/phase7g-efficiency-report.ts"
   },
   "dependencies": {
     "next": "16.2.12",

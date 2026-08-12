@@ -5,8 +5,11 @@ import { AiProviderError, isAiProviderError } from "./errors";
 import { FifoConcurrencyLimiter } from "./limiter";
 import type { AiProviderConfig } from "./config";
 import type { ProviderDiagnostic, ProviderEventSink, ProviderUsage, ProviderUsageSink } from "./usage";
+import type { ContextBundle } from "@/runtime/context";
+import { createInvocationFingerprint, createInvocationUsageRecord } from "@/runtime/context/telemetry";
+import { createHash, randomUUID } from "node:crypto";
 
-export type StructuredRequest<T> = { role: string; promptVersion: string; system: string; user: string; schemaName: string; schema: ZodType<T>; signal?: AbortSignal; idempotencyKey?: string };
+export type StructuredRequest<T> = { role: string; promptVersion: string; system: string; user: string; schemaName: string; schema: ZodType<T>; signal?: AbortSignal; idempotencyKey?: string; contextBundle?: ContextBundle; promptPrefixChecksum?: string; promptPrefixBytes?: number };
 export type StructuredResponse<T> = { value: T; usage: ProviderUsage; requestId: string; diagnostic?: ProviderDiagnostic };
 export type StructuredExecutor = <T>(request: StructuredRequest<T>, client: OpenAI, config: AiProviderConfig, correction: boolean) => Promise<{ value: T; requestId: string; inputTokens?: number; cachedInputTokens?: number; outputTokens?: number; diagnostic?: ProviderDiagnostic }>;
 
@@ -29,16 +32,24 @@ export class OpenAiStructuredClient {
   }
 
   request<T>(request: StructuredRequest<T>): Promise<StructuredResponse<T>> {
-    if (request.idempotencyKey) {
-      const existing = this.inFlight.get(request.idempotencyKey);
+    const fingerprint = this.fingerprint(request);
+    if (fingerprint) {
+      const existing = this.inFlight.get(fingerprint);
       if (existing) return existing.then((value) => value as StructuredResponse<T>);
     }
     const promise = this.limiter.run(() => this.execute(request), request.signal) as Promise<StructuredResponse<unknown>>;
-    if (request.idempotencyKey) {
-      this.inFlight.set(request.idempotencyKey, promise);
-      void promise.then(() => this.inFlight.delete(request.idempotencyKey!), () => this.inFlight.delete(request.idempotencyKey!));
+    if (fingerprint) {
+      this.inFlight.set(fingerprint, promise);
+      void promise.then(() => this.inFlight.delete(fingerprint), () => this.inFlight.delete(fingerprint));
     }
     return promise as Promise<StructuredResponse<T>>;
+  }
+
+  private fingerprint<T>(request: StructuredRequest<T>) {
+    const contextChecksum = request.contextBundle?.checksum ?? createHash("sha256").update(`${request.system}\n${request.user}`, "utf8").digest("hex");
+    const prefixChecksum = request.promptPrefixChecksum ?? createHash("sha256").update(request.system, "utf8").digest("hex");
+    const identity = createInvocationFingerprint({ agentId: request.role, model: this.config.model, schemaVersion: request.contextBundle?.schemaVersion ?? 1, currentnessIdentity: request.contextBundle?.currentnessIdentity ?? "legacy-request", contextBundleChecksum: contextChecksum, promptPrefixChecksum: prefixChecksum });
+    return request.idempotencyKey ? `${request.idempotencyKey}:${identity}` : identity;
   }
 
   private async execute<T>(request: StructuredRequest<T>): Promise<StructuredResponse<T>> {
@@ -52,7 +63,8 @@ export class OpenAiStructuredClient {
         if (request.signal?.aborted) throw new AiProviderError("AI_REQUEST_CANCELLED", "AI request was cancelled.");
         try {
           const result = await this.executor(request, this.client, this.config, correction);
-          const usage: ProviderUsage = { inputTokens: result.inputTokens ?? 0, cachedInputTokens: result.cachedInputTokens ?? 0, outputTokens: result.outputTokens ?? 0, totalTokens: (result.inputTokens ?? 0) + (result.outputTokens ?? 0), requestCount: 1, retryCount: retries, correctionCount: correction ? 1 : 0, provider: "openai", model: this.config.model, role: request.role, promptVersion: request.promptVersion };
+          const actualUsageCaptured = result.inputTokens !== undefined || result.outputTokens !== undefined;
+          const usage = createInvocationUsageRecord({ invocationFingerprint: this.fingerprint(request) ?? randomUUID(), agentId: request.role, ...(request.contextBundle?.taskId ? { taskId: request.contextBundle.taskId } : {}), workflowStage: request.contextBundle?.workflowStage ?? request.role, role: request.role, ...(request.contextBundle?.contextBundleId ? { contextBundleId: request.contextBundle.contextBundleId } : {}), ...(request.contextBundle?.checksum ? { contextChecksum: request.contextBundle.checksum } : {}), provider: "openai", model: this.config.model, ...(result.inputTokens === undefined ? {} : { inputTokens: result.inputTokens }), ...(result.cachedInputTokens === undefined ? {} : { cachedInputTokens: result.cachedInputTokens }), ...(result.outputTokens === undefined ? {} : { outputTokens: result.outputTokens }), ...(result.inputTokens !== undefined && result.outputTokens !== undefined ? { totalTokens: result.inputTokens + result.outputTokens } : {}), actualUsageCaptured, cacheTelemetryUnavailable: result.cachedInputTokens === undefined, prefixChecksum: request.promptPrefixChecksum ?? createHash("sha256").update(request.system, "utf8").digest("hex"), prefixBytes: request.promptPrefixBytes ?? Buffer.byteLength(request.system, "utf8"), contextMetrics: request.contextBundle?.metrics, requestCount: 1, retryCount: retries, correctionCount: correction ? 1 : 0, promptVersion: request.promptVersion }) as ProviderUsage;
           await this.usageSink?.(usage);
           this.eventSink?.({ type: "request.completed", provider: "openai", model: this.config.model, role: request.role, promptVersion: request.promptVersion, requestId: result.requestId, retryCount: retries, startedAt, completedAt: new Date().toISOString(), elapsedMs: Date.now() - started, diagnostic: result.diagnostic });
           return { value: result.value, usage, requestId: result.requestId, diagnostic: result.diagnostic };
@@ -103,7 +115,7 @@ async function defaultExecutor<T>(request: StructuredRequest<T>, client: OpenAI,
   } catch (error) {
     throw new AiProviderError("AI_OUTPUT_DOMAIN_INVALID", "Provider structured output failed Factory schema validation.", error, { ...responseDiagnostic, stage: "domain_validation", domainValidationIssuePaths: zodIssuePaths(error) });
   }
-  return { value, requestId: completion.id, inputTokens: completion.usage?.prompt_tokens, cachedInputTokens: completion.usage?.prompt_tokens_details?.cached_tokens ?? 0, outputTokens: completion.usage?.completion_tokens, diagnostic: responseDiagnostic } as const;
+  return { value, requestId: completion.id, inputTokens: completion.usage?.prompt_tokens, ...(completion.usage?.prompt_tokens_details?.cached_tokens === undefined ? {} : { cachedInputTokens: completion.usage.prompt_tokens_details.cached_tokens }), outputTokens: completion.usage?.completion_tokens, diagnostic: responseDiagnostic } as const;
 }
 
 function safeClassName(error: unknown) { return error instanceof Error && error.constructor?.name ? error.constructor.name : typeof error === "object" && error ? "SdkError" : "Error"; }

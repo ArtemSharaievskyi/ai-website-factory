@@ -1,0 +1,17 @@
+# Phase 7G context inventory
+
+This inventory records the production GPT boundary observed at the accepted Phase 7F baseline. The Factory has one provider boundary (`src/integrations/openai/client.ts`) and one approved model configuration (`src/integrations/openai/config.ts`). Role adapters in `src/integrations/openai/adapters.ts` cover Lead, Planner, Design, Implementation, orchestration planning, and the Architecture, Contract, Code / Integration, Security, and Test / Quality reviewers.
+
+| Invocation | Prompt builder | Canonical input before Phase 7G | Source/context behavior before Phase 7G | Usage telemetry before Phase 7G |
+| --- | --- | --- | --- | --- |
+| Lead analysis, clarifications, Brief | `rolePrompt("lead", ...)` | Lead input and canonical analysis/Brief schemas | JSON-stringified role input; selected skills rendered as full loaded markdown | request count, input/output fields when provider returned them; cached input defaulted to zero |
+| Planner | `rolePrompt("planner", ...)` plus locale/dependency policy | approved Brief and planning contract input | JSON-stringified planning input; Context7 was bounded host-side but its excerpts entered the role input | same provider usage shape |
+| Design | `rolePrompt("design", ...)` plus logo policy | approved Brief, accepted Planning, design request | JSON-stringified request; Phase 7F source adapters pre-filtered candidates, but prompt assembly had no shared manifest | same provider usage shape |
+| Implementation | `rolePrompt("implementation", ...)` plus task policies | TaskContract/Phase 7C, design, architecture, task graph, files, skills, docs, memory | `TaskContextAssembler` walked scoped files and attached complete file contents; skills and Context7 excerpts were attached to the provider input | same provider usage shape |
+| Orchestration planning | `rolePrompt("orchestrator", ...)` | orchestration input and strict task output schema | JSON-stringified input | provider usage available at client boundary |
+| Semantic reviewers | reviewer services and `rolePrompt(...)` | bounded reviewer input/evidence pack and reviewer contract | evidence was bounded by reviewer ownership, but provider prompt construction was not represented by one typed bundle | request usage available, no actual-cache/unavailable distinction |
+| Repairs/corrections | same role adapter with correction/provider retry | failed task/result metadata and current repair input | retry/correction could repeat the original role input; no delta-context record | retry/correction counters existed, no context-delta telemetry |
+
+The main pre-7G waste patterns were full scoped implementation files, full selected skill material, repeated canonical/project-memory facts, complete documentation excerpts, raw or repetitive diagnostics at repair boundaries, and role adapters independently serializing context. The Phase 7G layer now centralizes selection, deduplication, budgets, provenance, slicing, and prompt metrics without making the ContextAssembler a filesystem or mutation authority.
+
+The provider still uses the existing OpenAI structured `chat.completions.parse` boundary, the configured model, strict Zod response schemas, existing limiter/retry/correction behavior, and explicit cancellation. Phase 7G does not add model routing, provider fallback, cache-control request parameters, raw-prompt persistence, a result cache, or a new persistence table.
