@@ -1,0 +1,565 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-7b-r2-g3-o1-review-identity-traceability-plan",
+  "planId": "r2-g3-o1-review-identity-traceability-plan-2026-08-12",
+  "generatedOn": "2026-08-12",
+  "baselineHead": "d4776ace417eb149cc363c5546b0919fea55a90d",
+  "r2g2AcceptedCommit": "be97c3839a494efe2d75d0edb029b2d5f7b9d009",
+  "currentState": {
+    "phase7B": "BLOCKED",
+    "r2g2": "COMPLETE",
+    "r2g3": "BLOCKED",
+    "r2g3O1": "BLOCKED_SUCCESSOR_PLAN_READY",
+    "r2g3O2": "FROZEN_PASS",
+    "freshSemanticReviewerCallsThisRun": 0,
+    "fullFactoryValidationThisRun": false,
+    "sourceOrTestMutationThisRun": false
+  },
+  "worktreeClassification": {
+    "trackedDirty": [
+      {
+        "path": "src/orchestration/orchestrator/orchestrator.test.ts",
+        "classification": "R2_G3_CURRENT_CANDIDATE",
+        "sha256Start": "c290bfdc298a73e9cc5cc046d238c0c6aa314e429b79d11515e64d565b10b28f",
+        "sha256End": "c290bfdc298a73e9cc5cc046d238c0c6aa314e429b79d11515e64d565b10b28f",
+        "lineCount": 44
+      }
+    ],
+    "untrackedHistoricalAdmin": {
+      "classification": "R2_G2_HISTORICAL_ADMIN",
+      "pathPrefix": "docs/admin/phase-7b/",
+      "preserved": true
+    },
+    "knownTransient": [
+      ".context7-cache/",
+      ".qa-foundation-6cqH2r/",
+      ".qa-foundation-AwNYWV/",
+      ".qa-foundation-D7V5Ab/",
+      ".qa-foundation-gG6Sz5/",
+      ".qa-foundation-iuPyhD/",
+      ".qa-foundation-Lx7ISS/",
+      ".qa-foundation-Mp0lcC/",
+      ".qa-foundation-pEA2D5/",
+      ".qa-foundation-RN7MGr/",
+      ".qa-foundation-rQHSbq/",
+      ".qa-foundation-S5fnRY/",
+      ".qa-foundation-st5cyR/",
+      ".qa-foundation-tKGH9X/",
+      ".qa-foundation-TtJjjb/",
+      ".qa-foundation-tvuBX7/",
+      ".qa-foundation-v7JqG6/",
+      ".qa-foundation-von3Le/",
+      ".qa-foundation-ygGBKr/"
+    ],
+    "unrelatedUnexpected": []
+  },
+  "r2g3SourceCandidateId": "r2-g3-evidence-candidate-2026-08-12",
+  "r2g3SourceCandidateChecksum": "c7f2d6ad8762dee519596eb394155c35a8da4303201303fe6695c942dce542da",
+  "r2g3SourceCandidateChecksumStatus": "REPORTED_ONLY_NO_MACHINE_MANIFEST_PRESENT",
+  "r2g3SourceCandidateFiles": [
+    "src/orchestration/orchestrator/orchestrator.test.ts"
+  ],
+  "sourceEvidencePackId": "r2-g3-evidence-pack-2026-08-12",
+  "sourceEvidencePackChecksum": "62182e6e5cb086f4addf950aa2b5be4190e8b0801dbe64898364c46cce5e8bb8",
+  "sourceEvidenceStatus": {
+    "reportedValidReferences": 8,
+    "reportedInvalidReferences": 0,
+    "machinePackArtifactPresent": false,
+    "machineReviewerVerificationPresent": false,
+    "sourceOfReportedValues": "prior R2-G3 run report supplied with this reconciliation request",
+    "interpretation": "REFERENCE_VALIDITY_PASS_TRACEABILITY_COMPLETENESS_FAIL"
+  },
+  "authoritativeArtifactInventory": {
+    "r2g3MachineResult": null,
+    "r2g3EvidencePack": null,
+    "r2g3ReviewerVerification": null,
+    "r2g3CandidateManifest": null,
+    "historicalR2g3Definition": "docs/admin/phase-7b/phase-7b-semantic-reconciliation-2026-08-11.json",
+    "historicalR2g3ClosureContract": "docs/admin/phase-7b/r2-g2-closure-contract-2026-08-11.json",
+    "latestAcceptedR2g2Closure": "docs/admin/phase-7b/r2-g2-final-evidence-completion-result-2026-08-11.json",
+    "ordinaryReviewerRecords": "src/domain/review/schema.ts and workflow_documents persistence path"
+  },
+  "sourceFinding": {
+    "findingId": "tqr-r2g3-001",
+    "reviewer": "test-quality-reviewer",
+    "severity": "ERROR",
+    "category": "REQUIREMENT_NOT_VERIFIED",
+    "exactClaim": "The graph-policy test passes, but the frozen evidence pack does not demonstrate persisted review identity and complete requirement-to-artifact-to-test mapping.",
+    "previousVerdict": "CHANGES_REQUIRED",
+    "contractAuditorVerdict": "APPROVED",
+    "productionDefectsReported": 0,
+    "productionRegressionsReported": 0,
+    "requestedProof": [
+      "A host-owned durable identity for each semantic reviewer execution",
+      "Candidate and evidence-pack checksums bound to that identity",
+      "Explicit requirement-to-artifact-to-test-to-test-execution mapping",
+      "A persisted verdict and finding identity recoverable after restart"
+    ]
+  },
+  "r2g3O1": {
+    "obligationId": "R2-G3-O1-REVIEW-IDENTITY-TRACEABILITY",
+    "groupId": "R2-G3-EVIDENCE_COMPLETENESS",
+    "title": "Persist semantic evidence and prove the generated graph path",
+    "sourceFindings": [
+      "contract-audit-001",
+      "tqr-7b-003",
+      "tqr-r2g3-001"
+    ],
+    "currentState": "BLOCKED_REVIEW_IDENTITY_AND_TRACEABILITY",
+    "requiredClosure": [
+      "Persist host-owned review execution identity and result checksum",
+      "Bind review identity to one immutable candidate and one immutable evidence pack",
+      "Persist the explicit requirement-to-artifact-to-test-to-test-execution edge",
+      "Persist reviewer identity/version, policy/prompt version, verdict, finding IDs, and timestamps",
+      "Prove the same record is reconstructible after restart",
+      "Keep customer-project Brief/Planning/Design lineage out of this factory-only obligation"
+    ],
+    "deterministicAcceptance": [
+      "The generated graph path remains exercised by the existing O2 test",
+      "The structured identity record parses and checksum-validates",
+      "All source references validate against the frozen candidate manifest",
+      "The persisted record reloads with the same candidate, pack, test, execution, and verdict identities"
+    ],
+    "semanticOwner": [
+      "contract-auditor",
+      "test-quality-reviewer"
+    ],
+    "blockingCondition": "Any missing or non-durable identity edge keeps O1 and R2-G3 BLOCKED."
+  },
+  "r2g3O2": {
+    "obligationId": "R2-G3-O2-GENERATED-GRAPH-POLICY-EVIDENCE",
+    "currentState": "PASS",
+    "frozenPass": true,
+    "currentTest": "src/orchestration/orchestrator/orchestrator.test.ts:33",
+    "generatedGraphEvidence": [
+      "src/orchestration/orchestrator/graph.ts:17-24",
+      "src/orchestration/orchestrator/graph.ts:57-68",
+      "src/orchestration/orchestrator/tools.ts:6-24",
+      "src/orchestration/tooling/registry.ts:154-175",
+      "src/orchestration/tooling/authority.ts:75-97"
+    ],
+    "targetedResultReported": "13/13 PASS",
+    "reopenAllowed": false
+  },
+  "reviewIdentityModel": {
+    "executionIdField": {
+      "ordinaryArchitectureReview": "reviewId",
+      "ordinaryContractAudit": "auditId",
+      "ordinaryCodeIntegrationReview": "reviewId",
+      "ordinarySecurityReview": "reviewId",
+      "ordinaryTestQualityReview": "reviewId",
+      "type": "UUID",
+      "hostGenerated": true,
+      "generatedAt": "after provider result normalization and before durable history/current save",
+      "unifiedR2g3Field": null,
+      "currentR2g3Status": "NOT_PERSISTED"
+    },
+    "reviewerIdentityFields": {
+      "fields": [
+        "reviewerAgentId or auditorAgentId",
+        "reviewerVersion or auditorVersion",
+        "capability",
+        "policyVersion",
+        "promptVersion"
+      ],
+      "ordinaryRecordsPersisted": true,
+      "currentR2g3Persisted": false
+    },
+    "candidateBindingFields": {
+      "ordinaryFields": [
+        "briefChecksum",
+        "planningChecksum",
+        "architectureReviewChecksum",
+        "designChecksum",
+        "contractAuditChecksum",
+        "taskGraphChecksum",
+        "sourceChecksum",
+        "testSourceChecksum"
+      ],
+      "r2g3CandidateId": null,
+      "r2g3CandidateChecksum": null,
+      "status": "UNSUPPORTED_BY_CURRENT_REVIEW_RECORD_CONTRACT"
+    },
+    "evidenceBindingFields": {
+      "ordinaryFields": [
+        "resultChecksum",
+        "result.reviewedArtifactRefs",
+        "qualityEvidenceChecksum",
+        "securityEvidenceChecksum"
+      ],
+      "r2g3EvidencePackId": null,
+      "r2g3EvidencePackChecksum": null,
+      "adminScopeEvidencePackChecksum": "SelfReviewScopeResultSchema.evidencePackChecksum",
+      "status": "PARTIAL_NO_PACK_ID_OR_REVIEW_EXECUTION_BINDING"
+    },
+    "obligationFindingFields": {
+      "findingFields": [
+        "result.findings[].findingId",
+        "result.findings[].severity",
+        "result.findings[].category",
+        "result.findings[].evidenceRefs",
+        "result.findings[].affectedArtifacts",
+        "result.findings[].recommendedAction"
+      ],
+      "obligationIdField": null,
+      "status": "FINDING_ID_EXISTS_OBLIGATION_BINDING_ABSENT"
+    },
+    "verdictFields": [
+      "result.verdict",
+      "result.blockedReason",
+      "resultChecksum"
+    ],
+    "versionCurrentnessFields": [
+      "schemaVersion",
+      "documentType",
+      "projectId",
+      "projectVersion",
+      "createdAt",
+      "updatedAt",
+      "reviewerVersion",
+      "policyVersion",
+      "promptVersion",
+      "upstream/source/test/quality evidence checksums"
+    ],
+    "currentnessLimitation": "getCurrentReview/getCurrentAudit compare selected artifact checksums and APPROVED verdict, not review ID, candidate ID, evidence-pack ID, test execution ID, or prompt/evidence identity as a complete chain."
+  },
+  "reviewIdentityCreation": {
+    "ordinaryContractAudit": {
+      "file": "src/agents/reviewers/contracts/service.ts:123-190",
+      "function": "ContractAuditService.audit",
+      "idGenerationRule": "auditId = randomUUID()",
+      "lifecycleStage": "after deterministic/provider result normalization, before history/current persistence",
+      "hostAuthority": "Factory reviewer service, not the model",
+      "providerCallBeforeId": true
+    },
+    "ordinaryTestQualityReview": {
+      "file": "src/agents/reviewers/test-quality/service.ts:66-166",
+      "function": "TestQualityReviewService.review",
+      "idGenerationRule": "reviewId = randomUUID()",
+      "lifecycleStage": "after deterministic/provider result normalization, before history/current persistence",
+      "hostAuthority": "Factory reviewer service, not the model",
+      "providerCallBeforeId": true
+    },
+    "factorySelfReviewPath": {
+      "file": "scripts/factory-self-review.ts:1200-1355",
+      "function": "buildArtifact",
+      "idGenerationRule": "runId = checksumJson of baseline/evidence manifest/policy/reviewer/skill identities",
+      "lifecycleStage": "before provider calls",
+      "hostAuthority": "Factory self-review harness",
+      "perReviewerExecutionId": false,
+      "currentR2g3Harness": "removed transient harness; no canonical source or persisted output remains"
+    }
+  },
+  "reviewPersistence": {
+    "canonicalAuthority": "MULTIPLE_WITH_EXPLICIT_ROLES",
+    "factoryR2g3Role": {
+      "authority": "ADMIN_ARTIFACT_ONLY",
+      "persistenceType": "versioned JSON under docs/admin/phase-7b",
+      "schemaOrRecord": "Existing factory self-review artifact conventions; current schema has runId, baselineCommit, evidenceManifestChecksum, reviewer/scope IDs, evidencePackChecksum, snapshotIdentity, findings, and result artifact checksums, but no per-review reviewExecutionId/candidateId/testExecutionId",
+      "writePath": "scripts/factory-self-review.ts writes the final admin artifact and per-reviewer result artifacts",
+      "readPath": "JSON artifact load and deterministic checksum validation",
+      "restartDurable": false,
+      "immutableHistory": "Git-committed admin artifact; no current R2-G3 artifact exists",
+      "idempotencyBehavior": "Self-review runId can reuse an existing completed artifact; current R2-G3 temporary run had no reusable persisted artifact"
+    },
+    "ordinaryProjectReviewRole": {
+      "authority": "DATABASE_REVIEW_HISTORY",
+      "persistenceType": "workflow_documents.payload JSONB",
+      "schemaOrRecord": "ArchitectureReviewRecord/History, ContractAuditRecord/History, CodeIntegrationReviewRecord/History, SecurityReviewRecord/History, TestQualityReviewRecord/History",
+      "writePath": "reviewer service -> DocumentRepository.save -> mapDocumentToRow -> PostgreSQL saveDocument",
+      "readPath": "reviewer service getCurrentReview/getCurrentAudit -> DocumentRepository.get -> PostgreSQL getDocument -> schema/checksum validation",
+      "restartDurable": true,
+      "immutableHistory": "history payload is durable and DocumentRepository rejects writes after the project version is immutable",
+      "idempotencyBehavior": "service inputHash/idempotency maps are process-local; database document save tokens are durable for the save operation, but the service does not reconstruct its in-memory result map after restart"
+    },
+    "projectMemoryRole": "NONE_FOR_REVIEWER_IDENTITY; Project Memory stores workflow projections such as quality/full-execution documents and is not used by reviewer services for canonical review records.",
+    "databaseTables": [
+      "workflow_documents",
+      "idempotency_records"
+    ],
+    "databaseMigration": "No reviewer-specific table or migration is required for the preferred bounded admin-artifact correction."
+  },
+  "currentTraceabilityGraph": [
+    {
+      "from": "R2-G3-O1-REVIEW-IDENTITY-TRACEABILITY",
+      "to": "R2-G3-EVIDENCE_COMPLETENESS definition",
+      "linkingField": "r2g3O1.obligationId plus historical source finding contract-audit-001",
+      "status": "PRESENT_AND_DURABLE",
+      "durable": true,
+      "evidence": "docs/admin/phase-7b/phase-7b-semantic-reconciliation-2026-08-11.json:378-390; docs/admin/phase-7b/r2-g2-closure-contract-2026-08-11.json:208"
+    },
+    {
+      "from": "R2-G3-O2 generated graph artifact",
+      "to": "orchestrator test source",
+      "linkingField": "buildImplementationTaskGraph call and generated functional task assertions",
+      "status": "PRESENT_AND_DURABLE",
+      "durable": true,
+      "evidence": "src/orchestration/orchestrator/graph.ts:57-68; src/orchestration/orchestrator/orchestrator.test.ts:33"
+    },
+    {
+      "from": "orchestrator test source",
+      "to": "13/13 targeted test execution",
+      "linkingField": "command plus test file/test name only",
+      "status": "PRESENT_TRANSIENT_ONLY",
+      "durable": false,
+      "evidence": "Reported command npm exec vitest run src/orchestration/orchestrator/orchestrator.test.ts; no persisted test-execution record"
+    },
+    {
+      "from": "test execution",
+      "to": "R2-G3 candidate",
+      "linkingField": "candidateId/candidateChecksum/testExecutionId",
+      "status": "MISSING_FROM_PERSISTENCE",
+      "durable": false,
+      "evidence": "No R2-G3 candidate manifest or structured QualityCheck/test execution artifact exists"
+    },
+    {
+      "from": "R2-G3 candidate",
+      "to": "R2-G3 evidence pack",
+      "linkingField": "candidateId/candidateChecksum/evidencePackId/evidencePackChecksum",
+      "status": "PRESENT_TRANSIENT_ONLY",
+      "durable": false,
+      "evidence": "Reported IDs/checksums only; no current R2-G3 pack artifact"
+    },
+    {
+      "from": "evidence pack",
+      "to": "semantic reviewer execution",
+      "linkingField": "reviewExecutionId bound to candidate/evidence checksums",
+      "status": "UNSUPPORTED_BY_CURRENT_CONTRACT",
+      "durable": false,
+      "evidence": "ReviewResult and current admin scope result have no such complete binding"
+    },
+    {
+      "from": "semantic reviewer execution",
+      "to": "verdict/findings",
+      "linkingField": "reviewExecutionId/resultChecksum/result.verdict/result.findings[].findingId",
+      "status": "PRESENT_TRANSIENT_ONLY",
+      "durable": false,
+      "evidence": "Prior provider results were transient; no current R2-G3 result/verification artifact"
+    }
+  ],
+  "brokenTraceabilityEdges": [
+    "Requirement O1 -> explicit typed mapping to generated graph/test is not persisted in the R2-G3 result.",
+    "Test execution -> candidate checksum/testExecutionId is absent; the 13/13 result is a transient command report.",
+    "Candidate -> evidence pack is reported but not backed by a current manifest/pack artifact.",
+    "Evidence pack -> reviewer execution has no host-owned persisted reviewExecutionId binding the candidate and pack.",
+    "Reviewer execution -> verdict/finding identity is not recoverable from a current R2-G3 artifact."
+  ],
+  "o1RootCause": {
+    "primaryClassification": "EVIDENCE_CONTRACT_GAP",
+    "secondaryClassifications": [
+      "REVIEW_IDENTITY_NOT_PERSISTED_FOR_CURRENT_R2G3_RUN",
+      "EVIDENCE_PACK_LINKAGE_GAP",
+      "TEST_EXECUTION_NOT_PERSISTED"
+    ],
+    "explanation": "The normal reviewer services already create durable reviewId/auditId records, but the factory-only R2-G3 provider invocation did not create a service record. The existing admin self-review record is also only partially identifying: it has run/scope/evidence checksums but no per-review execution ID or candidate/test binding. Therefore the missing closure is a bounded Factory-review evidence-contract/persistence composition gap, not a customer-production behavior defect.",
+    "confidence": "HIGH"
+  },
+  "classification": {
+    "productionDefect": false,
+    "factoryInfrastructureDefect": true,
+    "testGap": true,
+    "evidencePackGap": true,
+    "persistenceGap": true,
+    "contractGap": true,
+    "customerGeneratedWebsiteAffected": false
+  },
+  "requiredMutationType": "EVIDENCE_CONTRACT_FIX",
+  "preferredMinimalSolution": "Extend the existing factory self-review admin artifact contract/producer so each bounded R2-G3 semantic reviewer result receives a host-generated reviewExecutionId and persists candidate, evidence-pack, test-execution, reviewer, result, verdict, finding, obligation, and currentness bindings in one machine-readable Phase 7B result. Reuse the existing admin-artifact authority; do not create a parallel database authority or synthetic customer project.",
+  "futureProductionFiles": [],
+  "futureFactoryInfrastructureFiles": [
+    "scripts/factory-self-review.ts"
+  ],
+  "futureTestFiles": [
+    "src/operations/factory-self-review.test.ts"
+  ],
+  "futureAdminEvidenceFiles": [
+    "docs/admin/phase-7b/r2-g3-o1-evidence-pack-2026-08-12.json",
+    "docs/admin/phase-7b/r2-g3-o1-review-identity-traceability-result-2026-08-12.json",
+    "docs/admin/phase-7b/r2-g3-o1-review-identity-traceability-result-2026-08-12.md"
+  ],
+  "futurePersistenceChange": {
+    "required": true,
+    "scope": "Factory-only admin evidence metadata",
+    "schemaChangeRequired": false,
+    "typedAdminContractExtensionRequired": true,
+    "migrationRequired": false,
+    "exactExistingAuthority": "Existing factory self-review admin artifact conventions under docs/admin plus scripts/factory-self-review.ts",
+    "ordinaryProjectReviewPersistenceReuse": "Do not add a second reviewer-history database model; retain workflow_documents as the authority for normal project reviews."
+  },
+  "futureTestPlan": {
+    "file": "src/operations/factory-self-review.test.ts",
+    "requiredProof": [
+      "Host-generated reviewExecutionId is distinct from reviewerId, candidateId, evidencePackId, and findingId.",
+      "The serialized admin result retains candidateChecksum, evidencePackChecksum, testExecutionId, reviewer/version, resultChecksum, verdict, finding IDs, obligation ID, and timestamps.",
+      "Reloading the persisted machine record preserves the exact identity chain and rejects checksum/identity mismatches.",
+      "The existing eight source references remain manifest-bound line ranges; no source-string-only assertion is sufficient."
+    ],
+    "currentOrchestratorTestMutation": "NONE"
+  },
+  "futureEvidencePlan": {
+    "sequence": [
+      "Freeze current candidate source/test and record per-file hashes.",
+      "Build a new manifest-bound evidence pack and assign a new evidencePackId/checksum because the evidence identity changes.",
+      "Record host-generated testExecutionId, command, exact test identity, 13/13 result, source/test checksums, and candidate checksum.",
+      "Invoke only Contract Auditor and Test/Quality Reviewer against that single immutable candidate and pack.",
+      "Persist one per-reviewer identity record and one aggregate result with result checksums, verdicts, finding IDs, O1 obligation ID, and reviewer currentness fields.",
+      "Reload the records from the canonical admin artifact path and validate the complete chain before accepting reviewer verdicts.",
+      "Stop after the two required reviewer verdicts; no correction cycle or broad validation."
+    ],
+    "evidenceValidity": "All path references must validate before reviewer calls; valid syntax alone is not traceability closure.",
+    "customerLineage": "Explicitly absent and out of scope."
+  },
+  "finalTraceabilityChain": [
+    {
+      "identity": "RequirementIdentity",
+      "value": "R2-G3-O1-REVIEW-IDENTITY-TRACEABILITY",
+      "link": "obligationId plus source finding IDs"
+    },
+    {
+      "identity": "ArtifactIdentity",
+      "value": "generated TaskGraph functional validation task and graphChecksum computed by buildImplementationTaskGraph",
+      "link": "taskGraphChecksum plus graph.ts:57-68"
+    },
+    {
+      "identity": "TestIdentity",
+      "value": "orchestrator.test.ts:33 / proves generated graph tool policy preserves aliases and derived capabilities",
+      "link": "test file checksum plus exact line range"
+    },
+    {
+      "identity": "TestExecutionIdentity",
+      "value": "future host-generated testExecutionId",
+      "link": "testExecutionId + command/result + testSourceChecksum + candidateChecksum"
+    },
+    {
+      "identity": "CandidateIdentity",
+      "value": "candidateId and aggregate candidateChecksum",
+      "link": "immutable per-file manifest hashes"
+    },
+    {
+      "identity": "EvidencePackIdentity",
+      "value": "new evidencePackId and evidencePackChecksum",
+      "link": "pack checksum + manifest checksum + validated source ranges"
+    },
+    {
+      "identity": "ReviewExecutionIdentity",
+      "value": "future host-generated reviewExecutionId per reviewer",
+      "link": "reviewerId/version/capability + candidateChecksum + evidencePackChecksum + resultChecksum"
+    },
+    {
+      "identity": "ReviewVerdictIdentity",
+      "value": "verdict plus finding IDs and obligationId",
+      "link": "persisted result record checksum and reload validation"
+    }
+  ],
+  "frozenO1AcceptanceCriteria": [
+    "A durable host-owned reviewExecutionId exists for each required semantic reviewer.",
+    "Each execution record binds the exact candidate checksum and new evidence-pack checksum.",
+    "The O1 obligation and tqr-r2g3-001/contract-audit-001 finding identities are recoverable.",
+    "Requirement -> generated graph artifact -> test source -> test execution is explicit.",
+    "Test execution -> candidate -> evidence pack -> reviewer execution -> verdict is explicit.",
+    "The machine record reloads with identical checksums and identities after process restart.",
+    "All citeable source references pass deterministic manifest validation.",
+    "Test/Quality Reviewer approves the same frozen candidate and evidence pack as Contract Auditor."
+  ],
+  "futureCandidatePolicy": {
+    "sourceOrTestChange": "Assign a new candidate ID and aggregate checksum; never reuse the current candidate identity.",
+    "adminOnlyChange": "Candidate reuse is allowed only after per-file hash verification against a frozen manifest.",
+    "currentRun": "No candidate mutation; start and end SHA-256 are identical."
+  },
+  "futureEvidencePackPolicy": {
+    "identity": "Every evidence change receives a new evidencePackId and checksum.",
+    "reviewerInput": "Both required reviewers receive the same immutable pack.",
+    "mutationBetweenReviewers": "Forbidden."
+  },
+  "futureEvidenceValidationPolicy": {
+    "beforeProvider": true,
+    "acceptedSourceReference": "repository-relative path:start or path:start-end within the immutable manifest",
+    "structuredRecordReferences": "Persisted identity fields remain structured metadata; do not force database/admin IDs into source line syntax.",
+    "reject": [
+      "bare paths",
+      "absolute paths",
+      "opaque IDs without a persisted record",
+      "candidate/evidence labels without checksums",
+      "reviewer self-assertion without host binding"
+    ]
+  },
+  "futureReviewerCurrentness": {
+    "requiredFields": [
+      "candidateChecksum",
+      "evidencePackChecksum",
+      "evidenceManifestChecksum",
+      "sourceChecksum",
+      "testSourceChecksum",
+      "testExecutionId",
+      "reviewExecutionId",
+      "reviewerId",
+      "reviewerVersion",
+      "policyVersion",
+      "promptVersion",
+      "resultChecksum"
+    ],
+    "projectIdentity": "not applicable to factory-only R2-G3; do not invent projectId/projectVersion lineage"
+  },
+  "futureReviewerScopes": [
+    {
+      "reviewer": "contract-auditor",
+      "previousVerdict": "APPROVED",
+      "futureRerun": "MUST_RERUN",
+      "o1Scope": "Validate the persisted cross-stage identity and requirement/artifact/test mapping.",
+      "reason": "The new evidence-pack and identity bindings make the prior provider-level result non-current for O1."
+    },
+    {
+      "reviewer": "test-quality-reviewer",
+      "previousVerdict": "CHANGES_REQUIRED",
+      "futureRerun": "MUST_RERUN",
+      "o1Scope": "Validate durable test execution, evidence completeness, and the same candidate/pack identity.",
+      "reason": "TQR owns the frozen blocker and must approve the reconstructed chain."
+    },
+    {
+      "reviewer": "architecture-reviewer",
+      "previousVerdict": "NOT_REQUIRED",
+      "futureRerun": "DO_NOT_RUN",
+      "o1Scope": "None",
+      "reason": "No architecture-owned source contract changes are authorized."
+    },
+    {
+      "reviewer": "code-integration-reviewer",
+      "previousVerdict": "NOT_REQUIRED",
+      "futureRerun": "DO_NOT_RUN",
+      "o1Scope": "None",
+      "reason": "No source integration change is authorized."
+    },
+    {
+      "reviewer": "security-reviewer",
+      "previousVerdict": "NOT_REQUIRED",
+      "futureRerun": "DO_NOT_RUN",
+      "o1Scope": "None",
+      "reason": "No security-surface change is authorized."
+    }
+  ],
+  "correctionBudget": {
+    "implementationCycles": 1,
+    "evidencePackBuilds": 1,
+    "reviewerCalls": 2,
+    "correctionCycles": 0,
+    "fullFactoryValidation": false
+  },
+  "nonGoals": [
+    "Do not modify the current orchestrator test candidate in this reconciliation.",
+    "Do not reopen R2-G3-O2 or R2-G2.",
+    "Do not change generated website behavior.",
+    "Do not invent customer Brief/Planning/Design/project lineage.",
+    "Do not add a database table, migration, reviewer, skill, MCP, provider, or new architecture.",
+    "Do not implement Phase 7C, 7D, or 7E.",
+    "Do not clean transient or historical paths."
+  ],
+  "validationThisRun": {
+    "candidateStartEndEqual": true,
+    "candidateSha256Start": "c290bfdc298a73e9cc5cc046d238c0c6aa314e429b79d11515e64d565b10b28f",
+    "candidateSha256End": "c290bfdc298a73e9cc5cc046d238c0c6aa314e429b79d11515e64d565b10b28f",
+    "planJsonValidation": "pending_until_created",
+    "gitDiffCheck": "pending_until_created",
+    "freshGptCalls": 0
+  },
+  "nextAction": "In one future authorized implementation turn, apply only the bounded Factory-review evidence-contract extension, generate one new manifest-bound pack, run only Contract Auditor and Test/Quality Reviewer against it, persist and reload the identity chain, then mark O1 COMPLETE only if every acceptance criterion passes; otherwise remain BLOCKED without a correction cycle."
+}
