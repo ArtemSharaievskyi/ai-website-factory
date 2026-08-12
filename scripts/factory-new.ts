@@ -1,12 +1,12 @@
 import { loadFactoryCliEnv } from "./cli-env";
 import { parseNewArgs, readInitialRequest, renderNewResult } from "@/runtime/trial-entry/cli";
-import { createProductionTrialEntryRuntime } from "@/runtime/trial-entry/production";
+import { createNodeTrialEntryRuntime } from "@/runtime/trial-entry/node";
 
 loadFactoryCliEnv();
 
 async function main() {
   const options = parseNewArgs(process.argv.slice(2));
-  const runtime = createProductionTrialEntryRuntime({ requireAi: true });
+  const runtime = createNodeTrialEntryRuntime({ requireAi: true });
   try {
     const requestText = await readInitialRequest(options);
     const result = await runtime.service.createProject({ requestText });

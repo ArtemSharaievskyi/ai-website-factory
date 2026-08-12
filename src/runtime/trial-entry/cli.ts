@@ -7,6 +7,7 @@ import {
   MAX_INITIAL_PROJECT_REQUEST_BYTES,
   normalizeInitialProjectRequestText,
 } from "@/domain/project/initial-request";
+import { UuidSchema } from "@/domain/shared/schemas";
 import type { TrialEntryAnswer, TrialEntryQuestion } from "./service";
 
 const MAX_ANSWER_FILE_BYTES = 128 * 1024;
@@ -18,6 +19,11 @@ export type StatusCliOptions = { projectId: string; json: boolean };
 function optionValue(args: string[], index: number, option: string) {
   const value = args[index + 1];
   if (!value || value.startsWith("--")) throw new Error(`TRIAL_ENTRY_OPTION_VALUE_MISSING:${option}`);
+  return value;
+}
+
+function projectIdValue(value: string, option: string) {
+  if (!UuidSchema.safeParse(value).success) throw new Error(`TRIAL_ENTRY_PROJECT_INVALID:${option}`);
   return value;
 }
 
@@ -40,7 +46,7 @@ export function parseRespondArgs(args: string[]): RespondCliOptions {
   let json = false;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (arg === "--project") { projectId = optionValue(args, index++, arg); continue; }
+    if (arg === "--project") { projectId = projectIdValue(optionValue(args, index++, arg), arg); continue; }
     if (arg === "--answers-file") { answersFile = optionValue(args, index++, arg); continue; }
     if (arg === "--json") { json = true; continue; }
     throw new Error(`TRIAL_ENTRY_OPTION_UNKNOWN:${arg}`);
@@ -55,7 +61,7 @@ export function parseStatusArgs(args: string[]): StatusCliOptions {
   let json = false;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (arg === "--project") { projectId = optionValue(args, index++, arg); continue; }
+    if (arg === "--project") { projectId = projectIdValue(optionValue(args, index++, arg), arg); continue; }
     if (arg === "--json") { json = true; continue; }
     throw new Error(`TRIAL_ENTRY_OPTION_UNKNOWN:${arg}`);
   }

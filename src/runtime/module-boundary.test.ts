@@ -27,6 +27,23 @@ describe("runtime module boundaries", () => {
     await expect(readFile(path.resolve(__dirname, "../integrations/openai/server.ts"), "utf8")).resolves.toContain('import "server-only"');
     await expect(readFile(path.resolve(__dirname, "../persistence/database/server.ts"), "utf8")).resolves.toContain('import "server-only"');
     await expect(readFile(path.resolve(__dirname, "workspace/server.ts"), "utf8")).resolves.toContain('import "server-only"');
+    await expect(readFile(path.resolve(__dirname, "workbench/production.ts"), "utf8")).resolves.toContain('import "server-only"');
+  });
+
+  it("keeps all standalone Trial Entry commands on the Node-safe composition", async () => {
+    const scripts = await Promise.all(["factory-new.ts", "factory-respond.ts", "factory-status.ts"].map((file) => readFile(path.resolve(__dirname, "../../scripts", file), "utf8")));
+    for (const script of scripts) {
+      expect(script).toContain("@/runtime/trial-entry/node");
+      expect(script).not.toContain("@/runtime/trial-entry/production");
+    }
+    const node = await source("trial-entry/node.ts");
+    const production = await source("trial-entry/production.ts");
+    const route = await readFile(path.resolve(__dirname, "../app/api/workbench/route.ts"), "utf8");
+    expect(node).toContain("TrialEntryService");
+    expect(node).not.toContain('import "server-only"');
+    expect(production).toContain('import "server-only"');
+    expect(route).toContain("getProductionWorkbench");
+    expect(route).not.toContain("trial-entry/node");
   });
 
   it("keeps provider credentials out of the client implementation", async () => {

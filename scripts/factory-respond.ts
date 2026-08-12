@@ -1,12 +1,12 @@
 import { loadFactoryCliEnv } from "./cli-env";
 import { parseRespondArgs, readAnswers, renderWorkflowResult } from "@/runtime/trial-entry/cli";
-import { createProductionTrialEntryRuntime } from "@/runtime/trial-entry/production";
+import { createNodeTrialEntryRuntime } from "@/runtime/trial-entry/node";
 
 loadFactoryCliEnv();
 
 async function main() {
   const options = parseRespondArgs(process.argv.slice(2));
-  const runtime = createProductionTrialEntryRuntime({ requireAi: true });
+  const runtime = createNodeTrialEntryRuntime({ requireAi: true });
   try {
     const status = await runtime.service.status(options.projectId);
     const answers = await readAnswers(options, status.clarification?.questions ?? []);
