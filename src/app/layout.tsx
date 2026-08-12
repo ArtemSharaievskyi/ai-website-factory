@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "AI Website Factory",
-  description: "A local foundation for orchestrating professional website projects.",
+  description: "A clear, local workbench for taking a website idea from brief to implementation.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

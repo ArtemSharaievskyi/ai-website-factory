@@ -140,8 +140,8 @@ export type ProductionFactoryRuntime = {
   }): ProductionFactoryProjectScope;
   close(): Promise<void>;
 };
-function assertRealMode(env: Record<string, string | undefined>) {
-  if (env.ALLOW_REAL_FACTORY_E2E !== "true")
+function assertRealMode(env: Record<string, string | undefined>, allowWeb = false) {
+  if (!allowWeb && env.ALLOW_REAL_FACTORY_E2E !== "true")
     throw new Error("REAL_E2E_OPT_IN_REQUIRED");
 }
 export function createProductionFactoryIdentity(
@@ -174,11 +174,12 @@ export function createProductionFactoryRuntime(
     context7?: "configured" | "not-needed" | "blocked";
     shadcn?: "configured" | "not-needed" | "blocked";
     generatedProjectsRoot?: string;
+    allowWeb?: boolean;
   } = {},
 ): ProductionFactoryRuntime {
   const env = options.env ?? process.env;
-  assertRealMode(env);
-  const pool = createPostgresPool();
+  assertRealMode(env, options.allowWeb);
+  const pool = createPostgresPool(env);
   const database = new PostgresPersistenceDatabase(pool);
   const evidence: ProductionFactoryRuntimeEvidence = {
     providerRequests: 0,

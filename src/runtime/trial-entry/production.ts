@@ -1,3 +1,4 @@
+import "server-only";
 import path from "node:path";
 import { createProductionProviderBundle } from "@/integrations/openai/production";
 import { createLeadAgentService } from "@/agents/lead/service";
@@ -21,6 +22,7 @@ export function createProductionTrialEntryRuntime(options: {
   const workspaceEnvironment = readWorkspaceEnvironment(env);
   const workspaceRoot = workspaceEnvironment.GENERATED_PROJECTS_ROOT ?? path.resolve(".factory-generated");
   const evidence = { providerRequests: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
+  const leads = new Map<string, ReturnType<typeof createLeadAgentService>>();
   const ai = options.requireAi === false
     ? undefined
     : createProductionProviderBundle({
@@ -36,8 +38,10 @@ export function createProductionTrialEntryRuntime(options: {
     database,
     createLeadAgent: (slug) => {
       if (!ai) throw new Error("TRIAL_ENTRY_AI_NOT_CONFIGURED");
+      const existing = leads.get(slug);
+      if (existing) return existing;
       const sync = new FilesystemProjectMemorySyncPort(workspaceRoot, slug);
-      return createLeadAgentService({
+      const lead = createLeadAgentService({
         database,
         provider: ai.lead,
         memory: new LeadMemoryAdapter(
@@ -46,10 +50,13 @@ export function createProductionTrialEntryRuntime(options: {
           workspaceRoot,
         ),
       });
+      leads.set(slug, lead);
+      return lead;
     },
   });
   return {
     service,
+    database,
     evidence,
     workspaceRoot,
     async close() {

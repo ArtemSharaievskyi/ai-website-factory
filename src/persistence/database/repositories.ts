@@ -20,6 +20,7 @@ export class ProjectRepository {
   constructor(private readonly db: PersistenceDatabase) {}
   async create(project: FactoryProject, idempotencyKey?: string) { const parsed = parse(FactoryProjectSchema, project, "Project does not match its domain contract."); return this.db.transaction((tx) => tx.insertProject(mapProjectToRow(parsed), token(idempotencyKey, parsed))).then(mapRowToProject); }
   async get(id: string) { return this.db.transaction(async (tx) => { const row = await tx.getProject(id); return row ? mapRowToProject(row) : null; }); }
+  async list() { return this.db.transaction(async (tx) => (await tx.listProjects()).map(mapRowToProject)); }
   async getWithVersion(id: string) { return this.db.transaction(async (tx) => { const row = await tx.getProject(id); return row ? { project: mapRowToProject(row), rowVersion: row.row_version } : null; }); }
 }
 

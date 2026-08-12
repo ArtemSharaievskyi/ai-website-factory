@@ -52,6 +52,14 @@ export type TrialEntryStatus = {
   };
 };
 
+export type TrialEntryProjectSummary = {
+  projectId: string;
+  slug: string;
+  title?: string;
+  workflowState: WorkflowState;
+  updatedAt: string;
+};
+
 export type TrialEntryResult = {
   request: Pick<InitialProjectRequest, "requestId" | "projectId" | "submittedAt" | "checksum"> & { byteSize: number };
   project: { projectId: string; slug: string; projectVersion: number };
@@ -293,5 +301,56 @@ export class TrialEntryService {
           }
         : {}),
     };
+  }
+
+  async listProjects(): Promise<TrialEntryProjectSummary[]> {
+    const projects = await this.projects.list();
+    return projects.map((project) => ({
+      projectId: project.id,
+      slug: project.slug,
+      ...(project.title ? { title: project.title } : {}),
+      workflowState: project.workflowState,
+      updatedAt: project.updatedAt,
+    }));
+  }
+
+  /** Rehydrates Lead's typed draft from durable requirements before approval. */
+  async approveBrief(input: { projectId: string; briefChecksum: string; expectedRowVersion: number; approvalNote?: string; approvedBy?: string }) {
+    const current = await this.projects.getWithVersion(input.projectId);
+    if (!current) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");
+    if (current.project.workflowState !== "AWAITING_BRIEF_APPROVAL") throw new Error("TRIAL_ENTRY_NOT_AWAITING_BRIEF_APPROVAL");
+    const lead = this.dependencies.createLeadAgent(current.project.slug);
+    const leadInput = inputForProject(current.project, `brief-approval:${input.projectId}:${input.briefChecksum}`);
+    await lead.analyzeProjectPrompt(leadInput);
+    await lead.planClarifications(leadInput);
+    const clarification = await lead.getClarificationStatus(input.projectId, current.project.currentVersion);
+    if (clarification.unresolved.length) throw new Error("TRIAL_ENTRY_CLARIFICATIONS_REMAIN");
+    const draft = await lead.buildBriefDraft(input.projectId, current.project.currentVersion);
+    const result = await lead.approveBrief({
+      projectId: input.projectId,
+      projectVersion: current.project.currentVersion,
+      briefChecksum: input.briefChecksum,
+      approvedAt: new Date().toISOString(),
+      approvedBy: input.approvedBy ?? "workbench-user",
+      ...(input.approvalNote ? { approvalNote: input.approvalNote } : {}),
+      expectedRowVersion: input.expectedRowVersion,
+      idempotencyKey: `workbench-approve-brief:${input.projectId}:${input.briefChecksum}`,
+    });
+    return { projectId: input.projectId, workflowState: result.projectState, rowVersion: result.rowVersion, briefChecksum: draft.briefChecksum };
+  }
+
+  async requestBriefChanges(input: { projectId: string; reason: string; requirementKeys?: string[]; requestedBy?: string }) {
+    const current = await this.projects.getWithVersion(input.projectId);
+    if (!current) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");
+    const lead = this.dependencies.createLeadAgent(current.project.slug);
+    const result = await lead.requestBriefRevision({
+      projectId: input.projectId,
+      projectVersion: current.project.currentVersion,
+      requirementKeys: input.requirementKeys ?? ["project-brief"],
+      reason: input.reason,
+      requestedBy: input.requestedBy ?? "workbench-user",
+      idempotencyKey: `workbench-request-brief-changes:${input.projectId}:${checksumPersistedDocument(input.reason)}`,
+    });
+    return { projectId: input.projectId, workflowState: "CLARIFYING" as const, requirementsChecksum: checksumPersistedDocument(result) };
   }
 }

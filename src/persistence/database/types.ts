@@ -11,6 +11,7 @@ export type IdempotencyRecord = { key: string; operation: string; payloadHash: s
 
 export interface PersistenceTransaction {
   getProject(id: string): Promise<ProjectRow | null>;
+  listProjects(): Promise<ProjectRow[]>;
   insertProject(row: ProjectRow, idempotency?: { key: string; payloadHash: string }): Promise<ProjectRow>;
   updateProjectState(input: { id: string; expectedState: WorkflowState; expectedRowVersion: number; state: WorkflowState; updatedAt: string; implementationStartedAt?: string; completedAt?: string }): Promise<ProjectRow>;
   getVersion(projectId: string, version: number): Promise<ProjectVersionRow | null>;
