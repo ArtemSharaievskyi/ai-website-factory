@@ -1,0 +1,54 @@
+{
+  "phase": "7F",
+  "status": "BLOCKED",
+  "baselineHead": "9e911d6b8314b4074abc30190372f325574c4ff2",
+  "implementationCommitBaseline": "61784e06ea157a355013ddda3bfd2ce46c8ca47c",
+  "policyVersion": "professional-design-capability-v1",
+  "deterministicMatrix": {
+    "name": "F1-F64",
+    "status": "PASS",
+    "testFile": "src/phase7f-matrix.test.ts"
+  },
+  "focusedValidation": {
+    "typecheck": "PASS",
+    "fullTests": "PASS; 82 files, 1016 tests",
+    "lint": "PASS; 0 errors, 2 pre-existing warnings",
+    "build": "PASS; Next.js 16.2.12",
+    "dockerComposeConfig": "PASS",
+    "databaseMigrations": "PASS; 2 migrations",
+    "databaseIntegrity": "PASS",
+    "taskGraphSmoke": "PASS; releaseEligible true, 6 tasks, 0 repairs",
+    "generatedRuntimeSmoke": "PASS",
+    "backendSmoke": "PASS",
+    "aiSmoke": "NOT_RUN; explicit AI smoke opt-in and provider credential were not authorized for this validation",
+    "diffCheck": "PASS",
+    "focusedTests": "PASS",
+    "focusedTestFiles": [
+      "src/integrations/design/design.test.ts",
+      "src/domain/design/capability.test.ts",
+      "src/agents/design/professional.test.ts",
+      "src/orchestration/tooling/design-adapters.test.ts",
+      "src/phase7f-matrix.test.ts"
+    ]
+  },
+  "liveBlockers": [
+    {
+      "code": "MAGIC_PATTERNS_CREDENTIAL_REQUIRED",
+      "requiredEnvironmentVariable": "MAGIC_PATTERNS_API_KEY",
+      "secretObserved": false
+    },
+    {
+      "code": "FONTPAIR_SOURCE_INTEGRATION_UNRESOLVED",
+      "detail": "The current Fontpair root response is client-rendered and contains no curated pair records in the bounded HTML adapter response."
+    },
+    {
+      "code": "DESIGN_SKILL_NOT_AVAILABLE_THROUGH_APPROVED_SOURCE",
+      "detail": "0 of 8 required official design skills are present as immutable approved registry records."
+    }
+  ],
+  "deferred": [
+    "FINAL_HARDENING_AUDIT",
+    "CLEAN_CUSTOMER_E2E",
+    "DEPLOYMENT"
+  ]
+}
