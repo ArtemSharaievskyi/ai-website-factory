@@ -1,0 +1,18 @@
+{
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/.vercel": true,
+    "**/.context7-cache": true,
+    "**/.qa-foundation-*": true,
+    "**/.factory-generated-debug": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/.vercel": true,
+    "**/.context7-cache": true,
+    "**/.qa-foundation-*": true,
+    "**/.factory-generated-debug": true
+  }
+}

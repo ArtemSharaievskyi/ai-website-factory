@@ -11,6 +11,7 @@
     "dev": "next dev",
     "build": "next build",
     "postbuild": "node scripts/clean-next-trace.mjs",
+    "clean:workspace": "tsx scripts/clean-workspace.ts",
     "start": "next start",
     "factory:new": "tsx scripts/factory-new.ts",
     "factory:respond": "tsx scripts/factory-respond.ts",
