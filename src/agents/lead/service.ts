@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { FactoryProjectSchema } from "@/domain/project/schema";
 import {
@@ -54,10 +54,18 @@ import {
 } from "./clarification-policy";
 import { leadAgentDefinition } from "@/agents/catalog";
 import type { AgentSkillSelection } from "@/skills/runtime/resolver";
+import { FACTORY_OPERATOR_LANGUAGE } from "@/domain/language/schema";
 
 const now = () => new Date().toISOString();
 const normalizePrompt = (prompt: string) => prompt.replace(/\r\n?/g, "\n");
 const key = (projectId: string, version: number) => `${projectId}:${version}`;
+const versionedQuestionId = (questionId: string, clarificationVersion: number) => {
+  const bytes = Buffer.from(createHash("sha256").update(`${questionId}:clarification-version:${clarificationVersion}`).digest("hex").slice(0, 32), "hex");
+  bytes[6] = (bytes[6] & 15) | 80;
+  bytes[8] = (bytes[8] & 63) | 128;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+};
 export type LeadServiceDependencies = {
   database: PersistenceDatabase;
   memory: LeadMemoryPort;
@@ -145,6 +153,7 @@ export class LeadAgentService {
       updatedAt: createdAt,
       id: parsed.projectId,
       slug: parsed.projectSlug ?? `project-${parsed.projectId.slice(0, 8)}`,
+      origin: parsed.origin,
       ...(parsed.projectTitle ? { title: parsed.projectTitle } : {}),
       originalPrompt: prompt,
       currentVersion: parsed.projectVersion,
@@ -304,6 +313,13 @@ export class LeadAgentService {
       updatedAt: now(),
       questions,
       answers: existing?.answers ?? [],
+      ...(existing
+        ? {
+            ...(existing.operatorLanguage ? { operatorLanguage: existing.operatorLanguage } : {}),
+            ...(existing.clarificationVersion ? { clarificationVersion: existing.clarificationVersion } : {}),
+          }
+        : { operatorLanguage: parsed.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE, clarificationVersion: 1 }),
+      ...(existing?.supersededQuestions ? { supersededQuestions: existing.supersededQuestions } : {}),
     });
     await this.clarifications.saveSession(
       session,
@@ -330,6 +346,66 @@ export class LeadAgentService {
         idempotencyKey: `workflow-clarifying-${parsed.idempotencyKey}`,
       });
     return plan;
+  }
+  async refreshClarifications(input: LeadAgentInput) {
+    const parsed = LeadAgentInputSchema.parse(input);
+    const existing = await this.clarifications.getSession(parsed.projectId, parsed.projectVersion);
+    if (!existing)
+      throw new LeadError("CLARIFICATION_NOT_FOUND", "Clarification session was not found.");
+    if (existing.answers.some((answer) => answer.status !== "unresolved"))
+      throw new LeadError("CLARIFICATION_REFRESH_NOT_ALLOWED", "Clarification questions cannot be refreshed after an answer has been accepted.");
+
+    const analysis = await this.analyzeProjectPrompt(parsed);
+    const skillSelection = this.skillSelections.get(key(parsed.projectId, parsed.projectVersion));
+    const plan = ClarificationPlanSchema.parse(await this.provider.proposeClarifications(
+      { analysis },
+      skillSelection?.contexts,
+      skillSelection?.identityChecksum,
+    ));
+    const supersededQuestions = existing.questions.map((question) => ({
+      question,
+      supersededAt: now(),
+      reason: `Superseded by explicit clarification refresh for operatorLanguage=${parsed.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE}.`,
+    }));
+    const clarificationVersion = (existing.clarificationVersion ?? 1) + 1;
+    const refreshed = ClarificationSessionSchema.parse({
+      schemaVersion: 1,
+      documentType: "clarification-log",
+      projectId: parsed.projectId,
+      projectVersion: parsed.projectVersion,
+      createdAt: existing.createdAt,
+      updatedAt: now(),
+      clarificationPolicyVersion: CLARIFICATION_POLICY_VERSION,
+      clarificationVersion,
+      operatorLanguage: parsed.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE,
+      questions: plan.questions.map((question) => ({
+        id: versionedQuestionId(question.id, clarificationVersion),
+        requirementKey: question.requirementKey,
+        category: question.category,
+        question: question.question,
+        reason: question.reason,
+        required: question.required,
+        blocking: question.blocking,
+        askedAt: plan.generatedAt,
+        answerStatus: "unresolved" as const,
+        fingerprint: question.fingerprint,
+        evidence: ["lead-refresh"],
+      })),
+      answers: [],
+      supersededQuestions: [...(existing.supersededQuestions ?? []), ...supersededQuestions],
+    });
+    await this.clarifications.saveSession(refreshed, `clarification-refresh-${parsed.projectId}-${refreshed.clarificationVersion}`);
+    await this.dependencies.memory.writeSnapshot(parsed.projectId, parsed.projectVersion, { "clarification-log.json": refreshed });
+    await this.appendDecision(
+      parsed.projectId,
+      parsed.projectVersion,
+      "clarification-language-refresh",
+      `Refreshed clarification questions for operatorLanguage=${parsed.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE}.`,
+      false,
+      "not-required",
+      "workbench-user",
+    );
+    return refreshed;
   }
   async recordClarificationAnswer(input: {
     projectId: string;

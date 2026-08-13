@@ -23,6 +23,7 @@ import {
   readInitialRequest,
 } from "./cli";
 import { TrialEntryService } from "./service";
+import { DocumentRepository } from "@/persistence/database/repositories";
 
 const syntheticPrompt = "Create a local German test business website.";
 const answerFor = (requirementKey: string | undefined) => {
@@ -175,6 +176,17 @@ describe("first-trial canonical entry matrix", () => {
     const resumed = await entry.respond(created.project.projectId, [{ questionId: question.id, answer: "Synthetic answer" }]);
     expect(resumed.project.projectId).toBe(created.project.projectId);
     expect(resumed.workflowState).toBe("CLARIFYING");
+  });
+
+  it("T16a preserves multiline UTF-8 answer content across the typed boundary", async () => {
+    const { database, entry } = fixture();
+    const created = await entry.createProject({ requestText: syntheticPrompt });
+    const question = created.lead.clarificationQuestions[0];
+    const answer = "Business: Beispiel GmbH\nTelefon: +49 160 1234567\nGebiet: Gießen & Umgebung\n\nServices:\n- Möbelmontage\n- Kleine Reparaturen";
+    await entry.respond(created.project.projectId, [{ questionId: question.id, answer }]);
+    const session = await new DocumentRepository(database).get(created.project.projectId, 1, "clarification-log");
+    expect(session?.documentType).toBe("clarification-log");
+    if (session?.documentType === "clarification-log") expect(session.answers.find((item) => item.questionId === question.id)?.answer).toBe(answer);
   });
 
   it("T17 does not create a second project when clarification resumes", async () => {

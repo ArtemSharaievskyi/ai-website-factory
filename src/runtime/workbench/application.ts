@@ -25,8 +25,9 @@ import {
   type WorkbenchProjection,
   type WorkbenchRequest,
 } from "./contracts";
+import { FACTORY_OPERATOR_LANGUAGE } from "@/domain/language/schema";
+import { isUserFacingProjectOrigin } from "@/domain/project/provenance";
 
-const bounded = (value: string | undefined, bytes: number) => value ? value.slice(0, bytes) : undefined;
 const list = (values: string[] | undefined, limit = 12) => (values ?? []).slice(0, limit).map((value) => value.slice(0, 500));
 
 export class WorkbenchActionError extends Error {
@@ -55,11 +56,14 @@ export class WorkbenchApplication {
   async handle(request: WorkbenchRequest): Promise<WorkbenchProjection> {
     switch (request.action) {
       case "create": {
-        const result = await this.dependencies.entry.createProject({ requestText: request.requestText, ...(request.languageHint ? { languageHint: request.languageHint } : {}) });
+        const result = await this.dependencies.entry.createProject({ requestText: request.requestText, ...(request.languageHint ? { languageHint: request.languageHint } : {}), operatorLanguage: FACTORY_OPERATOR_LANGUAGE });
         return this.project(result.project.projectId);
       }
       case "respond":
         await this.dependencies.entry.respond(request.projectId, request.answers);
+        return this.project(request.projectId);
+      case "refresh-clarifications":
+        await this.dependencies.entry.refreshClarifications(request.projectId);
         return this.project(request.projectId);
       case "status":
         return this.project(request.projectId);
@@ -96,10 +100,11 @@ export class WorkbenchApplication {
 
   private async projectList(): Promise<WorkbenchProject[]> {
     const projects = await this.dependencies.entry.listProjects();
-    return projects.map((project) => ({
+    return projects.filter((project) => isUserFacingProjectOrigin(project.origin)).map((project) => ({
       projectId: project.projectId,
       name: project.title ?? "Untitled project",
       slug: project.slug,
+      origin: project.origin,
       workflowState: project.workflowState,
       statusLabel: projectStatusLabel(project.workflowState),
       updatedAt: project.updatedAt,
@@ -109,6 +114,8 @@ export class WorkbenchApplication {
   private empty(projects: WorkbenchProject[]): WorkbenchProjection {
     return {
       mode: "NEW_PROJECT",
+      operatorLanguage: FACTORY_OPERATOR_LANGUAGE,
+      siteLanguage: "en",
       status: workbenchStatus("DRAFT", [], false),
       questions: [],
       dependencies: [],
@@ -133,6 +140,12 @@ export class WorkbenchApplication {
     const contractAudit = await this.documents.get(projectId, version, "contract-audit");
     const taskGraph = await this.documents.get(projectId, version, "task-graph");
     const hasBlockingQuestions = status.clarification?.blockingUnresolvedQuestionIds.length ? true : false;
+    const clarificationSession = clarification?.documentType === "clarification-log" ? clarification : undefined;
+    const canRefreshClarifications = current.project.workflowState === "CLARIFYING" &&
+      Boolean(clarificationSession) &&
+      hasBlockingQuestions &&
+      clarificationSession?.answers.every((answer) => answer.status === "unresolved") === true &&
+      clarificationSession?.operatorLanguage !== FACTORY_OPERATOR_LANGUAGE;
     const briefReady = status.brief?.readyForApproval ?? false;
     const allowedActions = actionsForWorkbenchState({
       workflowState: current.project.workflowState,
@@ -141,6 +154,7 @@ export class WorkbenchApplication {
       briefReady,
       hasPlanning: planning?.documentType === "planning-package",
       hasDesigns: directions?.documentType === "design-directions",
+      canRefreshClarifications,
       implementationReady: current.project.workflowState === "READY_FOR_IMPLEMENTATION" &&
         contractPackage?.documentType === "phase-7c-contract-package" && contractPackage.status === "APPROVED" &&
         selected?.documentType === "selected-design" &&
@@ -173,11 +187,16 @@ export class WorkbenchApplication {
     })) : [];
     const questions = status.clarification?.questions.map((question) => {
       const answer = clarification?.documentType === "clarification-log" ? clarification.answers.find((candidate) => candidate.questionId === question.id)?.answer : undefined;
-      return { ...question, ...(bounded(answer, 1000) ? { answer: bounded(answer, 1000) } : {}) };
+      return { ...question, ...(answer ? { answer } : {}) };
     }) ?? [];
+    const siteLanguage = requirements?.documentType === "requirements"
+      ? requirements.localization.defaultLocale
+      : this.siteLanguageFromPrompt(current.project.originalPrompt);
     const conversation = this.conversation(current.project.originalPrompt, current.project.workflowState, questions, brief, planningProjection, designItems);
     return {
       mode: "PROJECT_WORKBENCH",
+      operatorLanguage: FACTORY_OPERATOR_LANGUAGE,
+      siteLanguage,
       project: {
         projectId: current.project.id,
         name: requirements?.documentType === "requirements" && requirements.projectTitle ? requirements.projectTitle : current.project.title ?? "Untitled project",
@@ -199,6 +218,12 @@ export class WorkbenchApplication {
       conversation,
       projects: await this.projectList(),
     };
+  }
+
+  private siteLanguageFromPrompt(prompt: string) {
+    if (/\b(?:German|Deutsch|deutsch)\b/i.test(prompt)) return "de";
+    const explicit = prompt.match(/\b(?:language|locale|default locale)\s*[:=]\s*([a-z]{2}(?:-[A-Z]{2})?)/i)?.[1];
+    return explicit ?? "en";
   }
 
   private scope(projectId: string) {

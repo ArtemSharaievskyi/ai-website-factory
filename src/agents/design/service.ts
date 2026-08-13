@@ -46,6 +46,7 @@ import {
 } from "./ports";
 import { designAgentDefinition } from "@/agents/catalog";
 import type { AgentSkillSelection } from "@/skills/runtime/resolver";
+import { assertWorkbenchStyleIsolation } from "@/integrations/design/isolation";
 import { ProfessionalDesignCapabilityPipeline } from "./professional";
 import { approveDesignDependencyAmendment, buildDesignDependencyAmendment, DesignDependencyAmendmentSchema, stableDesignChecksum } from "@/domain/design/capability";
 
@@ -214,6 +215,7 @@ export class DesignAgentService {
   }
   async generateDesignDirections(rawInput: DesignAgentInput, options: { replaceExisting?: boolean } = {}): Promise<DesignGenerationResult> {
     const input = this.parseInput(rawInput);
+    assertWorkbenchStyleIsolation(input);
     await this.validateInput(input);
     const project = await this.projects.getWithVersion(input.projectId);
     if (!project || project.project.currentVersion !== input.projectVersion)

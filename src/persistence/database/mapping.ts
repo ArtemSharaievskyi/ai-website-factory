@@ -30,13 +30,13 @@ const normalizePrompt = (prompt: string) => prompt.replace(/\r\n?/g, "\n");
 const promptChecksum = (prompt: string) => createHash("sha256").update(normalizePrompt(prompt)).digest("hex");
 
 export function mapProjectToRow(project: z.infer<typeof FactoryProjectSchema>) {
-  return { id: project.id, slug: project.slug, title: project.title ?? null, original_prompt: project.originalPrompt, original_prompt_checksum: promptChecksum(project.originalPrompt), current_version: project.currentVersion, workflow_state: project.workflowState, created_at: project.createdAt, updated_at: project.updatedAt, implementation_started_at: project.implementationStartedAt ?? null, completed_at: project.completedAt ?? null, row_version: 1 };
+  return { id: project.id, slug: project.slug, origin: project.origin, title: project.title ?? null, original_prompt: project.originalPrompt, original_prompt_checksum: promptChecksum(project.originalPrompt), current_version: project.currentVersion, workflow_state: project.workflowState, created_at: project.createdAt, updated_at: project.updatedAt, implementation_started_at: project.implementationStartedAt ?? null, completed_at: project.completedAt ?? null, row_version: 1 };
 }
 
 export function mapRowToProject(row: Record<string, unknown>) {
   const iso = (value: unknown) => value instanceof Date ? value.toISOString() : value;
   try {
-    return FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId: row.id, projectVersion: row.current_version, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), id: row.id, slug: row.slug, ...(row.title ? { title: row.title } : {}), originalPrompt: row.original_prompt, currentVersion: row.current_version, workflowState: row.workflow_state, ...(row.implementation_started_at ? { implementationStartedAt: iso(row.implementation_started_at) } : {}), ...(row.completed_at ? { completedAt: iso(row.completed_at) } : {}) });
+    return FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId: row.id, projectVersion: row.current_version, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), id: row.id, slug: row.slug, origin: row.origin ?? "USER", ...(row.title ? { title: row.title } : {}), originalPrompt: row.original_prompt, currentVersion: row.current_version, workflowState: row.workflow_state, ...(row.implementation_started_at ? { implementationStartedAt: iso(row.implementation_started_at) } : {}), ...(row.completed_at ? { completedAt: iso(row.completed_at) } : {}) });
   } catch (error) { throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", "Stored project data is invalid.", undefined, error); }
 }
 

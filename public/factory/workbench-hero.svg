@@ -1,0 +1,58 @@
+<svg width="760" height="520" viewBox="0 0 760 520" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">AI Website Factory workspace</title>
+  <desc id="desc">An abstract dark interface showing a brief becoming a designed website and an implementation plan.</desc>
+  <defs>
+    <linearGradient id="panel" x1="92" y1="54" x2="661" y2="468" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1A2030"/>
+      <stop offset="1" stop-color="#0E121A"/>
+    </linearGradient>
+    <linearGradient id="violet" x1="116" y1="98" x2="648" y2="405" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B1A5FF"/>
+      <stop offset="1" stop-color="#82D7F7"/>
+    </linearGradient>
+    <filter id="shadow" x="42" y="27" width="676" height="466" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="22" stdDeviation="24" flood-color="#000000" flood-opacity="0.34"/>
+    </filter>
+  </defs>
+  <rect width="760" height="520" rx="24" fill="#0C1017"/>
+  <circle cx="630" cy="72" r="132" fill="#6C5FD0" fill-opacity="0.11"/>
+  <circle cx="112" cy="445" r="112" fill="#2F87A8" fill-opacity="0.08"/>
+  <g filter="url(#shadow)">
+    <rect x="72" y="51" width="616" height="418" rx="18" fill="url(#panel)" stroke="#374155"/>
+    <rect x="72.5" y="51.5" width="615" height="44" rx="17.5" fill="#202838"/>
+    <circle cx="98" cy="73" r="5" fill="#F49A9A" fill-opacity="0.8"/>
+    <circle cx="116" cy="73" r="5" fill="#F2C78B" fill-opacity="0.8"/>
+    <circle cx="134" cy="73" r="5" fill="#75D8B3" fill-opacity="0.8"/>
+    <rect x="174" y="68" width="134" height="10" rx="5" fill="#5D687B"/>
+    <rect x="98" y="126" width="165" height="308" rx="12" fill="#121722" stroke="#2D3749"/>
+    <rect x="116" y="151" width="90" height="8" rx="4" fill="#909BAC"/>
+    <rect x="116" y="177" width="128" height="7" rx="3.5" fill="#3A465A"/>
+    <rect x="116" y="192" width="108" height="7" rx="3.5" fill="#3A465A"/>
+    <rect x="116" y="226" width="112" height="36" rx="8" fill="#211E3C" stroke="#695AC1"/>
+    <rect x="130" y="240" width="67" height="8" rx="4" fill="#B1A5FF"/>
+    <rect x="116" y="282" width="128" height="7" rx="3.5" fill="#3A465A"/>
+    <rect x="116" y="298" width="98" height="7" rx="3.5" fill="#3A465A"/>
+    <rect x="116" y="333" width="128" height="1" fill="#2D3749"/>
+    <rect x="116" y="355" width="79" height="7" rx="3.5" fill="#5D687B"/>
+    <rect x="116" y="373" width="108" height="7" rx="3.5" fill="#3A465A"/>
+    <rect x="285" y="126" width="370" height="177" rx="12" fill="#10151F" stroke="#2D3749"/>
+    <rect x="308" y="151" width="140" height="11" rx="5.5" fill="#F2F4F8"/>
+    <rect x="308" y="177" width="218" height="7" rx="3.5" fill="#647085"/>
+    <rect x="308" y="194" width="182" height="7" rx="3.5" fill="#3A465A"/>
+    <path d="M308 253C350 224 374 239 409 217C447 194 468 231 505 211C544 190 574 200 632 166" stroke="url(#violet)" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="409" cy="217" r="5" fill="#B1A5FF"/>
+    <circle cx="505" cy="211" r="5" fill="#82D7F7"/>
+    <rect x="285" y="326" width="175" height="108" rx="12" fill="#121722" stroke="#2D3749"/>
+    <rect x="308" y="350" width="92" height="8" rx="4" fill="#909BAC"/>
+    <rect x="308" y="375" width="122" height="7" rx="3.5" fill="#3A465A"/>
+    <rect x="308" y="391" width="96" height="7" rx="3.5" fill="#3A465A"/>
+    <circle cx="421" cy="381" r="14" fill="#211E3C" stroke="#695AC1"/>
+    <path d="M416 381L420 385L428 376" stroke="#B1A5FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="482" y="326" width="173" height="108" rx="12" fill="#121722" stroke="#2D3749"/>
+    <rect x="506" y="350" width="75" height="8" rx="4" fill="#909BAC"/>
+    <rect x="506" y="375" width="124" height="7" rx="3.5" fill="#3A465A"/>
+    <rect x="506" y="391" width="93" height="7" rx="3.5" fill="#3A465A"/>
+    <rect x="609" y="370" width="20" height="27" rx="5" fill="#163341" stroke="#4FAAC7"/>
+    <path d="M619 377V390M613 384H625" stroke="#82D7F7" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>

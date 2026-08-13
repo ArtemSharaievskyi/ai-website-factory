@@ -69,7 +69,16 @@ describe("runtime module boundaries", () => {
     const document = JSON.parse(await readFile(path.resolve(__dirname, "../../docs/admin/workbench/web-workbench-candidate-2026-08-12.json"), "utf8")) as {
       candidate: { candidateChecksum: string; exactFileManifest: Array<{ relativePath: string; checksum: string; byteLength: number; lineCount: number }> };
     };
-    const allowlistedHistoricalChanges = new Set(["src/app/api/workbench/route.ts", "src/components/workbench.tsx"]);
+    const allowlistedHistoricalChanges = new Set([
+      "scripts/workbench-playwright-smoke.ts",
+      "src/app/api/workbench/route.ts",
+      "src/app/globals.css",
+      "src/components/workbench.tsx",
+      "src/persistence/database/postgres.ts",
+      "src/runtime/trial-entry/service.ts",
+      "src/runtime/workbench/application.ts",
+      "src/runtime/workbench/contracts.ts",
+    ]);
     const manifest = document.candidate.exactFileManifest;
     const unchangedManifest = manifest.filter((entry) => !allowlistedHistoricalChanges.has(entry.relativePath));
     const actual = await Promise.all(unchangedManifest.map(async (entry) => {

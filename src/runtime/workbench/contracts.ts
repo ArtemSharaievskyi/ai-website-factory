@@ -1,10 +1,13 @@
 import { z } from "zod";
 import type { WorkflowState } from "@/domain/workflow/engine";
+import type { ProjectOrigin } from "@/domain/project/provenance";
+import { FACTORY_OPERATOR_LANGUAGE } from "@/domain/language/schema";
 
 export const WORKBENCH_REQUEST_BYTES = 128 * 1024;
 
 export const WorkbenchActionSchema = z.enum([
   "ANSWER_LEAD_CLARIFICATIONS",
+  "REFRESH_LEAD_CLARIFICATIONS",
   "APPROVE_BRIEF",
   "REQUEST_BRIEF_CHANGES",
   "APPROVE_PLANNING",
@@ -24,10 +27,11 @@ const AnswerSchema = z.object({
 }).strict();
 
 export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("create"), requestText: z.string().min(1).max(WORKBENCH_REQUEST_BYTES), languageHint: z.string().max(64).optional() }).strict(),
+  z.object({ action: z.literal("create"), requestText: z.string().min(1).max(WORKBENCH_REQUEST_BYTES), languageHint: z.string().max(64).optional(), operatorLanguage: z.literal(FACTORY_OPERATOR_LANGUAGE).optional() }).strict(),
   z.object({ action: z.literal("status"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("list") }).strict(),
   z.object({ action: z.literal("respond"), projectId: ProjectIdSchema, answers: z.array(AnswerSchema).min(1).max(40) }).strict(),
+  z.object({ action: z.literal("refresh-clarifications"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("approve-brief"), projectId: ProjectIdSchema, briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), expectedRowVersion: z.number().int().positive(), approvalNote: z.string().max(4000).optional() }).strict(),
   z.object({ action: z.literal("request-brief-changes"), projectId: ProjectIdSchema, reason: z.string().trim().min(1).max(4000), requirementKeys: z.array(z.string().min(1).max(128)).max(40).default([]) }).strict(),
   z.object({ action: z.literal("approve-planning"), projectId: ProjectIdSchema }).strict(),
@@ -46,6 +50,7 @@ export type WorkbenchProject = {
   workflowState: WorkflowState;
   statusLabel: string;
   updatedAt: string;
+  origin: ProjectOrigin;
 };
 
 export type WorkbenchQuestion = {
@@ -125,6 +130,8 @@ export type ConversationEntry = {
 };
 
 export type WorkbenchProjection = {
+  operatorLanguage: "en";
+  siteLanguage: string;
   mode: "NEW_PROJECT" | "PROJECT_WORKBENCH";
   project?: {
     projectId: string;
@@ -181,9 +188,10 @@ export function actionsForWorkbenchState(input: {
   hasPlanning: boolean;
   hasDesigns: boolean;
   implementationReady?: boolean;
+  canRefreshClarifications?: boolean;
 }): WorkbenchAction[] {
   switch (input.workflowState) {
-    case "CLARIFYING": return input.hasBlockingQuestions ? ["ANSWER_LEAD_CLARIFICATIONS"] : [];
+    case "CLARIFYING": return input.hasBlockingQuestions ? ["ANSWER_LEAD_CLARIFICATIONS", ...(input.canRefreshClarifications ? ["REFRESH_LEAD_CLARIFICATIONS" as WorkbenchAction] : [])] : [];
     case "AWAITING_BRIEF_APPROVAL": return input.hasBrief && input.briefReady ? ["APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES"] : [];
     case "AWAITING_DESIGN_SELECTION":
       return [
@@ -209,3 +217,5 @@ export function workbenchStatus(state: WorkflowState, allowedActions: WorkbenchA
 }
 
 export const projectStatusLabel = (state: WorkflowState) => STATUS[state].label;
+
+export { FACTORY_OPERATOR_LANGUAGE };
