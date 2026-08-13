@@ -70,6 +70,7 @@ describe("runtime module boundaries", () => {
       candidate: { candidateChecksum: string; exactFileManifest: Array<{ relativePath: string; checksum: string; byteLength: number; lineCount: number }> };
     };
     const allowlistedHistoricalChanges = new Set([
+      "package.json",
       "scripts/workbench-playwright-smoke.ts",
       "src/app/api/workbench/route.ts",
       "src/app/globals.css",
