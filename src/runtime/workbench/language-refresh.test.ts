@@ -29,7 +29,7 @@ describe("explicit clarification language refresh", () => {
     expect(before.status.allowedActions).toEqual(["ANSWER_LEAD_CLARIFICATIONS", "REFRESH_LEAD_CLARIFICATIONS"]);
     expect(before.questions[0]?.question).toContain("Bitte");
 
-    const refreshed = await app.handle({ action: "refresh-clarifications", projectId: created.project.projectId });
+    const refreshed = await app.handle({ action: "refresh-clarifications", projectId: created.project.projectId, requestId: "00000000-0000-4000-8000-000000000001" });
     expect(refreshed.project?.projectId).toBe(created.project.projectId);
     expect(refreshed.project?.projectVersion).toBe(1);
     expect(refreshed.project?.workflowState).toBe("CLARIFYING");

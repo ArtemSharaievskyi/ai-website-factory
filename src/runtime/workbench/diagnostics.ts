@@ -13,6 +13,7 @@ export type WorkbenchErrorCategory = z.infer<typeof WorkbenchErrorCategorySchema
 export const WorkbenchOperationSchema = z.enum([
   "SUBMIT_TO_LEAD",
   "ANSWER_LEAD_CLARIFICATIONS",
+  "REFRESH_LEAD_CLARIFICATIONS",
   "READ_WORKBENCH_STATUS",
   "LIST_WORKBENCH_PROJECTS",
   "APPROVE_BRIEF",
@@ -135,6 +136,7 @@ const VALIDATION_CODES = new Set([
   "TRIAL_ENTRY_INPUT_INVALID",
   "LEAD_INPUT_INVALID",
   "LEAD_ANALYSIS_INVALID",
+  "LEAD_CLARIFICATION_LANGUAGE_INVALID",
   "IMAGE_SOURCE_PENDING",
   "AUTH_DECISION_PENDING",
   "DESIGN_DIRECTIONS_INVALID",
@@ -202,6 +204,7 @@ function operationForAction(action?: string): WorkbenchOperation {
   switch (action) {
     case "create": return "SUBMIT_TO_LEAD";
     case "respond": return "ANSWER_LEAD_CLARIFICATIONS";
+    case "refresh-clarifications": return "REFRESH_LEAD_CLARIFICATIONS";
     case "status": return "READ_WORKBENCH_STATUS";
     case "list": return "LIST_WORKBENCH_PROJECTS";
     case "approve-brief": return "APPROVE_BRIEF";
@@ -240,6 +243,7 @@ function providerStatus(code: string) {
 function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProjection, "ok" | "code" | "correlationId" | "operation"> {
   if (code === "WORKBENCH_REQUEST_TOO_LARGE") return { error: "The request is too large.", httpStatus: 413, recoverable: false, category: "VALIDATION", subsystem: "ROUTE", errorClass: errorClass(error) };
   if (code === "WORKBENCH_REQUEST_INVALID") return { error: "The request could not be validated.", httpStatus: 400, recoverable: false, category: "VALIDATION", subsystem: "ROUTE", errorClass: errorClass(error) };
+  if (code === "LEAD_CLARIFICATION_LANGUAGE_INVALID") return { error: "Lead refresh output did not match the Factory operator language. The project was not changed.", httpStatus: 422, recoverable: true, category: "VALIDATION", subsystem: "LEAD", errorClass: errorClass(error) };
   if (code === "WORKBENCH_ADVANCED_RUNTIME_UNAVAILABLE") return { error: "The workflow runtime is temporarily unavailable. The project was not changed.", httpStatus: 503, recoverable: true, category: "INTERNAL", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
   if (NOT_FOUND_CODES.has(code)) return { error: "The requested project or workflow resource was not found.", httpStatus: 404, recoverable: false, category: "VALIDATION", subsystem: code === "PROJECT_NOT_FOUND" ? "WORKBENCH_APPLICATION" : code.startsWith("PERSISTENCE_") || code === "DOCUMENT_NOT_FOUND" ? "PERSISTENCE" : "TRIAL_ENTRY", errorClass: errorClass(error) };
   if (CONFLICT_CODES.has(code)) return { error: "The project changed or the requested workflow action is no longer current.", httpStatus: 409, recoverable: true, category: "WORKFLOW_CONFLICT", subsystem: code.startsWith("WORKBENCH_") ? "WORKBENCH_APPLICATION" : code.startsWith("PERSISTENCE_") || code === "IDEMPOTENCY_CONFLICT" ? "PERSISTENCE" : code.startsWith("AI_") ? "PROVIDER" : "TRIAL_ENTRY", errorClass: errorClass(error) };

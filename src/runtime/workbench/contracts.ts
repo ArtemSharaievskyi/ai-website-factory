@@ -32,7 +32,7 @@ export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("status"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("list") }).strict(),
   z.object({ action: z.literal("respond"), projectId: ProjectIdSchema, answers: z.array(AnswerSchema).min(1).max(40) }).strict(),
-  z.object({ action: z.literal("refresh-clarifications"), projectId: ProjectIdSchema }).strict(),
+  z.object({ action: z.literal("refresh-clarifications"), projectId: ProjectIdSchema, requestId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("approve-brief"), projectId: ProjectIdSchema, briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), expectedRowVersion: z.number().int().positive(), approvalNote: z.string().max(4000).optional() }).strict(),
   z.object({ action: z.literal("request-brief-changes"), projectId: ProjectIdSchema, reason: z.string().trim().min(1).max(4000), requirementKeys: z.array(z.string().min(1).max(128)).max(40).default([]) }).strict(),
   z.object({ action: z.literal("approve-planning"), projectId: ProjectIdSchema }).strict(),

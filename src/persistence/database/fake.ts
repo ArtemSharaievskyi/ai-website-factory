@@ -48,6 +48,32 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
       listDecisions: async (projectId, version) => copy(this.decisions.get(versionKey(projectId, version)) ?? []),
       appendWorkflowEvent: async (event) => { this.events.push(copy(event)); return copy(event); },
       saveCost: async (record) => { this.costs.push(copy(record)); return copy(record); },
+      reserveOperation: async (input) => {
+        const recordKey = `${input.operation}:${input.key}`;
+        const existing = this.idempotency.get(recordKey);
+        if (!existing) {
+          this.idempotency.set(recordKey, { key: input.key, operation: input.operation, payloadHash: input.payloadHash, result: { status: "IN_PROGRESS" } });
+          return { status: "NEW", key: input.key };
+        }
+        if (existing.payloadHash !== input.payloadHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key was already used with a different payload.");
+        const state = existing.result as { status?: string; result?: unknown };
+        if (state.status === "IN_PROGRESS") return { status: "IN_PROGRESS", key: input.key };
+        if (state.status === "SUCCEEDED") return { status: "SUCCEEDED", key: input.key, result: copy(state.result) };
+        this.idempotency.set(recordKey, { ...existing, result: { status: "IN_PROGRESS" } });
+        return { status: "NEW", key: input.key };
+      },
+      completeOperation: async (input) => {
+        const recordKey = `${input.operation}:${input.key}`;
+        const existing = this.idempotency.get(recordKey);
+        if (!existing || existing.payloadHash !== input.payloadHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key is not current.");
+        this.idempotency.set(recordKey, { ...existing, result: { status: "SUCCEEDED", result: copy(input.result) } });
+      },
+      failOperation: async (input) => {
+        const recordKey = `${input.operation}:${input.key}`;
+        const existing = this.idempotency.get(recordKey);
+        if (!existing || existing.payloadHash !== input.payloadHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key is not current.");
+        this.idempotency.set(recordKey, { ...existing, result: { status: "FAILED" } });
+      },
     };
     try { return await work(transaction); } catch (error) {
       this.projects.clear(); for (const [key, value] of projects) this.projects.set(key, value);

@@ -68,6 +68,22 @@ export class ClarificationRepository extends DocumentRepository {
   async hasBlockingUnresolved(projectId: string, version: number) { const session = await this.getSession(projectId, version); return session?.questions.some((question) => question.blocking && question.answerStatus === "unresolved") ?? false; }
 }
 
+export class OperationRepository {
+  constructor(private readonly db: PersistenceDatabase) {}
+  async reserve(operation: string, key: string, payload: unknown) {
+    const payloadHash = documentPayloadHash(payload);
+    return this.db.transaction((tx) => tx.reserveOperation({ operation, key, payloadHash }));
+  }
+  async complete(operation: string, key: string, payload: unknown, result: unknown) {
+    const payloadHash = documentPayloadHash(payload);
+    return this.db.transaction((tx) => tx.completeOperation({ operation, key, payloadHash, result }));
+  }
+  async fail(operation: string, key: string, payload: unknown) {
+    const payloadHash = documentPayloadHash(payload);
+    return this.db.transaction((tx) => tx.failOperation({ operation, key, payloadHash }));
+  }
+}
+
 export class DecisionRepository {
   constructor(private readonly db: PersistenceDatabase) {}
   async append(projectId: string, version: number, record: DecisionRecord) { const parsed = parse(DecisionRecordSchema, record, "Decision does not match its domain contract."); return this.db.transaction(async (tx) => { const versionRow = await tx.getVersion(projectId, version); if (versionRow?.immutable) throw new PersistenceError("PERSISTENCE_IMMUTABLE", "Released project versions are immutable."); return tx.appendDecision(projectId, version, parsed); }); }

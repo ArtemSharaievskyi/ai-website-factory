@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import {
   ClarificationRepository,
   DocumentRepository,
+  OperationRepository,
   ProjectRepository,
 } from "@/persistence/database/repositories";
 import type { PersistenceDatabase } from "@/persistence/database/types";
@@ -10,6 +12,7 @@ import type { WorkflowState } from "@/domain/workflow/engine";
 import type { FactoryProject } from "@/domain/project/schema";
 import type { LeadAgentService } from "@/agents/lead/service";
 import type { LeadAgentInput } from "@/agents/lead/contracts";
+import { LeadError } from "@/agents/lead/errors";
 import { FACTORY_OPERATOR_LANGUAGE, inferSiteLanguageFromPrompt, normalizeSiteLanguage, OperatorLanguageSchema } from "@/domain/language/schema";
 import type { ProjectOrigin } from "@/domain/project/provenance";
 import {
@@ -77,6 +80,8 @@ export type TrialEntryResult = {
   brief?: { checksum: string; readyForApproval: boolean; blockingReasons: string[] };
 };
 
+type RefreshClarificationsResult = Pick<TrialEntryResult, "project" | "workflowState" | "lead">;
+
 type TrialEntryDependencies = {
   database: PersistenceDatabase;
   createLeadAgent: (slug: string) => LeadAgentService;
@@ -122,11 +127,13 @@ export class TrialEntryService {
   private readonly projects: ProjectRepository;
   private readonly clarifications: ClarificationRepository;
   private readonly documents: DocumentRepository;
+  private readonly operations: OperationRepository;
 
   constructor(private readonly dependencies: TrialEntryDependencies) {
     this.projects = new ProjectRepository(dependencies.database);
     this.clarifications = new ClarificationRepository(dependencies.database);
     this.documents = new DocumentRepository(dependencies.database);
+    this.operations = new OperationRepository(dependencies.database);
   }
 
   private async inputForProject(project: FactoryProject, idempotencyKey: string): Promise<LeadAgentInput> {
@@ -338,20 +345,35 @@ export class TrialEntryService {
     }));
   }
 
-  async refreshClarifications(projectId: string) {
+  async refreshClarifications(projectId: string, requestId: string = randomUUID()): Promise<RefreshClarificationsResult> {
     const current = await this.projects.getWithVersion(projectId);
     if (!current) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");
     if (current.project.workflowState !== "CLARIFYING") throw new Error("TRIAL_ENTRY_NOT_AWAITING_CLARIFICATION");
     const session = await this.clarifications.getSession(projectId, current.project.currentVersion);
     if (!session) throw new Error("TRIAL_ENTRY_CLARIFICATION_NOT_FOUND");
     if (session.answers.some((answer) => answer.status !== "unresolved")) throw new Error("TRIAL_ENTRY_CLARIFICATION_REFRESH_NOT_ALLOWED");
-    const lead = this.dependencies.createLeadAgent(current.project.slug);
-    const refreshed = await lead.refreshClarifications(await this.inputForProject(current.project, `clarification-refresh:${projectId}`));
-    return {
-      project: { projectId: current.project.id, slug: current.project.slug, projectVersion: current.project.currentVersion, siteLanguage: current.project.siteLanguage },
-      workflowState: current.project.workflowState,
-      lead: { firstSemanticOwner: "lead" as const, analysisCompleted: true as const, clarificationQuestions: refreshed.questions.map(questionView) },
-    };
+    const operation = "trial-entry:refresh-clarifications";
+    const operationKey = `${projectId}:${requestId}`;
+    const payload = { action: "refresh-clarifications", projectId, projectVersion: current.project.currentVersion };
+    const reservation = await this.operations.reserve(operation, operationKey, payload);
+    if (reservation.status === "IN_PROGRESS") throw new LeadError("IDEMPOTENCY_CONFLICT", "The clarification refresh is already in progress.");
+    if (reservation.status === "SUCCEEDED") return reservation.result as RefreshClarificationsResult;
+
+    let result: RefreshClarificationsResult;
+    try {
+      const lead = this.dependencies.createLeadAgent(current.project.slug);
+      const refreshed = await lead.refreshClarifications(await this.inputForProject(current.project, `clarification-refresh:${operationKey}`));
+      result = {
+        project: { projectId: current.project.id, slug: current.project.slug, projectVersion: current.project.currentVersion, siteLanguage: current.project.siteLanguage },
+        workflowState: current.project.workflowState,
+        lead: { firstSemanticOwner: "lead" as const, analysisCompleted: true as const, clarificationQuestions: refreshed.questions.map(questionView) },
+      };
+    } catch (error) {
+      await this.operations.fail(operation, operationKey, payload).catch(() => undefined);
+      throw error;
+    }
+    await this.operations.complete(operation, operationKey, payload, result);
+    return result;
   }
 
   /** Rehydrates Lead's typed draft from durable requirements before approval. */

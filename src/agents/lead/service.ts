@@ -66,9 +66,13 @@ const versionedQuestionId = (questionId: string, clarificationVersion: number) =
   const hex = bytes.toString("hex");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 };
-const germanOperatorMarkers = /\b(?:bitte|welche|bestätigen|vollständigen|geschäft|datenschutz|impressum|gegebenenfalls|dürfen|kontaktformular|sollen|benötigt|verfügbar)\b/i;
+const germanOperatorMarkers = /\b(?:bitte|welche|welcher|welches|bestätigen|vollständigen|geschäft|datenschutz|impressum|gegebenenfalls|dürfen|kontaktformular|sollen|benötigt|verfügbar)\b/gi;
+const isGermanOperatorQuestion = (question: string) => {
+  const markers = question.match(germanOperatorMarkers) ?? [];
+  return /^(?:bitte|welche|welcher|welches|bestätigen|vollständigen)\b/i.test(question) || markers.length >= 2;
+};
 const validateClarificationPlanLanguage = (plan: ClarificationPlan, operatorLanguage: "en") => {
-  if (plan.operatorLanguage !== operatorLanguage || plan.questions.some((question) => germanOperatorMarkers.test(question.question))) throw new LeadError("LEAD_CLARIFICATION_LANGUAGE_INVALID", "Lead clarification output did not match the Factory operator language.");
+  if (plan.operatorLanguage !== operatorLanguage || plan.questions.some((question) => isGermanOperatorQuestion(question.question))) throw new LeadError("LEAD_CLARIFICATION_LANGUAGE_INVALID", "Lead clarification output did not match the Factory operator language.");
   return plan;
 };
 export type LeadServiceDependencies = {
@@ -195,17 +199,22 @@ export class LeadAgentService {
   }
   async analyzeProjectPrompt(input: LeadAgentInput) {
     const parsed = LeadAgentInputSchema.parse(input);
-    const existing = this.analyses.get(
+    let existing = this.analyses.get(
       key(parsed.projectId, parsed.projectVersion),
     );
     const checksum = checksumPersistedDocument(
       normalizePrompt(parsed.originalPrompt).trim(),
     );
-    if (existing && existing.originalPromptChecksum !== checksum)
-      throw new LeadError(
-        "IDEMPOTENCY_CONFLICT",
-        "Prompt analysis belongs to a different prompt.",
-      );
+    if (existing && existing.originalPromptChecksum !== checksum) {
+      const current = await this.projects.getWithVersion(parsed.projectId);
+      if (!current || normalizePrompt(current.project.originalPrompt).trim() !== normalizePrompt(parsed.originalPrompt).trim())
+        throw new LeadError("IDEMPOTENCY_CONFLICT", "Prompt analysis belongs to a different prompt.");
+      // A provider result is not trusted as the identity authority. Discard a
+      // stale/corrupt cached result and obtain a fresh analysis for the same
+      // canonical project instead of poisoning the next explicit operation.
+      this.analyses.delete(key(parsed.projectId, parsed.projectVersion));
+      existing = undefined;
+    }
     try {
       const skillSelection = this.resolveSkills
         ? await this.resolveSkills(parsed)
@@ -242,8 +251,10 @@ export class LeadAgentService {
             (skillSelection
               ? skillSelection.contexts.length > 0
               : selected.length > 0),
-        },
+          },
       });
+      if (result.projectId !== parsed.projectId || result.projectVersion !== parsed.projectVersion || result.originalPromptChecksum !== checksum || result.operatorLanguage !== parsed.operatorLanguage)
+        throw new LeadError("LEAD_ANALYSIS_INVALID", "Lead analysis was not bound to the current project input.");
       this.analyses.set(key(parsed.projectId, parsed.projectVersion), result);
       if (skillSelection)
         this.skillSelections.set(
@@ -405,7 +416,7 @@ export class LeadAgentService {
       answers: [],
       supersededQuestions: [...(existing.supersededQuestions ?? []), ...supersededQuestions],
     });
-    await this.clarifications.saveSession(refreshed, `clarification-refresh-${parsed.projectId}-${refreshed.clarificationVersion}`);
+    await this.clarifications.saveSession(refreshed, `clarification-refresh-${parsed.idempotencyKey}`);
     await this.dependencies.memory.writeSnapshot(parsed.projectId, parsed.projectVersion, { "clarification-log.json": refreshed });
     await this.appendDecision(
       parsed.projectId,

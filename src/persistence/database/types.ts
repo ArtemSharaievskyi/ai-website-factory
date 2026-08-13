@@ -10,6 +10,11 @@ export type ProjectVersionRow = { id: string; projectId: string; versionNumber: 
 export type WorkflowEvent = { id: string; projectId: string; projectVersion: number; fromState: WorkflowState; toState: WorkflowState; actor: string; reason: string; createdAt: string; idempotencyKey?: string };
 export type CostRecord = { id: string; projectId: string; projectVersion: number; role: string; taskId?: string; provider: string; model: string; inputTokens: number; cachedInputTokens: number; outputTokens: number; estimatedCost: number; createdAt: string };
 export type IdempotencyRecord = { key: string; operation: string; payloadHash: string; result: unknown };
+export type OperationStatus = "IN_PROGRESS" | "SUCCEEDED" | "FAILED";
+export type OperationReservation =
+  | { status: "NEW"; key: string }
+  | { status: "IN_PROGRESS"; key: string }
+  | { status: "SUCCEEDED"; key: string; result: unknown };
 
 export interface PersistenceTransaction {
   getProject(id: string): Promise<ProjectRow | null>;
@@ -33,6 +38,9 @@ export interface PersistenceTransaction {
   listDecisions(projectId: string, version: number): Promise<DecisionRecord[]>;
   appendWorkflowEvent(event: WorkflowEvent): Promise<WorkflowEvent>;
   saveCost(record: CostRecord): Promise<CostRecord>;
+  reserveOperation(input: { operation: string; key: string; payloadHash: string }): Promise<OperationReservation>;
+  completeOperation(input: { operation: string; key: string; payloadHash: string; result: unknown }): Promise<void>;
+  failOperation(input: { operation: string; key: string; payloadHash: string }): Promise<void>;
 }
 
 export interface PersistenceDatabase { transaction<T>(work: (transaction: PersistenceTransaction) => Promise<T>): Promise<T>; }

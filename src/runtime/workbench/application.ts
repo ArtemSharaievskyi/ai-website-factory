@@ -65,7 +65,7 @@ export class WorkbenchApplication {
         await this.dependencies.entry.respond(request.projectId, request.answers);
         return this.project(request.projectId);
       case "refresh-clarifications":
-        await this.dependencies.entry.refreshClarifications(request.projectId);
+        await this.dependencies.entry.refreshClarifications(request.projectId, request.requestId);
         return this.project(request.projectId);
       case "status":
         return this.project(request.projectId);
