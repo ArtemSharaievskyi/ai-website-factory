@@ -25,6 +25,7 @@
 # production
 /build
 /.factory-generated*/
+/.factory-assets*/
 /.factory/
 
 # misc

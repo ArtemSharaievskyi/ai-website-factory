@@ -2,8 +2,10 @@ import type { FactoryProject } from "@/domain/project/schema";
 import type { WorkflowState } from "@/domain/workflow/engine";
 import type { DecisionRecord } from "@/domain/workflow/decision";
 import type { PersistedDocument, DocumentRow } from "./mapping";
+import type { ProjectAsset } from "@/domain/assets/project";
 
 export type ProjectRow = ReturnType<typeof import("./mapping").mapProjectToRow>;
+export type ProjectAssetRow = ProjectAsset;
 export type ProjectVersionRow = { id: string; projectId: string; versionNumber: number; state: WorkflowState; memoryRootPath: string | null; requirementsChecksum: string | null; selectedDesignChecksum: string | null; architectureChecksum: string | null; releasedAt: string | null; immutable: boolean; createdAt: string; updatedAt: string; rowVersion: number };
 export type WorkflowEvent = { id: string; projectId: string; projectVersion: number; fromState: WorkflowState; toState: WorkflowState; actor: string; reason: string; createdAt: string; idempotencyKey?: string };
 export type CostRecord = { id: string; projectId: string; projectVersion: number; role: string; taskId?: string; provider: string; model: string; inputTokens: number; cachedInputTokens: number; outputTokens: number; estimatedCost: number; createdAt: string };
@@ -14,6 +16,11 @@ export interface PersistenceTransaction {
   listProjects(): Promise<ProjectRow[]>;
   insertProject(row: ProjectRow, idempotency?: { key: string; payloadHash: string }): Promise<ProjectRow>;
   updateProjectState(input: { id: string; expectedState: WorkflowState; expectedRowVersion: number; state: WorkflowState; updatedAt: string; implementationStartedAt?: string; completedAt?: string }): Promise<ProjectRow>;
+  updateProjectSiteLanguage(input: { id: string; siteLanguage: string; updatedAt: string }): Promise<ProjectRow>;
+  listAssets(projectId: string): Promise<ProjectAssetRow[]>;
+  getAsset(projectId: string, assetId: string): Promise<ProjectAssetRow | null>;
+  insertAsset(row: ProjectAssetRow): Promise<ProjectAssetRow>;
+  updateAsset(row: ProjectAssetRow): Promise<ProjectAssetRow>;
   getVersion(projectId: string, version: number): Promise<ProjectVersionRow | null>;
   listVersions(projectId: string): Promise<ProjectVersionRow[]>;
   insertVersion(row: ProjectVersionRow, idempotency?: { key: string; payloadHash: string }): Promise<ProjectVersionRow>;

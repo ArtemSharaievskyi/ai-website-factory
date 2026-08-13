@@ -54,7 +54,7 @@ import {
 } from "./clarification-policy";
 import { leadAgentDefinition } from "@/agents/catalog";
 import type { AgentSkillSelection } from "@/skills/runtime/resolver";
-import { FACTORY_OPERATOR_LANGUAGE } from "@/domain/language/schema";
+import { FACTORY_OPERATOR_LANGUAGE, inferSiteLanguageFromPrompt, normalizeSiteLanguage } from "@/domain/language/schema";
 
 const now = () => new Date().toISOString();
 const normalizePrompt = (prompt: string) => prompt.replace(/\r\n?/g, "\n");
@@ -65,6 +65,11 @@ const versionedQuestionId = (questionId: string, clarificationVersion: number) =
   bytes[8] = (bytes[8] & 63) | 128;
   const hex = bytes.toString("hex");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+};
+const germanOperatorMarkers = /\b(?:bitte|welche|bestätigen|vollständigen|geschäft|datenschutz|impressum|gegebenenfalls|dürfen|kontaktformular|sollen|benötigt|verfügbar)\b/i;
+const validateClarificationPlanLanguage = (plan: ClarificationPlan, operatorLanguage: "en") => {
+  if (plan.operatorLanguage !== operatorLanguage || plan.questions.some((question) => germanOperatorMarkers.test(question.question))) throw new LeadError("LEAD_CLARIFICATION_LANGUAGE_INVALID", "Lead clarification output did not match the Factory operator language.");
+  return plan;
 };
 export type LeadServiceDependencies = {
   database: PersistenceDatabase;
@@ -154,6 +159,7 @@ export class LeadAgentService {
       id: parsed.projectId,
       slug: parsed.projectSlug ?? `project-${parsed.projectId.slice(0, 8)}`,
       origin: parsed.origin,
+      siteLanguage: parsed.siteLanguage !== "UNRESOLVED" ? parsed.siteLanguage : inferSiteLanguageFromPrompt(prompt),
       ...(parsed.projectTitle ? { title: parsed.projectTitle } : {}),
       originalPrompt: prompt,
       currentVersion: parsed.projectVersion,
@@ -209,6 +215,7 @@ export class LeadAgentService {
       );
       if (
         existing &&
+        parsed.availableAssets.length === 0 &&
         (!skillSelection ||
           !previousSelection ||
           previousSelection.identityChecksum ===
@@ -273,14 +280,18 @@ export class LeadAgentService {
       parsed.projectId,
       parsed.projectVersion,
     );
-    const plan = ClarificationPlanSchema.parse(
+    const plan = validateClarificationPlanLanguage(ClarificationPlanSchema.parse(
       await this.provider.proposeClarifications(
-        { analysis, session: existing ?? undefined },
+        { analysis, session: existing ?? undefined, operatorLanguage: parsed.operatorLanguage, siteLanguage: parsed.siteLanguage, availableAssets: parsed.availableAssets },
         skillSelection?.contexts,
         skillSelection?.identityChecksum,
       ),
-    );
-    const questions: ClarificationQuestion[] = [...(existing?.questions ?? [])];
+    ), parsed.operatorLanguage);
+    const satisfiedAssetKeys = new Set<string>();
+    if (parsed.availableAssets.some((asset) => asset.status === "READY" && asset.currentness === "CURRENT" && asset.category === "LOGO")) satisfiedAssetKeys.add("logo");
+    if (parsed.availableAssets.some((asset) => asset.status === "READY" && asset.currentness === "CURRENT" && (asset.category === "IMAGE" || asset.category === "REFERENCE"))) satisfiedAssetKeys.add("image-source");
+    const assetSuperseded = (existing?.questions ?? []).filter((question) => question.answerStatus === "unresolved" && satisfiedAssetKeys.has(question.requirementKey ?? "")).map((question) => ({ question, supersededAt: now(), reason: "Satisfied by a READY project asset; no text answer was submitted." }));
+    const questions: ClarificationQuestion[] = (existing?.questions ?? []).filter((question) => !assetSuperseded.some((entry) => entry.question.id === question.id));
     const known = new Set(
       questions.map((question) => question.requirementKey ?? question.id),
     );
@@ -319,7 +330,7 @@ export class LeadAgentService {
             ...(existing.clarificationVersion ? { clarificationVersion: existing.clarificationVersion } : {}),
           }
         : { operatorLanguage: parsed.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE, clarificationVersion: 1 }),
-      ...(existing?.supersededQuestions ? { supersededQuestions: existing.supersededQuestions } : {}),
+      ...((existing?.supersededQuestions || assetSuperseded.length) ? { supersededQuestions: [...(existing?.supersededQuestions ?? []), ...assetSuperseded] } : {}),
     });
     await this.clarifications.saveSession(
       session,
@@ -357,11 +368,11 @@ export class LeadAgentService {
 
     const analysis = await this.analyzeProjectPrompt(parsed);
     const skillSelection = this.skillSelections.get(key(parsed.projectId, parsed.projectVersion));
-    const plan = ClarificationPlanSchema.parse(await this.provider.proposeClarifications(
-      { analysis },
+    const plan = validateClarificationPlanLanguage(ClarificationPlanSchema.parse(await this.provider.proposeClarifications(
+      { analysis, operatorLanguage: parsed.operatorLanguage, siteLanguage: parsed.siteLanguage, availableAssets: parsed.availableAssets },
       skillSelection?.contexts,
       skillSelection?.identityChecksum,
-    ));
+    )), parsed.operatorLanguage);
     const supersededQuestions = existing.questions.map((question) => ({
       question,
       supersededAt: now(),
@@ -469,6 +480,10 @@ export class LeadAgentService {
       answers: [...session.answers, answer],
     });
     await this.clarifications.saveSession(next, input.idempotencyKey);
+    if (question.requirementKey === "languages" && input.status === "answered") {
+      const siteLanguage = normalizeSiteLanguage(input.answer);
+      if (siteLanguage !== "UNRESOLVED") await this.projects.updateSiteLanguage(input.projectId, siteLanguage);
+    }
     this.answerKeys.set(input.idempotencyKey, answerHash);
     if (
       session.answers.some(
@@ -639,7 +654,9 @@ export class LeadAgentService {
         "BRIEF_NOT_READY",
         "The brief is not ready for approval.",
       );
-    const current = await this.projects.getWithVersion(request.projectId);
+    const projectForApproval = await this.projects.getWithVersion(request.projectId);
+    if (projectForApproval?.project.siteLanguage === "UNRESOLVED") throw new LeadError("BRIEF_NOT_READY", "The customer website language must be explicitly confirmed before approval.");
+    const current = projectForApproval;
     if (!current || current.project.workflowState !== "AWAITING_BRIEF_APPROVAL")
       throw new LeadError(
         "WORKFLOW_STATE_INVALID",

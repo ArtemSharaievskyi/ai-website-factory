@@ -27,6 +27,8 @@ import {
 } from "./contracts";
 import { FACTORY_OPERATOR_LANGUAGE } from "@/domain/language/schema";
 import { isUserFacingProjectOrigin } from "@/domain/project/provenance";
+import type { ProjectAssetService } from "@/runtime/assets/service";
+import type { WorkbenchAsset } from "./contracts";
 
 const list = (values: string[] | undefined, limit = 12) => (values ?? []).slice(0, limit).map((value) => value.slice(0, 500));
 
@@ -48,7 +50,7 @@ export class WorkbenchApplication {
   private readonly projects: ProjectRepository;
   private readonly documents: DocumentRepository;
 
-  constructor(private readonly dependencies: { database: PersistenceDatabase; entry: TrialEntryService; getWorkflowScope?: (slug: string) => WorkbenchWorkflowScope }) {
+  constructor(private readonly dependencies: { database: PersistenceDatabase; entry: TrialEntryService; assets?: ProjectAssetService; getWorkflowScope?: (slug: string) => WorkbenchWorkflowScope }) {
     this.projects = new ProjectRepository(dependencies.database);
     this.documents = new DocumentRepository(dependencies.database);
   }
@@ -118,6 +120,7 @@ export class WorkbenchApplication {
       siteLanguage: "en",
       status: workbenchStatus("DRAFT", [], false),
       questions: [],
+      assets: [],
       dependencies: [],
       designs: [],
       conversation: [],
@@ -145,7 +148,7 @@ export class WorkbenchApplication {
       Boolean(clarificationSession) &&
       hasBlockingQuestions &&
       clarificationSession?.answers.every((answer) => answer.status === "unresolved") === true &&
-      clarificationSession?.operatorLanguage !== FACTORY_OPERATOR_LANGUAGE;
+      (clarificationSession?.operatorLanguage !== FACTORY_OPERATOR_LANGUAGE || clarificationSession.questions.some((question) => /\b(?:bitte|welche|bestätigen|vollständigen|geschäft|datenschutz|impressum|gegebenenfalls|dürfen|kontaktformular|sollen|benötigt|verfügbar)\b/i.test(question.question)));
     const briefReady = status.brief?.readyForApproval ?? false;
     const allowedActions = actionsForWorkbenchState({
       workflowState: current.project.workflowState,
@@ -189,9 +192,8 @@ export class WorkbenchApplication {
       const answer = clarification?.documentType === "clarification-log" ? clarification.answers.find((candidate) => candidate.questionId === question.id)?.answer : undefined;
       return { ...question, ...(answer ? { answer } : {}) };
     }) ?? [];
-    const siteLanguage = requirements?.documentType === "requirements"
-      ? requirements.localization.defaultLocale
-      : this.siteLanguageFromPrompt(current.project.originalPrompt);
+    const siteLanguage = current.project.siteLanguage;
+    const assets = this.dependencies.assets ? (await this.dependencies.assets.list(current.project.id)).map((asset): WorkbenchAsset => ({ assetId: asset.assetId, category: asset.category, source: asset.source, safeDisplayName: asset.safeDisplayName, mediaType: asset.mediaType, byteSize: asset.byteSize, sha256: asset.sha256, status: asset.status, version: asset.version, currentness: asset.currentness, ...(asset.rejectionReason ? { rejectionReason: asset.rejectionReason } : {}) })) : [];
     const conversation = this.conversation(current.project.originalPrompt, current.project.workflowState, questions, brief, planningProjection, designItems);
     return {
       mode: "PROJECT_WORKBENCH",
@@ -208,6 +210,7 @@ export class WorkbenchApplication {
       },
       status: workbenchStatus(current.project.workflowState, allowedActions, hasBlockingQuestions),
       questions,
+      assets,
       ...(brief ? { brief } : {}),
       ...(planningProjection ? { planning: planningProjection } : {}),
       ...(database ? { database } : {}),

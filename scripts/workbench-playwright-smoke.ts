@@ -15,7 +15,7 @@ const landing: WorkbenchProjection = {
   operatorLanguage: "en",
   siteLanguage: "en",
   status: { label: "New project", detail: "Describe what you want to build.", stage: "Lead", pendingUserAction: "", allowedActions: [], canCompose: true },
-  questions: [], dependencies: [], designs: [], conversation: [], projects: [],
+  questions: [], assets: [], dependencies: [], designs: [], conversation: [], projects: [],
 };
 
 function projectProjection(answered: boolean): WorkbenchProjection {
@@ -26,6 +26,7 @@ function projectProjection(answered: boolean): WorkbenchProjection {
     project: { projectId, name: "Synthetic local test business", slug: "synthetic-local-test-business", promptPreview: syntheticPrompt, workflowState: "CLARIFYING", rowVersion: answered ? 3 : 1, projectVersion: 1 },
     status: { label: "Lead is clarifying", detail: answered ? "Lead resumed the same project." : "Answer the required questions before the Brief.", stage: "Lead", pendingUserAction: "ANSWER_LEAD_CLARIFICATIONS", allowedActions: ["ANSWER_LEAD_CLARIFICATIONS"], canCompose: true },
     questions: [{ id: questionId, requirementKey: "business-purpose", category: "business", question: "What is the synthetic business purpose?", blocking: true, required: true, answerStatus: answered ? "answered" : "unresolved", ...(answered ? { answer: "A synthetic local test business." } : {}) }],
+    assets: [],
     dependencies: [], designs: [], conversation: [{ entryId: "request", actor: "USER", kind: "MESSAGE", title: "Project request", text: syntheticPrompt }, { entryId: "clarification", actor: "FACTORY", kind: "CLARIFICATION", title: "Lead clarification", text: answered ? "0 question(s) remain before the Brief can be prepared." : "1 question(s) remain before the Brief can be prepared.", status: "current" }],
     projects: [{ projectId, name: "Synthetic local test business", slug: "synthetic-local-test-business", origin: "TEST", workflowState: "CLARIFYING", statusLabel: "Lead is clarifying", updatedAt: "2026-08-12T00:00:00.000Z" }],
   };
@@ -41,7 +42,7 @@ async function main() {
     await mkdir(workspace, { recursive: true });
     await writeFile(path.join(workspace, "package.json"), FOUNDATION_PACKAGE_JSON);
     await cp(path.join(process.cwd(), "public"), path.join(workspace, "public"), { recursive: true });
-    await cp(path.join(process.cwd(), ".next"), path.join(workspace, ".next"), { recursive: true, filter: (source) => !source.includes(`${path.sep}node_modules${path.sep}`) });
+    await cp(path.join(process.cwd(), ".next"), path.join(workspace, ".next"), { recursive: true, filter: (source) => !/(?:^|[\\/])node_modules(?:[\\/]|$)/i.test(source) && !/(?:^|[\\/])dev(?:[\\/]|$)/i.test(source) });
     await symlink(path.join(process.cwd(), "node_modules"), path.join(workspace, "node_modules"), "junction");
     handle = await server.start({ workspacePath: workspace, port: await chooseLoopbackPort() });
     await waitForLocalReadiness(handle.baseUrl, handle.port);

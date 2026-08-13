@@ -75,9 +75,14 @@ describe("runtime module boundaries", () => {
       "src/app/globals.css",
       "src/components/workbench.tsx",
       "src/persistence/database/postgres.ts",
+      "src/persistence/database/fake.ts",
+      "src/persistence/database/repositories.ts",
+      "src/persistence/database/types.ts",
       "src/runtime/trial-entry/service.ts",
+      "src/runtime/trial-entry/production.ts",
       "src/runtime/workbench/application.ts",
       "src/runtime/workbench/contracts.ts",
+      "src/runtime/workbench/production.ts",
     ]);
     const manifest = document.candidate.exactFileManifest;
     const unchangedManifest = manifest.filter((entry) => !allowlistedHistoricalChanges.has(entry.relativePath));

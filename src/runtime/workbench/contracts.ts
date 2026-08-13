@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { WorkflowState } from "@/domain/workflow/engine";
 import type { ProjectOrigin } from "@/domain/project/provenance";
 import { FACTORY_OPERATOR_LANGUAGE } from "@/domain/language/schema";
+import type { ProjectAssetCategory } from "@/domain/assets/project";
 
 export const WORKBENCH_REQUEST_BYTES = 128 * 1024;
 
@@ -51,6 +52,20 @@ export type WorkbenchProject = {
   statusLabel: string;
   updatedAt: string;
   origin: ProjectOrigin;
+};
+
+export type WorkbenchAsset = {
+  assetId: string;
+  category: ProjectAssetCategory;
+  source: "USER_SUPPLIED";
+  safeDisplayName: string;
+  mediaType: string;
+  byteSize: number;
+  sha256: string;
+  status: string;
+  version: number;
+  currentness: string;
+  rejectionReason?: string;
 };
 
 export type WorkbenchQuestion = {
@@ -151,6 +166,7 @@ export type WorkbenchProjection = {
     canCompose: boolean;
   };
   questions: WorkbenchQuestion[];
+  assets: WorkbenchAsset[];
   brief?: WorkbenchBrief;
   planning?: WorkbenchPlanning;
   database?: WorkbenchDatabase;

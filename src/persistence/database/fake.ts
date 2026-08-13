@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { PersistenceError } from "./errors";
 import { checksumPersistedDocument } from "./serialization";
-import type { PersistenceDatabase, PersistenceTransaction, ProjectRow, ProjectVersionRow, WorkflowEvent, CostRecord, IdempotencyRecord } from "./types";
+import type { PersistenceDatabase, PersistenceTransaction, ProjectRow, ProjectAssetRow, ProjectVersionRow, WorkflowEvent, CostRecord, IdempotencyRecord } from "./types";
 import type { DocumentRow } from "./mapping";
 import type { DecisionRecord } from "@/domain/workflow/decision";
 
@@ -9,6 +9,7 @@ const copy = <T>(value: T): T => structuredClone(value);
 
 export class InMemoryPersistenceDatabase implements PersistenceDatabase {
   readonly projects = new Map<string, ProjectRow>();
+  readonly assets = new Map<string, ProjectAssetRow>();
   readonly versions = new Map<string, ProjectVersionRow>();
   readonly documents = new Map<string, DocumentRow>();
   readonly decisions = new Map<string, DecisionRecord[]>();
@@ -17,12 +18,17 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
   private readonly idempotency = new Map<string, IdempotencyRecord>();
 
   async transaction<T>(work: (transaction: PersistenceTransaction) => Promise<T>): Promise<T> {
-    const projects = new Map(this.projects); const versions = new Map(this.versions); const documents = new Map(this.documents); const decisions = new Map([...this.decisions].map(([key, value]) => [key, copy(value)])); const events = [...this.events]; const costs = [...this.costs]; const idempotency = new Map(this.idempotency);
+    const projects = new Map(this.projects); const assets = new Map(this.assets); const versions = new Map(this.versions); const documents = new Map(this.documents); const decisions = new Map([...this.decisions].map(([key, value]) => [key, copy(value)])); const events = [...this.events]; const costs = [...this.costs]; const idempotency = new Map(this.idempotency);
     const transaction: PersistenceTransaction = {
       getProject: async (id) => copy(this.projects.get(id) ?? null),
       listProjects: async () => copy([...this.projects.values()].sort((left, right) => right.updated_at.localeCompare(left.updated_at))),
       insertProject: async (row, token) => { const result = this.idempotent("project:create", token, row); if (result) return copy(result as ProjectRow); if (this.projects.has(row.id)) throw new PersistenceError("PERSISTENCE_CONFLICT", "Project already exists."); this.projects.set(row.id, copy(row)); return copy(row); },
       updateProjectState: async (input) => { const row = this.projects.get(input.id); if (!row) throw new PersistenceError("PERSISTENCE_NOT_FOUND", "Project was not found."); if (row.workflow_state !== input.expectedState || row.row_version !== input.expectedRowVersion) throw new PersistenceError("PERSISTENCE_CONFLICT", "Project state changed before this operation completed."); const next = { ...row, workflow_state: input.state, updated_at: input.updatedAt, implementation_started_at: input.implementationStartedAt ?? row.implementation_started_at, completed_at: input.completedAt ?? row.completed_at, row_version: row.row_version + 1 }; this.projects.set(row.id, next); return copy(next); },
+      updateProjectSiteLanguage: async (input) => { const row = this.projects.get(input.id); if (!row) throw new PersistenceError("PERSISTENCE_NOT_FOUND", "Project was not found."); const next = { ...row, site_language: input.siteLanguage, updated_at: input.updatedAt }; this.projects.set(row.id, next); return copy(next); },
+      listAssets: async (projectId) => copy([...this.assets.values()].filter((asset) => asset.projectId === projectId).sort((left, right) => right.createdAt.localeCompare(left.createdAt))),
+      getAsset: async (projectId, assetId) => copy(this.assets.get(assetKey(projectId, assetId)) ?? null),
+      insertAsset: async (row) => { const key = assetKey(row.projectId, row.assetId); if (this.assets.has(key)) throw new PersistenceError("PERSISTENCE_CONFLICT", "Asset already exists."); this.assets.set(key, copy(row)); return copy(row); },
+      updateAsset: async (row) => { const key = assetKey(row.projectId, row.assetId); if (!this.assets.has(key)) throw new PersistenceError("PERSISTENCE_NOT_FOUND", "Asset was not found."); this.assets.set(key, copy(row)); return copy(row); },
       getVersion: async (projectId, version) => copy(this.versions.get(versionKey(projectId, version)) ?? null),
       listVersions: async (projectId) => copy([...this.versions.values()].filter((version) => version.projectId === projectId).sort((left, right) => left.versionNumber - right.versionNumber)),
       insertVersion: async (row, token) => { const result = this.idempotent("version:create", token, row); if (result) return copy(result as ProjectVersionRow); const key = versionKey(row.projectId, row.versionNumber); if (this.versions.has(key)) throw new PersistenceError("PERSISTENCE_CONFLICT", "Project version already exists."); this.versions.set(key, copy(row)); return copy(row); },
@@ -45,6 +51,7 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
     };
     try { return await work(transaction); } catch (error) {
       this.projects.clear(); for (const [key, value] of projects) this.projects.set(key, value);
+      this.assets.clear(); for (const [key, value] of assets) this.assets.set(key, value);
       this.versions.clear(); for (const [key, value] of versions) this.versions.set(key, value);
       this.documents.clear(); for (const [key, value] of documents) this.documents.set(key, value);
       this.decisions.clear(); for (const [key, value] of decisions) this.decisions.set(key, value);
@@ -70,6 +77,7 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
 }
 
 export const versionKey = (projectId: string, version: number) => `${projectId}:${version}`;
+export const assetKey = (projectId: string, assetId: string) => `${projectId}:${assetId}`;
 export const documentKey = (projectId: string, version: number, documentType: string) => `${projectId}:${version}:${documentType}`;
 export const newWorkflowEvent = (projectId: string, projectVersion: number, fromState: WorkflowEvent["fromState"], toState: WorkflowEvent["toState"], actor: string, reason: string, idempotencyKey?: string): WorkflowEvent => ({ id: randomUUID(), projectId, projectVersion, fromState, toState, actor, reason, createdAt: new Date().toISOString(), ...(idempotencyKey ? { idempotencyKey } : {}) });
 export const documentPayloadHash = (value: unknown) => checksumPersistedDocument(value);

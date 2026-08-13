@@ -10,12 +10,13 @@ import type { WorkflowState } from "@/domain/workflow/engine";
 import type { FactoryProject } from "@/domain/project/schema";
 import type { LeadAgentService } from "@/agents/lead/service";
 import type { LeadAgentInput } from "@/agents/lead/contracts";
-import { FACTORY_OPERATOR_LANGUAGE, OperatorLanguageSchema } from "@/domain/language/schema";
+import { FACTORY_OPERATOR_LANGUAGE, inferSiteLanguageFromPrompt, normalizeSiteLanguage, OperatorLanguageSchema } from "@/domain/language/schema";
 import type { ProjectOrigin } from "@/domain/project/provenance";
 import {
   createInitialProjectRequest,
   type InitialProjectRequest,
 } from "@/domain/project/initial-request";
+import type { ProjectAssetService } from "@/runtime/assets/service";
 
 export type TrialEntryAnswer = {
   questionId: string;
@@ -43,6 +44,7 @@ export type TrialEntryStatus = {
   blockingReasons: string[];
   nextAllowedActions: string[];
   operatorLanguage: "en";
+  siteLanguage: string;
   clarification?: {
     questions: TrialEntryQuestion[];
     unresolvedQuestionIds: string[];
@@ -64,11 +66,12 @@ export type TrialEntryProjectSummary = {
   workflowState: WorkflowState;
   updatedAt: string;
   origin: ProjectOrigin;
+  siteLanguage: string;
 };
 
 export type TrialEntryResult = {
   request: Pick<InitialProjectRequest, "requestId" | "projectId" | "submittedAt" | "checksum"> & { byteSize: number };
-  project: { projectId: string; slug: string; projectVersion: number };
+  project: { projectId: string; slug: string; projectVersion: number; siteLanguage: string };
   workflowState: WorkflowState;
   lead: { firstSemanticOwner: "lead"; analysisCompleted: true; clarificationQuestions: TrialEntryQuestion[] };
   brief?: { checksum: string; readyForApproval: boolean; blockingReasons: string[] };
@@ -77,24 +80,8 @@ export type TrialEntryResult = {
 type TrialEntryDependencies = {
   database: PersistenceDatabase;
   createLeadAgent: (slug: string) => LeadAgentService;
+  assets?: ProjectAssetService;
 };
-
-const inputForProject = (
-  project: FactoryProject,
-  idempotencyKey: string,
-): LeadAgentInput => ({
-  projectId: project.id,
-  projectVersion: project.currentVersion,
-  originalPrompt: project.originalPrompt,
-  suppliedFiles: [],
-  knownUserAnswers: {},
-  currentWorkflowState: project.workflowState,
-  idempotencyKey,
-  operatorLanguage: FACTORY_OPERATOR_LANGUAGE,
-  projectSlug: project.slug,
-  ...(project.title ? { projectTitle: project.title } : {}),
-  origin: project.origin,
-});
 
 const questionView = (question: {
   id: string;
@@ -142,6 +129,24 @@ export class TrialEntryService {
     this.documents = new DocumentRepository(dependencies.database);
   }
 
+  private async inputForProject(project: FactoryProject, idempotencyKey: string): Promise<LeadAgentInput> {
+    return {
+      projectId: project.id,
+      projectVersion: project.currentVersion,
+      originalPrompt: project.originalPrompt,
+      suppliedFiles: [],
+      availableAssets: this.dependencies.assets ? await this.dependencies.assets.listReferences(project.id) : [],
+      knownUserAnswers: {},
+      currentWorkflowState: project.workflowState,
+      idempotencyKey,
+      operatorLanguage: FACTORY_OPERATOR_LANGUAGE,
+      siteLanguage: project.siteLanguage,
+      projectSlug: project.slug,
+      ...(project.title ? { projectTitle: project.title } : {}),
+      origin: project.origin,
+    };
+  }
+
   async createProject(input: { requestText: string; languageHint?: string; operatorLanguage?: "en" }) {
     const request = createInitialProjectRequest(input);
     const slug = `project-${request.projectId.slice(0, 8)}`;
@@ -151,10 +156,12 @@ export class TrialEntryService {
       projectVersion: 1,
       originalPrompt: request.requestText,
       suppliedFiles: [],
+      availableAssets: [],
       knownUserAnswers: {},
       currentWorkflowState: "DRAFT" as const,
       idempotencyKey: `initial-request:${request.requestId}`,
       operatorLanguage: OperatorLanguageSchema.parse(input.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE),
+      siteLanguage: normalizeSiteLanguage(input.languageHint) !== "UNRESOLVED" ? normalizeSiteLanguage(input.languageHint) : inferSiteLanguageFromPrompt(request.requestText),
       projectSlug: slug,
     } satisfies LeadAgentInput;
 
@@ -189,6 +196,7 @@ export class TrialEntryService {
         projectId: current.project.id,
         slug: current.project.slug,
         projectVersion: current.project.currentVersion,
+        siteLanguage: current.project.siteLanguage,
       },
       workflowState: current.project.workflowState,
       lead: {
@@ -206,7 +214,7 @@ export class TrialEntryService {
     if (current.project.workflowState !== "CLARIFYING")
       throw new Error("TRIAL_ENTRY_NOT_AWAITING_CLARIFICATION");
     const lead = this.dependencies.createLeadAgent(current.project.slug);
-    const leadInput = inputForProject(current.project, `clarification-resume:${projectId}`);
+    const leadInput = await this.inputForProject(current.project, `clarification-resume:${projectId}`);
     await lead.analyzeProjectPrompt(leadInput);
     await lead.planClarifications(leadInput);
     const session = await this.clarifications.getSession(
@@ -249,6 +257,7 @@ export class TrialEntryService {
         projectId: updated.project.id,
         slug: updated.project.slug,
         projectVersion: updated.project.currentVersion,
+        siteLanguage: updated.project.siteLanguage,
       },
       workflowState: updated.project.workflowState,
       lead: {
@@ -302,6 +311,7 @@ export class TrialEntryService {
       blockingReasons,
       nextAllowedActions: actions.nextAllowedActions,
       operatorLanguage: session?.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE,
+      siteLanguage: current.project.siteLanguage,
       ...(clarification ? { clarification } : {}),
       ...(requirements?.documentType === "requirements"
         ? {
@@ -324,6 +334,7 @@ export class TrialEntryService {
       workflowState: project.workflowState,
       updatedAt: project.updatedAt,
       origin: project.origin,
+      siteLanguage: project.siteLanguage,
     }));
   }
 
@@ -335,9 +346,9 @@ export class TrialEntryService {
     if (!session) throw new Error("TRIAL_ENTRY_CLARIFICATION_NOT_FOUND");
     if (session.answers.some((answer) => answer.status !== "unresolved")) throw new Error("TRIAL_ENTRY_CLARIFICATION_REFRESH_NOT_ALLOWED");
     const lead = this.dependencies.createLeadAgent(current.project.slug);
-    const refreshed = await lead.refreshClarifications(inputForProject(current.project, `clarification-refresh:${projectId}`));
+    const refreshed = await lead.refreshClarifications(await this.inputForProject(current.project, `clarification-refresh:${projectId}`));
     return {
-      project: { projectId: current.project.id, slug: current.project.slug, projectVersion: current.project.currentVersion },
+      project: { projectId: current.project.id, slug: current.project.slug, projectVersion: current.project.currentVersion, siteLanguage: current.project.siteLanguage },
       workflowState: current.project.workflowState,
       lead: { firstSemanticOwner: "lead" as const, analysisCompleted: true as const, clarificationQuestions: refreshed.questions.map(questionView) },
     };
@@ -349,7 +360,7 @@ export class TrialEntryService {
     if (!current) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");
     if (current.project.workflowState !== "AWAITING_BRIEF_APPROVAL") throw new Error("TRIAL_ENTRY_NOT_AWAITING_BRIEF_APPROVAL");
     const lead = this.dependencies.createLeadAgent(current.project.slug);
-    const leadInput = inputForProject(current.project, `brief-approval:${input.projectId}:${input.briefChecksum}`);
+    const leadInput = await this.inputForProject(current.project, `brief-approval:${input.projectId}:${input.briefChecksum}`);
     await lead.analyzeProjectPrompt(leadInput);
     await lead.planClarifications(leadInput);
     const clarification = await lead.getClarificationStatus(input.projectId, current.project.currentVersion);

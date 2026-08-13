@@ -12,6 +12,7 @@ import { CLARIFICATION_POLICY_VERSION, isWorkflowRequirement } from "@/agents/le
 import { mapDocumentToRow, mapProjectToRow, mapRowToDocument, mapRowToProject } from "./mapping";
 import { documentPayloadHash, newWorkflowEvent } from "./fake";
 import type { PersistenceDatabase, PersistenceTransaction, ProjectVersionRow, StoredDocument, WorkflowEvent, CostRecord } from "./types";
+import { ProjectAssetSchema, type ProjectAsset } from "@/domain/assets/project";
 
 const parse = <T>(schema: z.ZodType<T>, value: unknown, message: string): T => { const result = schema.safeParse(value); if (!result.success) throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", message, undefined, result.error); return result.data; };
 const token = (key: string | undefined, payload: unknown) => key ? { key, payloadHash: documentPayloadHash(payload) } : undefined;
@@ -22,6 +23,15 @@ export class ProjectRepository {
   async get(id: string) { return this.db.transaction(async (tx) => { const row = await tx.getProject(id); return row ? mapRowToProject(row) : null; }); }
   async list() { return this.db.transaction(async (tx) => (await tx.listProjects()).map(mapRowToProject)); }
   async getWithVersion(id: string) { return this.db.transaction(async (tx) => { const row = await tx.getProject(id); return row ? { project: mapRowToProject(row), rowVersion: row.row_version } : null; }); }
+  async updateSiteLanguage(id: string, siteLanguage: string) { return this.db.transaction(async (tx) => mapRowToProject(await tx.updateProjectSiteLanguage({ id, siteLanguage, updatedAt: new Date().toISOString() }))); }
+}
+
+export class ProjectAssetRepository {
+  constructor(private readonly db: PersistenceDatabase) {}
+  async list(projectId: string) { return this.db.transaction(async (tx) => (await tx.listAssets(projectId)).map((row) => parse(ProjectAssetSchema, row, "Stored project asset is invalid."))); }
+  async get(projectId: string, assetId: string) { return this.db.transaction(async (tx) => { const row = await tx.getAsset(projectId, assetId); return row ? parse(ProjectAssetSchema, row, "Stored project asset is invalid.") : null; }); }
+  async create(asset: ProjectAsset) { const parsed = parse(ProjectAssetSchema, asset, "Project asset is invalid."); return this.db.transaction(async (tx) => parse(ProjectAssetSchema, await tx.insertAsset(parsed), "Stored project asset is invalid.")); }
+  async update(asset: ProjectAsset) { const parsed = parse(ProjectAssetSchema, asset, "Project asset is invalid."); return this.db.transaction(async (tx) => parse(ProjectAssetSchema, await tx.updateAsset(parsed), "Stored project asset is invalid.")); }
 }
 
 export class ProjectVersionRepository {

@@ -20,7 +20,7 @@ describe("generated foundation to local QA server contract", () => {
     const server = new NodeLocalTestServer();
     await mkdir(workspace, { recursive: true });
     await writeFile(path.join(workspace, "package.json"), FOUNDATION_PACKAGE_JSON);
-    await cp(path.join(process.cwd(), ".next"), path.join(workspace, ".next"), { recursive: true });
+    await cp(path.join(process.cwd(), ".next"), path.join(workspace, ".next"), { recursive: true, filter: (source) => !/(?:^|[\\/])node_modules(?:[\\/]|$)/i.test(source) && !/(?:^|[\\/])dev(?:[\\/]|$)/i.test(source) });
     await symlink(path.join(process.cwd(), "node_modules"), path.join(workspace, "node_modules"), "junction");
     const port = await chooseLoopbackPort();
     const handle = await server.start({ workspacePath: workspace, port });
@@ -44,7 +44,7 @@ describe("generated foundation to local QA server contract", () => {
     const browser = new PlaywrightBrowserRunner();
     await mkdir(workspace, { recursive: true });
     await writeFile(path.join(workspace, "package.json"), FOUNDATION_PACKAGE_JSON);
-    await cp(path.join(process.cwd(), ".next"), path.join(workspace, ".next"), { recursive: true });
+    await cp(path.join(process.cwd(), ".next"), path.join(workspace, ".next"), { recursive: true, filter: (source) => !/(?:^|[\\/])node_modules(?:[\\/]|$)/i.test(source) && !/(?:^|[\\/])dev(?:[\\/]|$)/i.test(source) });
     await symlink(path.join(process.cwd(), "node_modules"), path.join(workspace, "node_modules"), "junction");
     const plan = FunctionalQaPlanSchema.parse({ planId: "33333333-3333-4333-8333-333333333333", projectId, projectVersion: 1, scenarios: [{ scenarioId: "route:home", title: "Home route", actor: "Visitor", purpose: "Load home", acceptanceCriteriaReferences: ["acceptance:home"], requirementReferences: ["requirement:home"], userFlowReferences: [], startRoute: "/", preconditions: [], steps: [{ order: 1, action: "navigate", route: "/", timeoutMs: 10000 }, { order: 2, action: "assertStatus", expectedStatus: 200, timeoutMs: 10000 }, { order: 3, action: "assertUrl", expectedUrl: "/", timeoutMs: 10000 }], assertions: [{ category: "route", expected: "Home returns 200", mandatory: true }], expectedOutcome: "Home loads", failureCategory: "QA_ROUTE_MISSING", requiresAuth: false, requiresForm: false, requiresDatabaseFixture: false, timeoutMs: 30000 }], selectedBriefChecksum: checksum, selectedPlanningChecksum: checksum, selectedDesignChecksum: checksum, policyVersion: "playwright-functional-v1" });
     try {

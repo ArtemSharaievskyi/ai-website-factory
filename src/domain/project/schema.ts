@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { DocumentBaseSchema, IsoDateTimeSchema, NonEmptyStringSchema, ProjectSlugSchema, ProjectVersionSchema, UuidSchema } from "../shared/schemas";
 import { ProjectOriginSchema } from "./provenance";
+import { SiteLanguageDecisionSchema } from "@/domain/language/schema";
 
 export const WorkflowStateSchema = z.enum(["DRAFT", "CLARIFYING", "AWAITING_BRIEF_APPROVAL", "AWAITING_DESIGN_SELECTION", "ARCHITECTURE_REVIEW", "READY_FOR_IMPLEMENTATION", "CONTRACT_AUDIT", "IMPLEMENTING", "CODE_INTEGRATION_REVIEW", "SECURITY_REVIEW", "VALIDATING", "TEST_QUALITY_REVIEW", "REPAIRING", "PROJECT_READY", "FAILED"]);
 
@@ -9,6 +10,7 @@ export const FactoryProjectSchema = DocumentBaseSchema.extend({
   id: UuidSchema,
   slug: ProjectSlugSchema,
   origin: ProjectOriginSchema.default("USER"),
+  siteLanguage: SiteLanguageDecisionSchema.default("UNRESOLVED"),
   title: NonEmptyStringSchema.optional(),
   originalPrompt: z.string(),
   currentVersion: ProjectVersionSchema,
