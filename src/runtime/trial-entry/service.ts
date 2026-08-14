@@ -13,7 +13,7 @@ import type { FactoryProject } from "@/domain/project/schema";
 import type { LeadAgentService } from "@/agents/lead/service";
 import type { LeadAgentInput } from "@/agents/lead/contracts";
 import { LeadError } from "@/agents/lead/errors";
-import { FACTORY_OPERATOR_LANGUAGE, inferSiteLanguageFromPrompt, normalizeSiteLanguage, OperatorLanguageSchema } from "@/domain/language/schema";
+import { FACTORY_OPERATOR_LANGUAGE, inferSiteLanguageFromPrompt, normalizeSiteLanguage, OperatorLanguageSchema, type OperatorLanguage } from "@/domain/language/schema";
 import type { ProjectOrigin } from "@/domain/project/provenance";
 import {
   createInitialProjectRequest,
@@ -46,13 +46,13 @@ export type TrialEntryStatus = {
   pendingUserAction: string;
   blockingReasons: string[];
   nextAllowedActions: string[];
-  operatorLanguage: "en";
+  operatorLanguage: OperatorLanguage;
   siteLanguage: string;
   clarification?: {
     questions: TrialEntryQuestion[];
     unresolvedQuestionIds: string[];
     blockingUnresolvedQuestionIds: string[];
-    operatorLanguage?: "en";
+  operatorLanguage?: OperatorLanguage;
     clarificationVersion?: number;
   };
   brief?: {
@@ -136,7 +136,7 @@ export class TrialEntryService {
     this.operations = new OperationRepository(dependencies.database);
   }
 
-  private async inputForProject(project: FactoryProject, idempotencyKey: string): Promise<LeadAgentInput> {
+  private async inputForProject(project: FactoryProject, idempotencyKey: string, operatorLanguage: OperatorLanguage = FACTORY_OPERATOR_LANGUAGE): Promise<LeadAgentInput> {
     return {
       projectId: project.id,
       projectVersion: project.currentVersion,
@@ -146,7 +146,9 @@ export class TrialEntryService {
       knownUserAnswers: {},
       currentWorkflowState: project.workflowState,
       idempotencyKey,
-      operatorLanguage: FACTORY_OPERATOR_LANGUAGE,
+      // The current product default is operatorLanguage: FACTORY_OPERATOR_LANGUAGE;
+      // an existing canonical clarification session may supply another locale.
+      operatorLanguage,
       siteLanguage: project.siteLanguage,
       projectSlug: project.slug,
       ...(project.title ? { projectTitle: project.title } : {}),
@@ -154,7 +156,7 @@ export class TrialEntryService {
     };
   }
 
-  async createProject(input: { requestText: string; languageHint?: string; operatorLanguage?: "en" }) {
+  async createProject(input: { requestText: string; languageHint?: string; operatorLanguage?: OperatorLanguage }) {
     const request = createInitialProjectRequest(input);
     const slug = `project-${request.projectId.slice(0, 8)}`;
     const lead = this.dependencies.createLeadAgent(slug);
@@ -220,15 +222,12 @@ export class TrialEntryService {
     if (!current) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");
     if (current.project.workflowState !== "CLARIFYING")
       throw new Error("TRIAL_ENTRY_NOT_AWAITING_CLARIFICATION");
+    const session = await this.clarifications.getSession(projectId, current.project.currentVersion);
+    if (!session) throw new Error("TRIAL_ENTRY_CLARIFICATION_NOT_FOUND");
     const lead = this.dependencies.createLeadAgent(current.project.slug);
-    const leadInput = await this.inputForProject(current.project, `clarification-resume:${projectId}`);
+    const leadInput = await this.inputForProject(current.project, `clarification-resume:${projectId}`, session.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE);
     await lead.analyzeProjectPrompt(leadInput);
     await lead.planClarifications(leadInput);
-    const session = await this.clarifications.getSession(
-      projectId,
-      current.project.currentVersion,
-    );
-    if (!session) throw new Error("TRIAL_ENTRY_CLARIFICATION_NOT_FOUND");
     const knownQuestions = new Set(session.questions.map((question) => question.id));
     if (!answers.length) throw new Error("TRIAL_ENTRY_ANSWERS_EMPTY");
     for (const answer of answers) {
@@ -362,7 +361,7 @@ export class TrialEntryService {
     let result: RefreshClarificationsResult;
     try {
       const lead = this.dependencies.createLeadAgent(current.project.slug);
-      const refreshed = await lead.refreshClarifications(await this.inputForProject(current.project, `clarification-refresh:${operationKey}`));
+      const refreshed = await lead.refreshClarifications(await this.inputForProject(current.project, `clarification-refresh:${operationKey}`, session.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE));
       result = {
         project: { projectId: current.project.id, slug: current.project.slug, projectVersion: current.project.currentVersion, siteLanguage: current.project.siteLanguage },
         workflowState: current.project.workflowState,

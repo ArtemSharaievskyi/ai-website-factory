@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { LocaleSchema } from "@/domain/shared/schemas";
 
-/** The Factory/operator conversation is intentionally English in this phase. */
-export const OperatorLanguageSchema = z.literal("en");
+/** English remains the current default; canonical operator language may be any supported locale. */
+export const OperatorLanguageSchema = LocaleSchema;
 export const SiteLanguageSchema = LocaleSchema;
 export const SiteLanguageDecisionSchema = z.union([z.literal("UNRESOLVED"), SiteLanguageSchema]);
 

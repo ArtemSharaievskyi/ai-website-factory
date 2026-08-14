@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { WorkflowState } from "@/domain/workflow/engine";
 import type { ProjectOrigin } from "@/domain/project/provenance";
 import { FACTORY_OPERATOR_LANGUAGE } from "@/domain/language/schema";
+import type { OperatorLanguage } from "@/domain/language/schema";
 import type { ProjectAssetCategory } from "@/domain/assets/project";
 
 export const WORKBENCH_REQUEST_BYTES = 128 * 1024;
@@ -145,7 +146,7 @@ export type ConversationEntry = {
 };
 
 export type WorkbenchProjection = {
-  operatorLanguage: "en";
+  operatorLanguage: OperatorLanguage;
   siteLanguage: string;
   mode: "NEW_PROJECT" | "PROJECT_WORKBENCH";
   project?: {

@@ -54,11 +54,13 @@ import {
 } from "./clarification-policy";
 import { leadAgentDefinition } from "@/agents/catalog";
 import type { AgentSkillSelection } from "@/skills/runtime/resolver";
-import { FACTORY_OPERATOR_LANGUAGE, inferSiteLanguageFromPrompt, normalizeSiteLanguage } from "@/domain/language/schema";
+import { FACTORY_OPERATOR_LANGUAGE, inferSiteLanguageFromPrompt, normalizeSiteLanguage, type OperatorLanguage } from "@/domain/language/schema";
 
 const now = () => new Date().toISOString();
 const normalizePrompt = (prompt: string) => prompt.replace(/\r\n?/g, "\n");
 const key = (projectId: string, version: number) => `${projectId}:${version}`;
+const ANALYSIS_CACHE_VERSION = "lead-analysis:analyze-project-prompt:v2";
+const analysisCacheKey = (input: Pick<LeadAgentInput, "projectId" | "projectVersion" | "operatorLanguage" | "siteLanguage">) => `${ANALYSIS_CACHE_VERSION}:${input.projectId}:${input.projectVersion}:${input.operatorLanguage}:${input.siteLanguage}`;
 const versionedQuestionId = (questionId: string, clarificationVersion: number) => {
   const bytes = Buffer.from(createHash("sha256").update(`${questionId}:clarification-version:${clarificationVersion}`).digest("hex").slice(0, 32), "hex");
   bytes[6] = (bytes[6] & 15) | 80;
@@ -71,8 +73,72 @@ const isGermanOperatorQuestion = (question: string) => {
   const markers = question.match(germanOperatorMarkers) ?? [];
   return /^(?:bitte|welche|welcher|welches|bestätigen|vollständigen)\b/i.test(question) || markers.length >= 2;
 };
-const validateClarificationPlanLanguage = (plan: ClarificationPlan, operatorLanguage: "en") => {
-  if (plan.operatorLanguage !== operatorLanguage || plan.questions.some((question) => isGermanOperatorQuestion(question.question))) throw new LeadError("LEAD_CLARIFICATION_LANGUAGE_INVALID", "Lead clarification output did not match the Factory operator language.");
+const validateClarificationPlanLanguage = (plan: ClarificationPlan, operatorLanguage: OperatorLanguage) => {
+  if (plan.operatorLanguage !== operatorLanguage || (operatorLanguage === "en" && plan.questions.some((question) => isGermanOperatorQuestion(question.question)))) throw new LeadError("LEAD_CLARIFICATION_LANGUAGE_INVALID", "Lead clarification output did not match the Factory operator language.");
+  return plan;
+};
+const safeAnalysisFieldPath = (path: PropertyKey[]) => path.map((segment) => typeof segment === "number" ? `[${segment}]` : String(segment)).join(".").replaceAll(".[", "[") || "analysis";
+const safeAnalysisIssueCode = (issue: z.ZodIssue) => {
+  if (issue.code === "unrecognized_keys") return "UNKNOWN_FIELD";
+  if (issue.code === "invalid_value") return "INVALID_ENUM_OR_LITERAL";
+  if (issue.code === "invalid_type") return /received undefined$/i.test(issue.message) ? "MISSING_REQUIRED_FIELD" : "INVALID_TYPE";
+  if (issue.code === "invalid_format") return "INVALID_FORMAT";
+  return "INVALID_FIELD";
+};
+const leadAnalysisSchemaError = (error: z.ZodError) => {
+  const issue = error.issues[0];
+  return new LeadError(
+    "LEAD_ANALYSIS_INVALID",
+    "Lead analysis did not match the strict contract.",
+    {
+      validationStage: "ANALYSIS_SCHEMA",
+      issueCode: safeAnalysisIssueCode(issue),
+      fieldPath: safeAnalysisFieldPath(issue.path),
+      expectedShape: "strict LeadAgentAnalysis",
+    },
+    error,
+  );
+};
+const leadAnalysisBindingError = (fieldPath: string, issueCode: string, expectedShape: string) => new LeadError(
+  "LEAD_ANALYSIS_INVALID",
+  "Lead analysis was not bound to the current project input.",
+  { validationStage: "ANALYSIS_SEMANTIC", issueCode, fieldPath, expectedShape },
+);
+const leadClarificationSchemaError = (error: z.ZodError) => {
+  const issue = error.issues[0];
+  return new LeadError(
+    "LEAD_ANALYSIS_INVALID",
+    "Lead clarification proposal did not match the strict contract.",
+    {
+      validationStage: "CLARIFICATION_MAPPING",
+      issueCode: safeAnalysisIssueCode(issue),
+      fieldPath: safeAnalysisFieldPath(issue.path),
+      expectedShape: "strict ClarificationPlan",
+    },
+    error,
+  );
+};
+const parseClarificationPlan = (value: unknown) => {
+  try {
+    return ClarificationPlanSchema.parse(value);
+  } catch (error) {
+    if (error instanceof z.ZodError) throw leadClarificationSchemaError(error);
+    throw error;
+  }
+};
+const validateClarificationPlan = (plan: ClarificationPlan, parsed: LeadAgentInput, requireQuestions: boolean) => {
+  if (plan.projectId !== parsed.projectId)
+    throw new LeadError("LEAD_ANALYSIS_INVALID", "Lead clarification proposal was not bound to the current project.", { validationStage: "CLARIFICATION_MAPPING", issueCode: "PROJECT_ID_MISMATCH", fieldPath: "projectId", expectedShape: "matches the canonical project ID" });
+  if (plan.projectVersion !== parsed.projectVersion)
+    throw new LeadError("LEAD_ANALYSIS_INVALID", "Lead clarification proposal was not bound to the current project.", { validationStage: "CLARIFICATION_MAPPING", issueCode: "PROJECT_VERSION_MISMATCH", fieldPath: "projectVersion", expectedShape: "matches the canonical project version" });
+  const ids = new Set<string>();
+  for (const [index, question] of plan.questions.entries()) {
+    if (ids.has(question.id))
+      throw new LeadError("LEAD_ANALYSIS_INVALID", "Lead clarification proposal contained duplicate provider question IDs.", { validationStage: "CLARIFICATION_MAPPING", issueCode: "DUPLICATE_QUESTION_ID", fieldPath: `questions[${index}].id`, expectedShape: "unique UUID per provider question" });
+    ids.add(question.id);
+  }
+  if (requireQuestions && plan.questions.length === 0)
+    throw new LeadError("LEAD_ANALYSIS_INVALID", "Lead clarification proposal removed all unresolved clarification questions.", { validationStage: "CLARIFICATION_MAPPING", issueCode: "EMPTY_REQUIRED_CLARIFICATIONS", fieldPath: "questions", expectedShape: "non-empty question collection while blocking clarifications remain" });
   return plan;
 };
 export type LeadServiceDependencies = {
@@ -117,6 +183,10 @@ export class LeadAgentService {
       );
     this.skills = dependencies.skills ?? new EmptySkillSelectionPort();
     this.resolveSkills = dependencies.resolveSkills;
+  }
+  private analysisForProject(projectId: string, projectVersion: number) {
+    const prefix = `${ANALYSIS_CACHE_VERSION}:${projectId}:${projectVersion}:`;
+    return [...this.analyses.entries()].find(([cacheKey]) => cacheKey.startsWith(prefix))?.[1];
   }
   getAgentDefinition() {
     return leadAgentDefinition;
@@ -199,9 +269,8 @@ export class LeadAgentService {
   }
   async analyzeProjectPrompt(input: LeadAgentInput) {
     const parsed = LeadAgentInputSchema.parse(input);
-    let existing = this.analyses.get(
-      key(parsed.projectId, parsed.projectVersion),
-    );
+    const cacheKey = analysisCacheKey(parsed);
+    let existing = this.analyses.get(cacheKey);
     const checksum = checksumPersistedDocument(
       normalizePrompt(parsed.originalPrompt).trim(),
     );
@@ -212,7 +281,7 @@ export class LeadAgentService {
       // A provider result is not trusted as the identity authority. Discard a
       // stale/corrupt cached result and obtain a fresh analysis for the same
       // canonical project instead of poisoning the next explicit operation.
-      this.analyses.delete(key(parsed.projectId, parsed.projectVersion));
+      this.analyses.delete(cacheKey);
       existing = undefined;
     }
     try {
@@ -220,7 +289,7 @@ export class LeadAgentService {
         ? await this.resolveSkills(parsed)
         : undefined;
       const previousSelection = this.skillSelections.get(
-        key(parsed.projectId, parsed.projectVersion),
+        cacheKey,
       );
       if (
         existing &&
@@ -253,24 +322,24 @@ export class LeadAgentService {
               : selected.length > 0),
           },
       });
-      if (result.projectId !== parsed.projectId || result.projectVersion !== parsed.projectVersion || result.originalPromptChecksum !== checksum || result.operatorLanguage !== parsed.operatorLanguage)
-        throw new LeadError("LEAD_ANALYSIS_INVALID", "Lead analysis was not bound to the current project input.");
-      this.analyses.set(key(parsed.projectId, parsed.projectVersion), result);
+      if (result.projectId !== parsed.projectId)
+        throw leadAnalysisBindingError("projectId", "PROJECT_ID_MISMATCH", "matches the canonical project ID");
+      if (result.projectVersion !== parsed.projectVersion)
+        throw leadAnalysisBindingError("projectVersion", "PROJECT_VERSION_MISMATCH", "matches the canonical project version");
+      if (result.originalPromptChecksum !== checksum)
+        throw leadAnalysisBindingError("originalPromptChecksum", "PROMPT_CHECKSUM_MISMATCH", "matches the normalized canonical prompt checksum");
+      if (result.operatorLanguage !== parsed.operatorLanguage)
+        throw leadAnalysisBindingError("operatorLanguage", "OPERATOR_LANGUAGE_MISMATCH", "matches the canonical operator language");
+      this.analyses.set(cacheKey, result);
       if (skillSelection)
         this.skillSelections.set(
-          key(parsed.projectId, parsed.projectVersion),
+          cacheKey,
           skillSelection,
         );
       return result;
     } catch (error) {
       if (error instanceof LeadError) throw error;
-      if (error instanceof z.ZodError)
-        throw new LeadError(
-          "LEAD_ANALYSIS_INVALID",
-          "Lead analysis did not match the strict contract.",
-          undefined,
-          error,
-        );
+      if (error instanceof z.ZodError) throw leadAnalysisSchemaError(error);
       throw new LeadError(
         "LEAD_PROVIDER_FAILED",
         "Lead analysis failed.",
@@ -281,23 +350,24 @@ export class LeadAgentService {
   }
   async planClarifications(input: LeadAgentInput): Promise<ClarificationPlan> {
     const parsed = LeadAgentInputSchema.parse(input);
+    const cacheKey = analysisCacheKey(parsed);
     const analysis =
-      this.analyses.get(key(parsed.projectId, parsed.projectVersion)) ??
+      this.analyses.get(cacheKey) ??
       (await this.analyzeProjectPrompt(parsed));
     const skillSelection = this.skillSelections.get(
-      key(parsed.projectId, parsed.projectVersion),
+      cacheKey,
     );
     const existing = await this.clarifications.getSession(
       parsed.projectId,
       parsed.projectVersion,
     );
-    const plan = validateClarificationPlanLanguage(ClarificationPlanSchema.parse(
+    const plan = validateClarificationPlanLanguage(validateClarificationPlan(parseClarificationPlan(
       await this.provider.proposeClarifications(
         { analysis, session: existing ?? undefined, operatorLanguage: parsed.operatorLanguage, siteLanguage: parsed.siteLanguage, availableAssets: parsed.availableAssets },
         skillSelection?.contexts,
         skillSelection?.identityChecksum,
       ),
-    ), parsed.operatorLanguage);
+    ), parsed, false), parsed.operatorLanguage);
     const satisfiedAssetKeys = new Set<string>();
     if (parsed.availableAssets.some((asset) => asset.status === "READY" && asset.currentness === "CURRENT" && asset.category === "LOGO")) satisfiedAssetKeys.add("logo");
     if (parsed.availableAssets.some((asset) => asset.status === "READY" && asset.currentness === "CURRENT" && (asset.category === "IMAGE" || asset.category === "REFERENCE"))) satisfiedAssetKeys.add("image-source");
@@ -371,6 +441,7 @@ export class LeadAgentService {
   }
   async refreshClarifications(input: LeadAgentInput) {
     const parsed = LeadAgentInputSchema.parse(input);
+    const cacheKey = analysisCacheKey(parsed);
     const existing = await this.clarifications.getSession(parsed.projectId, parsed.projectVersion);
     if (!existing)
       throw new LeadError("CLARIFICATION_NOT_FOUND", "Clarification session was not found.");
@@ -378,12 +449,12 @@ export class LeadAgentService {
       throw new LeadError("CLARIFICATION_REFRESH_NOT_ALLOWED", "Clarification questions cannot be refreshed after an answer has been accepted.");
 
     const analysis = await this.analyzeProjectPrompt(parsed);
-    const skillSelection = this.skillSelections.get(key(parsed.projectId, parsed.projectVersion));
-    const plan = validateClarificationPlanLanguage(ClarificationPlanSchema.parse(await this.provider.proposeClarifications(
+    const skillSelection = this.skillSelections.get(cacheKey);
+    const plan = validateClarificationPlanLanguage(validateClarificationPlan(parseClarificationPlan(await this.provider.proposeClarifications(
       { analysis, operatorLanguage: parsed.operatorLanguage, siteLanguage: parsed.siteLanguage, availableAssets: parsed.availableAssets },
       skillSelection?.contexts,
       skillSelection?.identityChecksum,
-    )), parsed.operatorLanguage);
+    )), parsed, existing.questions.some((question) => question.blocking && question.answerStatus === "unresolved")), parsed.operatorLanguage);
     const supersededQuestions = existing.questions.map((question) => ({
       question,
       supersededAt: now(),
@@ -590,15 +661,13 @@ export class LeadAgentService {
     return next;
   }
   async buildBriefDraft(projectId: string, projectVersion: number) {
-    const analysis = this.analyses.get(key(projectId, projectVersion));
+    const analysis = this.analysisForProject(projectId, projectVersion);
     if (!analysis)
       throw new LeadError(
         "LEAD_ANALYSIS_INVALID",
         "Prompt analysis must be completed first.",
       );
-    const skillSelection = this.skillSelections.get(
-      key(projectId, projectVersion),
-    );
+    const skillSelection = this.skillSelections.get(analysisCacheKey({ projectId, projectVersion, operatorLanguage: analysis.operatorLanguage, siteLanguage: analysis.siteLanguage }));
     const session = await this.clarifications.getSession(
       projectId,
       projectVersion,

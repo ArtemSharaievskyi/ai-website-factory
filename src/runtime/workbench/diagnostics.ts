@@ -47,6 +47,10 @@ export const WorkbenchErrorResponseSchema = z
     operation: WorkbenchOperationSchema,
     recoverable: z.boolean(),
     category: WorkbenchErrorCategorySchema,
+    validationStage: z.enum(["ANALYSIS_SCHEMA", "ANALYSIS_SEMANTIC", "CLARIFICATION_MAPPING"]).optional(),
+    issueCode: z.string().regex(/^[A-Z][A-Z0-9_]+$/).optional(),
+    fieldPath: z.string().regex(/^[A-Za-z][A-Za-z0-9_.\[\]]*$/).optional(),
+    expectedShape: z.string().min(1).max(160).optional(),
   })
   .strict();
 export type WorkbenchErrorResponse = z.infer<typeof WorkbenchErrorResponseSchema>;
@@ -56,6 +60,13 @@ export type WorkbenchDiagnosticContext = {
   projectId?: string;
   workflowState?: string;
   operation?: WorkbenchOperation;
+};
+
+type SafeValidationProjection = {
+  validationStage?: "ANALYSIS_SCHEMA" | "ANALYSIS_SEMANTIC" | "CLARIFICATION_MAPPING";
+  issueCode?: string;
+  fieldPath?: string;
+  expectedShape?: string;
 };
 
 export type WorkbenchErrorProjection = WorkbenchErrorResponse & {
@@ -76,6 +87,10 @@ export type WorkbenchDiagnosticEvent = {
   subsystem: WorkbenchSubsystem;
   errorClass: string;
   recoverable: boolean;
+  validationStage?: SafeValidationProjection["validationStage"];
+  issueCode?: string;
+  fieldPath?: string;
+  expectedShape?: string;
 };
 
 const CONFLICT_CODES = new Set([
@@ -240,10 +255,28 @@ function providerStatus(code: string) {
   return { httpStatus: 503, recoverable: true };
 }
 
+function safeValidationProjection(error: unknown): SafeValidationProjection {
+  if (!error || typeof error !== "object" || !("details" in error)) return {};
+  const details = error.details;
+  if (!details || typeof details !== "object") return {};
+  const safeDetails = details as Record<string, unknown>;
+  const stage = safeDetails.validationStage;
+  const issueCode = safeDetails.issueCode;
+  const fieldPath = safeDetails.fieldPath;
+  const expectedShape = safeDetails.expectedShape;
+  return {
+    ...(stage === "ANALYSIS_SCHEMA" || stage === "ANALYSIS_SEMANTIC" || stage === "CLARIFICATION_MAPPING" ? { validationStage: stage } : {}),
+    ...(typeof issueCode === "string" && /^[A-Z][A-Z0-9_]+$/.test(issueCode) ? { issueCode } : {}),
+    ...(typeof fieldPath === "string" && /^[A-Za-z][A-Za-z0-9_.\[\]]*$/.test(fieldPath) ? { fieldPath } : {}),
+    ...(typeof expectedShape === "string" && expectedShape.length <= 160 ? { expectedShape } : {}),
+  };
+}
+
 function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProjection, "ok" | "code" | "correlationId" | "operation"> {
   if (code === "WORKBENCH_REQUEST_TOO_LARGE") return { error: "The request is too large.", httpStatus: 413, recoverable: false, category: "VALIDATION", subsystem: "ROUTE", errorClass: errorClass(error) };
   if (code === "WORKBENCH_REQUEST_INVALID") return { error: "The request could not be validated.", httpStatus: 400, recoverable: false, category: "VALIDATION", subsystem: "ROUTE", errorClass: errorClass(error) };
   if (code === "LEAD_CLARIFICATION_LANGUAGE_INVALID") return { error: "Lead refresh output did not match the Factory operator language. The project was not changed.", httpStatus: 422, recoverable: true, category: "VALIDATION", subsystem: "LEAD", errorClass: errorClass(error) };
+  if (code === "LEAD_ANALYSIS_INVALID") return { error: "Lead analysis did not match the current project contract. The project was not changed.", httpStatus: 422, recoverable: Boolean(safeValidationProjection(error).validationStage), category: "VALIDATION", subsystem: "LEAD", errorClass: errorClass(error), ...safeValidationProjection(error) };
   if (code === "WORKBENCH_ADVANCED_RUNTIME_UNAVAILABLE") return { error: "The workflow runtime is temporarily unavailable. The project was not changed.", httpStatus: 503, recoverable: true, category: "INTERNAL", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
   if (NOT_FOUND_CODES.has(code)) return { error: "The requested project or workflow resource was not found.", httpStatus: 404, recoverable: false, category: "VALIDATION", subsystem: code === "PROJECT_NOT_FOUND" ? "WORKBENCH_APPLICATION" : code.startsWith("PERSISTENCE_") || code === "DOCUMENT_NOT_FOUND" ? "PERSISTENCE" : "TRIAL_ENTRY", errorClass: errorClass(error) };
   if (CONFLICT_CODES.has(code)) return { error: "The project changed or the requested workflow action is no longer current.", httpStatus: 409, recoverable: true, category: "WORKFLOW_CONFLICT", subsystem: code.startsWith("WORKBENCH_") ? "WORKBENCH_APPLICATION" : code.startsWith("PERSISTENCE_") || code === "IDEMPOTENCY_CONFLICT" ? "PERSISTENCE" : code.startsWith("AI_") ? "PROVIDER" : "TRIAL_ENTRY", errorClass: errorClass(error) };
@@ -283,6 +316,10 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     subsystem: projection.subsystem,
     errorClass: projection.errorClass,
     recoverable: projection.recoverable,
+    ...(projection.validationStage ? { validationStage: projection.validationStage } : {}),
+    ...(projection.issueCode ? { issueCode: projection.issueCode } : {}),
+    ...(projection.fieldPath ? { fieldPath: projection.fieldPath } : {}),
+    ...(projection.expectedShape ? { expectedShape: projection.expectedShape } : {}),
   };
 }
 
@@ -314,6 +351,10 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     operation: projection.operation,
     recoverable: projection.recoverable,
     category: projection.category,
+    ...(projection.validationStage ? { validationStage: projection.validationStage } : {}),
+    ...(projection.issueCode ? { issueCode: projection.issueCode } : {}),
+    ...(projection.fieldPath ? { fieldPath: projection.fieldPath } : {}),
+    ...(projection.expectedShape ? { expectedShape: projection.expectedShape } : {}),
   });
   return { response, status: projection.httpStatus };
 }

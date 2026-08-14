@@ -197,7 +197,7 @@ export class WorkbenchApplication {
     const conversation = this.conversation(current.project.originalPrompt, current.project.workflowState, questions, brief, planningProjection, designItems);
     return {
       mode: "PROJECT_WORKBENCH",
-      operatorLanguage: FACTORY_OPERATOR_LANGUAGE,
+      operatorLanguage: clarificationSession?.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE,
       siteLanguage,
       project: {
         projectId: current.project.id,

@@ -8,6 +8,9 @@ import { zodResponseFormat } from "openai/helpers/zod";
 import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, OpenAiLeadProvider, PlanningPackageStructuredOutputSchema, isWorkflowApprovalBlocker } from "./adapters";
 import { readAiProviderConfig } from "./config";
 import { ArchitectureReviewProviderOutputSchema, CodeIntegrationReviewProviderOutputSchema, ContractAuditProviderOutputSchema, SecurityReviewProviderOutputSchema, TestQualityReviewProviderOutputSchema } from "@/domain/review/schema";
+import { analyzePromptDeterministically } from "@/agents/lead/deterministic";
+import { ClarificationPlanProviderOutputSchema, LeadAnalysisProviderOutputSchema } from "@/agents/lead/contracts";
+import { checksumPersistedDocument } from "@/persistence/database/serialization";
 
 const config = { apiKey: "test", model: "test-model", modelLabel: "GPT-5.6 Luna", maxRetries: 1, maxConcurrentRequests: 1 };
 const schema = z.object({ ok: z.boolean(), summary: z.string() }).strict();
@@ -87,7 +90,7 @@ describe("production AI provider boundary", () => {
     const client = new OpenAiStructuredClient(config, {
       executor: async <T>(request: StructuredRequest<T>) => {
         sent = request;
-        return { value: {} as T, requestId: "req_lead" };
+        return { value: { directlyStatedFacts: [], userPreferences: [], inferredRecommendations: [], unresolvedQuestions: [], contradictions: [], unsupportedAssumptions: [], confirmationRequired: [], provider: { name: "synthetic", model: null, used: false, inputTokens: null, outputTokens: null } } as T, requestId: "req_lead" };
       },
     });
     const selected = {
@@ -98,13 +101,37 @@ describe("production AI provider boundary", () => {
       references: [],
     };
     await new OpenAiLeadProvider(client).analyzePrompt(
-      {} as never,
+      { projectId: "11111111-1111-4111-8111-111111111111", projectVersion: 1, originalPrompt: "Synthetic Lead request", suppliedFiles: [], availableAssets: [], knownUserAnswers: {}, currentWorkflowState: "DRAFT", idempotencyKey: "lead-test", operatorLanguage: "en", siteLanguage: "de" },
       [selected],
       "b".repeat(64),
     );
     expect(sent?.system).toContain("SELECTED LEAD PROCEDURE");
     expect(sent?.system).not.toContain("ambiguity-detector");
     expect(sent?.idempotencyKey).toContain("b".repeat(64));
+  });
+  it("binds host-owned Lead analysis identity after strict provider transport validation", async () => {
+    const transport = { directlyStatedFacts: [], userPreferences: [], inferredRecommendations: [], unresolvedQuestions: [], contradictions: [], unsupportedAssumptions: [], confirmationRequired: [], provider: { name: "synthetic", model: null, used: true, inputTokens: null, outputTokens: null } };
+    expect(LeadAnalysisProviderOutputSchema.safeParse({ ...transport, projectId: "11111111-1111-4111-8111-111111111111" }).success).toBe(false);
+    expect(LeadAnalysisProviderOutputSchema.safeParse({ ...transport, unknownProviderField: "ignored" }).success).toBe(false);
+    const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: transport as T, requestId: "req_host_bound_analysis" }) });
+    const input = { projectId: "11111111-1111-4111-8111-111111111111", projectVersion: 1, originalPrompt: "  Synthetic\r\nLead request  ", suppliedFiles: [], availableAssets: [], knownUserAnswers: {}, currentWorkflowState: "DRAFT" as const, idempotencyKey: "lead-host-bound", operatorLanguage: "de" as const, siteLanguage: "ru" as const };
+    const result = await new OpenAiLeadProvider(client).analyzePrompt(input);
+    expect(result.projectId).toBe(input.projectId);
+    expect(result.projectVersion).toBe(input.projectVersion);
+    expect(result.operatorLanguage).toBe("de");
+    expect(result.siteLanguage).toBe("ru");
+    expect(result.originalPromptChecksum).toBe(checksumPersistedDocument("Synthetic\nLead request"));
+  });
+  it("binds host-owned clarification plan identity and rejects host fields in transport", async () => {
+    const analysisInput = { projectId: "22222222-2222-4222-8222-222222222222", projectVersion: 3, originalPrompt: "Purpose: synthetic", suppliedFiles: [], availableAssets: [], knownUserAnswers: {}, currentWorkflowState: "DRAFT" as const, idempotencyKey: "plan-host-bound", operatorLanguage: "en" as const, siteLanguage: "de" as const };
+    const analysis = analyzePromptDeterministically(analysisInput);
+    const transport = { questions: [{ id: "33333333-3333-4333-8333-333333333333", requirementKey: "purpose", category: "business", question: "What is the purpose?", reason: "The brief needs it.", blocking: true, required: true, fingerprint: "v1:business:purpose" }], generatedAt: "2026-08-14T00:00:00.000Z" };
+    expect(ClarificationPlanProviderOutputSchema.safeParse({ ...transport, projectId: analysis.projectId }).success).toBe(false);
+    const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: transport as T, requestId: "req_host_bound_plan" }) });
+    const result = await new OpenAiLeadProvider(client).proposeClarifications({ analysis, operatorLanguage: "ru", siteLanguage: "de", availableAssets: [] });
+    expect(result.projectId).toBe(analysis.projectId);
+    expect(result.projectVersion).toBe(analysis.projectVersion);
+    expect(result.operatorLanguage).toBe("ru");
   });
   it("passes the configured model unchanged through the official structured API", async () => {
     let sent: Record<string, unknown> | undefined;

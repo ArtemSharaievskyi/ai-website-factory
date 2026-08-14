@@ -1,3 +1,10 @@
 export type LeadErrorCode = "LEAD_INPUT_INVALID" | "LEAD_ANALYSIS_INVALID" | "LEAD_PROVIDER_FAILED" | "LEAD_PROVIDER_TIMEOUT" | "LEAD_CLARIFICATION_LANGUAGE_INVALID" | "CLARIFICATION_REQUIRED" | "CLARIFICATION_NOT_FOUND" | "CLARIFICATION_ALREADY_RESOLVED" | "CLARIFICATION_REFRESH_NOT_ALLOWED" | "BLOCKING_CLARIFICATIONS_REMAIN" | "REQUIREMENT_CONTRADICTION" | "REQUIRED_BUSINESS_DATA_MISSING" | "IMAGE_SOURCE_PENDING" | "AUTH_DECISION_PENDING" | "BRIEF_NOT_READY" | "BRIEF_CHECKSUM_MISMATCH" | "BRIEF_NOT_APPROVED" | "BRIEF_APPROVAL_STALE" | "BRIEF_REVISION_REQUIRED" | "WORKFLOW_STATE_INVALID" | "UNAPPROVED_REQUIREMENT_CHANGE" | "UNSUPPORTED_BUSINESS_FACT" | "USER_CONFIRMATION_REQUIRED" | "PLACEHOLDER_NOT_APPROVED" | "IDEMPOTENCY_CONFLICT";
-export class LeadError extends Error { readonly code: LeadErrorCode; readonly details?: Record<string, string | number | boolean>; readonly cause?: unknown; constructor(code: LeadErrorCode, message: string, details?: Record<string, string | number | boolean>, cause?: unknown) { super(message); this.name = "LeadError"; this.code = code; this.details = details; this.cause = cause; } }
+export type LeadValidationStage = "ANALYSIS_SCHEMA" | "ANALYSIS_SEMANTIC" | "CLARIFICATION_MAPPING";
+export type LeadValidationDetails = {
+  validationStage: LeadValidationStage;
+  issueCode: string;
+  fieldPath?: string;
+  expectedShape?: string;
+};
+export class LeadError extends Error { readonly code: LeadErrorCode; readonly details?: Record<string, string | number | boolean> & Partial<LeadValidationDetails>; readonly cause?: unknown; constructor(code: LeadErrorCode, message: string, details?: Record<string, string | number | boolean> & Partial<LeadValidationDetails>, cause?: unknown) { super(message); this.name = "LeadError"; this.code = code; this.details = details; this.cause = cause; } }
 export function serializeLeadError(error: unknown) { if (error instanceof LeadError) return { code: error.code, message: error.message }; return { code: "LEAD_PROVIDER_FAILED" as const, message: "The Lead Agent operation could not be completed." }; }

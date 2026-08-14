@@ -3,10 +3,14 @@ import type { LeadAnalysisProvider } from "@/agents/lead/ports";
 import {
   BriefDraftSchema,
   ClarificationPlanSchema,
+  ClarificationPlanProviderOutputSchema,
   LeadAgentAnalysisSchema,
+  LeadAnalysisProviderOutputSchema,
   type BriefDraft,
   type ClarificationPlan,
+  type ClarificationPlanProviderOutput,
   type LeadAgentAnalysis,
+  type LeadAnalysisProviderOutput,
 } from "@/agents/lead/contracts";
 import type { PlannerArchitectureProvider } from "@/agents/planner/ports";
 import {
@@ -84,6 +88,7 @@ import { isWorkflowRequirement } from "@/agents/lead/clarification-policy";
 import type { ApprovedProceduralSkillPromptContext } from "./prompts";
 import { dependencyCatalogPromptContext } from "@/dependencies/authority";
 import { sliceDocumentationExcerpt } from "@/runtime/context/slicing";
+import { checksumPersistedDocument } from "@/persistence/database/serialization";
 const OrchestrationPlanSchema = z
   .object({ tasks: z.array(z.unknown()) })
   .strict();
@@ -774,30 +779,44 @@ export class OpenAiLeadProvider implements LeadAnalysisProvider {
     approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
     skillContextIdentity = "none",
   ): Promise<LeadAgentAnalysis> {
-    return this.call(
+    const output = await this.call<LeadAnalysisProviderOutput>(
       "lead",
       input,
-      LeadAgentAnalysisSchema,
+      LeadAnalysisProviderOutputSchema,
       "lead-analysis",
       "lead-analysis",
       approvedSkills,
       skillContextIdentity,
     );
+    return LeadAgentAnalysisSchema.parse({
+      ...output,
+      projectId: input.projectId,
+      projectVersion: input.projectVersion,
+      originalPromptChecksum: checksumPersistedDocument(input.originalPrompt.replace(/\r\n?/g, "\n").trim()),
+      operatorLanguage: input.operatorLanguage,
+      siteLanguage: input.siteLanguage,
+    });
   }
   async proposeClarifications(
     input: Parameters<LeadAnalysisProvider["proposeClarifications"]>[0],
     approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
     skillContextIdentity = "none",
   ): Promise<ClarificationPlan> {
-    return this.call(
+    const output = await this.call<ClarificationPlanProviderOutput>(
       "lead",
       input,
-      ClarificationPlanSchema,
+      ClarificationPlanProviderOutputSchema,
       "clarification-plan",
       "lead-clarifications",
       approvedSkills,
       skillContextIdentity,
     );
+    return ClarificationPlanSchema.parse({
+      ...output,
+      projectId: input.analysis.projectId,
+      projectVersion: input.analysis.projectVersion,
+      operatorLanguage: input.operatorLanguage,
+    });
   }
   async assembleBriefDraft(
     input: Parameters<LeadAnalysisProvider["assembleBriefDraft"]>[0],
@@ -821,7 +840,9 @@ export class OpenAiLeadProvider implements LeadAnalysisProvider {
     input: unknown,
     schema:
       | typeof LeadAgentAnalysisSchema
+      | typeof LeadAnalysisProviderOutputSchema
       | typeof ClarificationPlanSchema
+      | typeof ClarificationPlanProviderOutputSchema
       | typeof BriefDraftSchema,
     schemaName: string,
     idempotencyKey: string,
