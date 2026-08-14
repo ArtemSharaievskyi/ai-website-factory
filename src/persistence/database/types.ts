@@ -26,6 +26,7 @@ export interface PersistenceTransaction {
   getAsset(projectId: string, assetId: string): Promise<ProjectAssetRow | null>;
   insertAsset(row: ProjectAssetRow): Promise<ProjectAssetRow>;
   updateAsset(row: ProjectAssetRow): Promise<ProjectAssetRow>;
+  deleteAsset(projectId: string, assetId: string): Promise<void>;
   getVersion(projectId: string, version: number): Promise<ProjectVersionRow | null>;
   listVersions(projectId: string): Promise<ProjectVersionRow[]>;
   insertVersion(row: ProjectVersionRow, idempotency?: { key: string; payloadHash: string }): Promise<ProjectVersionRow>;

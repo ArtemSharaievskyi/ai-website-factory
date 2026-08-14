@@ -3,6 +3,7 @@ import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ProjectAssetSchema, type ProjectAsset, type ProjectAssetCategory } from "@/domain/assets/project";
 import { ProjectAssetRepository, ProjectRepository } from "@/persistence/database/repositories";
+import { PersistenceError } from "@/persistence/database/errors";
 import type { PersistenceDatabase } from "@/persistence/database/types";
 
 export const PROJECT_ASSET_LIMITS = {
@@ -18,14 +19,58 @@ const EXTENSIONS: Record<ProjectAsset["mediaType"], string> = {
   "application/pdf": "pdf",
 };
 
-const safeReason = (reason: string) => reason.slice(0, 240);
+export type AssetIntakeErrorCategory = "VALIDATION" | "STORAGE" | "PERSISTENCE" | "INTERNAL";
+export type AssetIntakeErrorCode =
+  | "ASSET_REQUEST_INVALID"
+  | "ASSET_REQUEST_TOO_LARGE"
+  | "ASSET_CATEGORY_INVALID"
+  | "ASSET_PROJECT_NOT_FOUND"
+  | "ASSET_VERSION_STALE"
+  | "ASSET_FILE_REQUIRED"
+  | "ASSET_TYPE_NOT_ALLOWED"
+  | "ASSET_MIME_MISMATCH"
+  | "ASSET_EXTENSION_MISMATCH"
+  | "ASSET_SIZE_LIMIT"
+  | "ASSET_PROJECT_SIZE_LIMIT"
+  | "ASSET_SIGNATURE_INVALID"
+  | "ASSET_NOT_FOUND"
+  | "ASSET_STORAGE_FAILED"
+  | "ASSET_METADATA_PERSIST_FAILED"
+  | "ASSET_INTERNAL_ERROR";
+
+const ASSET_ERROR_DEFAULTS: Record<AssetIntakeErrorCode, { category: AssetIntakeErrorCategory; recoverable: boolean }> = {
+  ASSET_REQUEST_INVALID: { category: "VALIDATION", recoverable: false },
+  ASSET_REQUEST_TOO_LARGE: { category: "VALIDATION", recoverable: false },
+  ASSET_CATEGORY_INVALID: { category: "VALIDATION", recoverable: false },
+  ASSET_PROJECT_NOT_FOUND: { category: "VALIDATION", recoverable: false },
+  ASSET_VERSION_STALE: { category: "VALIDATION", recoverable: true },
+  ASSET_FILE_REQUIRED: { category: "VALIDATION", recoverable: false },
+  ASSET_TYPE_NOT_ALLOWED: { category: "VALIDATION", recoverable: false },
+  ASSET_MIME_MISMATCH: { category: "VALIDATION", recoverable: false },
+  ASSET_EXTENSION_MISMATCH: { category: "VALIDATION", recoverable: false },
+  ASSET_SIZE_LIMIT: { category: "VALIDATION", recoverable: false },
+  ASSET_PROJECT_SIZE_LIMIT: { category: "VALIDATION", recoverable: false },
+  ASSET_SIGNATURE_INVALID: { category: "VALIDATION", recoverable: false },
+  ASSET_NOT_FOUND: { category: "VALIDATION", recoverable: false },
+  ASSET_STORAGE_FAILED: { category: "STORAGE", recoverable: true },
+  ASSET_METADATA_PERSIST_FAILED: { category: "PERSISTENCE", recoverable: true },
+  ASSET_INTERNAL_ERROR: { category: "INTERNAL", recoverable: false },
+};
 
 export class AssetIntakeError extends Error {
-  constructor(public readonly code: "ASSET_PROJECT_NOT_FOUND" | "ASSET_VERSION_STALE" | "ASSET_FILE_REQUIRED" | "ASSET_TYPE_NOT_ALLOWED" | "ASSET_EXTENSION_MISMATCH" | "ASSET_SIZE_LIMIT" | "ASSET_PROJECT_SIZE_LIMIT" | "ASSET_SIGNATURE_INVALID" | "ASSET_NOT_FOUND" | "ASSET_STORAGE_FAILED", message: string) {
+  readonly category: AssetIntakeErrorCategory;
+  readonly recoverable: boolean;
+
+  constructor(public readonly code: AssetIntakeErrorCode, message: string, options: Partial<{ category: AssetIntakeErrorCategory; recoverable: boolean }> = {}) {
     super(`${code}: ${message}`);
     this.name = "AssetIntakeError";
+    const defaults = ASSET_ERROR_DEFAULTS[code];
+    this.category = options.category ?? defaults.category;
+    this.recoverable = options.recoverable ?? defaults.recoverable;
   }
 }
+
+const metadataPersistenceFailure = () => new AssetIntakeError("ASSET_METADATA_PERSIST_FAILED", "The asset metadata could not be saved.");
 
 export type AssetUploadInput = {
   projectId: string;
@@ -67,12 +112,23 @@ export class ProjectAssetService {
 
   async list(projectId: string) {
     await this.requireProject(projectId);
-    return this.assets.list(projectId);
+    try {
+      return await this.assets.list(projectId);
+    } catch (error) {
+      if (error instanceof PersistenceError) throw metadataPersistenceFailure();
+      throw error;
+    }
   }
 
   async get(projectId: string, assetId: string) {
     await this.requireProject(projectId);
-    const asset = await this.assets.get(projectId, assetId);
+    let asset: ProjectAsset | null;
+    try {
+      asset = await this.assets.get(projectId, assetId);
+    } catch (error) {
+      if (error instanceof PersistenceError) throw metadataPersistenceFailure();
+      throw error;
+    }
     if (!asset) throw new AssetIntakeError("ASSET_NOT_FOUND", "The asset was not found in this project.");
     return asset;
   }
@@ -84,7 +140,7 @@ export class ProjectAssetService {
   async upload(input: AssetUploadInput): Promise<AssetUploadResult> {
     const current = await this.requireProject(input.projectId);
     const mediaType = input.mediaType as ProjectAsset["mediaType"];
-    if (!(mediaType in EXTENSIONS)) throw new AssetIntakeError("ASSET_TYPE_NOT_ALLOWED", "Only PNG, JPEG, WebP, and PDF files are accepted.");
+    if (!Object.prototype.hasOwnProperty.call(EXTENSIONS, mediaType)) throw new AssetIntakeError("ASSET_TYPE_NOT_ALLOWED", "Only PNG, JPEG, WebP, and PDF files are accepted.");
     if (!input.bytes.byteLength) throw new AssetIntakeError("ASSET_FILE_REQUIRED", "Choose a non-empty file.");
     const displayName = safeDisplayName(input.filename);
     const extension = displayName.toLowerCase().split(".").pop() ?? "";
@@ -93,7 +149,13 @@ export class ProjectAssetService {
     if (input.bytes.byteLength > max) throw new AssetIntakeError("ASSET_SIZE_LIMIT", "The file exceeds the allowed size for its type.");
     if (!validSignature(mediaType, input.bytes)) throw new AssetIntakeError("ASSET_SIGNATURE_INVALID", "The file signature does not match the declared type.");
     const sha256 = createHash("sha256").update(input.bytes).digest("hex");
-    const existing = await this.assets.list(input.projectId);
+    let existing: ProjectAsset[];
+    try {
+      existing = await this.assets.list(input.projectId);
+    } catch (error) {
+      if (error instanceof PersistenceError) throw metadataPersistenceFailure();
+      throw error;
+    }
     const duplicate = existing.find((asset) => asset.status === "READY" && asset.currentness === "CURRENT" && asset.category === input.category && asset.mediaType === mediaType && asset.sha256 === sha256);
     if (duplicate) return { asset: duplicate, deduplicated: true };
     const replaced = input.replaceAssetId ? existing.find((asset) => asset.assetId === input.replaceAssetId && asset.status === "READY" && asset.currentness === "CURRENT") : undefined;
@@ -105,40 +167,69 @@ export class ProjectAssetService {
     const target = this.safePath(storageIdentity);
     const timestamp = new Date().toISOString();
     const uploading = ProjectAssetSchema.parse({ schemaVersion: 1, assetId, projectId: input.projectId, projectVersion: current.project.currentVersion, category: input.category, source: "USER_SUPPLIED", safeDisplayName: displayName, mediaType, byteSize: input.bytes.byteLength, sha256, storageIdentity, status: "UPLOADING", createdAt: timestamp, updatedAt: timestamp, version: (replaced?.version ?? 0) + 1, currentness: "CURRENT", ...(replaced ? { supersedesAssetId: replaced.assetId } : {}) });
-    await this.assets.create(uploading);
+    try {
+      await this.assets.create(uploading);
+    } catch (error) {
+      if (error instanceof PersistenceError) throw metadataPersistenceFailure();
+      throw error;
+    }
     const temporary = `${target}.uploading-${randomUUID()}`;
     try {
       await mkdir(path.dirname(target), { recursive: true });
       await writeFile(temporary, input.bytes, { flag: "wx" });
       await rename(temporary, target);
-      const ready = ProjectAssetSchema.parse({ ...uploading, status: "READY", updatedAt: new Date().toISOString() });
+    } catch {
+      await rm(temporary, { force: true }).catch(() => undefined);
+      await rm(target, { force: true }).catch(() => undefined);
+      await this.assets.delete(uploading.projectId, uploading.assetId).catch(() => undefined);
+      throw new AssetIntakeError("ASSET_STORAGE_FAILED", "The Factory could not persist the file.");
+    }
+    const ready = ProjectAssetSchema.parse({ ...uploading, status: "READY", updatedAt: new Date().toISOString() });
+    try {
       await this.assets.update(ready);
       if (replaced) {
         await this.assets.update(ProjectAssetSchema.parse({ ...replaced, status: "SUPERSEDED", currentness: "SUPERSEDED", updatedAt: new Date().toISOString() }));
         await rm(this.safePath(replaced.storageIdentity), { force: true }).catch(() => undefined);
       }
-      return { asset: ready, deduplicated: false };
     } catch (error) {
       await rm(temporary, { force: true }).catch(() => undefined);
       await rm(target, { force: true }).catch(() => undefined);
-      await this.assets.update(ProjectAssetSchema.parse({ ...uploading, status: "REJECTED", currentness: "SUPERSEDED", rejectionReason: safeReason("The Factory could not persist the file."), updatedAt: new Date().toISOString() })).catch(() => undefined);
-      if (error instanceof AssetIntakeError) throw error;
-      throw new AssetIntakeError("ASSET_STORAGE_FAILED", "The Factory could not persist the file.");
+      await this.assets.delete(uploading.projectId, uploading.assetId).catch(() => undefined);
+      if (error instanceof PersistenceError) throw metadataPersistenceFailure();
+      throw new AssetIntakeError("ASSET_INTERNAL_ERROR", "The asset could not be finalized.");
     }
+    return { asset: ready, deduplicated: false };
   }
 
   async remove(projectId: string, assetId: string) {
     await this.requireProject(projectId);
-    const asset = await this.assets.get(projectId, assetId);
+    let asset: ProjectAsset | null;
+    try {
+      asset = await this.assets.get(projectId, assetId);
+    } catch (error) {
+      if (error instanceof PersistenceError) throw metadataPersistenceFailure();
+      throw error;
+    }
     if (!asset) throw new AssetIntakeError("ASSET_NOT_FOUND", "The asset was not found in this project.");
     const removed = ProjectAssetSchema.parse({ ...asset, status: "REMOVED", currentness: "SUPERSEDED", updatedAt: new Date().toISOString() });
-    await this.assets.update(removed);
+    try {
+      await this.assets.update(removed);
+    } catch (error) {
+      if (error instanceof PersistenceError) throw metadataPersistenceFailure();
+      throw error;
+    }
     await rm(this.safePath(asset.storageIdentity), { force: true }).catch(() => undefined);
     return removed;
   }
 
   private async requireProject(projectId: string) {
-    const current = await this.projects.getWithVersion(projectId);
+    let current: Awaited<ReturnType<ProjectRepository["getWithVersion"]>>;
+    try {
+      current = await this.projects.getWithVersion(projectId);
+    } catch (error) {
+      if (error instanceof PersistenceError) throw metadataPersistenceFailure();
+      throw error;
+    }
     if (!current) throw new AssetIntakeError("ASSET_PROJECT_NOT_FOUND", "The project was not found.");
     return current;
   }

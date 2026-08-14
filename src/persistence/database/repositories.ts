@@ -32,6 +32,7 @@ export class ProjectAssetRepository {
   async get(projectId: string, assetId: string) { return this.db.transaction(async (tx) => { const row = await tx.getAsset(projectId, assetId); return row ? parse(ProjectAssetSchema, row, "Stored project asset is invalid.") : null; }); }
   async create(asset: ProjectAsset) { const parsed = parse(ProjectAssetSchema, asset, "Project asset is invalid."); return this.db.transaction(async (tx) => parse(ProjectAssetSchema, await tx.insertAsset(parsed), "Stored project asset is invalid.")); }
   async update(asset: ProjectAsset) { const parsed = parse(ProjectAssetSchema, asset, "Project asset is invalid."); return this.db.transaction(async (tx) => parse(ProjectAssetSchema, await tx.updateAsset(parsed), "Stored project asset is invalid.")); }
+  async delete(projectId: string, assetId: string) { return this.db.transaction((tx) => tx.deleteAsset(projectId, assetId)); }
 }
 
 export class ProjectVersionRepository {

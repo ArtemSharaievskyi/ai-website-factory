@@ -29,6 +29,7 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
       getAsset: async (projectId, assetId) => copy(this.assets.get(assetKey(projectId, assetId)) ?? null),
       insertAsset: async (row) => { const key = assetKey(row.projectId, row.assetId); if (this.assets.has(key)) throw new PersistenceError("PERSISTENCE_CONFLICT", "Asset already exists."); this.assets.set(key, copy(row)); return copy(row); },
       updateAsset: async (row) => { const key = assetKey(row.projectId, row.assetId); if (!this.assets.has(key)) throw new PersistenceError("PERSISTENCE_NOT_FOUND", "Asset was not found."); this.assets.set(key, copy(row)); return copy(row); },
+      deleteAsset: async (projectId, assetId) => { this.assets.delete(assetKey(projectId, assetId)); },
       getVersion: async (projectId, version) => copy(this.versions.get(versionKey(projectId, version)) ?? null),
       listVersions: async (projectId) => copy([...this.versions.values()].filter((version) => version.projectId === projectId).sort((left, right) => left.versionNumber - right.versionNumber)),
       insertVersion: async (row, token) => { const result = this.idempotent("version:create", token, row); if (result) return copy(result as ProjectVersionRow); const key = versionKey(row.projectId, row.versionNumber); if (this.versions.has(key)) throw new PersistenceError("PERSISTENCE_CONFLICT", "Project version already exists."); this.versions.set(key, copy(row)); return copy(row); },

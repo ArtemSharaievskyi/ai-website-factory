@@ -33,6 +33,12 @@ class WorkbenchRequestError extends Error {
     this.name = "WorkbenchRequestError";
   }
 }
+
+const visibleRequestError = (caught: unknown, fallback: string) => {
+  if (!(caught instanceof WorkbenchRequestError)) return caught instanceof Error ? caught.message : fallback;
+  return [caught.message, caught.code ? "Code: " + caught.code : "", caught.correlationId ? "Reference: " + caught.correlationId : ""].filter(Boolean).join(" ");
+};
+
 async function request(input: WorkbenchRequest): Promise<WorkbenchProjection> {
   const response = await fetch("/api/workbench", {
     method: "POST",
@@ -490,8 +496,9 @@ function AssetPanel({
           className="button button-secondary"
           onClick={choose}
           disabled={busy}
+          aria-busy={busy}
         >
-          + Attach files
+          {busy ? "Uploading..." : "+ Attach files"}
         </button>
         <input
           ref={inputRef}
@@ -641,20 +648,19 @@ export function Workbench() {
         });
         const body = (await response.json()) as {
           ok?: boolean;
-          error?: { message?: string };
+          error?: { code?: string; message?: string };
+          correlationId?: string;
         };
         if (!response.ok || !body.ok)
           throw new WorkbenchRequestError(
             body.error?.message ?? "The file could not be uploaded.",
+            body.error?.code,
+            body.correlationId,
           );
       }
       apply(await request({ action: "status", projectId }));
     } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "The file could not be uploaded. The project was not changed.",
-      );
+      setError(visibleRequestError(caught, "The file could not be uploaded. The project was not changed."));
     } finally {
       setAssetBusy(false);
     }

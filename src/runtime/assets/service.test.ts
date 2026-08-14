@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -23,7 +23,7 @@ async function fixture() {
   return { database, projectId, root, assets: new ProjectAssetService({ database, root }) };
 }
 
-describe("project-scoped Asset Intake ASSET1-ASSET36", () => {
+describe("project-scoped Asset Intake ASSET1-ASSET36 / AUP1-AUP36", () => {
   it("ASSET1-ASSET4 accepts the four supported types and preserves category/source", async () => {
     const f = await fixture();
     try {
@@ -97,6 +97,29 @@ describe("project-scoped Asset Intake ASSET1-ASSET36", () => {
       expect(asset.asset.currentness).toBe("CURRENT");
       expect(asset.asset.storageIdentity).not.toContain("brief.pdf");
       expect(() => ProjectAssetSchema.parse({ ...asset.asset, extra: true })).toThrow();
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+
+  it("AUP22-AUP25 removes metadata when the storage stage fails before READY", async () => {
+    const f = await fixture();
+    try {
+      await writeFile(path.join(f.root, "projects"), "storage blocker");
+      await expect(f.assets.upload({ projectId: f.projectId, category: "LOGO", filename: "logo.png", mediaType: "image/png", bytes: png() })).rejects.toMatchObject({ code: "ASSET_STORAGE_FAILED" });
+      expect([...f.database.assets.values()]).toHaveLength(0);
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+
+  it("AUP8-AUP14 accepts a CLARIFYING project without advancing its workflow", async () => {
+    const f = await fixture();
+    try {
+      const current = f.database.projects.get(f.projectId);
+      if (!current) throw new Error("synthetic project fixture missing");
+      f.database.projects.set(f.projectId, { ...current, workflow_state: "CLARIFYING" });
+      const uploaded = await f.assets.upload({ projectId: f.projectId, category: "LOGO", filename: "logo.png", mediaType: "image/png", bytes: png() });
+      expect(uploaded.asset.status).toBe("READY");
+      expect(uploaded.asset.source).toBe("USER_SUPPLIED");
+      expect(f.database.projects.get(f.projectId)?.workflow_state).toBe("CLARIFYING");
+      expect(f.database.projects.get(f.projectId)?.row_version).toBe(current.row_version);
     } finally { await rm(f.root, { recursive: true, force: true }); }
   });
 });
