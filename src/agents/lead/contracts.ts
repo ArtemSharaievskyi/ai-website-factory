@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ClarificationCategorySchema, RequirementSpecificationSchema, type ClarificationSession } from "@/domain/requirements/schema";
+import { ClarificationCategorySchema, ClarificationQuestionIdSchema, RequirementSpecificationSchema, type ClarificationSession } from "@/domain/requirements/schema";
 import { WorkflowStateSchema } from "@/domain/project/schema";
 import { ProjectOriginSchema } from "@/domain/project/provenance";
 import { LanguageObservationSchema, LanguageResolutionSchema, SiteLanguageDecisionSchema, OperatorLanguageSchema } from "@/domain/language/schema";
@@ -17,7 +17,7 @@ export type LeadAgentAnalysis = z.infer<typeof LeadAgentAnalysisSchema>;
 /** Strict provider transport shape. Host-owned project identity and language context are bound by the adapter. */
 export const LeadAnalysisProviderOutputSchema = LeadAgentAnalysisSchema.omit({ projectId: true, projectVersion: true, originalPromptChecksum: true, operatorLanguage: true, siteLanguage: true, languageResolution: true, languageObservation: true }).extend({ languageObservation: LanguageObservationSchema.nullable() }).strict();
 export type LeadAnalysisProviderOutput = z.infer<typeof LeadAnalysisProviderOutputSchema>;
-export const ClarificationPlanSchema = z.object({ projectId: z.string().uuid(), projectVersion: z.number().int().positive(), operatorLanguage: OperatorLanguageSchema.default("en"), questions: z.array(z.object({ id: z.string().uuid(), requirementKey: z.string().min(1), category: ClarificationCategorySchema, question: z.string().min(1), reason: z.string().min(1), blocking: z.boolean(), required: z.boolean(), fingerprint: z.string().min(1) }).strict()), generatedAt: z.string().datetime() }).strict();
+export const ClarificationPlanSchema = z.object({ projectId: z.string().uuid(), projectVersion: z.number().int().positive(), operatorLanguage: OperatorLanguageSchema.default("en"), questions: z.array(z.object({ id: ClarificationQuestionIdSchema, requirementKey: z.string().min(1), category: ClarificationCategorySchema, question: z.string().min(1), reason: z.string().min(1), blocking: z.boolean(), required: z.boolean(), fingerprint: z.string().min(1) }).strict()), generatedAt: z.string().datetime() }).strict();
 export type ClarificationPlan = z.infer<typeof ClarificationPlanSchema>;
 /** Strict clarification transport shape. The current project and operator language are host-owned. */
 export const ClarificationPlanProviderOutputSchema = ClarificationPlanSchema.omit({ projectId: true, projectVersion: true, operatorLanguage: true }).strict();

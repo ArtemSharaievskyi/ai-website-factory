@@ -4,8 +4,11 @@ import { LanguageResolutionSchema, OperatorLanguageSchema } from "../language/sc
 
 export const ClarificationCategorySchema = z.enum(["business", "audience", "pages", "functionality", "content", "contact", "legal", "design", "brand", "images", "authentication", "forms", "email", "database", "storage", "administration", "GitHub", "languages", "localization", "constraints"]);
 export const AnswerStatusSchema = z.enum(["answered", "not-applicable", "deferred", "unresolved"]);
-export const ClarificationQuestionSchema = z.object({ id: z.string().uuid(), category: ClarificationCategorySchema, question: NonEmptyStringSchema, reason: NonEmptyStringSchema, required: z.boolean(), blocking: z.boolean(), askedAt: IsoDateTimeSchema, answerStatus: AnswerStatusSchema, requirementKey: NonEmptyStringSchema.optional(), fingerprint: NonEmptyStringSchema.optional(), evidence: z.array(NonEmptyStringSchema).optional() }).strict();
-export const ClarificationAnswerSchema = z.object({ questionId: z.string().uuid(), status: AnswerStatusSchema, answer: z.string().optional(), answeredAt: IsoDateTimeSchema, answeredBy: NonEmptyStringSchema }).strict().superRefine((value, context) => {
+/** Host-owned clarification identity. This accepts the persisted UUID format without treating it as a project ID. */
+export const ClarificationQuestionIdSchema = z.string().uuid();
+export type ClarificationQuestionId = z.infer<typeof ClarificationQuestionIdSchema>;
+export const ClarificationQuestionSchema = z.object({ id: ClarificationQuestionIdSchema, category: ClarificationCategorySchema, question: NonEmptyStringSchema, reason: NonEmptyStringSchema, required: z.boolean(), blocking: z.boolean(), askedAt: IsoDateTimeSchema, answerStatus: AnswerStatusSchema, requirementKey: NonEmptyStringSchema.optional(), fingerprint: NonEmptyStringSchema.optional(), evidence: z.array(NonEmptyStringSchema).optional() }).strict();
+export const ClarificationAnswerSchema = z.object({ questionId: ClarificationQuestionIdSchema, status: AnswerStatusSchema, answer: z.string().optional(), answeredAt: IsoDateTimeSchema, answeredBy: NonEmptyStringSchema }).strict().superRefine((value, context) => {
   if (value.status === "answered" && !value.answer?.trim()) context.addIssue({ code: "custom", path: ["answer"], message: "Answered questions require an answer" });
 });
 export const ClarificationSupersededQuestionSchema = z.object({ question: ClarificationQuestionSchema, supersededAt: IsoDateTimeSchema, reason: NonEmptyStringSchema }).strict();

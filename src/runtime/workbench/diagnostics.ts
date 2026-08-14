@@ -47,10 +47,11 @@ export const WorkbenchErrorResponseSchema = z
     operation: WorkbenchOperationSchema,
     recoverable: z.boolean(),
     category: WorkbenchErrorCategorySchema,
-    validationStage: z.enum(["ANALYSIS_SCHEMA", "ANALYSIS_SEMANTIC", "CLARIFICATION_MAPPING"]).optional(),
+    validationStage: z.enum(["REQUEST_SCHEMA", "ANALYSIS_SCHEMA", "ANALYSIS_SEMANTIC", "CLARIFICATION_MAPPING"]).optional(),
     issueCode: z.string().regex(/^[A-Z][A-Z0-9_]+$/).optional(),
     fieldPath: z.string().regex(/^[A-Za-z][A-Za-z0-9_.\[\]]*$/).optional(),
     expectedShape: z.string().min(1).max(160).optional(),
+    validationIssues: z.array(z.object({ path: z.string().regex(/^[A-Za-z][A-Za-z0-9_.\[\]]*$/), issueCode: z.string().regex(/^[A-Z][A-Z0-9_]+$/), expectedShape: z.string().min(1).max(160) }).strict()).max(5).optional(),
   })
   .strict();
 export type WorkbenchErrorResponse = z.infer<typeof WorkbenchErrorResponseSchema>;
@@ -63,10 +64,11 @@ export type WorkbenchDiagnosticContext = {
 };
 
 type SafeValidationProjection = {
-  validationStage?: "ANALYSIS_SCHEMA" | "ANALYSIS_SEMANTIC" | "CLARIFICATION_MAPPING";
+  validationStage?: "REQUEST_SCHEMA" | "ANALYSIS_SCHEMA" | "ANALYSIS_SEMANTIC" | "CLARIFICATION_MAPPING";
   issueCode?: string;
   fieldPath?: string;
   expectedShape?: string;
+  validationIssues?: Array<{ path: string; issueCode: string; expectedShape: string }>;
 };
 
 export type WorkbenchErrorProjection = WorkbenchErrorResponse & {
@@ -212,8 +214,30 @@ const SAFE_ERROR_CLASSES = new Set([
   "PersistenceConfigurationError",
   "PersistenceError",
   "WorkbenchActionError",
+  "WorkbenchRequestValidationError",
   "ZodError",
 ]);
+
+export class WorkbenchRequestValidationError extends Error {
+  name = "WorkbenchRequestValidationError";
+  constructor(readonly zodError: z.ZodError, readonly unknownArrayFieldPaths: string[] = []) {
+    super("WORKBENCH_REQUEST_INVALID: The request did not match the Workbench request contract.");
+  }
+}
+
+/** Return only structural paths for the known projection-leak failure; never retain field values. */
+export function safeUnknownRespondArrayFieldPaths(body: unknown) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return [];
+  const candidate = body as Record<string, unknown>;
+  if (candidate.action !== "respond") return [];
+  const allowed = new Set(["action", "projectId", "answers"]);
+  const paths: string[] = [];
+  for (const [key, value] of Object.entries(candidate)) {
+    if (allowed.has(key) || !Array.isArray(value)) continue;
+    for (let index = 0; index < Math.min(value.length, 5); index += 1) paths.push(`${key}[${index}]`);
+  }
+  return paths;
+}
 
 function operationForAction(action?: string): WorkbenchOperation {
   switch (action) {
@@ -235,6 +259,7 @@ function operationForAction(action?: string): WorkbenchOperation {
 }
 
 function errorClass(error: unknown) {
+  if (error instanceof WorkbenchRequestValidationError) return "ZodError";
   const name = error instanceof Error ? error.name : "UnknownError";
   return SAFE_ERROR_CLASSES.has(name) ? name : "UnknownError";
 }
@@ -255,7 +280,40 @@ function providerStatus(code: string) {
   return { httpStatus: 503, recoverable: true };
 }
 
+const safeValidationPath = (path: PropertyKey[]) => path.map((segment) => typeof segment === "number" ? `[${segment}]` : String(segment)).join(".").replaceAll(".[", "[") || "request";
+const safeRequestIssueCode = (issue: z.ZodIssue) => {
+  if (issue.code === "custom") return issue.path.at(-1) === "questionId" ? "DUPLICATE_CLARIFICATION_ID" : "ANSWER_REQUIRED";
+  if (issue.code === "invalid_type") return "INVALID_TYPE";
+  if (issue.code === "invalid_format") return issue.path.at(-1) === "questionId" ? "INVALID_CLARIFICATION_ID" : "INVALID_FORMAT";
+  if (issue.code === "too_small") return "TOO_FEW_ITEMS";
+  if (issue.code === "too_big") return "VALUE_TOO_LARGE";
+  if (issue.code === "unrecognized_keys") return "UNKNOWN_FIELD";
+  if (issue.code === "invalid_value") return "INVALID_ENUM_OR_LITERAL";
+  return "INVALID_FIELD";
+};
+const safeRequestExpectedShape = (issue: z.ZodIssue) => {
+  const path = safeValidationPath(issue.path);
+  if (path === "answers") return "an array containing 1 to 40 answer objects";
+  if (path.endsWith(".questionId")) return "a canonical clarification question ID in UUID format";
+  if (path.endsWith(".answer")) return "non-whitespace text of at most 32768 characters when status is answered";
+  if (path === "projectId") return "a project ID in UUID format";
+  if (path === "action") return "the literal action respond";
+  if (issue.code === "unrecognized_keys") return "only fields defined by the Workbench request contract";
+  return "the Workbench respond request contract";
+};
+const safeRequestValidationProjection = (error: z.ZodError, unknownArrayFieldPaths: string[] = []): SafeValidationProjection => {
+  const hintedIssues = unknownArrayFieldPaths.map((path) => ({ path, issueCode: "UNKNOWN_FIELD", expectedShape: "only fields defined by the Workbench request contract" }));
+  const structuralIssues = error.issues
+    .filter((issue) => !(issue.code === "unrecognized_keys" && unknownArrayFieldPaths.length))
+    .map((issue) => ({ path: safeValidationPath(issue.path), issueCode: safeRequestIssueCode(issue), expectedShape: safeRequestExpectedShape(issue) }));
+  const validationIssues = [...hintedIssues, ...structuralIssues].filter((issue, index, all) => all.findIndex((candidate) => candidate.path === issue.path && candidate.issueCode === issue.issueCode) === index).slice(0, 5);
+  const first = validationIssues[0];
+  return { validationStage: "REQUEST_SCHEMA", ...(first ? { issueCode: first.issueCode, fieldPath: first.path, expectedShape: first.expectedShape } : {}), validationIssues };
+};
+
 function safeValidationProjection(error: unknown): SafeValidationProjection {
+  if (error instanceof WorkbenchRequestValidationError) return safeRequestValidationProjection(error.zodError, error.unknownArrayFieldPaths);
+  if (error instanceof z.ZodError) return safeRequestValidationProjection(error);
   if (!error || typeof error !== "object" || !("details" in error)) return {};
   const details = error.details;
   if (!details || typeof details !== "object") return {};
@@ -265,7 +323,7 @@ function safeValidationProjection(error: unknown): SafeValidationProjection {
   const fieldPath = safeDetails.fieldPath;
   const expectedShape = safeDetails.expectedShape;
   return {
-    ...(stage === "ANALYSIS_SCHEMA" || stage === "ANALYSIS_SEMANTIC" || stage === "CLARIFICATION_MAPPING" ? { validationStage: stage } : {}),
+    ...(stage === "REQUEST_SCHEMA" || stage === "ANALYSIS_SCHEMA" || stage === "ANALYSIS_SEMANTIC" || stage === "CLARIFICATION_MAPPING" ? { validationStage: stage } : {}),
     ...(typeof issueCode === "string" && /^[A-Z][A-Z0-9_]+$/.test(issueCode) ? { issueCode } : {}),
     ...(typeof fieldPath === "string" && /^[A-Za-z][A-Za-z0-9_.\[\]]*$/.test(fieldPath) ? { fieldPath } : {}),
     ...(typeof expectedShape === "string" && expectedShape.length <= 160 ? { expectedShape } : {}),
@@ -274,7 +332,7 @@ function safeValidationProjection(error: unknown): SafeValidationProjection {
 
 function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProjection, "ok" | "code" | "correlationId" | "operation"> {
   if (code === "WORKBENCH_REQUEST_TOO_LARGE") return { error: "The request is too large.", httpStatus: 413, recoverable: false, category: "VALIDATION", subsystem: "ROUTE", errorClass: errorClass(error) };
-  if (code === "WORKBENCH_REQUEST_INVALID") return { error: "The request could not be validated.", httpStatus: 400, recoverable: false, category: "VALIDATION", subsystem: "ROUTE", errorClass: errorClass(error) };
+  if (code === "WORKBENCH_REQUEST_INVALID") return { error: "The request could not be validated.", httpStatus: 400, recoverable: false, category: "VALIDATION", subsystem: "ROUTE", errorClass: errorClass(error), ...safeValidationProjection(error) };
   if (code === "LEAD_CLARIFICATION_LANGUAGE_INVALID") return { error: "Lead refresh output did not match the Factory operator language. The project was not changed.", httpStatus: 422, recoverable: true, category: "VALIDATION", subsystem: "LEAD", errorClass: errorClass(error) };
   if (code === "LEAD_ANALYSIS_INVALID") return { error: "Lead analysis did not match the current project contract. The project was not changed.", httpStatus: 422, recoverable: Boolean(safeValidationProjection(error).validationStage), category: "VALIDATION", subsystem: "LEAD", errorClass: errorClass(error), ...safeValidationProjection(error) };
   if (code === "WORKBENCH_ADVANCED_RUNTIME_UNAVAILABLE") return { error: "The workflow runtime is temporarily unavailable. The project was not changed.", httpStatus: 503, recoverable: true, category: "INTERNAL", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
@@ -290,7 +348,7 @@ function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProject
 }
 
 export function normalizeWorkbenchError(error: unknown, context: WorkbenchDiagnosticContext = {}): WorkbenchErrorProjection {
-  const code = error instanceof z.ZodError ? "WORKBENCH_REQUEST_INVALID" : codeOf(error);
+  const code = error instanceof WorkbenchRequestValidationError || error instanceof z.ZodError ? "WORKBENCH_REQUEST_INVALID" : codeOf(error);
   const knownCode = code && (CONFLICT_CODES.has(code) || NOT_FOUND_CODES.has(code) || VALIDATION_CODES.has(code) || PROVIDER_CODES.has(code) || PERSISTENCE_CODES.has(code) || code === "WORKBENCH_REQUEST_INVALID" || code === "WORKBENCH_REQUEST_TOO_LARGE" || code === "WORKBENCH_ADVANCED_RUNTIME_UNAVAILABLE") ? code : undefined;
   const projection = definitionFor(knownCode ?? "WORKBENCH_INTERNAL_ERROR", error);
   const operation = context.operation ?? operationForAction(context.action);
@@ -320,6 +378,7 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     ...(projection.issueCode ? { issueCode: projection.issueCode } : {}),
     ...(projection.fieldPath ? { fieldPath: projection.fieldPath } : {}),
     ...(projection.expectedShape ? { expectedShape: projection.expectedShape } : {}),
+    ...(projection.validationIssues ? { validationIssues: projection.validationIssues } : {}),
   };
 }
 
@@ -355,6 +414,7 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     ...(projection.issueCode ? { issueCode: projection.issueCode } : {}),
     ...(projection.fieldPath ? { fieldPath: projection.fieldPath } : {}),
     ...(projection.expectedShape ? { expectedShape: projection.expectedShape } : {}),
+    ...(projection.validationIssues ? { validationIssues: projection.validationIssues } : {}),
   });
   return { response, status: projection.httpStatus };
 }

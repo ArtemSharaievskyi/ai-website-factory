@@ -4,8 +4,10 @@ import type { ProjectOrigin } from "@/domain/project/provenance";
 import { FACTORY_OPERATOR_LANGUAGE, OperatorLanguageSchema } from "@/domain/language/schema";
 import type { LanguageResolution, OperatorLanguage } from "@/domain/language/schema";
 import type { ProjectAssetCategory } from "@/domain/assets/project";
+import { ClarificationQuestionIdSchema } from "@/domain/requirements/schema";
 
 export const WORKBENCH_REQUEST_BYTES = 128 * 1024;
+export const MAX_CLARIFICATION_ANSWER_LENGTH = 32 * 1024;
 
 export const WorkbenchActionSchema = z.enum([
   "ANSWER_LEAD_CLARIFICATIONS",
@@ -23,16 +25,39 @@ export type WorkbenchAction = z.infer<typeof WorkbenchActionSchema>;
 
 const ProjectIdSchema = z.string().uuid();
 const AnswerSchema = z.object({
-  questionId: ProjectIdSchema,
+  questionId: ClarificationQuestionIdSchema,
   status: z.enum(["answered", "not-applicable", "deferred", "unresolved"]).optional(),
-  answer: z.string().max(WORKBENCH_REQUEST_BYTES).optional(),
-}).strict();
+  answer: z.string().max(MAX_CLARIFICATION_ANSWER_LENGTH).optional(),
+}).strict().superRefine((value, context) => {
+  if ((value.status ?? "answered") === "answered" && !value.answer?.trim())
+    context.addIssue({ code: "custom", path: ["answer"], message: "Answered clarification requires non-whitespace text." });
+});
+
+export const RespondRequestSchema = z.object({
+  action: z.literal("respond"),
+  projectId: ProjectIdSchema,
+  answers: z.array(AnswerSchema).min(1).max(40),
+}).strict().superRefine((value, context) => {
+  const seen = new Set<string>();
+  value.answers.forEach((answer, index) => {
+    if (seen.has(answer.questionId)) context.addIssue({ code: "custom", path: ["answers", index, "questionId"], message: "Each clarification question may appear only once." });
+    seen.add(answer.questionId);
+  });
+});
+export type WorkbenchRespondRequest = z.infer<typeof RespondRequestSchema>;
+
+/** Build the minimal browser mutation DTO; projection-only fields must never cross this boundary. */
+export const createWorkbenchRespondRequest = (input: Pick<WorkbenchRespondRequest, "projectId" | "answers">): WorkbenchRespondRequest => ({
+  action: "respond",
+  projectId: input.projectId,
+  answers: input.answers,
+});
 
 export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("create"), requestText: z.string().min(1).max(WORKBENCH_REQUEST_BYTES), languageHint: z.string().max(64).optional(), operatorLanguage: OperatorLanguageSchema.optional() }).strict(),
   z.object({ action: z.literal("status"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("list") }).strict(),
-  z.object({ action: z.literal("respond"), projectId: ProjectIdSchema, answers: z.array(AnswerSchema).min(1).max(40) }).strict(),
+  RespondRequestSchema,
   z.object({ action: z.literal("refresh-clarifications"), projectId: ProjectIdSchema, requestId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("approve-brief"), projectId: ProjectIdSchema, briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), expectedRowVersion: z.number().int().positive(), approvalNote: z.string().max(4000).optional() }).strict(),
   z.object({ action: z.literal("request-brief-changes"), projectId: ProjectIdSchema, reason: z.string().trim().min(1).max(4000), requirementKeys: z.array(z.string().min(1).max(128)).max(40).default([]) }).strict(),

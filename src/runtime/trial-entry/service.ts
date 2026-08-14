@@ -143,7 +143,9 @@ export class TrialEntryService {
       projectVersion: project.currentVersion,
       originalPrompt: project.originalPrompt,
       suppliedFiles: [],
-      availableAssets: this.dependencies.assets ? await this.dependencies.assets.listReferences(project.id) : [],
+      // Asset metadata is derived from the authoritative project-scoped service here;
+      // the browser never supplies or selects Lead's available-assets context.
+      availableAssets: this.dependencies.assets ? await this.dependencies.assets.listCurrentReadyReferences(project.id) : [],
       knownUserAnswers: {},
       currentWorkflowState: project.workflowState,
       idempotencyKey,

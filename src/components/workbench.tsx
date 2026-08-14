@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { createWorkbenchRespondRequest } from "@/runtime/workbench/contracts";
 import type {
   WorkbenchAction,
   WorkbenchAsset,
@@ -573,6 +574,7 @@ export function Workbench() {
   >("new");
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const requestInFlightRef = useRef(false);
   const [pendingAction, setPendingAction] = useState<
     WorkbenchRequest["action"] | null
   >(null);
@@ -608,11 +610,17 @@ export function Workbench() {
   };
 
   const run = async (input: WorkbenchRequest) => {
+    if (requestInFlightRef.current) return;
+    requestInFlightRef.current = true;
     setLoading(true);
     setPendingAction(input.action);
     setError(null);
     try {
       apply(await request(input));
+      if (input.action === "respond") {
+        const acceptedQuestionIds = new Set(input.answers.map((answer) => answer.questionId));
+        setAnswers((current) => Object.fromEntries(Object.entries(current).filter(([questionId]) => !acceptedQuestionIds.has(questionId))));
+      }
     } catch (caught) {
       setError(
         caught instanceof WorkbenchRequestError && caught.correlationId
@@ -624,6 +632,7 @@ export function Workbench() {
     } finally {
       setLoading(false);
       setPendingAction(null);
+      requestInFlightRef.current = false;
     }
   };
 
@@ -750,11 +759,7 @@ export function Workbench() {
         }))
         .filter((answer) => answer.answer.trim());
       if (answerList.length)
-        void run({
-          action: "respond",
-          projectId: projection.project!.projectId,
-          answers: answerList,
-        });
+        void run(createWorkbenchRespondRequest({ projectId: projection.project!.projectId, answers: answerList }));
     }
   };
 
@@ -1033,18 +1038,18 @@ export function Workbench() {
                       }))
                       .filter((item) => item.answer.trim());
                     if (items.length)
-                      void run({
-                        action: "respond",
-                        projectId: projection.project!.projectId,
-                        answers: items,
-                      });
+                      void run(createWorkbenchRespondRequest({ projectId: projection.project!.projectId, answers: items }));
                   }}
                   disabled={
                     loading ||
                     !Object.values(answers).some((answer) => answer.trim())
                   }
                 >
-                  {loading ? "Saving..." : "Send answers to Lead"}
+                  {pendingAction === "respond"
+                    ? "Sending answers..."
+                    : loading
+                      ? "Saving..."
+                      : "Send answers to Lead"}
                 </button>
               </section>
             )}

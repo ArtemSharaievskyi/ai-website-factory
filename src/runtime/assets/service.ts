@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { ProjectAssetSchema, type ProjectAsset, type ProjectAssetCategory } from "@/domain/assets/project";
+import { ProjectAssetReferenceSchema, ProjectAssetSchema, type ProjectAsset, type ProjectAssetCategory, type ProjectAssetReference } from "@/domain/assets/project";
 import { ProjectAssetRepository, ProjectRepository } from "@/persistence/database/repositories";
 import { PersistenceError } from "@/persistence/database/errors";
 import type { PersistenceDatabase } from "@/persistence/database/types";
@@ -133,8 +133,24 @@ export class ProjectAssetService {
     return asset;
   }
 
+  async listCurrentReadyReferences(projectId: string): Promise<ProjectAssetReference[]> {
+    return (await this.list(projectId))
+      .filter((asset) => asset.status === "READY" && asset.currentness === "CURRENT")
+      .map((asset) => {
+        const { schemaVersion, storageIdentity, createdAt, updatedAt, supersedesAssetId, rejectionReason, ...reference } = asset;
+        void schemaVersion;
+        void storageIdentity;
+        void createdAt;
+        void updatedAt;
+        void supersedesAssetId;
+        void rejectionReason;
+        return ProjectAssetReferenceSchema.parse(reference);
+      });
+  }
+
+  /** Backward-compatible name for the canonical current READY Lead context projection. */
   async listReferences(projectId: string) {
-    return (await this.list(projectId)).filter((asset) => asset.status === "READY" && asset.currentness === "CURRENT").map((asset) => { const { storageIdentity, ...reference } = asset; void storageIdentity; return reference; });
+    return this.listCurrentReadyReferences(projectId);
   }
 
   async upload(input: AssetUploadInput): Promise<AssetUploadResult> {
