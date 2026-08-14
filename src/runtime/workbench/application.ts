@@ -58,7 +58,7 @@ export class WorkbenchApplication {
   async handle(request: WorkbenchRequest): Promise<WorkbenchProjection> {
     switch (request.action) {
       case "create": {
-        const result = await this.dependencies.entry.createProject({ requestText: request.requestText, ...(request.languageHint ? { languageHint: request.languageHint } : {}), operatorLanguage: FACTORY_OPERATOR_LANGUAGE });
+        const result = await this.dependencies.entry.createProject({ requestText: request.requestText, ...(request.languageHint ? { languageHint: request.languageHint } : {}), ...(request.operatorLanguage ? { operatorLanguage: request.operatorLanguage } : {}) });
         return this.project(result.project.projectId);
       }
       case "respond":
@@ -144,11 +144,7 @@ export class WorkbenchApplication {
     const taskGraph = await this.documents.get(projectId, version, "task-graph");
     const hasBlockingQuestions = status.clarification?.blockingUnresolvedQuestionIds.length ? true : false;
     const clarificationSession = clarification?.documentType === "clarification-log" ? clarification : undefined;
-    const canRefreshClarifications = current.project.workflowState === "CLARIFYING" &&
-      Boolean(clarificationSession) &&
-      hasBlockingQuestions &&
-      clarificationSession?.answers.every((answer) => answer.status === "unresolved") === true &&
-      (clarificationSession?.operatorLanguage !== FACTORY_OPERATOR_LANGUAGE || clarificationSession.questions.some((question) => /\b(?:bitte|welche|bestätigen|vollständigen|geschäft|datenschutz|impressum|gegebenenfalls|dürfen|kontaktformular|sollen|benötigt|verfügbar)\b/i.test(question.question)));
+    const canRefreshClarifications = current.project.workflowState === "CLARIFYING" && Boolean(clarificationSession) && hasBlockingQuestions && clarificationSession?.answers.every((answer) => answer.status === "unresolved") === true && (clarificationSession?.clarificationVersion ?? 1) < 2;
     const briefReady = status.brief?.readyForApproval ?? false;
     const allowedActions = actionsForWorkbenchState({
       workflowState: current.project.workflowState,
@@ -199,6 +195,7 @@ export class WorkbenchApplication {
       mode: "PROJECT_WORKBENCH",
       operatorLanguage: clarificationSession?.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE,
       siteLanguage,
+      ...(clarificationSession?.languageResolution ? { languageResolution: clarificationSession.languageResolution } : {}),
       project: {
         projectId: current.project.id,
         name: requirements?.documentType === "requirements" && requirements.projectTitle ? requirements.projectTitle : current.project.title ?? "Untitled project",
@@ -221,12 +218,6 @@ export class WorkbenchApplication {
       conversation,
       projects: await this.projectList(),
     };
-  }
-
-  private siteLanguageFromPrompt(prompt: string) {
-    if (/\b(?:German|Deutsch|deutsch)\b/i.test(prompt)) return "de";
-    const explicit = prompt.match(/\b(?:language|locale|default locale)\s*[:=]\s*([a-z]{2}(?:-[A-Z]{2})?)/i)?.[1];
-    return explicit ?? "en";
   }
 
   private scope(projectId: string) {
@@ -311,6 +302,8 @@ export class WorkbenchApplication {
       checksum,
       readyForApproval,
       approved: requirements.approval.approved,
+      ...(requirements.operatorLanguage ? { operatorLanguage: requirements.operatorLanguage } : {}),
+      siteLanguage: requirements.localization.defaultLocale,
       ...(requirements.projectSummary ? { projectSummary: requirements.projectSummary } : {}),
       businessGoals: list(requirements.businessGoals),
       targetAudiences: list(requirements.targetAudiences),
@@ -346,5 +339,5 @@ export class WorkbenchApplication {
 }
 
 export const isWorkbenchAction = (value: string): value is WorkbenchAction => [
-  "ANSWER_LEAD_CLARIFICATIONS", "APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES", "APPROVE_PLANNING", "REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL", "DESIGN_SELECTION", "START_IMPLEMENTATION",
+  "ANSWER_LEAD_CLARIFICATIONS", "REFRESH_LEAD_CLARIFICATIONS", "APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES", "APPROVE_PLANNING", "REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL", "DESIGN_SELECTION", "START_IMPLEMENTATION",
 ].includes(value);

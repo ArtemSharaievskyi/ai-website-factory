@@ -25,7 +25,7 @@ describe("explicit Factory/operator and customer-site language LANG1-LANG24", ()
 
   it("LANG9-LANG12 asks the exact English question only when site language is unresolved", () => {
     const missing = planClarificationsDeterministically({ analysis: analyzePromptDeterministically(input("Purpose: A")) });
-    expect(missing.questions.find((question) => question.requirementKey === "languages")?.question).toBe("What language should the website be created in?");
+    expect(missing.questions.find((question) => question.requirementKey === "languages")?.question).toBe("Which primary language should the customer website use?");
     const explicit = planClarificationsDeterministically({ analysis: analyzePromptDeterministically(input("Languages: de")) });
     expect(explicit.questions.some((question) => question.requirementKey === "languages")).toBe(false);
     expect(explicit.operatorLanguage).toBe("en");

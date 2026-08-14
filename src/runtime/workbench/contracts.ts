@@ -1,8 +1,8 @@
 import { z } from "zod";
 import type { WorkflowState } from "@/domain/workflow/engine";
 import type { ProjectOrigin } from "@/domain/project/provenance";
-import { FACTORY_OPERATOR_LANGUAGE } from "@/domain/language/schema";
-import type { OperatorLanguage } from "@/domain/language/schema";
+import { FACTORY_OPERATOR_LANGUAGE, OperatorLanguageSchema } from "@/domain/language/schema";
+import type { LanguageResolution, OperatorLanguage } from "@/domain/language/schema";
 import type { ProjectAssetCategory } from "@/domain/assets/project";
 
 export const WORKBENCH_REQUEST_BYTES = 128 * 1024;
@@ -29,7 +29,7 @@ const AnswerSchema = z.object({
 }).strict();
 
 export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("create"), requestText: z.string().min(1).max(WORKBENCH_REQUEST_BYTES), languageHint: z.string().max(64).optional(), operatorLanguage: z.literal(FACTORY_OPERATOR_LANGUAGE).optional() }).strict(),
+  z.object({ action: z.literal("create"), requestText: z.string().min(1).max(WORKBENCH_REQUEST_BYTES), languageHint: z.string().max(64).optional(), operatorLanguage: OperatorLanguageSchema.optional() }).strict(),
   z.object({ action: z.literal("status"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("list") }).strict(),
   z.object({ action: z.literal("respond"), projectId: ProjectIdSchema, answers: z.array(AnswerSchema).min(1).max(40) }).strict(),
@@ -92,6 +92,8 @@ export type WorkbenchBrief = {
   forms: string[];
   imageStrategy?: string;
   constraints: string[];
+  operatorLanguage?: OperatorLanguage;
+  siteLanguage?: string;
 };
 
 export type WorkbenchPlanning = {
@@ -148,6 +150,7 @@ export type ConversationEntry = {
 export type WorkbenchProjection = {
   operatorLanguage: OperatorLanguage;
   siteLanguage: string;
+  languageResolution?: LanguageResolution;
   mode: "NEW_PROJECT" | "PROJECT_WORKBENCH";
   project?: {
     projectId: string;

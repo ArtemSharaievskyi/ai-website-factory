@@ -73,6 +73,7 @@ import {
   NonEmptyStringSchema,
 } from "@/domain/shared/schemas";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
+import { OperatorLanguageSchema } from "@/domain/language/schema";
 import { resolveLogoPolicy } from "@/domain/requirements/logo-policy";
 import {
   AssetManifestEntrySchema,
@@ -226,13 +227,16 @@ const BriefStructuredAnalysisMetadataSchema = z
   })
   .strict();
 /** Strict-output transport shape; nullable values are normalized into the canonical Brief domain shape below. */
-export const BriefDraftStructuredOutputSchema = BriefDraftSchema.extend({
-  requirements: RequirementSpecificationSchema.extend({
+const BriefRequirementsTransportSchema = RequirementSpecificationSchema
+  .omit({ operatorLanguage: true })
+  .extend({
     approval: BriefStructuredApprovalSchema,
     projectTitle: NonEmptyStringSchema.nullable(),
     analysisMetadata: BriefStructuredAnalysisMetadataSchema.nullable(),
     briefApprovalNote: z.string().nullable(),
-  }),
+  });
+export const BriefDraftStructuredOutputSchema = BriefDraftSchema.extend({
+  requirements: BriefRequirementsTransportSchema,
 });
 // Professional design contracts are host-bound after model generation; they
 // are intentionally excluded from the model transport shape so the strict
@@ -269,6 +273,7 @@ export const isWorkflowApprovalBlocker = (text: string) =>
   );
 function normalizeBriefDraft(
   value: z.infer<typeof BriefDraftStructuredOutputSchema>,
+  operatorLanguage: z.infer<typeof OperatorLanguageSchema>,
 ): BriefDraft {
   const { requirements } = value;
   const {
@@ -279,6 +284,7 @@ function normalizeBriefDraft(
   } = requirements;
   const normalizedRequirements = {
     ...canonicalFields,
+    operatorLanguage,
     briefStatus: "draft" as const,
     approval: { approved: false },
     ...(projectTitle === null ? {} : { projectTitle }),
@@ -795,6 +801,7 @@ export class OpenAiLeadProvider implements LeadAnalysisProvider {
       originalPromptChecksum: checksumPersistedDocument(input.originalPrompt.replace(/\r\n?/g, "\n").trim()),
       operatorLanguage: input.operatorLanguage,
       siteLanguage: input.siteLanguage,
+      ...(input.languageResolution ? { languageResolution: input.languageResolution } : {}),
     });
   }
   async proposeClarifications(
@@ -833,7 +840,7 @@ export class OpenAiLeadProvider implements LeadAnalysisProvider {
       schemaName: "brief-draft",
       idempotencyKey: `lead-brief:${skillContextIdentity}`,
     });
-    return normalizeBriefDraft(result.value);
+    return normalizeBriefDraft(result.value, input.analysis.operatorLanguage);
   }
   private async call<T>(
     role: "lead",
@@ -869,7 +876,7 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
     skillContextIdentity = "none",
   ): Promise<PlanningPackage> {
     const prompt = rolePrompt("planner", input, false, approvedSkills);
-    const languageInstruction = `The generated website locale is the approved Brief localization.defaultLocale: ${input.approvedBrief.localization.defaultLocale}. For every planned form field, output an explicit English machine fieldId independent of that locale and a separate user-facing label in the requested locale. Never derive fieldId from label.`;
+    const languageInstruction = `The generated website locale is the approved Brief localization.defaultLocale: ${input.approvedBrief.localization.defaultLocale}; planner summaries, rationale, and operator-facing explanations must use approved Brief operatorLanguage=${input.approvedBrief.operatorLanguage}. For every planned form field, output an explicit English machine fieldId independent of that locale and a separate user-facing label in the requested locale. Never derive fieldId from label.`;
     const dependencyInstruction = `Generated-project direct dependency authority is host-owned. You may express only a project DependencyPlan using this bounded catalog: ${dependencyCatalogPromptContext()}. Do not invent package names, versions, package sources, or package managers; the host validates and owns the resulting manifest.`;
     const result = await this.ai.request<
       z.infer<typeof PlanningPackageStructuredOutputSchema>

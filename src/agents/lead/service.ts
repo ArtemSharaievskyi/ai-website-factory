@@ -54,7 +54,7 @@ import {
 } from "./clarification-policy";
 import { leadAgentDefinition } from "@/agents/catalog";
 import type { AgentSkillSelection } from "@/skills/runtime/resolver";
-import { FACTORY_OPERATOR_LANGUAGE, inferSiteLanguageFromPrompt, normalizeSiteLanguage, type OperatorLanguage } from "@/domain/language/schema";
+import { FACTORY_OPERATOR_LANGUAGE, LanguageResolutionSchema, normalizeSiteLanguage, resolveLanguageAuthority, type LanguageResolution, type OperatorLanguage } from "@/domain/language/schema";
 
 const now = () => new Date().toISOString();
 const normalizePrompt = (prompt: string) => prompt.replace(/\r\n?/g, "\n");
@@ -195,6 +195,18 @@ export class LeadAgentService {
     const parsed = LeadAgentInputSchema.parse(input);
     const prompt = normalizePrompt(parsed.originalPrompt);
     const checksum = checksumPersistedDocument(prompt);
+    const legacyLanguageResolution = parsed.languageResolution ?? resolveLanguageAuthority({
+      prompt,
+      explicitOperatorLanguage: input.operatorLanguage,
+      explicitSiteLanguage: input.siteLanguage !== "UNRESOLVED" ? input.siteLanguage : undefined,
+    });
+    const persistedSiteLanguage = parsed.languageResolution
+      ? parsed.siteLanguage
+      : parsed.siteLanguage !== "UNRESOLVED"
+        ? parsed.siteLanguage
+        : legacyLanguageResolution.siteLanguage !== "UNRESOLVED"
+          ? legacyLanguageResolution.siteLanguage
+          : FACTORY_OPERATOR_LANGUAGE;
     const previous = this.intakeKeys.get(parsed.idempotencyKey);
     if (previous) {
       if (previous.checksum !== checksum)
@@ -233,7 +245,7 @@ export class LeadAgentService {
       id: parsed.projectId,
       slug: parsed.projectSlug ?? `project-${parsed.projectId.slice(0, 8)}`,
       origin: parsed.origin,
-      siteLanguage: parsed.siteLanguage !== "UNRESOLVED" ? parsed.siteLanguage : inferSiteLanguageFromPrompt(prompt),
+      siteLanguage: persistedSiteLanguage,
       ...(parsed.projectTitle ? { title: parsed.projectTitle } : {}),
       originalPrompt: prompt,
       currentVersion: parsed.projectVersion,
@@ -330,6 +342,8 @@ export class LeadAgentService {
         throw leadAnalysisBindingError("originalPromptChecksum", "PROMPT_CHECKSUM_MISMATCH", "matches the normalized canonical prompt checksum");
       if (result.operatorLanguage !== parsed.operatorLanguage)
         throw leadAnalysisBindingError("operatorLanguage", "OPERATOR_LANGUAGE_MISMATCH", "matches the canonical operator language");
+      if ((parsed.languageResolution || parsed.siteLanguage !== "UNRESOLVED") && result.siteLanguage !== parsed.siteLanguage)
+        throw leadAnalysisBindingError("siteLanguage", "SITE_LANGUAGE_MISMATCH", "matches the canonical customer-site language");
       this.analyses.set(cacheKey, result);
       if (skillSelection)
         this.skillSelections.set(
@@ -408,9 +422,10 @@ export class LeadAgentService {
       ...(existing
         ? {
             ...(existing.operatorLanguage ? { operatorLanguage: existing.operatorLanguage } : {}),
+            ...(existing.languageResolution ? { languageResolution: existing.languageResolution } : {}),
             ...(existing.clarificationVersion ? { clarificationVersion: existing.clarificationVersion } : {}),
           }
-        : { operatorLanguage: parsed.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE, clarificationVersion: 1 }),
+        : { operatorLanguage: parsed.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE, ...(parsed.languageResolution ? { languageResolution: parsed.languageResolution } : {}), clarificationVersion: 1 }),
       ...((existing?.supersededQuestions || assetSuperseded.length) ? { supersededQuestions: [...(existing?.supersededQuestions ?? []), ...assetSuperseded] } : {}),
     });
     await this.clarifications.saveSession(
@@ -471,6 +486,7 @@ export class LeadAgentService {
       clarificationPolicyVersion: CLARIFICATION_POLICY_VERSION,
       clarificationVersion,
       operatorLanguage: parsed.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE,
+      ...(existing.languageResolution ? { languageResolution: existing.languageResolution } : parsed.languageResolution ? { languageResolution: parsed.languageResolution } : {}),
       questions: plan.questions.map((question) => ({
         id: versionedQuestionId(question.id, clarificationVersion),
         requirementKey: question.requirementKey,
@@ -551,9 +567,24 @@ export class LeadAgentService {
       answeredAt: now(),
       answeredBy: input.answeredBy,
     };
+    let confirmedResolution: LanguageResolution | undefined;
+    if ((question.requirementKey === "languages" || question.requirementKey === "operator-language") && input.status === "answered") {
+      const answerLanguage = normalizeSiteLanguage(input.answer);
+      if (answerLanguage !== "UNRESOLVED") {
+        const resolved = question.requirementKey === "operator-language"
+          ? resolveLanguageAuthority({ prompt: "", explicitOperatorLanguage: answerLanguage, explicitSiteLanguage: session.languageResolution?.siteLanguage !== "UNRESOLVED" ? session.languageResolution?.siteLanguage : undefined })
+          : resolveLanguageAuthority({ prompt: "", explicitOperatorLanguage: session.operatorLanguage, explicitSiteLanguage: answerLanguage });
+        confirmedResolution = LanguageResolutionSchema.parse({
+          ...resolved,
+          ...(question.requirementKey === "operator-language" ? { operatorLanguageSource: "USER_CONFIRMED" as const } : { siteLanguageSource: "USER_CONFIRMED" as const }),
+          status: "RESOLVED" as const,
+        });
+      }
+    }
     const next = ClarificationSessionSchema.parse({
       ...session,
       updatedAt: now(),
+      ...(confirmedResolution ? { operatorLanguage: confirmedResolution.operatorLanguage, languageResolution: confirmedResolution } : {}),
       questions: session.questions.map((candidate) =>
         candidate.id === input.questionId
           ? { ...candidate, answerStatus: input.status }
@@ -562,10 +593,8 @@ export class LeadAgentService {
       answers: [...session.answers, answer],
     });
     await this.clarifications.saveSession(next, input.idempotencyKey);
-    if (question.requirementKey === "languages" && input.status === "answered") {
-      const siteLanguage = normalizeSiteLanguage(input.answer);
-      if (siteLanguage !== "UNRESOLVED") await this.projects.updateSiteLanguage(input.projectId, siteLanguage);
-    }
+    const confirmedSiteLanguage = confirmedResolution?.siteLanguage;
+    if (confirmedSiteLanguage && confirmedSiteLanguage !== "UNRESOLVED") await this.projects.updateSiteLanguage(input.projectId, confirmedSiteLanguage);
     this.answerKeys.set(input.idempotencyKey, answerHash);
     if (
       session.answers.some(

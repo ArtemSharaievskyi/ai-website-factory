@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DocumentBaseSchema, IsoDateTimeSchema, LocaleSchema, NonEmptyStringSchema, UserValueSchema } from "../shared/schemas";
-import { OperatorLanguageSchema } from "../language/schema";
+import { LanguageResolutionSchema, OperatorLanguageSchema } from "../language/schema";
 
 export const ClarificationCategorySchema = z.enum(["business", "audience", "pages", "functionality", "content", "contact", "legal", "design", "brand", "images", "authentication", "forms", "email", "database", "storage", "administration", "GitHub", "languages", "localization", "constraints"]);
 export const AnswerStatusSchema = z.enum(["answered", "not-applicable", "deferred", "unresolved"]);
@@ -9,7 +9,7 @@ export const ClarificationAnswerSchema = z.object({ questionId: z.string().uuid(
   if (value.status === "answered" && !value.answer?.trim()) context.addIssue({ code: "custom", path: ["answer"], message: "Answered questions require an answer" });
 });
 export const ClarificationSupersededQuestionSchema = z.object({ question: ClarificationQuestionSchema, supersededAt: IsoDateTimeSchema, reason: NonEmptyStringSchema }).strict();
-export const ClarificationSessionSchema = DocumentBaseSchema.extend({ documentType: z.literal("clarification-log"), clarificationPolicyVersion: z.number().int().positive().optional(), clarificationVersion: z.number().int().positive().optional(), operatorLanguage: OperatorLanguageSchema.optional(), questions: z.array(ClarificationQuestionSchema), answers: z.array(ClarificationAnswerSchema), supersededQuestions: z.array(ClarificationSupersededQuestionSchema).optional() }).strict();
+export const ClarificationSessionSchema = DocumentBaseSchema.extend({ documentType: z.literal("clarification-log"), clarificationPolicyVersion: z.number().int().positive().optional(), clarificationVersion: z.number().int().positive().optional(), operatorLanguage: OperatorLanguageSchema.optional(), languageResolution: LanguageResolutionSchema.optional(), questions: z.array(ClarificationQuestionSchema), answers: z.array(ClarificationAnswerSchema), supersededQuestions: z.array(ClarificationSupersededQuestionSchema).optional() }).strict();
 
 const DecisionSchema = z.enum(["no-authentication-guest-first", "authentication-required", "pending"]);
 const ImageSourceSchema = z.enum(["ai-generated", "user-supplied", "ai-plus-user-supplied", "placeholders", "custom", "pending"]);
@@ -32,6 +32,7 @@ export const RequirementSpecificationSchema = DocumentBaseSchema.extend({
   emailDecision: z.enum(["not-needed", "needed", "pending"]),
   administrationDecision: z.enum(["not-needed", "needed", "pending"]),
   seoRequirements: z.array(NonEmptyStringSchema),
+  operatorLanguage: OperatorLanguageSchema.optional(),
   localization: z.object({ locales: z.array(LocaleSchema), defaultLocale: LocaleSchema }).strict(),
   imageSourceDecision: ImageSourceSchema,
   suppliedBrandInformation: UserValueSchema,
