@@ -65,6 +65,12 @@ describe("production AI provider boundary", () => {
   it("uses a strict Brief transport schema while preserving nullable optional domain values", () => {
     expect(() => zodResponseFormat(BriefDraftStructuredOutputSchema, "brief-draft")).not.toThrow();
   });
+  it("uses a strict Lead transport schema with nullable provider observations", () => {
+    expect(() => zodResponseFormat(LeadAnalysisProviderOutputSchema, "lead-analysis")).not.toThrow();
+    const transport = { languageObservation: null, directlyStatedFacts: [], userPreferences: [], inferredRecommendations: [], unresolvedQuestions: [], contradictions: [], unsupportedAssumptions: [], confirmationRequired: [], provider: { name: "synthetic", model: null, used: true, inputTokens: null, outputTokens: null } };
+    expect(LeadAnalysisProviderOutputSchema.safeParse(transport).success).toBe(true);
+    expect(LeadAnalysisProviderOutputSchema.safeParse({ ...transport, languageObservation: undefined }).success).toBe(false);
+  });
   it("does not treat approval as a Brief validation blocker", () => {
     expect(isWorkflowApprovalBlocker("Explicit Project Brief approval has not yet been recorded.")).toBe(true);
     expect(isWorkflowApprovalBlocker("The finalized Project Brief has not yet been explicitly approved before Planner runs.")).toBe(true);

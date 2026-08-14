@@ -1277,8 +1277,9 @@ export function Workbench() {
                   className="create-button"
                   onClick={submit}
                   disabled={loading || !prompt.trim()}
+                  aria-busy={loading}
                 >
-                  {loading ? "Preparing..." : "Create project"}
+                  {loading ? "Creating project..." : "Create project"}
                   <span>→</span>
                 </button>
               </div>

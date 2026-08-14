@@ -794,14 +794,16 @@ export class OpenAiLeadProvider implements LeadAnalysisProvider {
       approvedSkills,
       skillContextIdentity,
     );
+    const { languageObservation, ...providerFields } = output;
     return LeadAgentAnalysisSchema.parse({
-      ...output,
+      ...providerFields,
       projectId: input.projectId,
       projectVersion: input.projectVersion,
       originalPromptChecksum: checksumPersistedDocument(input.originalPrompt.replace(/\r\n?/g, "\n").trim()),
       operatorLanguage: input.operatorLanguage,
       siteLanguage: input.siteLanguage,
       ...(input.languageResolution ? { languageResolution: input.languageResolution } : {}),
+      ...(languageObservation === null ? {} : { languageObservation }),
     });
   }
   async proposeClarifications(
