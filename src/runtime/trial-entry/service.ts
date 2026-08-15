@@ -13,6 +13,7 @@ import type { FactoryProject } from "@/domain/project/schema";
 import type { LeadAgentService } from "@/agents/lead/service";
 import type { LeadAgentInput } from "@/agents/lead/contracts";
 import { LeadError } from "@/agents/lead/errors";
+import { PersistenceError } from "@/persistence/database/errors";
 import { FACTORY_OPERATOR_LANGUAGE, normalizeSiteLanguage, OperatorLanguageSchema, resolveLanguageAuthority, type LanguageResolution, type OperatorLanguage } from "@/domain/language/schema";
 import type { ProjectOrigin } from "@/domain/project/provenance";
 import {
@@ -20,6 +21,11 @@ import {
   type InitialProjectRequest,
 } from "@/domain/project/initial-request";
 import type { ProjectAssetService } from "@/runtime/assets/service";
+import {
+  ANSWER_CLARIFICATIONS_OPERATION,
+  clarificationAnswerOperationKey,
+  type ClarificationAnswerRequest,
+} from "./idempotency";
 
 export type TrialEntryAnswer = {
   questionId: string;
@@ -228,61 +234,120 @@ export class TrialEntryService {
   }
 
   async respond(projectId: string, answers: TrialEntryAnswer[]) {
+    if (!answers.length) throw new Error("TRIAL_ENTRY_ANSWERS_EMPTY");
+    const operationIdentity = clarificationAnswerOperationKey({
+      projectId,
+      projectVersion: (await this.projects.getWithVersion(projectId))?.project.currentVersion ?? 1,
+      answers,
+    });
+    const operationPayload = {
+      ...operationIdentity.payload,
+      roundFingerprint: operationIdentity.fingerprint,
+    };
+    let reservation;
+    try {
+      reservation = await this.operations.reserve(
+        ANSWER_CLARIFICATIONS_OPERATION,
+        operationIdentity.key,
+        operationPayload,
+      );
+    } catch (error) {
+      if (error instanceof PersistenceError && error.code === "IDEMPOTENCY_CONFLICT") {
+        const latest = await this.currentClarificationSession(projectId);
+        this.assertCurrentAnswerRound(latest.projectVersion, latest.session, answers);
+      }
+      throw error;
+    }
+    if (reservation.status === "IN_PROGRESS")
+      throw new LeadError("IDEMPOTENCY_CONFLICT", "The clarification answer round is already in progress.");
+    if (reservation.status === "SUCCEEDED") return reservation.result as TrialEntryResult;
+
+    try {
+      const current = await this.projects.getWithVersion(projectId);
+      if (!current) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");
+      if (current.project.workflowState !== "CLARIFYING")
+        throw new Error("TRIAL_ENTRY_NOT_AWAITING_CLARIFICATION");
+      const session = await this.clarifications.getSession(projectId, current.project.currentVersion);
+      if (!session) throw new Error("TRIAL_ENTRY_CLARIFICATION_NOT_FOUND");
+      this.assertCurrentAnswerRound(current.project.currentVersion, session, answers);
+      const lead = this.dependencies.createLeadAgent(current.project.slug);
+      const leadInput = await this.inputForProject(
+        current.project,
+        `clarification-resume:v2:${operationIdentity.key}`,
+        session.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE,
+        session.languageResolution,
+      );
+      const clarificationSession = await lead.continueClarificationRound({
+        ...leadInput,
+        answers: answers.map((answer) => ({
+          questionId: answer.questionId,
+          status: answer.status ?? "answered",
+          ...(answer.answer === undefined ? {} : { answer: answer.answer }),
+        })),
+      });
+      const clarification = {
+        session: clarificationSession,
+        unresolved: clarificationSession.questions.filter((question) => question.answerStatus === "unresolved"),
+      };
+      let brief: TrialEntryResult["brief"];
+      if (!clarification.unresolved.length) {
+        const draft = await lead.buildBriefDraft(projectId, current.project.currentVersion);
+        brief = {
+          checksum: draft.briefChecksum,
+          readyForApproval: draft.readyForApproval,
+          blockingReasons: draft.blockingReasons,
+        };
+      }
+      const updated = (await this.projects.getWithVersion(projectId)) ?? current;
+      const result = {
+        project: {
+          projectId: updated.project.id,
+          slug: updated.project.slug,
+          projectVersion: updated.project.currentVersion,
+          siteLanguage: updated.project.siteLanguage,
+        },
+        workflowState: updated.project.workflowState,
+        lead: {
+          firstSemanticOwner: "lead" as const,
+          analysisCompleted: true as const,
+          clarificationQuestions: clarification.session.questions.map(questionView),
+        },
+        ...(brief ? { brief } : {}),
+      } satisfies Omit<TrialEntryResult, "request">;
+      await this.operations.complete(
+        ANSWER_CLARIFICATIONS_OPERATION,
+        operationIdentity.key,
+        operationPayload,
+        result,
+      );
+      return result;
+    } catch (error) {
+      await this.operations.fail(
+        ANSWER_CLARIFICATIONS_OPERATION,
+        operationIdentity.key,
+        operationPayload,
+      ).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  private async currentClarificationSession(projectId: string) {
     const current = await this.projects.getWithVersion(projectId);
     if (!current) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");
-    if (current.project.workflowState !== "CLARIFYING")
-      throw new Error("TRIAL_ENTRY_NOT_AWAITING_CLARIFICATION");
     const session = await this.clarifications.getSession(projectId, current.project.currentVersion);
     if (!session) throw new Error("TRIAL_ENTRY_CLARIFICATION_NOT_FOUND");
-    const lead = this.dependencies.createLeadAgent(current.project.slug);
-    const leadInput = await this.inputForProject(current.project, `clarification-resume:${projectId}`, session.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE, session.languageResolution);
-    await lead.analyzeProjectPrompt(leadInput);
-    await lead.planClarifications(leadInput);
-    const knownQuestions = new Set(session.questions.map((question) => question.id));
-    if (!answers.length) throw new Error("TRIAL_ENTRY_ANSWERS_EMPTY");
+    return { projectVersion: current.project.currentVersion, session };
+  }
+
+  private assertCurrentAnswerRound(projectVersion: number, session: Awaited<ReturnType<ClarificationRepository["getSession"]>>, answers: readonly ClarificationAnswerRequest[]) {
+    if (!session || session.projectVersion !== projectVersion) throw new Error("TRIAL_ENTRY_CLARIFICATION_NOT_FOUND");
+    const questions = new Map(session.questions.map((question) => [question.id, question]));
     for (const answer of answers) {
-      if (!knownQuestions.has(answer.questionId))
-        throw new Error("TRIAL_ENTRY_QUESTION_NOT_FOUND");
-      const status = answer.status ?? "answered";
-      await lead.recordClarificationAnswer({
-        projectId,
-        projectVersion: current.project.currentVersion,
-        questionId: answer.questionId,
-        status,
-        ...(answer.answer === undefined ? {} : { answer: answer.answer }),
-        answeredBy: "user",
-        idempotencyKey: `clarification-answer:${projectId}:${answer.questionId}:${checksumPersistedDocument({ status, answer: answer.answer ?? "" })}`,
-      });
+      const question = questions.get(answer.questionId);
+      if (!question) throw new Error("TRIAL_ENTRY_QUESTION_NOT_FOUND");
+      if (question.answerStatus !== "unresolved") throw new LeadError("CLARIFICATION_ALREADY_RESOLVED", "The clarification question is no longer current.");
+      if (question.blocking && (answer.status ?? "answered") === "deferred") throw new LeadError("BLOCKING_CLARIFICATIONS_REMAIN", "Blocking clarification questions cannot be intentionally deferred.");
     }
-    const clarification = await lead.getClarificationStatus(
-      projectId,
-      current.project.currentVersion,
-    );
-    let brief: TrialEntryResult["brief"];
-    if (!clarification.unresolved.length) {
-      const draft = await lead.buildBriefDraft(projectId, current.project.currentVersion);
-      brief = {
-        checksum: draft.briefChecksum,
-        readyForApproval: draft.readyForApproval,
-        blockingReasons: draft.blockingReasons,
-      };
-    }
-    const updated = (await this.projects.getWithVersion(projectId)) ?? current;
-    return {
-      project: {
-        projectId: updated.project.id,
-        slug: updated.project.slug,
-        projectVersion: updated.project.currentVersion,
-        siteLanguage: updated.project.siteLanguage,
-      },
-      workflowState: updated.project.workflowState,
-      lead: {
-        firstSemanticOwner: "lead",
-        analysisCompleted: true,
-        clarificationQuestions: clarification.session.questions.map(questionView),
-      },
-      ...(brief ? { brief } : {}),
-    };
   }
 
   async status(projectId: string): Promise<TrialEntryStatus> {

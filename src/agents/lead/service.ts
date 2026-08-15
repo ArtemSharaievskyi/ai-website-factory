@@ -617,6 +617,104 @@ export class LeadAgentService {
     );
     return next;
   }
+
+  async continueClarificationRound(input: LeadAgentInput & {
+    answers: Array<{ questionId: string; status: ClarificationAnswer["status"]; answer?: string }>;
+  }) {
+    const { answers: submittedAnswers, ...leadInput } = input;
+    const parsed = LeadAgentInputSchema.parse(leadInput);
+    const existing = await this.clarifications.getSession(parsed.projectId, parsed.projectVersion);
+    if (!existing) throw new LeadError("CLARIFICATION_NOT_FOUND", "Clarification session was not found.");
+    const questions = new Map(existing.questions.map((question) => [question.id, question]));
+    const seen = new Set<string>();
+    for (const answer of submittedAnswers) {
+      const question = questions.get(answer.questionId);
+      if (!question) throw new LeadError("CLARIFICATION_NOT_FOUND", "Clarification question was not found.");
+      if (seen.has(answer.questionId)) throw new LeadError("IDEMPOTENCY_CONFLICT", "A clarification question was submitted more than once.");
+      if (question.answerStatus !== "unresolved") throw new LeadError("CLARIFICATION_ALREADY_RESOLVED", "The clarification question is no longer current.");
+      if (question.blocking && answer.status === "deferred") throw new LeadError("BLOCKING_CLARIFICATIONS_REMAIN", "Blocking clarification questions cannot be intentionally deferred.");
+      seen.add(answer.questionId);
+    }
+    const confirmedResolution = submittedAnswers
+      .map((answer) => {
+        const question = questions.get(answer.questionId);
+        if (!question || answer.status !== "answered" || (question.requirementKey !== "languages" && question.requirementKey !== "operator-language")) return undefined;
+        const answerLanguage = normalizeSiteLanguage(answer.answer);
+        if (answerLanguage === "UNRESOLVED") return undefined;
+        const resolved = question.requirementKey === "operator-language"
+          ? resolveLanguageAuthority({ prompt: "", explicitOperatorLanguage: answerLanguage, explicitSiteLanguage: existing.languageResolution?.siteLanguage !== "UNRESOLVED" ? existing.languageResolution?.siteLanguage : undefined })
+          : resolveLanguageAuthority({ prompt: "", explicitOperatorLanguage: existing.operatorLanguage, explicitSiteLanguage: answerLanguage });
+        return LanguageResolutionSchema.parse({
+          ...resolved,
+          ...(question.requirementKey === "operator-language" ? { operatorLanguageSource: "USER_CONFIRMED" as const } : { siteLanguageSource: "USER_CONFIRMED" as const }),
+          status: "RESOLVED" as const,
+        });
+      })
+      .find((value): value is LanguageResolution => Boolean(value));
+    const answered = ClarificationSessionSchema.parse({
+      ...existing,
+      updatedAt: now(),
+      ...(confirmedResolution ? { operatorLanguage: confirmedResolution.operatorLanguage, languageResolution: confirmedResolution } : {}),
+      questions: existing.questions.map((question) => {
+        const answer = submittedAnswers.find((candidate) => candidate.questionId === question.id);
+        return answer ? { ...question, answerStatus: answer.status } : question;
+      }),
+      answers: [...existing.answers, ...submittedAnswers.map((answer) => ({
+        questionId: answer.questionId,
+        status: answer.status,
+        ...(answer.answer === undefined ? {} : { answer: answer.answer }),
+        answeredAt: now(),
+        answeredBy: "user",
+      }))],
+    });
+    const analysis = this.analyses.get(analysisCacheKey(parsed)) ?? await this.analyzeProjectPrompt(parsed);
+    const skillSelection = this.skillSelections.get(analysisCacheKey(parsed));
+    const plan = validateClarificationPlanLanguage(validateClarificationPlan(parseClarificationPlan(
+      await this.provider.proposeClarifications(
+        { analysis, session: answered, operatorLanguage: parsed.operatorLanguage, siteLanguage: parsed.siteLanguage, availableAssets: parsed.availableAssets },
+        skillSelection?.contexts,
+        skillSelection?.identityChecksum,
+      ),
+    ), parsed, false), parsed.operatorLanguage);
+    const satisfiedAssetKeys = new Set<string>();
+    if (parsed.availableAssets.some((asset) => asset.status === "READY" && asset.currentness === "CURRENT" && asset.category === "LOGO")) satisfiedAssetKeys.add("logo");
+    if (parsed.availableAssets.some((asset) => asset.status === "READY" && asset.currentness === "CURRENT" && (asset.category === "IMAGE" || asset.category === "REFERENCE"))) satisfiedAssetKeys.add("image-source");
+    const assetSuperseded = answered.questions.filter((question) => question.answerStatus === "unresolved" && satisfiedAssetKeys.has(question.requirementKey ?? ""));
+    const nextQuestions = answered.questions.filter((question) => !assetSuperseded.some((candidate) => candidate.id === question.id));
+    const known = new Set(nextQuestions.map((question) => question.requirementKey ?? question.id));
+    for (const planned of plan.questions) {
+      if (!known.has(planned.requirementKey) && !nextQuestions.some((question) => question.fingerprint === planned.fingerprint)) {
+        nextQuestions.push({
+          id: planned.id,
+          category: planned.category,
+          question: planned.question,
+          reason: planned.reason,
+          required: planned.required,
+          blocking: planned.blocking,
+          askedAt: plan.generatedAt,
+          answerStatus: "unresolved",
+          requirementKey: planned.requirementKey,
+          fingerprint: planned.fingerprint,
+          evidence: ["deterministic-planner"],
+        });
+      }
+    }
+    const next = ClarificationSessionSchema.parse({
+      ...answered,
+      updatedAt: now(),
+      questions: nextQuestions,
+      ...(assetSuperseded.length || answered.supersededQuestions ? {
+        supersededQuestions: [
+          ...(answered.supersededQuestions ?? []),
+          ...assetSuperseded.map((question) => ({ question, supersededAt: now(), reason: "Satisfied by a READY project asset; no text answer was submitted." })),
+        ],
+      } : {}),
+    });
+    await this.clarifications.saveSession(next);
+    if (confirmedResolution?.siteLanguage && confirmedResolution.siteLanguage !== "UNRESOLVED") await this.projects.updateSiteLanguage(parsed.projectId, confirmedResolution.siteLanguage);
+    await this.dependencies.memory.writeSnapshot(parsed.projectId, parsed.projectVersion, { "clarification-log.json": next });
+    return next;
+  }
   async getClarificationStatus(projectId: string, projectVersion: number) {
     const session = await this.reconcileClarificationSession(
       await this.clarifications.getSession(projectId, projectVersion),
