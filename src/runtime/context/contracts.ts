@@ -3,6 +3,26 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 
 export const CONTEXT_BUNDLE_SCHEMA_VERSION = 1 as const;
 
+export const ContextAuthoritySchema = z.enum([
+  "CANONICAL_REQUIREMENT",
+  "SUPPORTING_TECHNICAL",
+]);
+export type ContextAuthority = z.infer<typeof ContextAuthoritySchema>;
+
+export const CanonicalDocumentTypeSchema = z.enum([
+  "InitialProjectRequest",
+  "ClarificationAnswer",
+  "ProjectBrief",
+  "ApprovedRequirementSet",
+  "SelectedDesignDirection",
+  "AcceptedDependencyDecision",
+  "DatabaseDecision",
+  "ApprovedChangeProposal",
+  "CurrentCanonicalRequirements",
+]);
+export type CanonicalDocumentType = z.infer<typeof CanonicalDocumentTypeSchema>;
+export const CANONICAL_DOCUMENT_TYPES = CanonicalDocumentTypeSchema.options;
+
 export const ContextItemKindSchema = z.enum([
   "CANONICAL_CONTRACT",
   "FILE_SKELETON",
@@ -55,6 +75,8 @@ export const ContextLineRangeSchema = z.object({ start: z.number().int().positiv
 export const ContextItemSchema = z.object({
   contextItemId: z.string().min(1),
   kind: ContextItemKindSchema,
+  authority: ContextAuthoritySchema,
+  canonicalDocumentType: CanonicalDocumentTypeSchema.optional(),
   sourceRef: z.string().min(1),
   sourceChecksum: z.string().regex(/^[a-f0-9]{64}$/),
   selectionReason: z.string().min(1).max(500),
@@ -79,6 +101,13 @@ export const ContextSelectionEvidenceSchema = z.object({ selectedReasons: z.arra
 export const ContextMetricsSchema = z.object({
   rawCandidateBytes: z.number().int().nonnegative(),
   selectedBytes: z.number().int().nonnegative(),
+  canonicalRequirementBytes: z.number().int().nonnegative(),
+  canonicalRequirementIncludedBytes: z.number().int().nonnegative(),
+  canonicalRequirementChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  canonicalRequirementTruncated: z.literal(false),
+  supportingContextOriginalBytes: z.number().int().nonnegative(),
+  supportingContextIncludedBytes: z.number().int().nonnegative(),
+  supportingContextReductionRatio: z.number().min(0).max(1),
   estimatedInputTokens: z.number().int().nonnegative(),
   fileCandidateCount: z.number().int().nonnegative(),
   fileSelectedCount: z.number().int().nonnegative(),
@@ -128,7 +157,7 @@ export type ContextBundle = z.infer<typeof ContextBundleSchema>;
 
 export const ContextAssemblyBlockerCodeSchema = z.enum(["CONTEXT_REQUIRED_BUDGET_EXCEEDED", "CONTEXT_REQUIRED_ITEM_MISSING", "CONTEXT_SOURCE_STALE", "CONTEXT_SECRET_EXPOSURE_BLOCKED"]);
 export type ContextAssemblyBlockerCode = z.infer<typeof ContextAssemblyBlockerCodeSchema>;
-export const ContextAssemblyBlockerSchema = z.object({ code: ContextAssemblyBlockerCodeSchema, message: z.string().min(1), requiredBytes: z.number().int().nonnegative(), requiredEstimatedTokens: z.number().int().nonnegative(), budgetProfile: z.string().min(1), missingKinds: z.array(ContextItemKindSchema) }).strict();
+export const ContextAssemblyBlockerSchema = z.object({ code: ContextAssemblyBlockerCodeSchema, message: z.string().min(1), requiredBytes: z.number().int().nonnegative(), requiredEstimatedTokens: z.number().int().nonnegative(), budgetProfile: z.string().min(1), missingKinds: z.array(ContextItemKindSchema), authority: ContextAuthoritySchema.optional(), recoverable: z.boolean().optional() }).strict();
 export type ContextAssemblyBlocker = z.infer<typeof ContextAssemblyBlockerSchema>;
 
 export const ContextExpansionRequestSchema = z.object({ requestId: z.string().uuid(), reason: z.string().min(8).max(500), requiredSourceRefs: z.array(z.string().min(1)).max(8), requiredSymbols: z.array(z.string().min(1)).max(8), requiredDiagnosticRefs: z.array(z.string().min(1)).max(8), requestedContextKind: ContextItemKindSchema, taskScope: z.array(z.string().min(1)).min(1), maxExpansionCount: z.number().int().positive().max(2), currentExpansionCount: z.number().int().nonnegative().max(2) }).strict();

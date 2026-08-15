@@ -46,6 +46,10 @@ export type EfficiencyAggregate = {
   totalTokens: number;
   contextCandidateBytes: number;
   contextSelectedBytes: number;
+  canonicalRequirementBytes: number;
+  canonicalRequirementIncludedBytes: number;
+  supportingContextBytes: number;
+  supportingContextIncludedBytes: number;
   diagnosticBytesBefore: number;
   diagnosticBytesAfter: number;
   skillBytesBefore: number;
@@ -55,7 +59,7 @@ export type EfficiencyAggregate = {
 };
 
 export function createEfficiencyAggregate(): EfficiencyAggregate {
-  return { llmInvocationCount: 0, llmAvoidedCount: 0, reviewerCallAvoidedByCurrentness: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, totalTokens: 0, contextCandidateBytes: 0, contextSelectedBytes: 0, diagnosticBytesBefore: 0, diagnosticBytesAfter: 0, skillBytesBefore: 0, skillBytesAfter: 0, astPatchBytes: 0, fullFileCounterfactualBytes: 0 };
+  return { llmInvocationCount: 0, llmAvoidedCount: 0, reviewerCallAvoidedByCurrentness: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, totalTokens: 0, contextCandidateBytes: 0, contextSelectedBytes: 0, canonicalRequirementBytes: 0, canonicalRequirementIncludedBytes: 0, supportingContextBytes: 0, supportingContextIncludedBytes: 0, diagnosticBytesBefore: 0, diagnosticBytesAfter: 0, skillBytesBefore: 0, skillBytesAfter: 0, astPatchBytes: 0, fullFileCounterfactualBytes: 0 };
 }
 export function addUsageToAggregate(aggregate: EfficiencyAggregate, usage: Pick<InvocationUsageRecord, "inputTokens" | "cachedInputTokens" | "outputTokens" | "totalTokens" | "contextMetrics">) {
   aggregate.llmInvocationCount += 1;
@@ -66,6 +70,10 @@ export function addUsageToAggregate(aggregate: EfficiencyAggregate, usage: Pick<
   if (usage.contextMetrics) {
     aggregate.contextCandidateBytes += usage.contextMetrics.rawCandidateBytes;
     aggregate.contextSelectedBytes += usage.contextMetrics.selectedBytes;
+    aggregate.canonicalRequirementBytes += usage.contextMetrics.canonicalRequirementBytes;
+    aggregate.canonicalRequirementIncludedBytes += usage.contextMetrics.canonicalRequirementIncludedBytes;
+    aggregate.supportingContextBytes += usage.contextMetrics.supportingContextOriginalBytes;
+    aggregate.supportingContextIncludedBytes += usage.contextMetrics.supportingContextIncludedBytes;
     aggregate.diagnosticBytesBefore += usage.contextMetrics.rawDiagnosticBytes;
     aggregate.diagnosticBytesAfter += usage.contextMetrics.diagnosticSelectedBytes;
     aggregate.skillBytesBefore += usage.contextMetrics.skillCandidateBytes;

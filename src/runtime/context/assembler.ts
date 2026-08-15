@@ -7,6 +7,8 @@ import {
   ContextItemSchema,
   type ContextBudgetPolicy,
   type ContextBundle,
+  type ContextAuthority,
+  type CanonicalDocumentType,
   type ContextCurrentness,
   type ContextItem,
   type ContextItemKind,
@@ -22,8 +24,89 @@ const digest = (value: string) => createHash("sha256").update(value, "utf8").dig
 const secretLike = /(sk-[A-Za-z0-9]{12,}|AKIA[A-Z0-9]{12,}|-----BEGIN [^-]*PRIVATE KEY-----|(?:OPENAI_API_KEY|SUPABASE_SERVICE_ROLE_KEY|DATABASE_URL)\s*[:=]\s*[^\s}]+)/i;
 const safeIdentity = (value: unknown) => typeof value === "string" && value.length <= 240 ? value : undefined;
 
+const CANONICAL_KEYS = new Set([
+  "originalPrompt",
+  "requestText",
+  "knownUserAnswers",
+  "clarificationAnswer",
+  "clarificationAnswers",
+  "clarificationSession",
+  "session",
+  "analysis",
+  "approvedBrief",
+  "projectBrief",
+  "brief",
+  "requirements",
+  "approvedRequirements",
+  "approvedRequirementSet",
+  "currentCanonicalRequirements",
+  "canonicalRequirements",
+  "acceptedPlanningPackage",
+  "acceptedDependencyDecision",
+  "dependencyDecision",
+  "databaseDecision",
+  "databaseDecisions",
+  "selectedDesign",
+  "selectedDesignDirection",
+  "selectedDirection",
+  "approvedChangeProposal",
+  "changeProposal",
+  "project",
+  "task",
+  "taskContract",
+  "phase7cContractPackage",
+]);
+const TECHNICAL_CONTENT_KEYS = new Set(["content", "markdown", "stdout", "stderr", "raw", "rawOutput", "fullSource", "sourceText"]);
+
+function prepareContextValue(value: unknown, key: string | undefined, canonical: boolean, depth: number): unknown {
+  if (typeof value === "string") {
+    if (canonical) return value;
+    if (key && TECHNICAL_CONTENT_KEYS.has(key)) return `[omitted: ${key} is represented by a bounded context slice]`;
+    return value.length > 2_000 ? `${value.slice(0, 2_000)}…[bounded]` : value;
+  }
+  if (Array.isArray(value)) {
+    const entries = canonical ? value : value.slice(0, 80);
+    return entries.map((entry) => prepareContextValue(entry, key, canonical, depth + 1));
+  }
+  if (depth > 5) return canonical ? value : "[bounded-depth]";
+  if (!value || typeof value !== "object") return value;
+  const object = value as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.entries(object)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([entryKey, entryValue]) => [
+        entryKey,
+        prepareContextValue(entryValue, entryKey, canonical || CANONICAL_KEYS.has(entryKey), depth + 1),
+      ]),
+  );
+}
+
+/**
+ * Preserve canonical requirement documents while bounding only supporting data.
+ * This is intentionally shared by every role prompt builder so callers cannot
+ * accidentally apply the old generic 2,000-character reducer to requirements.
+ */
+export function prepareRoleContext(input: unknown) {
+  return prepareContextValue(input, undefined, false, 0);
+}
+
+export function inferCanonicalDocumentType(role: string, input: unknown): CanonicalDocumentType {
+  const value = input && typeof input === "object" ? input as Record<string, unknown> : {};
+  if (role === "lead" && typeof value.originalPrompt === "string") return "InitialProjectRequest";
+  if (value.clarificationAnswer || value.clarificationAnswers || value.clarificationSession || value.session) return "ClarificationAnswer";
+  if (value.approvedChangeProposal || value.changeProposal) return "ApprovedChangeProposal";
+  if (value.selectedDesign || value.selectedDesignDirection || value.selectedDirection) return "SelectedDesignDirection";
+  if (value.databaseDecision || value.databaseDecisions) return "DatabaseDecision";
+  if (value.acceptedDependencyDecision || value.dependencyDecision) return "AcceptedDependencyDecision";
+  if (value.approvedBrief || value.projectBrief || value.brief) return "ProjectBrief";
+  if (value.approvedRequirements || value.approvedRequirementSet || value.requirements) return "ApprovedRequirementSet";
+  return "CurrentCanonicalRequirements";
+}
+
 export type ContextCandidate = {
   kind: ContextItemKind;
+  authority?: ContextAuthority;
+  canonicalDocumentType?: CanonicalDocumentType;
   sourceRef: string;
   sourceChecksum?: string;
   selectionReason: string;
@@ -78,14 +161,17 @@ const candidateKey = (candidate: ContextCandidate, contentChecksum: string) => `
 const currentnessOf = (candidate: ContextCandidate) => candidate.currentness ?? "CURRENT" as const;
 const makeItem = (candidate: ContextCandidate): ContextItem => {
   const contentChecksum = digest(candidate.content);
+  const authority = candidate.kind === "CANONICAL_CONTRACT" ? "CANONICAL_REQUIREMENT" : candidate.authority ?? "SUPPORTING_TECHNICAL";
   return ContextItemSchema.parse({
     contextItemId: digest(`${candidate.kind}:${candidate.sourceRef}:${contentChecksum}`).slice(0, 32),
     kind: candidate.kind,
+    authority,
+    ...(candidate.canonicalDocumentType ? { canonicalDocumentType: candidate.canonicalDocumentType } : {}),
     sourceRef: candidate.sourceRef,
     sourceChecksum: candidate.sourceChecksum && /^[a-f0-9]{64}$/.test(candidate.sourceChecksum) ? candidate.sourceChecksum : contentChecksum,
     selectionReason: candidate.selectionReason,
     priority: candidate.priority,
-    required: Boolean(candidate.required),
+    required: authority === "CANONICAL_REQUIREMENT" || Boolean(candidate.required),
     bytes: bytes(candidate.content),
     estimatedTokens: estimatedTokens(candidate.content),
     ...(candidate.lineRange ? { lineRange: candidate.lineRange } : {}),
@@ -95,19 +181,13 @@ const makeItem = (candidate: ContextCandidate): ContextItem => {
     content: candidate.content,
   });
 };
-const block = (code: ContextAssemblyBlockerCode, message: string, requiredItems: readonly ContextItem[], budget: ContextBudgetPolicy, missingKinds: ContextItemKind[] = []): ContextAssemblyResult => ({ status: "BLOCKED", blocker: { code, message, requiredBytes: requiredItems.reduce((sum, item) => sum + item.bytes, 0), requiredEstimatedTokens: requiredItems.reduce((sum, item) => sum + item.estimatedTokens, 0), budgetProfile: budget.profileId, missingKinds } });
+const block = (code: ContextAssemblyBlockerCode, message: string, requiredItems: readonly ContextItem[], budget: ContextBudgetPolicy, missingKinds: ContextItemKind[] = []): ContextAssemblyResult => ({ status: "BLOCKED", blocker: { code, message, requiredBytes: requiredItems.reduce((sum, item) => sum + item.bytes, 0), requiredEstimatedTokens: requiredItems.reduce((sum, item) => sum + item.estimatedTokens, 0), budgetProfile: budget.profileId, missingKinds, ...(requiredItems.some((item) => item.authority === "CANONICAL_REQUIREMENT") ? { authority: "CANONICAL_REQUIREMENT" as const } : { authority: "SUPPORTING_TECHNICAL" as const }), recoverable: true } });
 
 export function assembleContext(input: ContextAssemblyInput): ContextAssemblyResult {
   const budget = profileFor(input.agentRole, input.budget);
   const candidates = input.candidates.map((candidate) => makeItem(candidate));
   const missingKinds = (input.requiredKinds ?? []).filter((kind) => !candidates.some((item) => item.kind === kind && item.required));
   if (missingKinds.length) return block("CONTEXT_REQUIRED_ITEM_MISSING", "A required context category was not supplied.", candidates.filter((item) => item.required), budget, missingKinds);
-  const required = candidates.filter((item) => item.required);
-  const staleRequired = required.filter((item) => item.currentness === "STALE");
-  if (staleRequired.length) return block("CONTEXT_SOURCE_STALE", "Required context is stale and must be recomputed before provider invocation.", staleRequired, budget);
-  const requiredBytes = required.reduce((sum, item) => sum + item.bytes, 0);
-  const requiredTokens = required.reduce((sum, item) => sum + item.estimatedTokens, 0);
-  if (requiredBytes > effectiveBytes(budget) || requiredTokens > effectiveInputTokens(budget)) return block("CONTEXT_REQUIRED_BUDGET_EXCEEDED", "Required context alone exceeds the safe input budget after response reservation; no required item was dropped.", required, budget);
   if (candidates.some((item) => secretLike.test(item.content))) return block("CONTEXT_SECRET_EXPOSURE_BLOCKED", "Secret-like content cannot enter an LLM context bundle.", candidates.filter((item) => secretLike.test(item.content)), budget);
 
   const unique = new Map<string, ContextItem>();
@@ -122,6 +202,18 @@ export function assembleContext(input: ContextAssemblyInput): ContextAssemblyRes
     }
     unique.set(key, item);
   }
+  const uniqueItems = [...unique.values()];
+  const required = uniqueItems.filter((item) => item.required || item.authority === "CANONICAL_REQUIREMENT");
+  const staleRequired = required.filter((item) => item.currentness === "STALE");
+  if (staleRequired.length) return block("CONTEXT_SOURCE_STALE", "Required context is stale and must be recomputed before provider invocation.", staleRequired, budget);
+  const requiredBytes = required.reduce((sum, item) => sum + item.bytes, 0);
+  const requiredTokens = required.reduce((sum, item) => sum + item.estimatedTokens, 0);
+  if (requiredBytes > effectiveBytes(budget) || requiredTokens > effectiveInputTokens(budget)) return block("CONTEXT_REQUIRED_BUDGET_EXCEEDED", "Required context alone exceeds the safe input budget after response reservation; no required item was dropped.", required, budget);
+  const uniqueCanonical = uniqueItems.filter((item) => item.authority === "CANONICAL_REQUIREMENT");
+  const canonicalRequirementBytes = uniqueCanonical.reduce((sum, item) => sum + item.bytes, 0);
+  const canonicalRequirementChecksum = uniqueCanonical.length
+    ? digest(uniqueCanonical.map((item) => `${item.sourceRef}:${item.contentChecksum}`).join("\n"))
+    : undefined;
   const ordered = [...unique.values()].sort((left, right) => Number(right.required) - Number(left.required) || ({ HIGH: 3, MEDIUM: 2, LOW: 1 }[right.priority] - { HIGH: 3, MEDIUM: 2, LOW: 1 }[left.priority]) || left.sourceRef.localeCompare(right.sourceRef));
   const selected: ContextItem[] = [];
   let selectedBytes = 0;
@@ -177,6 +269,13 @@ export function assembleContext(input: ContextAssemblyInput): ContextAssemblyRes
   const metrics = {
     rawCandidateBytes: candidates.reduce((sum, item) => sum + item.bytes, 0),
     selectedBytes,
+    canonicalRequirementBytes,
+    canonicalRequirementIncludedBytes: selected.filter((item) => item.authority === "CANONICAL_REQUIREMENT").reduce((sum, item) => sum + item.bytes, 0),
+    ...(canonicalRequirementChecksum ? { canonicalRequirementChecksum } : {}),
+    canonicalRequirementTruncated: false as const,
+    supportingContextOriginalBytes: uniqueItems.filter((item) => item.authority === "SUPPORTING_TECHNICAL").reduce((sum, item) => sum + item.bytes, 0),
+    supportingContextIncludedBytes: selected.filter((item) => item.authority === "SUPPORTING_TECHNICAL").reduce((sum, item) => sum + item.bytes, 0),
+    supportingContextReductionRatio: Math.max(0, 1 - selected.filter((item) => item.authority === "SUPPORTING_TECHNICAL").reduce((sum, item) => sum + item.bytes, 0) / Math.max(1, uniqueItems.filter((item) => item.authority === "SUPPORTING_TECHNICAL").reduce((sum, item) => sum + item.bytes, 0))),
     estimatedInputTokens: selectedTokens,
     fileCandidateCount: candidates.filter((item) => item.kind === "FILE_SKELETON" || item.kind === "SOURCE_SNIPPET").length,
     fileSelectedCount: fileCount,
@@ -210,7 +309,7 @@ export function assembleContext(input: ContextAssemblyInput): ContextAssemblyRes
 
 export function assemblePromptContext(input: { agentId: string; agentRole: string; workflowStage: string; projectId?: string; projectVersion?: number; taskId?: string; canonicalInput: unknown; skills?: readonly ApprovedProceduralSkillContext[]; budget?: ContextBudgetPolicy }): ContextBundle {
   const canonicalContent = JSON.stringify(stableValue(input.canonicalInput));
-  const candidates: ContextCandidate[] = [{ kind: "CANONICAL_CONTRACT", sourceRef: `canonical:${input.agentId}:${input.workflowStage}`, selectionReason: "Required canonical role input for this provider invocation.", priority: "HIGH", required: true, content: canonicalContent }];
+  const candidates: ContextCandidate[] = [{ kind: "CANONICAL_CONTRACT", authority: "CANONICAL_REQUIREMENT", canonicalDocumentType: inferCanonicalDocumentType(input.agentRole, input.canonicalInput), sourceRef: `canonical:${input.agentId}:${input.workflowStage}`, selectionReason: "Full canonical role requirements; never reduced by technical context policy.", priority: "HIGH", required: true, content: canonicalContent }];
   for (const skill of input.skills ?? []) candidates.push({ kind: "SKILL_SLICE", sourceRef: `skill:${skill.skillId}`, sourceChecksum: skill.approvedChecksum, selectionReason: `Approved procedural guidance selected for coverage: ${skill.coverageKeys.join(", ") || "role procedure"}.`, priority: "MEDIUM", content: skill.skillMarkdown });
   const result = assembleContext({ ...input, currentnessIdentity: checksumPersistedDocument(input.canonicalInput), candidates });
   if (result.status === "BLOCKED") throw new ContextAssemblyError(result.blocker);
@@ -218,7 +317,11 @@ export function assemblePromptContext(input: { agentId: string; agentRole: strin
 }
 
 export function renderContextItems(items: readonly ContextItem[]) {
-  return items.map((item) => `[${item.kind} ${item.sourceRef} checksum=${item.contentChecksum} currentness=${item.currentness}]\n${item.content}`).join("\n\n");
+  return items.map((item) => {
+    const section = item.authority === "CANONICAL_REQUIREMENT" ? "CANONICAL_PROJECT_REQUIREMENTS_LOSSLESS" : "BOUNDED_SUPPORTING_CONTEXT";
+    const documentType = item.canonicalDocumentType ? ` documentType=${item.canonicalDocumentType}` : "";
+    return `[${section} authority=${item.authority}${documentType} kind=${item.kind} ${item.sourceRef} checksum=${item.contentChecksum} currentness=${item.currentness}]\n${item.content}`;
+  }).join("\n\n");
 }
 
 export function renderContextBundle(bundle: ContextBundle) {
@@ -226,7 +329,7 @@ export function renderContextBundle(bundle: ContextBundle) {
 }
 
 export function contextBundleMetadata(bundle: ContextBundle) {
-  return { contextBundleId: bundle.contextBundleId, checksum: bundle.checksum, estimatedInputTokens: bundle.estimatedInputTokens, totalBytes: bundle.totalBytes, sourceCount: bundle.sourceCount, snippetCount: bundle.snippetCount, skillSliceCount: bundle.skillSliceCount, docSliceCount: bundle.docSliceCount, diagnosticCount: bundle.diagnosticCount };
+  return { contextBundleId: bundle.contextBundleId, checksum: bundle.checksum, estimatedInputTokens: bundle.estimatedInputTokens, totalBytes: bundle.totalBytes, sourceCount: bundle.sourceCount, snippetCount: bundle.snippetCount, skillSliceCount: bundle.skillSliceCount, docSliceCount: bundle.docSliceCount, diagnosticCount: bundle.diagnosticCount, canonicalRequirementBytes: bundle.metrics.canonicalRequirementBytes, canonicalRequirementIncludedBytes: bundle.metrics.canonicalRequirementIncludedBytes, canonicalRequirementTruncated: bundle.metrics.canonicalRequirementTruncated, supportingContextOriginalBytes: bundle.metrics.supportingContextOriginalBytes, supportingContextIncludedBytes: bundle.metrics.supportingContextIncludedBytes };
 }
 
 export function extractContextIdentity(input: unknown) {

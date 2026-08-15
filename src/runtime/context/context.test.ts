@@ -64,7 +64,7 @@ describe("Phase 7G context architecture", () => {
     expect(overflow).toMatchObject({ status: "BLOCKED", blocker: { code: "CONTEXT_REQUIRED_BUDGET_EXCEEDED" } });
   });
   it("deduplicates by authoritative identity and omits low-priority optional material at the soft target", () => {
-    const result = assembleContext({ agentId: "planner", agentRole: "planner-architect", workflowStage: "plan", currentnessIdentity: "current", budget: { ...CONTEXT_BUDGET_PROFILES.default, softTarget: { estimatedInputTokens: 10, bytes: 40 } }, candidates: [baseCandidate(), { ...baseCandidate(), required: false, priority: "MEDIUM" }, { ...baseCandidate(), required: false, priority: "LOW", sourceRef: "unrelated", content: "low" }] });
+    const result = assembleContext({ agentId: "planner", agentRole: "planner-architect", workflowStage: "plan", currentnessIdentity: "current", budget: { ...CONTEXT_BUDGET_PROFILES.default, softTarget: { estimatedInputTokens: 10, bytes: 40 } }, candidates: [baseCandidate(), baseCandidate(), { kind: "EVIDENCE_SLICE", authority: "SUPPORTING_TECHNICAL", sourceRef: "unrelated", selectionReason: "optional technical evidence", priority: "LOW", content: "low" }] });
     expect(result.status).toBe("READY");
     if (result.status !== "READY") return;
     expect(result.bundle.deduplicationStats.duplicateCount).toBe(1);

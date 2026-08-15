@@ -62,6 +62,7 @@ export class OpenAiStructuredClient {
       while (true) {
         if (request.signal?.aborted) throw new AiProviderError("AI_REQUEST_CANCELLED", "AI request was cancelled.");
         try {
+          this.assertContextCapacity(request);
           const result = await this.executor(request, this.client, this.config, correction);
           const actualUsageCaptured = result.inputTokens !== undefined || result.outputTokens !== undefined;
           const usage = createInvocationUsageRecord({ invocationFingerprint: this.fingerprint(request) ?? randomUUID(), agentId: request.role, ...(request.contextBundle?.taskId ? { taskId: request.contextBundle.taskId } : {}), workflowStage: request.contextBundle?.workflowStage ?? request.role, role: request.role, ...(request.contextBundle?.contextBundleId ? { contextBundleId: request.contextBundle.contextBundleId } : {}), ...(request.contextBundle?.checksum ? { contextChecksum: request.contextBundle.checksum } : {}), provider: "openai", model: this.config.model, ...(result.inputTokens === undefined ? {} : { inputTokens: result.inputTokens }), ...(result.cachedInputTokens === undefined ? {} : { cachedInputTokens: result.cachedInputTokens }), ...(result.outputTokens === undefined ? {} : { outputTokens: result.outputTokens }), ...(result.inputTokens !== undefined && result.outputTokens !== undefined ? { totalTokens: result.inputTokens + result.outputTokens } : {}), actualUsageCaptured, cacheTelemetryUnavailable: result.cachedInputTokens === undefined, prefixChecksum: request.promptPrefixChecksum ?? createHash("sha256").update(request.system, "utf8").digest("hex"), prefixBytes: request.promptPrefixBytes ?? Buffer.byteLength(request.system, "utf8"), contextMetrics: request.contextBundle?.metrics, requestCount: 1, retryCount: retries, correctionCount: correction ? 1 : 0, promptVersion: request.promptVersion }) as ProviderUsage;
@@ -86,6 +87,43 @@ export class OpenAiStructuredClient {
     } catch (error) {
       throw mapError(error, request.schemaName);
     }
+  }
+
+  private assertContextCapacity(request: StructuredRequest<unknown>) {
+    const bundle = request.contextBundle;
+    if (!bundle) return;
+    const byteLength = (value: string) => Buffer.byteLength(value, "utf8");
+    const estimatedTokens = (value: string) => Math.ceil(byteLength(value) / 4);
+    const requestBytes = byteLength(request.system) + byteLength(request.user);
+    const requestTokens = estimatedTokens(request.system) + estimatedTokens(request.user);
+    const maxBytes = bundle.budget.hardCeiling.bytes;
+    const maxTokens = bundle.budget.hardCeiling.estimatedInputTokens;
+    const totalBytesWithReserve = requestBytes + bundle.budget.reservedResponseBytes;
+    const totalTokensWithReserve = requestTokens + bundle.budget.reservedResponseTokens;
+    if (totalBytesWithReserve <= maxBytes && totalTokensWithReserve <= maxTokens) return;
+    throw new AiProviderError(
+      "AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED",
+      "The provider request cannot safely fit the complete canonical context and reserved response capacity.",
+      undefined,
+      {
+        stage: "request_construction",
+        requestAttempted: false,
+        apiResponseReceived: false,
+        sdkErrorClass: "ContextCapacityGuard",
+        schemaName: request.schemaName,
+        contextCapacity: {
+          budgetProfile: bundle.budget.profileId,
+          requestBytes,
+          requestTokens,
+          totalBytesWithReserve,
+          totalTokensWithReserve,
+          maxBytes,
+          maxTokens,
+          canonicalRequirementBytes: bundle.metrics.canonicalRequirementBytes,
+          supportingContextBytes: bundle.metrics.supportingContextIncludedBytes,
+        },
+      },
+    );
   }
 }
 
