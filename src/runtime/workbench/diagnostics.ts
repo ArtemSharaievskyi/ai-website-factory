@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { isAiProviderError } from "@/integrations/openai/errors";
 import { PROVIDER_OUTPUT_STAGES, type ProviderDiagnostic, type ProviderOutputStage } from "@/integrations/openai/usage";
+import type { BriefRevisionTraceSnapshot } from "@/domain/requirements/revision";
 
 export const WorkbenchErrorCategorySchema = z.enum([
   "VALIDATION",
@@ -125,6 +126,14 @@ export type WorkbenchDiagnosticEvent = {
   outputTokens?: number;
   maxCompletionTokens?: number;
   providerIssueCount?: number;
+};
+
+export type BriefRevisionTraceEvent = BriefRevisionTraceSnapshot & {
+  type: "workbench.brief-revision.trace";
+  timestamp: string;
+  traceId: string;
+  operation: "REQUEST_BRIEF_CHANGES";
+  projectId: string;
 };
 
 const CONFLICT_CODES = new Set([
@@ -475,6 +484,7 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
 
 const diagnosticEvents: WorkbenchDiagnosticEvent[] = [];
 const MAX_DIAGNOSTIC_EVENTS = 100;
+const briefRevisionTraceEvents: BriefRevisionTraceEvent[] = [];
 
 export function emitWorkbenchDiagnostic(event: WorkbenchDiagnosticEvent) {
   diagnosticEvents.push(event);
@@ -486,8 +496,19 @@ export function getWorkbenchDiagnosticEvents() {
   return diagnosticEvents.map((event) => ({ ...event }));
 }
 
+export function emitBriefRevisionTrace(event: BriefRevisionTraceEvent) {
+  briefRevisionTraceEvents.push({ ...event, operationTypes: [...event.operationTypes] });
+  if (briefRevisionTraceEvents.length > MAX_DIAGNOSTIC_EVENTS) briefRevisionTraceEvents.shift();
+  console.error(`[workbench-brief-revision-trace] ${JSON.stringify(event)}`);
+}
+
+export function getBriefRevisionTraceEvents() {
+  return briefRevisionTraceEvents.map((event) => ({ ...event, operationTypes: [...event.operationTypes] }));
+}
+
 export function clearWorkbenchDiagnosticEvents() {
   diagnosticEvents.length = 0;
+  briefRevisionTraceEvents.length = 0;
 }
 
 export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagnosticContext = {}) {

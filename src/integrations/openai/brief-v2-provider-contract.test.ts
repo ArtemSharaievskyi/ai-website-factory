@@ -5,7 +5,7 @@ import { emptyBriefV2Fields } from "@/domain/requirements/brief";
 import { ProjectBriefV2Schema, RequirementSpecificationSchema } from "@/domain/requirements/schema";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { OpenAiStructuredClient } from "./client";
-import { OpenAiLeadProvider, BriefDraftStructuredOutputSchema, BriefRequirementsTransportSchema } from "./adapters";
+import { OpenAiLeadProvider, BriefDraftStructuredOutputSchema, BriefRevisionStructuredOutputSchema, BriefRequirementsTransportSchema } from "./adapters";
 import { mergeRevisionRequirements } from "@/agents/lead/service";
 import { AiProviderError } from "./errors";
 import { DEFAULT_AI_MAX_COMPLETION_TOKENS, readAiProviderConfig } from "./config";
@@ -144,6 +144,7 @@ const toTransport = (brief: typeof v2Candidate) => {
 
 const transport = toTransport(v2Candidate);
 const providerOutput = BriefDraftStructuredOutputSchema.parse({ requirements: transport, facts: [], recommendations: [], unresolvedItems: [], evidence: [], readyForApproval: true, blockingReasons: [], nonBlockingWarnings: [] });
+const revisionProviderOutput = BriefRevisionStructuredOutputSchema.parse({ ...providerOutput, revisionOperations: [{ kind: "REMOVE", field: "effective-requirements", target: "FORM_SUCCESS_SIMULATION" }] });
 const revisionInstruction = 'Replace "Do not show successful submission." with "Frontend success is simulated after local validation."; preserve all confirmed requirements.';
 const revisionInput = { projectId, projectVersion: 1, originalPrompt: "Synthetic local service brief.", currentBrief: legacyV1, currentCanonicalRequirements: legacyV1, revisionInstruction, requirementKeys: ["project-brief"], operatorLanguage: "de" as const, siteLanguage: "de" as const, currentWorkflowState: "AWAITING_BRIEF_APPROVAL" };
 const config = { apiKey: "synthetic", model: "gpt-5.6-luna", modelLabel: "GPT-5.6 Luna", maxRetries: 1, maxConcurrentRequests: 1, maxCompletionTokens: DEFAULT_AI_MAX_COMPLETION_TOKENS };
@@ -162,7 +163,7 @@ describe("Project Brief V2 provider output contract PBR1-PBR40", () => {
     expect(BriefRequirementsTransportSchema.safeParse({ ...transport, [field]: field === "approval" ? { approved: false } : field === "briefChecksum" ? "a".repeat(64) : projectId }).success).toBe(false);
   });
   it("PBR10-PBR23: parses and maps populated V2 sections and nullable fields", async () => {
-    const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: providerOutput as T, requestId: "req_synthetic_v2", inputTokens: 900, outputTokens: 7200, diagnostic: { stage: "api_response", requestAttempted: true, apiResponseReceived: true, responseReceived: true, outputComplete: true, schemaName: "brief-revision" } }) });
+    const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: revisionProviderOutput as T, requestId: "req_synthetic_v2", inputTokens: 900, outputTokens: 7200, diagnostic: { stage: "api_response", requestAttempted: true, apiResponseReceived: true, responseReceived: true, outputComplete: true, schemaName: "brief-revision" } }) });
     const result = await new OpenAiLeadProvider(client).reviseBrief(revisionInput);
     expect(ProjectBriefV2Schema.parse(result.requirements).briefSchemaVersion).toBe(2);
     expect(result.requirements.brandVisualRequirements?.colorDirection[0]?.statement).toContain("green");
@@ -199,7 +200,7 @@ describe("Project Brief V2 provider output contract PBR1-PBR40", () => {
     expect({ ...diagnostic, outputStage: "PROVIDER_REFUSAL" as const, tokenExhaustion: false }).toMatchObject({ outputStage: "PROVIDER_REFUSAL", responseReceived: true });
   });
   it("PBR37-PBR40: leaves the valid candidate unapproved and keeps the pilot out of the fixture", async () => {
-    const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: providerOutput as T, requestId: "req_fixture", inputTokens: 1, outputTokens: 1 }) });
+    const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: revisionProviderOutput as T, requestId: "req_fixture", inputTokens: 1, outputTokens: 1 }) });
     const result = await new OpenAiLeadProvider(client).reviseBrief(revisionInput);
     const applied = ProjectBriefV2Schema.parse(applyBriefRevisionSemantics(legacyV1, result.requirements, revisionInstruction).brief);
     expect(result.requirements.approval.approved).toBe(false);
@@ -210,7 +211,7 @@ describe("Project Brief V2 provider output contract PBR1-PBR40", () => {
     expect(JSON.stringify(applied)).not.toContain("60736536-0aac-45f8-aaab-b6561f7a2842");
   });
   it("V2R16-V2R29: Lead revision merge upgrades legacy V1 input to canonical V2 without mutating the V1 value", async () => {
-    const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: providerOutput as T, requestId: "req_merge", inputTokens: 1, outputTokens: 1 }) });
+    const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: revisionProviderOutput as T, requestId: "req_merge", inputTokens: 1, outputTokens: 1 }) });
     const revised = await new OpenAiLeadProvider(client).reviseBrief(revisionInput);
     const merged = mergeRevisionRequirements(legacyV1, revised.requirements, revisionInstruction);
     expect(ProjectBriefV2Schema.parse(merged).briefSchemaVersion).toBe(2);

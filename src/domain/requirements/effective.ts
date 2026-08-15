@@ -12,7 +12,7 @@ export const normalizeRequirementText = (value: string) =>
 export const isSimulationProhibitionRequirement = (value: string) => {
   const normalized = value.normalize("NFKC").toLocaleLowerCase();
   const success = /(?:erfolg|success|submission|submit|\u00fcbermittlung|uebermittlung|\u00fcbertragung|uebertragung|vort\u00e4usch|vortaeusch|fake|simulat|\u0443\u0441\u043f\u0435\u0448|\u0443\u0441\u043f\u0435\u0445|\u043e\u0442\u043f\u0440\u0430\u0432|\u0438\u043c\u0438\u0442\u0430\u0446|\u0441\u0438\u043c\u0443\u043b|\u0443\u0441\u043f\u0456\u0448|\u0443\u0441\u043f\u0456\u0445|\u043f\u0435\u0440\u0435\u0434\u0430\u0447|\u0432\u0456\u0434\u043f\u0440\u0430\u0432)/i.test(normalized);
-  const prohibition = /(?:kein(?:e)?|nicht|no|not|do not|don't|forbid|prohibit|verbot|\u0437\u0430\u043f\u0440\u0435\u0449|\u043d\u0435\u043b\u044c\u0437\u044f|\u043d\u0435 \u043c\u043e\u0436\u043d\u0430|\u043d\u0435 \u0441\u0438\u043c\u0443\u043b|\u043d\u0435 \u0456\u043c\u0456\u0442)/i.test(normalized);
+  const prohibition = /(?:kein(?:e)?|nicht|no|not|do not|don't|forbid|prohibit|prohibition|verbot|\u0437\u0430\u043f\u0440\u0435\u0449|\u043d\u0435\u043b\u044c\u0437\u044f|\u043d\u0435 \u043c\u043e\u0436\u043d\u0430|\u043d\u0435 \u0441\u0438\u043c\u0443\u043b|\u043d\u0435 \u0456\u043c\u0456\u0442)/i.test(normalized);
   return success && prohibition;
 };
 
@@ -25,6 +25,7 @@ export type RequirementDimension =
   | "GENERIC";
 
 export const requirementDimensionForText = (value: string): RequirementDimension => {
+  if (/(?:form[_ -]?success[_ -]?(?:simulation|behavior)|success[_ -]?ux|success behavior)/i.test(value)) return "FORM_SUCCESS_SIMULATION";
   if (isSimulationProhibitionRequirement(value)) return "FORM_SUCCESS_SIMULATION";
   if (/(?:analytics|tracking|telemetry|conversion tracking|analyse|\u0430\u043d\u0430\u043b\u0438\u0442|\u0430\u043d\u0430\u043b\u0456\u0442)/i.test(value)) return "ANALYTICS";
   if (/(?:replace|replacement|generate|create|redraw|ersetz|generier|neu erstellen|logo|marke|wordmark|\u043b\u043e\u0433\u043e\u0442\u0438\u043f)/i.test(value)) return "ASSET_REPLACEMENT";

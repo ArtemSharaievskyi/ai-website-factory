@@ -6,6 +6,8 @@ import {
   ClarificationPlanProviderOutputSchema,
   LeadAgentAnalysisSchema,
   LeadAnalysisProviderOutputSchema,
+  BriefRevisionDraftSchema,
+  type BriefRevisionDraft,
   type BriefDraft,
   type ClarificationPlan,
   type ClarificationPlanProviderOutput,
@@ -37,6 +39,7 @@ import { OpenAiStructuredClient } from "./client";
 import { AiProviderError } from "./errors";
 import { boundedRolePrompt as rolePrompt } from "@/runtime/context/bridge";
 import type { ProviderDiagnostic, ProviderUsageSink } from "./usage";
+import { BriefRevisionOperationSchema } from "@/domain/requirements/revision";
 import type { OrchestrationPlanningProvider } from "@/orchestration/orchestrator/service";
 import {
   ArchitectureReviewProviderOutputSchema,
@@ -239,6 +242,9 @@ export const BriefRequirementsTransportSchema = ProjectBriefV2Schema
 export const BriefDraftStructuredOutputSchema = BriefDraftSchema.omit({ projectId: true, projectVersion: true, briefChecksum: true }).extend({
   requirements: BriefRequirementsTransportSchema,
 });
+export const BriefRevisionStructuredOutputSchema = BriefDraftStructuredOutputSchema.extend({
+  revisionOperations: z.array(BriefRevisionOperationSchema).min(1),
+});
 // Professional design contracts are host-bound after model generation; they
 // are intentionally excluded from the model transport shape so the strict
 // provider schema does not become a second source of design authority.
@@ -284,11 +290,12 @@ const zodIssueCode = (error: unknown) => {
   return "INVALID_FIELD";
 };
 function normalizeBriefDraft(
-  value: z.infer<typeof BriefDraftStructuredOutputSchema>,
+  value: z.infer<typeof BriefDraftStructuredOutputSchema> | z.infer<typeof BriefRevisionStructuredOutputSchema>,
   host: { projectId: string; projectVersion: number; operatorLanguage: z.infer<typeof OperatorLanguageSchema>; siteLanguage: SiteLanguageDecision; originalPromptChecksum: string },
   providerDiagnostic?: ProviderDiagnostic,
-): BriefDraft {
-  const { requirements: transportRequirements } = value;
+): BriefDraft | BriefRevisionDraft {
+  const revisionOperations = "revisionOperations" in value ? value.revisionOperations : undefined;
+  const { requirements: transportRequirements, ...providerDraft } = value;
   const {
     projectTitle,
     analysisMetadata,
@@ -353,8 +360,8 @@ function normalizeBriefDraft(
     throw new AiProviderError("AI_OUTPUT_INVALID", "Provider output could not be bound to canonical Project Brief V2.", undefined, { ...providerDiagnostic, stage: "provider_normalization", outputStage: "CANONICAL_BRIEF_V2_VALIDATION_FAILED", requestAttempted: providerDiagnostic?.requestAttempted ?? true, apiResponseReceived: providerDiagnostic?.apiResponseReceived ?? true, responseReceived: providerDiagnostic?.responseReceived ?? true, outputComplete: providerDiagnostic?.outputComplete ?? true, schemaName: providerDiagnostic?.schemaName ?? "brief-draft", issueCode: zodIssueCode(error), fieldPath: zodIssuePaths(error)?.[0], issueCount: zodIssueCount(error), domainValidationIssuePaths: zodIssuePaths(error) });
   }
   try {
-    return BriefDraftSchema.parse({
-      ...value,
+    const normalizedDraft = {
+      ...providerDraft,
       projectId: host.projectId,
       projectVersion: host.projectVersion,
       requirements: canonicalRequirements,
@@ -364,7 +371,8 @@ function normalizeBriefDraft(
         blockingReasons.length === 0 &&
         unresolvedItems.every((item) => !item.blocking),
       briefChecksum: checksumPersistedDocument(canonicalRequirements),
-    });
+    };
+    return revisionOperations ? BriefRevisionDraftSchema.parse({ ...normalizedDraft, revisionOperations }) : BriefDraftSchema.parse(normalizedDraft);
   } catch (error) {
     throw new AiProviderError("AI_OUTPUT_INVALID", "Provider output could not be mapped to the Lead draft contract.", undefined, { ...providerDiagnostic, stage: "provider_normalization", outputStage: "HOST_MAPPING_FAILED", requestAttempted: providerDiagnostic?.requestAttempted ?? true, apiResponseReceived: providerDiagnostic?.apiResponseReceived ?? true, responseReceived: providerDiagnostic?.responseReceived ?? true, outputComplete: providerDiagnostic?.outputComplete ?? true, schemaName: providerDiagnostic?.schemaName ?? "brief-draft", issueCode: zodIssueCode(error), fieldPath: zodIssuePaths(error)?.[0], issueCount: zodIssueCount(error), domainValidationIssuePaths: zodIssuePaths(error) });
   }
@@ -890,7 +898,7 @@ export class OpenAiLeadProvider implements LeadAnalysisProvider {
       schemaName: "brief-draft",
       idempotencyKey: `lead-brief:${skillContextIdentity}`,
     });
-    return normalizeBriefDraft(result.value, { projectId: input.analysis.projectId, projectVersion: input.analysis.projectVersion, operatorLanguage: input.analysis.operatorLanguage, siteLanguage: input.analysis.siteLanguage, originalPromptChecksum: input.analysis.originalPromptChecksum }, result.diagnostic);
+    return normalizeBriefDraft(result.value, { projectId: input.analysis.projectId, projectVersion: input.analysis.projectVersion, operatorLanguage: input.analysis.operatorLanguage, siteLanguage: input.analysis.siteLanguage, originalPromptChecksum: input.analysis.originalPromptChecksum }, result.diagnostic) as BriefDraft;
   }
   async reviseBrief(
     input: BriefRevisionProviderInput,
@@ -904,10 +912,10 @@ export class OpenAiLeadProvider implements LeadAnalysisProvider {
       if (error instanceof Error && error.message.includes("CONTEXT_REQUIRED_BUDGET_EXCEEDED")) throw new AiProviderError("AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED", "The complete Brief revision context cannot safely fit the provider capacity.", undefined, { stage: "request_construction", requestAttempted: false, apiResponseReceived: false, sdkErrorClass: "ContextCapacityGuard", schemaName: "brief-revision" });
       throw error;
     }
-    const result = await this.ai.request<z.infer<typeof BriefDraftStructuredOutputSchema>>({
+    const result = await this.ai.request<z.infer<typeof BriefRevisionStructuredOutputSchema>>({
       ...prompt,
       role: "lead",
-      schema: BriefDraftStructuredOutputSchema,
+      schema: BriefRevisionStructuredOutputSchema,
       schemaName: "brief-revision",
       idempotencyKey: `lead-brief-revision:${input.projectId}:${input.projectVersion}:${checksumPersistedDocument(input.revisionInstruction)}:${skillContextIdentity}`,
     });

@@ -4,6 +4,7 @@ import { WorkflowStateSchema } from "@/domain/project/schema";
 import { ProjectOriginSchema } from "@/domain/project/provenance";
 import { LanguageObservationSchema, LanguageResolutionSchema, SiteLanguageDecisionSchema, OperatorLanguageSchema } from "@/domain/language/schema";
 import { ProjectAssetReferenceSchema } from "@/domain/assets/project";
+import { BriefRevisionOperationSchema, type BriefRevisionOperation } from "@/domain/requirements/revision";
 
 export const RequirementCategorySchema = z.enum(["project-identity", "business-purpose", "audience", "project-type", "pages", "functionality", "user-roles", "content", "contact", "legal", "languages", "localization", "design", "brand", "logo", "image-sourcing", "authentication", "forms", "email", "database", "storage", "administration", "seo", "integrations", "GitHub", "constraints", "exclusions"]);
 export const RequirementClassificationSchema = z.enum(["explicit", "confirmed", "pending-confirmation", "recommendation", "unresolved"]);
@@ -26,6 +27,9 @@ export type ClarificationProposalInput = { analysis: LeadAgentAnalysis; session?
 export const BriefEvidenceSchema = z.object({ field: z.string().min(1), source: z.string().min(1), excerpt: z.string().min(1) }).strict();
 export const BriefDraftSchema = z.object({ projectId: z.string().uuid(), projectVersion: z.number().int().positive(), requirements: RequirementSpecificationSchema, facts: z.array(ExtractedRequirementSchema), recommendations: z.array(ExtractedRequirementSchema), unresolvedItems: z.array(z.object({ key: z.string(), description: z.string(), blocking: z.boolean() }).strict()), evidence: z.array(BriefEvidenceSchema), readyForApproval: z.boolean(), blockingReasons: z.array(z.string()), nonBlockingWarnings: z.array(z.string()), briefChecksum: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
 export type BriefDraft = z.infer<typeof BriefDraftSchema>;
+export const BriefRevisionDraftSchema = BriefDraftSchema.extend({ revisionOperations: z.array(BriefRevisionOperationSchema).min(1) }).strict();
+export type BriefRevisionDraft = z.infer<typeof BriefRevisionDraftSchema>;
+export type { BriefRevisionOperation };
 export const BriefApprovalRequestSchema = z.object({ projectId: z.string().uuid(), projectVersion: z.number().int().positive(), briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), approvedAt: z.string().datetime(), approvedBy: z.string().min(1), approvalNote: z.string().optional(), expectedRowVersion: z.number().int().positive(), idempotencyKey: z.string().min(1) }).strict();
 export type BriefApprovalRequest = z.infer<typeof BriefApprovalRequestSchema>;
 export const BriefApprovalResultSchema = z.object({ brief: BriefDraftSchema, projectState: z.literal("AWAITING_DESIGN_SELECTION"), rowVersion: z.number().int().positive() }).strict();

@@ -9,7 +9,7 @@ import {
   RequirementSpecificationSchema,
   ProjectBriefV2Schema,
 } from "@/domain/requirements/schema";
-import { applyBriefRevisionSemantics, validateBriefRevisionSemantics } from "@/domain/requirements/revision";
+import { applyBriefRevisionSemanticsWithOptions, extractBriefRevisionIntent, validateBriefRevisionSemantics, BriefRevisionSemanticsError, createBriefRevisionTraceSnapshot, type BriefRevisionOperation, type BriefRevisionTraceSink } from "@/domain/requirements/revision";
 import { briefApprovalBlockers } from "@/domain/requirements/brief-validation";
 import { DecisionRecordSchema } from "@/domain/workflow/decision";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
@@ -59,6 +59,7 @@ import { leadAgentDefinition } from "@/agents/catalog";
 import type { AgentSkillSelection } from "@/skills/runtime/resolver";
 import type { BriefRevisionProviderInput } from "./ports";
 import { FACTORY_OPERATOR_LANGUAGE, LanguageResolutionSchema, normalizeSiteLanguage, resolveLanguageAuthority, type LanguageResolution, type OperatorLanguage } from "@/domain/language/schema";
+import { emitBriefRevisionTrace } from "@/runtime/workbench/diagnostics";
 
 const now = () => new Date().toISOString();
 const normalizePrompt = (prompt: string) => prompt.replace(/\r\n?/g, "\n");
@@ -154,8 +155,8 @@ const validateClarificationPlan = (plan: ClarificationPlan, parsed: LeadAgentInp
 
 const uniqueStrings = (left: string[], right: string[]) => [...new Set([...left, ...right])];
 const uniqueRecords = <T>(left: T[], right: T[]) => [...left, ...right].filter((value, index, all) => all.findIndex((candidate) => JSON.stringify(candidate) === JSON.stringify(value)) === index);
-export const mergeRevisionRequirements = (existing: z.infer<typeof RequirementSpecificationSchema>, candidate: z.infer<typeof RequirementSpecificationSchema>, revisionInstruction: string) => {
-  const semantic = applyBriefRevisionSemantics(existing, candidate, revisionInstruction);
+export const mergeRevisionRequirements = (existing: z.infer<typeof RequirementSpecificationSchema>, candidate: z.infer<typeof RequirementSpecificationSchema>, revisionInstruction: string, options: { providerOperations?: BriefRevisionOperation[]; trace?: BriefRevisionTraceSink } = {}) => {
+  const semantic = applyBriefRevisionSemanticsWithOptions(existing, candidate, revisionInstruction, options);
   const merged = { ...semantic.brief } as Record<string, unknown>;
   merged.unresolvedItems = candidate.unresolvedItems;
   merged.evidence = uniqueRecords(existing.evidence, candidate.evidence);
@@ -1020,27 +1021,34 @@ export class LeadAgentService {
     };
     const revised = await this.provider.reviseBrief?.(revisionInput);
     if (revised) {
+      const providerOperations: BriefRevisionOperation[] = "revisionOperations" in revised ? revised.revisionOperations : [];
+      const revisedDraft = { ...revised } as Record<string, unknown>;
+      delete revisedDraft.revisionOperations;
       const latest = await this.projects.getWithVersion(input.projectId);
       const latestRequirements = await this.documents.get(input.projectId, input.projectVersion, "requirements");
       if (!latest || latest.rowVersion !== current.rowVersion || latest.project.workflowState !== current.project.workflowState || !latestRequirements || latestRequirements.documentType !== "requirements" || checksumPersistedDocument(latestRequirements) !== checksumPersistedDocument(existing))
         throw new LeadError("BRIEF_CHECKSUM_MISMATCH", "The Project Brief changed before this revision could be saved.");
       let requirements: z.infer<typeof RequirementSpecificationSchema>;
+      const traceId = randomUUID();
+      const trace: BriefRevisionTraceSink = (snapshot) => emitBriefRevisionTrace({ ...snapshot, type: "workbench.brief-revision.trace", timestamp: new Date().toISOString(), traceId, operation: "REQUEST_BRIEF_CHANGES", projectId: input.projectId });
       try {
-        requirements = mergeRevisionRequirements(existing, revised.requirements, input.reason);
+        requirements = mergeRevisionRequirements(existing, revised.requirements, input.reason, { providerOperations, trace });
       } catch (error) {
+        if (error instanceof BriefRevisionSemanticsError) throw revisionOutputFailure("REVISION_SEMANTIC_VALIDATION_FAILED", error.issueCode, undefined, error);
         if (error instanceof z.ZodError) {
           const issue = error.issues[0];
           throw revisionOutputFailure("CANONICAL_BRIEF_V2_VALIDATION_FAILED", issue?.code === "unrecognized_keys" ? "UNKNOWN_FIELD" : "INVALID_CANONICAL_V2", issue?.path.map(String).join("."), error);
         }
         throw error;
       }
-      const semanticRevisionBlockers = validateBriefRevisionSemantics(existing, requirements, input.reason);
+      const semanticRevisionBlockers = validateBriefRevisionSemantics(existing, requirements, input.reason, providerOperations);
       if (semanticRevisionBlockers.length) throw revisionOutputFailure("REVISION_SEMANTIC_VALIDATION_FAILED", semanticRevisionBlockers[0]!);
+      trace(createBriefRevisionTraceSnapshot("CONTRADICTION_INPUT", requirements, { operationTypes: extractBriefRevisionIntent(input.reason).operations.map((operation) => operation.kind).concat(providerOperations.map((operation) => operation.kind)), removeTargetResolved: true, removeVerificationPassed: true, contradictionCount: briefApprovalBlockers(requirements).length }));
       const contradictionBlockers = briefApprovalBlockers(requirements);
       if (contradictionBlockers.length) throw revisionOutputFailure("BRIEF_CONTRADICTION_DETECTED", contradictionBlockers[0]!.replace(/^BRIEF_CONTRADICTION_DETECTED:/, ""));
       const blockingReasons = [...new Set([...revised.blockingReasons, ...requirements.unresolvedItems.filter((item) => item.blocking).map((item) => `REQUIREMENT_UNRESOLVED:${item.id}`)])];
       const draft = BriefDraftSchema.parse({
-        ...revised,
+        ...revisedDraft,
         projectId: input.projectId,
         projectVersion: input.projectVersion,
         requirements,
