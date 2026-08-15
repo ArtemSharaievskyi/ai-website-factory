@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { isAiProviderError } from "@/integrations/openai/errors";
+import { PROVIDER_OUTPUT_STAGES, type ProviderDiagnostic, type ProviderOutputStage } from "@/integrations/openai/usage";
 
 export const WorkbenchErrorCategorySchema = z.enum([
   "VALIDATION",
@@ -75,6 +77,23 @@ export type WorkbenchErrorProjection = WorkbenchErrorResponse & {
   httpStatus: number;
   subsystem: WorkbenchSubsystem;
   errorClass: string;
+  providerDiagnostic?: SafeProviderDiagnostic;
+};
+
+type SafeProviderDiagnostic = {
+  outputStage?: ProviderOutputStage;
+  schemaName?: string;
+  issueCode?: string;
+  fieldPath?: string;
+  responseReceived?: boolean;
+  outputComplete?: boolean;
+  tokenExhaustion?: boolean;
+  requestId?: string;
+  finishReason?: string | null;
+  inputTokens?: number;
+  outputTokens?: number;
+  maxCompletionTokens?: number;
+  issueCount?: number;
 };
 
 export type WorkbenchDiagnosticEvent = {
@@ -93,6 +112,19 @@ export type WorkbenchDiagnosticEvent = {
   issueCode?: string;
   fieldPath?: string;
   expectedShape?: string;
+  outputStage?: ProviderOutputStage;
+  schemaName?: string;
+  providerIssueCode?: string;
+  providerFieldPath?: string;
+  responseReceived?: boolean;
+  outputComplete?: boolean;
+  tokenExhaustion?: boolean;
+  providerRequestId?: string;
+  finishReason?: string | null;
+  inputTokens?: number;
+  outputTokens?: number;
+  maxCompletionTokens?: number;
+  providerIssueCount?: number;
 };
 
 const CONFLICT_CODES = new Set([
@@ -280,6 +312,44 @@ function providerStatus(code: string) {
   return { httpStatus: 503, recoverable: true };
 }
 
+function safeProviderDiagnostic(error: unknown): SafeProviderDiagnostic | undefined {
+  const diagnostic: ProviderDiagnostic | undefined = isAiProviderError(error)
+    ? error.diagnostic
+    : error && typeof error === "object" && "details" in error && error.details && typeof error.details === "object"
+      ? {
+          stage: "provider_normalization",
+          requestAttempted: true,
+          apiResponseReceived: true,
+          outputStage: PROVIDER_OUTPUT_STAGES.includes((error.details as Record<string, unknown>).outputStage as ProviderOutputStage) ? (error.details as Record<string, unknown>).outputStage as ProviderOutputStage : undefined,
+          schemaName: typeof (error.details as Record<string, unknown>).schemaName === "string" ? (error.details as Record<string, unknown>).schemaName as string : undefined,
+          issueCode: typeof (error.details as Record<string, unknown>).issueCode === "string" ? (error.details as Record<string, unknown>).issueCode as string : undefined,
+          fieldPath: typeof (error.details as Record<string, unknown>).fieldPath === "string" ? (error.details as Record<string, unknown>).fieldPath as string : undefined,
+        }
+      : undefined;
+  if (!diagnostic) return undefined;
+  const fieldPath = diagnostic.fieldPath && /^[A-Za-z][A-Za-z0-9_.\[\]]*$/.test(diagnostic.fieldPath) ? diagnostic.fieldPath : undefined;
+  const issueCode = diagnostic.issueCode && /^[A-Z][A-Z0-9_]+$/.test(diagnostic.issueCode) ? diagnostic.issueCode : undefined;
+  const schemaName = diagnostic.schemaName && /^[a-z0-9-]{1,100}$/.test(diagnostic.schemaName) ? diagnostic.schemaName : undefined;
+  const outputStage = diagnostic.outputStage && PROVIDER_OUTPUT_STAGES.includes(diagnostic.outputStage) ? diagnostic.outputStage : undefined;
+  const requestId = diagnostic.requestId && /^[A-Za-z0-9_-]{1,160}$/.test(diagnostic.requestId) ? diagnostic.requestId : undefined;
+  const finishReason = diagnostic.finishReason === null || diagnostic.finishReason === undefined || /^[a-z_]{1,64}$/.test(diagnostic.finishReason) ? diagnostic.finishReason : undefined;
+  return {
+    ...(outputStage ? { outputStage } : {}),
+    ...(schemaName ? { schemaName } : {}),
+    ...(issueCode ? { issueCode } : {}),
+    ...(fieldPath ? { fieldPath } : {}),
+    ...(diagnostic.responseReceived !== undefined ? { responseReceived: diagnostic.responseReceived } : {}),
+    ...(diagnostic.outputComplete !== undefined ? { outputComplete: diagnostic.outputComplete } : {}),
+    ...(diagnostic.tokenExhaustion !== undefined ? { tokenExhaustion: diagnostic.tokenExhaustion } : {}),
+    ...(requestId ? { requestId } : {}),
+    ...(finishReason !== undefined ? { finishReason } : {}),
+    ...(diagnostic.inputTokens !== undefined && diagnostic.inputTokens >= 0 ? { inputTokens: diagnostic.inputTokens } : {}),
+    ...(diagnostic.outputTokens !== undefined && diagnostic.outputTokens >= 0 ? { outputTokens: diagnostic.outputTokens } : {}),
+    ...(diagnostic.maxCompletionTokens !== undefined && diagnostic.maxCompletionTokens >= 0 ? { maxCompletionTokens: diagnostic.maxCompletionTokens } : {}),
+    ...(diagnostic.issueCount !== undefined ? { issueCount: Math.min(diagnostic.issueCount, 20) } : {}),
+  };
+}
+
 const safeValidationPath = (path: PropertyKey[]) => path.map((segment) => typeof segment === "number" ? `[${segment}]` : String(segment)).join(".").replaceAll(".[", "[") || "request";
 const safeRequestIssueCode = (issue: z.ZodIssue) => {
   if (issue.code === "custom" && issue.params && typeof issue.params === "object" && "issueCode" in issue.params && typeof issue.params.issueCode === "string") return issue.params.issueCode;
@@ -348,7 +418,7 @@ function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProject
   if (CONFLICT_CODES.has(code)) return { error: "The project changed or the requested workflow action is no longer current.", httpStatus: 409, recoverable: true, category: "WORKFLOW_CONFLICT", subsystem: code.startsWith("WORKBENCH_") ? "WORKBENCH_APPLICATION" : code.startsWith("PERSISTENCE_") || code === "IDEMPOTENCY_CONFLICT" ? "PERSISTENCE" : code.startsWith("AI_") ? "PROVIDER" : "TRIAL_ENTRY", errorClass: errorClass(error) };
   if (PROVIDER_CODES.has(code)) {
     const status = providerStatus(code);
-    return { error: "The Lead service could not complete this request. The project was not changed.", ...status, category: "PROVIDER", subsystem: "PROVIDER", errorClass: errorClass(error) };
+    return { error: "The Lead service could not complete this request. The project was not changed.", ...status, category: "PROVIDER", subsystem: "PROVIDER", errorClass: errorClass(error), ...(safeProviderDiagnostic(error) ? { providerDiagnostic: safeProviderDiagnostic(error) } : {}) };
   }
   if (PERSISTENCE_CODES.has(code)) return { error: "The project could not be saved safely. The project was not changed.", httpStatus: 503, recoverable: true, category: "PERSISTENCE", subsystem: "PERSISTENCE", errorClass: errorClass(error) };
   if (VALIDATION_CODES.has(code)) return { error: "The request could not be completed because its workflow data was invalid.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: code.startsWith("PERSISTENCE_") ? "PERSISTENCE" : code.startsWith("LEAD_") ? "LEAD" : code.startsWith("INITIAL_") ? "ROUTE" : "TRIAL_ENTRY", errorClass: errorClass(error) };
@@ -387,6 +457,19 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     ...(projection.fieldPath ? { fieldPath: projection.fieldPath } : {}),
     ...(projection.expectedShape ? { expectedShape: projection.expectedShape } : {}),
     ...(projection.validationIssues ? { validationIssues: projection.validationIssues } : {}),
+    ...(projection.providerDiagnostic?.outputStage ? { outputStage: projection.providerDiagnostic.outputStage } : {}),
+    ...(projection.providerDiagnostic?.schemaName ? { schemaName: projection.providerDiagnostic.schemaName } : {}),
+    ...(projection.providerDiagnostic?.issueCode ? { providerIssueCode: projection.providerDiagnostic.issueCode } : {}),
+    ...(projection.providerDiagnostic?.fieldPath ? { providerFieldPath: projection.providerDiagnostic.fieldPath } : {}),
+    ...(projection.providerDiagnostic?.responseReceived !== undefined ? { responseReceived: projection.providerDiagnostic.responseReceived } : {}),
+    ...(projection.providerDiagnostic?.outputComplete !== undefined ? { outputComplete: projection.providerDiagnostic.outputComplete } : {}),
+    ...(projection.providerDiagnostic?.tokenExhaustion !== undefined ? { tokenExhaustion: projection.providerDiagnostic.tokenExhaustion } : {}),
+    ...(projection.providerDiagnostic?.requestId ? { providerRequestId: projection.providerDiagnostic.requestId } : {}),
+    ...(projection.providerDiagnostic?.finishReason !== undefined ? { finishReason: projection.providerDiagnostic.finishReason } : {}),
+    ...(projection.providerDiagnostic?.inputTokens !== undefined ? { inputTokens: projection.providerDiagnostic.inputTokens } : {}),
+    ...(projection.providerDiagnostic?.outputTokens !== undefined ? { outputTokens: projection.providerDiagnostic.outputTokens } : {}),
+    ...(projection.providerDiagnostic?.maxCompletionTokens !== undefined ? { maxCompletionTokens: projection.providerDiagnostic.maxCompletionTokens } : {}),
+    ...(projection.providerDiagnostic?.issueCount !== undefined ? { providerIssueCount: projection.providerDiagnostic.issueCount } : {}),
   };
 }
 

@@ -36,7 +36,7 @@ import { ImplementationChangeProposalSchema } from "@/agents/implementation/cont
 import { OpenAiStructuredClient } from "./client";
 import { AiProviderError } from "./errors";
 import { boundedRolePrompt as rolePrompt } from "@/runtime/context/bridge";
-import type { ProviderUsageSink } from "./usage";
+import type { ProviderDiagnostic, ProviderUsageSink } from "./usage";
 import type { OrchestrationPlanningProvider } from "@/orchestration/orchestrator/service";
 import {
   ArchitectureReviewProviderOutputSchema,
@@ -75,7 +75,7 @@ import {
 } from "@/domain/shared/schemas";
 import { ProjectBriefV2Schema } from "@/domain/requirements/schema";
 import { BriefSeoRequirementsSchema } from "@/domain/requirements/brief";
-import { OperatorLanguageSchema } from "@/domain/language/schema";
+import { OperatorLanguageSchema, SiteLanguageDecisionSchema, type SiteLanguageDecision } from "@/domain/language/schema";
 import { resolveLogoPolicy } from "@/domain/requirements/logo-policy";
 import {
   AssetManifestEntrySchema,
@@ -212,7 +212,6 @@ export const ImplementationChangeProposalStructuredOutputSchema = z
 const BriefStructuredAnalysisMetadataSchema = z
   .object({
     provider: z.string(),
-    originalPromptChecksum: z.string().regex(/^[a-f0-9]{64}$/),
     unsupportedAssumptions: z.array(z.string()),
     contradictionCount: z.number().int().nonnegative(),
   })
@@ -229,13 +228,12 @@ const BriefSeoTransportSchema = BriefSeoRequirementsSchema.extend({
     sourceRefs: z.array(NonEmptyStringSchema).min(1),
   }).strict()),
 });
-const BriefRequirementsTransportSchema = ProjectBriefV2Schema
-  .omit({ schemaVersion: true, documentType: true, projectId: true, projectVersion: true, createdAt: true, updatedAt: true, operatorLanguage: true, approval: true, briefStatus: true, briefVersion: true, briefApprovalNote: true, briefRevisionInstructions: true })
+export const BriefRequirementsTransportSchema = ProjectBriefV2Schema
+  .omit({ schemaVersion: true, documentType: true, projectId: true, projectVersion: true, createdAt: true, updatedAt: true, operatorLanguage: true, localization: true, approval: true, briefStatus: true, briefVersion: true, briefApprovalNote: true, briefRevisionInstructions: true, briefSchemaVersion: true, analysisMetadata: true })
   .required()
   .extend({
     projectTitle: NonEmptyStringSchema.nullable(),
     analysisMetadata: BriefStructuredAnalysisMetadataSchema.nullable(),
-    briefRevisionInstructions: z.array(NonEmptyStringSchema).nullable(),
     seoMetadata: BriefSeoTransportSchema,
   });
 export const BriefDraftStructuredOutputSchema = BriefDraftSchema.omit({ projectId: true, projectVersion: true, briefChecksum: true }).extend({
@@ -274,15 +272,26 @@ export const isWorkflowApprovalBlocker = (text: string) =>
   /(?:project )?brief approval (?:is required|is still pending)|brief.*(?:approval|user approval|approved).*before planner|approve.*brief.*before planner|planner.*before.*brief approval|explicit.*brief.*approval.*(?:not|pending|recorded)|brief.*(?:not|has not).*explicitly approved|brief.*draft.*(?:not|has not).*approved.*before planner/i.test(
     text,
   );
+const zodIssuePaths = (error: unknown) => error instanceof z.ZodError ? error.issues.map((issue) => issue.path.map(String).join(".")).filter(Boolean).slice(0, 20) : undefined;
+const zodIssueCount = (error: unknown) => error instanceof z.ZodError ? error.issues.length : undefined;
+const zodIssueCode = (error: unknown) => {
+  const issue = error instanceof z.ZodError ? error.issues[0] : undefined;
+  if (!issue) return undefined;
+  if (issue.code === "unrecognized_keys") return "UNKNOWN_FIELD";
+  if (issue.code === "invalid_type") return "INVALID_TYPE";
+  if (issue.code === "invalid_value") return "INVALID_ENUM_OR_LITERAL";
+  if (issue.code === "invalid_format") return "INVALID_FORMAT";
+  return "INVALID_FIELD";
+};
 function normalizeBriefDraft(
   value: z.infer<typeof BriefDraftStructuredOutputSchema>,
-  host: { projectId: string; projectVersion: number; operatorLanguage: z.infer<typeof OperatorLanguageSchema>; originalPromptChecksum: string },
+  host: { projectId: string; projectVersion: number; operatorLanguage: z.infer<typeof OperatorLanguageSchema>; siteLanguage: SiteLanguageDecision; originalPromptChecksum: string },
+  providerDiagnostic?: ProviderDiagnostic,
 ): BriefDraft {
   const { requirements: transportRequirements } = value;
   const {
     projectTitle,
     analysisMetadata,
-    briefRevisionInstructions,
     seoMetadata,
     ...canonicalFields
   } = transportRequirements;
@@ -297,8 +306,11 @@ function normalizeBriefDraft(
       sourceRefs: page.sourceRefs,
       ...(page.title === null ? {} : { title: page.title }),
       ...(page.metaDescription === null ? {} : { metaDescription: page.metaDescription }),
-    })),
+  })),
   };
+  const siteLanguage = SiteLanguageDecisionSchema.parse(host.siteLanguage);
+  if (siteLanguage === "UNRESOLVED") throw new AiProviderError("AI_OUTPUT_INVALID", "Provider output cannot be bound while the host site language is unresolved.", undefined, { ...providerDiagnostic, stage: "provider_normalization", outputStage: "HOST_MAPPING_FAILED", requestAttempted: providerDiagnostic?.requestAttempted ?? true, apiResponseReceived: providerDiagnostic?.apiResponseReceived ?? true, responseReceived: providerDiagnostic?.responseReceived ?? true, outputComplete: providerDiagnostic?.outputComplete ?? true, schemaName: providerDiagnostic?.schemaName ?? "brief-draft", issueCode: "SITE_LANGUAGE_UNRESOLVED", fieldPath: "localization.defaultLocale" });
+  const siteLocale = siteLanguage;
   const normalizedRequirements = {
     schemaVersion: 1 as const,
     documentType: "requirements" as const,
@@ -309,12 +321,13 @@ function normalizeBriefDraft(
     ...canonicalFields,
     seoMetadata: normalizedSeoMetadata,
     operatorLanguage: host.operatorLanguage,
+    localization: { locales: [siteLocale], defaultLocale: siteLocale },
+    briefSchemaVersion: 2 as const,
     briefStatus: "draft" as const,
     approval: { approved: false },
     briefVersion: 1,
     ...(projectTitle === null ? {} : { projectTitle }),
     ...(analysisMetadata === null ? {} : { analysisMetadata: { ...analysisMetadata, originalPromptChecksum: host.originalPromptChecksum } }),
-    ...(briefRevisionInstructions === null ? {} : { briefRevisionInstructions }),
   };
   normalizedRequirements.brandFacts = normalizedRequirements.brandFacts.filter(
     (fact) =>
@@ -333,22 +346,28 @@ function normalizeBriefDraft(
       !isWorkflowApprovalBlocker(reason) &&
       !/no blocking confirmation is required.*brief draft/i.test(reason),
   );
-  const normalizedDraft = BriefDraftSchema.parse({
-    ...value,
-    projectId: host.projectId,
-    projectVersion: host.projectVersion,
-    requirements: {
-      ...normalizedRequirements,
-      unresolvedItems: normalizedRequirementItems,
-    },
-    unresolvedItems,
-    blockingReasons,
-    readyForApproval:
-      blockingReasons.length === 0 &&
-      unresolvedItems.every((item) => !item.blocking),
-    briefChecksum: checksumPersistedDocument(normalizedRequirements),
-  });
-  return normalizedDraft;
+  let canonicalRequirements: z.infer<typeof ProjectBriefV2Schema>;
+  try {
+    canonicalRequirements = ProjectBriefV2Schema.parse({ ...normalizedRequirements, unresolvedItems: normalizedRequirementItems });
+  } catch (error) {
+    throw new AiProviderError("AI_OUTPUT_INVALID", "Provider output could not be bound to canonical Project Brief V2.", undefined, { ...providerDiagnostic, stage: "provider_normalization", outputStage: "CANONICAL_BRIEF_V2_VALIDATION_FAILED", requestAttempted: providerDiagnostic?.requestAttempted ?? true, apiResponseReceived: providerDiagnostic?.apiResponseReceived ?? true, responseReceived: providerDiagnostic?.responseReceived ?? true, outputComplete: providerDiagnostic?.outputComplete ?? true, schemaName: providerDiagnostic?.schemaName ?? "brief-draft", issueCode: zodIssueCode(error), fieldPath: zodIssuePaths(error)?.[0], issueCount: zodIssueCount(error), domainValidationIssuePaths: zodIssuePaths(error) });
+  }
+  try {
+    return BriefDraftSchema.parse({
+      ...value,
+      projectId: host.projectId,
+      projectVersion: host.projectVersion,
+      requirements: canonicalRequirements,
+      unresolvedItems,
+      blockingReasons,
+      readyForApproval:
+        blockingReasons.length === 0 &&
+        unresolvedItems.every((item) => !item.blocking),
+      briefChecksum: checksumPersistedDocument(canonicalRequirements),
+    });
+  } catch (error) {
+    throw new AiProviderError("AI_OUTPUT_INVALID", "Provider output could not be mapped to the Lead draft contract.", undefined, { ...providerDiagnostic, stage: "provider_normalization", outputStage: "HOST_MAPPING_FAILED", requestAttempted: providerDiagnostic?.requestAttempted ?? true, apiResponseReceived: providerDiagnostic?.apiResponseReceived ?? true, responseReceived: providerDiagnostic?.responseReceived ?? true, outputComplete: providerDiagnostic?.outputComplete ?? true, schemaName: providerDiagnostic?.schemaName ?? "brief-draft", issueCode: zodIssueCode(error), fieldPath: zodIssuePaths(error)?.[0], issueCount: zodIssueCount(error), domainValidationIssuePaths: zodIssuePaths(error) });
+  }
 }
 
 const StrictTraceabilitySchema = TraceabilitySchema.extend({
@@ -871,7 +890,7 @@ export class OpenAiLeadProvider implements LeadAnalysisProvider {
       schemaName: "brief-draft",
       idempotencyKey: `lead-brief:${skillContextIdentity}`,
     });
-    return normalizeBriefDraft(result.value, { projectId: input.analysis.projectId, projectVersion: input.analysis.projectVersion, operatorLanguage: input.analysis.operatorLanguage, originalPromptChecksum: input.analysis.originalPromptChecksum });
+    return normalizeBriefDraft(result.value, { projectId: input.analysis.projectId, projectVersion: input.analysis.projectVersion, operatorLanguage: input.analysis.operatorLanguage, siteLanguage: input.analysis.siteLanguage, originalPromptChecksum: input.analysis.originalPromptChecksum }, result.diagnostic);
   }
   async reviseBrief(
     input: BriefRevisionProviderInput,
@@ -892,7 +911,7 @@ export class OpenAiLeadProvider implements LeadAnalysisProvider {
       schemaName: "brief-revision",
       idempotencyKey: `lead-brief-revision:${input.projectId}:${input.projectVersion}:${checksumPersistedDocument(input.revisionInstruction)}:${skillContextIdentity}`,
     });
-    return normalizeBriefDraft(result.value, { projectId: input.projectId, projectVersion: input.projectVersion, operatorLanguage: input.operatorLanguage, originalPromptChecksum: checksumPersistedDocument(input.originalPrompt) });
+    return normalizeBriefDraft(result.value, { projectId: input.projectId, projectVersion: input.projectVersion, operatorLanguage: input.operatorLanguage, siteLanguage: input.siteLanguage, originalPromptChecksum: checksumPersistedDocument(input.originalPrompt) }, result.diagnostic);
   }
   private async call<T>(
     role: "lead",

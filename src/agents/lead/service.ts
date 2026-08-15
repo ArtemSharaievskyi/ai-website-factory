@@ -7,6 +7,7 @@ import {
   type ClarificationQuestion,
   type ClarificationSession,
   RequirementSpecificationSchema,
+  ProjectBriefV2Schema,
 } from "@/domain/requirements/schema";
 import { applyBriefRevisionSemantics, validateBriefRevisionSemantics } from "@/domain/requirements/revision";
 import { briefApprovalBlockers } from "@/domain/requirements/brief-validation";
@@ -121,6 +122,12 @@ const leadClarificationSchemaError = (error: z.ZodError) => {
     error,
   );
 };
+const revisionOutputFailure = (outputStage: "CANONICAL_BRIEF_V2_VALIDATION_FAILED" | "REVISION_SEMANTIC_VALIDATION_FAILED" | "BRIEF_CONTRADICTION_DETECTED", issueCode: string, fieldPath?: string, cause?: unknown) => new LeadError(
+  "LEAD_PROVIDER_FAILED",
+  "The provider revision did not satisfy the strict Project Brief V2 output contract.",
+  { outputStage, schemaName: "brief-revision", issueCode, ...(fieldPath ? { fieldPath } : {}) },
+  cause,
+);
 const parseClarificationPlan = (value: unknown) => {
   try {
     return ClarificationPlanSchema.parse(value);
@@ -147,7 +154,7 @@ const validateClarificationPlan = (plan: ClarificationPlan, parsed: LeadAgentInp
 
 const uniqueStrings = (left: string[], right: string[]) => [...new Set([...left, ...right])];
 const uniqueRecords = <T>(left: T[], right: T[]) => [...left, ...right].filter((value, index, all) => all.findIndex((candidate) => JSON.stringify(candidate) === JSON.stringify(value)) === index);
-const mergeRevisionRequirements = (existing: z.infer<typeof RequirementSpecificationSchema>, candidate: z.infer<typeof RequirementSpecificationSchema>, revisionInstruction: string) => {
+export const mergeRevisionRequirements = (existing: z.infer<typeof RequirementSpecificationSchema>, candidate: z.infer<typeof RequirementSpecificationSchema>, revisionInstruction: string) => {
   const semantic = applyBriefRevisionSemantics(existing, candidate, revisionInstruction);
   const merged = { ...semantic.brief } as Record<string, unknown>;
   merged.unresolvedItems = candidate.unresolvedItems;
@@ -161,7 +168,8 @@ const mergeRevisionRequirements = (existing: z.infer<typeof RequirementSpecifica
   merged.briefVersion = existing.briefVersion + 1;
   merged.approval = { approved: false };
   delete merged.briefApprovalNote;
-  return RequirementSpecificationSchema.parse(merged);
+  const requiresV2 = existing.briefSchemaVersion === 2 || candidate.briefSchemaVersion === 2;
+  return requiresV2 ? ProjectBriefV2Schema.parse(merged) : RequirementSpecificationSchema.parse(merged);
 };
 export type LeadServiceDependencies = {
   database: PersistenceDatabase;
@@ -1016,10 +1024,21 @@ export class LeadAgentService {
       const latestRequirements = await this.documents.get(input.projectId, input.projectVersion, "requirements");
       if (!latest || latest.rowVersion !== current.rowVersion || latest.project.workflowState !== current.project.workflowState || !latestRequirements || latestRequirements.documentType !== "requirements" || checksumPersistedDocument(latestRequirements) !== checksumPersistedDocument(existing))
         throw new LeadError("BRIEF_CHECKSUM_MISMATCH", "The Project Brief changed before this revision could be saved.");
-      const requirements = mergeRevisionRequirements(existing, revised.requirements, input.reason);
+      let requirements: z.infer<typeof RequirementSpecificationSchema>;
+      try {
+        requirements = mergeRevisionRequirements(existing, revised.requirements, input.reason);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          const issue = error.issues[0];
+          throw revisionOutputFailure("CANONICAL_BRIEF_V2_VALIDATION_FAILED", issue?.code === "unrecognized_keys" ? "UNKNOWN_FIELD" : "INVALID_CANONICAL_V2", issue?.path.map(String).join("."), error);
+        }
+        throw error;
+      }
       const semanticRevisionBlockers = validateBriefRevisionSemantics(existing, requirements, input.reason);
       const contradictionBlockers = briefApprovalBlockers(requirements);
-      const blockingReasons = [...new Set([...revised.blockingReasons, ...requirements.unresolvedItems.filter((item) => item.blocking).map((item) => `REQUIREMENT_UNRESOLVED:${item.id}`), ...semanticRevisionBlockers, ...contradictionBlockers])];
+      if (semanticRevisionBlockers.length) throw revisionOutputFailure("REVISION_SEMANTIC_VALIDATION_FAILED", semanticRevisionBlockers[0]!);
+      if (contradictionBlockers.length) throw revisionOutputFailure("BRIEF_CONTRADICTION_DETECTED", contradictionBlockers[0]!.replace(/^BRIEF_CONTRADICTION_DETECTED:/, ""));
+      const blockingReasons = [...new Set([...revised.blockingReasons, ...requirements.unresolvedItems.filter((item) => item.blocking).map((item) => `REQUIREMENT_UNRESOLVED:${item.id}`)])];
       const draft = BriefDraftSchema.parse({
         ...revised,
         projectId: input.projectId,

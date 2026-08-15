@@ -3,8 +3,8 @@ import { z, type ZodType } from "zod";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { AiProviderError, isAiProviderError } from "./errors";
 import { FifoConcurrencyLimiter } from "./limiter";
-import type { AiProviderConfig } from "./config";
-import type { ProviderDiagnostic, ProviderEventSink, ProviderUsage, ProviderUsageSink } from "./usage";
+import { DEFAULT_AI_MAX_COMPLETION_TOKENS, type AiProviderConfig } from "./config";
+import type { ProviderDiagnostic, ProviderEventSink, ProviderOutputStage, ProviderUsage, ProviderUsageSink } from "./usage";
 import type { ContextBundle } from "@/runtime/context";
 import { createInvocationFingerprint, createInvocationUsageRecord } from "@/runtime/context/telemetry";
 import { createHash, randomUUID } from "node:crypto";
@@ -132,28 +132,33 @@ async function defaultExecutor<T>(request: StructuredRequest<T>, client: OpenAI,
   try {
     responseSchema = zodResponseFormat(request.schema as unknown as Parameters<typeof zodResponseFormat>[0], request.schemaName);
   } catch (error) {
-    throw new AiProviderError("AI_REQUEST_SCHEMA_INVALID", "Structured output schema was rejected before the provider request.", error, { stage: "request_construction", requestAttempted: false, apiResponseReceived: false, sdkErrorClass: safeClassName(error), schemaName: request.schemaName });
+    throw new AiProviderError("AI_REQUEST_SCHEMA_INVALID", "Structured output schema was rejected before the provider request.", error, { stage: "request_construction", outputStage: "REQUEST_SCHEMA_CONSTRUCTION_FAILED", requestAttempted: false, apiResponseReceived: false, responseReceived: false, outputComplete: false, sdkErrorClass: safeClassName(error), schemaName: request.schemaName });
   }
   const correctionInstruction = request.role === "design" ? "\nReturn exactly 3 directions. Repair only the structural deficiency; do not omit, clone, or add a fourth direction." : "\nCorrect the previous structured-output formatting.";
   let completion: Awaited<ReturnType<OpenAI["chat"]["completions"]["parse"]>>;
   try {
-    completion = await client.chat.completions.parse({ model: config.model, messages: [{ role: "system", content: `${request.system}${correction ? correctionInstruction : ""}` }, { role: "user", content: request.user }], response_format: responseSchema }, request.signal ? { signal: request.signal } : undefined);
+    completion = await client.chat.completions.parse({ model: config.model, max_completion_tokens: config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, messages: [{ role: "system", content: `${request.system}${correction ? correctionInstruction : ""}` }, { role: "user", content: request.user }], response_format: responseSchema }, request.signal ? { signal: request.signal } : undefined);
   } catch (error) {
     throw mapError(error, request.schemaName, true);
   }
   const choice = completion.choices[0];
   const message = choice?.message;
-  const responseDiagnostic: ProviderDiagnostic = { stage: "api_response", requestAttempted: true, apiResponseReceived: true, requestId: completion.id, choicesCount: completion.choices.length, finishReason: choice?.finish_reason ?? null, refusalPresent: Boolean(message?.refusal), parsedPresent: message?.parsed != null, contentPresent: typeof message?.content === "string", contentLength: typeof message?.content === "string" ? message.content.length : undefined, schemaName: request.schemaName };
-  if (message?.refusal) throw new AiProviderError("AI_OUTPUT_REFUSED", "The provider refused the structured request.", undefined, responseDiagnostic);
-  if (choice?.finish_reason === "length") throw new AiProviderError("AI_OUTPUT_TRUNCATED", "The provider output was truncated.", undefined, responseDiagnostic);
-  if (!message?.parsed) throw new AiProviderError("AI_OUTPUT_NO_PARSED_OUTPUT", "The provider returned no parsed structured output.", undefined, responseDiagnostic);
+  const inputTokens = completion.usage?.prompt_tokens;
+  const outputTokens = completion.usage?.completion_tokens;
+  const maxCompletionTokens = config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS;
+  const responseReceived = true;
+  const outputComplete = choice?.finish_reason === "stop" && Boolean(message?.parsed);
+  const responseDiagnostic: ProviderDiagnostic = { stage: "api_response", requestAttempted: true, apiResponseReceived: true, responseReceived, outputComplete, tokenExhaustion: choice?.finish_reason === "length" || (outputTokens !== undefined && outputTokens >= maxCompletionTokens), requestId: completion.id, choicesCount: completion.choices.length, finishReason: choice?.finish_reason ?? null, refusalPresent: Boolean(message?.refusal), parsedPresent: message?.parsed != null, contentPresent: typeof message?.content === "string", contentLength: typeof message?.content === "string" ? message.content.length : undefined, schemaName: request.schemaName, inputTokens, outputTokens, ...(inputTokens !== undefined && outputTokens !== undefined ? { totalTokens: inputTokens + outputTokens } : {}), maxCompletionTokens };
+  if (message?.refusal) throw new AiProviderError("AI_OUTPUT_REFUSED", "The provider refused the structured request.", undefined, { ...responseDiagnostic, outputStage: "PROVIDER_REFUSAL", outputComplete: false });
+  if (choice?.finish_reason === "length" || choice?.finish_reason === "content_filter") throw new AiProviderError("AI_OUTPUT_TRUNCATED", "The provider output was incomplete.", undefined, { ...responseDiagnostic, outputStage: "PROVIDER_OUTPUT_INCOMPLETE", outputComplete: false, tokenExhaustion: choice?.finish_reason === "length" });
+  if (!message?.parsed) throw new AiProviderError("AI_OUTPUT_NO_PARSED_OUTPUT", "The provider returned no parsed structured output.", undefined, { ...responseDiagnostic, outputStage: "STRUCTURED_OUTPUT_PARSE_FAILED", outputComplete: false });
   let value: T;
   try {
     value = request.schema.parse(message.parsed);
   } catch (error) {
-    throw new AiProviderError("AI_OUTPUT_DOMAIN_INVALID", "Provider structured output failed Factory schema validation.", error, { ...responseDiagnostic, stage: "domain_validation", domainValidationIssuePaths: zodIssuePaths(error) });
+    throw new AiProviderError("AI_OUTPUT_DOMAIN_INVALID", "Provider structured output failed the strict transport schema.", error, { ...responseDiagnostic, stage: "domain_validation", outputStage: "TRANSPORT_SCHEMA_VALIDATION_FAILED", issueCode: zodIssueCode(error), fieldPath: zodIssuePaths(error)?.[0], issueCount: zodIssueCount(error), domainValidationIssuePaths: zodIssuePaths(error) });
   }
-  return { value, requestId: completion.id, inputTokens: completion.usage?.prompt_tokens, ...(completion.usage?.prompt_tokens_details?.cached_tokens === undefined ? {} : { cachedInputTokens: completion.usage.prompt_tokens_details.cached_tokens }), outputTokens: completion.usage?.completion_tokens, diagnostic: responseDiagnostic } as const;
+  return { value, requestId: completion.id, inputTokens, ...(completion.usage?.prompt_tokens_details?.cached_tokens === undefined ? {} : { cachedInputTokens: completion.usage.prompt_tokens_details.cached_tokens }), outputTokens, diagnostic: responseDiagnostic } as const;
 }
 
 function safeClassName(error: unknown) { return error instanceof Error && error.constructor?.name ? error.constructor.name : typeof error === "object" && error ? "SdkError" : "Error"; }
@@ -161,14 +166,25 @@ function safeString(value: unknown) { return typeof value === "string" && value.
 function safeStatus(value: unknown) { const status = typeof value === "number" ? value : Number(value); return Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined; }
 function safeProviderErrorShape(error: unknown): ProviderErrorShape { return typeof error === "object" && error !== null ? error as ProviderErrorShape : {}; }
 function zodIssuePaths(error: unknown) { return error instanceof z.ZodError ? error.issues.map((issue) => issue.path.map(String).join(".")).filter(Boolean).slice(0, 20) : undefined; }
-function diagnosticForError(error: unknown, schemaName: string, requestAttempted: boolean): ProviderDiagnostic {
+function zodIssueCount(error: unknown) { return error instanceof z.ZodError ? error.issues.length : undefined; }
+function zodIssueCode(error: unknown) {
+  const issue = error instanceof z.ZodError ? error.issues[0] : undefined;
+  if (!issue) return undefined;
+  if (issue.code === "unrecognized_keys") return "UNKNOWN_FIELD";
+  if (issue.code === "invalid_type") return "INVALID_TYPE";
+  if (issue.code === "invalid_value") return "INVALID_ENUM_OR_LITERAL";
+  if (issue.code === "invalid_format") return "INVALID_FORMAT";
+  return "INVALID_FIELD";
+}
+function diagnosticForError(error: unknown, schemaName: string, requestAttempted: boolean, outputStage: ProviderOutputStage = requestAttempted ? "PROVIDER_REQUEST_FAILED" : "REQUEST_SCHEMA_CONSTRUCTION_FAILED"): ProviderDiagnostic {
   const shape = safeProviderErrorShape(error);
   const apiError = shape.error ?? {};
-  return { stage: requestAttempted ? "api_request" : "structured_parse", requestAttempted, apiResponseReceived: safeStatus(shape.status) !== undefined, httpStatus: safeStatus(shape.status), requestId: safeString(shape.requestID) ?? safeString(shape.request_id), sdkErrorClass: safeClassName(error), openaiErrorType: safeString(apiError.type) ?? safeString(shape.type), openaiErrorCode: safeString(apiError.code) ?? safeString(shape.code), openaiErrorParam: safeString(apiError.param) ?? safeString(shape.param), schemaName };
+  const responseReceived = safeStatus(shape.status) !== undefined;
+  return { stage: requestAttempted ? "api_request" : "structured_parse", outputStage, requestAttempted, apiResponseReceived: responseReceived, responseReceived, outputComplete: false, httpStatus: safeStatus(shape.status), requestId: safeString(shape.requestID) ?? safeString(shape.request_id), sdkErrorClass: safeClassName(error), openaiErrorType: safeString(apiError.type) ?? safeString(shape.type), openaiErrorCode: safeString(apiError.code) ?? safeString(shape.code), openaiErrorParam: safeString(apiError.param) ?? safeString(shape.param), schemaName };
 }
 function mapError(error: unknown, schemaName = "unknown", requestAttempted = true): AiProviderError {
   if (isAiProviderError(error)) return error;
-  if (error instanceof z.ZodError) return new AiProviderError("AI_STRUCTURED_PARSE_FAILED", "Provider structured output could not be parsed safely.", error, { ...diagnosticForError(error, schemaName, requestAttempted), stage: "structured_parse", domainValidationIssuePaths: zodIssuePaths(error) });
+  if (error instanceof z.ZodError) return new AiProviderError("AI_STRUCTURED_PARSE_FAILED", "Provider structured output could not be parsed safely.", error, { ...diagnosticForError(error, schemaName, requestAttempted, "STRUCTURED_OUTPUT_PARSE_FAILED"), stage: "structured_parse", issueCode: zodIssueCode(error), fieldPath: zodIssuePaths(error)?.[0], issueCount: zodIssueCount(error), domainValidationIssuePaths: zodIssuePaths(error) });
   const shape = safeProviderErrorShape(error);
   const status = safeStatus(shape.status);
   const code = safeString((shape.error ?? {}).code) ?? safeString(shape.code);
