@@ -229,7 +229,7 @@ const BriefSeoTransportSchema = BriefSeoRequirementsSchema.extend({
   }).strict()),
 });
 export const BriefRequirementsTransportSchema = ProjectBriefV2Schema
-  .omit({ schemaVersion: true, documentType: true, projectId: true, projectVersion: true, createdAt: true, updatedAt: true, operatorLanguage: true, localization: true, approval: true, briefStatus: true, briefVersion: true, briefApprovalNote: true, briefRevisionInstructions: true, briefSchemaVersion: true, analysisMetadata: true })
+  .omit({ schemaVersion: true, documentType: true, projectId: true, projectVersion: true, createdAt: true, updatedAt: true, operatorLanguage: true, localization: true, approval: true, briefStatus: true, briefVersion: true, briefApprovalNote: true, briefRevisionInstructions: true, requirementHistory: true, briefSchemaVersion: true, analysisMetadata: true })
   .required()
   .extend({
     projectTitle: NonEmptyStringSchema.nullable(),

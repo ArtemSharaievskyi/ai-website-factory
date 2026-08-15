@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { checksumPersistedDocument, stableValue } from "@/persistence/database/serialization";
+import { getEffectiveBriefRequirements } from "@/domain/requirements/effective";
+import type { RequirementSpecification } from "@/domain/requirements/schema";
 import type { ApprovedProceduralSkillContext } from "@/skills/runtime/resolver";
 import {
   CONTEXT_BUDGET_PROFILES,
@@ -75,6 +77,9 @@ function prepareContextValue(value: unknown, key: string | undefined, canonical:
   if (depth > 5) return canonical ? value : "[bounded-depth]";
   if (!value || typeof value !== "object") return value;
   const object = value as Record<string, unknown>;
+  if (object.documentType === "requirements" && "requirementHistory" in object) {
+    return prepareContextValue(getEffectiveBriefRequirements(object as RequirementSpecification), key, canonical, depth);
+  }
   return Object.fromEntries(
     Object.entries(object)
       .sort(([left], [right]) => left.localeCompare(right))

@@ -1,4 +1,5 @@
 import type { RequirementSpecification } from "./schema";
+import { getEffectiveBriefRequirements, isSimulationProhibitionRequirement } from "./effective";
 
 export type BriefContradiction = {
   code:
@@ -20,11 +21,11 @@ const statements = (value: unknown): string[] => {
   return Object.values(value as Record<string, unknown>).flatMap(statements);
 };
 const hasAny = (values: readonly string[], predicate: (value: string) => boolean) => values.some(predicate);
-const isSimulationProhibition = (value: string) => /(?:keine|nicht|no|do not|don't|forbid|prohibit).*(?:erfolg|success|submission|übermittlung|uebermittlung|übertragung|uebertragung|vortäuschen|vortaeuschen|simulate)|(?:success|submission).*(?:prohibit|forbid|not allowed)/i.test(value);
 const isAnalyticsRequirement = (value: string) => /(?:analytics|tracking|telemetry|conversion tracking|analyse)/i.test(value) && !/(?:keine|nicht|no|do not|don't|prohibit|forbid|ohne)/i.test(value);
 const isLogoReplacementRequirement = (value: string) => /(?:replace|replacement|generate|create|redraw|ersetz|generier|neu erstellen).*(?:logo|marke|wordmark)|(?:logo|marke|wordmark).*(?:replace|replacement|generate|create|redraw|ersetz|generier|neu erstellen)/i.test(value);
 
 export function validateBriefContradictions(brief: RequirementSpecification): BriefContradiction[] {
+  brief = getEffectiveBriefRequirements(brief);
   const contradictions: BriefContradiction[] = [];
   const form = brief.formBehaviorRequirements;
   const prohibited = statements(brief.prohibitedRequirements ?? []).concat(brief.explicitExclusions);
@@ -39,7 +40,7 @@ export function validateBriefContradictions(brief: RequirementSpecification): Br
     approvedIntegrations: (brief.deferredIntegrations ?? []).filter((item) => item.status === "APPROVED"),
   });
 
-  if (form?.successUx === "SIMULATED" && hasAny(prohibited, isSimulationProhibition)) {
+  if (form?.successUx === "SIMULATED" && hasAny(prohibited, isSimulationProhibitionRequirement)) {
     contradictions.push({ code: "FORM_SUCCESS_SIMULATION_CONFLICT", fieldPath: "formBehaviorRequirements.successUx", summary: "Frontend success simulation is both required and prohibited." });
   }
   if (form?.successUx === "REAL" && form.dataTransmission === "NONE") {

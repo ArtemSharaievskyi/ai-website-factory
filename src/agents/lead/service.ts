@@ -1035,8 +1035,8 @@ export class LeadAgentService {
         throw error;
       }
       const semanticRevisionBlockers = validateBriefRevisionSemantics(existing, requirements, input.reason);
-      const contradictionBlockers = briefApprovalBlockers(requirements);
       if (semanticRevisionBlockers.length) throw revisionOutputFailure("REVISION_SEMANTIC_VALIDATION_FAILED", semanticRevisionBlockers[0]!);
+      const contradictionBlockers = briefApprovalBlockers(requirements);
       if (contradictionBlockers.length) throw revisionOutputFailure("BRIEF_CONTRADICTION_DETECTED", contradictionBlockers[0]!.replace(/^BRIEF_CONTRADICTION_DETECTED:/, ""));
       const blockingReasons = [...new Set([...revised.blockingReasons, ...requirements.unresolvedItems.filter((item) => item.blocking).map((item) => `REQUIREMENT_UNRESOLVED:${item.id}`)])];
       const draft = BriefDraftSchema.parse({

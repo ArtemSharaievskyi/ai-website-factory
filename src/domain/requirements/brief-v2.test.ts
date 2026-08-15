@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { applyBriefRevisionSemantics, extractBriefRevisionIntent, validateBriefRevisionSemantics } from "./revision";
 import { briefApprovalBlockers, validateBriefContradictions } from "./brief-validation";
+import { getEffectiveBriefRequirements, isSimulationProhibitionRequirement } from "./effective";
 import { emptyBriefV2Fields } from "./brief";
 import { ProjectBriefV2Schema, RequirementSpecificationSchema } from "./schema";
 
@@ -183,5 +184,46 @@ describe("Project Brief V2 canonical contract", () => {
     ];
     expect(cases.map((brief) => validateBriefContradictions(brief).length)).toEqual([1, 1, 1, 1, 1, 1]);
     expect(cases.every((brief) => briefApprovalBlockers(brief).every((reason) => reason.startsWith("BRIEF_CONTRADICTION_DETECTED:")))).toBe(true);
+  });
+
+  it("ERA/RPA/FSC: resolves a multilingual legacy exclusion before PRESERVE and keeps it historical only", () => {
+    const old = "No successful submission may be faked.";
+    const existing = ProjectBriefV2Schema.parse({ ...v2Brief(), explicitExclusions: [old], prohibitedRequirements: [] });
+    const candidate = ProjectBriefV2Schema.parse({ ...v2Brief(), explicitExclusions: [], prohibitedRequirements: [entry("simulated-success", "Frontend success is simulated after local validation.")] });
+    const instruction = 'Remove "No success may be faked" and add "Frontend success is simulated after local validation."; preserve all confirmed requirements.';
+    const appliedResult = applyBriefRevisionSemantics(existing, candidate, instruction);
+    const applied = ProjectBriefV2Schema.parse(appliedResult.brief);
+    const effective = getEffectiveBriefRequirements(applied);
+    expect(appliedResult.diagnostics).toMatchObject({ removeTargetResolved: true, candidateHasOldProhibition: false, candidateHasSimulatedSuccess: true, effectiveHasOldProhibition: false, contradictionAuthority: "CURRENT_EFFECTIVE" });
+    expect(effective.explicitExclusions).not.toContain(old);
+    expect(effective.formBehaviorRequirements?.successUx).toBe("SIMULATED");
+    expect(effective.formBehaviorRequirements?.dataTransmission).toBe("NONE");
+    expect(applied.requirementHistory?.some((item) => item.statement === old && item.status === "REMOVED" && item.operation === "REMOVE")).toBe(true);
+    expect((effective as unknown as { requirementHistory?: unknown }).requirementHistory).toBeUndefined();
+    expect(briefApprovalBlockers(applied)).toEqual([]);
+  });
+
+  it("ERA/RPA/FSC: rejects an unapplied REMOVE before contradiction checking and preserves true active conflicts", () => {
+    const old = "No successful submission may be faked.";
+    const existing = ProjectBriefV2Schema.parse({ ...v2Brief(), explicitExclusions: [old] });
+    const retained = ProjectBriefV2Schema.parse({ ...v2Brief(), explicitExclusions: [old], prohibitedRequirements: [entry("simulated-success", "Frontend success is simulated after local validation.")] });
+    const instruction = 'Remove "No success may be faked" and add "Frontend success is simulated after local validation."; preserve all confirmed requirements.';
+    expect(validateBriefRevisionSemantics(existing, retained, instruction)).toContain("BRIEF_REVISION_REMOVE_NOT_APPLIED");
+    expect(briefApprovalBlockers(retained)).toContain("BRIEF_CONTRADICTION_DETECTED:FORM_SUCCESS_SIMULATION_CONFLICT");
+    expect(briefApprovalBlockers(ProjectBriefV2Schema.parse({ ...v2Brief(), explicitExclusions: [old] }))).toContain("BRIEF_CONTRADICTION_DETECTED:FORM_SUCCESS_SIMULATION_CONFLICT");
+  });
+
+  it("ERA/RPA: rejects PRESERVE/REMOVE on the same target and accepts simulated success with no transmission", () => {
+    const old = "No successful submission may be faked.";
+    const existing = ProjectBriefV2Schema.parse({ ...v2Brief(), explicitExclusions: [old] });
+    const instruction = 'Preserve "No successful submission may be faked." and remove "No successful submission may be faked.".';
+    expect(validateBriefRevisionSemantics(existing, existing, instruction)).toContain("REVISION_OPERATION_CONFLICT");
+    expect(validateBriefContradictions(ProjectBriefV2Schema.parse({ ...v2Brief(), explicitExclusions: [] }))).toEqual([]);
+  });
+
+  it("ERA: resolves UTF-8 legacy prohibition wording across supported languages", () => {
+    expect(isSimulationProhibitionRequirement("Kein Erfolg darf vorget\u00e4uscht werden.")).toBe(true);
+    expect(isSimulationProhibitionRequirement("\u041d\u0435\u043b\u044c\u0437\u044f \u0438\u043c\u0438\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0443\u0441\u043f\u0435\u0445.")).toBe(true);
+    expect(isSimulationProhibitionRequirement("\u041d\u0435 \u043c\u043e\u0436\u043d\u0430 \u0456\u043c\u0456\u0442\u0443\u0432\u0430\u0442\u0438 \u0443\u0441\u043f\u0456\u0445.")).toBe(true);
   });
 });
