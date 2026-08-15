@@ -6,9 +6,10 @@ import {
   LocaleSchema,
   UuidSchema,
 } from "../shared/schemas";
+import { MAX_CANONICAL_USER_INPUT_BYTES, normalizeCanonicalUserInputText } from "./canonical-input";
 
 export const INITIAL_PROJECT_REQUEST_VERSION = 1 as const;
-export const MAX_INITIAL_PROJECT_REQUEST_BYTES = 128 * 1024;
+export const MAX_INITIAL_PROJECT_REQUEST_BYTES = MAX_CANONICAL_USER_INPUT_BYTES;
 
 export const InitialProjectRequestSchema = z
   .object({
@@ -26,13 +27,14 @@ export const InitialProjectRequestSchema = z
 export type InitialProjectRequest = z.infer<typeof InitialProjectRequestSchema>;
 
 export function normalizeInitialProjectRequestText(value: string) {
-  if (typeof value !== "string") throw new Error("INITIAL_REQUEST_TYPE_INVALID");
-  const normalized = value.replace(/\r\n?/g, "\n");
-  if (!normalized.trim()) throw new Error("INITIAL_REQUEST_EMPTY");
-  if (normalized.includes("\0")) throw new Error("INITIAL_REQUEST_ENCODING_INVALID");
-  if (Buffer.byteLength(normalized, "utf8") > MAX_INITIAL_PROJECT_REQUEST_BYTES)
-    throw new Error("INITIAL_REQUEST_TOO_LARGE");
-  return normalized;
+  try {
+    return normalizeCanonicalUserInputText(value, "INITIAL_REQUEST_TOO_LARGE");
+  } catch (error) {
+    if (error instanceof Error && error.message === "CANONICAL_INPUT_TYPE_INVALID") throw new Error("INITIAL_REQUEST_TYPE_INVALID");
+    if (error instanceof Error && error.message === "CANONICAL_INPUT_EMPTY") throw new Error("INITIAL_REQUEST_EMPTY");
+    if (error instanceof Error && error.message === "CANONICAL_INPUT_ENCODING_INVALID") throw new Error("INITIAL_REQUEST_ENCODING_INVALID");
+    throw error;
+  }
 }
 
 export function createInitialProjectRequest(input: {

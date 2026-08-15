@@ -54,6 +54,7 @@ import {
 } from "./clarification-policy";
 import { leadAgentDefinition } from "@/agents/catalog";
 import type { AgentSkillSelection } from "@/skills/runtime/resolver";
+import type { BriefRevisionProviderInput } from "./ports";
 import { FACTORY_OPERATOR_LANGUAGE, LanguageResolutionSchema, normalizeSiteLanguage, resolveLanguageAuthority, type LanguageResolution, type OperatorLanguage } from "@/domain/language/schema";
 
 const now = () => new Date().toISOString();
@@ -140,6 +141,29 @@ const validateClarificationPlan = (plan: ClarificationPlan, parsed: LeadAgentInp
   if (requireQuestions && plan.questions.length === 0)
     throw new LeadError("LEAD_ANALYSIS_INVALID", "Lead clarification proposal removed all unresolved clarification questions.", { validationStage: "CLARIFICATION_MAPPING", issueCode: "EMPTY_REQUIRED_CLARIFICATIONS", fieldPath: "questions", expectedShape: "non-empty question collection while blocking clarifications remain" });
   return plan;
+};
+
+const uniqueStrings = (left: string[], right: string[]) => [...new Set([...left, ...right])];
+const uniqueRecords = <T>(left: T[], right: T[]) => [...left, ...right].filter((value, index, all) => all.findIndex((candidate) => JSON.stringify(candidate) === JSON.stringify(value)) === index);
+const mergeRevisionRequirements = (existing: z.infer<typeof RequirementSpecificationSchema>, candidate: z.infer<typeof RequirementSpecificationSchema>, revisionInstruction: string) => {
+  const stringArrays = ["businessGoals", "targetAudiences", "userRoles", "features", "forms", "contentRequirements", "backendRequirements", "supabaseRequirements", "seoRequirements", "technicalConstraints", "explicitExclusions", "userAcceptanceCriteria", "contactFacts", "legalFacts", "brandFacts", "logoMetadata", "imageSourcingNotes", "recommendations"] as const;
+  const merged = { ...existing, ...candidate } as Record<string, unknown>;
+  for (const field of stringArrays) merged[field] = uniqueStrings(existing[field], candidate[field]);
+  const pages = new Map(existing.pages.map((page) => [page.slug, page]));
+  for (const page of candidate.pages) pages.set(page.slug, page);
+  merged.pages = [...pages.values()];
+  merged.unresolvedItems = uniqueRecords(existing.unresolvedItems, candidate.unresolvedItems);
+  merged.evidence = uniqueRecords(existing.evidence, candidate.evidence);
+  merged.briefRevisionInstructions = uniqueStrings(existing.briefRevisionInstructions ?? [], [revisionInstruction]);
+  merged.projectId = existing.projectId;
+  merged.projectVersion = existing.projectVersion;
+  merged.createdAt = existing.createdAt;
+  merged.updatedAt = now();
+  merged.briefStatus = "draft";
+  merged.briefVersion = existing.briefVersion + 1;
+  merged.approval = { approved: false };
+  delete merged.briefApprovalNote;
+  return RequirementSpecificationSchema.parse(merged);
 };
 export type LeadServiceDependencies = {
   database: PersistenceDatabase;
@@ -939,6 +963,7 @@ export class LeadAgentService {
     reason: string;
     requestedBy: string;
     idempotencyKey: string;
+    expectedBriefChecksum?: string;
   }) {
     const current = await this.projects.getWithVersion(input.projectId);
     if (
@@ -961,6 +986,85 @@ export class LeadAgentService {
         "BRIEF_NOT_READY",
         "Requirements draft was not found.",
       );
+    if (input.expectedBriefChecksum && checksumPersistedDocument(existing) !== input.expectedBriefChecksum)
+      throw new LeadError("BRIEF_CHECKSUM_MISMATCH", "The Project Brief changed before this revision was processed.");
+
+    const revisionInput: BriefRevisionProviderInput = {
+      projectId: input.projectId,
+      projectVersion: input.projectVersion,
+      originalPrompt: current.project.originalPrompt,
+      currentBrief: existing,
+      currentCanonicalRequirements: existing,
+      revisionInstruction: input.reason,
+      requirementKeys: input.requirementKeys,
+      operatorLanguage: existing.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE,
+      siteLanguage: current.project.siteLanguage,
+      currentWorkflowState: current.project.workflowState,
+    };
+    const revised = await this.provider.reviseBrief?.(revisionInput);
+    if (revised) {
+      const latest = await this.projects.getWithVersion(input.projectId);
+      const latestRequirements = await this.documents.get(input.projectId, input.projectVersion, "requirements");
+      if (!latest || latest.rowVersion !== current.rowVersion || latest.project.workflowState !== current.project.workflowState || !latestRequirements || latestRequirements.documentType !== "requirements" || checksumPersistedDocument(latestRequirements) !== checksumPersistedDocument(existing))
+        throw new LeadError("BRIEF_CHECKSUM_MISMATCH", "The Project Brief changed before this revision could be saved.");
+      const requirements = mergeRevisionRequirements(existing, revised.requirements, input.reason);
+      const blockingReasons = [...new Set([...revised.blockingReasons, ...requirements.unresolvedItems.filter((item) => item.blocking).map((item) => `REQUIREMENT_UNRESOLVED:${item.id}`)])];
+      const draft = BriefDraftSchema.parse({
+        ...revised,
+        projectId: input.projectId,
+        projectVersion: input.projectVersion,
+        requirements,
+        unresolvedItems: requirements.unresolvedItems.map((item) => ({ key: item.id, description: item.description, blocking: item.blocking })),
+        evidence: requirements.evidence,
+        blockingReasons,
+        readyForApproval: revised.readyForApproval && blockingReasons.length === 0,
+        briefChecksum: checksumPersistedDocument(requirements),
+      });
+      await this.documents.save(requirements, input.idempotencyKey);
+      await this.dependencies.memory.writeSnapshot(input.projectId, input.projectVersion, { "requirements.json": requirements });
+      let currentState = current.project.workflowState;
+      if (currentState === "AWAITING_DESIGN_SELECTION") {
+        const approval = await this.workflow.transition({
+          projectId: input.projectId,
+          projectVersion: input.projectVersion,
+          expectedState: "AWAITING_DESIGN_SELECTION",
+          expectedRowVersion: current.rowVersion,
+          targetState: "AWAITING_BRIEF_APPROVAL",
+          actor: input.requestedBy,
+          reason: "User requested a Project Brief revision.",
+          idempotencyKey: `${input.idempotencyKey}-approval`,
+        });
+        currentState = "AWAITING_BRIEF_APPROVAL";
+        if (!draft.readyForApproval) {
+          await this.workflow.transition({
+            projectId: input.projectId,
+            projectVersion: input.projectVersion,
+            expectedState: "AWAITING_BRIEF_APPROVAL",
+            expectedRowVersion: approval.rowVersion,
+            targetState: "CLARIFYING",
+            actor: input.requestedBy,
+            reason: "Project Brief revision requires clarification.",
+            idempotencyKey: `${input.idempotencyKey}-clarifying`,
+          });
+          currentState = "CLARIFYING";
+        }
+      } else if (!draft.readyForApproval && currentState === "AWAITING_BRIEF_APPROVAL") {
+        await this.workflow.transition({
+          projectId: input.projectId,
+          projectVersion: input.projectVersion,
+          expectedState: "AWAITING_BRIEF_APPROVAL",
+          expectedRowVersion: current.rowVersion,
+          targetState: "CLARIFYING",
+          actor: input.requestedBy,
+          reason: "Project Brief revision requires clarification.",
+          idempotencyKey: `${input.idempotencyKey}-clarifying`,
+        });
+        currentState = "CLARIFYING";
+      }
+      await this.appendDecision(input.projectId, input.projectVersion, "brief-revision", input.reason, true, "approved", input.requestedBy);
+      this.drafts.set(key(input.projectId, input.projectVersion), draft);
+      return { ...requirements, revisionWorkflowState: currentState };
+    }
     const next = RequirementSpecificationSchema.parse({
       ...existing,
       updatedAt: now(),

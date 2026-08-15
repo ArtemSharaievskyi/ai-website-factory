@@ -23,9 +23,12 @@ import {
 import type { ProjectAssetService } from "@/runtime/assets/service";
 import {
   ANSWER_CLARIFICATIONS_OPERATION,
+  REQUEST_BRIEF_CHANGES_OPERATION,
+  briefRevisionOperationKey,
   clarificationAnswerOperationKey,
   type ClarificationAnswerRequest,
 } from "./idempotency";
+import { normalizeCanonicalUserInputText } from "@/domain/project/canonical-input";
 
 export type TrialEntryAnswer = {
   questionId: string;
@@ -479,15 +482,43 @@ export class TrialEntryService {
   async requestBriefChanges(input: { projectId: string; reason: string; requirementKeys?: string[]; requestedBy?: string }) {
     const current = await this.projects.getWithVersion(input.projectId);
     if (!current) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");
-    const lead = this.dependencies.createLeadAgent(current.project.slug);
-    const result = await lead.requestBriefRevision({
+    const reason = normalizeCanonicalUserInputText(input.reason, "BRIEF_REVISION_TOO_LARGE");
+    const requirementKeys = input.requirementKeys ?? ["project-brief"];
+    const existing = await this.documents.get(input.projectId, current.project.currentVersion, "requirements");
+    if (!existing || existing.documentType !== "requirements") throw new Error("BRIEF_NOT_READY");
+    const operationIdentity = briefRevisionOperationKey({
       projectId: input.projectId,
       projectVersion: current.project.currentVersion,
-      requirementKeys: input.requirementKeys ?? ["project-brief"],
-      reason: input.reason,
-      requestedBy: input.requestedBy ?? "workbench-user",
-      idempotencyKey: `workbench-request-brief-changes:${input.projectId}:${checksumPersistedDocument(input.reason)}`,
+      briefChecksum: checksumPersistedDocument(existing),
+      reason,
+      requirementKeys,
     });
-    return { projectId: input.projectId, workflowState: "CLARIFYING" as const, requirementsChecksum: checksumPersistedDocument(result) };
+    let reservation;
+    try {
+      reservation = await this.operations.reserve(REQUEST_BRIEF_CHANGES_OPERATION, operationIdentity.key, operationIdentity.payload);
+    } catch (error) {
+      throw error;
+    }
+    if (reservation.status === "IN_PROGRESS") throw new LeadError("IDEMPOTENCY_CONFLICT", "The Brief revision is already in progress.");
+    if (reservation.status === "SUCCEEDED") return reservation.result as { projectId: string; workflowState: WorkflowState; requirementsChecksum: string };
+    try {
+      const lead = this.dependencies.createLeadAgent(current.project.slug);
+      const result = await lead.requestBriefRevision({
+        projectId: input.projectId,
+        projectVersion: current.project.currentVersion,
+        requirementKeys,
+        reason,
+        requestedBy: input.requestedBy ?? "workbench-user",
+        expectedBriefChecksum: checksumPersistedDocument(existing),
+        idempotencyKey: `workbench-request-brief-changes:v2:${input.projectId}:${operationIdentity.fingerprint}`,
+      });
+      const updated = (await this.projects.getWithVersion(input.projectId)) ?? current;
+      const response = { projectId: input.projectId, workflowState: updated.project.workflowState, requirementsChecksum: checksumPersistedDocument(result) } satisfies { projectId: string; workflowState: WorkflowState; requirementsChecksum: string };
+      await this.operations.complete(REQUEST_BRIEF_CHANGES_OPERATION, operationIdentity.key, operationIdentity.payload, response);
+      return response;
+    } catch (error) {
+      await this.operations.fail(REQUEST_BRIEF_CHANGES_OPERATION, operationIdentity.key, operationIdentity.payload).catch(() => undefined);
+      throw error;
+    }
   }
 }

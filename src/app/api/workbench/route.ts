@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       };
     }
     const parsedResult = WorkbenchRequestSchema.safeParse(body);
-    if (!parsedResult.success) throw new WorkbenchRequestValidationError(parsedResult.error, safeUnknownRespondArrayFieldPaths(body));
+    if (!parsedResult.success) throw new WorkbenchRequestValidationError(parsedResult.error, safeUnknownRespondArrayFieldPaths(body), typeof body === "object" && body !== null && typeof (body as Record<string, unknown>).action === "string" ? (body as Record<string, unknown>).action as string : undefined);
     const parsed = parsedResult.data;
     diagnosticContext = {
       action: parsed.action,

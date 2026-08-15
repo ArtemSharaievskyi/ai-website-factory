@@ -220,7 +220,7 @@ const SAFE_ERROR_CLASSES = new Set([
 
 export class WorkbenchRequestValidationError extends Error {
   name = "WorkbenchRequestValidationError";
-  constructor(readonly zodError: z.ZodError, readonly unknownArrayFieldPaths: string[] = []) {
+  constructor(readonly zodError: z.ZodError, readonly unknownArrayFieldPaths: string[] = [], readonly action?: string) {
     super("WORKBENCH_REQUEST_INVALID: The request did not match the Workbench request contract.");
   }
 }
@@ -282,6 +282,7 @@ function providerStatus(code: string) {
 
 const safeValidationPath = (path: PropertyKey[]) => path.map((segment) => typeof segment === "number" ? `[${segment}]` : String(segment)).join(".").replaceAll(".[", "[") || "request";
 const safeRequestIssueCode = (issue: z.ZodIssue) => {
+  if (issue.code === "custom" && issue.params && typeof issue.params === "object" && "issueCode" in issue.params && typeof issue.params.issueCode === "string") return issue.params.issueCode;
   if (issue.code === "custom") return issue.path.at(-1) === "questionId" ? "DUPLICATE_CLARIFICATION_ID" : "ANSWER_REQUIRED";
   if (issue.code === "invalid_type") return "INVALID_TYPE";
   if (issue.code === "invalid_format") return issue.path.at(-1) === "questionId" ? "INVALID_CLARIFICATION_ID" : "INVALID_FORMAT";
@@ -291,28 +292,31 @@ const safeRequestIssueCode = (issue: z.ZodIssue) => {
   if (issue.code === "invalid_value") return "INVALID_ENUM_OR_LITERAL";
   return "INVALID_FIELD";
 };
-const safeRequestExpectedShape = (issue: z.ZodIssue) => {
+const safeRequestExpectedShape = (issue: z.ZodIssue, action?: string) => {
   const path = safeValidationPath(issue.path);
   if (path === "answers") return "an array containing 1 to 40 answer objects";
   if (path.endsWith(".questionId")) return "a canonical clarification question ID in UUID format";
   if (path.endsWith(".answer")) return "non-whitespace text of at most 32768 characters when status is answered";
+  if (path === "reason" && action === "request-brief-changes") return "a complete canonical Brief revision instruction of at most 131072 UTF-8 bytes";
+  if (path === "reason" && action === "request-planning-changes") return "a planning revision reason of at most 4000 characters";
+  if (path === "reason") return "a bounded reason appropriate to the requested workflow action";
   if (path === "projectId") return "a project ID in UUID format";
   if (path === "action") return "the literal action respond";
   if (issue.code === "unrecognized_keys") return "only fields defined by the Workbench request contract";
   return "the Workbench respond request contract";
 };
-const safeRequestValidationProjection = (error: z.ZodError, unknownArrayFieldPaths: string[] = []): SafeValidationProjection => {
+const safeRequestValidationProjection = (error: z.ZodError, unknownArrayFieldPaths: string[] = [], action?: string): SafeValidationProjection => {
   const hintedIssues = unknownArrayFieldPaths.map((path) => ({ path, issueCode: "UNKNOWN_FIELD", expectedShape: "only fields defined by the Workbench request contract" }));
   const structuralIssues = error.issues
     .filter((issue) => !(issue.code === "unrecognized_keys" && unknownArrayFieldPaths.length))
-    .map((issue) => ({ path: safeValidationPath(issue.path), issueCode: safeRequestIssueCode(issue), expectedShape: safeRequestExpectedShape(issue) }));
+    .map((issue) => ({ path: safeValidationPath(issue.path), issueCode: safeRequestIssueCode(issue), expectedShape: safeRequestExpectedShape(issue, action) }));
   const validationIssues = [...hintedIssues, ...structuralIssues].filter((issue, index, all) => all.findIndex((candidate) => candidate.path === issue.path && candidate.issueCode === issue.issueCode) === index).slice(0, 5);
   const first = validationIssues[0];
   return { validationStage: "REQUEST_SCHEMA", ...(first ? { issueCode: first.issueCode, fieldPath: first.path, expectedShape: first.expectedShape } : {}), validationIssues };
 };
 
 function safeValidationProjection(error: unknown): SafeValidationProjection {
-  if (error instanceof WorkbenchRequestValidationError) return safeRequestValidationProjection(error.zodError, error.unknownArrayFieldPaths);
+  if (error instanceof WorkbenchRequestValidationError) return safeRequestValidationProjection(error.zodError, error.unknownArrayFieldPaths, error.action);
   if (error instanceof z.ZodError) return safeRequestValidationProjection(error);
   if (!error || typeof error !== "object" || !("details" in error)) return {};
   const details = error.details;
@@ -332,7 +336,11 @@ function safeValidationProjection(error: unknown): SafeValidationProjection {
 
 function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProjection, "ok" | "code" | "correlationId" | "operation"> {
   if (code === "WORKBENCH_REQUEST_TOO_LARGE") return { error: "The request is too large.", httpStatus: 413, recoverable: false, category: "VALIDATION", subsystem: "ROUTE", errorClass: errorClass(error) };
-  if (code === "WORKBENCH_REQUEST_INVALID") return { error: "The request could not be validated.", httpStatus: 400, recoverable: false, category: "VALIDATION", subsystem: "ROUTE", errorClass: errorClass(error), ...safeValidationProjection(error) };
+  if (code === "WORKBENCH_REQUEST_INVALID") {
+    const validation = safeValidationProjection(error);
+    const briefRevisionTooLarge = error instanceof WorkbenchRequestValidationError && error.action === "request-brief-changes" && validation.validationStage === "REQUEST_SCHEMA" && validation.fieldPath === "reason" && validation.issueCode === "VALUE_TOO_LARGE";
+    return { error: briefRevisionTooLarge ? "The requested Brief changes are too long for one revision request." : "The request could not be validated.", httpStatus: 400, recoverable: false, category: "VALIDATION", subsystem: "ROUTE", errorClass: errorClass(error), ...validation };
+  }
   if (code === "LEAD_CLARIFICATION_LANGUAGE_INVALID") return { error: "Lead refresh output did not match the Factory operator language. The project was not changed.", httpStatus: 422, recoverable: true, category: "VALIDATION", subsystem: "LEAD", errorClass: errorClass(error) };
   if (code === "LEAD_ANALYSIS_INVALID") return { error: "Lead analysis did not match the current project contract. The project was not changed.", httpStatus: 422, recoverable: Boolean(safeValidationProjection(error).validationStage), category: "VALIDATION", subsystem: "LEAD", errorClass: errorClass(error), ...safeValidationProjection(error) };
   if (code === "WORKBENCH_ADVANCED_RUNTIME_UNAVAILABLE") return { error: "The workflow runtime is temporarily unavailable. The project was not changed.", httpStatus: 503, recoverable: true, category: "INTERNAL", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };

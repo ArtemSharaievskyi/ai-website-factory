@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { LeadAnalysisProvider } from "@/agents/lead/ports";
+import type { BriefRevisionProviderInput, LeadAnalysisProvider } from "@/agents/lead/ports";
 import {
   BriefDraftSchema,
   ClarificationPlanSchema,
@@ -34,6 +34,7 @@ import type {
 } from "@/agents/implementation/contracts";
 import { ImplementationChangeProposalSchema } from "@/agents/implementation/contracts";
 import { OpenAiStructuredClient } from "./client";
+import { AiProviderError } from "./errors";
 import { boundedRolePrompt as rolePrompt } from "@/runtime/context/bridge";
 import type { ProviderUsageSink } from "./usage";
 import type { OrchestrationPlanningProvider } from "@/orchestration/orchestrator/service";
@@ -228,12 +229,13 @@ const BriefStructuredAnalysisMetadataSchema = z
   .strict();
 /** Strict-output transport shape; nullable values are normalized into the canonical Brief domain shape below. */
 const BriefRequirementsTransportSchema = RequirementSpecificationSchema
-  .omit({ operatorLanguage: true })
+  .omit({ operatorLanguage: true, briefRevisionInstructions: true })
   .extend({
     approval: BriefStructuredApprovalSchema,
     projectTitle: NonEmptyStringSchema.nullable(),
     analysisMetadata: BriefStructuredAnalysisMetadataSchema.nullable(),
     briefApprovalNote: z.string().nullable(),
+    briefRevisionInstructions: z.array(NonEmptyStringSchema).nullable(),
   });
 export const BriefDraftStructuredOutputSchema = BriefDraftSchema.extend({
   requirements: BriefRequirementsTransportSchema,
@@ -280,6 +282,7 @@ function normalizeBriefDraft(
     projectTitle,
     analysisMetadata,
     briefApprovalNote,
+    briefRevisionInstructions,
     ...canonicalFields
   } = requirements;
   const normalizedRequirements = {
@@ -290,6 +293,7 @@ function normalizeBriefDraft(
     ...(projectTitle === null ? {} : { projectTitle }),
     ...(analysisMetadata === null ? {} : { analysisMetadata }),
     ...(briefApprovalNote === null ? {} : { briefApprovalNote }),
+    ...(briefRevisionInstructions === null ? {} : { briefRevisionInstructions }),
   };
   normalizedRequirements.brandFacts = normalizedRequirements.brandFacts.filter(
     (fact) =>
@@ -843,6 +847,27 @@ export class OpenAiLeadProvider implements LeadAnalysisProvider {
       idempotencyKey: `lead-brief:${skillContextIdentity}`,
     });
     return normalizeBriefDraft(result.value, input.analysis.operatorLanguage);
+  }
+  async reviseBrief(
+    input: BriefRevisionProviderInput,
+    approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
+    skillContextIdentity = "none",
+  ): Promise<BriefDraft> {
+    let prompt: ReturnType<typeof rolePrompt>;
+    try {
+      prompt = rolePrompt("lead", { ...input, briefRevision: input.revisionInstruction }, false, approvedSkills);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("CONTEXT_REQUIRED_BUDGET_EXCEEDED")) throw new AiProviderError("AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED", "The complete Brief revision context cannot safely fit the provider capacity.", undefined, { stage: "request_construction", requestAttempted: false, apiResponseReceived: false, sdkErrorClass: "ContextCapacityGuard", schemaName: "brief-revision" });
+      throw error;
+    }
+    const result = await this.ai.request<z.infer<typeof BriefDraftStructuredOutputSchema>>({
+      ...prompt,
+      role: "lead",
+      schema: BriefDraftStructuredOutputSchema,
+      schemaName: "brief-revision",
+      idempotencyKey: `lead-brief-revision:${input.projectId}:${input.projectVersion}:${checksumPersistedDocument(input.revisionInstruction)}:${skillContextIdentity}`,
+    });
+    return normalizeBriefDraft(result.value, input.operatorLanguage);
   }
   private async call<T>(
     role: "lead",

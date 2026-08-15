@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkbenchActionError } from "@/runtime/workbench/application";
 import { WorkbenchErrorResponseSchema, clearWorkbenchDiagnosticEvents, getWorkbenchDiagnosticEvents } from "@/runtime/workbench/diagnostics";
+import { MAX_BRIEF_REVISION_INSTRUCTION_BYTES } from "@/runtime/workbench/contracts";
 
 const { mockWorkbench } = vi.hoisted(() => ({ mockWorkbench: { handle: vi.fn() } }));
 
@@ -83,6 +84,17 @@ describe("Workbench route safe failure projection", () => {
     expect(response.status).toBe(400);
     expect(body.issueCode).toBe("DUPLICATE_CLARIFICATION_ID");
     expect(body.fieldPath).toBe("answers[1].questionId");
+  });
+
+  it("rejects an oversized canonical Brief revision before application or Lead with safe diagnostics", async () => {
+    const secret = "SYNTHETIC_REVISION_CONTENT_MUST_NOT_BE_ECHOED";
+    const response = await POST(request({ action: "request-brief-changes", projectId: validRespondPayload.projectId, reason: `${"x".repeat(MAX_BRIEF_REVISION_INSTRUCTION_BYTES)}${secret}` }));
+    const body = WorkbenchErrorResponseSchema.parse(await response.json());
+    expect(response.status).toBe(400);
+    expect(body).toMatchObject({ code: "WORKBENCH_REQUEST_INVALID", operation: "REQUEST_BRIEF_CHANGES", validationStage: "REQUEST_SCHEMA", issueCode: "VALUE_TOO_LARGE", fieldPath: "reason" });
+    expect(body.error).toContain("too long");
+    expect(JSON.stringify(body)).not.toContain(secret);
+    expect(mockWorkbench.handle).not.toHaveBeenCalled();
   });
 
   it("preserves real workflow conflicts as 409 with a correlation event", async () => {

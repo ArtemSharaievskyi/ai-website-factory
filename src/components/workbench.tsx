@@ -621,6 +621,7 @@ export function Workbench() {
         const acceptedQuestionIds = new Set(input.answers.map((answer) => answer.questionId));
         setAnswers((current) => Object.fromEntries(Object.entries(current).filter(([questionId]) => !acceptedQuestionIds.has(questionId))));
       }
+      if (input.action === "request-brief-changes" || input.action === "request-planning-changes") setPrompt("");
     } catch (caught) {
       setError(
         caught instanceof WorkbenchRequestError && caught.correlationId

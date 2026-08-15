@@ -5,9 +5,13 @@ import { FACTORY_OPERATOR_LANGUAGE, OperatorLanguageSchema } from "@/domain/lang
 import type { LanguageResolution, OperatorLanguage } from "@/domain/language/schema";
 import type { ProjectAssetCategory } from "@/domain/assets/project";
 import { ClarificationQuestionIdSchema } from "@/domain/requirements/schema";
+import { canonicalUserInstructionSchema, MAX_CANONICAL_USER_INPUT_BYTES } from "@/domain/project/canonical-input";
 
 export const WORKBENCH_REQUEST_BYTES = 128 * 1024;
 export const MAX_CLARIFICATION_ANSWER_LENGTH = 32 * 1024;
+export const MAX_BRIEF_REVISION_INSTRUCTION_BYTES = MAX_CANONICAL_USER_INPUT_BYTES;
+export const BriefRevisionInstructionSchema = canonicalUserInstructionSchema();
+export type BriefRevisionInstruction = z.infer<typeof BriefRevisionInstructionSchema>;
 
 export const WorkbenchActionSchema = z.enum([
   "ANSWER_LEAD_CLARIFICATIONS",
@@ -60,7 +64,7 @@ export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
   RespondRequestSchema,
   z.object({ action: z.literal("refresh-clarifications"), projectId: ProjectIdSchema, requestId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("approve-brief"), projectId: ProjectIdSchema, briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), expectedRowVersion: z.number().int().positive(), approvalNote: z.string().max(4000).optional() }).strict(),
-  z.object({ action: z.literal("request-brief-changes"), projectId: ProjectIdSchema, reason: z.string().trim().min(1).max(4000), requirementKeys: z.array(z.string().min(1).max(128)).max(40).default([]) }).strict(),
+  z.object({ action: z.literal("request-brief-changes"), projectId: ProjectIdSchema, reason: BriefRevisionInstructionSchema, requirementKeys: z.array(z.string().min(1).max(128)).max(40).default([]) }).strict(),
   z.object({ action: z.literal("approve-planning"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("request-planning-changes"), projectId: ProjectIdSchema, reason: z.string().trim().min(1).max(4000) }).strict(),
   z.object({ action: z.literal("database-decision"), projectId: ProjectIdSchema, mode: z.enum(["NONE", "SUPABASE_NEW", "SUPABASE_EXISTING"]), reason: z.string().max(4000).optional() }).strict(),

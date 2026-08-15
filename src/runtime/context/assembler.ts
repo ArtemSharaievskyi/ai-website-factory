@@ -27,6 +27,9 @@ const safeIdentity = (value: unknown) => typeof value === "string" && value.leng
 const CANONICAL_KEYS = new Set([
   "originalPrompt",
   "requestText",
+  "revisionInstruction",
+  "briefRevision",
+  "briefRevisionInstruction",
   "knownUserAnswers",
   "clarificationAnswer",
   "clarificationAnswers",
@@ -36,6 +39,7 @@ const CANONICAL_KEYS = new Set([
   "approvedBrief",
   "projectBrief",
   "brief",
+  "currentBrief",
   "requirements",
   "approvedRequirements",
   "approvedRequirementSet",
@@ -93,6 +97,7 @@ export function prepareRoleContext(input: unknown) {
 export function inferCanonicalDocumentType(role: string, input: unknown): CanonicalDocumentType {
   const value = input && typeof input === "object" ? input as Record<string, unknown> : {};
   if (role === "lead" && typeof value.originalPrompt === "string") return "InitialProjectRequest";
+  if (value.revisionInstruction || value.briefRevision || value.briefRevisionInstruction) return "BriefRevisionInstruction";
   if (value.clarificationAnswer || value.clarificationAnswers || value.clarificationSession || value.session) return "ClarificationAnswer";
   if (value.approvedChangeProposal || value.changeProposal) return "ApprovedChangeProposal";
   if (value.selectedDesign || value.selectedDesignDirection || value.selectedDirection) return "SelectedDesignDirection";

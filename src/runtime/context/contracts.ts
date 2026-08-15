@@ -11,6 +11,7 @@ export type ContextAuthority = z.infer<typeof ContextAuthoritySchema>;
 
 export const CanonicalDocumentTypeSchema = z.enum([
   "InitialProjectRequest",
+  "BriefRevisionInstruction",
   "ClarificationAnswer",
   "ProjectBrief",
   "ApprovedRequirementSet",
