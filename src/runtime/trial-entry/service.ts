@@ -29,6 +29,7 @@ import {
   type ClarificationAnswerRequest,
 } from "./idempotency";
 import { normalizeCanonicalUserInputText } from "@/domain/project/canonical-input";
+import { briefApprovalBlockers } from "@/domain/requirements/brief-validation";
 
 export type TrialEntryAnswer = {
   questionId: string;
@@ -382,7 +383,7 @@ export class TrialEntryService {
     const blockingReasons = [
       ...(clarification?.blockingUnresolvedQuestionIds.map((id) => `CLARIFICATION_REQUIRED:${id}`) ?? []),
       ...(requirements?.documentType === "requirements"
-        ? requirements.unresolvedItems.filter((item) => item.blocking).map((item) => `REQUIREMENT_UNRESOLVED:${item.id}`)
+        ? [...requirements.unresolvedItems.filter((item) => item.blocking).map((item) => `REQUIREMENT_UNRESOLVED:${item.id}`), ...briefApprovalBlockers(requirements)]
         : []),
     ];
     return {
@@ -401,7 +402,7 @@ export class TrialEntryService {
         ? {
             brief: {
               checksum: requirements.approval.approvedRequirementsChecksum ?? checksumPersistedDocument(requirements),
-              readyForApproval: requirements.briefStatus === "draft" && !requirements.unresolvedItems.some((item) => item.blocking),
+              readyForApproval: requirements.briefStatus === "draft" && !requirements.unresolvedItems.some((item) => item.blocking) && briefApprovalBlockers(requirements).length === 0,
               approved: requirements.approval.approved,
             },
           }

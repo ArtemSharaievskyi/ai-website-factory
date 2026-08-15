@@ -31,6 +31,10 @@ import type { ProjectAssetService } from "@/runtime/assets/service";
 import type { WorkbenchAsset } from "./contracts";
 
 const list = (values: string[] | undefined, limit = 12) => (values ?? []).slice(0, limit).map((value) => value.slice(0, 500));
+const statements = (values: unknown, limit = 16): string[] => {
+  if (!Array.isArray(values)) return [];
+  return values.flatMap((value) => typeof value === "string" ? [value] : value && typeof value === "object" && typeof (value as { statement?: unknown }).statement === "string" ? [(value as { statement: string }).statement] : []).slice(0, limit).map((value) => value.slice(0, 500));
+};
 
 export class WorkbenchActionError extends Error {
   constructor(public readonly code: string, message: string) {
@@ -310,8 +314,17 @@ export class WorkbenchApplication {
       pages: requirements.pages.slice(0, 16).map((page) => `${page.slug}: ${page.purpose}`),
       features: list(requirements.features),
       forms: list(requirements.forms),
+      ...(requirements.content ? { content: statements(requirements.content) } : {}),
       ...(requirements.imageSourceDecision ? { imageStrategy: requirements.imageSourceDecision } : {}),
       constraints: list(requirements.technicalConstraints),
+      ...(requirements.briefSchemaVersion ? { briefSchemaVersion: requirements.briefSchemaVersion } : {}),
+      ...(requirements.brandVisualRequirements ? { brandVisual: statements(Object.values(requirements.brandVisualRequirements).flat()) } : {}),
+      ...(requirements.assetRequirements ? { assets: [...requirements.assetRequirements.requiredAssets.map((asset) => `${asset.role}: ${asset.usage} (${asset.reference})`), ...statements(requirements.assetRequirements.additionalImagery.sourcingPolicy)] } : {}),
+      ...(requirements.uxResponsiveRequirements ? { uxResponsive: [...statements(requirements.uxResponsiveRequirements.responsiveBehavior), ...statements(requirements.uxResponsiveRequirements.interactionRequirements), ...(requirements.uxResponsiveRequirements.mobileFirst ? ["Mobile-first"] : []), ...(requirements.uxResponsiveRequirements.stickyMobileCta ? ["Sticky mobile CTA"] : []), ...(requirements.uxResponsiveRequirements.smoothScroll ? ["Smooth scroll"] : [])] } : {}),
+      ...(requirements.seoMetadata ? { seo: [...requirements.seoMetadata.primaryKeywords.map((keyword) => `Keyword: ${keyword}`), ...(requirements.seoMetadata.exactTitle ? [`Exact title: ${requirements.seoMetadata.exactTitle}`] : []), ...(requirements.seoMetadata.exactMetaDescription ? [`Exact meta description: ${requirements.seoMetadata.exactMetaDescription}`] : []), ...statements(requirements.seoMetadata.locationTargeting)] } : {}),
+      ...(requirements.legalComplianceConstraints ? { legalCompliance: [...statements(requirements.legalComplianceConstraints.constraints), `Placeholder policy: ${requirements.legalComplianceConstraints.placeholderPolicy}`] } : {}),
+      ...(requirements.deferredIntegrations ? { technicalDeferred: [...list(requirements.technicalConstraints), ...statements(requirements.technical), ...requirements.deferredIntegrations.map((integration) => `${integration.integration}: ${integration.status} — ${integration.rationale}`)] } : {}),
+      ...(requirements.prohibitedRequirements ? { prohibited: statements(requirements.prohibitedRequirements) } : {}),
     };
   }
 

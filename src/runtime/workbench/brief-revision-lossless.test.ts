@@ -157,6 +157,10 @@ describe("Lossless Brief revision input contract", () => {
     expect(scenario.revisedRequirements.pages.map((page) => page.slug)).toEqual(expect.arrayContaining(["home", "contact"]));
     expect(scenario.revisedRequirements.seoRequirements).toContain("Synthetische SEO-Marker aus der vollständigen Revision");
     expect(scenario.revised.status.allowedActions).toEqual(["APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES"]);
+    expect(scenario.revised.brief?.briefSchemaVersion).toBe(2);
+    expect(scenario.revised.brief?.brandVisual?.length).toBeGreaterThan(0);
+    expect(scenario.revised.brief?.seo).toBeDefined();
+    expect(scenario.revised.brief?.technicalDeferred?.length).toBeGreaterThan(0);
   });
 
   it("BCP15-BCP24: retains capacity guards, currentness/idempotency boundaries, and avoids dependency or schema changes", async () => {

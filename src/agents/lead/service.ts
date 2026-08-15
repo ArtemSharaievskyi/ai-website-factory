@@ -8,6 +8,8 @@ import {
   type ClarificationSession,
   RequirementSpecificationSchema,
 } from "@/domain/requirements/schema";
+import { applyBriefRevisionSemantics, validateBriefRevisionSemantics } from "@/domain/requirements/revision";
+import { briefApprovalBlockers } from "@/domain/requirements/brief-validation";
 import { DecisionRecordSchema } from "@/domain/workflow/decision";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import {
@@ -146,13 +148,9 @@ const validateClarificationPlan = (plan: ClarificationPlan, parsed: LeadAgentInp
 const uniqueStrings = (left: string[], right: string[]) => [...new Set([...left, ...right])];
 const uniqueRecords = <T>(left: T[], right: T[]) => [...left, ...right].filter((value, index, all) => all.findIndex((candidate) => JSON.stringify(candidate) === JSON.stringify(value)) === index);
 const mergeRevisionRequirements = (existing: z.infer<typeof RequirementSpecificationSchema>, candidate: z.infer<typeof RequirementSpecificationSchema>, revisionInstruction: string) => {
-  const stringArrays = ["businessGoals", "targetAudiences", "userRoles", "features", "forms", "contentRequirements", "backendRequirements", "supabaseRequirements", "seoRequirements", "technicalConstraints", "explicitExclusions", "userAcceptanceCriteria", "contactFacts", "legalFacts", "brandFacts", "logoMetadata", "imageSourcingNotes", "recommendations"] as const;
-  const merged = { ...existing, ...candidate } as Record<string, unknown>;
-  for (const field of stringArrays) merged[field] = uniqueStrings(existing[field], candidate[field]);
-  const pages = new Map(existing.pages.map((page) => [page.slug, page]));
-  for (const page of candidate.pages) pages.set(page.slug, page);
-  merged.pages = [...pages.values()];
-  merged.unresolvedItems = uniqueRecords(existing.unresolvedItems, candidate.unresolvedItems);
+  const semantic = applyBriefRevisionSemantics(existing, candidate, revisionInstruction);
+  const merged = { ...semantic.brief } as Record<string, unknown>;
+  merged.unresolvedItems = candidate.unresolvedItems;
   merged.evidence = uniqueRecords(existing.evidence, candidate.evidence);
   merged.briefRevisionInstructions = uniqueStrings(existing.briefRevisionInstructions ?? [], [revisionInstruction]);
   merged.projectId = existing.projectId;
@@ -828,13 +826,19 @@ export class LeadAgentService {
         "CLARIFICATION_REQUIRED",
         "Clarifications must be planned before building a brief.",
       );
-    const draft = BriefDraftSchema.parse(
+    const providerDraft = BriefDraftSchema.parse(
       await this.provider.assembleBriefDraft(
         { analysis, session },
         skillSelection?.contexts,
         skillSelection?.identityChecksum,
       ),
     );
+    const contradictionBlockers = briefApprovalBlockers(providerDraft.requirements);
+    const draft = BriefDraftSchema.parse({
+      ...providerDraft,
+      blockingReasons: [...new Set([...providerDraft.blockingReasons, ...contradictionBlockers])],
+      readyForApproval: providerDraft.readyForApproval && contradictionBlockers.length === 0,
+    });
     this.drafts.set(key(projectId, projectVersion), draft);
     await this.documents.save(
       draft.requirements,
@@ -884,6 +888,11 @@ export class LeadAgentService {
       throw new LeadError(
         "BRIEF_NOT_READY",
         "The brief is not ready for approval.",
+      );
+    if (briefApprovalBlockers(draft.requirements).length)
+      throw new LeadError(
+        "BRIEF_CONTRADICTION_DETECTED",
+        "The Brief contains contradictory canonical requirements and cannot be approved.",
       );
     const projectForApproval = await this.projects.getWithVersion(request.projectId);
     if (projectForApproval?.project.siteLanguage === "UNRESOLVED") throw new LeadError("BRIEF_NOT_READY", "The customer website language must be explicitly confirmed before approval.");
@@ -1008,7 +1017,9 @@ export class LeadAgentService {
       if (!latest || latest.rowVersion !== current.rowVersion || latest.project.workflowState !== current.project.workflowState || !latestRequirements || latestRequirements.documentType !== "requirements" || checksumPersistedDocument(latestRequirements) !== checksumPersistedDocument(existing))
         throw new LeadError("BRIEF_CHECKSUM_MISMATCH", "The Project Brief changed before this revision could be saved.");
       const requirements = mergeRevisionRequirements(existing, revised.requirements, input.reason);
-      const blockingReasons = [...new Set([...revised.blockingReasons, ...requirements.unresolvedItems.filter((item) => item.blocking).map((item) => `REQUIREMENT_UNRESOLVED:${item.id}`)])];
+      const semanticRevisionBlockers = validateBriefRevisionSemantics(existing, requirements, input.reason);
+      const contradictionBlockers = briefApprovalBlockers(requirements);
+      const blockingReasons = [...new Set([...revised.blockingReasons, ...requirements.unresolvedItems.filter((item) => item.blocking).map((item) => `REQUIREMENT_UNRESOLVED:${item.id}`), ...semanticRevisionBlockers, ...contradictionBlockers])];
       const draft = BriefDraftSchema.parse({
         ...revised,
         projectId: input.projectId,
@@ -1061,7 +1072,7 @@ export class LeadAgentService {
         });
         currentState = "CLARIFYING";
       }
-      await this.appendDecision(input.projectId, input.projectVersion, "brief-revision", input.reason, true, "approved", input.requestedBy);
+      await this.appendDecision(input.projectId, input.projectVersion, "brief-revision", `Project Brief revision accepted; instruction checksum ${checksumPersistedDocument(input.reason)}.`, true, "approved", input.requestedBy);
       this.drafts.set(key(input.projectId, input.projectVersion), draft);
       return { ...requirements, revisionWorkflowState: currentState };
     }

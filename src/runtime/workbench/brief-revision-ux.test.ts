@@ -22,4 +22,12 @@ describe("Brief revision UX contract", () => {
     expect(source).toContain("loading || !prompt.trim()");
     expect(source).not.toMatch(/auto.?retry|setTimeout|prompt\.slice|prompt\.substring|summariz/i);
   });
+
+  it("renders populated V2 visual, asset, SEO, legal, deferred, and prohibited Brief sections", async () => {
+    const source = await component();
+    for (const section of ["Brand / Visual", "Assets", "UX / Responsive", "SEO", "Legal / Compliance", "Technical / Deferred", "Prohibited / Do Not"]) expect(source).toContain(section);
+    expect(source).toContain("brief.brandVisual");
+    expect(source).toContain("brief.seo");
+    expect(source).toContain("brief.prohibited");
+  });
 });

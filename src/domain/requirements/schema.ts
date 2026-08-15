@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { DocumentBaseSchema, IsoDateTimeSchema, LocaleSchema, NonEmptyStringSchema, UserValueSchema } from "../shared/schemas";
 import { LanguageResolutionSchema, OperatorLanguageSchema } from "../language/schema";
+import { BriefV2FieldsSchema } from "./brief";
 
 export const ClarificationCategorySchema = z.enum(["business", "audience", "pages", "functionality", "content", "contact", "legal", "design", "brand", "images", "authentication", "forms", "email", "database", "storage", "administration", "GitHub", "languages", "localization", "constraints"]);
 export const AnswerStatusSchema = z.enum(["answered", "not-applicable", "deferred", "unresolved"]);
@@ -46,8 +47,13 @@ export const RequirementSpecificationSchema = DocumentBaseSchema.extend({
   unresolvedItems: z.array(z.object({ id: z.string().uuid(), description: NonEmptyStringSchema, blocking: z.boolean() }).strict()),
   approval: z.object({ approved: z.boolean(), approvedAt: IsoDateTimeSchema.optional(), approvedBy: NonEmptyStringSchema.optional(), approvedRequirementsChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict(),
   projectTitle: NonEmptyStringSchema.optional(), contactFacts: z.array(NonEmptyStringSchema).default([]), legalFacts: z.array(NonEmptyStringSchema).default([]), brandFacts: z.array(NonEmptyStringSchema).default([]), logoMetadata: z.array(NonEmptyStringSchema).default([]), imageSourcingNotes: z.array(NonEmptyStringSchema).default([]), evidence: z.array(z.object({ field: NonEmptyStringSchema, source: NonEmptyStringSchema, excerpt: NonEmptyStringSchema }).strict()).default([]), recommendations: z.array(NonEmptyStringSchema).default([]), briefRevisionInstructions: z.array(NonEmptyStringSchema).optional(), analysisMetadata: z.object({ provider: z.string(), originalPromptChecksum: z.string().regex(/^[a-f0-9]{64}$/), unsupportedAssumptions: z.array(z.string()), contradictionCount: z.number().int().nonnegative() }).strict().optional(), briefStatus: z.enum(["draft", "approved"]).default("draft"), briefVersion: z.number().int().positive().default(1), briefApprovalNote: z.string().optional(),
+  briefSchemaVersion: z.literal(2).optional(), content: z.array(BriefV2FieldsSchema.shape.content.element).optional(), technical: z.array(BriefV2FieldsSchema.shape.technical.element).optional(), brandVisualRequirements: BriefV2FieldsSchema.shape.brandVisualRequirements.optional(), assetRequirements: BriefV2FieldsSchema.shape.assetRequirements.optional(), formBehaviorRequirements: BriefV2FieldsSchema.shape.formBehaviorRequirements.optional(), uxResponsiveRequirements: BriefV2FieldsSchema.shape.uxResponsiveRequirements.optional(), seoMetadata: BriefV2FieldsSchema.shape.seoMetadata.optional(), legalComplianceConstraints: BriefV2FieldsSchema.shape.legalComplianceConstraints.optional(), prohibitedRequirements: z.array(BriefV2FieldsSchema.shape.prohibitedRequirements.element).optional(), deferredIntegrations: z.array(BriefV2FieldsSchema.shape.deferredIntegrations.element).optional(), decisions: z.array(BriefV2FieldsSchema.shape.decisions.element).optional(),
 }).strict();
+/** A V2 Brief is explicit and fully structured; RequirementSpecificationSchema remains the legacy-compatible reader. */
+export const ProjectBriefV2Schema = RequirementSpecificationSchema.extend(BriefV2FieldsSchema.shape).strict();
 export type ClarificationQuestion = z.infer<typeof ClarificationQuestionSchema>;
 export type ClarificationAnswer = z.infer<typeof ClarificationAnswerSchema>;
 export type ClarificationSession = z.infer<typeof ClarificationSessionSchema>;
 export type RequirementSpecification = z.infer<typeof RequirementSpecificationSchema>;
+export type ProjectBriefV2 = z.infer<typeof ProjectBriefV2Schema>;
+export type { BriefV2Fields } from "./brief";

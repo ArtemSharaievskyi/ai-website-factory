@@ -73,7 +73,8 @@ import {
   IsoDateTimeSchema,
   NonEmptyStringSchema,
 } from "@/domain/shared/schemas";
-import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
+import { ProjectBriefV2Schema } from "@/domain/requirements/schema";
+import { BriefSeoRequirementsSchema } from "@/domain/requirements/brief";
 import { OperatorLanguageSchema } from "@/domain/language/schema";
 import { resolveLogoPolicy } from "@/domain/requirements/logo-policy";
 import {
@@ -208,17 +209,6 @@ export const ImplementationChangeProposalStructuredOutputSchema = z
   })
   .strict();
 
-const BriefStructuredApprovalSchema = z
-  .object({
-    approved: z.boolean(),
-    approvedAt: IsoDateTimeSchema.nullable(),
-    approvedBy: NonEmptyStringSchema.nullable(),
-    approvedRequirementsChecksum: z
-      .string()
-      .regex(/^[a-f0-9]{64}$/)
-      .nullable(),
-  })
-  .strict();
 const BriefStructuredAnalysisMetadataSchema = z
   .object({
     provider: z.string(),
@@ -228,16 +218,27 @@ const BriefStructuredAnalysisMetadataSchema = z
   })
   .strict();
 /** Strict-output transport shape; nullable values are normalized into the canonical Brief domain shape below. */
-const BriefRequirementsTransportSchema = RequirementSpecificationSchema
-  .omit({ operatorLanguage: true, briefRevisionInstructions: true })
+const BriefSeoTransportSchema = BriefSeoRequirementsSchema.extend({
+  exactTitle: NonEmptyStringSchema.nullable(),
+  exactMetaDescription: NonEmptyStringSchema.nullable(),
+  pageMetadata: z.array(z.object({
+    route: NonEmptyStringSchema,
+    title: NonEmptyStringSchema.nullable(),
+    metaDescription: NonEmptyStringSchema.nullable(),
+    keywords: z.array(NonEmptyStringSchema),
+    sourceRefs: z.array(NonEmptyStringSchema).min(1),
+  }).strict()),
+});
+const BriefRequirementsTransportSchema = ProjectBriefV2Schema
+  .omit({ schemaVersion: true, documentType: true, projectId: true, projectVersion: true, createdAt: true, updatedAt: true, operatorLanguage: true, approval: true, briefStatus: true, briefVersion: true, briefApprovalNote: true, briefRevisionInstructions: true })
+  .required()
   .extend({
-    approval: BriefStructuredApprovalSchema,
     projectTitle: NonEmptyStringSchema.nullable(),
     analysisMetadata: BriefStructuredAnalysisMetadataSchema.nullable(),
-    briefApprovalNote: z.string().nullable(),
     briefRevisionInstructions: z.array(NonEmptyStringSchema).nullable(),
+    seoMetadata: BriefSeoTransportSchema,
   });
-export const BriefDraftStructuredOutputSchema = BriefDraftSchema.extend({
+export const BriefDraftStructuredOutputSchema = BriefDraftSchema.omit({ projectId: true, projectVersion: true, briefChecksum: true }).extend({
   requirements: BriefRequirementsTransportSchema,
 });
 // Professional design contracts are host-bound after model generation; they
@@ -275,24 +276,44 @@ export const isWorkflowApprovalBlocker = (text: string) =>
   );
 function normalizeBriefDraft(
   value: z.infer<typeof BriefDraftStructuredOutputSchema>,
-  operatorLanguage: z.infer<typeof OperatorLanguageSchema>,
+  host: { projectId: string; projectVersion: number; operatorLanguage: z.infer<typeof OperatorLanguageSchema>; originalPromptChecksum: string },
 ): BriefDraft {
-  const { requirements } = value;
+  const { requirements: transportRequirements } = value;
   const {
     projectTitle,
     analysisMetadata,
-    briefApprovalNote,
     briefRevisionInstructions,
+    seoMetadata,
     ...canonicalFields
-  } = requirements;
+  } = transportRequirements;
+  const normalizedSeoMetadata = {
+    primaryKeywords: seoMetadata.primaryKeywords,
+    ...(seoMetadata.exactTitle === null ? {} : { exactTitle: seoMetadata.exactTitle }),
+    ...(seoMetadata.exactMetaDescription === null ? {} : { exactMetaDescription: seoMetadata.exactMetaDescription }),
+    locationTargeting: seoMetadata.locationTargeting,
+    pageMetadata: seoMetadata.pageMetadata.map((page) => ({
+      route: page.route,
+      keywords: page.keywords,
+      sourceRefs: page.sourceRefs,
+      ...(page.title === null ? {} : { title: page.title }),
+      ...(page.metaDescription === null ? {} : { metaDescription: page.metaDescription }),
+    })),
+  };
   const normalizedRequirements = {
+    schemaVersion: 1 as const,
+    documentType: "requirements" as const,
+    projectId: host.projectId,
+    projectVersion: host.projectVersion,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     ...canonicalFields,
-    operatorLanguage,
+    seoMetadata: normalizedSeoMetadata,
+    operatorLanguage: host.operatorLanguage,
     briefStatus: "draft" as const,
     approval: { approved: false },
+    briefVersion: 1,
     ...(projectTitle === null ? {} : { projectTitle }),
-    ...(analysisMetadata === null ? {} : { analysisMetadata }),
-    ...(briefApprovalNote === null ? {} : { briefApprovalNote }),
+    ...(analysisMetadata === null ? {} : { analysisMetadata: { ...analysisMetadata, originalPromptChecksum: host.originalPromptChecksum } }),
     ...(briefRevisionInstructions === null ? {} : { briefRevisionInstructions }),
   };
   normalizedRequirements.brandFacts = normalizedRequirements.brandFacts.filter(
@@ -304,7 +325,7 @@ function normalizeBriefDraft(
   const unresolvedItems = value.unresolvedItems.filter(
     (item) => !isWorkflowRequirement(item),
   );
-  const normalizedRequirementItems = requirements.unresolvedItems.filter(
+  const normalizedRequirementItems = transportRequirements.unresolvedItems.filter(
     (item) => !isWorkflowRequirement({ description: item.description }),
   );
   const blockingReasons = value.blockingReasons.filter(
@@ -312,8 +333,10 @@ function normalizeBriefDraft(
       !isWorkflowApprovalBlocker(reason) &&
       !/no blocking confirmation is required.*brief draft/i.test(reason),
   );
-  return BriefDraftSchema.parse({
+  const normalizedDraft = BriefDraftSchema.parse({
     ...value,
+    projectId: host.projectId,
+    projectVersion: host.projectVersion,
     requirements: {
       ...normalizedRequirements,
       unresolvedItems: normalizedRequirementItems,
@@ -323,7 +346,9 @@ function normalizeBriefDraft(
     readyForApproval:
       blockingReasons.length === 0 &&
       unresolvedItems.every((item) => !item.blocking),
+    briefChecksum: checksumPersistedDocument(normalizedRequirements),
   });
+  return normalizedDraft;
 }
 
 const StrictTraceabilitySchema = TraceabilitySchema.extend({
@@ -846,7 +871,7 @@ export class OpenAiLeadProvider implements LeadAnalysisProvider {
       schemaName: "brief-draft",
       idempotencyKey: `lead-brief:${skillContextIdentity}`,
     });
-    return normalizeBriefDraft(result.value, input.analysis.operatorLanguage);
+    return normalizeBriefDraft(result.value, { projectId: input.analysis.projectId, projectVersion: input.analysis.projectVersion, operatorLanguage: input.analysis.operatorLanguage, originalPromptChecksum: input.analysis.originalPromptChecksum });
   }
   async reviseBrief(
     input: BriefRevisionProviderInput,
@@ -867,7 +892,7 @@ export class OpenAiLeadProvider implements LeadAnalysisProvider {
       schemaName: "brief-revision",
       idempotencyKey: `lead-brief-revision:${input.projectId}:${input.projectVersion}:${checksumPersistedDocument(input.revisionInstruction)}:${skillContextIdentity}`,
     });
-    return normalizeBriefDraft(result.value, input.operatorLanguage);
+    return normalizeBriefDraft(result.value, { projectId: input.projectId, projectVersion: input.projectVersion, operatorLanguage: input.operatorLanguage, originalPromptChecksum: checksumPersistedDocument(input.originalPrompt) });
   }
   private async call<T>(
     role: "lead",

@@ -69,6 +69,16 @@ function ItemList({ items }: { items: string[] }) {
   );
 }
 
+function BriefSection({ title, items }: { title: string; items?: string[] }) {
+  if (!items?.length) return null;
+  return (
+    <div className="brief-section" data-brief-section={title}>
+      <span className="field-label">{title}</span>
+      <ItemList items={items} />
+    </div>
+  );
+}
+
 function BriefCard({
   brief,
   onApprove,
@@ -120,6 +130,16 @@ function BriefCard({
           <span className="field-label">Image strategy</span>
           <p className="value-copy">{brief.imageStrategy ?? "Pending"}</p>
         </div>
+      </div>
+      <div className="brief-sections" aria-label="Structured Project Brief V2 sections">
+        <BriefSection title="Brand / Visual" items={brief.brandVisual} />
+        <BriefSection title="Content / Copy" items={brief.content} />
+        <BriefSection title="Assets" items={brief.assets} />
+        <BriefSection title="UX / Responsive" items={brief.uxResponsive} />
+        <BriefSection title="SEO" items={brief.seo} />
+        <BriefSection title="Legal / Compliance" items={brief.legalCompliance} />
+        <BriefSection title="Technical / Deferred" items={brief.technicalDeferred} />
+        <BriefSection title="Prohibited / Do Not" items={brief.prohibited} />
       </div>
       {!brief.approved && (
         <div className="card-actions">
