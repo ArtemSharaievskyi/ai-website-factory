@@ -48,6 +48,9 @@ yarn-error.log*
 # cache
 .context7-cache/
 
+# Codex local verification sessions
+/.codex/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

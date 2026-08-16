@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "contracts": [
+    { "id": "lead-analysis", "schemaName": "lead-analysis", "productionReference": "src/integrations/openai/adapters.ts:OpenAiLeadProvider.analyzeProjectPrompt", "triggerPathPrefixes": ["src/integrations/openai/", "src/agents/lead/"] },
+    { "id": "clarification-plan", "schemaName": "clarification-plan", "productionReference": "src/integrations/openai/adapters.ts:OpenAiLeadProvider.planClarifications", "triggerPathPrefixes": ["src/integrations/openai/", "src/agents/lead/"] },
+    { "id": "project-brief", "schemaName": "brief-draft", "productionReference": "src/integrations/openai/adapters.ts:OpenAiLeadProvider.assembleBriefDraft", "triggerPathPrefixes": ["src/integrations/openai/", "src/agents/lead/", "src/domain/requirements/"] },
+    { "id": "brief-revision", "schemaName": "brief-revision", "productionReference": "src/integrations/openai/adapters.ts:OpenAiLeadProvider.reviseBrief", "triggerPathPrefixes": ["src/integrations/openai/", "src/agents/lead/", "src/domain/requirements/", "src/runtime/workbench/"] },
+    { "id": "planning-package", "schemaName": "planning-package", "productionReference": "src/integrations/openai/adapters.ts:OpenAiPlannerProvider.plan", "triggerPathPrefixes": ["src/integrations/openai/", "src/agents/planner/"] },
+    { "id": "design-direction-set", "schemaName": "design-direction-set", "productionReference": "src/integrations/openai/adapters.ts:OpenAiDesignProvider.proposeDesignDirections", "triggerPathPrefixes": ["src/integrations/openai/", "src/agents/design/"] },
+    { "id": "implementation-change-proposal", "schemaName": "implementation-change-proposal", "productionReference": "src/integrations/openai/adapters.ts:OpenAiImplementationProvider.proposeTaskChanges", "triggerPathPrefixes": ["src/integrations/openai/", "src/agents/implementation/"] },
+    { "id": "orchestration-plan", "schemaName": "orchestration-plan", "productionReference": "src/integrations/openai/adapters.ts:OpenAiOrchestrationProvider.plan", "triggerPathPrefixes": ["src/integrations/openai/", "src/orchestration/"] },
+    { "id": "architecture-review-result", "schemaName": "architecture-review-result", "productionReference": "src/integrations/openai/adapters.ts:OpenAiArchitectureReviewerProvider.review", "triggerPathPrefixes": ["src/integrations/openai/", "src/agents/reviewers/architecture/", "src/domain/review/"] },
+    { "id": "contract-audit-result", "schemaName": "contract-audit-result", "productionReference": "src/integrations/openai/adapters.ts:OpenAiContractAuditorProvider.review", "triggerPathPrefixes": ["src/integrations/openai/", "src/agents/reviewers/contracts/", "src/domain/review/"] },
+    { "id": "code-integration-review-result", "schemaName": "code-integration-review-result", "productionReference": "src/integrations/openai/adapters.ts:OpenAiCodeIntegrationReviewProvider.review", "triggerPathPrefixes": ["src/integrations/openai/", "src/agents/reviewers/code-integration/", "src/domain/review/"] },
+    { "id": "security-review-result", "schemaName": "security-review-result", "productionReference": "src/integrations/openai/adapters.ts:OpenAiSecurityReviewProvider.review", "triggerPathPrefixes": ["src/integrations/openai/", "src/agents/reviewers/security/", "src/domain/review/"] },
+    { "id": "test-quality-review-result", "schemaName": "test-quality-review-result", "productionReference": "src/integrations/openai/adapters.ts:OpenAiTestQualityReviewProvider.review", "triggerPathPrefixes": ["src/integrations/openai/", "src/agents/reviewers/test-quality/", "src/domain/review/"] }
+  ]
+}

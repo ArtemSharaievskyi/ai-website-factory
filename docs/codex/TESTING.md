@@ -72,3 +72,23 @@ Relevant tests are `src/integrations/openai/provider.test.ts`,
 For a docs-only change, typecheck, lint, diff check, path/script validation,
 and a protected-project status comparison are normally sufficient; do not
 mutate real customer data to make a documentation check pass.
+
+## Codex Level 2 workflow
+
+Before a task, create a read-only protected session with
+`npm run codex:start -- --protect <project-id>`. It saves only the safe status
+fields listed in `scripts/codex/protected-state.ts` and refuses to overwrite an
+active session without `--reset`.
+
+Use `npm run codex:affected` to resolve checks from the saved Git baseline;
+add `--run` to execute them. `npm run codex:provider-contracts` constructs the
+actual registered OpenAI response formats locally, checks strictness and
+host-owned field boundaries, and exits non-zero for existing failures. It does
+not call the network. `npm run codex:verify` runs the affected checks,
+historical regression checks, provider guard when relevant, production-path
+evidence, protected snapshots, baseline relationship, and `git diff --check`.
+
+The JSON registries contain IDs and path metadata only. Executable names and
+arguments are code-owned in `scripts/codex/checks.ts`; config cannot inject
+arbitrary shell commands. Missing production-path evidence is reported as
+`PRODUCTION PATH: MISSING` and does not count as coverage.

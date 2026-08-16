@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "regressions": [
+    { "id": "PROVIDER_STRICT_OPTIONALITY", "pathPrefixes": ["src/integrations/openai/"], "checkIds": ["provider-contracts", "openai-tests"], "executable": true },
+    { "id": "HOST_OWNED_PROVIDER_FIELDS", "pathPrefixes": ["src/integrations/openai/", "src/agents/lead/"], "checkIds": ["provider-contracts", "openai-tests", "lead-provider-tests"], "executable": true },
+    { "id": "CANONICAL_REQUIREMENT_TRUNCATION", "pathPrefixes": ["src/runtime/context/", "src/agents/lead/", "src/integrations/openai/"], "checkIds": ["context-lossless", "lead-provider-tests"], "executable": true },
+    { "id": "FAILED_IDEMPOTENCY_POISONING", "pathPrefixes": ["src/persistence/", "src/runtime/trial-entry/", "src/runtime/workbench/"], "checkIds": ["persistence-tests", "trial-entry-production-tests", "brief-revision-tests"], "executable": true },
+    { "id": "SEQUENTIAL_CLARIFICATION_IDEMPOTENCY", "pathPrefixes": ["src/runtime/trial-entry/"], "checkIds": ["trial-entry-production-tests"], "executable": true },
+    { "id": "CLIENT_ASSET_AUTHORITY", "pathPrefixes": ["src/app/api/workbench/assets/", "src/runtime/assets/", "src/runtime/trial-entry/"], "checkIds": ["asset-tests"], "executable": true },
+    { "id": "ASSET_PERSISTENCE_NULLABILITY", "pathPrefixes": ["src/domain/assets/", "src/runtime/assets/", "src/persistence/database/"], "checkIds": ["asset-tests", "persistence-tests"], "executable": true },
+    { "id": "LEGACY_REQUIREMENT_REACTIVATION", "pathPrefixes": ["src/domain/requirements/", "src/runtime/workbench/", "src/agents/lead/"], "checkIds": ["brief-tests", "brief-revision-tests", "lead-tests"], "executable": true },
+    { "id": "V1_TO_V2_BRIEF_REVISION", "pathPrefixes": ["src/domain/requirements/", "src/runtime/workbench/", "src/agents/lead/", "src/integrations/openai/"], "checkIds": ["brief-revision-tests", "provider-contracts", "lead-provider-tests"], "executable": true },
+    { "id": "STRUCTURED_OUTPUT_SCHEMA_CONSTRUCTION", "pathPrefixes": ["src/integrations/openai/"], "checkIds": ["provider-contracts"], "executable": true }
+  ]
+}

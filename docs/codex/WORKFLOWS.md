@@ -90,3 +90,13 @@ validates the TaskGraph, then transitions the project to `IMPLEMENTING`.
 The Implementation Agent is later invoked for one ready task at a time through
 its existing bounded contract. Full execution, repair, reconciliation, and
 validation remain in `src/orchestration/execution/` and `src/runtime/`.
+
+## Codex verification workflow
+
+For a protected implementation task, run `npm run codex:start -- --protect
+<project-id>` before editing, `npm run codex:affected` while scoping the work,
+and `npm run codex:verify` before committing. Provider/OpenAI path changes
+automatically select `codex:provider-contracts`; the command uses the actual
+production response-format builders and makes no network request. The session
+snapshot is read-only and contains no prompt, answer, provider, asset, or
+secret content.

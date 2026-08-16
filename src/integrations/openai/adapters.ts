@@ -106,7 +106,8 @@ import type { ApprovedProceduralSkillPromptContext } from "./prompts";
 import { dependencyCatalogPromptContext } from "@/dependencies/authority";
 import { sliceDocumentationExcerpt } from "@/runtime/context/slicing";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
-const OrchestrationPlanSchema = z
+/** Read-only export for local contract verification; production behavior is unchanged. */
+export const OrchestrationPlanSchema = z
   .object({ tasks: z.array(z.unknown()) })
   .strict();
 const checksumText = (value: string) =>

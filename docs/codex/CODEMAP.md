@@ -119,5 +119,22 @@ repositories, and validators remain canonical.
 - `scripts/generated-runtime-smoke.ts`, `playwright-smoke.ts`,
   `factory-e2e-smoke.ts`, and `taskgraph-smoke.ts` exercise larger boundaries.
 
+## Codex Level 2 guards
+
+- `config/codex/check-map.json` maps changed path prefixes to controlled check
+  IDs; `regressions.json` activates the executable regression memory from
+  `docs/codex/KNOWN_FAILURES.md`.
+- `config/codex/provider-contracts.json` records stable production contract
+  references; it contains metadata only, not executable commands.
+- `scripts/codex/check-affected.ts` resolves changed files against the saved
+  `.codex/session.json` baseline and can run the code-owned checks in
+  `scripts/codex/checks.ts`.
+- `scripts/codex/check-provider-contracts.ts` calls the real structured-output
+  builders without constructing an OpenAI client or making a network request.
+- `scripts/codex/start.ts`, `protected-state.ts`, and `verify.ts` manage the
+  ignored protected-project session and final verification.
+- `scripts/codex/production-paths.ts` registers evidence against existing
+  high-level tests; `src/runtime/codex/tooling.test.ts` tests the guard logic.
+
 See `docs/codex/WORKFLOWS.md` for paths through these modules and
 `docs/codex/ARCHITECTURE.md` for authority boundaries.
