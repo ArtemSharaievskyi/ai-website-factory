@@ -796,6 +796,389 @@ application boundary. The high-value scenarios are:
   are independent;
 - persistence failure before and after commit with deterministic recovery.
 
+# Phase 3A: Atomic revision transaction architecture
+
+**Status: normative design only.** This section is the Phase 3A architecture
+audit and handoff for the transaction boundary. It does not implement a
+transaction, migration, schema change, workflow change, provider change, or
+production switch. The protected pilot remains outside the write scope.
+
+## Decision: extend the transaction seam
+
+The V3 revision domain remains a controlled **REBUILD** of the mutation model,
+but the persistence decision is **EXTEND**:
+
+- reuse the existing typed `PersistenceDatabase`, Postgres transaction
+  wrapper, row versions, checksums, RLS boundary, repositories, and fake;
+- add a dedicated V3 attempt/history protocol, current-document CAS, and one
+  typed atomic revision commit operation;
+- retain generic idempotency storage for unrelated existing operations, but do
+  not reuse its current JSON lifecycle as the V3 protocol; and
+- do not redesign Factory persistence or add a service/microservice boundary.
+
+This is the smallest owning boundary because the existing database transaction
+already provides `BEGIN`/`COMMIT`/`ROLLBACK` and the project row update already
+has optimistic row-version behavior. The missing guarantee is the unit of work
+that joins those primitives for one Brief revision.
+
+## Audit of the current boundary
+
+The actual current path is Workbench -> Trial Entry -> operation reservation ->
+Lead provider -> document save -> memory snapshot -> workflow transition ->
+decision/event append -> operation completion. The audit found:
+
+| Boundary | Current behavior | Phase 3A implication |
+| --- | --- | --- |
+| Operation | `reserve`, `complete`, and `fail` are separate transactions; `FAILED` can be reopened without a typed lease | Add a V3 attempt record with owner, expiry, attempts, and terminal states |
+| Provider | Correctly outside the DB transaction, but the host has no durable pending/lease protocol | Reserve before the call; final commit after the call; recover expired leases |
+| Currentness | Pre-provider project/checksum/row checks are repeated after provider work, but the document upsert has no expected checksum/row-version CAS | Capture one token and compare it again in the final locked transaction |
+| Document | `DocumentRepository.save` can upsert and increment document row version independently | Add V3 current-document CAS inside the revision transaction |
+| Workflow | Transition(s) run independently; a clarification reopen can expose two commits | Compute one final revision state and commit it with the document/event/decision |
+| History | V3 provenance is derived in memory but has no dedicated append-only persistence row | Add one history row linked to the committed attempt |
+| Decision/event | Each can be absent after a document-only success | Write both in the same final DB transaction |
+| Project Memory | Filesystem sync is atomic only within its own files and is outside DB commit; no revision-specific durable sync status exists | Treat memory as derived post-commit work with a durable repair signal |
+| Checksums | `workflow_documents.checksum` is used by the revision path; `project_versions.requirements_checksum` is a compatibility/denormalized field and is not clearly updated by the current document save | Select one V3 authority and update any compatibility mirror in the same write set |
+| Fake DB | Snapshot rollback exists, but realistic transaction isolation, lock races, and fault points do not | Extend the fake only in Phase 3B for the certification boundary |
+
+The present design can therefore save a new current document and then fail
+before workflow, decision, memory, or operation completion. A pre-provider
+currentness check alone cannot prevent two provider results from both passing
+and one document save from occurring before a later workflow CAS fails.
+
+## Canonical tokens and identities
+
+### Revision currentness token
+
+The host binds a `RevisionCurrentnessToken` before reservation:
+
+```text
+projectId
+projectVersion
+projectRowVersion
+workflowState
+briefChecksum
+briefDocumentRowVersion
+canonicalSchemaVersion
+```
+
+The token is an opaque canonical serialization, not a browser assertion. It is
+read from authoritative persistence, checked before provider work, and checked
+again in the final transaction. The final transaction also locks the project
+and current document and uses explicit CAS predicates. The project row version
+catches workflow/head changes; document row version/checksum catches a
+document-only writer; project/version prevents a cross-version write.
+
+For V3, `workflow_documents` is the current Brief checksum authority. If
+legacy consumers still read `project_versions.requirements_checksum`, it is a
+denormalized mirror updated and checked in the same transaction. It must not be
+allowed to become an independently writable second authority.
+
+### Operation identity
+
+The operation identity is a stable serialization of:
+
+```text
+operation = REQUEST_BRIEF_CHANGES_V3
+contractVersion
+projectId
+projectVersion
+RevisionCurrentnessToken
+normalized revision instruction
+sorted target hints / requirement keys
+```
+
+Its SHA-256 digest forms a versioned project-scoped idempotency key. Raw reason
+text, prompts, provider responses, secrets, and source paths do not appear in
+the key or safe diagnostics. The provider ChangeSet is deliberately absent:
+it is an output of this operation, not part of request identity.
+
+This gives the required distinctions:
+
+- exact same instruction against the same current token: one operation and
+  exact replay;
+- different legitimate instruction against the same current Brief: distinct
+  operation and independent reservation; and
+- same instruction against a changed Brief/token: a new identity that is still
+  rejected as stale if the submitted token no longer matches the current head.
+
+## Attempt state machine
+
+The V3 attempt record is separate from the existing generic operation result
+adapter. Its persisted states are:
+
+| State | Meaning | Retry/replay behavior |
+| --- | --- | --- |
+| `RESERVED` | Reservation exists; provider ownership is not yet active | Claim with a lease |
+| `PROVIDER_PENDING` | One owner may perform provider work until expiry | Another live owner gets `IN_PROGRESS_DUPLICATE`; expired owner is recoverable |
+| `COMMITTED` | The complete DB write set committed | Return the stored safe result; never call provider again |
+| `FAILED_RETRYABLE` | Provider/transport/known DB failure; canonical state unchanged | Reclaim same logical operation with incremented attempt count |
+| `REJECTED_INVALID` | Invalid ChangeSet, reduction, or invariant; canonical state unchanged | Replay rejection; changed input is required |
+| `REJECTED_STALE` | Pre-provider or final currentness failed; canonical state unchanged | Replay stale result; refresh, never silent rebase |
+
+The row contains operation key, payload hash, project/version, serialized
+currentness token, lease owner and expiry, attempt count, timestamps, safe
+failure code, committed checksum, history reference, and safe replay result.
+The `VALIDATED` phase is in-memory only: parsed ChangeSet and reduced
+candidate are not a second durable authority before commit. Terminal states are
+immutable. A live duplicate never starts a second provider call.
+
+## Provider-outside-transaction protocol
+
+The implementation sequence is:
+
+1. Read the authoritative current project/document and construct the token and
+   operation identity.
+2. Reserve the attempt in a short transaction. A live existing attempt returns
+   an in-progress conflict; `COMMITTED` returns its safe replay envelope.
+3. Claim a bounded provider lease and call the provider with no DB transaction
+   held.
+4. Parse the strict provider DTO, normalize the ChangeSet, reduce it from the
+   captured canonical current Brief, derive history, and run all invariants in
+   memory.
+5. Open the final short transaction, lock the project/current document, verify
+   the attempt owner/status/hash and every token field, and apply the atomic
+   write set below.
+6. Commit. Only after commit, project the committed document to Project Memory
+   and reconcile by checksum.
+
+If the process dies after provider work but before step 5, no canonical Brief
+mutation exists. The lease expires and a retry may call the provider again. A
+provider idempotency key may reduce duplicate external work, but it is not a
+replacement for the host attempt record or final CAS.
+
+## Atomic write set
+
+The final transaction must lock/read and then write all of these relational
+records, or none of them:
+
+1. the reserved attempt row, verifying owner, lease, operation key, and payload
+   hash;
+2. the V3 current requirements document, with expected checksum/document row
+   version and project/version predicates;
+3. the `project_versions.requirements_checksum` compatibility mirror, while it
+   remains in use;
+4. one append-only V3 history row with previous/current checksums, ChangeSet
+   checksum, revision reference, target entries, and outcomes;
+5. the project workflow state and project row version, once, to the final
+   revision target state, plus any persisted approval/readiness fields that
+   determine that state;
+6. workflow event record(s) carrying the operation/revision reference;
+7. the typed decision record carrying the operation/revision reference;
+8. attempt status `COMMITTED` and a safe replay envelope containing project,
+   version, workflow state, current Brief checksum, and history reference; and
+9. a durable Project Memory sync job/status row, if introduced in Phase 3B,
+   initialized as `PENDING`.
+
+The document checksum is the current-state authority; history is audit and
+provenance, not an effective-state calculator. The operation result is a safe
+replay projection, not a provider payload. A final CAS failure can persist only
+the attempt's `REJECTED_STALE` outcome in a transaction with no canonical
+mutation.
+
+The current workflow engine does not expose every clarification reopen as one
+direct transition. Phase 3B must add a revision-specific transition planner or
+transaction method that validates and writes the final state without an
+intermediate externally visible commit. If multiple logical workflow events
+are required, they must be appended under the same transaction; the project
+head cannot be committed between them.
+
+## Formal idempotency and currentness scenarios
+
+| # | Scenario | Required outcome |
+| ---: | --- | --- |
+| 1 | Exact duplicate while first attempt runs | One provider owner; duplicate gets `IN_PROGRESS_DUPLICATE`; zero second provider calls |
+| 2 | Exact retry after success | `COMMITTED_REPLAY`, stored checksum/result, no provider or mutation |
+| 3 | Provider transport failure/timeout | `FAILED_RETRYABLE`, unchanged current state; exact retry may call provider again |
+| 4 | Provider refusal | `FAILED_RETRYABLE`; no mutation; exact retry reclaims the same operation and calls the provider again |
+| 5 | Invalid strict DTO/unknown target | `REJECTED_INVALID`; no history/current change; replay rejection |
+| 6 | Reducer or invariant rejection | `REJECTED_INVALID`; no history/current change; replay rejection |
+| 7 | Known DB failure before final commit | Rollback/no mutation; persist `FAILED_RETRYABLE` when the status write is known to commit, otherwise recover the expired lease; exact retry reclaims the same operation and may call the provider again |
+| 8 | Different revision against same current Brief | Distinct identity; each may call provider; only one final CAS can win |
+| 9 | Failed attempt A followed by different B | B is independent and may succeed; A does not poison B |
+| 10 | Stale checksum/row/version before provider | `REJECTED_STALE`; provider is not called |
+| 11 | Concurrent different revisions | First final CAS wins; loser is `REJECTED_STALE`; loser cannot write document/history/event |
+| 12 | Response lost after commit | Lookup by operation key returns `COMMITTED`; no second provider/mutation |
+| 13 | Crash after commit before response | Same as #12; operation row is authoritative |
+| 14 | Crash after provider/reduction before final DB transaction | No canonical mutation; lease recovery may repeat provider |
+| 15 | Crash during final DB transaction | Database is all committed or all rolled back; retry resolves by attempt row |
+| 16 | Ambiguous network/`COMMIT` outcome | Query operation row and committed checksum/history; replay if committed, recover lease if not; never assume rollback or blindly reapply |
+
+Different revisions do not need to be serialized during provider work. They
+must be serialized at the final currentness boundary. There is no silent
+rebase: a losing result is discarded and the operator refreshes against the
+new current Brief.
+
+## Failure taxonomy and retry contract
+
+The safe external categories are:
+
+```text
+IN_PROGRESS_DUPLICATE
+COMMITTED
+COMMITTED_REPLAY
+STALE_BEFORE_PROVIDER
+STALE_BEFORE_COMMIT
+PROVIDER_FAILED
+PROVIDER_REFUSED
+PROVIDER_INVALID_OUTPUT
+CHANGESET_INVALID
+REDUCTION_FAILED
+INVARIANT_FAILED
+PERSISTENCE_FAILED
+```
+
+`PROVIDER_FAILED`, `PROVIDER_REFUSED`, and known `PERSISTENCE_FAILED` leave the
+current state unchanged and are `FAILED_RETRYABLE`; an exact retry reclaims
+the same operation and calls the provider again. If the process cannot record
+that status because the status transaction is unavailable, lease expiry is
+the recovery path and the next exact retry makes the same decision from the
+authoritative attempt row.
+Invalid output, reduction, and invariant categories are deterministic
+terminal rejection for the exact operation. Stale categories are terminal for
+the exact token and require a fresh browser projection. `COMMITTED_REPLAY` is
+success, not a provider retry.
+
+## Crash boundaries A-O
+
+| Point | Boundary | Required durable state |
+| --- | --- | --- |
+| A | Before reservation | No attempt is required; the request can reserve normally |
+| B | After reservation, before provider | `RESERVED`/recoverable lease; no canonical mutation |
+| C | Provider running | `PROVIDER_PENDING` with owner/expiry; no DB transaction held |
+| D | Provider response before parse | Pending or retryable failure; no canonical mutation |
+| E | Valid ChangeSet before reduction | In-memory only; retry may call provider again |
+| F | Reduced candidate before invariants/final tx | In-memory only; retry may call provider again |
+| G | Final transaction begins before CAS | Locks held only briefly; no visible mutation if CAS fails |
+| H | After CAS before document write | Rollback leaves prior current Brief and all related rows unchanged |
+| I | After document write before history | Rollback removes document write; no partial current state |
+| J | After history before workflow | Rollback removes both current document and history |
+| K | After workflow/decision/event before attempt terminal state | Rollback removes the entire canonical write set |
+| L | All writes complete before `COMMIT` | Database atomically commits all or rolls back all |
+| M | DB commit before Project Memory sync | DB/`COMMITTED` attempt is authoritative; sync remains pending |
+| N | Project Memory sync before HTTP response | Replayed DB result remains authoritative even if response is lost |
+| O | Commit succeeded but network is ambiguous | Query operation row; replay committed result or recover expired pending lease |
+
+Fault injection must assert at each point: current Brief checksum, history
+count, project workflow state/row version, attempt state, decision/event count,
+provider-call count, memory sync status, and exact retry result.
+
+## Concurrency, CAS, and ambiguous commit
+
+The final transaction uses a project lock plus explicit CAS rather than relying
+on an earlier read. The attempt row is checked for matching operation key,
+payload hash, active owner, and lease. The current document is checked for
+project/version, checksum, schema version, and document row version. The
+project head is checked for project row version and workflow state.
+
+For identical concurrent clicks, the first reservation owns provider work and
+the second observes the active attempt. For different revisions, provider work
+may overlap, but only the transaction whose token still matches may write. The
+loser records `REJECTED_STALE` without writing a document, history, workflow,
+decision, or memory snapshot.
+
+An uncertain database response is not interpreted locally. The service queries
+the attempt by its operation key and, when committed, verifies the stored
+current checksum/history reference. `COMMITTED` means replay; an uncommitted
+expired lease means recover/retry; an active lease means in progress. No
+blind second mutation is allowed.
+
+## Schema suitability and additive Phase 3B shape
+
+The existing schema is suitable to **extend**, not to reuse unchanged and not
+to replace wholesale. The planned additive shape is:
+
+- `brief_revision_attempts`: unique operation key, payload hash, project/version,
+  currentness token, typed status, lease owner/expiry, attempt count, safe
+  result, committed checksum/history reference, failure code, timestamps;
+- `brief_revision_history`: append-only revision/attempt reference,
+  project/version, previous/current/ChangeSet checksums, typed derived entries,
+  timestamp, and uniqueness for one committed attempt;
+- a small durable memory projection status/job table keyed by committed
+  revision, with `PENDING`/`SYNCED`/`FAILED_RETRYABLE`, checksum, safe failure
+  code, and retry metadata; and
+- typed transaction-port support for reservation/lease, current document CAS,
+  and `commitBriefRevision`, with equivalent fake and Postgres behavior.
+
+The existing generic `idempotency_records` table remains for compatibility and
+unrelated operations. Existing `workflow_events` and `decision_records` need
+an operation/revision reference or equivalent safe uniqueness link so replay
+and audit can prove one event/decision per committed attempt. No migration is
+created in Phase 3A.
+
+## Compatibility and migration
+
+Legacy V1/V2 documents are read through deterministic adapters and migrated in
+memory to V3 before provider work. A V3 commit writes one canonical V3 current
+document and one V3 history row. During the bounded rollout, old readers may
+receive a projection adapter, but there is no permanent V2+V3 dual write and
+no two competing current checksums.
+
+Phase 3B must prove lossless migration, explicit handling of ambiguous legacy
+semantics, and current-document CAS. Phase 4 switches the Workbench -> Trial
+Entry -> Lead path in one bounded production migration. After certification,
+the V2 mutation/merge/preservation path is deleted; only compatibility readers
+remain until their consumers are migrated.
+
+## Explicit invariants
+
+The implementation and certification suite must enforce:
+
+1. The database current V3 document is the only current Brief authority.
+2. The provider can propose only a ChangeSet and cannot persist canonical state.
+3. A `COMMITTED` attempt has exactly one current document write, one linked
+   history row, its workflow event/decision, and a safe terminal result.
+4. No `FAILED_RETRYABLE`, `REJECTED_INVALID`, or `REJECTED_STALE` attempt has a
+   document/history/workflow/decision mutation from that attempt.
+5. Exact replay never calls the provider or creates a second canonical write.
+6. Currentness is checked before provider work and again at final commit.
+7. Concurrent different revisions cannot both win the same current head.
+8. There is no silent stale rebase.
+9. History is append-only provenance and never determines effective current
+   state.
+10. Project Memory is derived, checksum-verified, and repairable after commit.
+11. A database failure produces all-or-none canonical persistence.
+12. V1/V2 compatibility is read/migration support, not a competing write
+   authority.
+13. Operation terminal states are safe to query after response loss or
+   ambiguous commit.
+14. No production code, migration, pilot state, or V2 path changes belong in
+   this Phase 3A documentation task.
+
+## Fault injection and certification plan
+
+Phase 3B should use test-only hooks around provider transport, DTO parsing,
+ChangeSet normalization, reduction, invariant validation, final transaction
+begin/CAS/document/history/workflow/terminal writes, DB commit response, and
+Project Memory sync. The fake database must model concurrent final CAS and
+rollback; Postgres query/transaction contract tests must cover the same write
+set.
+
+Certification must include the sixteen scenarios above, all A-O crash points,
+exact replay, failed retry, different concurrent revisions, stale pre-provider
+and stale final commit, known rollback, ambiguous commit recovery, no-op
+normalization, history/current separation, V1/V2 migration, provider refusal,
+invalid output, and projection repair. It must run at the production-reachable
+Workbench -> Trial Entry -> Lead boundary with synthetic fixtures and must not
+use the protected pilot as a debugging harness.
+
+## Phase 4 production switch and V2 deletion
+
+The production switch is not a shadow or permanent dual-write rollout:
+
+1. Phase 3B implements the dedicated attempt/history rows, commit service,
+   leases, CAS, projection status, and fault tests.
+2. Phase 3C runs the full certification and independent review, including
+   protected-state comparison and ambiguous-commit recovery.
+3. Phase 4 switches Workbench -> Trial Entry -> Lead to V3 in one bounded
+   mutation path while keeping only deterministic V1/V2 read adapters.
+4. Existing projects are read/reconciled under the new authority; no manual
+   pilot repair or arbitrary SQL is permitted.
+5. After the evidence gate, delete V2 full-candidate merge, preservation
+   rehydration, text mutation authority, and permanent dual-write code.
+
+The switch is complete only when the old mutation path is unreachable and the
+new path has no second current-state authority.
+
 # Migration phases
 
 1. **Freeze the target contract.** Approve the V3 authority model, semantic ID
@@ -959,12 +1342,16 @@ repair guidance. A passing test command alone is not sufficient evidence.
 
 # Exact recommended next implementation phase
 
-**Phase 1: implement and certify the V3 internal domain core before touching the
-provider or Workbench path.** Add only synthetic tests first for the V3 semantic
-target catalog, canonical state, ChangeSet parser, normalization, reducer,
-invariants, history derivation, and V1/V2 migration adapters. Prove the
-properties and golden state transitions with no production pilot interaction.
+**Phase 3B: implement and certify the atomic V3 revision commit boundary.**
+Add the dedicated attempt/history records, lease and terminal-state protocol,
+current-document CAS, typed `commitBriefRevision` transaction, durable
+post-commit memory sync status, and fake/Postgres fault-injection coverage
+described in the Phase 3A section and ADR 0002. Keep the provider call outside
+the transaction and keep the protected pilot read-only.
 
-Do not begin by adding another candidate guard to `revision.ts`. Once this core
-is approved and green, Phase 2 can replace the provider contract, followed by
-the atomic commit boundary and the one-time production path switch.
+Do not begin with another candidate guard or a partial V2/V3 dual write. The
+atomic service must first prove exact replay, failed retry, stale rejection,
+concurrent different revisions, rollback, ambiguous commit recovery, complete
+write-set atomicity, and projection repair. Only after Phase 3C certification
+and independent review may Phase 4 switch the production path and delete the
+obsolete V2 mutation code.
