@@ -1,0 +1,4 @@
+interface:
+  display_name: "Finish task"
+  short_description: "Close work only after evidence and review"
+  default_prompt: "Run the finish-task workflow and report evidence."

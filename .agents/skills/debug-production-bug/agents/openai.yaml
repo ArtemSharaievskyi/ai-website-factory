@@ -1,0 +1,4 @@
+interface:
+  display_name: "Debug production bug"
+  short_description: "Trace and repair production-path defects safely"
+  default_prompt: "Use the repository production-bug workflow."

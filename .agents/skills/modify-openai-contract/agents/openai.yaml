@@ -1,0 +1,4 @@
+interface:
+  display_name: "Modify OpenAI contract"
+  short_description: "Change provider contracts with strict boundary checks"
+  default_prompt: "Use the repository OpenAI contract workflow."

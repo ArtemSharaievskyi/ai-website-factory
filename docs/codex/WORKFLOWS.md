@@ -93,6 +93,16 @@ validation remain in `src/orchestration/execution/` and `src/runtime/`.
 
 ## Codex verification workflow
 
+Level 2.5 adds four repository procedures under .agents/skills:
+debug-production-bug, modify-openai-contract, review-implementation, and
+finish-task. Production implementation work follows verification, bounded
+commit, independent read-only review, repair, and re-verification.
+
+The optional codex:review-context command gives a fresh reviewer only the
+baseline/current heads, changed paths, affected checks, architecture status,
+guard classifications, and diff hygiene. It does not include prompts,
+answers, provider payloads, customer content, or protected identifiers.
+
 For a protected implementation task, run `npm run codex:start -- --protect
 <project-id>` before editing, `npm run codex:affected` while scoping the work,
 and `npm run codex:verify` before committing. Provider/OpenAI path changes

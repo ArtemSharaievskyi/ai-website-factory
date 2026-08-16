@@ -73,6 +73,7 @@ export function parseRegressionMap(value: unknown): RegressionConfig {
 export function parseProviderContractRegistry(value: unknown): ProviderContractConfig {
   const root = object(value, "CODEX_PROVIDER_REGISTRY_INVALID");
   if (root.version !== 1 || !Array.isArray(root.contracts)) throw new Error("CODEX_PROVIDER_REGISTRY_VERSION_INVALID");
+  if (root.knownFailures !== undefined || root.baselineFailures !== undefined) throw new Error("CODEX_PROVIDER_BASELINE_CONFIG_FORBIDDEN");
   const contracts = root.contracts.map((item) => {
     const contract = object(item, "CODEX_PROVIDER_REGISTRY_ENTRY_INVALID");
     if ([contract.id, contract.schemaName, contract.productionReference].some((field) => typeof field !== "string" || !field.trim())) throw new Error("CODEX_PROVIDER_REGISTRY_METADATA_INVALID");

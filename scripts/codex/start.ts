@@ -1,7 +1,8 @@
 import { pathToFileURL } from "node:url";
 import { CODEX_ROOT } from "./config";
 import { readGitHead, untrackedFiles } from "./git";
-import { assertSessionStartAllowed, buildSession, readProtectedProjectSnapshot, saveSession, sessionExists } from "./protected-state";
+import { runRegisteredGuards } from "./registered-guards";
+import { assertSessionStartAllowed, buildSession, readExistingBaselineUntrackedFiles, readProtectedProjectSnapshot, saveSession, sessionExists } from "./protected-state";
 
 type StartOptions = { projectIds: string[]; reset: boolean; json: boolean };
 
@@ -26,10 +27,12 @@ function parseArgs(args: readonly string[]): StartOptions {
 export async function startSession(root = CODEX_ROOT, options: StartOptions) {
   assertSessionStartAllowed(await sessionExists(root), options.reset);
   const baselineHead = await readGitHead(root);
-  const baselineUntrackedFiles = await untrackedFiles(root);
+  const existingBaselineUntrackedFiles = await readExistingBaselineUntrackedFiles(root);
+  const baselineUntrackedFiles = existingBaselineUntrackedFiles ?? await untrackedFiles(root);
+  const baselineFailures = await runRegisteredGuards(root);
   const protectedProjects = [];
   for (const projectId of options.projectIds) protectedProjects.push(await readProtectedProjectSnapshot(root, projectId));
-  const session = buildSession(baselineHead, protectedProjects, new Date().toISOString(), baselineUntrackedFiles);
+  const session = buildSession(baselineHead, protectedProjects, new Date().toISOString(), baselineUntrackedFiles, baselineFailures);
   await saveSession(root, session);
   return session;
 }

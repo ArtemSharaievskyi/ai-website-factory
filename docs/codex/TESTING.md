@@ -73,7 +73,21 @@ For a docs-only change, typecheck, lint, diff check, path/script validation,
 and a protected-project status comparison are normally sufficient; do not
 mutate real customer data to make a documentation check pass.
 
-## Codex Level 2 workflow
+## Codex Level 2 and 2.5 workflow
+
+### Level 2.5 guards
+
+- npm run check:architecture parses the TypeScript import graph, including
+  relative imports, tsconfig aliases, Windows/POSIX separators, TS/TSX files,
+  and index modules. It reports existing violations as baseline debt; it does
+  not rewrite production code.
+- Architecture and provider guard failures are fingerprinted at codex:start.
+  codex:verify blocks new failures, changed fingerprints, resolved baseline
+  failures that return, and any task touching a baseline failure trigger path.
+  An exact unchanged failure outside its trigger paths is reported as
+  BASELINE_FAILURE and is non-blocking. Config cannot declare a known failure.
+- Run npm run codex:review-context for a bounded independent-review handoff.
+  It is structural context only; the reviewer remains read-only.
 
 Before a task, create a read-only protected session with
 `npm run codex:start -- --protect <project-id>`. It saves only the safe status

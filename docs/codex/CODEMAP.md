@@ -121,6 +121,19 @@ repositories, and validators remain canonical.
 
 ## Codex Level 2 guards
 
+- config/codex/architecture.json defines the stable UI, domain, provider,
+  persistence, and OpenAI client boundaries. scripts/codex/check-architecture.ts
+  resolves the real TypeScript import graph and reports baseline debt without
+  rewriting production.
+- scripts/codex/baseline-failures.ts and registered-guards.ts capture
+  execution-derived fingerprints at codex:start. verify.ts blocks new,
+  changed, or touched failures and reports exact unchanged failures as
+  BASELINE_FAILURE.
+- .agents/skills contains the procedural debug-production-bug,
+  modify-openai-contract, review-implementation, and finish-task skills.
+- scripts/codex/review-context.ts emits bounded structural handoff context for
+  an independent read-only review.
+
 - `config/codex/check-map.json` maps changed path prefixes to controlled check
   IDs; `regressions.json` activates the executable regression memory from
   `docs/codex/KNOWN_FAILURES.md`.

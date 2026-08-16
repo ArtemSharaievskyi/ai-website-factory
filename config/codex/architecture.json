@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "sourceRoots": ["src"],
+  "rules": [
+    {
+      "id": "UI_CANNOT_IMPORT_PERSISTENCE",
+      "sourcePrefixes": ["src/app/"],
+      "forbiddenTargetPrefixes": ["src/persistence/"],
+      "message": "UI/app code must use an application service boundary instead of persistence directly."
+    },
+    {
+      "id": "UI_CANNOT_IMPORT_OPENAI",
+      "sourcePrefixes": ["src/app/"],
+      "forbiddenTargetPrefixes": ["src/integrations/openai/"],
+      "message": "UI/app code must not call the OpenAI integration directly."
+    },
+    {
+      "id": "DOMAIN_CANNOT_IMPORT_WORKBENCH",
+      "sourcePrefixes": ["src/domain/"],
+      "forbiddenTargetPrefixes": ["src/runtime/workbench/", "src/app/"],
+      "message": "Domain code must not depend on Workbench or UI routes."
+    },
+    {
+      "id": "DOMAIN_CANNOT_IMPORT_PROVIDER",
+      "sourcePrefixes": ["src/domain/"],
+      "forbiddenTargetPrefixes": ["src/integrations/openai/", "src/integrations/"],
+      "message": "Domain code must depend on contracts, not provider implementations."
+    },
+    {
+      "id": "OPENAI_CANNOT_IMPORT_WORKBENCH",
+      "sourcePrefixes": ["src/integrations/openai/"],
+      "forbiddenTargetPrefixes": ["src/runtime/workbench/", "src/app/"],
+      "message": "OpenAI integration code must not depend on Workbench UI or routes."
+    },
+    {
+      "id": "PERSISTENCE_CANNOT_IMPORT_UI",
+      "sourcePrefixes": ["src/persistence/"],
+      "forbiddenTargetPrefixes": ["src/app/"],
+      "message": "Persistence is server authority and must not depend on browser/client UI."
+    },
+    {
+      "id": "OPENAI_CLIENT_BOUNDARY",
+      "sourcePrefixes": ["src/"],
+      "excludedSourcePrefixes": ["src/integrations/openai/"],
+      "forbiddenModuleSpecifiers": ["openai"],
+      "message": "Only the approved OpenAI integration boundary may import the provider client."
+    }
+  ]
+}

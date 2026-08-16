@@ -112,4 +112,14 @@ transient local artifacts.
 
 Architecture Reviewer, Contract Auditor, Code / Integration Reviewer, Security Reviewer, and Test / Quality Reviewer are implemented in the reviewer family. Code / Integration Reviewer is read-only, requires structural validation/lint/typecheck evidence, and reviews bounded source semantics rather than compiler, security, or test strategy concerns. Security Reviewer is read-only, requires current Code / Integration approval and deterministic security evidence, sanitizes source context, and reviews contextual security rather than general code integration or test strategy. Test / Quality Reviewer is read-only, receives derived quality evidence after deterministic gates, and judges semantic sufficiency rather than whether commands passed.
 
+## Independent implementation review
+
+For production bugs, provider or persistence changes, workflow changes, and broad
+refactors, use this handoff sequence: implementation -> codex:verify -> commit
+-> independent read-only review -> repair if needed -> codex:verify again. Start
+the review from a fresh context or /review and use the repository
+review-implementation skill. The reviewer receives bounded structural context,
+does not edit source or run arbitrary commands, and must report severity,
+evidence, and repair guidance for each finding.
+
 Phase 4D4 activates the complete nine-agent portfolio: 4 approved external artifacts and 13 approved internal artifacts, with the shared `requirements-evidence-traceability` artifact assigned to Contract Auditor and Test / Quality Reviewer. All assignments remain explicit catalog allowlists; skills grant no tools or workflow authority, and internal/external artifacts use the same checksum-bound registry and resolver semantics. The three deferred external candidates (`ambiguity-detector`, `web-security-review`, and `reviewing-test-quality`) remain unapproved, unassigned, and runtime-ineligible pending future policy evidence. Security RLS guidance is relevant only to Supabase/RLS/user-scoped database surfaces; it is not injected for `NONE`, static/no-persistence, or external-API-only reviews.

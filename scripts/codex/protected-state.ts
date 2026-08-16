@@ -1,5 +1,6 @@
 import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { GuardFailure } from "./baseline-failures";
 import { CODEX_ROOT } from "./config";
 import { isIgnored } from "./git";
 import { runNpm } from "./process";
@@ -17,7 +18,7 @@ export const PROTECTED_SNAPSHOT_FIELDS = [
   "briefReadyForApproval",
 ] as const;
 export type ProtectedSnapshot = { projectId: string; projectVersion: number | null; rowVersion: number | null; workflowState: string | null; pendingUserAction: string | null; operatorLanguage: string | null; siteLanguage: string | null; briefChecksum: string | null; briefApproved: boolean | null; briefReadyForApproval: boolean | null };
-export type CodexSession = { schemaVersion: 1; baselineHead: string; baselineUntrackedFiles: string[]; createdAt: string; protectedProjects: ProtectedSnapshot[] };
+export type CodexSession = { schemaVersion: 2; baselineHead: string; baselineUntrackedFiles: string[]; baselineFailures: GuardFailure[]; createdAt: string; protectedProjects: ProtectedSnapshot[] };
 export type ProtectedDifference = { projectId: string; field: string; before: unknown; after: unknown };
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -66,8 +67,8 @@ export function compareProtectedSnapshot(expected: ProtectedSnapshot, actual: Pr
   return differences;
 }
 
-export function buildSession(baselineHead: string, protectedProjects: readonly ProtectedSnapshot[], createdAt = new Date().toISOString(), baselineUntrackedFiles: readonly string[] = []): CodexSession {
-  return { schemaVersion: 1, baselineHead, baselineUntrackedFiles: [...new Set(baselineUntrackedFiles)], createdAt, protectedProjects: protectedProjects.map((project) => ({ ...project })) };
+export function buildSession(baselineHead: string, protectedProjects: readonly ProtectedSnapshot[], createdAt = new Date().toISOString(), baselineUntrackedFiles: readonly string[] = [], baselineFailures: readonly GuardFailure[] = []): CodexSession {
+  return { schemaVersion: 2, baselineHead, baselineUntrackedFiles: [...new Set(baselineUntrackedFiles)], baselineFailures: baselineFailures.map((failure) => ({ ...failure, triggerPathPrefixes: [...failure.triggerPathPrefixes] })), createdAt, protectedProjects: protectedProjects.map((project) => ({ ...project })) };
 }
 
 export function assertSessionStartAllowed(existing: boolean, reset: boolean) {
@@ -79,8 +80,11 @@ export async function loadSession(root = CODEX_ROOT): Promise<CodexSession> {
   try { raw = await readFile(sessionPath(root), "utf8"); } catch { throw new Error("CODEX_SESSION_MISSING_RUN_START"); }
   try {
     const value = JSON.parse(raw) as CodexSession;
-    if (value.schemaVersion !== 1 || typeof value.baselineHead !== "string" || !Array.isArray(value.protectedProjects)) throw new Error("invalid");
+    if (value.schemaVersion !== 2 || typeof value.baselineHead !== "string" || !Array.isArray(value.protectedProjects) || !Array.isArray(value.baselineFailures)) throw new Error("invalid");
     if (!Array.isArray(value.baselineUntrackedFiles)) value.baselineUntrackedFiles = [];
+    for (const failure of value.baselineFailures) {
+      if (!failure || typeof failure !== "object" || typeof failure.guardId !== "string" || typeof failure.key !== "string" || typeof failure.fingerprint !== "string" || typeof failure.code !== "string" || !Array.isArray(failure.triggerPathPrefixes)) throw new Error("invalid");
+    }
     for (const snapshot of value.protectedProjects) toProtectedSnapshot(snapshot);
     return value;
   } catch { throw new Error("CODEX_SESSION_INVALID"); }
@@ -104,6 +108,13 @@ export async function saveSession(root: string, session: CodexSession) {
 
 export async function sessionExists(root = CODEX_ROOT) {
   try { await access(sessionPath(root)); return true; } catch { return false; }
+}
+
+export async function readExistingBaselineUntrackedFiles(root = CODEX_ROOT) {
+  try {
+    const value = JSON.parse(await readFile(sessionPath(root), "utf8")) as { baselineUntrackedFiles?: unknown };
+    return Array.isArray(value.baselineUntrackedFiles) ? value.baselineUntrackedFiles.filter((file): file is string => typeof file === "string") : undefined;
+  } catch { return undefined; }
 }
 
 export async function verifyProtectedProjects(root: string, session: CodexSession) {

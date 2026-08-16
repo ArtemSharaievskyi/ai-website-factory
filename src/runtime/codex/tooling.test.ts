@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { buildProductionBriefRevisionResponseFormat } from "@/integrations/openai/adapters";
+import { classifyBaselineFailures, fingerprintFailure, type GuardFailure } from "../../../scripts/codex/baseline-failures";
 import { evaluateProviderContract, runProviderContractGuard } from "../../../scripts/codex/check-provider-contracts";
 import { resolveAffectedChecks } from "../../../scripts/codex/affected";
 import { loadCheckMap, loadRegressionMap, parseCheckMap, parseRegressionMap, parseProviderContractRegistry } from "../../../scripts/codex/config";
@@ -74,9 +75,23 @@ describe("Codex Level 2 repository guards", () => {
 
   it("runs the provider guard without network calls", async () => {
     const fetch = vi.spyOn(globalThis, "fetch");
-    await runProviderContractGuard({ emit: false });
+    const result = await runProviderContractGuard({ emit: false });
     expect(fetch).not.toHaveBeenCalled();
+    expect(result.failures.every((failure) => failure.fingerprint && failure.triggerPathPrefixes.length > 0)).toBe(true);
     fetch.mockRestore();
+  });
+
+  it("classifies baseline failures differentially without a configuration waiver", () => {
+    const makeFailure = (fingerprint: string, triggerPathPrefixes = ["src/integrations/openai/"]): GuardFailure => ({ guardId: "provider-contracts", key: "planning-package", fingerprint, code: "HOST_OWNED_PROVIDER_FIELDS", triggerPathPrefixes });
+    const baselineFailure = makeFailure(fingerprintFailure("provider-contracts", "planning-package", "HOST_OWNED_PROVIDER_FIELDS"));
+    expect(classifyBaselineFailures([baselineFailure], [baselineFailure], ["docs/task.md"]).baselineFailures[0]?.reason).toBe("BASELINE_FAILURE");
+    expect(classifyBaselineFailures([baselineFailure], [baselineFailure], ["src/integrations/openai/adapters.ts"]).blocking[0]?.reason).toBe("TOUCHED_BASELINE_FAILURE");
+    expect(classifyBaselineFailures([], [baselineFailure], ["docs/task.md"]).blocking[0]?.reason).toBe("NEW_FAILURE");
+    const changed = makeFailure(fingerprintFailure("provider-contracts", "planning-package", "REQUEST_SCHEMA_CONSTRUCTION_FAILED"));
+    expect(classifyBaselineFailures([baselineFailure], [changed], ["docs/task.md"]).blocking[0]?.reason).toBe("CHANGED_FINGERPRINT");
+    expect(classifyBaselineFailures([baselineFailure], [], ["docs/task.md"]).resolved).toEqual([baselineFailure]);
+    expect(() => parseProviderContractRegistry({ version: 1, knownFailures: ["planning-package"], contracts: [{ id: "planning-package", schemaName: "planning-package", productionReference: "production", triggerPathPrefixes: ["src/integrations/openai/"] }] })).toThrow("CODEX_PROVIDER_BASELINE_CONFIG_FORBIDDEN");
+    expect(classifyBaselineFailures([], [baselineFailure], []).blocking[0]?.reason).toBe("NEW_FAILURE");
   });
 
   it("stores only safe protected snapshot fields", () => {

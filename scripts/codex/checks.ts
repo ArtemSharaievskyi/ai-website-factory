@@ -4,6 +4,7 @@ import { runNpm } from "./process";
 export type ControlledCheckId =
   | "typecheck"
   | "lint"
+  | "architecture"
   | "provider-contracts"
   | "openai-tests"
   | "lead-provider-tests"
@@ -35,6 +36,7 @@ type InternalCheck = { label: string; kind: "provider-contracts" };
 export const CONTROLLED_CHECKS: Record<ControlledCheckId, CommandCheck | InternalCheck> = {
   typecheck: { label: "Typecheck", kind: "command", args: ["run", "typecheck"] },
   lint: { label: "Lint", kind: "command", args: ["run", "lint"] },
+  architecture: { label: "Architecture boundaries", kind: "command", args: ["run", "check:architecture"] },
   "provider-contracts": { label: "Provider contracts", kind: "provider-contracts" },
   "openai-tests": { label: "OpenAI tests", kind: "command", args: ["run", "test", "--", "src/integrations/openai/provider.test.ts", "src/integrations/openai/brief-v2-provider-contract.test.ts"] },
   "lead-provider-tests": { label: "Lead/provider tests", kind: "command", args: ["run", "test", "--", "src/agents/lead/lead.test.ts", "src/runtime/trial-entry/service.test.ts"] },
@@ -50,7 +52,7 @@ export const CONTROLLED_CHECKS: Record<ControlledCheckId, CommandCheck | Interna
   "db-verify": { label: "DB verification", kind: "command", args: ["run", "db:verify"] },
   "asset-tests": { label: "Asset tests", kind: "command", args: ["run", "test", "--", "src/runtime/assets/service.test.ts", "src/runtime/workbench/asset-upload.test.ts", "src/runtime/trial-entry/lead-asset-context.test.ts"] },
   "context-lossless": { label: "Context losslessness", kind: "command", args: ["run", "test", "--", "src/runtime/context/lossless-context.test.ts"] },
-  "tooling-tests": { label: "Codex tooling tests", kind: "command", args: ["run", "test", "--", "src/runtime/codex/tooling.test.ts"] },
+  "tooling-tests": { label: "Codex tooling tests", kind: "command", args: ["run", "test", "--", "src/runtime/codex/tooling.test.ts", "src/runtime/codex/architecture.test.ts"] },
 };
 
 export const controlledCheckIds = () => Object.keys(CONTROLLED_CHECKS) as ControlledCheckId[];

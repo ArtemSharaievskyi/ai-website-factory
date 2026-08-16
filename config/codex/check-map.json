@@ -6,41 +6,47 @@
       "id": "openai-integration",
       "area": "OpenAI integration",
       "pathPrefixes": ["src/integrations/openai/", "src/agents/lead/ports.ts", "src/agents/lead/contracts.ts", "src/agents/planner/contracts.ts", "src/agents/design/contracts.ts", "src/agents/implementation/contracts.ts", "src/orchestration/orchestrator/contracts.ts", "src/domain/review/schema.ts"],
-      "checkIds": ["provider-contracts", "openai-tests", "lead-provider-tests", "typecheck", "lint"],
+      "checkIds": ["provider-contracts", "openai-tests", "lead-provider-tests", "architecture", "typecheck", "lint"],
       "productionPathIds": ["LEAD_PROVIDER_PATH", "BRIEF_REVISION_PATH"]
     },
     {
       "id": "brief-requirements",
       "area": "Brief requirements",
       "pathPrefixes": ["src/domain/requirements/", "src/agents/lead/", "src/runtime/trial-entry/", "src/runtime/workbench/brief-"],
-      "checkIds": ["brief-tests", "brief-revision-tests", "lead-tests", "trial-entry-production-tests", "typecheck", "lint"],
+      "checkIds": ["brief-tests", "brief-revision-tests", "lead-tests", "trial-entry-production-tests", "architecture", "typecheck", "lint"],
       "productionPathIds": ["TRIAL_ENTRY_CONTINUATION", "BRIEF_REVISION_PATH"]
     },
     {
       "id": "workbench",
       "area": "Workbench",
       "pathPrefixes": ["src/runtime/workbench/", "src/app/api/workbench/"],
-      "checkIds": ["workbench-tests", "route-tests", "typecheck", "lint"],
+      "checkIds": ["workbench-tests", "route-tests", "architecture", "typecheck", "lint"],
       "productionPathIds": ["WORKBENCH_MUTATION"]
     },
     {
       "id": "persistence",
       "area": "Persistence",
       "pathPrefixes": ["src/persistence/", "supabase/migrations/"],
-      "checkIds": ["persistence-tests", "db-validation", "db-integrity", "db-verify", "typecheck", "lint"]
+      "checkIds": ["persistence-tests", "db-validation", "db-integrity", "db-verify", "architecture", "typecheck", "lint"]
     },
     {
       "id": "assets",
       "area": "Asset intake",
       "pathPrefixes": ["src/runtime/assets/", "src/domain/assets/", "src/app/api/workbench/assets/"],
-      "checkIds": ["asset-tests", "typecheck", "lint"],
+      "checkIds": ["asset-tests", "architecture", "typecheck", "lint"],
       "productionPathIds": ["ASSET_INTAKE"]
     },
     {
       "id": "context",
       "area": "Context assembly",
       "pathPrefixes": ["src/runtime/context/"],
-      "checkIds": ["context-lossless", "typecheck", "lint"]
+      "checkIds": ["context-lossless", "architecture", "typecheck", "lint"]
+    },
+    {
+      "id": "architecture-boundaries",
+      "area": "Architecture boundaries",
+      "pathPrefixes": ["src/"],
+      "checkIds": ["architecture"]
     },
     {
       "id": "codex-tooling",

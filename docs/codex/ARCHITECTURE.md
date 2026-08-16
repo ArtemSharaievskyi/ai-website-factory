@@ -52,6 +52,22 @@ ports. Deterministic providers remain useful for offline tests. Generated
 projects may opt into database, Auth, Storage, or external APIs only through
 approved planning and implementation contracts.
 
+## Machine-enforced boundaries
+
+config/codex/architecture.json is the registered boundary policy and
+scripts/codex/check-architecture.ts inspects actual TypeScript imports. It
+handles relative and tsconfig-alias imports, nested index modules, Windows and
+POSIX separators, and TS/TSX sources. The current rules prevent UI/app direct
+persistence or OpenAI imports, domain dependencies on Workbench/UI or provider
+implementations, OpenAI integration dependencies on Workbench/UI, persistence
+dependencies on UI, and direct OpenAI client imports outside the approved
+integration boundary.
+
+Existing violations are captured by the execution-derived baseline at
+codex:start. They are reported as baseline debt; touching their source or
+trigger path, changing their fingerprint, or introducing a new violation
+blocks codex:verify.
+
 ## Not architecture
 
 The following are intentionally not current architecture and must not be added

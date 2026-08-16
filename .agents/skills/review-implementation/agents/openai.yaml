@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review implementation"
+  short_description: "Perform an independent read-only implementation review"
+  default_prompt: "Review the implementation independently and report blockers."

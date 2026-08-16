@@ -11,11 +11,12 @@ import {
 } from "@/integrations/openai/adapters";
 import { ClarificationPlanProviderOutputSchema, LeadAnalysisProviderOutputSchema } from "@/agents/lead/contracts";
 import { ArchitectureReviewProviderOutputSchema, CodeIntegrationReviewProviderOutputSchema, ContractAuditProviderOutputSchema, SecurityReviewProviderOutputSchema, TestQualityReviewProviderOutputSchema } from "@/domain/review/schema";
+import { fingerprintFailure } from "./baseline-failures";
 import { loadProviderContractRegistry, type ProviderContractMetadata } from "./config";
 
 type ProviderSchema = unknown;
 type Builder = () => unknown;
-export type ProviderContractFailure = { id: string; schemaName: string; code: string };
+export type ProviderContractFailure = { guardId: "provider-contracts"; key: string; id: string; schemaName: string; code: string; fingerprint: string; triggerPathPrefixes: string[] };
 export type ProviderContractResult = { id: string; schemaName: string; passed: boolean; code: string };
 export type ProviderContractGuardResult = { passed: boolean; results: ProviderContractResult[]; failures: ProviderContractFailure[]; knownProductDefects: string[] };
 
@@ -100,7 +101,19 @@ export function evaluateProviderContract(metadata: ProviderContractMetadata, bui
 export async function runProviderContractGuard(options: { emit?: boolean } = {}): Promise<ProviderContractGuardResult> {
   const registry = await loadProviderContractRegistry();
   const results: ProviderContractResult[] = registry.contracts.map((metadata) => builders[metadata.id] ? evaluateProviderContract(metadata, builders[metadata.id]!) : { id: metadata.id, schemaName: metadata.schemaName, passed: false, code: "PRODUCTION_BUILDER_NOT_REGISTERED" });
-  const failures = results.filter((result) => !result.passed).map((result) => ({ id: result.id, schemaName: result.schemaName, code: result.code }));
+  const failures = results.filter((result) => !result.passed).map((result) => {
+    const metadata = registry.contracts.find((contract) => contract.id === result.id);
+    const triggerPathPrefixes = metadata?.triggerPathPrefixes ?? [];
+    return {
+      guardId: "provider-contracts" as const,
+      key: result.id,
+      id: result.id,
+      schemaName: result.schemaName,
+      code: result.code,
+      fingerprint: fingerprintFailure("provider-contracts", result.id, result.code, result.schemaName),
+      triggerPathPrefixes,
+    };
+  });
   const knownProductDefects = failures.filter((failure) => failure.id === "brief-revision").map((failure) => failure.id);
   const output: ProviderContractGuardResult = { passed: failures.length === 0, results, failures, knownProductDefects };
   if (options.emit !== false) printProviderContractResult(output);
