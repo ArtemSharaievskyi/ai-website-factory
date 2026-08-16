@@ -7,20 +7,22 @@ export const legacyTextIdentity = (value: string) => value.normalize("NFKC").rep
 const digest = (value: string) => createHash("sha256").update(value).digest("hex").slice(0, 24);
 
 /** Legacy identity is used only once at migration; V3 mutation never compares these statements. */
-export const legacyRequirementId = (version: 1 | 2, field: string, value: string, index: number, explicitId?: string) =>
-  `REQUIREMENT:legacy-v${version}-${field}-${digest(explicitId ? `id:${explicitId}` : `text:${legacyTextIdentity(value)}`)}${explicitId ? "" : `-${index}`}`;
+export const legacyRequirementId = (version: 1 | 2, field: string, value: string, _index: number, explicitId?: string) =>
+  `REQUIREMENT:legacy-v${version}-${field}-${digest(explicitId ? `id:${explicitId}` : `text:${legacyTextIdentity(value)}`)}`;
 
 export const legacyAssetId = (version: 1 | 2, field: string, reference: string, role: string) =>
   `ASSET:v${version}-${field}-${digest(`${role}:${reference}`)}`;
 
-export const legacySourceRef = (version: 1 | 2, field: string, index: number) => `legacy:v${version}:${field}:${index}`;
+export const legacySourceRef = (version: 1 | 2, field: string, index: number, identity?: string) => identity === undefined
+  ? `legacy:v${version}:${field}:${index}`
+  : `legacy:v${version}:${field}:${digest(legacyTextIdentity(identity))}`;
 
 export function legacyRequirement(version: 1 | 2, field: string, index: number, statement: string, category: RequirementCategory, sourceRefs: string[] = [], explicitId?: string): CanonicalRequirement {
   return {
     id: legacyRequirementId(version, field, statement, index, explicitId),
     category,
     statement,
-    sourceRefs: sourceRefs.length ? sourceRefs : [legacySourceRef(version, field, index)],
+    sourceRefs: sourceRefs.length ? sourceRefs : [legacySourceRef(version, field, index, statement)],
   };
 }
 
@@ -35,7 +37,7 @@ export function legacyAsset(version: 1 | 2, field: string, index: number, asset:
     role: asset.role,
     usage: asset.usage,
     replacementPolicy: asset.replacementForbidden ? "FORBIDDEN" : "ALLOWED",
-    sourceRefs: asset.sourceRefs.length ? asset.sourceRefs : [legacySourceRef(version, field, index)],
+    sourceRefs: asset.sourceRefs.length ? asset.sourceRefs : [legacySourceRef(version, field, index, `${asset.role}:${asset.reference}`)],
   };
 }
 
@@ -48,7 +50,7 @@ export function legacyDeferredRequirement(version: 1 | 2, field: string, index: 
 }
 
 export function isLegacySimulationProhibition(value: string): boolean {
-  const normalized = legacyTextIdentity(value).toLocaleLowerCase();
+  const normalized = legacyTextIdentity(value).toLowerCase();
   const success = /(?:success|submission|submit|erfolg|übermittlung|uebermittlung|übertragung|uebertragung|vortäusch|vortaeusch|fake|simulat|успеш|отправ|имитац|симул|успіх|передач|відправ)/i.test(normalized);
   const prohibition = /(?:no |not |do not|don't|forbid|prohibit|kein|nicht|verbot|запрещ|нельзя|не можна|не іміт)/i.test(normalized);
   return success && prohibition;

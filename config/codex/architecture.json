@@ -27,6 +27,12 @@
       "message": "Domain code must depend on contracts, not provider implementations."
     },
     {
+      "id": "BRIEF_V3_CORE_CANNOT_IMPORT_RUNTIME",
+      "sourcePrefixes": ["src/domain/requirements/v3/"],
+      "forbiddenTargetPrefixes": ["src/integrations/", "src/runtime/", "src/persistence/", "src/app/"],
+      "message": "Brief Revision V3 core must remain independent of provider, runtime, persistence, and UI implementations."
+    },
+    {
       "id": "OPENAI_CANNOT_IMPORT_WORKBENCH",
       "sourcePrefixes": ["src/integrations/openai/"],
       "forbiddenTargetPrefixes": ["src/runtime/workbench/", "src/app/"],

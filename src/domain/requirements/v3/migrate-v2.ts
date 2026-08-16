@@ -1,5 +1,6 @@
 import { ProjectBriefV2Schema, RequirementSpecificationSchema, type ProjectBriefV2 } from "../schema";
 import { BriefV3Error, BriefV3MigrationAmbiguityError } from "./errors";
+import { validateCanonicalBriefV3 } from "./invariants";
 import { legacyAsset, legacyAssetId, legacyDecisionRequirement, legacyDeferredRequirement, legacyEntryRequirement, legacyRequirement, isLegacySimulationProhibition } from "./legacy";
 import { migrateV1RecordToCanonicalBriefV3 } from "./migrate-v1";
 import { normalizeCanonicalBrief } from "./normalize";
@@ -23,6 +24,7 @@ function formFromV2(brief: ProjectBriefV2): FormBehaviorState {
       mode: "NONE",
       formPresent: false,
       validation: "NOT_REQUIRED",
+      simulatedSuccessPolicy: "NOT_APPLICABLE",
       transmissionMode: "NONE",
       persistenceMode: "NONE",
       serverProcessingMode: "NONE",
@@ -32,6 +34,7 @@ function formFromV2(brief: ProjectBriefV2): FormBehaviorState {
     };
   }
   if (typed.validation !== "ACTIVE") throw new BriefV3MigrationAmbiguityError("formBehaviorRequirements", "formPresent=true conflicts with NOT_REQUIRED validation");
+  if (typed.successUx === "NONE") throw new BriefV3MigrationAmbiguityError("formBehaviorRequirements", "formPresent=true has no success behavior");
   if (typed.successUx === "SIMULATED" && legacyProhibition) throw new BriefV3MigrationAmbiguityError("formBehaviorRequirements", "legacy prohibition conflicts with typed simulated success");
   if (typed.successUx === "REAL" && typed.dataTransmission === "NONE") throw new BriefV3MigrationAmbiguityError("formBehaviorRequirements", "real success cannot be mapped with NONE transmission");
   const interactionStates = typed.interactionStates.map((entry, index) => typedEntry("form-interaction", index, entry, "FORM_INTERACTION"));
@@ -45,24 +48,94 @@ function formFromV2(brief: ProjectBriefV2): FormBehaviorState {
     privacyConsentMode: typed.privacyCheckbox,
     interactionStates,
   };
-  if (typed.successUx === "SIMULATED") return { ...shared, mode: "SIMULATED" };
-  if (typed.successUx === "REAL") return { ...shared, mode: "REAL", transmissionMode: typed.dataTransmission as Exclude<typeof typed.dataTransmission, "NONE"> };
-  return { ...shared, mode: "UNRESOLVED" };
+  if (typed.successUx === "SIMULATED") return { ...shared, mode: "SIMULATED", simulatedSuccessPolicy: "ALLOWED" };
+  if (typed.successUx === "REAL") return { ...shared, mode: "REAL", simulatedSuccessPolicy: "UNRESOLVED", transmissionMode: typed.dataTransmission as Exclude<typeof typed.dataTransmission, "NONE"> };
+  return { ...shared, mode: "UNRESOLVED", simulatedSuccessPolicy: "UNRESOLVED" };
 }
 
 function overrideDecision<T extends string>(brief: ProjectBriefV2, key: string, schema: { safeParse: (value: unknown) => { success: boolean; data?: T } }, fallback: T): T {
-  const item = brief.decisions.find((decision) => decision.key.trim().toLocaleLowerCase() === key);
-  if (!item) return fallback;
-  const parsed = schema.safeParse(item.value);
-  return parsed.success && parsed.data ? parsed.data : fallback;
+  const items = brief.decisions.filter((decision) => decision.key.trim().toLowerCase() === key);
+  if (!items.length) return fallback;
+  const values = items.map((item) => schema.safeParse(item.value));
+  if (values.some((value) => !value.success || value.data === undefined)) throw new BriefV3MigrationAmbiguityError(`decisions.${key}`, "a typed decision has an unsupported value");
+  const unique = [...new Set(values.map((value) => value.data as T))];
+  if (unique.length > 1) throw new BriefV3MigrationAmbiguityError(`decisions.${key}`, "multiple typed decisions disagree");
+  return unique[0] ?? fallback;
 }
 
 function checkLegacyDecisionConflicts(brief: ProjectBriefV2, form: FormBehaviorState): void {
   if (brief.emailDecision === "needed" && form.transmissionMode === "NONE") throw new BriefV3MigrationAmbiguityError("emailDecision", "legacy needed conflicts with typed NONE transmission");
   if (brief.emailDecision === "not-needed" && form.transmissionMode === "EMAIL") throw new BriefV3MigrationAmbiguityError("emailDecision", "legacy not-needed conflicts with typed EMAIL transmission");
+  if (brief.storageDecision === "needed" && form.persistenceMode === "NONE") throw new BriefV3MigrationAmbiguityError("storageDecision", "legacy needed conflicts with typed NONE persistence");
+  if (brief.storageDecision === "not-needed" && form.persistenceMode !== "NONE" && form.persistenceMode !== "UNRESOLVED") throw new BriefV3MigrationAmbiguityError("storageDecision", "legacy not-needed conflicts with typed persistence");
+  if (brief.formBehaviorRequirements.formPresent === false && brief.forms.length > 0) throw new BriefV3MigrationAmbiguityError("forms/formBehaviorRequirements", "legacy forms conflict with typed formPresent=false");
+}
+
+function checkTypedDecisionAgainstLegacy(brief: ProjectBriefV2, key: string, legacyValue: string, typedValue: string): void {
+  if (!brief.decisions.some((decision) => decision.key.trim().toLowerCase() === key)) return;
+  if (legacyValue !== "pending" && legacyValue !== typedValue) throw new BriefV3MigrationAmbiguityError(`decisions.${key}`, "legacy and typed decision representations disagree");
+}
+
+function rejectConflictingV2Collections(brief: ProjectBriefV2): void {
+  const checkEntries = (field: string, entries: readonly { id: string; statement: string }[]) => {
+    const byId = new Map<string, string>();
+    for (const entry of entries) {
+      const previous = byId.get(entry.id);
+      if (previous !== undefined && previous !== entry.statement) throw new BriefV3MigrationAmbiguityError(field, "duplicate legacy entry ID has conflicting statements");
+      byId.set(entry.id, entry.statement);
+    }
+  };
+  checkEntries("content", brief.content);
+  checkEntries("technical", brief.technical);
+  checkEntries("formBehaviorRequirements.interactionStates", brief.formBehaviorRequirements.interactionStates);
+  checkEntries("seoMetadata.locationTargeting", brief.seoMetadata.locationTargeting);
+  checkEntries("prohibitedRequirements", brief.prohibitedRequirements);
+  checkEntries("legalComplianceConstraints.constraints", brief.legalComplianceConstraints.constraints);
+  checkEntries("brandVisualRequirements.colorDirection", brief.brandVisualRequirements.colorDirection);
+  checkEntries("brandVisualRequirements.typographyDirection", brief.brandVisualRequirements.typographyDirection);
+  checkEntries("brandVisualRequirements.spacingLayoutDirection", brief.brandVisualRequirements.spacingLayoutDirection);
+  checkEntries("brandVisualRequirements.cardSurfaceStyling", brief.brandVisualRequirements.cardSurfaceStyling);
+  checkEntries("brandVisualRequirements.iconDirection", brief.brandVisualRequirements.iconDirection);
+  checkEntries("brandVisualRequirements.imageryDirection", brief.brandVisualRequirements.imageryDirection);
+  checkEntries("brandVisualRequirements.brandReferenceUsage", brief.brandVisualRequirements.brandReferenceUsage);
+  checkEntries("brandVisualRequirements.visualAntiPatterns", brief.brandVisualRequirements.visualAntiPatterns);
+  checkEntries("uxResponsiveRequirements.responsiveBehavior", brief.uxResponsiveRequirements.responsiveBehavior);
+  checkEntries("uxResponsiveRequirements.interactionRequirements", brief.uxResponsiveRequirements.interactionRequirements);
+  const decisions = new Map<string, string>();
+  for (const decision of brief.decisions) {
+    const key = decision.key.trim().toLowerCase();
+    const previous = decisions.get(key);
+    if (previous !== undefined && previous !== decision.value) throw new BriefV3MigrationAmbiguityError(`decisions.${key}`, "duplicate legacy decision keys disagree");
+    decisions.set(key, decision.value);
+  }
+  const assets = new Map<string, string>();
+  for (const asset of brief.assetRequirements.requiredAssets) {
+    const key = `${asset.reference}\u0000${asset.role}`;
+    const fingerprint = `${asset.usage}\u0000${asset.replacementForbidden}`;
+    const previous = assets.get(key);
+    if (previous !== undefined && previous !== fingerprint) throw new BriefV3MigrationAmbiguityError("assetRequirements.requiredAssets", "duplicate legacy asset identity has conflicting values");
+    assets.set(key, fingerprint);
+  }
+  const routes = new Set<string>();
+  for (const metadata of brief.seoMetadata.pageMetadata) {
+    if (routes.has(metadata.route)) throw new BriefV3MigrationAmbiguityError("seoMetadata.pageMetadata", "duplicate legacy SEO route");
+    routes.add(metadata.route);
+  }
+}
+
+function finalizeV2Migration(canonical: CanonicalBriefV3): CanonicalBriefV3 {
+  try {
+    return validateCanonicalBriefV3(normalizeCanonicalBrief(canonical));
+  } catch (error) {
+    if (error instanceof BriefV3MigrationAmbiguityError) throw error;
+    if (error instanceof BriefV3Error) throw new BriefV3MigrationAmbiguityError("canonical-state", error.code);
+    throw error;
+  }
 }
 
 export function migrateV2RecordToCanonicalBriefV3(brief: ProjectBriefV2): CanonicalBriefV3 {
+  rejectConflictingV2Collections(brief);
+  if (brief.storageDecision === "not-needed" && brief.supabaseRequirements.length) throw new BriefV3MigrationAmbiguityError("storageDecision/supabaseRequirements", "storage is marked not-needed while legacy database requirements are present");
   const baseInput = { ...brief, prohibitedRequirements: undefined };
   const base = migrateV1RecordToCanonicalBriefV3(RequirementSpecificationSchema.parse(baseInput));
   const form = formFromV2(brief);
@@ -100,7 +173,11 @@ export function migrateV2RecordToCanonicalBriefV3(brief: ProjectBriefV2): Canoni
   const authMode = overrideDecision(brief, "auth-mode", AuthModeSchema, base.decisions.auth.mode);
   const analyticsMode = overrideDecision(brief, "analytics-mode", AnalyticsModeSchema, "UNRESOLVED");
   const routePolicy = overrideDecision(brief, "route-policy", RoutePolicySchema, base.decisions.routePolicy.mode);
-  const imageSourceStrategy = base.scope.imageSourceStrategy;
+  if ((routePolicy === "MULTI_PAGE" && base.pages.length < 2) || (routePolicy === "SINGLE_PAGE" && base.pages.length > 1)) throw new BriefV3MigrationAmbiguityError("decisions.route-policy/pages", "typed route policy conflicts with the legacy page collection");
+  checkTypedDecisionAgainstLegacy(brief, "database-mode", base.decisions.database.mode, databaseMode);
+  checkTypedDecisionAgainstLegacy(brief, "auth-mode", base.decisions.auth.mode, authMode);
+  checkTypedDecisionAgainstLegacy(brief, "route-policy", base.decisions.routePolicy.mode, routePolicy);
+  const images = base.scope.images;
   const canonical: CanonicalBriefV3 = {
     ...base,
     requirements,
@@ -117,7 +194,7 @@ export function migrateV2RecordToCanonicalBriefV3(brief: ProjectBriefV2): Canoni
       ...base.brand,
       referenceStrategy: brief.brandVisualRequirements.brandReferenceUsage.length ? "USER_SUPPLIED" : base.brand.referenceStrategy,
     },
-    scope: { ...base.scope, imageSourceStrategy },
+    scope: { ...base.scope, images },
     seo: {
       primaryKeywords: brief.seoMetadata.primaryKeywords,
       exactTitle: brief.seoMetadata.exactTitle ?? null,
@@ -130,7 +207,7 @@ export function migrateV2RecordToCanonicalBriefV3(brief: ProjectBriefV2): Canoni
       inventedFactsPolicy: brief.legalComplianceConstraints.inventedFactsForbidden ? "FORBIDDEN" : "UNRESOLVED",
     },
   };
-  return normalizeCanonicalBrief(canonical);
+  return finalizeV2Migration(canonical);
 }
 
 export function migrateV2ToCanonicalBriefV3(input: unknown): CanonicalBriefV3 {

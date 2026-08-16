@@ -1,18 +1,13 @@
 import { createHash } from "node:crypto";
 import { BriefChangeSetSchema, type BriefChange, type BriefChangeSet } from "./changeset";
 import { BriefV3Error } from "./errors";
-import { CanonicalBriefV3Schema, type CanonicalAsset, type CanonicalBriefV3, type CanonicalPage, type CanonicalRequirement } from "./schema";
+import { CanonicalBriefV3Schema, type CanonicalAsset, type CanonicalBriefV3, type CanonicalEvidence, type CanonicalPage, type CanonicalRequirement } from "./schema";
+import { compareStrings, stableSerialize } from "./serialization";
 import { getTargetCatalogEntry, targetSortKey } from "./targets";
 
-export function stableSerialize(value: unknown): string {
-  if (value === undefined) return "undefined";
-  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "undefined";
-  if (Array.isArray(value)) return `[${value.map(stableSerialize).join(",")}]`;
-  const record = value as Record<string, unknown>;
-  return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stableSerialize(record[key])}`).join(",")}}`;
-}
+export { compareStrings, stableSerialize } from "./serialization";
 
-const uniqueSorted = (values: readonly string[]) => [...new Set(values)].sort((a, b) => a.localeCompare(b));
+const uniqueSorted = (values: readonly string[]) => [...new Set(values)].sort(compareStrings);
 const operationWithoutRefs = (change: BriefChange) => {
   const rest = { ...change } as BriefChange & { sourceRefs?: string[] };
   delete rest.sourceRefs;
@@ -74,11 +69,11 @@ export function normalizeBriefChangeSet(input: unknown): BriefChangeSet {
     byTarget.set(target, mergeEquivalentChanges(existing, change));
   }
 
-  const changes = [...byTarget.values()].sort((a, b) => targetSortKey(a.target).localeCompare(targetSortKey(b.target)));
+  const changes = [...byTarget.values()].sort((a, b) => compareStrings(targetSortKey(a.target), targetSortKey(b.target)));
   const unresolved = parsed.data.unresolved
     .map((item) => ({ ...item, sourceRefs: uniqueSorted(item.sourceRefs) }))
     .filter((item, index, values) => values.findIndex((candidate) => stableSerialize(candidate) === stableSerialize(item)) === index)
-    .sort((a, b) => stableSerialize(a).localeCompare(stableSerialize(b)));
+    .sort((a, b) => compareStrings(stableSerialize(a), stableSerialize(b)));
   return { contractVersion: 1, changes, unresolved };
 }
 
@@ -97,11 +92,12 @@ const mergeRequirement = (entries: readonly CanonicalRequirement[], context: str
     }
     byId.set(entry.id, { ...existing, sourceRefs: uniqueSorted([...existing.sourceRefs, ...entry.sourceRefs]) });
   }
-  return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+  return [...byId.values()].sort((a, b) => compareStrings(a.id, b.id));
 };
 
 const normalizePage = (page: CanonicalPage): CanonicalPage => ({ ...page, sourceRefs: uniqueSorted(page.sourceRefs) });
 const normalizeAsset = (asset: CanonicalAsset): CanonicalAsset => ({ ...asset, sourceRefs: uniqueSorted(asset.sourceRefs) });
+const normalizeEvidence = (evidence: CanonicalEvidence): CanonicalEvidence => ({ ...evidence, sourceRefs: uniqueSorted(evidence.sourceRefs) });
 
 /** Normalize current state without rewriting user-facing text. */
 export function normalizeCanonicalBrief(input: unknown): CanonicalBriefV3 {
@@ -129,29 +125,33 @@ export function normalizeCanonicalBrief(input: unknown): CanonicalBriefV3 {
   });
   const normalized = {
     ...brief,
-    pages: [...pagesBySlug.values()].sort((a, b) => a.id.localeCompare(b.id)),
+    pages: [...pagesBySlug.values()].sort((a, b) => compareStrings(a.id, b.id)),
     requirements: mergeRequirement(brief.requirements, "requirements"),
     decisions: {
       ...brief.decisions,
       form: normalizeForm(brief.decisions.form),
     },
-    assets: [...assetsById.values()].sort((a, b) => a.id.localeCompare(b.id)),
+    assets: [...assetsById.values()].sort((a, b) => compareStrings(a.id, b.id)),
     seo: {
       ...brief.seo,
       primaryKeywords: uniqueSorted(brief.seo.primaryKeywords),
       locationTargeting: mergeRequirement(brief.seo.locationTargeting, "seo-location"),
       pageMetadata: [...brief.seo.pageMetadata]
         .map((item) => ({ ...item, keywords: uniqueSorted(item.keywords), sourceRefs: uniqueSorted(item.sourceRefs) }))
-        .sort((a, b) => a.route.localeCompare(b.route)),
+        .sort((a, b) => compareStrings(a.route, b.route)),
     },
     localization: {
       ...brief.localization,
       locales: uniqueSorted(brief.localization.locales),
     },
+    evidence: brief.evidence
+      .map(normalizeEvidence)
+      .filter((item, index, values) => values.findIndex((candidate) => stableSerialize(candidate) === stableSerialize(item)) === index)
+      .sort((a, b) => compareStrings(stableSerialize(a), stableSerialize(b))),
     unresolved: brief.unresolved
       .map((item) => ({ ...item, sourceRefs: uniqueSorted(item.sourceRefs) }))
       .filter((item, index, values) => values.findIndex((candidate) => stableSerialize(candidate) === stableSerialize(item)) === index)
-      .sort((a, b) => stableSerialize(a).localeCompare(stableSerialize(b))),
+      .sort((a, b) => compareStrings(stableSerialize(a), stableSerialize(b))),
   } satisfies CanonicalBriefV3;
   return CanonicalBriefV3Schema.parse(normalized);
 }

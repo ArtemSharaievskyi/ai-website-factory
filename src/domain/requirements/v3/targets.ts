@@ -7,15 +7,23 @@ import {
   CanonicalPageValueSchema,
   CanonicalRequirementValueSchema,
   DatabaseModeSchema,
+  FormSimulationPolicySchema,
+  FormExternalProviderModeSchema,
+  FormPersistenceModeSchema,
+  FormPrivacyConsentModeSchema,
+  FormServerProcessingModeSchema,
+  FormTransmissionModeSchema,
   ImageSourceStrategySchema,
   InventedFactsPolicySchema,
   PlaceholderPolicySchema,
   RoutePolicySchema,
 } from "./schema";
 import { z } from "zod";
+import { BriefV3Error } from "./errors";
 
 export const SEMANTIC_TARGETS = {
   FORM_SUCCESS_MODE: "FORM_SUCCESS_MODE",
+  FORM_SIMULATED_SUCCESS_POLICY: "FORM_SIMULATED_SUCCESS_POLICY",
   FORM_TRANSMISSION_MODE: "FORM_TRANSMISSION_MODE",
   FORM_PERSISTENCE_MODE: "FORM_PERSISTENCE_MODE",
   FORM_SERVER_PROCESSING_MODE: "FORM_SERVER_PROCESSING_MODE",
@@ -38,6 +46,7 @@ export type FixedSemanticTargetId = typeof SEMANTIC_TARGETS[keyof typeof SEMANTI
 export type DynamicRequirementTargetId = `REQUIREMENT:${string}`;
 export type DynamicAssetTargetId = `ASSET:${string}`;
 export type DynamicPageTargetId = `PAGE:${string}`;
+export type AssetTargetId = DynamicAssetTargetId | typeof SEMANTIC_TARGETS.ASSET_COMPANY_LOGO;
 export type SemanticTargetId = FixedSemanticTargetId | DynamicRequirementTargetId | DynamicAssetTargetId | DynamicPageTargetId;
 
 export const SEMANTIC_TARGET_ID_PATTERN = /^(?:FORM_[A-Z_]+|DATABASE_MODE|AUTH_MODE|ANALYTICS_MODE|ROUTE_POLICY|BRAND_REFERENCE_STRATEGY|IMAGE_SOURCE_STRATEGY|SEO_TITLE|SEO_META_DESCRIPTION|LEGAL_[A-Z_]+|ASSET_COMPANY_LOGO|REQUIREMENT:[A-Za-z0-9_.:-]{1,180}|ASSET:[A-Za-z0-9_.:-]{1,180}|PAGE:[^\r\n]{1,180})$/;
@@ -52,16 +61,38 @@ export const pageTargetForSlug = (slug: string): DynamicPageTargetId => {
 };
 
 export const SuccessModeSchema = z.enum(["NONE", "SIMULATED", "REAL", "UNRESOLVED"]);
-export const FormTransmissionModeSchema = z.enum(["NONE", "EMAIL", "API", "OTHER", "UNRESOLVED"]);
-export const FormPersistenceModeSchema = z.enum(["NONE", "DATABASE", "OTHER", "UNRESOLVED"]);
-export const FormServerProcessingModeSchema = z.enum(["NONE", "SERVER", "UNRESOLVED"]);
-export const FormExternalProviderModeSchema = z.enum(["NONE", "APPROVED_PROVIDER", "OTHER", "UNRESOLVED"]);
-export const FormPrivacyConsentModeSchema = z.enum(["REQUIRED", "OPTIONAL", "NOT_APPLICABLE", "UNRESOLVED"]);
+export type FixedSetTargetId = Exclude<FixedSemanticTargetId, typeof SEMANTIC_TARGETS.ASSET_COMPANY_LOGO>;
+export type FixedTargetValueMap = {
+  [SEMANTIC_TARGETS.FORM_SUCCESS_MODE]: z.infer<typeof SuccessModeSchema>;
+  [SEMANTIC_TARGETS.FORM_SIMULATED_SUCCESS_POLICY]: z.infer<typeof FormSimulationPolicySchema> | "NOT_APPLICABLE";
+  [SEMANTIC_TARGETS.FORM_TRANSMISSION_MODE]: z.infer<typeof FormTransmissionModeSchema>;
+  [SEMANTIC_TARGETS.FORM_PERSISTENCE_MODE]: z.infer<typeof FormPersistenceModeSchema>;
+  [SEMANTIC_TARGETS.FORM_SERVER_PROCESSING_MODE]: z.infer<typeof FormServerProcessingModeSchema>;
+  [SEMANTIC_TARGETS.FORM_EXTERNAL_PROVIDER_MODE]: z.infer<typeof FormExternalProviderModeSchema>;
+  [SEMANTIC_TARGETS.FORM_PRIVACY_CONSENT_MODE]: z.infer<typeof FormPrivacyConsentModeSchema>;
+  [SEMANTIC_TARGETS.DATABASE_MODE]: z.infer<typeof DatabaseModeSchema>;
+  [SEMANTIC_TARGETS.AUTH_MODE]: z.infer<typeof AuthModeSchema>;
+  [SEMANTIC_TARGETS.ANALYTICS_MODE]: z.infer<typeof AnalyticsModeSchema>;
+  [SEMANTIC_TARGETS.ROUTE_POLICY]: z.infer<typeof RoutePolicySchema>;
+  [SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY]: z.infer<typeof BrandReferenceStrategySchema>;
+  [SEMANTIC_TARGETS.IMAGE_SOURCE_STRATEGY]: z.infer<typeof ImageSourceStrategySchema>;
+  [SEMANTIC_TARGETS.SEO_TITLE]: string | null;
+  [SEMANTIC_TARGETS.SEO_META_DESCRIPTION]: string | null;
+  [SEMANTIC_TARGETS.LEGAL_PLACEHOLDER_POLICY]: z.infer<typeof PlaceholderPolicySchema>;
+  [SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY]: z.infer<typeof InventedFactsPolicySchema>;
+};
+
+export type TargetValueFor<T extends SemanticTargetId> =
+  T extends FixedSetTargetId ? FixedTargetValueMap[T] :
+  T extends DynamicRequirementTargetId ? z.infer<typeof CanonicalRequirementValueSchema> :
+  T extends AssetTargetId ? z.infer<typeof CanonicalAssetValueSchema> :
+  T extends DynamicPageTargetId ? z.infer<typeof CanonicalPageValueSchema> :
+  never;
 
 export const TargetCatalogEntrySchema = z.object({
   id: z.string(),
   operation: z.enum(["SET", "UPSERT", "REMOVE"]),
-  valueType: z.enum(["successMode", "transmissionMode", "persistenceMode", "serverProcessingMode", "externalProviderMode", "privacyConsentMode", "databaseMode", "authMode", "analyticsMode", "routePolicy", "brandStrategy", "imageStrategy", "title", "metaDescription", "placeholderPolicy", "inventedFactsPolicy", "requirement", "asset", "page"]),
+  valueType: z.enum(["successMode", "successPolicy", "transmissionMode", "persistenceMode", "serverProcessingMode", "externalProviderMode", "privacyConsentMode", "databaseMode", "authMode", "analyticsMode", "routePolicy", "brandStrategy", "imageStrategy", "title", "metaDescription", "placeholderPolicy", "inventedFactsPolicy", "requirement", "asset", "page"]),
 }).strict();
 export type TargetCatalogEntry = z.infer<typeof TargetCatalogEntrySchema>;
 
@@ -69,6 +100,7 @@ const fixed = (id: FixedSemanticTargetId, valueType: TargetCatalogEntry["valueTy
 
 export const TARGET_CATALOG: readonly TargetCatalogEntry[] = [
   fixed(SEMANTIC_TARGETS.FORM_SUCCESS_MODE, "successMode"),
+  fixed(SEMANTIC_TARGETS.FORM_SIMULATED_SUCCESS_POLICY, "successPolicy"),
   fixed(SEMANTIC_TARGETS.FORM_TRANSMISSION_MODE, "transmissionMode"),
   fixed(SEMANTIC_TARGETS.FORM_PERSISTENCE_MODE, "persistenceMode"),
   fixed(SEMANTIC_TARGETS.FORM_SERVER_PROCESSING_MODE, "serverProcessingMode"),
@@ -103,6 +135,7 @@ export function getTargetCatalogEntry(target: string): TargetCatalogEntry | unde
 
 export const targetValueSchemas = {
   successMode: SuccessModeSchema,
+  successPolicy: z.enum(["ALLOWED", "FORBIDDEN", "UNRESOLVED", "NOT_APPLICABLE"]),
   transmissionMode: FormTransmissionModeSchema,
   persistenceMode: FormPersistenceModeSchema,
   serverProcessingMode: FormServerProcessingModeSchema,
@@ -124,7 +157,7 @@ export const targetValueSchemas = {
 } as const;
 
 export function assertKnownTarget(target: string): SemanticTargetId {
-  if (!isSemanticTargetId(target) || !getTargetCatalogEntry(target)) throw new Error(`Unknown V3 target: ${target}`);
+  if (!isSemanticTargetId(target) || !getTargetCatalogEntry(target)) throw new BriefV3Error("BRIEF_V3_UNKNOWN_TARGET", { target });
   return target;
 }
 

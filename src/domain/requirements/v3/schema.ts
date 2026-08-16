@@ -80,13 +80,19 @@ export const CanonicalAssetSchema = CanonicalAssetValueSchema.extend({
 export type CanonicalAsset = z.infer<typeof CanonicalAssetSchema>;
 
 const InteractionStatesSchema = z.array(CanonicalRequirementSchema);
+export const FormSimulationPolicySchema = z.enum(["ALLOWED", "FORBIDDEN", "UNRESOLVED"]);
+export const FormTransmissionModeSchema = z.enum(["NONE", "EMAIL", "API", "OTHER", "UNRESOLVED"]);
+export const FormPersistenceModeSchema = z.enum(["NONE", "DATABASE", "OTHER", "UNRESOLVED"]);
+export const FormServerProcessingModeSchema = z.enum(["NONE", "SERVER", "UNRESOLVED"]);
+export const FormExternalProviderModeSchema = z.enum(["NONE", "APPROVED_PROVIDER", "OTHER", "UNRESOLVED"]);
+export const FormPrivacyConsentModeSchema = z.enum(["REQUIRED", "OPTIONAL", "NOT_APPLICABLE", "UNRESOLVED"]);
 const FormSharedSchema = {
   formPresent: z.literal(true),
   validation: z.literal("ACTIVE"),
-  persistenceMode: z.enum(["NONE", "DATABASE", "OTHER", "UNRESOLVED"]),
-  serverProcessingMode: z.enum(["NONE", "SERVER", "UNRESOLVED"]),
-  externalProviderMode: z.enum(["NONE", "APPROVED_PROVIDER", "OTHER", "UNRESOLVED"]),
-  privacyConsentMode: z.enum(["REQUIRED", "OPTIONAL", "NOT_APPLICABLE", "UNRESOLVED"]),
+  persistenceMode: FormPersistenceModeSchema,
+  serverProcessingMode: FormServerProcessingModeSchema,
+  externalProviderMode: FormExternalProviderModeSchema,
+  privacyConsentMode: FormPrivacyConsentModeSchema,
   interactionStates: InteractionStatesSchema,
 } as const;
 
@@ -95,27 +101,31 @@ export const FormBehaviorStateSchema = z.discriminatedUnion("mode", [
     mode: z.literal("NONE"),
     formPresent: z.literal(false),
     validation: z.literal("NOT_REQUIRED"),
+    simulatedSuccessPolicy: z.literal("NOT_APPLICABLE"),
     transmissionMode: z.literal("NONE"),
     persistenceMode: z.literal("NONE"),
     serverProcessingMode: z.literal("NONE"),
     externalProviderMode: z.literal("NONE"),
     privacyConsentMode: z.literal("NOT_APPLICABLE"),
-    interactionStates: z.array(CanonicalRequirementSchema),
+    interactionStates: z.array(CanonicalRequirementSchema).length(0),
   }).strict(),
   z.object({
     mode: z.literal("SIMULATED"),
     ...FormSharedSchema,
-    transmissionMode: z.enum(["NONE", "EMAIL", "API", "OTHER", "UNRESOLVED"]),
+    simulatedSuccessPolicy: z.literal("ALLOWED"),
+    transmissionMode: FormTransmissionModeSchema,
   }).strict(),
   z.object({
     mode: z.literal("REAL"),
     ...FormSharedSchema,
-    transmissionMode: z.enum(["EMAIL", "API", "OTHER", "UNRESOLVED"]),
+    simulatedSuccessPolicy: FormSimulationPolicySchema,
+    transmissionMode: FormTransmissionModeSchema.exclude(["NONE"]),
   }).strict(),
   z.object({
     mode: z.literal("UNRESOLVED"),
     ...FormSharedSchema,
-    transmissionMode: z.enum(["NONE", "EMAIL", "API", "OTHER", "UNRESOLVED"]),
+    simulatedSuccessPolicy: FormSimulationPolicySchema,
+    transmissionMode: FormTransmissionModeSchema,
   }).strict(),
 ]);
 export type FormBehaviorState = z.infer<typeof FormBehaviorStateSchema>;
@@ -125,11 +135,25 @@ export const AuthModeSchema = z.enum(["NONE", "REQUIRED", "OPTIONAL", "UNRESOLVE
 export const AnalyticsModeSchema = z.enum(["NONE", "APPROVED_PROVIDER", "OTHER", "UNRESOLVED"]);
 export const RoutePolicySchema = z.enum(["SINGLE_PAGE", "MULTI_PAGE", "UNRESOLVED"]);
 export const BrandReferenceStrategySchema = z.enum(["NONE", "USER_SUPPLIED", "USER_SUPPLIED_AND_AI_ALLOWED", "AI_GENERATED", "PLACEHOLDERS", "UNRESOLVED"]);
-export const ImageSourceStrategySchema = z.enum(["AI_GENERATED", "USER_SUPPLIED", "USER_AND_AI", "PLACEHOLDERS", "CUSTOM", "UNRESOLVED"]);
+export const ImageSourceStrategySchema = z.enum(["NONE", "AI_GENERATED", "USER_SUPPLIED", "USER_AND_AI", "PLACEHOLDERS", "CUSTOM", "UNRESOLVED"]);
 export const PlaceholderPolicySchema = z.enum(["USE_EXPLICIT_PLACEHOLDERS", "NO_PLACEHOLDERS", "UNRESOLVED"]);
 export const InventedFactsPolicySchema = z.enum(["FORBIDDEN", "ALLOWED", "UNRESOLVED"]);
 
 const ModeDecisionSchema = <T extends z.ZodType>(mode: T) => z.object({ mode }).strict();
+
+export const ImageRequirementsSchema = z.discriminatedUnion("required", [
+  z.object({ required: z.literal(false), sourceStrategy: z.literal("NONE") }).strict(),
+  z.object({ required: z.literal(true), sourceStrategy: ImageSourceStrategySchema.exclude(["NONE"]) }).strict(),
+]);
+export type ImageRequirements = z.infer<typeof ImageRequirementsSchema>;
+
+export const CanonicalEvidenceSchema = z.object({
+  field: NonEmptyStringSchema.max(300),
+  source: NonEmptyStringSchema.max(1000),
+  excerpt: NonEmptyStringSchema.max(4000),
+  sourceRefs: z.array(SourceRefSchema).min(1),
+}).strict();
+export type CanonicalEvidence = z.infer<typeof CanonicalEvidenceSchema>;
 
 export const CanonicalSeoSchema = z.object({
   primaryKeywords: z.array(NonEmptyStringSchema.max(300)),
@@ -152,8 +176,7 @@ export const CanonicalBriefV3Schema = z.object({
   title: z.string().trim().max(300).nullable(),
   scope: z.object({
     protectedFunctionality: z.boolean(),
-    imagesRequired: z.boolean(),
-    imageSourceStrategy: ImageSourceStrategySchema,
+    images: ImageRequirementsSchema,
   }).strict(),
   pages: z.array(CanonicalPageSchema),
   requirements: z.array(CanonicalRequirementSchema),
@@ -179,6 +202,7 @@ export const CanonicalBriefV3Schema = z.object({
     locales: z.array(LocaleSchema),
     defaultLocale: LocaleSchema,
   }).strict(),
+  evidence: z.array(CanonicalEvidenceSchema),
   unresolved: z.array(z.object({
     target: NonEmptyStringSchema.max(300),
     reason: NonEmptyStringSchema.max(2000),
@@ -191,6 +215,7 @@ export const emptyFormBehaviorState = (): FormBehaviorState => ({
   mode: "NONE",
   formPresent: false,
   validation: "NOT_REQUIRED",
+  simulatedSuccessPolicy: "NOT_APPLICABLE",
   transmissionMode: "NONE",
   persistenceMode: "NONE",
   serverProcessingMode: "NONE",
@@ -203,6 +228,7 @@ export const unresolvedFormBehaviorState = (overrides: Partial<Extract<FormBehav
   mode: "UNRESOLVED",
   formPresent: true,
   validation: "ACTIVE",
+  simulatedSuccessPolicy: "UNRESOLVED",
   transmissionMode: "UNRESOLVED",
   persistenceMode: "UNRESOLVED",
   serverProcessingMode: "UNRESOLVED",

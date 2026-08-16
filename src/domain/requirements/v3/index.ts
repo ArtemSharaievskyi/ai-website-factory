@@ -9,5 +9,6 @@ export * from "./migrate-v2";
 export * from "./normalize";
 export * from "./reducer";
 export * from "./schema";
+export * from "./serialization";
 export * from "./state";
 export * from "./targets";

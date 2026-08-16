@@ -45,7 +45,10 @@ export function validateCanonicalBriefV3(input: unknown): CanonicalBriefV3 {
   if (brief.pages.some((page) => page.id !== pageTargetForSlug(page.slug))) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "page-id-mismatch" });
   if (new Set(brief.seo.pageMetadata.map((page) => page.route)).size !== brief.seo.pageMetadata.length) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "duplicate-seo-route" });
   if (brief.decisions.form.mode === "NONE" && brief.decisions.form.formPresent) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "form-none-present" });
-  if (brief.decisions.form.mode === "REAL" && (brief.decisions.form as { transmissionMode: string }).transmissionMode === "NONE") throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "real-success-without-transmission" });
+  if (brief.decisions.routePolicy.mode === "SINGLE_PAGE" && brief.pages.length > 1) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "single-page-with-multiple-pages" });
+  if (brief.decisions.routePolicy.mode === "MULTI_PAGE" && brief.pages.length < 2) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "multi-page-without-multiple-pages" });
+  if (!brief.localization.locales.includes(brief.localization.defaultLocale)) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "default-locale-not-listed" });
+  if (brief.assets.some((asset) => asset.id === "ASSET_COMPANY_LOGO" && asset.role !== "logo")) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "company-logo-role" });
   const checksumInput = canonicalBriefChecksumInput(brief);
   if (checksumInput !== canonicalBriefChecksumInput(brief)) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "unstable-checksum-input" });
   return brief;
@@ -82,7 +85,7 @@ export function validateReductionInvariants(current: CanonicalBriefV3, next: Can
       throw new BriefV3Error("BRIEF_V3_REDUCTION_INVALID", { invariant: "target-value-applied", target: change.target });
     }
   }
-  const topLevelKeys = ["summary", "title", "scope", "pages", "requirements", "decisions", "assets", "brand", "seo", "legal", "localization", "unresolved"] as const;
+  const topLevelKeys = ["summary", "title", "scope", "pages", "requirements", "decisions", "assets", "brand", "seo", "legal", "localization", "evidence", "unresolved"] as const;
   for (const key of topLevelKeys) {
     const domainTouched = key === "decisions"
       ? touchedDomains.has("form") || touchedDomains.has("database") || touchedDomains.has("auth") || touchedDomains.has("analytics") || touchedDomains.has("route")

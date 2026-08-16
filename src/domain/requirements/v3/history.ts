@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { BriefChangeSet } from "./changeset";
-import { validateReductionInvariants } from "./invariants";
+import { validateCanonicalBriefV3, validateReductionInvariants } from "./invariants";
 import { canonicalBriefChecksum, changeSetChecksum, normalizeBriefChangeSet, normalizeCanonicalBrief, stableSerialize } from "./normalize";
 import { type CanonicalBriefV3 } from "./schema";
 import { readSemanticTarget } from "./state";
@@ -32,8 +32,8 @@ export function deriveBriefProvenance(
   revisionReference: string,
 ): BriefRevisionHistory {
   const changes = normalizeBriefChangeSet(input);
-  const previous = normalizeCanonicalBrief(before);
-  const next = normalizeCanonicalBrief(after);
+  const previous = normalizeCanonicalBrief(validateCanonicalBriefV3(before));
+  const next = normalizeCanonicalBrief(validateCanonicalBriefV3(after));
   validateReductionInvariants(previous, next, changes);
   const entries = changes.changes.map((change) => {
     const beforeValue = readSemanticTarget(previous, change.target);

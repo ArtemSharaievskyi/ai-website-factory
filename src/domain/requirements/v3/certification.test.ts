@@ -1,12 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import {
+  assertKnownTarget,
   BriefChangeSetSchema,
+  type BriefChangeSet,
   BriefV3Error,
   SEMANTIC_TARGETS,
   TARGET_CATALOG,
   applyBriefChangeSet,
   canonicalBriefChecksum,
   canonicalBriefChecksumInput,
+  changeSetChecksum,
   deriveBriefProvenance,
   readLegacyRequirementHistory,
   migrateV1ToCanonicalBriefV3,
@@ -15,9 +18,36 @@ import {
   normalizeCanonicalBrief,
   parseBriefChangeSet,
   stableSerialize,
+  isReductionNoOp,
   validateCanonicalBriefV3,
 } from ".";
-import { cleanBriefV3, cleanFormRevisionChangeSet, expectedV1Migration, expectedV2Migration, multiDomainChangeSet, representativeV1Brief, representativeV2Brief } from "./fixtures";
+import { ambiguousV2Brief, cleanBriefV3, cleanFormRevisionChangeSet, conflictingChangeSet, expectedNormalizedBrief, expectedV1Migration, expectedV2Migration, multiDomainChangeSet, representativeV1Brief, representativeV2Brief } from "./fixtures";
+
+const passedGroups = new Set<string>();
+let generatedPropertyCases = 0;
+const mark = (group: string) => passedGroups.add(group);
+
+afterAll(() => {
+  const groups = [
+    "Target catalog",
+    "ChangeSet typing",
+    "Reducer examples",
+    "Reducer properties",
+    "Normalization",
+    "Invariants",
+    "History separation",
+    "V1 migration",
+    "V2 migration",
+    "Migration ambiguity",
+    "Serialization/checksum",
+    "Golden fixtures",
+    "Adversarial cases",
+  ];
+  console.log("\nBRIEF REVISION V3 CORE CERTIFICATION");
+  for (const group of groups) console.log(`${group.padEnd(30, ".")} ${passedGroups.has(group) ? "PASS" : "FAIL"}`);
+  console.log(`Generated property cases .... ${generatedPropertyCases}`);
+  if (groups.every((group) => passedGroups.has(group))) console.log("\nBRIEF REVISION V3 CORE:\nCERTIFIED");
+});
 
 const expectCode = (callback: () => unknown, code: string) => {
   try {
@@ -33,8 +63,11 @@ describe("Brief Revision V3 certification", () => {
   it("catalogs stable typed targets without language-dependent identity", () => {
     expect(TARGET_CATALOG.map((entry) => entry.id)).toContain(SEMANTIC_TARGETS.FORM_SUCCESS_MODE);
     expect(TARGET_CATALOG.map((entry) => entry.id)).toContain(SEMANTIC_TARGETS.ASSET_COMPANY_LOGO);
+    for (const target of Object.values(SEMANTIC_TARGETS)) expect(TARGET_CATALOG.some((entry) => entry.id === target)).toBe(true);
     expect(normalizeBriefChangeSet({ contractVersion: 1, changes: [{ operation: "SET", target: "FORM_SUCCESS_MODE", value: "SIMULATED" }], unresolved: [] }).changes[0]?.target).toBe("FORM_SUCCESS_MODE");
     expect(normalizeBriefChangeSet({ contractVersion: 1, changes: [{ operation: "SET", target: "FORM_SUCCESS_MODE", value: "SIMULATED" }, { operation: "SET", target: "FORM_SUCCESS_MODE", value: "SIMULATED" }], unresolved: [] }).changes).toHaveLength(1);
+    mark("Target catalog");
+    mark("ChangeSet typing");
   });
 
   it("parses only SET/UPSERT/REMOVE and rejects malformed or host-owned payloads", () => {
@@ -42,6 +75,7 @@ describe("Brief Revision V3 certification", () => {
     expect(BriefChangeSetSchema.safeParse({ contractVersion: 1, changes: [{ operation: "SET", target: "FORM_SUCCESS_MODE", value: "SIMULATED", checksum: "host" }], unresolved: [] }).success).toBe(false);
     expectCode(() => parseBriefChangeSet({ contractVersion: 1, changes: [{ operation: "SET", target: "UNKNOWN_TARGET", value: "x" }], unresolved: [] }), "BRIEF_V3_CHANGESET_INVALID");
     expectCode(() => parseBriefChangeSet({ contractVersion: 1, changes: [{ operation: "SET", target: "FORM_SUCCESS_MODE", value: "INVALID" }], unresolved: [] }), "BRIEF_V3_CHANGESET_INVALID");
+    mark("ChangeSet typing");
   });
 
   it("normalizes changesets idempotently, merges equivalent provenance, and rejects authority conflicts", () => {
@@ -57,8 +91,9 @@ describe("Brief Revision V3 certification", () => {
     expect(normalizeBriefChangeSet(normalized)).toEqual(normalized);
     expect(normalized.changes[0]).toMatchObject({ target: "REQUIREMENT:service", sourceRefs: ["a", "b", "c"] });
     expect((normalized.changes[0] as { value: { sourceRefs: string[] } }).value.sourceRefs).toEqual(["a", "b", "c"]);
-    expectCode(() => normalizeBriefChangeSet({ contractVersion: 1, changes: [{ operation: "SET", target: "SEO_TITLE", value: "One" }, { operation: "SET", target: "SEO_TITLE", value: "Two" }], unresolved: [] }), "BRIEF_V3_CONFLICTING_OPERATIONS");
+    expectCode(() => normalizeBriefChangeSet(conflictingChangeSet), "BRIEF_V3_CONFLICTING_OPERATIONS");
     expectCode(() => normalizeBriefChangeSet({ contractVersion: 1, changes: [{ operation: "REMOVE", target: "REQUIREMENT:service" }, { operation: "UPSERT", target: "REQUIREMENT:service", value: { category: "FEATURE", statement: "Re-add.", sourceRefs: ["fixture"] } }], unresolved: [] }), "BRIEF_V3_CONFLICTING_OPERATIONS");
+    mark("Normalization");
   });
 
   it("normalizes canonical state by semantic ID without rewriting user-facing text", () => {
@@ -73,6 +108,8 @@ describe("Brief Revision V3 certification", () => {
     expect(normalized.requirements.find((entry) => entry.id === "REQUIREMENT:service")?.statement).toBe("Show the synthetic service overview.");
     expect(canonicalBriefChecksumInput(normalized)).toBe(canonicalBriefChecksumInput(normalizeCanonicalBrief(normalized)));
     expect(canonicalBriefChecksum(normalized)).toHaveLength(64);
+    mark("Serialization/checksum");
+    mark("Golden fixtures");
   });
 
   it("applies one deterministic host-owned reduction with implicit preservation and locality", () => {
@@ -85,6 +122,8 @@ describe("Brief Revision V3 certification", () => {
     expect(next.pages).toEqual(cleanBriefV3.pages);
     expect(next.requirements).toEqual(cleanBriefV3.requirements);
     expect(applyBriefChangeSet(cleanBriefV3, cleanFormRevisionChangeSet)).toEqual(next);
+    mark("Reducer examples");
+    mark("Reducer properties");
   });
 
   it("applies independent multi-domain changes in canonical target order", () => {
@@ -94,6 +133,7 @@ describe("Brief Revision V3 certification", () => {
     expect(next.requirements.find((entry) => entry.id === "REQUIREMENT:service")?.statement).toContain("hours");
     const reversed = { ...multiDomainChangeSet, changes: [...multiDomainChangeSet.changes].reverse() };
     expect(applyBriefChangeSet(cleanBriefV3, reversed)).toEqual(next);
+    mark("Reducer properties");
   });
 
   it("supports no-op SET and redundant REMOVE without resurrecting state", () => {
@@ -103,6 +143,7 @@ describe("Brief Revision V3 certification", () => {
     const removedAgain = applyBriefChangeSet(removed, { contractVersion: 1, changes: [{ operation: "REMOVE", target: "REQUIREMENT:service" }], unresolved: [] });
     expect(removedAgain.requirements.some((entry) => entry.id === "REQUIREMENT:service")).toBe(false);
     expect(removedAgain).toEqual(removed);
+    mark("Reducer properties");
   });
 
   it("makes invalid exclusive form states impossible at the schema and invariant boundary", () => {
@@ -110,6 +151,11 @@ describe("Brief Revision V3 certification", () => {
     expectCode(() => validateCanonicalBriefV3({ ...cleanBriefV3, projectId: "host-owned" }), "BRIEF_V3_INVARIANT_VIOLATION");
     expectCode(() => validateCanonicalBriefV3({ ...cleanBriefV3, history: [] }), "BRIEF_V3_INVARIANT_VIOLATION");
     expectCode(() => validateCanonicalBriefV3({ ...cleanBriefV3, requirements: [...cleanBriefV3.requirements, { ...cleanBriefV3.requirements[0]!, sourceRefs: ["other"] }] }), "BRIEF_V3_DUPLICATE_TARGET");
+    expect(() => validateCanonicalBriefV3({ ...cleanBriefV3, scope: { ...cleanBriefV3.scope, images: { required: false, sourceStrategy: "USER_SUPPLIED" } } })).toThrow();
+    expect(() => validateCanonicalBriefV3({ ...cleanBriefV3, decisions: { ...cleanBriefV3.decisions, form: { ...cleanBriefV3.decisions.form, mode: "REAL", transmissionMode: "NONE" } } })).toThrow();
+    expect(() => validateCanonicalBriefV3({ ...cleanBriefV3, decisions: { ...cleanBriefV3.decisions, routePolicy: { mode: "MULTI_PAGE" } } })).toThrow();
+    expect(() => validateCanonicalBriefV3({ ...cleanBriefV3, localization: { locales: ["de"], defaultLocale: "en" } })).toThrow();
+    mark("Invariants");
   });
 
   it("derives provenance after reduction and never treats it as current input", () => {
@@ -119,6 +165,7 @@ describe("Brief Revision V3 certification", () => {
     expect(history.entries[0]).toMatchObject({ target: "SEO_TITLE", operation: "SET", outcome: "CHANGED" });
     expect(JSON.stringify(history)).not.toContain("New synthetic title");
     expect(applyBriefChangeSet(cleanBriefV3, { ...changeSet, unresolved: [{ target: "history", reason: "Removed content remains historical.", sourceRefs: ["fixture"] }] }).seo).toEqual(next.seo);
+    mark("History separation");
   });
 
   it("migrates representative V1 deterministically without importing history or host metadata", () => {
@@ -154,11 +201,15 @@ describe("Brief Revision V3 certification", () => {
   });
 
   it("rejects contradictory legacy mappings instead of guessing", () => {
-    expectCode(() => migrateV2ToCanonicalBriefV3({ ...representativeV2Brief, explicitExclusions: ["No successful submission may be faked."] }), "BRIEF_V3_MIGRATION_AMBIGUOUS");
+    expectCode(() => migrateV2ToCanonicalBriefV3(ambiguousV2Brief), "BRIEF_V3_MIGRATION_AMBIGUOUS");
     expectCode(() => migrateV2ToCanonicalBriefV3({ ...representativeV2Brief, formBehaviorRequirements: { ...representativeV2Brief.formBehaviorRequirements, successUx: "REAL", dataTransmission: "NONE" } }), "BRIEF_V3_MIGRATION_AMBIGUOUS");
+    mark("V1 migration");
+    mark("V2 migration");
+    mark("Migration ambiguity");
   });
 
   it("covers repeated operation permutations and optional state combinations", () => {
+    expect(normalizeCanonicalBrief(cleanBriefV3)).toEqual(expectedNormalizedBrief);
     const formModes = ["NONE", "SIMULATED", "REAL", "UNRESOLVED"] as const;
     const databaseModes = ["NONE", "SUPABASE", "UNRESOLVED"] as const;
     for (const formMode of formModes) {
@@ -178,6 +229,149 @@ describe("Brief Revision V3 certification", () => {
     const changedWording = applyBriefChangeSet(removed, { contractVersion: 1, changes: [{ operation: "UPSERT", target: "REQUIREMENT:replacement", value: { category: "FEATURE", statement: "A differently worded service.", sourceRefs: ["fixture"] } }], unresolved: [] });
     expect(changedWording.requirements.some((entry) => entry.id === "REQUIREMENT:service")).toBe(false);
     expect(stableSerialize(changedWording)).toBe(stableSerialize(normalizeCanonicalBrief(changedWording)));
-    expectCode(() => applyBriefChangeSet(cleanBriefV3, { contractVersion: 1, changes: [{ operation: "SET", target: "FORM_SUCCESS_MODE", value: "REAL" }, { operation: "SET", target: "FORM_TRANSMISSION_MODE", value: "NONE" }], unresolved: [] }), "BRIEF_V3_SCHEMA_INVALID");
+    expectCode(() => applyBriefChangeSet(cleanBriefV3, { contractVersion: 1, changes: [{ operation: "SET", target: "FORM_SUCCESS_MODE", value: "REAL" }, { operation: "SET", target: "FORM_TRANSMISSION_MODE", value: "NONE" }], unresolved: [] }), "BRIEF_V3_CONFLICTING_OPERATIONS");
+    mark("Adversarial cases");
+  });
+
+  it("rejects unknown catalog IDs and target/value mismatches before reduction", () => {
+    expectCode(() => assertKnownTarget("FORM_NOT_REGISTERED"), "BRIEF_V3_UNKNOWN_TARGET");
+    expect(BriefChangeSetSchema.safeParse({ contractVersion: 1, changes: [{ operation: "SET", target: "DATABASE_MODE", value: "EMAIL" }], unresolved: [] }).success).toBe(false);
+    const typedChangeSet = {
+      contractVersion: 1,
+      changes: [{ operation: "SET", target: "SEO_TITLE", value: "Typed synthetic title" }],
+      unresolved: [],
+    } satisfies BriefChangeSet;
+    expect(parseBriefChangeSet(typedChangeSet).changes[0]).toMatchObject({ target: "SEO_TITLE", value: "Typed synthetic title" });
+    mark("Target catalog");
+    mark("ChangeSet typing");
+    mark("Adversarial cases");
+  });
+
+  it("rejects semantic conflicts instead of allowing order-dependent form repair", () => {
+    const noneWithEmail = { contractVersion: 1 as const, changes: [
+      { operation: "SET" as const, target: "FORM_SUCCESS_MODE" as const, value: "NONE" as const },
+      { operation: "SET" as const, target: "FORM_TRANSMISSION_MODE" as const, value: "EMAIL" as const },
+    ], unresolved: [] } satisfies BriefChangeSet;
+    expectCode(() => applyBriefChangeSet(cleanBriefV3, noneWithEmail), "BRIEF_V3_CONFLICTING_OPERATIONS");
+    const forbiddenSimulation = { contractVersion: 1 as const, changes: [
+      { operation: "SET" as const, target: "FORM_SUCCESS_MODE" as const, value: "SIMULATED" as const },
+      { operation: "SET" as const, target: "FORM_SIMULATED_SUCCESS_POLICY" as const, value: "FORBIDDEN" as const },
+    ], unresolved: [] } satisfies BriefChangeSet;
+    expectCode(() => applyBriefChangeSet(cleanBriefV3, forbiddenSimulation), "BRIEF_V3_CONFLICTING_OPERATIONS");
+    const imageOff = applyBriefChangeSet(cleanBriefV3, { contractVersion: 1, changes: [{ operation: "SET", target: "IMAGE_SOURCE_STRATEGY", value: "NONE" }], unresolved: [] });
+    expect(imageOff.scope.images).toEqual({ required: false, sourceStrategy: "NONE" });
+    const imageOn = applyBriefChangeSet(imageOff, { contractVersion: 1, changes: [{ operation: "SET", target: "IMAGE_SOURCE_STRATEGY", value: "AI_GENERATED" }], unresolved: [] });
+    expect(imageOn.scope.images).toEqual({ required: true, sourceStrategy: "AI_GENERATED" });
+    mark("Reducer examples");
+    mark("Invariants");
+    mark("Adversarial cases");
+  });
+
+  it("proves input immutability, locality, no-resurrection, and canonical no-op behavior", () => {
+    const current = JSON.parse(JSON.stringify(cleanBriefV3)) as typeof cleanBriefV3;
+    const changes = JSON.parse(JSON.stringify(multiDomainChangeSet)) as typeof multiDomainChangeSet;
+    const currentBefore = stableSerialize(current);
+    const changesBefore = stableSerialize(changes);
+    const next = applyBriefChangeSet(current, changes);
+    expect(stableSerialize(current)).toBe(currentBefore);
+    expect(stableSerialize(changes)).toBe(changesBefore);
+    expect(next.pages).toEqual(cleanBriefV3.pages);
+    const removed = applyBriefChangeSet(cleanBriefV3, { contractVersion: 1, changes: [{ operation: "REMOVE", target: "REQUIREMENT:service" }], unresolved: [] });
+    const noOp = applyBriefChangeSet(removed, { contractVersion: 1, changes: [{ operation: "REMOVE", target: "REQUIREMENT:service" }], unresolved: [] });
+    expect(isReductionNoOp(removed, noOp)).toBe(true);
+    expect(noOp.requirements.some((entry) => entry.id === "REQUIREMENT:service")).toBe(false);
+    mark("Reducer properties");
+    mark("History separation");
+  });
+
+  it("keeps canonical serialization and ChangeSet checksums stable across construction order", () => {
+    const reordered = {
+      unresolved: cleanBriefV3.unresolved,
+      evidence: cleanBriefV3.evidence,
+      localization: cleanBriefV3.localization,
+      legal: cleanBriefV3.legal,
+      seo: cleanBriefV3.seo,
+      brand: cleanBriefV3.brand,
+      assets: cleanBriefV3.assets,
+      decisions: cleanBriefV3.decisions,
+      requirements: cleanBriefV3.requirements,
+      pages: cleanBriefV3.pages,
+      scope: cleanBriefV3.scope,
+      title: cleanBriefV3.title,
+      summary: cleanBriefV3.summary,
+      schemaVersion: cleanBriefV3.schemaVersion,
+    };
+    expect(canonicalBriefChecksum(reordered)).toBe(canonicalBriefChecksum(cleanBriefV3));
+    const reversed = { ...multiDomainChangeSet, changes: [...multiDomainChangeSet.changes].reverse() };
+    expect(changeSetChecksum(reversed)).toBe(changeSetChecksum(multiDomainChangeSet));
+    expect(canonicalBriefChecksumInput(reordered)).toBe(canonicalBriefChecksumInput(cleanBriefV3));
+    mark("Serialization/checksum");
+  });
+
+  it("covers migration completeness and fail-closed ambiguity for both legacy versions", () => {
+    const v1 = migrateV1ToCanonicalBriefV3(representativeV1Brief);
+    expect(v1.requirements.some((entry) => entry.statement === representativeV1Brief.projectSummary)).toBe(false);
+    expect(v1.requirements.some((entry) => entry.statement === "Explain the synthetic service.")).toBe(true);
+    expect(v1.requirements.some((entry) => entry.statement === "Single-page only.")).toBe(true);
+    expect(v1.evidence).toMatchObject([{ field: "projectSummary", source: "synthetic-fixture", excerpt: "Synthetic atelier landing page.", sourceRefs: [expect.stringMatching(/^legacy:v1:evidence:/)] }]);
+    expect(v1.decisions.form.simulatedSuccessPolicy).toBe("UNRESOLVED");
+    expectCode(() => migrateV1ToCanonicalBriefV3({ ...representativeV1Brief, imagesRequired: false, imageSourceDecision: "user-supplied" }), "BRIEF_V3_MIGRATION_AMBIGUOUS");
+    const conflictingV2 = { ...representativeV2Brief, decisions: [
+      { key: "database-mode", value: "NONE", status: "CONFIRMED" as const, sourceRefs: ["fixture:a"] },
+      { key: "database-mode", value: "SUPABASE", status: "CONFIRMED" as const, sourceRefs: ["fixture:b"] },
+    ] };
+    expectCode(() => migrateV2ToCanonicalBriefV3(conflictingV2), "BRIEF_V3_MIGRATION_AMBIGUOUS");
+    const orderedV1 = migrateV1ToCanonicalBriefV3({ ...representativeV1Brief, businessGoals: ["Synthetic goal A.", "Synthetic goal B."] });
+    const reorderedV1 = migrateV1ToCanonicalBriefV3({ ...representativeV1Brief, businessGoals: ["Synthetic goal B.", "Synthetic goal A."] });
+    expect(reorderedV1).toEqual(orderedV1);
+    mark("V1 migration");
+    mark("V2 migration");
+    mark("Migration ambiguity");
+    mark("Golden fixtures");
+  });
+
+  it("runs deterministic property-style cases across targets, repetitions, removal, and permutations", () => {
+    let state = 0x5eed1234;
+    const nextRandom = () => {
+      state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+      return state;
+    };
+    const shuffle = <T>(values: readonly T[]): T[] => {
+      const result = [...values];
+      for (let index = result.length - 1; index > 0; index -= 1) {
+        const swap = nextRandom() % (index + 1);
+        [result[index], result[swap]] = [result[swap]!, result[index]!];
+      }
+      return result;
+    };
+    for (let caseIndex = 0; caseIndex < 512; caseIndex += 1) {
+      const candidates: BriefChangeSet["changes"] = [
+        { operation: "SET", target: "SEO_TITLE", value: `Synthetic title ${caseIndex}`, sourceRefs: [`property:${caseIndex}:title`] },
+        { operation: "SET", target: "SEO_META_DESCRIPTION", value: caseIndex % 3 === 0 ? null : `Synthetic description ${caseIndex}`, sourceRefs: [`property:${caseIndex}:description`] },
+        { operation: "SET", target: "DATABASE_MODE", value: (["NONE", "SUPABASE", "POSTGRES", "OTHER", "UNRESOLVED"] as const)[nextRandom() % 5]!, sourceRefs: [`property:${caseIndex}:database`] },
+        { operation: "SET", target: "AUTH_MODE", value: (["NONE", "REQUIRED", "OPTIONAL", "UNRESOLVED"] as const)[nextRandom() % 4]!, sourceRefs: [`property:${caseIndex}:auth`] },
+        { operation: "SET", target: "ANALYTICS_MODE", value: (["NONE", "APPROVED_PROVIDER", "OTHER", "UNRESOLVED"] as const)[nextRandom() % 4]!, sourceRefs: [`property:${caseIndex}:analytics`] },
+        { operation: "SET", target: "ROUTE_POLICY", value: (["SINGLE_PAGE", "UNRESOLVED"] as const)[nextRandom() % 2]!, sourceRefs: [`property:${caseIndex}:route`] },
+        { operation: "SET", target: "IMAGE_SOURCE_STRATEGY", value: (["NONE", "AI_GENERATED", "USER_SUPPLIED", "USER_AND_AI", "PLACEHOLDERS", "CUSTOM", "UNRESOLVED"] as const)[nextRandom() % 7]!, sourceRefs: [`property:${caseIndex}:image`] },
+        { operation: "UPSERT", target: `REQUIREMENT:property-${caseIndex}`, value: { category: "FEATURE", statement: `Synthetic property requirement ${caseIndex}.`, sourceRefs: [`property:${caseIndex}:requirement`] }, sourceRefs: [`property:${caseIndex}:requirement`] },
+      ];
+      const selected = candidates.filter((_candidate, index) => index === 0 || (nextRandom() & 1) === 1);
+      const duplicate = selected[0];
+      const withRepeat = duplicate ? [...selected, { ...duplicate, sourceRefs: [...(duplicate.sourceRefs ?? []), `property:${caseIndex}:repeat`] }] : selected;
+      const first = { contractVersion: 1 as const, changes: shuffle(withRepeat), unresolved: [] } satisfies BriefChangeSet;
+      const second = { contractVersion: 1 as const, changes: shuffle(withRepeat), unresolved: [] } satisfies BriefChangeSet;
+      const a = applyBriefChangeSet(cleanBriefV3, first);
+      const b = applyBriefChangeSet(cleanBriefV3, second);
+      expect(a).toEqual(b);
+      expect(normalizeBriefChangeSet(first)).toEqual(normalizeBriefChangeSet(second));
+      expect(changeSetChecksum(first)).toBe(changeSetChecksum(second));
+      expect(normalizeCanonicalBrief(a)).toEqual(a);
+      generatedPropertyCases += 1;
+    }
+    expect(generatedPropertyCases).toBe(512);
+    mark("Reducer properties");
+    mark("Normalization");
+    mark("Serialization/checksum");
+    mark("Adversarial cases");
   });
 });

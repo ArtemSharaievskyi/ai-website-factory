@@ -42,7 +42,7 @@ export const representativeV1Brief: RequirementSpecification = RequirementSpecif
   brandFacts: ["Synthetic blue-and-copper identity."],
   logoMetadata: ["Synthetic primary logo reference."],
   imageSourcingNotes: [],
-  evidence: [],
+  evidence: [{ field: "projectSummary", source: "synthetic-fixture", excerpt: "Synthetic atelier landing page." }],
   recommendations: [],
   briefStatus: "draft",
   briefVersion: 1,
@@ -101,7 +101,7 @@ export const cleanBriefV3: CanonicalBriefV3 = CanonicalBriefV3Schema.parse({
   schemaVersion: 3,
   summary: "Synthetic atelier landing page.",
   title: "Synthetic Atelier",
-  scope: { protectedFunctionality: false, imagesRequired: true, imageSourceStrategy: "USER_SUPPLIED" },
+  scope: { protectedFunctionality: false, images: { required: true, sourceStrategy: "USER_SUPPLIED" } },
   pages: [{ id: "PAGE:home", slug: "home", purpose: "Explain the synthetic service.", sourceRefs: ["fixture:page"] }],
   requirements: [
     { id: "REQUIREMENT:legal", category: "LEGAL_CONSTRAINT", statement: "Use marked synthetic placeholders.", sourceRefs: ["fixture:legal"] },
@@ -112,6 +112,7 @@ export const cleanBriefV3: CanonicalBriefV3 = CanonicalBriefV3Schema.parse({
       mode: "SIMULATED",
       formPresent: true,
       validation: "ACTIVE",
+      simulatedSuccessPolicy: "ALLOWED",
       transmissionMode: "NONE",
       persistenceMode: "NONE",
       serverProcessingMode: "NONE",
@@ -135,6 +136,7 @@ export const cleanBriefV3: CanonicalBriefV3 = CanonicalBriefV3Schema.parse({
   },
   legal: { placeholderPolicy: "USE_EXPLICIT_PLACEHOLDERS", inventedFactsPolicy: "FORBIDDEN" },
   localization: { locales: ["en"], defaultLocale: "en" },
+  evidence: [],
   unresolved: [],
 });
 
@@ -157,13 +159,29 @@ export const multiDomainChangeSet = {
   unresolved: [],
 };
 
+export const conflictingChangeSet = {
+  contractVersion: 1 as const,
+  changes: [
+    { operation: "SET" as const, target: "SEO_TITLE" as const, value: "Synthetic title one" as const, sourceRefs: ["fixture:conflict:a"] },
+    { operation: "SET" as const, target: "SEO_TITLE" as const, value: "Synthetic title two" as const, sourceRefs: ["fixture:conflict:b"] },
+  ],
+  unresolved: [],
+};
+
+export const ambiguousV2Brief: ProjectBriefV2 = ProjectBriefV2Schema.parse({
+  ...representativeV2Brief,
+  explicitExclusions: ["No successful submission may be faked."],
+});
+
+export const expectedNormalizedBrief = cleanBriefV3;
+
 export const expectedV1Migration = {
   summary: "Synthetic atelier landing page.",
   formMode: "UNRESOLVED",
   databaseMode: "NONE",
   authMode: "NONE",
   routePolicy: "SINGLE_PAGE",
-  legalInventedFactsPolicy: "FORBIDDEN",
+  legalInventedFactsPolicy: "UNRESOLVED",
 } as const;
 
 export const expectedV2Migration = {

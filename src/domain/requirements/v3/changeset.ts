@@ -7,16 +7,21 @@ import {
   CanonicalPageValueSchema,
   CanonicalRequirementValueSchema,
   DatabaseModeSchema,
-  ImageSourceStrategySchema,
-  InventedFactsPolicySchema,
-  PlaceholderPolicySchema,
-} from "./schema";
-import {
   FormExternalProviderModeSchema,
   FormPersistenceModeSchema,
   FormPrivacyConsentModeSchema,
   FormServerProcessingModeSchema,
   FormTransmissionModeSchema,
+  ImageSourceStrategySchema,
+  InventedFactsPolicySchema,
+  PlaceholderPolicySchema,
+} from "./schema";
+import {
+  AssetTargetId,
+  DynamicPageTargetId,
+  DynamicRequirementTargetId,
+  FixedSetTargetId,
+  FixedTargetValueMap,
   SEMANTIC_TARGETS,
   SuccessModeSchema,
 } from "./targets";
@@ -24,6 +29,26 @@ import { BriefV3Error } from "./errors";
 
 const SourceRefsSchema = z.array(z.string().trim().min(1).max(200)).min(1);
 const OptionalSourceRefsSchema = z.array(z.string().trim().min(1).max(200)).optional();
+
+/** The target/value relation is explicit for every fixed semantic target. */
+export type BriefSetChange = {
+  [Target in FixedSetTargetId]: {
+    operation: "SET";
+    target: Target;
+    value: FixedTargetValueMap[Target];
+    sourceRefs?: string[];
+  };
+}[FixedSetTargetId];
+
+export type BriefUpsertChange =
+  | { operation: "UPSERT"; target: DynamicRequirementTargetId; value: z.infer<typeof CanonicalRequirementValueSchema>; sourceRefs?: string[] }
+  | { operation: "UPSERT"; target: AssetTargetId; value: z.infer<typeof CanonicalAssetValueSchema>; sourceRefs?: string[] }
+  | { operation: "UPSERT"; target: DynamicPageTargetId; value: z.infer<typeof CanonicalPageValueSchema>; sourceRefs?: string[] };
+
+export type BriefRemoveChange = { operation: "REMOVE"; target: DynamicRequirementTargetId | AssetTargetId | DynamicPageTargetId; sourceRefs?: string[] };
+export type BriefChange = BriefSetChange | BriefUpsertChange | BriefRemoveChange;
+export type BriefUnresolved = { target: string; reason: string; sourceRefs: string[] };
+export type BriefChangeSet = { contractVersion: 1; changes: BriefChange[]; unresolved: BriefUnresolved[] };
 
 const setVariant = <T extends z.ZodType>(target: string, value: T) => z.object({
   operation: z.literal("SET"),
@@ -34,6 +59,7 @@ const setVariant = <T extends z.ZodType>(target: string, value: T) => z.object({
 
 export const BriefChangeSchema = z.union([
   setVariant(SEMANTIC_TARGETS.FORM_SUCCESS_MODE, SuccessModeSchema),
+  setVariant(SEMANTIC_TARGETS.FORM_SIMULATED_SUCCESS_POLICY, z.enum(["ALLOWED", "FORBIDDEN", "UNRESOLVED", "NOT_APPLICABLE"])),
   setVariant(SEMANTIC_TARGETS.FORM_TRANSMISSION_MODE, FormTransmissionModeSchema),
   setVariant(SEMANTIC_TARGETS.FORM_PERSISTENCE_MODE, FormPersistenceModeSchema),
   setVariant(SEMANTIC_TARGETS.FORM_SERVER_PROCESSING_MODE, FormServerProcessingModeSchema),
@@ -73,7 +99,6 @@ export const BriefChangeSchema = z.union([
     sourceRefs: OptionalSourceRefsSchema,
   }).strict(),
 ]);
-export type BriefChange = z.infer<typeof BriefChangeSchema>;
 
 export const BriefChangeSetSchema = z.object({
   contractVersion: z.literal(1),
@@ -84,10 +109,9 @@ export const BriefChangeSetSchema = z.object({
     sourceRefs: SourceRefsSchema,
   }).strict()),
 }).strict();
-export type BriefChangeSet = z.infer<typeof BriefChangeSetSchema>;
 
 export function parseBriefChangeSet(input: unknown): BriefChangeSet {
   const result = BriefChangeSetSchema.safeParse(input);
   if (!result.success) throw new BriefV3Error("BRIEF_V3_CHANGESET_INVALID", { issue: result.error.issues[0]?.message ?? "invalid changeset" });
-  return result.data;
+  return result.data as BriefChangeSet;
 }
