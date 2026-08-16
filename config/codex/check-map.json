@@ -13,7 +13,7 @@
       "id": "brief-requirements",
       "area": "Brief requirements",
       "pathPrefixes": ["src/domain/requirements/", "src/agents/lead/", "src/runtime/trial-entry/", "src/runtime/workbench/brief-"],
-      "checkIds": ["brief-tests", "brief-revision-tests", "lead-tests", "trial-entry-production-tests", "architecture", "typecheck", "lint"],
+      "checkIds": ["brief-tests", "brief-revision-certification", "brief-revision-tests", "lead-tests", "trial-entry-production-tests", "architecture", "typecheck", "lint"],
       "productionPathIds": ["TRIAL_ENTRY_CONTINUATION", "BRIEF_REVISION_PATH"]
     },
     {

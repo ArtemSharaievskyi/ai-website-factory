@@ -174,6 +174,6 @@ describe("Lossless Brief revision input contract", () => {
     expect(lead).toContain("expectedBriefChecksum");
     expect(lead).toContain("reviseBrief");
     expect((await import("@/runtime/trial-entry/idempotency")).briefRevisionOperationKey({ projectId: scenario.projectId, projectVersion: 1, briefChecksum: scenario.originalBrief.brief?.checksum ?? "a".repeat(64), expectedRowVersion: scenario.originalBrief.project?.rowVersion ?? 1, reason: revision, requirementKeys: ["project-brief"] }).key).not.toContain(revision);
-    expect(await readFile(path.resolve("package.json"), "utf8")).not.toContain("brief-revision");
+    expect(await readFile(path.resolve("package.json"), "utf8")).toContain("test:brief-revision:certify");
   });
 });

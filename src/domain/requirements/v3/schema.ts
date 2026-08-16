@@ -1,0 +1,213 @@
+import { z } from "zod";
+import { LocaleSchema, NonEmptyStringSchema } from "@/domain/shared/schemas";
+
+export const V3_SCHEMA_VERSION = 3 as const;
+
+const SourceRefSchema = NonEmptyStringSchema.max(200);
+export const SemanticRequirementIdSchema = z.string().regex(/^REQUIREMENT:[A-Za-z0-9_.:-]{1,180}$/);
+export const SemanticAssetIdSchema = z.string().regex(/^ASSET(?::[A-Za-z0-9_.:-]{1,180}|_COMPANY_LOGO)$/);
+export const SemanticPageIdSchema = z.string().regex(/^PAGE:[^\r\n]{1,180}$/);
+
+export const RequirementCategorySchema = z.enum([
+  "BUSINESS_GOAL",
+  "AUDIENCE",
+  "USER_ROLE",
+  "FEATURE",
+  "FORM",
+  "CONTENT",
+  "BACKEND",
+  "DATABASE",
+  "SEO",
+  "TECHNICAL",
+  "EXCLUSION",
+  "ACCEPTANCE",
+  "CONTACT_FACT",
+  "LEGAL_FACT",
+  "BRAND_FACT",
+  "LOGO_METADATA",
+  "IMAGE_NOTE",
+  "RECOMMENDATION",
+  "BRAND_VISUAL",
+  "UX_RESPONSIVE",
+  "LEGAL_CONSTRAINT",
+  "PROHIBITED",
+  "DEFERRED_INTEGRATION",
+  "DECISION",
+  "ADMINISTRATION",
+  "FORM_INTERACTION",
+  "OTHER",
+]);
+export type RequirementCategory = z.infer<typeof RequirementCategorySchema>;
+
+export const CanonicalRequirementValueSchema = z.object({
+  category: RequirementCategorySchema,
+  statement: NonEmptyStringSchema.max(4000),
+  sourceRefs: z.array(SourceRefSchema).min(1),
+}).strict();
+export type CanonicalRequirementValue = z.infer<typeof CanonicalRequirementValueSchema>;
+
+export const CanonicalRequirementSchema = CanonicalRequirementValueSchema.extend({
+  id: SemanticRequirementIdSchema,
+}).strict();
+export type CanonicalRequirement = z.infer<typeof CanonicalRequirementSchema>;
+
+export const CanonicalPageValueSchema = z.object({
+  slug: NonEmptyStringSchema.max(160),
+  purpose: NonEmptyStringSchema.max(2000),
+  sourceRefs: z.array(SourceRefSchema).min(1),
+}).strict();
+export type CanonicalPageValue = z.infer<typeof CanonicalPageValueSchema>;
+
+export const CanonicalPageSchema = CanonicalPageValueSchema.extend({
+  id: SemanticPageIdSchema,
+}).strict();
+export type CanonicalPage = z.infer<typeof CanonicalPageSchema>;
+
+export const AssetRoleSchema = z.enum(["logo", "brand-reference", "photography", "illustration", "document", "other"]);
+export const AssetReplacementPolicySchema = z.enum(["FORBIDDEN", "ALLOWED", "UNRESOLVED"]);
+export const CanonicalAssetValueSchema = z.object({
+  reference: NonEmptyStringSchema.max(200).refine((value) => !/[\\/]/.test(value), "Asset references must not expose storage paths"),
+  role: AssetRoleSchema,
+  usage: NonEmptyStringSchema.max(2000),
+  replacementPolicy: AssetReplacementPolicySchema,
+  sourceRefs: z.array(SourceRefSchema).min(1),
+}).strict();
+export type CanonicalAssetValue = z.infer<typeof CanonicalAssetValueSchema>;
+
+export const CanonicalAssetSchema = CanonicalAssetValueSchema.extend({
+  id: SemanticAssetIdSchema,
+}).strict();
+export type CanonicalAsset = z.infer<typeof CanonicalAssetSchema>;
+
+const InteractionStatesSchema = z.array(CanonicalRequirementSchema);
+const FormSharedSchema = {
+  formPresent: z.literal(true),
+  validation: z.literal("ACTIVE"),
+  persistenceMode: z.enum(["NONE", "DATABASE", "OTHER", "UNRESOLVED"]),
+  serverProcessingMode: z.enum(["NONE", "SERVER", "UNRESOLVED"]),
+  externalProviderMode: z.enum(["NONE", "APPROVED_PROVIDER", "OTHER", "UNRESOLVED"]),
+  privacyConsentMode: z.enum(["REQUIRED", "OPTIONAL", "NOT_APPLICABLE", "UNRESOLVED"]),
+  interactionStates: InteractionStatesSchema,
+} as const;
+
+export const FormBehaviorStateSchema = z.discriminatedUnion("mode", [
+  z.object({
+    mode: z.literal("NONE"),
+    formPresent: z.literal(false),
+    validation: z.literal("NOT_REQUIRED"),
+    transmissionMode: z.literal("NONE"),
+    persistenceMode: z.literal("NONE"),
+    serverProcessingMode: z.literal("NONE"),
+    externalProviderMode: z.literal("NONE"),
+    privacyConsentMode: z.literal("NOT_APPLICABLE"),
+    interactionStates: z.array(CanonicalRequirementSchema),
+  }).strict(),
+  z.object({
+    mode: z.literal("SIMULATED"),
+    ...FormSharedSchema,
+    transmissionMode: z.enum(["NONE", "EMAIL", "API", "OTHER", "UNRESOLVED"]),
+  }).strict(),
+  z.object({
+    mode: z.literal("REAL"),
+    ...FormSharedSchema,
+    transmissionMode: z.enum(["EMAIL", "API", "OTHER", "UNRESOLVED"]),
+  }).strict(),
+  z.object({
+    mode: z.literal("UNRESOLVED"),
+    ...FormSharedSchema,
+    transmissionMode: z.enum(["NONE", "EMAIL", "API", "OTHER", "UNRESOLVED"]),
+  }).strict(),
+]);
+export type FormBehaviorState = z.infer<typeof FormBehaviorStateSchema>;
+
+export const DatabaseModeSchema = z.enum(["NONE", "SUPABASE", "POSTGRES", "OTHER", "UNRESOLVED"]);
+export const AuthModeSchema = z.enum(["NONE", "REQUIRED", "OPTIONAL", "UNRESOLVED"]);
+export const AnalyticsModeSchema = z.enum(["NONE", "APPROVED_PROVIDER", "OTHER", "UNRESOLVED"]);
+export const RoutePolicySchema = z.enum(["SINGLE_PAGE", "MULTI_PAGE", "UNRESOLVED"]);
+export const BrandReferenceStrategySchema = z.enum(["NONE", "USER_SUPPLIED", "USER_SUPPLIED_AND_AI_ALLOWED", "AI_GENERATED", "PLACEHOLDERS", "UNRESOLVED"]);
+export const ImageSourceStrategySchema = z.enum(["AI_GENERATED", "USER_SUPPLIED", "USER_AND_AI", "PLACEHOLDERS", "CUSTOM", "UNRESOLVED"]);
+export const PlaceholderPolicySchema = z.enum(["USE_EXPLICIT_PLACEHOLDERS", "NO_PLACEHOLDERS", "UNRESOLVED"]);
+export const InventedFactsPolicySchema = z.enum(["FORBIDDEN", "ALLOWED", "UNRESOLVED"]);
+
+const ModeDecisionSchema = <T extends z.ZodType>(mode: T) => z.object({ mode }).strict();
+
+export const CanonicalSeoSchema = z.object({
+  primaryKeywords: z.array(NonEmptyStringSchema.max(300)),
+  exactTitle: z.string().trim().max(300).nullable(),
+  exactMetaDescription: z.string().trim().max(1000).nullable(),
+  locationTargeting: z.array(CanonicalRequirementSchema),
+  pageMetadata: z.array(z.object({
+    route: NonEmptyStringSchema.max(160),
+    title: z.string().trim().max(300).nullable(),
+    metaDescription: z.string().trim().max(1000).nullable(),
+    keywords: z.array(NonEmptyStringSchema.max(300)),
+    sourceRefs: z.array(SourceRefSchema).min(1),
+  }).strict()),
+}).strict();
+export type CanonicalSeo = z.infer<typeof CanonicalSeoSchema>;
+
+export const CanonicalBriefV3Schema = z.object({
+  schemaVersion: z.literal(V3_SCHEMA_VERSION),
+  summary: NonEmptyStringSchema.max(6000),
+  title: z.string().trim().max(300).nullable(),
+  scope: z.object({
+    protectedFunctionality: z.boolean(),
+    imagesRequired: z.boolean(),
+    imageSourceStrategy: ImageSourceStrategySchema,
+  }).strict(),
+  pages: z.array(CanonicalPageSchema),
+  requirements: z.array(CanonicalRequirementSchema),
+  decisions: z.object({
+    form: FormBehaviorStateSchema,
+    database: ModeDecisionSchema(DatabaseModeSchema),
+    auth: ModeDecisionSchema(AuthModeSchema),
+    analytics: ModeDecisionSchema(AnalyticsModeSchema),
+    routePolicy: ModeDecisionSchema(RoutePolicySchema),
+  }).strict(),
+  assets: z.array(CanonicalAssetSchema),
+  brand: z.object({
+    referenceStrategy: BrandReferenceStrategySchema,
+    suppliedInformation: z.string().trim().max(2000).nullable(),
+    suppliedLogoDescription: z.string().trim().max(2000).nullable(),
+  }).strict(),
+  seo: CanonicalSeoSchema,
+  legal: z.object({
+    placeholderPolicy: PlaceholderPolicySchema,
+    inventedFactsPolicy: InventedFactsPolicySchema,
+  }).strict(),
+  localization: z.object({
+    locales: z.array(LocaleSchema),
+    defaultLocale: LocaleSchema,
+  }).strict(),
+  unresolved: z.array(z.object({
+    target: NonEmptyStringSchema.max(300),
+    reason: NonEmptyStringSchema.max(2000),
+    sourceRefs: z.array(SourceRefSchema).min(1),
+  }).strict()),
+}).strict();
+export type CanonicalBriefV3 = z.infer<typeof CanonicalBriefV3Schema>;
+
+export const emptyFormBehaviorState = (): FormBehaviorState => ({
+  mode: "NONE",
+  formPresent: false,
+  validation: "NOT_REQUIRED",
+  transmissionMode: "NONE",
+  persistenceMode: "NONE",
+  serverProcessingMode: "NONE",
+  externalProviderMode: "NONE",
+  privacyConsentMode: "NOT_APPLICABLE",
+  interactionStates: [],
+});
+
+export const unresolvedFormBehaviorState = (overrides: Partial<Extract<FormBehaviorState, { mode: "UNRESOLVED" }>> = {}): Extract<FormBehaviorState, { mode: "UNRESOLVED" }> => ({
+  mode: "UNRESOLVED",
+  formPresent: true,
+  validation: "ACTIVE",
+  transmissionMode: "UNRESOLVED",
+  persistenceMode: "UNRESOLVED",
+  serverProcessingMode: "UNRESOLVED",
+  externalProviderMode: "UNRESOLVED",
+  privacyConsentMode: "UNRESOLVED",
+  interactionStates: [],
+  ...overrides,
+});

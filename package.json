@@ -25,6 +25,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:brief-revision:certify": "vitest run src/domain/requirements/v3/certification.test.ts",
     "test:reviewers": "vitest run src/agents/catalog.test.ts src/agents/reviewers src/integrations/openai/provider.test.ts",
     "db:validate": "node scripts/validate-migrations.mjs",
     "db:migrate": "node scripts/db-migrate.mjs",
