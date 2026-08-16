@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { Pool } from "pg";
 import { normalizeAssetRow } from "./postgres";
+import { PostgresPersistenceDatabase } from "./postgres";
 
 describe("Postgres asset row normalization", () => {
   it("omits nullable optional asset fields instead of passing null into strict domain schemas", () => {
@@ -25,5 +27,16 @@ describe("Postgres asset row normalization", () => {
     });
     expect(normalized).not.toHaveProperty("supersedesAssetId");
     expect(normalized).not.toHaveProperty("rejectionReason");
+  });
+});
+
+describe("Postgres transaction ambiguity handling", () => {
+  it("evicts a client when COMMIT acknowledgement is ambiguous", async () => {
+    const release = vi.fn();
+    const client = { query: vi.fn().mockImplementation((sql: string) => sql === "COMMIT" ? Promise.reject(new Error("synthetic network loss")) : Promise.resolve({ rows: [], rowCount: 0 })) , release };
+    const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
+    const database = new PostgresPersistenceDatabase(pool);
+    await expect(database.transaction(async () => undefined)).rejects.toMatchObject({ code: "PERSISTENCE_COMMIT_AMBIGUOUS" });
+    expect(release).toHaveBeenCalledWith(expect.any(Error));
   });
 });

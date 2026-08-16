@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { PersistenceError } from "./errors";
 import { checksumPersistedDocument } from "./serialization";
-import type { PersistenceDatabase, PersistenceTransaction, ProjectRow, ProjectAssetRow, ProjectVersionRow, WorkflowEvent, CostRecord, IdempotencyRecord } from "./types";
-import type { DocumentRow } from "./mapping";
+import type { BriefRevisionAtomicCommitResult, BriefRevisionAttemptClaim, BriefRevisionAttemptRow, BriefRevisionAttemptStatus, BriefRevisionAttemptTransition, BriefRevisionProjectionRow, PersistenceDatabase, PersistenceTransaction, ProjectRow, ProjectAssetRow, ProjectVersionRow, WorkflowEvent, CostRecord, IdempotencyRecord } from "./types";
+import { mapRowToDocument, type DocumentRow } from "./mapping";
+import { canonicalBriefChecksumForDocument } from "./brief-revision-v3-contracts";
 import type { DecisionRecord } from "@/domain/workflow/decision";
 
 const copy = <T>(value: T): T => structuredClone(value);
@@ -15,10 +16,18 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
   readonly decisions = new Map<string, DecisionRecord[]>();
   readonly events: WorkflowEvent[] = [];
   readonly costs: CostRecord[] = [];
+  readonly briefRevisionAttempts = new Map<string, BriefRevisionAttemptRow>();
+  readonly briefRevisionHistory = new Map<string, import("./types").BriefRevisionHistoryRow>();
+  readonly briefRevisionProjectionSync = new Map<string, BriefRevisionProjectionRow>();
   private readonly idempotency = new Map<string, IdempotencyRecord>();
+  private transactionTail: Promise<void> = Promise.resolve();
 
   async transaction<T>(work: (transaction: PersistenceTransaction) => Promise<T>): Promise<T> {
-    const projects = new Map(this.projects); const assets = new Map(this.assets); const versions = new Map(this.versions); const documents = new Map(this.documents); const decisions = new Map([...this.decisions].map(([key, value]) => [key, copy(value)])); const events = [...this.events]; const costs = [...this.costs]; const idempotency = new Map(this.idempotency);
+    let release!: () => void;
+    const previous = this.transactionTail;
+    this.transactionTail = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+    const projects = new Map(this.projects); const assets = new Map(this.assets); const versions = new Map(this.versions); const documents = new Map(this.documents); const decisions = new Map([...this.decisions].map(([key, value]) => [key, copy(value)])); const events = [...this.events]; const costs = [...this.costs]; const idempotency = new Map(this.idempotency); const briefRevisionAttempts = new Map([...this.briefRevisionAttempts].map(([key, value]) => [key, copy(value)])); const briefRevisionHistory = new Map([...this.briefRevisionHistory].map(([key, value]) => [key, copy(value)])); const briefRevisionProjectionSync = new Map([...this.briefRevisionProjectionSync].map(([key, value]) => [key, copy(value)]));
     const transaction: PersistenceTransaction = {
       getProject: async (id) => copy(this.projects.get(id) ?? null),
       listProjects: async () => copy([...this.projects.values()].sort((left, right) => right.updated_at.localeCompare(left.updated_at))),
@@ -42,10 +51,12 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
         this.versions.set(versionKey(projectId, versionNumber), row); this.projects.set(projectId, { ...project, current_version: versionNumber, updated_at: now }); if (token) this.idempotency.set(`version:reserve:${token.key}`, { key: token.key, operation: "version:reserve", payloadHash: token.payloadHash, result: copy(row) }); return copy(row);
       },
       updateVersionImmutable: async (projectId, version, releasedAt) => { const key = versionKey(projectId, version); const row = this.versions.get(key); if (!row) throw new PersistenceError("PERSISTENCE_NOT_FOUND", "Project version was not found."); if (row.immutable) throw new PersistenceError("PERSISTENCE_IMMUTABLE", "Released project versions are immutable."); const next = { ...row, state: "PROJECT_READY" as const, releasedAt, immutable: true, updatedAt: releasedAt, rowVersion: row.rowVersion + 1 }; this.versions.set(key, next); return copy(next); },
+      updateVersionRequirementsChecksum: async (input) => { const key = versionKey(input.projectId, input.version); const row = this.versions.get(key); if (!row || row.rowVersion !== input.expectedRowVersion || row.immutable) throw new PersistenceError("PERSISTENCE_CONFLICT", "The project version checksum is stale or immutable."); const next = { ...row, requirementsChecksum: input.checksum, updatedAt: input.updatedAt, rowVersion: row.rowVersion + 1 }; this.versions.set(key, next); return copy(next); },
       saveDocument: async (row, token) => { const key = documentKey(row.projectId, row.projectVersion, row.documentType); const existing = this.documents.get(key); const result = this.idempotent(`document:${key}`, token, row); if (result) return copy(result as DocumentRow); if (existing && existing.checksum === row.checksum) return copy(existing); if (existing) row = { ...row, createdAt: existing.createdAt, rowVersion: existing.rowVersion + 1 }; this.documents.set(key, copy(row)); return copy(row); },
+      saveDocumentCAS: async (input) => { const key = documentKey(input.row.projectId, input.row.projectVersion, input.row.documentType); const existing = this.documents.get(key); if (input.expectedRowVersion === null) { if (existing) throw new PersistenceError("PERSISTENCE_CONFLICT", "The V3 current document was created concurrently."); this.documents.set(key, copy(input.row)); return copy(input.row); } if (!existing || existing.rowVersion !== input.expectedRowVersion || existing.checksum !== input.expectedChecksum) throw new PersistenceError("PERSISTENCE_CONFLICT", "The current document is stale."); const next = { ...input.row, createdAt: existing.createdAt, rowVersion: existing.rowVersion + 1 }; this.documents.set(key, copy(next)); return copy(next); },
       getDocument: async (projectId, version, documentType) => copy(this.documents.get(documentKey(projectId, version, documentType)) ?? null),
       deleteDocument: async (projectId, version, documentType) => { this.documents.delete(documentKey(projectId, version, documentType)); },
-      appendDecision: async (projectId, version, record) => { const key = versionKey(projectId, version); const records = this.decisions.get(key) ?? []; records.push(copy(record)); this.decisions.set(key, records); return copy(record); },
+      appendDecision: async (projectId, version, record, revisionAttemptId) => { const key = versionKey(projectId, version); const records = this.decisions.get(key) ?? []; records.push(copy(record)); this.decisions.set(key, records); if (revisionAttemptId) { const existing = [...this.decisions.values()].flat().filter((candidate) => candidate.id === record.id); if (existing.length > 1) throw new PersistenceError("PERSISTENCE_CONFLICT", "A revision decision already exists."); } return copy(record); },
       listDecisions: async (projectId, version) => copy(this.decisions.get(versionKey(projectId, version)) ?? []),
       appendWorkflowEvent: async (event) => { this.events.push(copy(event)); return copy(event); },
       saveCost: async (record) => { this.costs.push(copy(record)); return copy(record); },
@@ -75,6 +86,79 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
         if (!existing || existing.payloadHash !== input.payloadHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key is not current.");
         this.idempotency.set(recordKey, { ...existing, result: { status: "FAILED" } });
       },
+      getBriefRevisionAttempt: async (input) => {
+        const row = [...this.briefRevisionAttempts.values()].find((candidate) => candidate.operationKind === input.operationKind && candidate.operationKey === input.operationKey) ?? null;
+        if (row && input.payloadHash && row.payloadHash !== input.payloadHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The V3 operation key was used with a different payload.");
+        return row ? copy(row) : null;
+      },
+      reserveBriefRevisionAttempt: async (input) => {
+        const existing = [...this.briefRevisionAttempts.values()].find((candidate) => candidate.operationKind === input.operationKind && candidate.operationKey === input.operationKey);
+        if (existing) {
+          if (existing.payloadHash !== input.payloadHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The V3 operation key was used with a different payload.");
+          return copy(existing);
+        }
+        const row: BriefRevisionAttemptRow = { id: input.id, operationKind: input.operationKind, operationKey: input.operationKey, payloadHash: input.payloadHash, projectId: input.projectId, projectVersion: input.projectVersion, currentnessToken: copy(input.currentnessToken), status: "RESERVED", leaseOwner: null, leaseExpiresAt: null, attemptGeneration: 0, claimedAt: null, committedResult: null, failureCode: null, createdAt: input.now, updatedAt: input.now };
+        this.briefRevisionAttempts.set(row.id, row);
+        return copy(row);
+      },
+      claimBriefRevisionAttempt: async (input): Promise<BriefRevisionAttemptClaim> => {
+        const row = this.briefRevisionAttempts.get(input.attemptId);
+        if (!row || row.operationKind !== input.operationKind || row.operationKey !== input.operationKey) throw new PersistenceError("PERSISTENCE_NOT_FOUND", "The V3 attempt was not found.");
+        if (row.payloadHash !== input.payloadHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The V3 operation key was used with a different payload.");
+        if (row.status === "COMMITTED") return { outcome: "COMMITTED_REPLAY", row: copy(row) };
+        if (row.status === "REJECTED_INVALID" || row.status === "REJECTED_STALE") return { outcome: "TERMINAL_REPLAY", row: copy(row) };
+        if (row.status === "PROVIDER_PENDING" && row.leaseExpiresAt && Date.parse(row.leaseExpiresAt) > Date.parse(input.now)) return { outcome: "IN_PROGRESS_DUPLICATE", row: copy(row) };
+        if (!(row.status === "RESERVED" || row.status === "FAILED_RETRYABLE" || row.status === "PROVIDER_PENDING")) throw new PersistenceError("PERSISTENCE_CONFLICT", "The V3 attempt cannot be claimed from its current state.");
+        const next: BriefRevisionAttemptRow = { ...row, status: "PROVIDER_PENDING", leaseOwner: input.owner, leaseExpiresAt: input.leaseExpiresAt, attemptGeneration: row.attemptGeneration + 1, claimedAt: input.now, failureCode: null, updatedAt: input.now };
+        this.briefRevisionAttempts.set(row.id, next);
+        return { outcome: "CLAIMED", row: copy(next) };
+      },
+      transitionBriefRevisionAttempt: async (input: BriefRevisionAttemptTransition) => {
+        const allowed: Record<BriefRevisionAttemptStatus, readonly BriefRevisionAttemptStatus[]> = { RESERVED: ["PROVIDER_PENDING", "FAILED_RETRYABLE", "REJECTED_INVALID", "REJECTED_STALE"], PROVIDER_PENDING: ["FAILED_RETRYABLE", "REJECTED_INVALID", "REJECTED_STALE"], FAILED_RETRYABLE: ["PROVIDER_PENDING"], COMMITTED: [], REJECTED_INVALID: [], REJECTED_STALE: [] };
+        if (!allowed[input.from].includes(input.to)) throw new PersistenceError("PERSISTENCE_CONFLICT", "The V3 attempt transition is invalid.");
+        const row = this.briefRevisionAttempts.get(input.attemptId);
+        if (!row || row.operationKind !== input.operationKind || row.operationKey !== input.operationKey || row.payloadHash !== input.payloadHash || row.status !== input.from || row.attemptGeneration !== input.attemptGeneration || (input.owner && row.leaseOwner !== input.owner)) throw new PersistenceError("PERSISTENCE_CONFLICT", "The V3 attempt transition was stale.");
+        const next: BriefRevisionAttemptRow = { ...row, status: input.to, leaseOwner: null, leaseExpiresAt: null, failureCode: input.failureCode ?? null, committedResult: input.committedResult ?? null, updatedAt: input.now };
+        this.briefRevisionAttempts.set(row.id, next);
+        return copy(next);
+      },
+      commitBriefRevision: async (input): Promise<BriefRevisionAtomicCommitResult> => {
+        const project = this.projects.get(input.projectId);
+        const version = this.versions.get(versionKey(input.projectId, input.projectVersion));
+        const currentDocument = this.documents.get(documentKey(input.projectId, input.projectVersion, input.expected.documentType));
+        const attempt = this.briefRevisionAttempts.get(input.attemptId);
+        if (!project || !version) throw new PersistenceError("PERSISTENCE_NOT_FOUND", "Project version was not found.");
+        if (version.immutable) throw new PersistenceError("PERSISTENCE_IMMUTABLE", "Project version is immutable.");
+        if (!attempt || attempt.operationKind !== input.operationKind || attempt.operationKey !== input.operationKey || attempt.payloadHash !== input.payloadHash || attempt.status !== "PROVIDER_PENDING" || attempt.leaseOwner !== input.leaseOwner || attempt.attemptGeneration !== input.leaseGeneration) throw new PersistenceError("PERSISTENCE_CONFLICT", "The V3 attempt is no longer owned for commit.");
+        if (project.current_version !== input.projectVersion || project.workflow_state !== input.expected.workflowState || project.row_version !== input.expected.projectRowVersion || version.rowVersion !== input.expected.projectVersionRowVersion || !currentDocument || currentDocument.rowVersion !== input.expected.documentRowVersion || currentDocument.checksum !== input.expected.documentChecksum || canonicalBriefChecksumForDocument(mapRowToDocument(currentDocument)) !== input.expected.briefChecksum) throw new PersistenceError("PERSISTENCE_CONFLICT", "The V3 currentness token is stale.");
+        if (!input.changed) {
+          await input.fault?.hit("after-cas");
+          const committed = { ...attempt, status: "COMMITTED" as const, leaseOwner: null, leaseExpiresAt: null, committedResult: copy(input.result), failureCode: null, updatedAt: input.now };
+          this.briefRevisionAttempts.set(attempt.id, committed);
+          await input.fault?.hit("after-attempt-committed-write");
+          await input.fault?.hit("before-db-commit");
+          return { attempt: copy(committed), project: copy(project), document: null, projection: null };
+        }
+        const nextProject = { ...project, workflow_state: input.workflow.targetState, updated_at: input.now, row_version: project.row_version + 1 };
+        this.projects.set(project.id, nextProject);
+        await input.fault?.hit("after-cas");
+        const nextDocument = input.document ? await transaction.saveDocumentCAS({ row: input.document, expectedRowVersion: input.expected.documentType === input.document.documentType ? input.expected.documentRowVersion : null, expectedChecksum: input.expected.documentType === input.document.documentType ? input.expected.documentChecksum : null }) : null;
+        await input.fault?.hit("after-brief-write");
+        await transaction.updateVersionRequirementsChecksum({ projectId: input.projectId, version: input.projectVersion, expectedRowVersion: input.expected.projectVersionRowVersion, checksum: input.nextBriefChecksum, updatedAt: input.now });
+        if (input.history) this.briefRevisionHistory.set(input.history.id, copy(input.history));
+        await input.fault?.hit("after-history-write");
+        if (input.workflow.event) this.events.push(copy(input.workflow.event));
+        if (input.decision) { const records = this.decisions.get(versionKey(input.projectId, input.projectVersion)) ?? []; records.push(copy(input.decision.record)); this.decisions.set(versionKey(input.projectId, input.projectVersion), records); }
+        await input.fault?.hit("after-workflow-write");
+        const committed = { ...attempt, status: "COMMITTED" as const, leaseOwner: null, leaseExpiresAt: null, committedResult: copy(input.result), failureCode: null, updatedAt: input.now };
+        this.briefRevisionAttempts.set(attempt.id, committed);
+        await input.fault?.hit("after-attempt-committed-write");
+        if (input.projection) this.briefRevisionProjectionSync.set(input.projection.id, copy(input.projection));
+        await input.fault?.hit("before-db-commit");
+        return { attempt: copy(committed), project: copy(nextProject), document: nextDocument, projection: input.projection ? copy(input.projection) : null };
+      },
+      listBriefRevisionProjectionSync: async (limit) => copy([...this.briefRevisionProjectionSync.values()].filter((row) => (row.status === "PENDING" || row.status === "FAILED_RETRYABLE") && (!row.nextAttemptAt || Date.parse(row.nextAttemptAt) <= Date.now())).sort((left, right) => left.createdAt.localeCompare(right.createdAt)).slice(0, Math.max(1, Math.min(limit, 100)))),
+      updateBriefRevisionProjectionSync: async (input) => { const row = this.briefRevisionProjectionSync.get(input.id); if (!row || row.status !== input.expectedStatus) throw new PersistenceError("PERSISTENCE_CONFLICT", "The projection sync status is stale."); const next = { ...row, status: input.status, attemptCount: input.attemptCount ?? row.attemptCount, lastFailureCode: input.failureCode ?? null, nextAttemptAt: input.nextAttemptAt ?? null, updatedAt: input.updatedAt }; this.briefRevisionProjectionSync.set(row.id, next); return copy(next); },
     };
     try { return await work(transaction); } catch (error) {
       this.projects.clear(); for (const [key, value] of projects) this.projects.set(key, value);
@@ -84,8 +168,11 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
       this.decisions.clear(); for (const [key, value] of decisions) this.decisions.set(key, value);
       this.events.splice(0, this.events.length, ...events); this.costs.splice(0, this.costs.length, ...costs);
       this.idempotency.clear(); for (const [key, value] of idempotency) this.idempotency.set(key, value);
+      this.briefRevisionAttempts.clear(); for (const [key, value] of briefRevisionAttempts) this.briefRevisionAttempts.set(key, value);
+      this.briefRevisionHistory.clear(); for (const [key, value] of briefRevisionHistory) this.briefRevisionHistory.set(key, value);
+      this.briefRevisionProjectionSync.clear(); for (const [key, value] of briefRevisionProjectionSync) this.briefRevisionProjectionSync.set(key, value);
       throw error;
-    }
+    } finally { release(); }
   }
 
   private idempotent(operation: string, token: { key: string; payloadHash: string } | undefined, result: unknown) {
@@ -106,5 +193,4 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
 export const versionKey = (projectId: string, version: number) => `${projectId}:${version}`;
 export const assetKey = (projectId: string, assetId: string) => `${projectId}:${assetId}`;
 export const documentKey = (projectId: string, version: number, documentType: string) => `${projectId}:${version}:${documentType}`;
-export const newWorkflowEvent = (projectId: string, projectVersion: number, fromState: WorkflowEvent["fromState"], toState: WorkflowEvent["toState"], actor: string, reason: string, idempotencyKey?: string): WorkflowEvent => ({ id: randomUUID(), projectId, projectVersion, fromState, toState, actor, reason, createdAt: new Date().toISOString(), ...(idempotencyKey ? { idempotencyKey } : {}) });
 export const documentPayloadHash = (value: unknown) => checksumPersistedDocument(value);

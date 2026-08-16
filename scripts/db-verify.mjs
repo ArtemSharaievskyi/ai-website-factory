@@ -1,7 +1,7 @@
 import path from "node:path";
 import { createConfiguredPool, safeDatabaseCode } from "./db-common.mjs";
 import { migrationHistoryMatches, readMigrationManifest } from "./migration-evidence.mjs";
-const expectedTables = ["factory_projects", "project_versions", "workflow_documents", "clarification_questions", "clarification_answers", "design_direction_sets", "design_directions", "selected_designs", "agent_tasks", "task_dependencies", "decision_records", "quality_reports", "quality_checks", "release_reports", "workflow_events", "cost_records", "idempotency_records", "factory_project_assets"];
+const expectedTables = ["factory_projects", "project_versions", "workflow_documents", "clarification_questions", "clarification_answers", "design_direction_sets", "design_directions", "selected_designs", "agent_tasks", "task_dependencies", "decision_records", "quality_reports", "quality_checks", "release_reports", "workflow_events", "cost_records", "idempotency_records", "factory_project_assets", "brief_revision_attempts", "brief_revision_history", "brief_revision_projection_sync"];
 let manifest;
 let pool;
 try {
@@ -18,7 +18,7 @@ try {
   if (tables.rows.length !== expectedTables.length) throw new Error("DATABASE_SCHEMA_INCOMPLETE");
   console.log(`TABLES_VERIFIED ${tables.rows.length}`);
   const constraints = await pool.query("select count(*)::int as count from pg_constraint c join pg_class t on t.oid=c.conrelid where t.relnamespace='public'::regnamespace and c.contype in ('p','u','f','c')");
-  const indexes = await pool.query("select count(*)::int as count from pg_indexes where schemaname='public' and indexname in ('clarification_blocking_unresolved_idx','factory_projects_workflow_state_idx','project_versions_lookup_idx','agent_tasks_project_status_idx','factory_project_assets_project_idx','factory_project_assets_current_idx','factory_project_assets_hash_idx')");
+  const indexes = await pool.query("select count(*)::int as count from pg_indexes where schemaname='public' and indexname in ('clarification_blocking_unresolved_idx','factory_projects_workflow_state_idx','project_versions_lookup_idx','agent_tasks_project_status_idx','factory_project_assets_project_idx','factory_project_assets_current_idx','factory_project_assets_hash_idx','brief_revision_attempts_project_idx','brief_revision_history_project_idx','brief_revision_projection_pending_idx','workflow_events_revision_attempt_idx','decision_records_revision_attempt_idx')");
   const rls = await pool.query("select count(*)::int as count from pg_class where relnamespace='public'::regnamespace and relname = any($1::text[]) and relrowsecurity", [expectedTables]);
   const policies = await pool.query("select count(*)::int as count from pg_policies where schemaname='public' and tablename = any($1::text[])", [expectedTables]);
   const migrationHistory = await pool.query("select filename, checksum from factory_schema_migrations order by filename");

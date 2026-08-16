@@ -6,3 +6,4 @@ export * from "./repositories";
 export * from "./serialization";
 export * from "./sync";
 export * from "./types";
+export * from "./brief-revision-v3-contracts";

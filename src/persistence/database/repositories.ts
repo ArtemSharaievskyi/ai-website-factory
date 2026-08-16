@@ -10,8 +10,9 @@ import { transitionWorkflow, type TransitionContext } from "@/domain/workflow/en
 import { PersistenceError } from "./errors";
 import { CLARIFICATION_POLICY_VERSION, isWorkflowRequirement } from "@/agents/lead/clarification-policy";
 import { mapDocumentToRow, mapProjectToRow, mapRowToDocument, mapRowToProject } from "./mapping";
-import { documentPayloadHash, newWorkflowEvent } from "./fake";
-import type { PersistenceDatabase, PersistenceTransaction, ProjectVersionRow, StoredDocument, WorkflowEvent, CostRecord } from "./types";
+import { documentPayloadHash } from "./fake";
+import { newWorkflowEvent } from "./workflow-events";
+import type { BriefRevisionAttemptClaim, BriefRevisionAttemptTransition, BriefRevisionProjectionRow, BriefRevisionProjectionStatus, PersistenceDatabase, PersistenceTransaction, ProjectVersionRow, StoredDocument, WorkflowEvent, CostRecord } from "./types";
 import { ProjectAssetSchema, type ProjectAsset } from "@/domain/assets/project";
 
 const parse = <T>(schema: z.ZodType<T>, value: unknown, message: string): T => { const result = schema.safeParse(value); if (!result.success) throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", message, undefined, result.error); return result.data; };
@@ -116,5 +117,15 @@ export class ReleaseRepository {
 }
 
 export class CostRepository { constructor(private readonly db: PersistenceDatabase) {} async append(record: CostRecord) { if (record.inputTokens < 0 || record.cachedInputTokens < 0 || record.outputTokens < 0 || record.estimatedCost < 0) throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", "Cost values cannot be negative."); return this.db.transaction((tx) => tx.saveCost(record)); } }
+
+export class BriefRevisionAttemptRepository {
+  constructor(private readonly db: PersistenceDatabase) {}
+  async get(input: { operationKind: string; operationKey: string; payloadHash?: string }) { return this.db.transaction((tx) => tx.getBriefRevisionAttempt(input)); }
+  async reserve(input: { id: string; operationKind: string; operationKey: string; payloadHash: string; projectId: string; projectVersion: number; currentnessToken: Record<string, unknown>; now: string }) { return this.db.transaction((tx) => tx.reserveBriefRevisionAttempt(input)); }
+  async claim(input: { attemptId: string; operationKind: string; operationKey: string; payloadHash: string; owner: string; now: string; leaseExpiresAt: string }): Promise<BriefRevisionAttemptClaim> { return this.db.transaction((tx) => tx.claimBriefRevisionAttempt(input)); }
+  async transition(input: BriefRevisionAttemptTransition) { return this.db.transaction((tx) => tx.transitionBriefRevisionAttempt(input)); }
+  async listProjectionSync(limit = 20) { return this.db.transaction((tx) => tx.listBriefRevisionProjectionSync(limit)); }
+  async updateProjectionSync(input: { id: string; expectedStatus: BriefRevisionProjectionStatus; status: BriefRevisionProjectionStatus; attemptCount?: number; failureCode?: string | null; nextAttemptAt?: string | null; updatedAt: string }): Promise<BriefRevisionProjectionRow> { return this.db.transaction((tx) => tx.updateBriefRevisionProjectionSync(input)); }
+}
 
 export type { PersistenceTransaction, WorkflowEvent };
