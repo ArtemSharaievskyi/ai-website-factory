@@ -480,37 +480,35 @@ export class TrialEntryService {
     return { projectId: input.projectId, workflowState: result.projectState, rowVersion: result.rowVersion, briefChecksum: draft.briefChecksum };
   }
 
-  async requestBriefChanges(input: { projectId: string; reason: string; requirementKeys?: string[]; requestedBy?: string }) {
-    const current = await this.projects.getWithVersion(input.projectId);
-    if (!current) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");
+  async requestBriefChanges(input: { projectId: string; projectVersion: number; briefChecksum: string; expectedRowVersion: number; reason: string; requirementKeys?: string[]; requestedBy?: string }) {
+    const project = await this.projects.getWithVersion(input.projectId);
+    if (!project) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");
     const reason = normalizeCanonicalUserInputText(input.reason, "BRIEF_REVISION_TOO_LARGE");
     const requirementKeys = input.requirementKeys ?? ["project-brief"];
-    const existing = await this.documents.get(input.projectId, current.project.currentVersion, "requirements");
-    if (!existing || existing.documentType !== "requirements") throw new Error("BRIEF_NOT_READY");
     const operationIdentity = briefRevisionOperationKey({
       projectId: input.projectId,
-      projectVersion: current.project.currentVersion,
-      briefChecksum: checksumPersistedDocument(existing),
+      projectVersion: input.projectVersion,
+      briefChecksum: input.briefChecksum,
+      expectedRowVersion: input.expectedRowVersion,
       reason,
       requirementKeys,
     });
-    let reservation;
-    try {
-      reservation = await this.operations.reserve(REQUEST_BRIEF_CHANGES_OPERATION, operationIdentity.key, operationIdentity.payload);
-    } catch (error) {
-      throw error;
-    }
+    const reservation = await this.operations.reserve(REQUEST_BRIEF_CHANGES_OPERATION, operationIdentity.key, operationIdentity.payload);
     if (reservation.status === "IN_PROGRESS") throw new LeadError("IDEMPOTENCY_CONFLICT", "The Brief revision is already in progress.");
     if (reservation.status === "SUCCEEDED") return reservation.result as { projectId: string; workflowState: WorkflowState; requirementsChecksum: string };
     try {
+      const current = await this.projects.getWithVersion(input.projectId);
+      const existing = await this.documents.get(input.projectId, input.projectVersion, "requirements");
+      if (!current || current.project.currentVersion !== input.projectVersion || current.rowVersion !== input.expectedRowVersion || !existing || existing.documentType !== "requirements" || checksumPersistedDocument(existing) !== input.briefChecksum)
+        throw new LeadError("BRIEF_CHECKSUM_MISMATCH", "The Project Brief changed before this revision was processed.");
       const lead = this.dependencies.createLeadAgent(current.project.slug);
       const result = await lead.requestBriefRevision({
         projectId: input.projectId,
-        projectVersion: current.project.currentVersion,
+        projectVersion: input.projectVersion,
         requirementKeys,
         reason,
         requestedBy: input.requestedBy ?? "workbench-user",
-        expectedBriefChecksum: checksumPersistedDocument(existing),
+        expectedBriefChecksum: input.briefChecksum,
         idempotencyKey: `workbench-request-brief-changes:v2:${input.projectId}:${operationIdentity.fingerprint}`,
       });
       const updated = (await this.projects.getWithVersion(input.projectId)) ?? current;

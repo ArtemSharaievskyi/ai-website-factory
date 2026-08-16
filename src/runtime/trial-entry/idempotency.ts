@@ -74,24 +74,24 @@ export const briefRevisionOperationKey = (input: {
   projectId: string;
   projectVersion: number;
   briefChecksum: string;
+  expectedRowVersion: number;
   reason: string;
   requirementKeys: readonly string[];
 }) => {
+  const normalizedReason = input.reason.replace(/\r\n?/g, "\n");
   const payload = {
     projectId: input.projectId,
     projectVersion: input.projectVersion,
     briefChecksum: input.briefChecksum,
-    reason: input.reason,
+    expectedRowVersion: input.expectedRowVersion,
+    reason: normalizedReason,
     requirementKeys: [...input.requirementKeys].sort(),
   };
   const fingerprint = checksumPersistedDocument({
     operation: REQUEST_BRIEF_CHANGES_OPERATION,
-    projectId: input.projectId,
-    projectVersion: input.projectVersion,
-    briefChecksum: input.briefChecksum,
-    requirementKeys: payload.requirementKeys,
+    ...payload,
   });
-  return { key: `brief-revision:v2:${input.projectId}:${fingerprint}`, fingerprint, payload };
+  return { key: `brief-revision:v3:${input.projectId}:${fingerprint}`, fingerprint, payload };
 };
 
 export const unresolvedQuestionIds = (session: ClarificationSession) =>

@@ -64,7 +64,7 @@ export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
   RespondRequestSchema,
   z.object({ action: z.literal("refresh-clarifications"), projectId: ProjectIdSchema, requestId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("approve-brief"), projectId: ProjectIdSchema, briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), expectedRowVersion: z.number().int().positive(), approvalNote: z.string().max(4000).optional() }).strict(),
-  z.object({ action: z.literal("request-brief-changes"), projectId: ProjectIdSchema, reason: BriefRevisionInstructionSchema, requirementKeys: z.array(z.string().min(1).max(128)).max(40).default([]) }).strict(),
+  z.object({ action: z.literal("request-brief-changes"), projectId: ProjectIdSchema, projectVersion: z.number().int().positive(), briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), expectedRowVersion: z.number().int().positive(), reason: BriefRevisionInstructionSchema, requirementKeys: z.array(z.string().min(1).max(128)).max(40).default([]) }).strict(),
   z.object({ action: z.literal("approve-planning"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("request-planning-changes"), projectId: ProjectIdSchema, reason: z.string().trim().min(1).max(4000) }).strict(),
   z.object({ action: z.literal("database-decision"), projectId: ProjectIdSchema, mode: z.enum(["NONE", "SUPABASE_NEW", "SUPABASE_EXISTING"]), reason: z.string().max(4000).optional() }).strict(),

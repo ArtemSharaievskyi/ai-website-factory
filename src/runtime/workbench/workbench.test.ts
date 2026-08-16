@@ -86,7 +86,7 @@ describe("Factory Workbench projection and boundary", () => {
     const ready = await createBriefReadyProject(app);
     if (!ready.project || !ready.brief) throw new Error("fixture Brief was not ready");
     expect(ready.status.allowedActions).toEqual(["APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES"]);
-    const revised = await app.handle({ action: "request-brief-changes", projectId: ready.project.projectId, reason: "Synthetic correction", requirementKeys: [] });
+    const revised = await app.handle({ action: "request-brief-changes", projectId: ready.project.projectId, projectVersion: ready.project.projectVersion, briefChecksum: ready.brief.checksum, expectedRowVersion: ready.project.rowVersion, reason: "Synthetic correction", requirementKeys: [] });
     expect(revised.project?.workflowState).toBe("CLARIFYING");
     const readyAgain = await createBriefReadyProject(app);
     if (!readyAgain.project || !readyAgain.brief) throw new Error("fixture Brief was not ready");
@@ -118,7 +118,7 @@ describe("Factory Workbench projection and boundary", () => {
     ["W15 refresh reads status by active project", async () => { expect(await source("src/components/workbench.tsx")).toContain('action: "status"'); }],
     ["W16 Brief projection is bounded", async () => { const p = await createBriefReadyProject(fixture().app); expect(p.brief?.businessGoals.length).toBeLessThanOrEqual(12); }],
     ["W17 approval action is typed", async () => { expect(WorkbenchRequestSchema.safeParse({ action: "approve-brief", projectId: "00000000-0000-4000-8000-000000000000", briefChecksum: "a".repeat(64), expectedRowVersion: 1 }).success).toBe(true); }],
-    ["W18 revision action is typed", async () => { expect(WorkbenchRequestSchema.safeParse({ action: "request-brief-changes", projectId: "00000000-0000-4000-8000-000000000000", reason: "Change" }).success).toBe(true); }],
+    ["W18 revision action is typed", async () => { expect(WorkbenchRequestSchema.safeParse({ action: "request-brief-changes", projectId: "00000000-0000-4000-8000-000000000000", projectVersion: 1, briefChecksum: "a".repeat(64), expectedRowVersion: 1, reason: "Change" }).success).toBe(true); }],
     ["W19 planning requires upstream state", async () => { expect(actionsForWorkbenchState({ workflowState: "CLARIFYING", hasBlockingQuestions: true, hasBrief: false, briefReady: false, hasPlanning: false, hasDesigns: false })).not.toContain("APPROVE_PLANNING"); }],
     ["W20 planning permission is state-derived", async () => { expect(actionsForWorkbenchState({ workflowState: "AWAITING_DESIGN_SELECTION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: false })).toContain("APPROVE_PLANNING"); }],
     ["W21 database action is explicit", async () => { expect(actionsForWorkbenchState({ workflowState: "AWAITING_DESIGN_SELECTION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: false })).toContain("DATABASE_DECISION"); }],

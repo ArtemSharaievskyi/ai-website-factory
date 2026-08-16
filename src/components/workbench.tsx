@@ -752,9 +752,13 @@ export function Workbench() {
       return;
     }
     if (composerMode === "brief") {
+      if (!projection.brief || !projection.project) return;
       void run({
         action: "request-brief-changes",
         projectId: projection.project!.projectId,
+        projectVersion: projection.project.projectVersion,
+        briefChecksum: projection.brief.checksum,
+        expectedRowVersion: projection.project.rowVersion,
         reason: prompt,
         requirementKeys: ["project-brief"],
       });

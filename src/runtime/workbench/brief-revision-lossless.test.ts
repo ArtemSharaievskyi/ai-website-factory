@@ -39,6 +39,7 @@ const revision = [
   "FINAL_BRIEF_REVISION_REQUIREMENT: KEINE BESTEHENDE ANFORDERUNG ENTFERNEN",
   "END_BRIEF_REVISION_MARKER_739184",
 ].join("\n");
+const schemaRevisionCurrentness = { projectVersion: 1, briefChecksum: "a".repeat(64), expectedRowVersion: 1 };
 
 function revisionDraft(input: Parameters<NonNullable<ConstructorParameters<typeof DeterministicLeadProvider>[3]>>[0]): BriefDraft {
   const requirements = RequirementSpecificationSchema.parse({
@@ -94,7 +95,8 @@ beforeAll(async () => {
   const answers = created.questions.filter((question) => question.answerStatus === "unresolved").map((question) => ({ questionId: question.id, answer: answerFor(question.requirementKey) }));
   if (answers.length) await app.handle({ action: "respond", projectId: created.project.projectId, answers });
   const originalBrief = await app.handle({ action: "status", projectId: created.project.projectId });
-  const revised = await app.handle({ action: "request-brief-changes", projectId: created.project.projectId, reason: revision, requirementKeys: ["project-brief"] });
+  if (!originalBrief.brief) throw new Error("original Brief was not ready");
+  const revised = await app.handle({ action: "request-brief-changes", projectId: created.project.projectId, projectVersion: originalBrief.project!.projectVersion, briefChecksum: originalBrief.brief.checksum, expectedRowVersion: originalBrief.project!.rowVersion, reason: revision, requirementKeys: ["project-brief"] });
   const revisedDocument = await (new (await import("@/persistence/database/repositories")).DocumentRepository(database)).get(created.project.projectId, 1, "requirements");
   if (!revisedDocument || revisedDocument.documentType !== "requirements") throw new Error("revised requirements were not persisted");
   scenario = { app, database, projectId: created.project.projectId, originalBrief, revised, revisedRequirements: revisedDocument, providerCalls, providerInput };
@@ -103,11 +105,11 @@ beforeAll(async () => {
 describe("Lossless Brief revision input contract", () => {
   it("BRI1-BRI17: accepts small, multi-section, multiline, Unicode, headings, bullets, and all markers", () => {
     const small = "Kleine synthetische Brief-Änderung.";
-    expect(WorkbenchRequestSchema.safeParse({ action: "request-brief-changes", projectId: scenario.projectId, reason: small }).success).toBe(true);
+    expect(WorkbenchRequestSchema.safeParse({ action: "request-brief-changes", projectId: scenario.projectId, ...schemaRevisionCurrentness, reason: small }).success).toBe(true);
     expect(utf8ByteLength(revision)).toBeGreaterThan(4000);
     expect(utf8ByteLength(revision)).toBeLessThan(MAX_BRIEF_REVISION_INSTRUCTION_BYTES);
     for (const marker of ["BEGIN_BRIEF_REVISION_MARKER_481902", "MIDDLE_BRIEF_REVISION_MARKER_729403", "FINAL_BRIEF_REVISION_REQUIREMENT: KEINE BESTEHENDE ANFORDERUNG ENTFERNEN", "END_BRIEF_REVISION_MARKER_739184", "## Kontaktformular", "## SEO"]) expect(revision).toContain(marker);
-    const parsed = WorkbenchRequestSchema.parse({ action: "request-brief-changes", projectId: scenario.projectId, reason: revision });
+    const parsed = WorkbenchRequestSchema.parse({ action: "request-brief-changes", projectId: scenario.projectId, ...schemaRevisionCurrentness, reason: revision });
     expect(parsed.action).toBe("request-brief-changes");
     if (parsed.action === "request-brief-changes") expect(parsed.reason).toBe(revision);
     expect(utf8ByteLength("äöüß кириллица українські символи")).toBeGreaterThan("äöüü".length);
@@ -120,14 +122,14 @@ describe("Lossless Brief revision input contract", () => {
     const rejected = canonicalUserInstructionSchema().safeParse(over);
     expect(rejected.success).toBe(false);
     expect(over.endsWith("y")).toBe(true);
-    expect(WorkbenchRequestSchema.safeParse({ action: "request-brief-changes", projectId: scenario.projectId, reason: over }).success).toBe(false);
+    expect(WorkbenchRequestSchema.safeParse({ action: "request-brief-changes", projectId: scenario.projectId, ...schemaRevisionCurrentness, reason: over }).success).toBe(false);
   });
 
   it("BRI8-BRI13 and BCP5-BCP6: counts UTF-8 bytes consistently for German, Russian, and Ukrainian text", () => {
     const unicode = "äöüß кириллица українські символи\n- сохраняется\n- зберігається";
     expect(utf8ByteLength(unicode)).toBe(Buffer.byteLength(unicode, "utf8"));
     expect(canonicalUserInstructionSchema().safeParse(unicode).success).toBe(true);
-    const parsed = WorkbenchRequestSchema.parse({ action: "request-brief-changes", projectId: scenario.projectId, reason: unicode });
+    const parsed = WorkbenchRequestSchema.parse({ action: "request-brief-changes", projectId: scenario.projectId, ...schemaRevisionCurrentness, reason: unicode });
     if (parsed.action === "request-brief-changes") expect(parsed.reason).toBe(unicode);
   });
 
@@ -171,7 +173,7 @@ describe("Lossless Brief revision input contract", () => {
     expect(lead).not.toMatch(/reason\.(?:slice|substring)\(/);
     expect(lead).toContain("expectedBriefChecksum");
     expect(lead).toContain("reviseBrief");
-    expect((await import("@/runtime/trial-entry/idempotency")).briefRevisionOperationKey({ projectId: scenario.projectId, projectVersion: 1, briefChecksum: scenario.originalBrief.brief?.checksum ?? "a".repeat(64), reason: revision, requirementKeys: ["project-brief"] }).key).not.toContain(revision);
+    expect((await import("@/runtime/trial-entry/idempotency")).briefRevisionOperationKey({ projectId: scenario.projectId, projectVersion: 1, briefChecksum: scenario.originalBrief.brief?.checksum ?? "a".repeat(64), expectedRowVersion: scenario.originalBrief.project?.rowVersion ?? 1, reason: revision, requirementKeys: ["project-brief"] }).key).not.toContain(revision);
     expect(await readFile(path.resolve("package.json"), "utf8")).not.toContain("brief-revision");
   });
 });

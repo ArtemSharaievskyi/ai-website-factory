@@ -88,7 +88,7 @@ describe("Workbench route safe failure projection", () => {
 
   it("rejects an oversized canonical Brief revision before application or Lead with safe diagnostics", async () => {
     const secret = "SYNTHETIC_REVISION_CONTENT_MUST_NOT_BE_ECHOED";
-    const response = await POST(request({ action: "request-brief-changes", projectId: validRespondPayload.projectId, reason: `${"x".repeat(MAX_BRIEF_REVISION_INSTRUCTION_BYTES)}${secret}` }));
+    const response = await POST(request({ action: "request-brief-changes", projectId: validRespondPayload.projectId, projectVersion: 1, briefChecksum: "a".repeat(64), expectedRowVersion: 1, reason: `${"x".repeat(MAX_BRIEF_REVISION_INSTRUCTION_BYTES)}${secret}` }));
     const body = WorkbenchErrorResponseSchema.parse(await response.json());
     expect(response.status).toBe(400);
     expect(body).toMatchObject({ code: "WORKBENCH_REQUEST_INVALID", operation: "REQUEST_BRIEF_CHANGES", validationStage: "REQUEST_SCHEMA", issueCode: "VALUE_TOO_LARGE", fieldPath: "reason" });

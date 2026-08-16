@@ -67,11 +67,17 @@ async function productionLikeFailure(mode: RevisionFixtureMode = "clean") {
   return { app, projectId: created.project.projectId, documents };
 }
 
+async function revisionRequest(fixture: Awaited<ReturnType<typeof productionLikeFailure>>, reason: string, requirementKeys = ["project-brief"]) {
+  const current = await fixture.app.handle({ action: "status", projectId: fixture.projectId });
+  if (!current.brief) throw new Error("synthetic Brief was not ready");
+  return { action: "request-brief-changes" as const, projectId: fixture.projectId, projectVersion: current.project!.projectVersion, briefChecksum: current.brief.checksum, expectedRowVersion: current.project!.rowVersion, reason, requirementKeys };
+}
+
 describe("production-shaped Brief V1 to V2 revision reproduction", () => {
   it("reproduces and repairs the host preservation path with safe stage snapshots", async () => {
     clearWorkbenchDiagnosticEvents();
     const fixture = await productionLikeFailure();
-    const revised = await fixture.app.handle({ action: "request-brief-changes", projectId: fixture.projectId, reason: conciseRevision, requirementKeys: ["project-brief"] });
+    const revised = await fixture.app.handle(await revisionRequest(fixture, conciseRevision));
     expect(revised.brief).toMatchObject({ approved: false, briefSchemaVersion: 2 });
     const revisedDocument = await fixture.documents.get(fixture.projectId, 1, "requirements");
     if (!revisedDocument || revisedDocument.documentType !== "requirements") throw new Error("revised requirements were not persisted");
@@ -93,7 +99,7 @@ describe("production-shaped Brief V1 to V2 revision reproduction", () => {
   it("rejects a dirty provider candidate before preservation can hide an unapplied REMOVE", async () => {
     clearWorkbenchDiagnosticEvents();
     const fixture = await productionLikeFailure("dirty-provider-candidate");
-    await expect(fixture.app.handle({ action: "request-brief-changes", projectId: fixture.projectId, reason: conciseRevision, requirementKeys: ["project-brief"] })).rejects.toMatchObject({ code: "LEAD_PROVIDER_FAILED", details: { outputStage: "REVISION_SEMANTIC_VALIDATION_FAILED", issueCode: "BRIEF_REVISION_REMOVE_NOT_APPLIED" } });
+    await expect(fixture.app.handle(await revisionRequest(fixture, conciseRevision))).rejects.toMatchObject({ code: "LEAD_PROVIDER_FAILED", details: { outputStage: "REVISION_SEMANTIC_VALIDATION_FAILED", issueCode: "BRIEF_REVISION_REMOVE_NOT_APPLIED" } });
     const persisted = await fixture.documents.get(fixture.projectId, 1, "requirements");
     expect(persisted?.documentType).toBe("requirements");
     if (persisted?.documentType === "requirements") expect(persisted.explicitExclusions).toContain(oldProhibition);
@@ -106,7 +112,7 @@ describe("production-shaped Brief V1 to V2 revision reproduction", () => {
   it("rejects a semantically equivalent prohibition before contradiction validation", async () => {
     clearWorkbenchDiagnosticEvents();
     const fixture = await productionLikeFailure("semantic-dirty-provider-candidate");
-    await expect(fixture.app.handle({ action: "request-brief-changes", projectId: fixture.projectId, reason: conciseRevision, requirementKeys: ["project-brief"] })).rejects.toMatchObject({ code: "LEAD_PROVIDER_FAILED", details: { outputStage: "REVISION_SEMANTIC_VALIDATION_FAILED", issueCode: "BRIEF_REVISION_REMOVE_NOT_APPLIED" } });
+    await expect(fixture.app.handle(await revisionRequest(fixture, conciseRevision))).rejects.toMatchObject({ code: "LEAD_PROVIDER_FAILED", details: { outputStage: "REVISION_SEMANTIC_VALIDATION_FAILED", issueCode: "BRIEF_REVISION_REMOVE_NOT_APPLIED" } });
     const traces = getBriefRevisionTraceEvents().filter((event) => event.projectId === fixture.projectId);
     expect(traces.find((event) => event.stage === "PROVIDER_CANDIDATE")).toMatchObject({ providerCandidateHasSuccessSimulationProhibited: true, hasSuccessSimulationRequired: true });
     expect(traces.at(-1)).toMatchObject({ stage: "REVISION_OPERATIONS", removeVerificationPassed: false });
@@ -116,7 +122,7 @@ describe("production-shaped Brief V1 to V2 revision reproduction", () => {
   it("preserves a true active conflict for contradiction validation", async () => {
     clearWorkbenchDiagnosticEvents();
     const fixture = await productionLikeFailure("active-conflict");
-    await expect(fixture.app.handle({ action: "request-brief-changes", projectId: fixture.projectId, reason: "Keep the simulated success behavior and preserve all confirmed requirements.", requirementKeys: ["project-brief"] })).rejects.toMatchObject({ code: "LEAD_PROVIDER_FAILED", details: { outputStage: "BRIEF_CONTRADICTION_DETECTED", issueCode: "FORM_SUCCESS_SIMULATION_CONFLICT" } });
+    await expect(fixture.app.handle(await revisionRequest(fixture, "Keep the simulated success behavior and preserve all confirmed requirements."))).rejects.toMatchObject({ code: "LEAD_PROVIDER_FAILED", details: { outputStage: "BRIEF_CONTRADICTION_DETECTED", issueCode: "FORM_SUCCESS_SIMULATION_CONFLICT" } });
     const traces = getBriefRevisionTraceEvents().filter((event) => event.projectId === fixture.projectId);
     expect(traces.at(-1)).toMatchObject({ stage: "CONTRADICTION_INPUT", hasSuccessSimulationRequired: true, hasSuccessSimulationProhibited: true, contradictionCount: 1 });
   });
