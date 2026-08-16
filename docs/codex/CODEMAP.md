@@ -1,0 +1,123 @@
+# Repository codemap
+
+This is a navigation aid, not runtime authority. Source contracts, services,
+repositories, and validators remain canonical.
+
+## Factory shell and Workbench
+
+- `src/app/page.tsx` is the Workbench UI.
+- `src/app/api/workbench/route.ts` validates the Workbench POST boundary and
+  returns safe response envelopes.
+- `src/app/api/workbench/assets/route.ts` exposes the project-scoped asset
+  intake boundary.
+- `src/runtime/workbench/contracts.ts` defines request and projection DTOs.
+- `src/runtime/workbench/application.ts` maps actions to the canonical entry,
+  planning, design, orchestration, persistence, and asset services.
+- `src/runtime/workbench/production.ts` composes the server-only production
+  runtime and the generated-project scope.
+- `src/runtime/workbench/diagnostics.ts` owns safe Workbench diagnostics.
+
+## Trial Entry and Lead
+
+- `src/runtime/trial-entry/service.ts` is the shared create, clarification,
+  status, Brief approval, and Brief-change application service.
+- `src/runtime/trial-entry/idempotency.ts` defines operation identities.
+- `src/runtime/trial-entry/node.ts` and `production.ts` compose CLI and server
+  entry points; `cli.ts` only parses and renders command-line I/O.
+- `src/agents/lead/service.ts` owns Lead orchestration through typed ports.
+- `src/agents/lead/contracts.ts` defines Lead input/output contracts.
+- `src/agents/lead/deterministic.ts` and `clarification-policy.ts` contain
+  deterministic extraction and clarification rules.
+- `src/agents/lead/errors.ts`, `ports.ts`, and `memory.ts` define local error,
+  dependency, and persistence seams.
+
+## OpenAI integration
+
+- `src/integrations/openai/client.ts` owns the provider transport seam.
+- `src/integrations/openai/adapters.ts` maps provider transport to typed role
+  ports and host-owned metadata.
+- `src/integrations/openai/production.ts` composes the server provider.
+- `src/integrations/openai/prompts.ts` owns prompt text and prompt versions.
+- `src/integrations/openai/config.ts`, `errors.ts`, `limiter.ts`, and `usage.ts`
+  cover configuration, safe failures, rate limiting, and usage accounting.
+- `src/integrations/openai/provider.test.ts` and
+  `brief-v2-provider-contract.test.ts` cover provider boundaries and strict
+  structured output behavior.
+
+## Brief and canonical requirements
+
+- `src/domain/requirements/schema.ts` is the typed requirements contract.
+- `src/domain/requirements/brief.ts` contains Brief construction and related
+  canonical transformations.
+- `src/domain/requirements/revision.ts` applies revision intent, provider
+  operations, preservation, history, and revision diagnostics.
+- `src/domain/requirements/effective.ts` separates current effective
+  requirements from retained historical requirements.
+- `src/domain/requirements/brief-validation.ts` detects contradictions and
+  computes approval blockers.
+- `src/domain/project/initial-request.ts` and
+  `src/domain/project/canonical-input.ts` preserve the initial request at the
+  project boundary.
+
+## Context and assets
+
+- `src/runtime/context/assembler.ts` assembles role context.
+- `src/runtime/context/bridge.ts` bridges canonical documents and provider-safe
+  context; `slicing.ts` is for bounded supporting context only.
+- `src/runtime/context/contracts.ts`, `source.ts`, and `telemetry.ts` define
+  provenance and safe metadata.
+- `src/runtime/context/lossless-context.test.ts` protects canonical
+  requirement completeness.
+- `src/runtime/assets/service.ts` owns server-side asset intake, deduplication,
+  readiness, and project-scoped references.
+- `src/domain/assets/schema.ts` and `project.ts` define asset contracts.
+
+## Persistence
+
+- `src/persistence/database/types.ts` defines the transaction and database
+  ports.
+- `src/persistence/database/repositories.ts` owns repository operations,
+  document parsing, currentness, idempotency, and workflow transitions.
+- `src/persistence/database/postgres.ts` is the Postgres adapter.
+- `src/persistence/database/fake.ts` is the deterministic test database.
+- `src/persistence/database/mapping.ts` maps domain documents and database
+  rows; `serialization.ts` computes document hashes/checksums.
+- `src/persistence/database/server.ts` composes server persistence.
+- `src/persistence/project-memory/` stores versioned `.factory` workflow
+  documents and memory snapshots.
+- `supabase/migrations/` is the schema source; `scripts/validate-migrations.mjs`
+  validates migration structure.
+
+## Planner, Design, Orchestration, and Implementation
+
+- `src/agents/planner/` defines planning contracts, deterministic/provider
+  seams, acceptance, and memory.
+- `src/agents/design/` defines the three-direction design contract,
+  generation, selection, and memory.
+- `src/orchestration/orchestrator/` creates and validates TaskGraphs and owns
+  lifecycle operations.
+- `src/orchestration/execution/` runs bounded TaskGraph execution, repair, and
+  reconciliation.
+- `src/agents/implementation/` owns task validation, bounded context,
+  proposals, atomic apply, and implementation execution.
+- `src/agents/reviewers/` contains read-only Architecture, Contract, Code /
+  Integration, Security, and Test / Quality review contracts and services.
+- `src/agents/catalog.ts` is the current agent/capability assignment authority.
+
+## Validation and generated runtime
+
+- `src/runtime/validation/` runs generated-project lint, typecheck, tests,
+  build, security, and diagnostic normalization.
+- `src/runtime/qa/` owns controlled functional QA and Playwright evidence.
+- `src/runtime/e2e/` contains the production smoke harness and lifecycle
+  fixtures.
+- `src/runtime/workspace/` reserves and synchronizes generated workspaces.
+- `src/runtime/production-factory-runtime-core.ts` composes project scopes;
+  `production-factory-runtime.ts` exposes the runtime surface.
+- `scripts/factory-new.ts`, `factory-respond.ts`, and `factory-status.ts` are
+  the CLI entry points.
+- `scripts/generated-runtime-smoke.ts`, `playwright-smoke.ts`,
+  `factory-e2e-smoke.ts`, and `taskgraph-smoke.ts` exercise larger boundaries.
+
+See `docs/codex/WORKFLOWS.md` for paths through these modules and
+`docs/codex/ARCHITECTURE.md` for authority boundaries.

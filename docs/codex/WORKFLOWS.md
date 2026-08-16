@@ -1,0 +1,92 @@
+# Production workflows
+
+These paths describe the current code, not a proposed redesign.
+
+## Create a project
+
+1. The Workbench submits `action: "create"` to
+   `src/app/api/workbench/route.ts`.
+2. `src/runtime/workbench/application.ts` delegates to
+   `TrialEntryService.createProject`.
+3. `src/runtime/trial-entry/service.ts` preserves the initial request, creates
+   the project, builds server-owned Lead input, analyzes the prompt, plans
+   clarifications, and builds a Brief draft when no blocking question remains.
+4. The application returns a safe projection from current repositories. The
+   browser does not become the owner of the Brief or Lead context.
+
+The CLI equivalent is `npm run factory:new`, implemented by
+`scripts/factory-new.ts` through the Node Trial Entry composition.
+
+## Answer clarifications
+
+The Workbench uses `action: "respond"`; the CLI uses `npm run factory:respond`.
+The canonical path is `TrialEntryService.respond`:
+
+- reserve an operation using the answer-round identity and payload hash;
+- reject stale, resolved, unknown, or invalid blocking answers;
+- reconstruct the current project and server-owned asset context;
+- continue the Lead clarification round;
+- persist the new session and build the Brief when all blocking questions are
+  resolved;
+- complete the operation or mark it failed so a legitimate retry remains
+  possible.
+
+`src/runtime/trial-entry/sequential-clarification-idempotency.test.ts` protects
+the distinction between a replay and a new clarification round.
+
+## Request Brief changes
+
+The Workbench action `request-brief-changes` enters
+`TrialEntryService.requestBriefChanges`, which validates the current project,
+reserves the revision operation, invokes the Lead revision path, and persists a
+new canonical requirements document only through the existing service and
+repository boundaries. Revision semantics in
+`src/domain/requirements/revision.ts` preserve unmentioned requirements when
+requested, record history, remove or replace resolved targets, and calculate
+the current effective requirements.
+
+When diagnosing a revision failure, trace the real path from Workbench action
+to Trial Entry to Lead/provider adapter to canonical revision/effective
+requirements to persistence. A domain-only test does not establish that the
+production provider response and host mapping are correct.
+
+## Approve the Brief
+
+`action: "approve-brief"` reaches `TrialEntryService.approveBrief`. It reloads
+the current Brief and clarification session, rejects unresolved or contradictory
+requirements, checks the supplied checksum and expected row version, and uses
+the Lead service's approval operation. Approval is a host/workflow decision;
+the provider cannot approve its own output.
+
+## Upload and use assets
+
+- `GET`, `POST`, and `DELETE` requests go to
+  `src/app/api/workbench/assets/route.ts`.
+- `src/runtime/assets/service.ts` validates category and file metadata,
+  deduplicates and persists project-scoped metadata, and marks readiness.
+- `ProjectAssetRepository` is the persistence seam.
+- Lead input is rebuilt by `TrialEntryService.inputForProject` from current
+  ready asset references. Client-supplied metadata is never canonical.
+
+## Planning and Design
+
+After Brief approval, Workbench action `approve-planning` calls the configured
+workflow scope in `src/runtime/workbench/application.ts`:
+
+1. Planner creates a planning package from the approved Brief.
+2. Planner accepts and persists it.
+3. Architecture review validates and routes the package.
+4. Design generates exactly three structured directions.
+
+The user may request planning changes, make the database/dependency decisions,
+and select one current Design Direction. Selection is explicit and checksum
+bound; Design does not select autonomously.
+
+## Start implementation
+
+`action: "start-implementation"` reloads the approved Brief, accepted planning
+package, selected Design, and Phase 7C package. The Orchestrator creates and
+validates the TaskGraph, then transitions the project to `IMPLEMENTING`.
+The Implementation Agent is later invoked for one ready task at a time through
+its existing bounded contract. Full execution, repair, reconciliation, and
+validation remain in `src/orchestration/execution/` and `src/runtime/`.
