@@ -142,7 +142,7 @@ export async function checkArchitectureFiles(root: string, files: readonly strin
           key,
           fingerprint: fingerprintFailure("architecture", key, code, rule.id),
           code,
-          triggerPathPrefixes: [sourceFile, ...rule.sourcePrefixes],
+          triggerPathPrefixes: [sourceFile],
           ruleId: rule.id,
           sourceFile,
           importSpecifier,

@@ -182,8 +182,11 @@ const briefRevisionDelta = (operations: ResolvedBriefRevisionOperation[]): Brief
   preservedDimensions: new Set(operations.filter(({ operation }) => operation.kind === "PRESERVE").map(({ dimension }) => dimension)),
 });
 const candidateContainsTarget = (candidate: RequirementSpecification, targets: string[]) => {
-  const values = locatedRequirements(getEffectiveBriefRequirements(candidate)).map((item) => normalize(item.value));
-  return targets.some((target) => values.includes(normalize(target)));
+  const effective = getEffectiveBriefRequirements(candidate);
+  const values = locatedRequirements(effective).map((item) => normalize(item.value));
+  if (targets.some((target) => values.includes(normalize(target)))) return true;
+  const targetsFormSuccessProhibition = targets.some((target) => requirementDimensionForText(target) === "FORM_SUCCESS_SIMULATION");
+  return targetsFormSuccessProhibition && prohibitionStatements(effective).some(isSimulationProhibitionRequirement);
 };
 export function validateProviderRevisionOperations(existing: RequirementSpecification, candidate: RequirementSpecification, operations: BriefRevisionOperation[]) {
   const resolved = resolveBriefRevisionOperations(existing, candidate, { operations, preserveUnmentioned: false });
@@ -255,10 +258,15 @@ export function applyBriefRevisionSemanticsWithOptions(existing: RequirementSpec
   emitTrace(options.trace, createBriefRevisionTraceSnapshot("POST_REVISION_APPLICATION", next as RequirementSpecification, { operationTypes: types, removeTargetResolved: removeResolved(operations), removeVerificationPassed: removeVerified(next as RequirementSpecification, operations) }));
   if (intent.preserveUnmentioned || operations.some(({ operation }) => operation.kind === "PRESERVE")) addMissingPreserved(next, getEffectiveBriefRequirements(existing), delta.removedTargets, delta);
   emitTrace(options.trace, createBriefRevisionTraceSnapshot("POST_PRESERVATION", next as RequirementSpecification, { operationTypes: types, removeTargetResolved: removeResolved(operations), removeVerificationPassed: removeVerified(next as RequirementSpecification, operations) }));
+  const effective = getEffectiveBriefRequirements(next as RequirementSpecification);
+  const removeVerificationPassed = removeVerified(effective, operations);
+  if (!removeVerificationPassed) {
+    emitTrace(options.trace, createBriefRevisionTraceSnapshot("EFFECTIVE_SELECTION", effective, { operationTypes: types, removeTargetResolved: removeResolved(operations), removeVerificationPassed: false }));
+    throw new BriefRevisionSemanticsError("BRIEF_REVISION_REMOVE_NOT_APPLIED");
+  }
   const history = historyFor(existing, candidate, operations, instructionChecksum(instruction));
   if (history.length) next.requirementHistory = history;
-  const effective = getEffectiveBriefRequirements(next as RequirementSpecification);
-  emitTrace(options.trace, createBriefRevisionTraceSnapshot("EFFECTIVE_SELECTION", next as RequirementSpecification, { operationTypes: types, removeTargetResolved: removeResolved(operations), removeVerificationPassed: removeVerified(effective, operations) }));
+  emitTrace(options.trace, createBriefRevisionTraceSnapshot("EFFECTIVE_SELECTION", next as RequirementSpecification, { operationTypes: types, removeTargetResolved: removeResolved(operations), removeVerificationPassed: true }));
   const diagnostics: BriefRevisionDiagnostics = {
     revisionOperationTypes: types, removeTargetResolved: removeResolved(operations), candidateHasOldProhibition: prohibitionStatements(candidate).some(isSimulationProhibitionRequirement),
     candidateHasSimulatedSuccess: candidate.formBehaviorRequirements?.successUx === "SIMULATED", historicalHasOldProhibition: (existing.requirementHistory ?? []).some((entry) => isSimulationProhibitionRequirement(entry.statement)),

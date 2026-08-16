@@ -162,6 +162,14 @@ describe("Project Brief V2 canonical contract", () => {
     expect(validateBriefRevisionSemantics(existing, applied, instruction)).toEqual([]);
   });
 
+  it("deduplicates equivalent preserved requirements using canonical normalized identity", () => {
+    const existing = ProjectBriefV2Schema.parse({ ...v2Brief(), forms: ["Contact form."] });
+    const candidate = ProjectBriefV2Schema.parse({ ...v2Brief(), forms: ["Contact-form."] });
+    const applied = ProjectBriefV2Schema.parse(applyBriefRevisionSemantics(existing, candidate, "Preserve all confirmed requirements.").brief);
+    expect(applied.forms).toHaveLength(1);
+    expect(applied.forms[0]).toBe("Contact-form.");
+  });
+
   it("BCD21-BCD32 and BDV1-BDV14: removal wins over old contradiction history while contradiction-free candidates remain approval-eligible", () => {
     const existing = ProjectBriefV2Schema.parse({ ...v2Brief(), prohibitedRequirements: [entry("old", "No successful submission may be faked.")] });
     const instruction = 'Remove "No successful submission may be faked." and add "Frontend success is simulated after local validation."; preserve all confirmed requirements.';

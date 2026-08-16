@@ -14,6 +14,7 @@ import { WorkbenchApplication } from "./application";
 import { clearWorkbenchDiagnosticEvents, getBriefRevisionTraceEvents } from "./diagnostics";
 
 const oldProhibition = "No successful submission may be faked.";
+const semanticProhibition = { id: "semantic-old", statement: "Successful submission must not be simulated.", sourceRefs: ["synthetic:semantic-old"] };
 const conciseRevision = "Remove the old form success prohibition; show a simulated success after local validation, keep transmission disabled, and preserve all other confirmed requirements.";
 const prompt = "Title: Synthetic service\nPurpose: Serve local customers\nAudience: Visitors\nPages: home, contact\nFunctionality: contact form\nLanguages: de\nImages: placeholders\nAcceptance: contact path works";
 
@@ -37,7 +38,7 @@ function legacyV1(brief: RequirementSpecification) {
   });
 }
 
-type RevisionFixtureMode = "clean" | "dirty-provider-candidate" | "active-conflict";
+type RevisionFixtureMode = "clean" | "dirty-provider-candidate" | "semantic-dirty-provider-candidate" | "active-conflict";
 
 async function productionLikeFailure(mode: RevisionFixtureMode = "clean") {
   const database = new InMemoryPersistenceDatabase();
@@ -49,7 +50,7 @@ async function productionLikeFailure(mode: RevisionFixtureMode = "clean") {
     assembleRequirements,
     (input): BriefRevisionDraft => {
       const requirements = v2Candidate.current ?? ProjectBriefV2Schema.parse({ ...input.currentBrief, ...emptyBriefV2Fields(), explicitExclusions: [], formBehaviorRequirements: { ...emptyBriefV2Fields().formBehaviorRequirements, formPresent: true, validation: "ACTIVE", successUx: "SIMULATED", dataTransmission: "NONE", persistence: "NONE", thirdParty: "NONE", privacyCheckbox: "REQUIRED" } });
-      return { projectId: input.projectId, projectVersion: input.projectVersion, requirements, facts: [], recommendations: [], unresolvedItems: [], evidence: requirements.evidence, readyForApproval: true, blockingReasons: [], nonBlockingWarnings: [], briefChecksum: checksumPersistedDocument(requirements), revisionOperations: mode === "active-conflict" ? [{ kind: "ADD", field: "formBehaviorRequirements" }] : [{ kind: "REMOVE", field: "effective-requirements", target: "FORM_SUCCESS_SIMULATION" }] };
+      return { projectId: input.projectId, projectVersion: input.projectVersion, requirements, facts: [], recommendations: [], unresolvedItems: [], evidence: requirements.evidence, readyForApproval: true, blockingReasons: [], nonBlockingWarnings: [], briefChecksum: checksumPersistedDocument(requirements), revisionOperations: mode === "active-conflict" ? [{ kind: "ADD", field: "formBehaviorRequirements" }] : [{ kind: "REMOVE", field: "effective-requirements", target: mode === "semantic-dirty-provider-candidate" ? oldProhibition : "FORM_SUCCESS_SIMULATION" }] };
     },
   );
   const entry = new TrialEntryService({ database, createLeadAgent: () => new LeadAgentService({ database, memory, provider }) });
@@ -61,7 +62,7 @@ async function productionLikeFailure(mode: RevisionFixtureMode = "clean") {
   const documents = new DocumentRepository(database);
   const current = await documents.get(created.project.projectId, 1, "requirements");
   if (!current || current.documentType !== "requirements") throw new Error("current requirements were not persisted");
-  v2Candidate.current = ProjectBriefV2Schema.parse({ ...current, ...emptyBriefV2Fields(), explicitExclusions: mode === "clean" ? [] : [oldProhibition], formBehaviorRequirements: { ...emptyBriefV2Fields().formBehaviorRequirements, formPresent: true, validation: "ACTIVE", successUx: "SIMULATED", dataTransmission: "NONE", persistence: "NONE", thirdParty: "NONE", privacyCheckbox: "REQUIRED" } });
+  v2Candidate.current = ProjectBriefV2Schema.parse({ ...current, ...emptyBriefV2Fields(), explicitExclusions: mode === "clean" || mode === "semantic-dirty-provider-candidate" ? [] : [oldProhibition], prohibitedRequirements: mode === "semantic-dirty-provider-candidate" ? [semanticProhibition] : [], formBehaviorRequirements: { ...emptyBriefV2Fields().formBehaviorRequirements, formPresent: true, validation: "ACTIVE", successUx: "SIMULATED", dataTransmission: "NONE", persistence: "NONE", thirdParty: "NONE", privacyCheckbox: "REQUIRED" } });
   await documents.save(legacyV1(current), "synthetic-v1-seed");
   return { app, projectId: created.project.projectId, documents };
 }
@@ -100,6 +101,16 @@ describe("production-shaped Brief V1 to V2 revision reproduction", () => {
     expect(traces.map((event) => event.stage)).toEqual(["LEGACY_INPUT", "PROVIDER_CANDIDATE", "REVISION_OPERATIONS"]);
     expect(traces.find((event) => event.stage === "PROVIDER_CANDIDATE")).toMatchObject({ providerCandidateHasSuccessSimulationProhibited: true });
     expect(traces.at(-1)).toMatchObject({ stage: "REVISION_OPERATIONS", removeVerificationPassed: false });
+  });
+
+  it("rejects a semantically equivalent prohibition before contradiction validation", async () => {
+    clearWorkbenchDiagnosticEvents();
+    const fixture = await productionLikeFailure("semantic-dirty-provider-candidate");
+    await expect(fixture.app.handle({ action: "request-brief-changes", projectId: fixture.projectId, reason: conciseRevision, requirementKeys: ["project-brief"] })).rejects.toMatchObject({ code: "LEAD_PROVIDER_FAILED", details: { outputStage: "REVISION_SEMANTIC_VALIDATION_FAILED", issueCode: "BRIEF_REVISION_REMOVE_NOT_APPLIED" } });
+    const traces = getBriefRevisionTraceEvents().filter((event) => event.projectId === fixture.projectId);
+    expect(traces.find((event) => event.stage === "PROVIDER_CANDIDATE")).toMatchObject({ providerCandidateHasSuccessSimulationProhibited: true, hasSuccessSimulationRequired: true });
+    expect(traces.at(-1)).toMatchObject({ stage: "REVISION_OPERATIONS", removeVerificationPassed: false });
+    expect(traces.some((event) => event.stage === "CONTRADICTION_INPUT")).toBe(false);
   });
 
   it("preserves a true active conflict for contradiction validation", async () => {
