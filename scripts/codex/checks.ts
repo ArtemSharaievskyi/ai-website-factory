@@ -39,7 +39,7 @@ export const CONTROLLED_CHECKS: Record<ControlledCheckId, CommandCheck | Interna
   lint: { label: "Lint", kind: "command", args: ["run", "lint"] },
   architecture: { label: "Architecture boundaries", kind: "command", args: ["run", "check:architecture"] },
   "provider-contracts": { label: "Provider contracts", kind: "provider-contracts" },
-  "openai-tests": { label: "OpenAI tests", kind: "command", args: ["run", "test", "--", "src/integrations/openai/provider.test.ts", "src/integrations/openai/brief-v2-provider-contract.test.ts"] },
+  "openai-tests": { label: "OpenAI tests", kind: "command", args: ["run", "test", "--", "src/integrations/openai/provider.test.ts", "src/integrations/openai/brief-v2-provider-contract.test.ts", "src/integrations/openai-v3/brief-v3-provider-contract.test.ts"] },
   "lead-provider-tests": { label: "Lead/provider tests", kind: "command", args: ["run", "test", "--", "src/agents/lead/lead.test.ts", "src/runtime/trial-entry/service.test.ts"] },
   "brief-tests": { label: "Brief tests", kind: "command", args: ["run", "test", "--", "src/domain/requirements/brief-v2.test.ts"] },
   "brief-revision-certification": { label: "Brief Revision V3 certification", kind: "command", args: ["run", "test:brief-revision:certify"] },

@@ -9,6 +9,7 @@ import {
   PlanningPackageStructuredOutputSchema,
   buildProductionBriefRevisionResponseFormat,
 } from "@/integrations/openai/adapters";
+import { ProviderBriefChangeSetSchema } from "@/integrations/openai-v3/changeset";
 import { ClarificationPlanProviderOutputSchema, LeadAnalysisProviderOutputSchema } from "@/agents/lead/contracts";
 import { ArchitectureReviewProviderOutputSchema, CodeIntegrationReviewProviderOutputSchema, ContractAuditProviderOutputSchema, SecurityReviewProviderOutputSchema, TestQualityReviewProviderOutputSchema } from "@/domain/review/schema";
 import { fingerprintFailure } from "./baseline-failures";
@@ -25,6 +26,7 @@ const builders: Record<string, Builder> = {
   "clarification-plan": () => buildProductionResponseFormat(ClarificationPlanProviderOutputSchema, "clarification-plan"),
   "project-brief": () => buildProductionResponseFormat(BriefDraftStructuredOutputSchema, "brief-draft"),
   "brief-revision": () => buildProductionBriefRevisionResponseFormat(),
+  "brief-revision-v3": () => buildProductionResponseFormat(ProviderBriefChangeSetSchema, "brief-revision-v3"),
   "planning-package": () => buildProductionResponseFormat(PlanningPackageStructuredOutputSchema, "planning-package"),
   "design-direction-set": () => buildProductionResponseFormat(DesignDirectionStructuredOutputSchema, "design-direction-set"),
   "implementation-change-proposal": () => buildProductionResponseFormat(ImplementationChangeProposalStructuredOutputSchema, "implementation-change-proposal"),

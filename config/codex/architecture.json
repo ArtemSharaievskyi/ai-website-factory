@@ -33,6 +33,12 @@
       "message": "Brief Revision V3 core must remain independent of provider, runtime, persistence, and UI implementations."
     },
     {
+      "id": "BRIEF_V3_PROVIDER_CANNOT_IMPORT_AUTHORITY_MUTATION",
+      "sourcePrefixes": ["src/integrations/openai-v3/mapper.ts", "src/integrations/openai-v3/prompt.ts", "src/integrations/openai-v3/provider.ts"],
+      "forbiddenTargetPrefixes": ["src/domain/requirements/v3/reducer.ts", "src/domain/requirements/v3/history.ts", "src/domain/requirements/v3/migrate-v1.ts", "src/domain/requirements/v3/migrate-v2.ts", "src/domain/requirements/v3/legacy.ts", "src/persistence/", "src/runtime/workbench/", "src/app/"],
+      "message": "The V3 provider boundary may map public semantic contracts but cannot own reducer, history, legacy, persistence, or workflow mutation authority."
+    },
+    {
       "id": "OPENAI_CANNOT_IMPORT_WORKBENCH",
       "sourcePrefixes": ["src/integrations/openai/"],
       "forbiddenTargetPrefixes": ["src/runtime/workbench/", "src/app/"],
