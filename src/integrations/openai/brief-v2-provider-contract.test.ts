@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { applyBriefRevisionSemantics, validateBriefRevisionSemantics } from "@/domain/requirements/revision";
+import { applyBriefRevisionSemantics, BriefRevisionOperationSchema, validateBriefRevisionSemantics } from "@/domain/requirements/revision";
 import { briefApprovalBlockers } from "@/domain/requirements/brief-validation";
 import { emptyBriefV2Fields } from "@/domain/requirements/brief";
 import { ProjectBriefV2Schema, RequirementSpecificationSchema } from "@/domain/requirements/schema";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
-import { OpenAiStructuredClient } from "./client";
-import { OpenAiLeadProvider, BriefDraftStructuredOutputSchema, BriefRevisionStructuredOutputSchema, BriefRequirementsTransportSchema } from "./adapters";
+import { buildProductionResponseFormat, OpenAiStructuredClient } from "./client";
+import { buildProductionBriefRevisionResponseFormat, OpenAiLeadProvider, BriefDraftStructuredOutputSchema, BriefRevisionStructuredOutputSchema, BriefRequirementsTransportSchema } from "./adapters";
 import { mergeRevisionRequirements } from "@/agents/lead/service";
 import { AiProviderError } from "./errors";
 import { DEFAULT_AI_MAX_COMPLETION_TOKENS, readAiProviderConfig } from "./config";
@@ -144,14 +144,55 @@ const toTransport = (brief: typeof v2Candidate) => {
 
 const transport = toTransport(v2Candidate);
 const providerOutput = BriefDraftStructuredOutputSchema.parse({ requirements: transport, facts: [], recommendations: [], unresolvedItems: [], evidence: [], readyForApproval: true, blockingReasons: [], nonBlockingWarnings: [] });
-const revisionProviderOutput = BriefRevisionStructuredOutputSchema.parse({ ...providerOutput, revisionOperations: [{ kind: "REMOVE", field: "effective-requirements", target: "FORM_SUCCESS_SIMULATION" }] });
+const revisionProviderOutput = BriefRevisionStructuredOutputSchema.parse({ ...providerOutput, revisionOperations: [{ kind: "REMOVE", field: "effective-requirements", target: "FORM_SUCCESS_SIMULATION", value: null }] });
 const revisionInstruction = 'Replace "Do not show successful submission." with "Frontend success is simulated after local validation."; preserve all confirmed requirements.';
 const revisionInput = { projectId, projectVersion: 1, originalPrompt: "Synthetic local service brief.", currentBrief: legacyV1, currentCanonicalRequirements: legacyV1, revisionInstruction, requirementKeys: ["project-brief"], operatorLanguage: "de" as const, siteLanguage: "de" as const, currentWorkflowState: "AWAITING_BRIEF_APPROVAL" };
 const config = { apiKey: "synthetic", model: "gpt-5.6-luna", modelLabel: "GPT-5.6 Luna", maxRetries: 1, maxConcurrentRequests: 1, maxCompletionTokens: DEFAULT_AI_MAX_COMPLETION_TOKENS };
 
 describe("Project Brief V2 provider output contract PBR1-PBR40", () => {
+  it("reproduces the pre-fix production failure without a network request", () => {
+    const preFixSchema = BriefDraftStructuredOutputSchema.extend({ revisionOperations: z.array(BriefRevisionOperationSchema).min(1) });
+    try {
+      buildProductionResponseFormat(preFixSchema, "brief-revision");
+      throw new Error("expected pre-fix schema construction to fail");
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: "AI_REQUEST_SCHEMA_INVALID",
+        diagnostic: {
+          outputStage: "REQUEST_SCHEMA_CONSTRUCTION_FAILED",
+          schemaName: "brief-revision",
+          requestAttempted: false,
+          responseReceived: false,
+          issueCode: "OPTIONAL_PROPERTY_UNSUPPORTED",
+          fieldPath: "revisionOperations[].target",
+          schemaNodeKind: "ZodOptional",
+        },
+      });
+    }
+  });
+
   it("PBR1-PBR4: builds strict transport with explicit nullable values", () => {
-    expect(() => zodResponseFormat(BriefDraftStructuredOutputSchema, "brief-revision")).not.toThrow();
+    const responseFormat = buildProductionBriefRevisionResponseFormat();
+    expect(responseFormat.json_schema.name).toBe("brief-revision");
+    expect(responseFormat.json_schema.strict).toBe(true);
+    const schema = responseFormat.json_schema.schema as Record<string, unknown>;
+    expect(JSON.stringify(schema)).not.toContain('"default"');
+    expect(JSON.stringify(schema)).not.toMatch(/requirementHistory|briefChecksum|approved|projectId|projectVersion/);
+    const visit = (node: unknown) => {
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node)) {
+        node.forEach(visit);
+        return;
+      }
+      const object = node as Record<string, unknown>;
+      if (object.type === "object" && object.properties && typeof object.properties === "object") {
+        expect(object.additionalProperties).toBe(false);
+        expect(object.required).toEqual(expect.arrayContaining(Object.keys(object.properties as Record<string, unknown>)));
+      }
+      Object.values(object).forEach(visit);
+    };
+    visit(schema);
+    expect(() => zodResponseFormat(BriefDraftStructuredOutputSchema, "brief-draft")).not.toThrow();
     expect(BriefDraftStructuredOutputSchema.safeParse(providerOutput).success).toBe(true);
     expect(providerOutput.requirements.projectTitle).toBe("Example Local Service");
     expect(providerOutput.requirements.analysisMetadata).toBeNull();
@@ -177,8 +218,16 @@ describe("Project Brief V2 provider output contract PBR1-PBR40", () => {
     expect(result.requirements.deferredIntegrations?.some((item) => item.integration === "email")).toBe(true);
     expect(result.requirements.formBehaviorRequirements?.dataTransmission).toBe("NONE");
   });
+  it("normalizes nullable revision operation members into canonical omission", async () => {
+    const nullableRevisionOutput = BriefRevisionStructuredOutputSchema.parse({ ...providerOutput, revisionOperations: [{ kind: "PRESERVE", field: "effective-requirements", target: null, value: null }] });
+    const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: nullableRevisionOutput as T, requestId: "req_nullable_revision", inputTokens: 1, outputTokens: 1 }) });
+    const result = await new OpenAiLeadProvider(client).reviseBrief(revisionInput);
+    expect(result.revisionOperations).toEqual([{ kind: "PRESERVE", field: "effective-requirements" }]);
+  });
   it("PBR24-PBR29: distinguishes transport, canonical, semantic, and contradiction failures", () => {
     expect(BriefRequirementsTransportSchema.safeParse({ ...transport, prohibitedRequirements: undefined }).success).toBe(false);
+    expect(BriefRevisionStructuredOutputSchema.safeParse({ ...providerOutput, revisionOperations: [{ kind: "PRESERVE", field: "effective-requirements", target: null, value: null }] }).success).toBe(true);
+    expect(BriefRevisionStructuredOutputSchema.safeParse({ ...providerOutput, revisionOperations: [{ kind: "PRESERVE", field: "effective-requirements" }] }).success).toBe(false);
     expect(ProjectBriefV2Schema.safeParse({ ...v2Candidate, assetRequirements: { ...v2Candidate.assetRequirements, requiredAssets: [{ ...v2Candidate.assetRequirements.requiredAssets[0]!, reference: "unsafe/path" }] } }).success).toBe(false);
     const applied = ProjectBriefV2Schema.parse(applyBriefRevisionSemantics(legacyV1, v2Candidate, revisionInstruction).brief);
     expect(validateBriefRevisionSemantics(legacyV1, applied, revisionInstruction)).toEqual([]);

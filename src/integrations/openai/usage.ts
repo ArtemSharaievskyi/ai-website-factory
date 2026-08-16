@@ -39,6 +39,8 @@ export type ProviderDiagnostic = {
   schemaName?: string;
   issueCode?: string;
   fieldPath?: string;
+  schemaNodeKind?: string;
+  unsupportedConstruct?: string;
   issueCount?: number;
   domainValidationIssuePaths?: string[];
   inputTokens?: number;

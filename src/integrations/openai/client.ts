@@ -13,6 +13,66 @@ export type StructuredRequest<T> = { role: string; promptVersion: string; system
 export type StructuredResponse<T> = { value: T; usage: ProviderUsage; requestId: string; diagnostic?: ProviderDiagnostic };
 export type StructuredExecutor = <T>(request: StructuredRequest<T>, client: OpenAI, config: AiProviderConfig, correction: boolean) => Promise<{ value: T; requestId: string; inputTokens?: number; cachedInputTokens?: number; outputTokens?: number; diagnostic?: ProviderDiagnostic }>;
 
+function providerSchemaFieldPath(rawPath: string | undefined) {
+  if (!rawPath) return undefined;
+  const parts = rawPath.split("/").filter(Boolean);
+  const path: string[] = [];
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index];
+    if (part === "properties") {
+      const property = parts[index + 1];
+      if (!property || !/^[A-Za-z][A-Za-z0-9_]*$/.test(property)) return undefined;
+      path.push(property);
+      index += 1;
+    } else if (part === "items") {
+      if (!path.length) return undefined;
+      path[path.length - 1] = `${path[path.length - 1]}[]`;
+    }
+  }
+  const fieldPath = path.join(".");
+  return /^[A-Za-z][A-Za-z0-9_.\[\]]*$/.test(fieldPath) ? fieldPath : undefined;
+}
+
+function zodNodeKind(schema: unknown) {
+  const internal = schema as { _zod?: { def?: { type?: unknown } } };
+  const type = internal?._zod?.def?.type;
+  return typeof type === "string" ? `Zod${type[0]?.toUpperCase() ?? ""}${type.slice(1)}` : undefined;
+}
+
+function schemaConstructionDiagnostic(error: unknown, schemaName: string, schema?: unknown): Pick<ProviderDiagnostic, "issueCode" | "fieldPath" | "schemaNodeKind" | "unsupportedConstruct"> {
+  const message = error instanceof Error ? error.message : "";
+  const rawPath = message.match(/(?:Schema field|Object schema) at `([^`]+)`/)?.[1];
+  if (/\.optional\(\).*\.nullable\(\)/i.test(message)) return { issueCode: "OPTIONAL_PROPERTY_UNSUPPORTED", fieldPath: providerSchemaFieldPath(rawPath), schemaNodeKind: "ZodOptional", unsupportedConstruct: "optional property without nullable" };
+  if (/transform/i.test(message)) return { issueCode: "TRANSFORM_UNSUPPORTED", fieldPath: providerSchemaFieldPath(rawPath), schemaNodeKind: "ZodTransform", unsupportedConstruct: "transform" };
+  if (/record|additionalProperties/i.test(message)) return { issueCode: /record/i.test(message) ? "RECORD_UNSUPPORTED" : "INVALID_ADDITIONAL_PROPERTIES", fieldPath: providerSchemaFieldPath(rawPath), schemaNodeKind: /record/i.test(message) ? "ZodRecord" : "ZodObject", unsupportedConstruct: /record/i.test(message) ? "dynamic keys" : "additionalProperties" };
+  if (/union|anyOf|oneOf/i.test(message)) return { issueCode: "UNION_UNSUPPORTED", fieldPath: providerSchemaFieldPath(rawPath), schemaNodeKind: "ZodUnion", unsupportedConstruct: "union" };
+  if (/default/i.test(message)) return { issueCode: "DEFAULT_UNSUPPORTED", fieldPath: providerSchemaFieldPath(rawPath), schemaNodeKind: "ZodDefault", unsupportedConstruct: "default" };
+  if (/refin|custom/i.test(message)) return { issueCode: "REFINEMENT_UNSUPPORTED", fieldPath: providerSchemaFieldPath(rawPath), schemaNodeKind: "ZodRefinement", unsupportedConstruct: "refinement" };
+  if (/nullable|required/i.test(message)) return { issueCode: /nullable/i.test(message) ? "INVALID_NULLABILITY" : "INVALID_REQUIRED_SET", fieldPath: providerSchemaFieldPath(rawPath), schemaNodeKind: "ZodObject", unsupportedConstruct: "required/nullability" };
+  const nodeKind = zodNodeKind(schema);
+  if (nodeKind === "ZodUnion") return { issueCode: "UNION_UNSUPPORTED", fieldPath: providerSchemaFieldPath(rawPath), schemaNodeKind: nodeKind, unsupportedConstruct: "union" };
+  return { issueCode: "SCHEMA_CONSTRUCTION_FAILED", fieldPath: providerSchemaFieldPath(rawPath), schemaNodeKind: nodeKind ?? "Unknown", unsupportedConstruct: schemaName };
+}
+
+/** The production response-format boundary used immediately before the SDK call. */
+export function buildProductionResponseFormat<T>(schema: ZodType<T>, schemaName: string): ReturnType<typeof zodResponseFormat> {
+  try {
+    return zodResponseFormat(schema as unknown as Parameters<typeof zodResponseFormat>[0], schemaName);
+  } catch (error) {
+    throw new AiProviderError("AI_REQUEST_SCHEMA_INVALID", "Structured output schema was rejected before the provider request.", error, {
+      stage: "request_construction",
+      outputStage: "REQUEST_SCHEMA_CONSTRUCTION_FAILED",
+      requestAttempted: false,
+      apiResponseReceived: false,
+      responseReceived: false,
+      outputComplete: false,
+      sdkErrorClass: safeClassName(error),
+      schemaName,
+      ...schemaConstructionDiagnostic(error, schemaName, schema),
+    });
+  }
+}
+
 type ProviderErrorShape = { status?: unknown; requestID?: unknown; request_id?: unknown; error?: { type?: unknown; code?: unknown; param?: unknown } | null; type?: unknown; code?: unknown; param?: unknown; name?: unknown };
 
 export class OpenAiStructuredClient {
@@ -128,12 +188,7 @@ export class OpenAiStructuredClient {
 }
 
 async function defaultExecutor<T>(request: StructuredRequest<T>, client: OpenAI, config: AiProviderConfig, correction: boolean) {
-  let responseSchema: ReturnType<typeof zodResponseFormat>;
-  try {
-    responseSchema = zodResponseFormat(request.schema as unknown as Parameters<typeof zodResponseFormat>[0], request.schemaName);
-  } catch (error) {
-    throw new AiProviderError("AI_REQUEST_SCHEMA_INVALID", "Structured output schema was rejected before the provider request.", error, { stage: "request_construction", outputStage: "REQUEST_SCHEMA_CONSTRUCTION_FAILED", requestAttempted: false, apiResponseReceived: false, responseReceived: false, outputComplete: false, sdkErrorClass: safeClassName(error), schemaName: request.schemaName });
-  }
+  const responseSchema = buildProductionResponseFormat(request.schema, request.schemaName);
   const correctionInstruction = request.role === "design" ? "\nReturn exactly 3 directions. Repair only the structural deficiency; do not omit, clone, or add a fourth direction." : "\nCorrect the previous structured-output formatting.";
   let completion: Awaited<ReturnType<OpenAI["chat"]["completions"]["parse"]>>;
   try {

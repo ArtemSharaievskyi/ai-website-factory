@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { OpenAiStructuredClient, type StructuredRequest } from "./client";
+import { buildProductionResponseFormat, OpenAiStructuredClient, type StructuredRequest } from "./client";
 import { AiProviderError } from "./errors";
 import { FifoConcurrencyLimiter } from "./limiter";
 import { zodResponseFormat } from "openai/helpers/zod";
@@ -149,10 +149,29 @@ describe("production AI provider boundary", () => {
 
   it("classifies local strict-schema construction separately from API failures", async () => {
     const events: Array<Record<string, unknown>> = [];
-    const client = new OpenAiStructuredClient(config, { eventSink: (event) => events.push(event), client: { chat: { completions: { parse: vi.fn() } } } as never });
+    const parse = vi.fn();
+    const client = new OpenAiStructuredClient(config, { eventSink: (event) => events.push(event), client: { chat: { completions: { parse } } } as never });
     const invalidSchema = z.object({ optional: z.string().optional() }).strict();
-    await expect(client.request({ ...request, schema: invalidSchema, schemaName: "invalid-optional-schema" })).rejects.toMatchObject({ code: "AI_REQUEST_SCHEMA_INVALID", diagnostic: { stage: "request_construction", requestAttempted: false, apiResponseReceived: false, schemaName: "invalid-optional-schema" } });
-    expect(events.at(-1)).toMatchObject({ type: "request.failed", code: "AI_REQUEST_SCHEMA_INVALID", diagnostic: { requestAttempted: false } });
+    await expect(client.request({ ...request, schema: invalidSchema, schemaName: "invalid-optional-schema" })).rejects.toMatchObject({ code: "AI_REQUEST_SCHEMA_INVALID", diagnostic: { stage: "request_construction", outputStage: "REQUEST_SCHEMA_CONSTRUCTION_FAILED", requestAttempted: false, apiResponseReceived: false, schemaName: "invalid-optional-schema", issueCode: "OPTIONAL_PROPERTY_UNSUPPORTED", fieldPath: "optional", schemaNodeKind: "ZodOptional" } });
+    expect(parse).not.toHaveBeenCalled();
+    expect(events.at(-1)).toMatchObject({ type: "request.failed", code: "AI_REQUEST_SCHEMA_INVALID", diagnostic: { requestAttempted: false, issueCode: "OPTIONAL_PROPERTY_UNSUPPORTED", fieldPath: "optional" } });
+  });
+
+  it("classifies other local response-schema construction failures without exposing SDK text", () => {
+    const cases = [
+      ["transform", z.object({ transformed: z.string().transform((value) => value) }).strict(), "TRANSFORM_UNSUPPORTED", undefined],
+      ["record", z.object({ values: z.record(z.string(), z.string()) }).strict(), "INVALID_ADDITIONAL_PROPERTIES", "values"],
+      ["root-union", z.union([z.object({ a: z.string() }).strict(), z.object({ b: z.string() }).strict()]), "UNION_UNSUPPORTED", undefined],
+    ] as const;
+    for (const [schemaName, invalidSchema, issueCode, fieldPath] of cases) {
+      try {
+        buildProductionResponseFormat(invalidSchema as never, `invalid-${schemaName}`);
+        throw new Error(`expected ${schemaName} to fail`);
+      } catch (error) {
+        expect(error).toMatchObject({ code: "AI_REQUEST_SCHEMA_INVALID", diagnostic: { outputStage: "REQUEST_SCHEMA_CONSTRUCTION_FAILED", requestAttempted: false, schemaName: `invalid-${schemaName}`, issueCode, ...(fieldPath ? { fieldPath } : {}) } });
+        expect(JSON.stringify(error)).not.toContain("platform.openai.com");
+      }
+    }
   });
 
   it("keeps safe API authentication metadata without raw error contents", async () => {

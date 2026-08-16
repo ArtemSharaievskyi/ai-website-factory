@@ -35,11 +35,11 @@ import type {
   ImplementationChangeProposal,
 } from "@/agents/implementation/contracts";
 import { ImplementationChangeProposalSchema } from "@/agents/implementation/contracts";
-import { OpenAiStructuredClient } from "./client";
+import { buildProductionResponseFormat, OpenAiStructuredClient } from "./client";
 import { AiProviderError } from "./errors";
 import { boundedRolePrompt as rolePrompt } from "@/runtime/context/bridge";
 import type { ProviderDiagnostic, ProviderUsageSink } from "./usage";
-import { BriefRevisionOperationSchema } from "@/domain/requirements/revision";
+import { BriefRevisionOperationKindSchema } from "@/domain/requirements/revision";
 import type { OrchestrationPlanningProvider } from "@/orchestration/orchestrator/service";
 import {
   ArchitectureReviewProviderOutputSchema,
@@ -75,9 +75,20 @@ import { z } from "zod";
 import {
   IsoDateTimeSchema,
   NonEmptyStringSchema,
+  UserValueSchema,
 } from "@/domain/shared/schemas";
 import { ProjectBriefV2Schema } from "@/domain/requirements/schema";
-import { BriefSeoRequirementsSchema } from "@/domain/requirements/brief";
+import {
+  BriefAssetRequirementsSchema,
+  BriefBrandVisualRequirementsSchema,
+  BriefDecisionSchema,
+  BriefDeferredIntegrationSchema,
+  BriefFormBehaviorRequirementsSchema,
+  BriefLegalComplianceRequirementsSchema,
+  BriefRequirementEntrySchema,
+  BriefSeoRequirementsSchema,
+  BriefUxResponsiveRequirementsSchema,
+} from "@/domain/requirements/brief";
 import { OperatorLanguageSchema, SiteLanguageDecisionSchema, type SiteLanguageDecision } from "@/domain/language/schema";
 import { resolveLogoPolicy } from "@/domain/requirements/logo-policy";
 import {
@@ -231,20 +242,86 @@ const BriefSeoTransportSchema = BriefSeoRequirementsSchema.extend({
     sourceRefs: z.array(NonEmptyStringSchema).min(1),
   }).strict()),
 });
-export const BriefRequirementsTransportSchema = ProjectBriefV2Schema
-  .omit({ schemaVersion: true, documentType: true, projectId: true, projectVersion: true, createdAt: true, updatedAt: true, operatorLanguage: true, localization: true, approval: true, briefStatus: true, briefVersion: true, briefApprovalNote: true, briefRevisionInstructions: true, requirementHistory: true, briefSchemaVersion: true, analysisMetadata: true })
-  .required()
-  .extend({
-    projectTitle: NonEmptyStringSchema.nullable(),
-    analysisMetadata: BriefStructuredAnalysisMetadataSchema.nullable(),
-    seoMetadata: BriefSeoTransportSchema,
-  });
+const BriefPageTransportSchema = z.object({ slug: NonEmptyStringSchema, purpose: NonEmptyStringSchema }).strict();
+const BriefUnresolvedItemTransportSchema = z.object({ id: z.string().uuid(), description: NonEmptyStringSchema, blocking: z.boolean() }).strict();
+const BriefEvidenceTransportSchema = z.object({ field: NonEmptyStringSchema, source: NonEmptyStringSchema, excerpt: NonEmptyStringSchema }).strict();
+const BriefAssetReferenceTransportSchema = z.string().min(1).max(160).regex(/^[^\\/]+$/);
+const BriefAssetRequirementsTransportSchema = BriefAssetRequirementsSchema.extend({
+  requiredAssets: z.array(z.object({
+    reference: BriefAssetReferenceTransportSchema,
+    role: z.enum(["logo", "brand-reference", "photography", "illustration", "document", "other"]),
+    usage: NonEmptyStringSchema,
+    replacementForbidden: z.boolean(),
+    sourceRefs: z.array(NonEmptyStringSchema).min(1),
+  }).strict()),
+});
+const BriefRevisionOperationTransportSchema = z.object({
+  kind: BriefRevisionOperationKindSchema,
+  field: z.string().min(1).max(160),
+  target: z.string().min(1).max(400).nullable(),
+  value: z.string().min(1).max(400).nullable(),
+}).strict();
+
+/**
+ * Provider DTO only. Host-owned identity, language, approval, history, checksums,
+ * and trace/reconciliation state are deliberately not part of this schema.
+ */
+export const BriefRequirementsTransportSchema = z.object({
+  projectSummary: NonEmptyStringSchema,
+  protectedFunctionalityRequired: z.boolean(),
+  imagesRequired: z.boolean(),
+  businessGoals: z.array(NonEmptyStringSchema),
+  targetAudiences: z.array(NonEmptyStringSchema),
+  pages: z.array(BriefPageTransportSchema),
+  userRoles: z.array(NonEmptyStringSchema),
+  features: z.array(NonEmptyStringSchema),
+  forms: z.array(NonEmptyStringSchema),
+  contentRequirements: z.array(NonEmptyStringSchema),
+  backendRequirements: z.array(NonEmptyStringSchema),
+  supabaseRequirements: z.array(NonEmptyStringSchema),
+  authenticationDecision: z.enum(["no-authentication-guest-first", "authentication-required", "pending"]),
+  storageDecision: z.enum(["not-needed", "needed", "pending"]),
+  emailDecision: z.enum(["not-needed", "needed", "pending"]),
+  administrationDecision: z.enum(["not-needed", "needed", "pending"]),
+  seoRequirements: z.array(NonEmptyStringSchema),
+  imageSourceDecision: z.enum(["ai-generated", "user-supplied", "ai-plus-user-supplied", "placeholders", "custom", "pending"]),
+  suppliedBrandInformation: UserValueSchema,
+  suppliedLogoLocation: UserValueSchema,
+  technicalConstraints: z.array(NonEmptyStringSchema),
+  explicitExclusions: z.array(NonEmptyStringSchema),
+  userAcceptanceCriteria: z.array(NonEmptyStringSchema),
+  unresolvedItems: z.array(BriefUnresolvedItemTransportSchema),
+  projectTitle: NonEmptyStringSchema.nullable(),
+  contactFacts: z.array(NonEmptyStringSchema),
+  legalFacts: z.array(NonEmptyStringSchema),
+  brandFacts: z.array(NonEmptyStringSchema),
+  logoMetadata: z.array(NonEmptyStringSchema),
+  imageSourcingNotes: z.array(NonEmptyStringSchema),
+  evidence: z.array(BriefEvidenceTransportSchema),
+  recommendations: z.array(NonEmptyStringSchema),
+  analysisMetadata: BriefStructuredAnalysisMetadataSchema.nullable(),
+  content: z.array(BriefRequirementEntrySchema),
+  technical: z.array(BriefRequirementEntrySchema),
+  brandVisualRequirements: BriefBrandVisualRequirementsSchema,
+  assetRequirements: BriefAssetRequirementsTransportSchema,
+  formBehaviorRequirements: BriefFormBehaviorRequirementsSchema,
+  uxResponsiveRequirements: BriefUxResponsiveRequirementsSchema,
+  seoMetadata: BriefSeoTransportSchema,
+  legalComplianceConstraints: BriefLegalComplianceRequirementsSchema,
+  prohibitedRequirements: z.array(BriefRequirementEntrySchema),
+  deferredIntegrations: z.array(BriefDeferredIntegrationSchema),
+  decisions: z.array(BriefDecisionSchema),
+}).strict();
+export type BriefRevisionOperationTransport = z.infer<typeof BriefRevisionOperationTransportSchema>;
 export const BriefDraftStructuredOutputSchema = BriefDraftSchema.omit({ projectId: true, projectVersion: true, briefChecksum: true }).extend({
   requirements: BriefRequirementsTransportSchema,
 });
 export const BriefRevisionStructuredOutputSchema = BriefDraftStructuredOutputSchema.extend({
-  revisionOperations: z.array(BriefRevisionOperationSchema).min(1),
+  revisionOperations: z.array(BriefRevisionOperationTransportSchema).min(1),
 });
+export function buildProductionBriefRevisionResponseFormat() {
+  return buildProductionResponseFormat(BriefRevisionStructuredOutputSchema, "brief-revision");
+}
 // Professional design contracts are host-bound after model generation; they
 // are intentionally excluded from the model transport shape so the strict
 // provider schema does not become a second source of design authority.
@@ -289,12 +366,18 @@ const zodIssueCode = (error: unknown) => {
   if (issue.code === "invalid_format") return "INVALID_FORMAT";
   return "INVALID_FIELD";
 };
+const normalizeRevisionOperations = (operations: z.infer<typeof BriefRevisionOperationTransportSchema>[]) =>
+  operations.map(({ target, value, ...operation }) => ({
+    ...operation,
+    ...(target === null ? {} : { target }),
+    ...(value === null ? {} : { value }),
+  }));
 function normalizeBriefDraft(
   value: z.infer<typeof BriefDraftStructuredOutputSchema> | z.infer<typeof BriefRevisionStructuredOutputSchema>,
   host: { projectId: string; projectVersion: number; operatorLanguage: z.infer<typeof OperatorLanguageSchema>; siteLanguage: SiteLanguageDecision; originalPromptChecksum: string },
   providerDiagnostic?: ProviderDiagnostic,
 ): BriefDraft | BriefRevisionDraft {
-  const revisionOperations = "revisionOperations" in value ? value.revisionOperations : undefined;
+  const revisionOperations = "revisionOperations" in value ? normalizeRevisionOperations(value.revisionOperations) : undefined;
   const { requirements: transportRequirements, ...providerDraft } = value;
   const {
     projectTitle,
@@ -904,7 +987,7 @@ export class OpenAiLeadProvider implements LeadAnalysisProvider {
     input: BriefRevisionProviderInput,
     approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
     skillContextIdentity = "none",
-  ): Promise<BriefDraft> {
+  ): Promise<BriefRevisionDraft> {
     let prompt: ReturnType<typeof rolePrompt>;
     try {
       prompt = rolePrompt("lead", { ...input, briefRevision: input.revisionInstruction }, false, approvedSkills);
@@ -919,7 +1002,7 @@ export class OpenAiLeadProvider implements LeadAnalysisProvider {
       schemaName: "brief-revision",
       idempotencyKey: `lead-brief-revision:${input.projectId}:${input.projectVersion}:${checksumPersistedDocument(input.revisionInstruction)}:${skillContextIdentity}`,
     });
-    return normalizeBriefDraft(result.value, { projectId: input.projectId, projectVersion: input.projectVersion, operatorLanguage: input.operatorLanguage, siteLanguage: input.siteLanguage, originalPromptChecksum: checksumPersistedDocument(input.originalPrompt) }, result.diagnostic);
+    return normalizeBriefDraft(result.value, { projectId: input.projectId, projectVersion: input.projectVersion, operatorLanguage: input.operatorLanguage, siteLanguage: input.siteLanguage, originalPromptChecksum: checksumPersistedDocument(input.originalPrompt) }, result.diagnostic) as BriefRevisionDraft;
   }
   private async call<T>(
     role: "lead",
