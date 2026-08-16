@@ -1,5 +1,8 @@
 import type { ClarificationSession } from "@/domain/requirements/schema";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
+import { recordV2MutationModuleLoaded } from "@/runtime/brief-revision-v3/v2-tripwire";
+
+recordV2MutationModuleLoaded("src/runtime/trial-entry/idempotency.ts");
 
 export const ANSWER_CLARIFICATIONS_OPERATION = "trial-entry:answer-lead-clarifications:v2";
 export const REQUEST_BRIEF_CHANGES_OPERATION = "trial-entry:request-brief-changes:v2";
@@ -78,6 +81,7 @@ export const briefRevisionOperationKey = (input: {
   reason: string;
   requirementKeys: readonly string[];
 }) => {
+  recordV2MutationModuleLoaded("src/runtime/trial-entry/idempotency.ts");
   const normalizedReason = input.reason.replace(/\r\n?/g, "\n");
   const payload = {
     projectId: input.projectId,

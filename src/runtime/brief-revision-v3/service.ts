@@ -37,6 +37,7 @@ function classifyDomainFailure(error: unknown): BriefV3TransactionErrorCode {
   if (error instanceof BriefV3ProviderError) return "PROVIDER_INVALID_OUTPUT";
   if (error instanceof DomainError) return "INVARIANT_FAILED";
   if (!(error instanceof BriefV3Error)) return "CHANGESET_INVALID";
+  if (error.code === "BRIEF_V3_MIGRATION_AMBIGUOUS") return "MIGRATION_AMBIGUOUS";
   if (error.code === "BRIEF_V3_REDUCTION_INVALID") return "REDUCTION_FAILED";
   if (error.code === "BRIEF_V3_INVARIANT_VIOLATION" || error.code === "BRIEF_V3_SCHEMA_INVALID" || error.code === "BRIEF_V3_INVALID_COMBINATION") return "INVARIANT_FAILED";
   return "CHANGESET_INVALID";
@@ -83,7 +84,17 @@ export class BriefV3TransactionService {
       }
     };
     try {
-      const beforeProvider = await this.readCurrent(input.projectId, input.projectVersion);
+      let beforeProvider: CurrentSnapshot;
+      try {
+        beforeProvider = await this.readCurrent(input.projectId, input.projectVersion);
+      } catch (error) {
+        if (error instanceof BriefV3Error) {
+          const code = classifyDomainFailure(error);
+          await settle("REJECTED_INVALID", code);
+          throw new BriefV3TransactionError(code, { attemptId: claim.row.id });
+        }
+        throw error;
+      }
       if (!sameRevisionCurrentness(beforeProvider.currentness, identity.currentness)) {
         await settle("REJECTED_STALE", "STALE_BEFORE_PROVIDER");
         throw new BriefV3TransactionError("STALE_BEFORE_PROVIDER", { attemptId: claim.row.id });

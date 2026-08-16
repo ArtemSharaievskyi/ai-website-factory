@@ -77,6 +77,10 @@ export interface PersistenceTransaction {
   completeOperation(input: { operation: string; key: string; payloadHash: string; result: unknown }): Promise<void>;
   failOperation(input: { operation: string; key: string; payloadHash: string }): Promise<void>;
   getBriefRevisionAttempt(input: { operationKind: string; operationKey: string; payloadHash?: string }): Promise<BriefRevisionAttemptRow | null>;
+  getBriefRevisionHistory(attemptId: string): Promise<BriefRevisionHistoryRow | null>;
+  listBriefRevisionHistory(projectId: string, projectVersion: number): Promise<BriefRevisionHistoryRow[]>;
+  getBriefRevisionProjectionSync(attemptId: string): Promise<BriefRevisionProjectionRow | null>;
+  listWorkflowEvents(projectId: string, projectVersion: number): Promise<WorkflowEvent[]>;
   reserveBriefRevisionAttempt(input: { id: string; operationKind: string; operationKey: string; payloadHash: string; projectId: string; projectVersion: number; currentnessToken: Record<string, unknown>; now: string }): Promise<BriefRevisionAttemptRow>;
   claimBriefRevisionAttempt(input: { attemptId: string; operationKind: string; operationKey: string; payloadHash: string; owner: string; now: string; leaseExpiresAt: string }): Promise<BriefRevisionAttemptClaim>;
   transitionBriefRevisionAttempt(input: BriefRevisionAttemptTransition): Promise<BriefRevisionAttemptRow>;

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { DecisionRecordSchema, type DecisionRecord } from "@/domain/workflow/decision";
 import { DomainError } from "@/domain/shared/errors";
 import { SCHEMA_VERSION } from "@/domain/shared/schemas";
-import { CANONICAL_DOCUMENT_NAMES, DOCUMENT_SCHEMAS, ProjectMemoryManifestSchema, REQUIRED_DOCUMENTS, type ProjectMemoryManifest, type StructuredDocumentName } from "./filenames";
+import { CANONICAL_DOCUMENT_NAMES, DOCUMENT_SCHEMA_VERSIONS, DOCUMENT_SCHEMAS, ProjectMemoryManifestSchema, REQUIRED_DOCUMENTS, type ProjectMemoryManifest, type StructuredDocumentName } from "./filenames";
 
 const JSONL_NAME = "decisions.jsonl";
 function stableValue(value: unknown): unknown {
@@ -112,7 +112,7 @@ export class ProjectMemoryStore {
   }
 
   async readDocument<T extends StructuredDocumentName>(name: T): Promise<z.infer<(typeof DOCUMENT_SCHEMAS)[T]>> {
-    try { const value = JSON.parse(await readFile(this.file(name), "utf8")); if (value?.schemaVersion !== SCHEMA_VERSION) throw new DomainError("SCHEMA_VERSION_MISMATCH", "Project Memory schema version is unsupported."); const parsed = this.parse(name, value); return parsed as z.infer<(typeof DOCUMENT_SCHEMAS)[T]>; } catch (error) { if (error instanceof DomainError) throw error; if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new DomainError("DOCUMENT_NOT_FOUND", "Project Memory document was not found."); throw new DomainError("VALIDATION_FAILED", "Project Memory document could not be read.", undefined, error); }
+    try { const value = JSON.parse(await readFile(this.file(name), "utf8")); const expectedSchemaVersion = DOCUMENT_SCHEMA_VERSIONS[name] ?? SCHEMA_VERSION; if (value?.schemaVersion !== expectedSchemaVersion) throw new DomainError("SCHEMA_VERSION_MISMATCH", "Project Memory schema version is unsupported."); const parsed = this.parse(name, value); return parsed as z.infer<(typeof DOCUMENT_SCHEMAS)[T]>; } catch (error) { if (error instanceof DomainError) throw error; if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new DomainError("DOCUMENT_NOT_FOUND", "Project Memory document was not found."); throw new DomainError("VALIDATION_FAILED", "Project Memory document could not be read.", undefined, error); }
   }
 
   async appendDecision(record: DecisionRecord) {

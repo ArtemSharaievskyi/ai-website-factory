@@ -14,6 +14,7 @@ import { documentPayloadHash } from "./fake";
 import { newWorkflowEvent } from "./workflow-events";
 import type { BriefRevisionAttemptClaim, BriefRevisionAttemptTransition, BriefRevisionProjectionRow, BriefRevisionProjectionStatus, PersistenceDatabase, PersistenceTransaction, ProjectVersionRow, StoredDocument, WorkflowEvent, CostRecord } from "./types";
 import { ProjectAssetSchema, type ProjectAsset } from "@/domain/assets/project";
+import { recordV2Mutation } from "@/runtime/brief-revision-v3/v2-tripwire";
 
 const parse = <T>(schema: z.ZodType<T>, value: unknown, message: string): T => { const result = schema.safeParse(value); if (!result.success) throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", message, undefined, result.error); return result.data; };
 const token = (key: string | undefined, payload: unknown) => key ? { key, payloadHash: documentPayloadHash(payload) } : undefined;
@@ -49,7 +50,7 @@ export class ProjectVersionRepository {
 
 export class DocumentRepository {
   constructor(private readonly db: PersistenceDatabase) {}
-  async save(document: StoredDocument, idempotencyKey?: string) { const row = mapDocumentToRow(document); if (document.documentType === "design-directions" && document.directions.length !== 3) throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", "A design direction set must contain exactly three directions."); return this.db.transaction(async (tx) => { const version = await tx.getVersion(document.projectId, document.projectVersion); if (version?.immutable) throw new PersistenceError("PERSISTENCE_IMMUTABLE", "Released project versions are immutable."); return mapRowToDocument(await tx.saveDocument(row, token(idempotencyKey, document))); }); }
+  async save(document: StoredDocument, idempotencyKey?: string) { const row = mapDocumentToRow(document); if (document.documentType === "design-directions" && document.directions.length !== 3) throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", "A design direction set must contain exactly three directions."); if (document.documentType === "requirements") { recordV2Mutation("revisionPersistence"); if (idempotencyKey) recordV2Mutation("idempotency"); } return this.db.transaction(async (tx) => { const version = await tx.getVersion(document.projectId, document.projectVersion); if (version?.immutable) throw new PersistenceError("PERSISTENCE_IMMUTABLE", "Released project versions are immutable."); return mapRowToDocument(await tx.saveDocument(row, token(idempotencyKey, document))); }); }
   async get(projectId: string, version: number, documentType: string) { return this.db.transaction(async (tx) => { const row = await tx.getDocument(projectId, version, documentType); return row ? mapRowToDocument(row) : null; }); }
   async delete(projectId: string, version: number, documentType: string) { return this.db.transaction((tx) => tx.deleteDocument(projectId, version, documentType)); }
 }

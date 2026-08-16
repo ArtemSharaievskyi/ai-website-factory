@@ -8,6 +8,9 @@ import {
   requirementDimensionForText,
   type RequirementDimension,
 } from "./effective";
+import { recordV2MutationModuleLoaded } from "@/runtime/brief-revision-v3/v2-tripwire";
+
+recordV2MutationModuleLoaded("src/domain/requirements/revision.ts");
 
 export const BriefRevisionOperationKindSchema = z.enum(["ADD", "UPDATE", "REPLACE", "REMOVE", "PRESERVE"]);
 export type BriefRevisionOperationKind = z.infer<typeof BriefRevisionOperationKindSchema>;

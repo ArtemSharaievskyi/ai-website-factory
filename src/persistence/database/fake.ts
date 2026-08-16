@@ -91,6 +91,10 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
         if (row && input.payloadHash && row.payloadHash !== input.payloadHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The V3 operation key was used with a different payload.");
         return row ? copy(row) : null;
       },
+      getBriefRevisionHistory: async (attemptId) => copy([...this.briefRevisionHistory.values()].find((row) => row.attemptId === attemptId) ?? null),
+      listBriefRevisionHistory: async (projectId, projectVersion) => copy([...this.briefRevisionHistory.values()].filter((row) => row.projectId === projectId && row.projectVersion === projectVersion).sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))),
+      getBriefRevisionProjectionSync: async (attemptId) => copy([...this.briefRevisionProjectionSync.values()].find((row) => row.attemptId === attemptId) ?? null),
+      listWorkflowEvents: async (projectId, projectVersion) => copy(this.events.filter((event) => event.projectId === projectId && event.projectVersion === projectVersion).sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))),
       reserveBriefRevisionAttempt: async (input) => {
         const existing = [...this.briefRevisionAttempts.values()].find((candidate) => candidate.operationKind === input.operationKind && candidate.operationKey === input.operationKey);
         if (existing) {

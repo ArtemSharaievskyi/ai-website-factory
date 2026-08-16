@@ -11,3 +11,4 @@ These principles guide Factory domain and workflow changes:
 - Failures fail closed and leave current state unchanged.
 - Real customer projects are acceptance state, not debugging harnesses.
 - Repeated adjacent defects signal a redesign or rebuild, not another semantic patch.
+- Execution records facts; independent certification derives truth from authoritative state.

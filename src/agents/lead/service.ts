@@ -11,6 +11,7 @@ import {
 } from "@/domain/requirements/schema";
 import { applyBriefRevisionSemanticsWithOptions, extractBriefRevisionIntent, validateBriefRevisionSemantics, BriefRevisionSemanticsError, createBriefRevisionTraceSnapshot, type BriefRevisionOperation, type BriefRevisionTraceSink } from "@/domain/requirements/revision";
 import { briefApprovalBlockers } from "@/domain/requirements/brief-validation";
+import { recordV2Mutation, recordV2MutationModuleLoaded } from "@/runtime/brief-revision-v3/v2-tripwire";
 import { DecisionRecordSchema } from "@/domain/workflow/decision";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import {
@@ -50,6 +51,8 @@ import {
   type LeadMemoryPort,
   type SkillSelectionPort,
 } from "./ports";
+
+recordV2MutationModuleLoaded("src/agents/lead/service.ts");
 import {
   CLARIFICATION_POLICY_VERSION,
   classifyRequirementCandidate,
@@ -65,6 +68,12 @@ const now = () => new Date().toISOString();
 const normalizePrompt = (prompt: string) => prompt.replace(/\r\n?/g, "\n");
 const key = (projectId: string, version: number) => `${projectId}:${version}`;
 const ANALYSIS_CACHE_VERSION = "lead-analysis:analyze-project-prompt:v2";
+
+export async function invokeLegacyBriefRevisionProvider(provider: LeadAnalysisProvider, input: BriefRevisionProviderInput) {
+  recordV2Mutation("provider");
+  return provider.reviseBrief?.(input);
+}
+
 const analysisCacheKey = (input: Pick<LeadAgentInput, "projectId" | "projectVersion" | "operatorLanguage" | "siteLanguage">) => `${ANALYSIS_CACHE_VERSION}:${input.projectId}:${input.projectVersion}:${input.operatorLanguage}:${input.siteLanguage}`;
 const versionedQuestionId = (questionId: string, clarificationVersion: number) => {
   const bytes = Buffer.from(createHash("sha256").update(`${questionId}:clarification-version:${clarificationVersion}`).digest("hex").slice(0, 32), "hex");
@@ -156,6 +165,8 @@ const validateClarificationPlan = (plan: ClarificationPlan, parsed: LeadAgentInp
 const uniqueStrings = (left: string[], right: string[]) => [...new Set([...left, ...right])];
 const uniqueRecords = <T>(left: T[], right: T[]) => [...left, ...right].filter((value, index, all) => all.findIndex((candidate) => JSON.stringify(candidate) === JSON.stringify(value)) === index);
 export const mergeRevisionRequirements = (existing: z.infer<typeof RequirementSpecificationSchema>, candidate: z.infer<typeof RequirementSpecificationSchema>, revisionInstruction: string, options: { providerOperations?: BriefRevisionOperation[]; trace?: BriefRevisionTraceSink } = {}) => {
+  recordV2MutationModuleLoaded("src/agents/lead/service.ts");
+  recordV2Mutation("merge");
   const semantic = applyBriefRevisionSemanticsWithOptions(existing, candidate, revisionInstruction, options);
   const merged = { ...semantic.brief } as Record<string, unknown>;
   merged.unresolvedItems = candidate.unresolvedItems;
@@ -1019,7 +1030,7 @@ export class LeadAgentService {
       siteLanguage: current.project.siteLanguage,
       currentWorkflowState: current.project.workflowState,
     };
-    const revised = await this.provider.reviseBrief?.(revisionInput);
+    const revised = await invokeLegacyBriefRevisionProvider(this.provider, revisionInput);
     if (revised) {
       const providerOperations: BriefRevisionOperation[] = "revisionOperations" in revised ? revised.revisionOperations : [];
       const revisedDraft = { ...revised } as Record<string, unknown>;

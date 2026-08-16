@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { FactoryProjectSchema } from "@/domain/project/schema";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
-import { cleanBriefV3, cleanFormRevisionChangeSet, conflictingChangeSet, multiDomainChangeSet, representativeV2Brief } from "@/domain/requirements/v3/fixtures";
+import { ambiguousV2Brief, cleanBriefV3, cleanFormRevisionChangeSet, conflictingChangeSet, multiDomainChangeSet, representativeV2Brief } from "@/domain/requirements/v3/fixtures";
 import { migrateLegacyBriefToCanonicalBriefV3 } from "@/domain/requirements/v3/migrate";
 import { createBriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
 import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
@@ -28,12 +28,12 @@ class FixtureProvider implements BriefV3RevisionProvider {
   async proposeChanges(input: BriefV3ProviderInput) { this.calls += 1; return this.handler(input, this.calls); }
 }
 
-async function fixture(documentKind: "v3" | "legacy-v2" = "v3") {
+async function fixture(documentKind: "v3" | "legacy-v2" | "ambiguous-v2" = "v3") {
   const database = new InMemoryPersistenceDatabase();
   const project = FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: projectId, slug: "brief-v3-transaction-fixture", originalPrompt: "Synthetic transaction fixture.", currentVersion: 1, workflowState: "AWAITING_BRIEF_APPROVAL" });
   await new ProjectRepository(database).create(project);
-  const legacy = RequirementSpecificationSchema.parse({ ...representativeV2Brief, projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp });
-  const canonical = documentKind === "v3" ? cleanBriefV3 : migrateLegacyBriefToCanonicalBriefV3(legacy);
+  const legacy = RequirementSpecificationSchema.parse({ ...(documentKind === "ambiguous-v2" ? ambiguousV2Brief : representativeV2Brief), projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp });
+  const canonical = documentKind === "v3" || documentKind === "ambiguous-v2" ? cleanBriefV3 : migrateLegacyBriefToCanonicalBriefV3(legacy);
   await new ProjectVersionRepository(database).create({ id: randomUUID(), projectId, versionNumber: 1, state: project.workflowState, memoryRootPath: null, requirementsChecksum: canonicalBriefChecksum(canonical), selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
   const document = documentKind === "v3" ? createBriefV3Document({ projectId, projectVersion: 1, brief: cleanBriefV3, createdAt: timestamp, updatedAt: timestamp }) : legacy;
   await new DocumentRepository(database).save(document);
@@ -420,5 +420,15 @@ describe("isolated Brief Revision V3 transaction", () => {
     expect((await new DocumentRepository(f.database).get(projectId, 1, "requirements"))?.documentType).toBe("requirements");
     expect((await new DocumentRepository(f.database).get(projectId, 1, "brief-v3"))?.documentType).toBe("brief-v3");
     expect(provider.calls).toBe(1);
+  });
+
+  it("fails closed on an ambiguous persisted V2 migration before provider execution", async () => {
+    const f = await fixture("ambiguous-v2");
+    const provider = new FixtureProvider(() => multiDomainChangeSet);
+    const service = new BriefV3TransactionService({ database: f.database, provider });
+    await expect(service.execute(input(f.currentness))).rejects.toMatchObject({ code: "MIGRATION_AMBIGUOUS" });
+    expect(provider.calls).toBe(0);
+    expect([...f.database.briefRevisionAttempts.values()][0]?.status).toBe("REJECTED_INVALID");
+    expect(f.database.briefRevisionHistory.size).toBe(0);
   });
 });

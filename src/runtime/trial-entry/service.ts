@@ -30,6 +30,9 @@ import {
 } from "./idempotency";
 import { normalizeCanonicalUserInputText } from "@/domain/project/canonical-input";
 import { briefApprovalBlockers } from "@/domain/requirements/brief-validation";
+import { recordV2Mutation, recordV2MutationModuleLoaded } from "@/runtime/brief-revision-v3/v2-tripwire";
+
+recordV2MutationModuleLoaded("src/runtime/trial-entry/service.ts");
 
 export type TrialEntryAnswer = {
   questionId: string;
@@ -481,6 +484,8 @@ export class TrialEntryService {
   }
 
   async requestBriefChanges(input: { projectId: string; projectVersion: number; briefChecksum: string; expectedRowVersion: number; reason: string; requirementKeys?: string[]; requestedBy?: string }) {
+    recordV2MutationModuleLoaded("src/runtime/trial-entry/service.ts");
+    recordV2Mutation("idempotency");
     const project = await this.projects.getWithVersion(input.projectId);
     if (!project) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");
     const reason = normalizeCanonicalUserInputText(input.reason, "BRIEF_REVISION_TOO_LARGE");

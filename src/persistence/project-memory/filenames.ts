@@ -15,6 +15,7 @@ import { ImplementationRunsSchema } from "@/domain/implementation/schema";
 import { FunctionalQaMemorySummarySchema } from "@/runtime/qa/contracts";
 import { ExecutionSummarySchema } from "@/orchestration/execution/contracts";
 import { Phase7CContractPackageSchema } from "@/domain/contracts/phase7c";
+import { BriefV3DocumentSchema } from "@/persistence/database/brief-revision-v3-contracts";
 
 export const ProjectMemoryDocumentSchema = z.object({ relativePath: z.string(), documentType: z.string(), schemaVersion: z.literal(SCHEMA_VERSION), sha256: z.string().regex(/^[a-f0-9]{64}$/), byteSize: z.number().int().nonnegative(), updatedAt: z.string() }).strict();
 export const ProjectMemoryManifestSchema = DocumentBaseSchema.extend({ documentType: z.literal("manifest"), documents: z.array(ProjectMemoryDocumentSchema) }).strict();
@@ -23,6 +24,7 @@ export const DOCUMENT_SCHEMAS = {
   "project.json": FactoryProjectSchema,
   "clarification-log.json": ClarificationSessionSchema,
   "requirements.json": RequirementSpecificationSchema,
+  "brief-v3.json": BriefV3DocumentSchema,
   "design-directions.json": DesignDirectionSetSchema,
   "selected-design.json": SelectedDesignSchema,
   "design-dependency-amendment.json": DesignDependencyAmendmentSchema,
@@ -39,6 +41,10 @@ export const DOCUMENT_SCHEMAS = {
   "full-execution.json": ExecutionSummarySchema,
   "manifest.json": ProjectMemoryManifestSchema,
 } as const;
+
+export const DOCUMENT_SCHEMA_VERSIONS: Partial<Record<keyof typeof DOCUMENT_SCHEMAS, number>> = {
+  "brief-v3.json": 3,
+};
 
 export const REQUIRED_DOCUMENTS = [...Object.keys(DOCUMENT_SCHEMAS).filter((name) => name !== "manifest.json" && name !== "planning-package.json" && name !== "implementation-runs.json" && name !== "functional-qa.json" && name !== "full-execution.json"), "decisions.jsonl", "original-prompt.md"];
 export const CANONICAL_DOCUMENT_NAMES = [...Object.keys(DOCUMENT_SCHEMAS), "decisions.jsonl", "original-prompt.md"] as const;
