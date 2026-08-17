@@ -29,12 +29,51 @@ import { FACTORY_OPERATOR_LANGUAGE } from "@/domain/language/schema";
 import { isUserFacingProjectOrigin } from "@/domain/project/provenance";
 import type { ProjectAssetService } from "@/runtime/assets/service";
 import type { WorkbenchAsset } from "./contracts";
+import type { CanonicalBriefV3, RequirementCategory } from "@/domain/requirements/v3/schema";
 
 const list = (values: string[] | undefined, limit = 12) => (values ?? []).slice(0, limit).map((value) => value.slice(0, 500));
 const statements = (values: unknown, limit = 16): string[] => {
   if (!Array.isArray(values)) return [];
   return values.flatMap((value) => typeof value === "string" ? [value] : value && typeof value === "object" && typeof (value as { statement?: unknown }).statement === "string" ? [(value as { statement: string }).statement] : []).slice(0, limit).map((value) => value.slice(0, 500));
 };
+
+const v3Statements = (brief: CanonicalBriefV3, categories: readonly RequirementCategory[]) =>
+  brief.requirements.filter((requirement) => categories.includes(requirement.category)).map((requirement) => requirement.statement);
+
+const briefV3Projection = (brief: CanonicalBriefV3, checksum: string): WorkbenchBrief => ({
+  checksum,
+  readyForApproval: brief.unresolved.length === 0,
+  approved: false,
+  briefSchemaVersion: 3,
+  projectSummary: brief.summary,
+  businessGoals: v3Statements(brief, ["BUSINESS_GOAL"]),
+  targetAudiences: v3Statements(brief, ["AUDIENCE"]),
+  pages: brief.pages.map((page) => `${page.slug}: ${page.purpose}`),
+  features: v3Statements(brief, ["FEATURE"]),
+  forms: v3Statements(brief, ["FORM"]),
+  content: v3Statements(brief, ["CONTENT"]),
+  imageStrategy: brief.scope.images.sourceStrategy,
+  constraints: v3Statements(brief, ["TECHNICAL"]),
+  brandVisual: v3Statements(brief, ["BRAND_VISUAL"]),
+  assets: brief.assets.map((asset) => `${asset.role}: ${asset.usage} (${asset.reference})`),
+  uxResponsive: v3Statements(brief, ["UX_RESPONSIVE"]),
+  seo: [
+    ...brief.seo.primaryKeywords.map((keyword) => `Keyword: ${keyword}`),
+    ...(brief.seo.exactTitle ? [`Exact title: ${brief.seo.exactTitle}`] : []),
+    ...(brief.seo.exactMetaDescription ? [`Exact meta description: ${brief.seo.exactMetaDescription}`] : []),
+    ...brief.seo.locationTargeting.map((entry) => entry.statement),
+  ],
+  legalCompliance: [
+    ...v3Statements(brief, ["LEGAL_CONSTRAINT"]),
+    `Placeholder policy: ${brief.legal.placeholderPolicy}`,
+  ],
+  technicalDeferred: [
+    ...v3Statements(brief, ["TECHNICAL"]),
+    ...v3Statements(brief, ["DEFERRED_INTEGRATION"]),
+  ],
+  prohibited: v3Statements(brief, ["PROHIBITED"]),
+  siteLanguage: brief.localization.defaultLocale,
+});
 
 export class WorkbenchActionError extends Error {
   constructor(public readonly code: string, message: string) {
@@ -139,6 +178,8 @@ export class WorkbenchApplication {
     const version = current.project.currentVersion;
     const clarification = await this.documents.get(projectId, version, "clarification-log");
     const requirements = await this.documents.get(projectId, version, "requirements");
+    const briefV3Document = await this.documents.get(projectId, version, "brief-v3");
+    const briefV3 = briefV3Document?.documentType === "brief-v3" ? briefV3Document : undefined;
     const planning = await this.documents.get(projectId, version, "planning-package");
     const phase7c = await this.documents.get(projectId, version, "phase-7c-contract-package");
     const directions = await this.documents.get(projectId, version, "design-directions");
@@ -153,7 +194,7 @@ export class WorkbenchApplication {
     const allowedActions = actionsForWorkbenchState({
       workflowState: current.project.workflowState,
       hasBlockingQuestions,
-      hasBrief: requirements?.documentType === "requirements",
+      hasBrief: Boolean(briefV3 || requirements?.documentType === "requirements"),
       briefReady,
       hasPlanning: planning?.documentType === "planning-package",
       hasDesigns: directions?.documentType === "design-directions",
@@ -164,7 +205,11 @@ export class WorkbenchApplication {
         contractAudit?.documentType === "contract-audit" && contractAudit.result.verdict === "APPROVED" &&
         taskGraph?.documentType === "task-graph" && taskGraph.readyForExecution === true,
     });
-    const brief = requirements?.documentType === "requirements" ? this.brief(requirements, status.brief?.checksum ?? checksumPersistedDocument(requirements), briefReady) : undefined;
+    const brief = briefV3
+      ? briefV3Projection(briefV3.brief, briefV3.briefChecksum)
+      : requirements?.documentType === "requirements"
+        ? this.brief(requirements, status.brief?.checksum ?? checksumPersistedDocument(requirements), briefReady)
+        : undefined;
     const planningProjection = planning?.documentType === "planning-package" ? this.planning(planning) : undefined;
     const database = phase7c?.documentType === "phase-7c-contract-package" ? {
       packageChecksum: checksumPersistedDocument(phase7c),
@@ -202,7 +247,7 @@ export class WorkbenchApplication {
       ...(clarificationSession?.languageResolution ? { languageResolution: clarificationSession.languageResolution } : {}),
       project: {
         projectId: current.project.id,
-        name: requirements?.documentType === "requirements" && requirements.projectTitle ? requirements.projectTitle : current.project.title ?? "Untitled project",
+        name: briefV3?.brief.title ?? (requirements?.documentType === "requirements" && requirements.projectTitle ? requirements.projectTitle : current.project.title ?? "Untitled project"),
         slug: current.project.slug,
         promptPreview: current.project.originalPrompt.slice(0, 1200),
         workflowState: current.project.workflowState,

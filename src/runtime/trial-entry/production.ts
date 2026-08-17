@@ -11,6 +11,8 @@ import {
   PostgresPersistenceDatabase,
 } from "@/persistence/database/postgres";
 import { TrialEntryService } from "./service";
+import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
+import { OpenAiBriefV3RevisionProvider } from "@/integrations/openai-v3/provider";
 
 export function createProductionTrialEntryRuntime(options: {
   env?: Record<string, string | undefined>;
@@ -23,6 +25,7 @@ export function createProductionTrialEntryRuntime(options: {
   const workspaceRoot = workspaceEnvironment.GENERATED_PROJECTS_ROOT ?? path.resolve(".factory-generated");
   const evidence = { providerRequests: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
   const leads = new Map<string, ReturnType<typeof createLeadAgentService>>();
+  const briefRevisions = new Map<string, BriefV3TransactionService>();
   const ai = options.requireAi === false
     ? undefined
     : createProductionProviderBundle({
@@ -34,8 +37,21 @@ export function createProductionTrialEntryRuntime(options: {
           evidence.outputTokens += usage.outputTokens ?? 0;
         },
       });
+  const briefV3Provider = ai ? new OpenAiBriefV3RevisionProvider(ai.ai) : undefined;
   const service = new TrialEntryService({
     database,
+    createBriefRevisionV3: (slug) => {
+      if (!briefV3Provider) throw new Error("TRIAL_ENTRY_AI_NOT_CONFIGURED");
+      const existing = briefRevisions.get(slug);
+      if (existing) return existing;
+      const created = new BriefV3TransactionService({
+        database,
+        provider: briefV3Provider,
+        projection: new FilesystemProjectMemorySyncPort(workspaceRoot, slug),
+      });
+      briefRevisions.set(slug, created);
+      return created;
+    },
     createLeadAgent: (slug) => {
       if (!ai) throw new Error("TRIAL_ENTRY_AI_NOT_CONFIGURED");
       const existing = leads.get(slug);

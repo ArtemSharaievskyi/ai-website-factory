@@ -83,6 +83,8 @@ import {
   testQualityReviewerAgentDefinition,
 } from "@/agents/catalog";
 import { classifySecuritySurface } from "@/agents/reviewers/security/deterministic";
+import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
+import { OpenAiBriefV3RevisionProvider } from "@/integrations/openai-v3/provider";
 export const RUNTIME_MODES = ["DETERMINISTIC_TEST", "REAL_E2E"] as const;
 export type FactoryRuntimeMode = (typeof RUNTIME_MODES)[number];
 export type ProductionAdapterIdentity = {
@@ -104,6 +106,7 @@ export type ProductionAdapterIdentity = {
 export type ProductionFactoryProjectScope = {
   database: PersistenceDatabase;
   lead: LeadAgentService;
+  briefRevisionV3: BriefV3TransactionService;
   planner: PlannerArchitectService;
   design: DesignAgentService;
   architectureReviewer: ArchitectureReviewOrchestrationService;
@@ -400,6 +403,11 @@ export function createProductionFactoryRuntime(
         memory: new LeadMemoryAdapter(sync, decisions, workspaceRoot),
         resolveSkills: resolveLeadSkills,
       });
+      const briefRevisionV3 = new BriefV3TransactionService({
+        database,
+        provider: new OpenAiBriefV3RevisionProvider(ai.ai),
+        projection: sync,
+      });
       const planner = createPlannerArchitectService({
         database,
         provider: ai.planner,
@@ -521,6 +529,7 @@ export function createProductionFactoryRuntime(
       return {
         database,
         lead,
+        briefRevisionV3,
         planner,
         design,
         architectureReviewer,

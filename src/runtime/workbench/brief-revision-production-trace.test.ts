@@ -1,129 +1,212 @@
-import { describe, expect, it } from "vitest";
-import { DeterministicLeadProvider } from "@/agents/lead/ports";
-import { LeadAgentService } from "@/agents/lead/service";
-import { analyzePromptDeterministically, assembleRequirements, planClarificationsDeterministically } from "@/agents/lead/deterministic";
-import type { BriefRevisionDraft } from "@/agents/lead/contracts";
-import { RequirementSpecificationSchema, ProjectBriefV2Schema, type RequirementSpecification } from "@/domain/requirements/schema";
-import { emptyBriefV2Fields } from "@/domain/requirements/brief";
+import { existsSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { FactoryProjectSchema } from "@/domain/project/schema";
+import { ProjectBriefV2Schema } from "@/domain/requirements/schema";
+import { representativeV2Brief } from "@/domain/requirements/v3/fixtures";
+import type { ProviderBriefChangeSet } from "@/integrations/openai-v3/changeset";
+import { createProductionProviderBundle } from "@/integrations/openai/production";
+import { OpenAiBriefV3RevisionProvider } from "@/integrations/openai-v3/provider";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
-import { FakeLeadMemoryPort } from "@/agents/lead/memory";
+import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
 import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
-import { DocumentRepository } from "@/persistence/database/repositories";
+import { FilesystemProjectMemorySyncPort } from "@/runtime/workspace/sync";
+import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
+import type { BriefV3RevisionProvider } from "@/runtime/brief-revision-v3/ports";
+import { readV2TripwireSnapshot, resetV2Tripwires } from "@/runtime/brief-revision-v3/v2-tripwire";
 import { TrialEntryService } from "@/runtime/trial-entry/service";
 import { WorkbenchApplication } from "./application";
 import { clearWorkbenchDiagnosticEvents, getBriefRevisionTraceEvents } from "./diagnostics";
 
-const oldProhibition = "No successful submission may be faked.";
-const semanticProhibition = { id: "semantic-old", statement: "Successful submission must not be simulated.", sourceRefs: ["synthetic:semantic-old"] };
-const conciseRevision = "Remove the old form success prohibition; show a simulated success after local validation, keep transmission disabled, and preserve all other confirmed requirements.";
-const prompt = "Title: Synthetic service\nPurpose: Serve local customers\nAudience: Visitors\nPages: home, contact\nFunctionality: contact form\nLanguages: de\nImages: placeholders\nAcceptance: contact path works";
+const projectId = "12121212-1212-4121-8121-121212121212";
+const timestamp = "2026-08-17T00:00:00.000Z";
+const providerDto = {
+  contractVersion: 1 as const,
+  changes: [
+    { operation: "SET" as const, target: "FORM_SUCCESS_MODE" as const, value: "SIMULATED" as const },
+    { operation: "SET" as const, target: "FORM_TRANSMISSION_MODE" as const, value: "NONE" as const },
+    { operation: "SET" as const, target: "SEO_TITLE" as const, value: "Synthetic Atelier Revised" as const },
+    { operation: "UPSERT" as const, target: "REQUIREMENT:service-hours" as const, value: { category: "FEATURE" as const, statement: "Show synthetic service hours." } },
+    { operation: "UPSERT" as const, target: "REQUIREMENT:contact-success" as const, value: { category: "FORM" as const, statement: "Show a synthetic local success state after validation." } },
+  ],
+} satisfies ProviderBriefChangeSet;
 
-function legacyV1(brief: RequirementSpecification) {
-  const { briefSchemaVersion: _briefSchemaVersion, ...legacy } = brief;
-  void _briefSchemaVersion;
-  return RequirementSpecificationSchema.parse({
-    ...legacy,
-    explicitExclusions: [oldProhibition],
-    content: undefined,
-    technical: undefined,
-    brandVisualRequirements: undefined,
-    assetRequirements: undefined,
-    formBehaviorRequirements: undefined,
-    uxResponsiveRequirements: undefined,
-    seoMetadata: undefined,
-    legalComplianceConstraints: undefined,
-    prohibitedRequirements: undefined,
-    deferredIntegrations: undefined,
-    decisions: undefined,
+type Fixture = {
+  database: InMemoryPersistenceDatabase;
+  root: string;
+  project: import("@/domain/project/schema").FactoryProject;
+  projection: FilesystemProjectMemorySyncPort;
+  ai: ReturnType<typeof providerBundle>;
+  createApp: (provider?: BriefV3RevisionProvider) => { entry: TrialEntryService; app: WorkbenchApplication };
+  app: WorkbenchApplication;
+  entry: TrialEntryService;
+  request: {
+    action: "request-brief-changes";
+    projectId: string;
+    projectVersion: number;
+    briefChecksum: string;
+    expectedRowVersion: number;
+    reason: string;
+    requirementKeys: string[];
+  };
+};
+const activeFixtures: Fixture[] = [];
+
+function legacyBrief() {
+  return ProjectBriefV2Schema.parse({
+    ...representativeV2Brief,
+    projectId,
+    projectVersion: 1,
+    createdAt: timestamp,
+    updatedAt: timestamp,
   });
 }
 
-type RevisionFixtureMode = "clean" | "dirty-provider-candidate" | "semantic-dirty-provider-candidate" | "active-conflict";
-
-async function productionLikeFailure(mode: RevisionFixtureMode = "clean") {
-  const database = new InMemoryPersistenceDatabase();
-  const memory = new FakeLeadMemoryPort();
-  const v2Candidate: { current?: RequirementSpecification } = {};
-  const provider = new DeterministicLeadProvider(
-    analyzePromptDeterministically,
-    (input) => planClarificationsDeterministically(input),
-    assembleRequirements,
-    (input): BriefRevisionDraft => {
-      const requirements = v2Candidate.current ?? ProjectBriefV2Schema.parse({ ...input.currentBrief, ...emptyBriefV2Fields(), explicitExclusions: [], formBehaviorRequirements: { ...emptyBriefV2Fields().formBehaviorRequirements, formPresent: true, validation: "ACTIVE", successUx: "SIMULATED", dataTransmission: "NONE", persistence: "NONE", thirdParty: "NONE", privacyCheckbox: "REQUIRED" } });
-      return { projectId: input.projectId, projectVersion: input.projectVersion, requirements, facts: [], recommendations: [], unresolvedItems: [], evidence: requirements.evidence, readyForApproval: true, blockingReasons: [], nonBlockingWarnings: [], briefChecksum: checksumPersistedDocument(requirements), revisionOperations: mode === "active-conflict" ? [{ kind: "ADD", field: "formBehaviorRequirements" }] : [{ kind: "REMOVE", field: "effective-requirements", target: mode === "semantic-dirty-provider-candidate" ? oldProhibition : "FORM_SUCCESS_SIMULATION" }] };
+function providerBundle(options: { failFirst?: boolean; failAlways?: boolean } = {}) {
+  let calls = 0;
+  const bundle = createProductionProviderBundle({
+    env: { OPENAI_API_KEY: "synthetic-network-fake", OPENAI_MODEL: "synthetic-model", OPENAI_MAX_RETRIES: "0" },
+    executor: async <T>(request: { schema: { parse: (value: unknown) => T } }) => {
+      calls += 1;
+      if (options.failAlways || (options.failFirst && calls === 1)) throw new Error("synthetic-network-failure");
+      return { value: request.schema.parse(providerDto), requestId: `synthetic-v3-request-${calls}`, inputTokens: 10, outputTokens: 20 };
     },
-  );
-  const entry = new TrialEntryService({ database, createLeadAgent: () => new LeadAgentService({ database, memory, provider }) });
-  const app = new WorkbenchApplication({ database, entry });
-  const created = await app.handle({ action: "create", requestText: prompt, languageHint: "de" });
-  if (!created.project) throw new Error("synthetic project was not created");
-  const answers = created.questions.filter((question) => question.answerStatus === "unresolved").map((question) => ({ questionId: question.id, answer: question.requirementKey === "languages" ? "de" : question.requirementKey === "pages" ? "Home and Contact" : question.requirementKey === "acceptance" ? "Contact path works." : question.requirementKey === "image-source" ? "placeholders" : "Synthetic confirmation." }));
-  if (answers.length) await app.handle({ action: "respond", projectId: created.project.projectId, answers });
-  const documents = new DocumentRepository(database);
-  const current = await documents.get(created.project.projectId, 1, "requirements");
-  if (!current || current.documentType !== "requirements") throw new Error("current requirements were not persisted");
-  v2Candidate.current = ProjectBriefV2Schema.parse({ ...current, ...emptyBriefV2Fields(), explicitExclusions: mode === "clean" || mode === "semantic-dirty-provider-candidate" ? [] : [oldProhibition], prohibitedRequirements: mode === "semantic-dirty-provider-candidate" ? [semanticProhibition] : [], formBehaviorRequirements: { ...emptyBriefV2Fields().formBehaviorRequirements, formPresent: true, validation: "ACTIVE", successUx: "SIMULATED", dataTransmission: "NONE", persistence: "NONE", thirdParty: "NONE", privacyCheckbox: "REQUIRED" } });
-  await documents.save(legacyV1(current), "synthetic-v1-seed");
-  return { app, projectId: created.project.projectId, documents };
+  });
+  return { bundle, briefV3: new OpenAiBriefV3RevisionProvider(bundle.ai), get calls() { return calls; } };
 }
 
-async function revisionRequest(fixture: Awaited<ReturnType<typeof productionLikeFailure>>, reason: string, requirementKeys = ["project-brief"]) {
-  const current = await fixture.app.handle({ action: "status", projectId: fixture.projectId });
-  if (!current.brief) throw new Error("synthetic Brief was not ready");
-  return { action: "request-brief-changes" as const, projectId: fixture.projectId, projectVersion: current.project!.projectVersion, briefChecksum: current.brief.checksum, expectedRowVersion: current.project!.rowVersion, reason, requirementKeys };
+async function fixture(options: { failFirst?: boolean; failAlways?: boolean } = {}): Promise<Fixture> {
+  const database = new InMemoryPersistenceDatabase();
+  const root = await mkdtemp(path.join(os.tmpdir(), "brief-v3-production-route-"));
+  const legacy = legacyBrief();
+  const project = FactoryProjectSchema.parse({
+    schemaVersion: 1,
+    documentType: "factory-project",
+    projectId,
+    projectVersion: 1,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    id: projectId,
+    slug: "brief-v3-production-route",
+    originalPrompt: "Synthetic production route fixture.",
+    currentVersion: 1,
+    workflowState: "AWAITING_BRIEF_APPROVAL",
+  });
+  await new ProjectRepository(database).create(project);
+  await new ProjectVersionRepository(database).create({ id: "13131313-1313-4131-8131-131313131313", projectId, versionNumber: 1, state: project.workflowState, memoryRootPath: null, requirementsChecksum: checksumPersistedDocument(legacy), selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
+  await new DocumentRepository(database).save(legacy);
+
+  const ai = providerBundle(options);
+  const projection = new FilesystemProjectMemorySyncPort(root, project.slug);
+  const createApp = (provider: BriefV3RevisionProvider = ai.briefV3) => {
+    const entry = new TrialEntryService({
+      database,
+      createLeadAgent: () => { throw new Error("LEGACY_LEAD_REVISION_REACHED"); },
+      createBriefRevisionV3: () => new BriefV3TransactionService({ database, provider, projection }),
+    });
+    return { entry, app: new WorkbenchApplication({ database, entry }) };
+  };
+  const { app, entry } = createApp();
+  const initial = await app.handle({ action: "status", projectId });
+  if (!initial.project || !initial.brief) throw new Error("synthetic production route fixture is not ready");
+  const request = {
+    action: "request-brief-changes" as const,
+    projectId,
+    projectVersion: initial.project.projectVersion,
+    briefChecksum: initial.brief.checksum,
+    expectedRowVersion: initial.project.rowVersion,
+    reason: "Make the synthetic form local-only with simulated success and revise the synthetic SEO title.",
+    requirementKeys: ["project-brief"],
+  };
+  const value = { database, root, project, projection, ai, createApp, app, entry, request };
+  activeFixtures.push(value);
+  return value;
 }
 
-describe("production-shaped Brief V1 to V2 revision reproduction", () => {
-  it("reproduces and repairs the host preservation path with safe stage snapshots", async () => {
+async function cleanup(fixture: Fixture) {
+  fixture.database.projects.clear();
+  fixture.database.versions.clear();
+  fixture.database.documents.clear();
+  fixture.database.events.splice(0, fixture.database.events.length);
+  fixture.database.briefRevisionAttempts.clear();
+  fixture.database.briefRevisionHistory.clear();
+  fixture.database.briefRevisionProjectionSync.clear();
+  await rm(fixture.root, { recursive: true, force: true });
+  expect(fixture.database.projects.size).toBe(0);
+  expect(fixture.database.versions.size).toBe(0);
+  expect(fixture.database.documents.size).toBe(0);
+  expect(fixture.database.briefRevisionAttempts.size).toBe(0);
+  expect(fixture.database.briefRevisionHistory.size).toBe(0);
+  expect(fixture.database.briefRevisionProjectionSync.size).toBe(0);
+  expect(fixture.database.events).toHaveLength(0);
+  expect(existsSync(fixture.root)).toBe(false);
+}
+
+afterEach(async () => {
+  const fixtures = activeFixtures.splice(0, activeFixtures.length);
+  await Promise.all(fixtures.map(cleanup));
+});
+
+describe("production-shaped Brief V3 request route", () => {
+  it("enters through Workbench, uses the strict V3 provider mapper, commits once, and replays through reconstructed composition", async () => {
+    const f = await fixture();
     clearWorkbenchDiagnosticEvents();
-    const fixture = await productionLikeFailure();
-    const revised = await fixture.app.handle(await revisionRequest(fixture, conciseRevision));
-    expect(revised.brief).toMatchObject({ approved: false, briefSchemaVersion: 2 });
-    const revisedDocument = await fixture.documents.get(fixture.projectId, 1, "requirements");
-    if (!revisedDocument || revisedDocument.documentType !== "requirements") throw new Error("revised requirements were not persisted");
-    expect(revisedDocument?.formBehaviorRequirements).toMatchObject({ successUx: "SIMULATED", dataTransmission: "NONE" });
-    expect(revisedDocument?.explicitExclusions).not.toContain(oldProhibition);
-    expect(revisedDocument?.requirementHistory?.some((item) => item.statement === oldProhibition && item.status === "REMOVED")).toBe(true);
-    const traces = getBriefRevisionTraceEvents().filter((event) => event.projectId === fixture.projectId);
-    expect(traces.map((event) => event.stage)).toEqual(["LEGACY_INPUT", "PROVIDER_CANDIDATE", "REVISION_OPERATIONS", "POST_REVISION_APPLICATION", "POST_PRESERVATION", "EFFECTIVE_SELECTION", "CONTRADICTION_INPUT"]);
-    expect(traces.find((event) => event.stage === "LEGACY_INPUT")).toMatchObject({ hasSuccessSimulationProhibited: true, removeOperationPresent: true });
-    expect(traces.find((event) => event.stage === "PROVIDER_CANDIDATE")).toMatchObject({ hasSuccessSimulationRequired: true, hasSuccessSimulationProhibited: false, providerCandidateHasSuccessSimulationProhibited: false });
-    expect(traces.find((event) => event.stage === "POST_REVISION_APPLICATION")).toMatchObject({ postRevisionHasSuccessSimulationProhibited: false });
-    expect(traces.find((event) => event.stage === "POST_PRESERVATION")).toMatchObject({ postPreservationHasSuccessSimulationProhibited: false });
-    expect(traces.find((event) => event.stage === "EFFECTIVE_SELECTION")).toMatchObject({ effectiveHasSuccessSimulationProhibited: false, historyCount: 1, historyHasSuccessSimulationProhibited: true });
-    expect(traces.find((event) => event.stage === "CONTRADICTION_INPUT")).toMatchObject({ hasSuccessSimulationRequired: true, hasSuccessSimulationProhibited: false, contradictionCount: 0 });
-    expect(JSON.stringify(traces)).not.toContain(oldProhibition);
-    expect(JSON.stringify(traces)).not.toContain(conciseRevision);
+    resetV2Tripwires();
+    const first = await f.app.handle(f.request);
+    expect(first.project?.workflowState).toBe("CLARIFYING");
+    expect(first.brief?.briefSchemaVersion).toBe(3);
+    expect(first.brief?.seo).toContain("Exact title: Synthetic Atelier Revised");
+    expect((await f.entry.status(projectId)).blockingReasons).toEqual([]);
+    expect(f.ai.calls).toBe(1);
+    expect(f.database.briefRevisionHistory.size).toBe(1);
+    expect(f.database.briefRevisionProjectionSync.size).toBe(1);
+    expect([...f.database.briefRevisionProjectionSync.values()][0]?.status).toBe("SYNCED");
+    expect([...f.database.events].filter((event) => event.revisionAttemptId)).toHaveLength(1);
+    const v3 = await new DocumentRepository(f.database).get(projectId, 1, "brief-v3");
+    expect(v3?.documentType).toBe("brief-v3");
+    expect(existsSync(path.join(f.root, f.project.slug, "v1", ".factory", "brief-v3.json"))).toBe(true);
+
+    const beforeReplay = JSON.stringify({ projects: [...f.database.projects.values()], versions: [...f.database.versions.values()], documents: [...f.database.documents.values()], events: f.database.events, history: [...f.database.briefRevisionHistory.values()], projections: [...f.database.briefRevisionProjectionSync.values()] });
+    const replayResult = await f.entry.requestBriefChanges(f.request);
+    const afterReplay = JSON.stringify({ projects: [...f.database.projects.values()], versions: [...f.database.versions.values()], documents: [...f.database.documents.values()], events: f.database.events, history: [...f.database.briefRevisionHistory.values()], projections: [...f.database.briefRevisionProjectionSync.values()] });
+    expect(replayResult).toMatchObject({ projectId, workflowState: "CLARIFYING" });
+    expect(afterReplay).toBe(beforeReplay);
+    expect(f.ai.calls).toBe(1);
+
+    let reconstructedCalls = 0;
+    const reconstructedBundle = createProductionProviderBundle({
+      env: { OPENAI_API_KEY: "synthetic-network-fake", OPENAI_MODEL: "synthetic-model", OPENAI_MAX_RETRIES: "0" },
+      executor: async () => { reconstructedCalls += 1; throw new Error("RECONSTRUCTED_PROVIDER_INVOKED"); },
+    });
+    const reconstructed = f.createApp(new OpenAiBriefV3RevisionProvider(reconstructedBundle.ai));
+    const reconstructedResult = await reconstructed.entry.requestBriefChanges(f.request);
+    expect(reconstructedResult).toMatchObject({ projectId, workflowState: "CLARIFYING" });
+    expect(reconstructedCalls).toBe(0);
+    expect(f.database.briefRevisionHistory.size).toBe(1);
+    expect(getBriefRevisionTraceEvents()).toHaveLength(0);
+    expect(readV2TripwireSnapshot()).toMatchObject({ providerMutationCalls: 0, mergeCalls: 0, revisionPersistenceCalls: 0, idempotencyMutationCalls: 0, loadedLegacyMutationModules: [] });
   });
 
-  it("rejects a dirty provider candidate before preservation can hide an unapplied REMOVE", async () => {
-    clearWorkbenchDiagnosticEvents();
-    const fixture = await productionLikeFailure("dirty-provider-candidate");
-    await expect(fixture.app.handle(await revisionRequest(fixture, conciseRevision))).rejects.toMatchObject({ code: "LEAD_PROVIDER_FAILED", details: { outputStage: "REVISION_SEMANTIC_VALIDATION_FAILED", issueCode: "BRIEF_REVISION_REMOVE_NOT_APPLIED" } });
-    const persisted = await fixture.documents.get(fixture.projectId, 1, "requirements");
-    expect(persisted?.documentType).toBe("requirements");
-    if (persisted?.documentType === "requirements") expect(persisted.explicitExclusions).toContain(oldProhibition);
-    const traces = getBriefRevisionTraceEvents().filter((event) => event.projectId === fixture.projectId);
-    expect(traces.map((event) => event.stage)).toEqual(["LEGACY_INPUT", "PROVIDER_CANDIDATE", "REVISION_OPERATIONS"]);
-    expect(traces.find((event) => event.stage === "PROVIDER_CANDIDATE")).toMatchObject({ providerCandidateHasSuccessSimulationProhibited: true });
-    expect(traces.at(-1)).toMatchObject({ stage: "REVISION_OPERATIONS", removeVerificationPassed: false });
+  it("fails closed on a provider failure and retries through V3 without invoking Lead V2", async () => {
+    const f = await fixture({ failFirst: true });
+    resetV2Tripwires();
+    await expect(f.app.handle(f.request)).rejects.toMatchObject({ code: "PROVIDER_FAILED" });
+    expect(f.database.briefRevisionHistory.size).toBe(0);
+    expect(await new DocumentRepository(f.database).get(projectId, 1, "brief-v3")).toBeNull();
+    await expect(f.app.handle(f.request)).resolves.toMatchObject({ project: { workflowState: "CLARIFYING" }, brief: { briefSchemaVersion: 3 } });
+    expect(f.ai.calls).toBe(2);
+    expect(readV2TripwireSnapshot()).toMatchObject({ providerMutationCalls: 0, mergeCalls: 0, revisionPersistenceCalls: 0, idempotencyMutationCalls: 0, loadedLegacyMutationModules: [] });
   });
 
-  it("rejects a semantically equivalent prohibition before contradiction validation", async () => {
-    clearWorkbenchDiagnosticEvents();
-    const fixture = await productionLikeFailure("semantic-dirty-provider-candidate");
-    await expect(fixture.app.handle(await revisionRequest(fixture, conciseRevision))).rejects.toMatchObject({ code: "LEAD_PROVIDER_FAILED", details: { outputStage: "REVISION_SEMANTIC_VALIDATION_FAILED", issueCode: "BRIEF_REVISION_REMOVE_NOT_APPLIED" } });
-    const traces = getBriefRevisionTraceEvents().filter((event) => event.projectId === fixture.projectId);
-    expect(traces.find((event) => event.stage === "PROVIDER_CANDIDATE")).toMatchObject({ providerCandidateHasSuccessSimulationProhibited: true, hasSuccessSimulationRequired: true });
-    expect(traces.at(-1)).toMatchObject({ stage: "REVISION_OPERATIONS", removeVerificationPassed: false });
-    expect(traces.some((event) => event.stage === "CONTRADICTION_INPUT")).toBe(false);
-  });
-
-  it("preserves a true active conflict for contradiction validation", async () => {
-    clearWorkbenchDiagnosticEvents();
-    const fixture = await productionLikeFailure("active-conflict");
-    await expect(fixture.app.handle(await revisionRequest(fixture, "Keep the simulated success behavior and preserve all confirmed requirements."))).rejects.toMatchObject({ code: "LEAD_PROVIDER_FAILED", details: { outputStage: "BRIEF_CONTRADICTION_DETECTED", issueCode: "FORM_SUCCESS_SIMULATION_CONFLICT" } });
-    const traces = getBriefRevisionTraceEvents().filter((event) => event.projectId === fixture.projectId);
-    expect(traces.at(-1)).toMatchObject({ stage: "CONTRADICTION_INPUT", hasSuccessSimulationRequired: true, hasSuccessSimulationProhibited: true, contradictionCount: 1 });
+  it("rejects stale currentness before provider execution and leaves legacy state untouched", async () => {
+    const f = await fixture();
+    resetV2Tripwires();
+    await expect(f.app.handle({ ...f.request, expectedRowVersion: f.request.expectedRowVersion + 1 })).rejects.toMatchObject({ code: "STALE_BEFORE_PROVIDER" });
+    expect(f.ai.calls).toBe(0);
+    expect(f.database.briefRevisionHistory.size).toBe(0);
+    expect(f.database.briefRevisionAttempts.size).toBe(1);
+    expect(readV2TripwireSnapshot()).toMatchObject({ providerMutationCalls: 0, mergeCalls: 0, revisionPersistenceCalls: 0, idempotencyMutationCalls: 0, loadedLegacyMutationModules: [] });
   });
 });

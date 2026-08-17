@@ -171,6 +171,10 @@ class PostgresTransaction implements PersistenceTransaction {
     if (row && input.payloadHash && row.payloadHash !== input.payloadHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The V3 operation key was used with a different payload.");
     return row;
   }
+  async listBriefRevisionAttempts(projectId: string, projectVersion: number) {
+    const result = await this.query<Record<string, unknown>>("SELECT id, operation_kind AS \"operationKind\", operation_key AS \"operationKey\", payload_hash AS \"payloadHash\", project_id AS \"projectId\", project_version AS \"projectVersion\", currentness_token AS \"currentnessToken\", status, lease_owner AS \"leaseOwner\", lease_expires_at AS \"leaseExpiresAt\", attempt_generation AS \"attemptGeneration\", claimed_at AS \"claimedAt\", committed_result AS \"committedResult\", failure_code AS \"failureCode\", created_at AS \"createdAt\", updated_at AS \"updatedAt\" FROM brief_revision_attempts WHERE project_id=$1 AND project_version=$2 ORDER BY created_at, id", [projectId, projectVersion]);
+    return result.rows.map(normalizeBriefRevisionAttempt);
+  }
   async getBriefRevisionHistory(attemptId: string) {
     const row = value<Record<string, unknown>>(await this.query("SELECT id, attempt_id AS \"attemptId\", project_id AS \"projectId\", project_version AS \"projectVersion\", revision_reference AS \"revisionReference\", previous_current_checksum AS \"previousCurrentChecksum\", next_current_checksum AS \"nextCurrentChecksum\", change_set_checksum AS \"changeSetChecksum\", entries, created_at AS \"createdAt\" FROM brief_revision_history WHERE attempt_id=$1", [attemptId]));
     return row ? { id: String(row.id), attemptId: String(row.attemptId), projectId: String(row.projectId), projectVersion: Number(row.projectVersion), revisionReference: String(row.revisionReference), previousCurrentChecksum: String(row.previousCurrentChecksum), nextCurrentChecksum: String(row.nextCurrentChecksum), changeSetChecksum: String(row.changeSetChecksum), entries: Array.isArray(row.entries) ? row.entries : [], createdAt: String(row.createdAt) } : null;

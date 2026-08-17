@@ -6,11 +6,15 @@ import { DeterministicLeadProvider } from "@/agents/lead/ports";
 import { LeadAgentService } from "@/agents/lead/service";
 import { analyzePromptDeterministically, assembleRequirements, planClarificationsDeterministically } from "@/agents/lead/deterministic";
 import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
+import { cleanBriefV3, multiDomainChangeSet } from "@/domain/requirements/v3/fixtures";
+import { createBriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
+import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
+import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
 import { WorkbenchApplication } from "./application";
 import { WorkbenchRequestSchema, actionsForWorkbenchState } from "./contracts";
 import { TrialEntryService } from "@/runtime/trial-entry/service";
 
-const syntheticPrompt = "Create a synthetic local test business website with a home page and contact path.";
+const syntheticPrompt = "Create a synthetic local test business website with a home page and contact path. Forms: contact form with simulated success after validation and no transmission.";
 const answerFor = (key: string | undefined) => {
   switch (key) {
     case "business-purpose": return "A local synthetic test business website.";
@@ -22,6 +26,8 @@ const answerFor = (key: string | undefined) => {
     case "image-source": return "placeholders";
     case "logo": return "no logo";
     case "acceptance": return "Done when the synthetic test site renders.";
+    case "storage": return "not needed";
+    case "email": return "not needed";
     default: return "Confirmed synthetic test answer.";
   }
 };
@@ -34,7 +40,7 @@ function fixture(options: { calls?: string[] } = {}) {
     (input) => { options.calls?.push("clarify"); return planClarificationsDeterministically(input); },
     (input) => { options.calls?.push("brief"); return assembleRequirements(input); },
   );
-  const entry = new TrialEntryService({ database, createLeadAgent: () => new LeadAgentService({ database, memory, provider }) });
+  const entry = new TrialEntryService({ database, createLeadAgent: () => new LeadAgentService({ database, memory, provider }), createBriefRevisionV3: () => new BriefV3TransactionService({ database, provider: { proposeChanges: async () => multiDomainChangeSet } }) });
   return { database, app: new WorkbenchApplication({ database, entry }) };
 }
 
@@ -82,15 +88,23 @@ describe("Factory Workbench projection and boundary", () => {
   });
 
   it("projects and executes typed Brief approval and revision actions", async () => {
-    const { app } = fixture();
-    const ready = await createBriefReadyProject(app);
+    const database = new InMemoryPersistenceDatabase();
+    const projectId = "16161616-1616-4161-8161-161616161616";
+    const project = { schemaVersion: 1 as const, documentType: "factory-project" as const, projectId, projectVersion: 1, createdAt: "2026-08-17T00:00:00.000Z", updatedAt: "2026-08-17T00:00:00.000Z", id: projectId, slug: "workbench-v3", origin: "TEST" as const, siteLanguage: "UNRESOLVED" as const, originalPrompt: "Synthetic V3 Workbench project.", currentVersion: 1, workflowState: "AWAITING_BRIEF_APPROVAL" as const };
+    await new ProjectRepository(database).create(project);
+    await new ProjectVersionRepository(database).create({ id: "17171717-1717-4171-8171-171717171717", projectId, versionNumber: 1, state: project.workflowState, memoryRootPath: null, requirementsChecksum: "a".repeat(64), selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: project.createdAt, updatedAt: project.updatedAt, rowVersion: 1 });
+    await new DocumentRepository(database).save(createBriefV3Document({ projectId, projectVersion: 1, brief: cleanBriefV3, createdAt: project.createdAt, updatedAt: project.updatedAt }));
+    const entry = new TrialEntryService({ database, createLeadAgent: () => { throw new Error("LEGACY_LEAD_REVISION_REACHED"); }, createBriefRevisionV3: () => new BriefV3TransactionService({ database, provider: { proposeChanges: async () => multiDomainChangeSet } }) });
+    const app = new WorkbenchApplication({ database, entry });
+    const ready = await app.handle({ action: "status", projectId });
     if (!ready.project || !ready.brief) throw new Error("fixture Brief was not ready");
     expect(ready.status.allowedActions).toEqual(["APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES"]);
-    const revised = await app.handle({ action: "request-brief-changes", projectId: ready.project.projectId, projectVersion: ready.project.projectVersion, briefChecksum: ready.brief.checksum, expectedRowVersion: ready.project.rowVersion, reason: "Synthetic correction", requirementKeys: [] });
+    const revised = await app.handle({ action: "request-brief-changes", projectId, projectVersion: ready.project.projectVersion, briefChecksum: ready.brief.checksum, expectedRowVersion: ready.project.rowVersion, reason: "Synthetic correction", requirementKeys: [] });
     expect(revised.project?.workflowState).toBe("CLARIFYING");
-    const readyAgain = await createBriefReadyProject(app);
+    const approvalApp = fixture().app;
+    const readyAgain = await createBriefReadyProject(approvalApp);
     if (!readyAgain.project || !readyAgain.brief) throw new Error("fixture Brief was not ready");
-    const approved = await app.handle({ action: "approve-brief", projectId: readyAgain.project.projectId, briefChecksum: readyAgain.brief.checksum, expectedRowVersion: readyAgain.project.rowVersion });
+    const approved = await approvalApp.handle({ action: "approve-brief", projectId: readyAgain.project.projectId, briefChecksum: readyAgain.brief.checksum, expectedRowVersion: readyAgain.project.rowVersion });
     expect(approved.project?.workflowState).toBe("AWAITING_DESIGN_SELECTION");
   });
 

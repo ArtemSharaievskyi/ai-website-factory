@@ -22,17 +22,16 @@ import {
 } from "@/domain/project/initial-request";
 import type { ProjectAssetService } from "@/runtime/assets/service";
 import {
-  ANSWER_CLARIFICATIONS_OPERATION,
-  REQUEST_BRIEF_CHANGES_OPERATION,
-  briefRevisionOperationKey,
   clarificationAnswerOperationKey,
+  ANSWER_CLARIFICATIONS_OPERATION,
   type ClarificationAnswerRequest,
-} from "./idempotency";
+} from "./clarification-idempotency";
 import { normalizeCanonicalUserInputText } from "@/domain/project/canonical-input";
 import { briefApprovalBlockers } from "@/domain/requirements/brief-validation";
-import { recordV2Mutation, recordV2MutationModuleLoaded } from "@/runtime/brief-revision-v3/v2-tripwire";
-
-recordV2MutationModuleLoaded("src/runtime/trial-entry/service.ts");
+import { canonicalBriefChecksumForDocument } from "@/persistence/database/brief-revision-v3-contracts";
+import { mapRowToDocument } from "@/persistence/database/mapping";
+import { createBriefV3OperationIdentity, createRevisionCurrentnessToken, RevisionCurrentnessTokenSchema, type RevisionCurrentnessToken } from "@/runtime/brief-revision-v3/identity";
+import type { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
 
 export type TrialEntryAnswer = {
   questionId: string;
@@ -98,6 +97,7 @@ type RefreshClarificationsResult = Pick<TrialEntryResult, "project" | "workflowS
 type TrialEntryDependencies = {
   database: PersistenceDatabase;
   createLeadAgent: (slug: string) => LeadAgentService;
+  createBriefRevisionV3?: (slug: string) => BriefV3TransactionService;
   assets?: ProjectAssetService;
 };
 
@@ -383,11 +383,19 @@ export class TrialEntryService {
       current.project.currentVersion,
       "requirements",
     );
+    const briefV3 = await this.documents.get(
+      projectId,
+      current.project.currentVersion,
+      "brief-v3",
+    );
     const blockingReasons = [
       ...(clarification?.blockingUnresolvedQuestionIds.map((id) => `CLARIFICATION_REQUIRED:${id}`) ?? []),
-      ...(requirements?.documentType === "requirements"
-        ? [...requirements.unresolvedItems.filter((item) => item.blocking).map((item) => `REQUIREMENT_UNRESOLVED:${item.id}`), ...briefApprovalBlockers(requirements)]
-        : []),
+      ...(briefV3?.documentType === "brief-v3" ? briefV3.brief.unresolved.map((item) => `BRIEF_V3_UNRESOLVED:${item.target}`) : []),
+      ...(briefV3?.documentType === "brief-v3"
+        ? []
+        : requirements?.documentType === "requirements"
+          ? [...requirements.unresolvedItems.filter((item) => item.blocking).map((item) => `REQUIREMENT_UNRESOLVED:${item.id}`), ...briefApprovalBlockers(requirements)]
+          : []),
     ];
     return {
       projectId: current.project.id,
@@ -401,7 +409,15 @@ export class TrialEntryService {
       operatorLanguage: session?.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE,
       siteLanguage: current.project.siteLanguage,
       ...(clarification ? { clarification } : {}),
-      ...(requirements?.documentType === "requirements"
+      ...(briefV3?.documentType === "brief-v3"
+        ? {
+            brief: {
+              checksum: briefV3.briefChecksum,
+              readyForApproval: briefV3.brief.unresolved.length === 0,
+              approved: false,
+            },
+          }
+        : requirements?.documentType === "requirements"
         ? {
             brief: {
               checksum: requirements.approval.approvedRequirementsChecksum ?? checksumPersistedDocument(requirements),
@@ -483,46 +499,73 @@ export class TrialEntryService {
     return { projectId: input.projectId, workflowState: result.projectState, rowVersion: result.rowVersion, briefChecksum: draft.briefChecksum };
   }
 
-  async requestBriefChanges(input: { projectId: string; projectVersion: number; briefChecksum: string; expectedRowVersion: number; reason: string; requirementKeys?: string[]; requestedBy?: string }) {
-    recordV2MutationModuleLoaded("src/runtime/trial-entry/service.ts");
-    recordV2Mutation("idempotency");
-    const project = await this.projects.getWithVersion(input.projectId);
-    if (!project) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");
-    const reason = normalizeCanonicalUserInputText(input.reason, "BRIEF_REVISION_TOO_LARGE");
-    const requirementKeys = input.requirementKeys ?? ["project-brief"];
-    const operationIdentity = briefRevisionOperationKey({
+  private revisionTargetState(state: WorkflowState): WorkflowState {
+    if (state === "AWAITING_BRIEF_APPROVAL") return "CLARIFYING";
+    if (state === "AWAITING_DESIGN_SELECTION") return "AWAITING_BRIEF_APPROVAL";
+    throw new LeadError("BRIEF_REVISION_REQUIRED", "Brief revision is only available before implementation.");
+  }
+
+  /**
+   * Adapts the public Workbench currentness DTO to the V3 token without
+   * creating a second mutation or idempotency authority. A committed replay
+   * may arrive with the pre-commit row version, so recover its exact token
+   * from the durable V3 attempt before reading the now-current document.
+   */
+  private async briefRevisionCurrentness(input: { projectId: string; projectVersion: number; briefChecksum: string; expectedRowVersion: number; reason: string; requirementKeys: readonly string[] }): Promise<RevisionCurrentnessToken> {
+    const snapshot = await this.dependencies.database.transaction(async (tx) => ({
+      project: await tx.getProject(input.projectId),
+      version: await tx.getVersion(input.projectId, input.projectVersion),
+      v3: await tx.getDocument(input.projectId, input.projectVersion, "brief-v3"),
+      legacy: await tx.getDocument(input.projectId, input.projectVersion, "requirements"),
+      attempts: await tx.listBriefRevisionAttempts(input.projectId, input.projectVersion),
+    }));
+    if (!snapshot.project || !snapshot.version || snapshot.project.current_version !== input.projectVersion) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");
+    const targetFor = (workflowState: WorkflowState) => this.revisionTargetState(workflowState);
+    for (const attempt of snapshot.attempts) {
+      const currentness = RevisionCurrentnessTokenSchema.safeParse(attempt.currentnessToken);
+      if (!currentness.success || currentness.data.projectRowVersion !== input.expectedRowVersion) continue;
+      if (input.briefChecksum !== currentness.data.briefChecksum && input.briefChecksum !== currentness.data.documentChecksum) continue;
+      const identity = createBriefV3OperationIdentity({ projectId: input.projectId, projectVersion: input.projectVersion, revisionInstruction: input.reason, targetHints: input.requirementKeys, targetWorkflowState: targetFor(currentness.data.workflowState), currentness: currentness.data });
+      if (attempt.operationKey === identity.operationKey && attempt.payloadHash === identity.payloadHash) return currentness.data;
+    }
+    const v3Document = snapshot.v3 ? mapRowToDocument(snapshot.v3) : null;
+    const legacyDocument = snapshot.legacy ? mapRowToDocument(snapshot.legacy) : null;
+    const selected = v3Document && (input.briefChecksum === canonicalBriefChecksumForDocument(v3Document) || input.briefChecksum === snapshot.v3?.checksum)
+      ? { document: v3Document, row: snapshot.v3 }
+      : legacyDocument && input.briefChecksum === snapshot.legacy?.checksum
+        ? { document: legacyDocument, row: snapshot.legacy }
+        : null;
+    if (!selected || !selected.row) throw new LeadError("BRIEF_CHECKSUM_MISMATCH", "The Project Brief changed before this revision was processed.");
+    return createRevisionCurrentnessToken({
       projectId: input.projectId,
       projectVersion: input.projectVersion,
-      briefChecksum: input.briefChecksum,
-      expectedRowVersion: input.expectedRowVersion,
-      reason,
-      requirementKeys,
+      projectRowVersion: input.expectedRowVersion,
+      projectVersionRowVersion: Number(snapshot.version.rowVersion),
+      workflowState: snapshot.project.workflow_state,
+      documentType: selected.row.documentType,
+      briefChecksum: canonicalBriefChecksumForDocument(selected.document),
+      documentChecksum: selected.row.checksum,
+      documentRowVersion: Number(selected.row.rowVersion),
     });
-    const reservation = await this.operations.reserve(REQUEST_BRIEF_CHANGES_OPERATION, operationIdentity.key, operationIdentity.payload);
-    if (reservation.status === "IN_PROGRESS") throw new LeadError("IDEMPOTENCY_CONFLICT", "The Brief revision is already in progress.");
-    if (reservation.status === "SUCCEEDED") return reservation.result as { projectId: string; workflowState: WorkflowState; requirementsChecksum: string };
-    try {
-      const current = await this.projects.getWithVersion(input.projectId);
-      const existing = await this.documents.get(input.projectId, input.projectVersion, "requirements");
-      if (!current || current.project.currentVersion !== input.projectVersion || current.rowVersion !== input.expectedRowVersion || !existing || existing.documentType !== "requirements" || checksumPersistedDocument(existing) !== input.briefChecksum)
-        throw new LeadError("BRIEF_CHECKSUM_MISMATCH", "The Project Brief changed before this revision was processed.");
-      const lead = this.dependencies.createLeadAgent(current.project.slug);
-      const result = await lead.requestBriefRevision({
-        projectId: input.projectId,
-        projectVersion: input.projectVersion,
-        requirementKeys,
-        reason,
-        requestedBy: input.requestedBy ?? "workbench-user",
-        expectedBriefChecksum: input.briefChecksum,
-        idempotencyKey: `workbench-request-brief-changes:v2:${input.projectId}:${operationIdentity.fingerprint}`,
-      });
-      const updated = (await this.projects.getWithVersion(input.projectId)) ?? current;
-      const response = { projectId: input.projectId, workflowState: updated.project.workflowState, requirementsChecksum: checksumPersistedDocument(result) } satisfies { projectId: string; workflowState: WorkflowState; requirementsChecksum: string };
-      await this.operations.complete(REQUEST_BRIEF_CHANGES_OPERATION, operationIdentity.key, operationIdentity.payload, response);
-      return response;
-    } catch (error) {
-      await this.operations.fail(REQUEST_BRIEF_CHANGES_OPERATION, operationIdentity.key, operationIdentity.payload).catch(() => undefined);
-      throw error;
-    }
+  }
+
+  async requestBriefChanges(input: { projectId: string; projectVersion: number; briefChecksum: string; expectedRowVersion: number; reason: string; requirementKeys?: string[]; requestedBy?: string }) {
+    const project = await this.projects.getWithVersion(input.projectId);
+    if (!project) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");
+    const revisionService = this.dependencies.createBriefRevisionV3?.(project.project.slug);
+    if (!revisionService) throw new Error("TRIAL_ENTRY_BRIEF_REVISION_V3_UNAVAILABLE");
+    const reason = normalizeCanonicalUserInputText(input.reason, "BRIEF_REVISION_TOO_LARGE");
+    const requirementKeys = input.requirementKeys ?? ["project-brief"];
+    const expectedCurrentness = await this.briefRevisionCurrentness({ ...input, reason, requirementKeys });
+    const result = await revisionService.execute({
+      projectId: input.projectId,
+      projectVersion: input.projectVersion,
+      revisionInstruction: reason,
+      expectedCurrentness,
+      targetHints: requirementKeys,
+      targetWorkflowState: this.revisionTargetState(expectedCurrentness.workflowState),
+      actor: input.requestedBy ?? "workbench-user",
+    });
+    return { projectId: result.projectId, workflowState: result.workflowState, requirementsChecksum: result.currentBriefChecksum } satisfies { projectId: string; workflowState: WorkflowState; requirementsChecksum: string };
   }
 }

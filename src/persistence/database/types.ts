@@ -77,6 +77,7 @@ export interface PersistenceTransaction {
   completeOperation(input: { operation: string; key: string; payloadHash: string; result: unknown }): Promise<void>;
   failOperation(input: { operation: string; key: string; payloadHash: string }): Promise<void>;
   getBriefRevisionAttempt(input: { operationKind: string; operationKey: string; payloadHash?: string }): Promise<BriefRevisionAttemptRow | null>;
+  listBriefRevisionAttempts(projectId: string, projectVersion: number): Promise<BriefRevisionAttemptRow[]>;
   getBriefRevisionHistory(attemptId: string): Promise<BriefRevisionHistoryRow | null>;
   listBriefRevisionHistory(projectId: string, projectVersion: number): Promise<BriefRevisionHistoryRow[]>;
   getBriefRevisionProjectionSync(attemptId: string): Promise<BriefRevisionProjectionRow | null>;

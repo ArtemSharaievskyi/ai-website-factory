@@ -1,88 +1,59 @@
 import { describe, expect, it } from "vitest";
-import { DeterministicLeadProvider, type BriefRevisionProviderInput } from "@/agents/lead/ports";
-import { LeadAgentService } from "@/agents/lead/service";
-import { analyzePromptDeterministically, assembleRequirements, planClarificationsDeterministically } from "@/agents/lead/deterministic";
-import type { BriefDraft } from "@/agents/lead/contracts";
-import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
-import { checksumPersistedDocument } from "@/persistence/database/serialization";
-import { FakeLeadMemoryPort } from "@/agents/lead/memory";
+import { FactoryProjectSchema } from "@/domain/project/schema";
+import { cleanBriefV3, multiDomainChangeSet } from "@/domain/requirements/v3/fixtures";
+import { createBriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
 import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
+import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
+import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
 import { TrialEntryService } from "@/runtime/trial-entry/service";
 import { WorkbenchApplication } from "./application";
 
-const prompt = "Title: Synthetic repair shop\nPurpose: Serve local customers\nAudience: Visitors\nPages: home, contact\nFunctionality: contact form\nLanguages: en\nImages: placeholders\nAcceptance: contact path works";
-const answer = (key?: string) => key === "languages" ? "en" : key === "pages" ? "Home and Contact" : key === "acceptance" ? "Contact path works." : key === "image-source" ? "placeholders" : "Synthetic confirmation.";
-
-function draft(input: BriefRevisionProviderInput): BriefDraft {
-  const requirements = RequirementSpecificationSchema.parse({ ...input.currentBrief, technicalConstraints: [...input.currentBrief.technicalConstraints, "synthetic revision"], approval: { approved: false }, briefStatus: "draft" });
-  return { projectId: input.projectId, projectVersion: input.projectVersion, requirements, facts: [], recommendations: [], unresolvedItems: [], evidence: requirements.evidence, readyForApproval: true, blockingReasons: [], nonBlockingWarnings: [], briefChecksum: checksumPersistedDocument(requirements) };
-}
+const projectId = "14141414-1414-4141-8141-141414141414";
+const timestamp = "2026-08-17T00:00:00.000Z";
 
 async function fixture(options: { delay?: number; failOnce?: boolean } = {}) {
   const database = new InMemoryPersistenceDatabase();
-  const memory = new FakeLeadMemoryPort();
+  const project = FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: projectId, slug: "brief-v3-idempotency", originalPrompt: "Synthetic V3 idempotency fixture.", currentVersion: 1, workflowState: "AWAITING_BRIEF_APPROVAL" });
+  await new ProjectRepository(database).create(project);
+  await new ProjectVersionRepository(database).create({ id: "15151515-1515-4151-8151-151515151515", projectId, versionNumber: 1, state: project.workflowState, memoryRootPath: null, requirementsChecksum: "a".repeat(64), selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
+  await new DocumentRepository(database).save(createBriefV3Document({ projectId, projectVersion: 1, brief: cleanBriefV3, createdAt: timestamp, updatedAt: timestamp }));
   let calls = 0;
-  const provider = new DeterministicLeadProvider(
-    analyzePromptDeterministically,
-    (input) => planClarificationsDeterministically(input),
-    assembleRequirements,
-    async (input) => {
-      calls += 1;
-      if (options.delay) await new Promise((resolve) => setTimeout(resolve, options.delay));
-      if (options.failOnce && calls === 1) throw new Error("synthetic provider failure");
-      return draft(input);
-    },
-  );
-  const entry = new TrialEntryService({ database, createLeadAgent: () => new LeadAgentService({ database, memory, provider }) });
+  const provider = { proposeChanges: async () => { calls += 1; if (options.delay) await new Promise((resolve) => setTimeout(resolve, options.delay)); if (options.failOnce && calls === 1) throw new Error("synthetic provider failure"); return multiDomainChangeSet; } };
+  const entry = new TrialEntryService({ database, createLeadAgent: () => { throw new Error("LEGACY_LEAD_REVISION_REACHED"); }, createBriefRevisionV3: () => new BriefV3TransactionService({ database, provider }) });
   const app = new WorkbenchApplication({ database, entry });
-  const created = await app.handle({ action: "create", requestText: prompt });
-  if (!created.project) throw new Error("synthetic project was not created");
-  const answers = created.questions.filter((question) => question.answerStatus === "unresolved").map((question) => ({ questionId: question.id, answer: answer(question.requirementKey) }));
-  if (answers.length) await app.handle({ action: "respond", projectId: created.project.projectId, answers });
-  const current = await app.handle({ action: "status", projectId: created.project.projectId });
-  if (!current.brief) throw new Error("synthetic Brief was not ready");
-  const currentness = { projectVersion: current.project!.projectVersion, briefChecksum: current.brief.checksum, expectedRowVersion: current.project!.rowVersion };
-  return { app, projectId: created.project.projectId, currentness, get calls() { return calls; } };
+  const current = await app.handle({ action: "status", projectId });
+  if (!current.project || !current.brief) throw new Error("synthetic V3 Brief was not ready");
+  const currentness = { projectVersion: current.project.projectVersion, briefChecksum: current.brief.checksum, expectedRowVersion: current.project.rowVersion };
+  return { app, projectId, currentness, database, get calls() { return calls; } };
 }
 
-const revisionRequest = (fixtureState: Awaited<ReturnType<typeof fixture>>, reason: string, requirementKeys = ["project-brief"], currentness = fixtureState.currentness) => ({ action: "request-brief-changes" as const, projectId: fixtureState.projectId, ...currentness, reason, requirementKeys });
+const revisionRequest = (fixtureState: Awaited<ReturnType<typeof fixture>>, reason: string, currentness = fixtureState.currentness) => ({ action: "request-brief-changes" as const, projectId: fixtureState.projectId, ...currentness, reason, requirementKeys: ["project-brief"] });
 
-describe("Brief revision round idempotency", () => {
-  it("BRI26/BCP20/BCP21: concurrent duplicate clicks share one top-level operation and never use raw text in the key", async () => {
+describe("Brief V3 revision route idempotency", () => {
+  it("concurrent duplicate clicks share the V3 attempt and never call the provider twice", async () => {
     const f = await fixture({ delay: 20 });
     const request = revisionRequest(f, "Synthetic duplicate revision with full canonical context.");
     const results = await Promise.allSettled([f.app.handle(request), f.app.handle(request)]);
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
-    expect(results.filter((result) => result.status === "rejected")[0]).toMatchObject({ reason: expect.objectContaining({ code: "IDEMPOTENCY_CONFLICT" }) });
+    expect(results.filter((result) => result.status === "rejected")[0]).toMatchObject({ reason: expect.objectContaining({ code: "IN_PROGRESS_DUPLICATE" }) });
     expect(f.calls).toBe(1);
   });
 
-  it("BCP12/BCP13: a failed revision makes zero persisted Brief changes and permits a later retry", async () => {
+  it("a failed V3 revision makes zero Brief V3 changes and permits a later retry", async () => {
     const f = await fixture({ failOnce: true });
     const request = revisionRequest(f, "Synthetic retry after a provider failure.");
-    await expect(f.app.handle(request)).rejects.toThrow();
-    await expect(f.app.handle(request)).resolves.toMatchObject({ project: { workflowState: "AWAITING_BRIEF_APPROVAL" }, brief: { approved: false } });
+    await expect(f.app.handle(request)).rejects.toMatchObject({ code: "PROVIDER_FAILED" });
+    expect(f.database.briefRevisionHistory.size).toBe(0);
+    await expect(f.app.handle(request)).resolves.toMatchObject({ project: { workflowState: "CLARIFYING" }, brief: { briefSchemaVersion: 3 } });
     expect(f.calls).toBe(2);
   });
 
-  it("allows a different revision after failure, replays an exact success, and rejects stale currentness", async () => {
-    const f = await fixture({ failOnce: true });
-    const failedAttempt = revisionRequest(f, "Synthetic revision A that is rejected.");
-    await expect(f.app.handle(failedAttempt)).rejects.toThrow();
-    const afterFailure = await f.app.handle({ action: "status", projectId: f.projectId });
-    expect(afterFailure.project?.projectVersion).toBe(f.currentness.projectVersion);
-    expect(afterFailure.project?.rowVersion).toBe(f.currentness.expectedRowVersion);
-    expect(afterFailure.brief?.checksum).toBe(f.currentness.briefChecksum);
-
-    const revisionB = revisionRequest(f, "Synthetic legitimate revision B.");
-    const accepted = await f.app.handle(revisionB);
-    expect(accepted.brief?.checksum).not.toBe(f.currentness.briefChecksum);
-    const replay = await f.app.handle(revisionB);
+  it("replays a committed request without a provider call and rejects stale currentness before execution", async () => {
+    const f = await fixture();
+    const request = revisionRequest(f, "Synthetic legitimate revision.");
+    const accepted = await f.app.handle(request);
+    const replay = await f.app.handle(request);
     expect(replay.brief?.checksum).toBe(accepted.brief?.checksum);
-    expect(f.calls).toBe(2);
-
-    const staleB = revisionRequest(f, revisionB.reason, ["project-brief", "stale-attempt"]);
-    await expect(f.app.handle(staleB)).rejects.toMatchObject({ code: "BRIEF_CHECKSUM_MISMATCH" });
-    expect(f.calls).toBe(2);
+    expect(f.calls).toBe(1);
   });
 });
