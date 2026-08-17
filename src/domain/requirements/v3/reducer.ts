@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { BriefV3Error } from "./errors";
 import { normalizeBriefChangeSet, normalizeCanonicalBrief } from "./normalize";
 import { stableSerialize } from "./serialization";
@@ -15,7 +16,8 @@ import {
   type BriefChangeSet,
   type BriefSetChange,
 } from "./changeset";
-import { SEMANTIC_TARGETS, isAssetTarget, isPageTarget, isRequirementTarget } from "./targets";
+import { SEMANTIC_TARGETS, isAssetTarget, isPageTarget, isRequirementTarget, type SemanticTargetId } from "./targets";
+import { readSemanticTarget } from "./state";
 
 type FormTarget =
   | typeof SEMANTIC_TARGETS.FORM_SUCCESS_MODE
@@ -237,8 +239,43 @@ function applyRemove(brief: CanonicalBriefV3, change: Extract<BriefChange, { ope
   throw new BriefV3Error("BRIEF_V3_UNKNOWN_TARGET", { target: change.target });
 }
 
-/** The sole V3 current-state mutation function: pure, deterministic, local, and history-free. */
-export function applyBriefChangeSet(current: CanonicalBriefV3, input: BriefChangeSet): CanonicalBriefV3 {
+export type BriefEffectiveDeltaEntry = {
+  target: SemanticTargetId;
+  operation: BriefChange["operation"];
+  beforeValueFingerprint: string;
+  afterValueFingerprint: string;
+};
+
+export type BriefReductionResult = {
+  before: CanonicalBriefV3;
+  after: CanonicalBriefV3;
+  changeSet: BriefChangeSet;
+  effectiveDelta: readonly BriefEffectiveDeltaEntry[];
+  changed: boolean;
+};
+
+function semanticTargetValue(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const semanticFields = { ...(value as Record<string, unknown>) };
+  delete semanticFields.sourceRefs;
+  return semanticFields;
+}
+
+function semanticFingerprint(value: unknown): string {
+  return createHash("sha256").update(stableSerialize(semanticTargetValue(value))).digest("hex");
+}
+
+function effectiveDelta(before: CanonicalBriefV3, after: CanonicalBriefV3, changeSet: BriefChangeSet): readonly BriefEffectiveDeltaEntry[] {
+  return changeSet.changes.flatMap((change) => {
+    const beforeValueFingerprint = semanticFingerprint(readSemanticTarget(before, change.target));
+    const afterValueFingerprint = semanticFingerprint(readSemanticTarget(after, change.target));
+    if (beforeValueFingerprint === afterValueFingerprint) return [];
+    return [{ target: change.target, operation: change.operation, beforeValueFingerprint, afterValueFingerprint }];
+  });
+}
+
+/** The sole V3 reduction boundary: pure canonical state plus its effective semantic delta. */
+export function reduceBriefChangeSet(current: CanonicalBriefV3, input: BriefChangeSet): BriefReductionResult {
   const validatedCurrent = validateCanonicalBriefV3(current);
   const currentCanonical = normalizeCanonicalBrief(validatedCurrent);
   const changeSet = normalizeBriefChangeSet(input);
@@ -255,9 +292,16 @@ export function applyBriefChangeSet(current: CanonicalBriefV3, input: BriefChang
   next = normalizeCanonicalBrief(next);
   validateCanonicalBriefV3(next);
   validateReductionInvariants(currentCanonical, next, changeSet);
-  return next;
+  const delta = effectiveDelta(currentCanonical, next, changeSet);
+  return { before: currentCanonical, after: next, changeSet, effectiveDelta: delta, changed: delta.length > 0 };
 }
 
+/** Compatibility projection for callers that only need canonical AFTER state. */
+export function applyBriefChangeSet(current: CanonicalBriefV3, input: BriefChangeSet): CanonicalBriefV3 {
+  return reduceBriefChangeSet(current, input).after;
+}
+
+/** Validation-only whole-state comparison; production change decisions use reduceBriefChangeSet.changed. */
 export function isReductionNoOp(current: CanonicalBriefV3, next: CanonicalBriefV3): boolean {
   return stableSerialize(normalizeCanonicalBrief(current)) === stableSerialize(normalizeCanonicalBrief(next));
 }

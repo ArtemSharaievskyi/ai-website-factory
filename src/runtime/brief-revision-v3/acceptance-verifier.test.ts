@@ -9,6 +9,10 @@ import { applyBriefChangeSet } from "@/domain/requirements/v3/reducer";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { cleanBriefV3 } from "@/domain/requirements/v3/fixtures";
 import { CanonicalBriefV3Schema } from "@/domain/requirements/v3/schema";
+import { OpenAiStructuredClient } from "@/integrations/openai/client";
+import { mapProviderBriefChangeSet } from "@/integrations/openai-v3/mapper";
+import { OpenAiBriefV3RevisionProvider } from "@/integrations/openai-v3/provider";
+import type { ProviderBriefChangeSet } from "@/integrations/openai-v3/changeset";
 import type { BriefChangeSet } from "@/domain/requirements/v3/changeset";
 import { createBriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
 import { mapDocumentToRow } from "@/persistence/database/mapping";
@@ -16,7 +20,7 @@ import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
 import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
 import { FilesystemProjectMemorySyncPort } from "@/runtime/workspace/sync";
 import { AcceptanceWindowStore } from "./acceptance-window";
-import { BRIEF_V3_LIVE_EXPECTED_OPERATION_OBSERVATIONS, assertCertificationEvidenceIntegrity, createBriefV3CertificationEvidence, digestCertificationObject, serializeBriefV3CertificationEvidence, type LiveAcceptanceObservations, type VerifiedAcceptanceFacts } from "./certification-evidence";
+import { assertCertificationEvidenceIntegrity, createBriefV3CertificationEvidence, digestCertificationObject, serializeBriefV3CertificationEvidence, type LiveAcceptanceObservations, type VerifiedAcceptanceFacts } from "./certification-evidence";
 import { createSyntheticExpectedLocalityTargets, verifyAcceptance } from "./acceptance-verifier";
 import { SYNTHETIC_CLEANUP_ARTIFACTS } from "./cleanup-policy";
 import { createBriefV3OperationIdentity, createRevisionCurrentnessToken } from "./identity";
@@ -26,12 +30,20 @@ import { readV2TripwireSnapshot, resetV2Tripwires } from "./v2-tripwire";
 
 const projectId = "88888888-8888-4888-8888-888888888888";
 const timestamp = "2026-08-16T00:00:00.000Z";
-const changeSet: BriefChangeSet = { contractVersion: 1, changes: [
-  { operation: "SET", target: "FORM_PERSISTENCE_MODE", value: "NONE", sourceRefs: ["fixture:acceptance"] },
-  { operation: "SET", target: "FORM_SIMULATED_SUCCESS_POLICY", value: "ALLOWED", sourceRefs: ["fixture:acceptance"] },
-  { operation: "SET", target: "FORM_SUCCESS_MODE", value: "SIMULATED", sourceRefs: ["fixture:acceptance"] },
-  { operation: "SET", target: "FORM_TRANSMISSION_MODE", value: "NONE", sourceRefs: ["fixture:acceptance"] },
-  { operation: "SET", target: "SEO_TITLE", value: "Synthetic Atelier Contact", sourceRefs: ["fixture:acceptance"] },
+const providerConfig = { apiKey: "synthetic", model: "test-model", modelLabel: "synthetic", maxRetries: 0, maxConcurrentRequests: 1 };
+const providerDto = { contractVersion: 1 as const, changes: [
+  { operation: "SET" as const, target: "FORM_PERSISTENCE_MODE" as const, value: "NONE" as const },
+  { operation: "SET" as const, target: "FORM_SIMULATED_SUCCESS_POLICY" as const, value: "ALLOWED" as const },
+  { operation: "SET" as const, target: "FORM_SUCCESS_MODE" as const, value: "SIMULATED" as const },
+  { operation: "SET" as const, target: "FORM_TRANSMISSION_MODE" as const, value: "NONE" as const },
+  { operation: "SET" as const, target: "SEO_TITLE" as const, value: "Synthetic Atelier Contact" as const },
+] } satisfies ProviderBriefChangeSet;
+const productionExpectedChangeSet: BriefChangeSet = { contractVersion: 1, changes: [
+  { operation: "SET", target: "FORM_PERSISTENCE_MODE", value: "NONE", sourceRefs: [] },
+  { operation: "SET", target: "FORM_SIMULATED_SUCCESS_POLICY", value: "ALLOWED", sourceRefs: [] },
+  { operation: "SET", target: "FORM_SUCCESS_MODE", value: "SIMULATED", sourceRefs: [] },
+  { operation: "SET", target: "FORM_TRANSMISSION_MODE", value: "NONE", sourceRefs: [] },
+  { operation: "SET", target: "SEO_TITLE", value: "Synthetic Atelier Contact", sourceRefs: [] },
 ], unresolved: [] };
 
 function initialBrief() {
@@ -40,7 +52,16 @@ function initialBrief() {
 
 class FixtureProvider {
   calls = 0;
-  async proposeChanges() { this.calls += 1; return changeSet; }
+  constructor(private readonly dto: ProviderBriefChangeSet = providerDto) {}
+  async proposeChanges(input: Parameters<OpenAiBriefV3RevisionProvider["proposeChanges"]>[0]) {
+    this.calls += 1;
+    const client = new OpenAiStructuredClient(providerConfig, { executor: async <T>() => ({ value: this.dto as T, requestId: "req_v3_acceptance_fixture", inputTokens: 120, outputTokens: 80 }) });
+    return new OpenAiBriefV3RevisionProvider(client).proposeChanges(input);
+  }
+}
+
+function expectedOperations(dto: ProviderBriefChangeSet) {
+  return dto.changes.map((change) => ({ operation: change.operation, targetId: change.target, valueDigest: digestCertificationObject("value" in change ? change.value : null) }));
 }
 
 async function sourceIdentity(): Promise<SourceFingerprint & { sourceHead: string }> {
@@ -84,13 +105,16 @@ async function cleanupFixture(database: InMemoryPersistenceDatabase, root: strin
   return { independentSession: true, complete: Object.values(remainingByArtifact).every((count) => count === 0), remainingByArtifact };
 }
 
-async function executeAcceptance(leaveArtifact?: string) {
+async function executeAcceptance(leaveArtifact?: string, dto: ProviderBriefChangeSet = providerDto, expectedChangeSet: BriefChangeSet = productionExpectedChangeSet) {
   resetV2Tripwires();
   const f = await fixture();
   const root = await mkdtemp(path.join(os.tmpdir(), "brief-v3-e1-acceptance-"));
   const projection = new FilesystemProjectMemorySyncPort(root, f.project.slug);
-  const provider = new FixtureProvider();
-  const serviceInput = { projectId, projectVersion: 1, revisionInstruction: "Synthetic E1 fixture intent.", expectedCurrentness: f.currentness, targetHints: ["FORM_PERSISTENCE_MODE", "FORM_SIMULATED_SUCCESS_POLICY", "FORM_SUCCESS_MODE", "FORM_TRANSMISSION_MODE", "SEO_TITLE"], targetWorkflowState: "CLARIFYING" as const, actor: "brief-v3-e1-fixture" };
+  const provider = new FixtureProvider(dto);
+  const mappedChangeSet = mapProviderBriefChangeSet(dto);
+  const operations = expectedOperations(dto);
+  const targetHints = dto.changes.map((change) => change.target);
+  const serviceInput = { projectId, projectVersion: 1, revisionInstruction: "Synthetic E1 fixture intent.", expectedCurrentness: f.currentness, targetHints, targetWorkflowState: "CLARIFYING" as const, actor: "brief-v3-e1-fixture" };
   const operationKey = createBriefV3OperationIdentity({ projectId, projectVersion: 1, revisionInstruction: serviceInput.revisionInstruction, targetHints: serviceInput.targetHints, targetWorkflowState: serviceInput.targetWorkflowState, currentness: f.currentness }).operationKey;
   const source = await sourceIdentity();
   const windowId = randomUUID();
@@ -102,15 +126,16 @@ async function executeAcceptance(leaveArtifact?: string) {
   const afterReplay = digestCertificationObject({ projects: [...f.database.projects.values()], versions: [...f.database.versions.values()], documents: [...f.database.documents.values()], attempts: [...f.database.briefRevisionAttempts.values()] });
   const reconstructedProvider = new FixtureProvider();
   const reconstructed = await new BriefV3TransactionService({ database: f.database, provider: { proposeChanges: async () => { reconstructedProvider.calls += 1; throw new Error("RECONSTRUCTION_PROVIDER_INVOKED"); } }, projection }).execute(serviceInput);
-  const observations: LiveAcceptanceObservations = { schemaVersion: 1, windowId, runId, sourceHead: source.sourceHead, sourceFingerprint: source.fingerprint, sourceManifest: [...source.manifest], syntheticProjectId: projectId, syntheticSlug: f.project.slug, provider: { schema: "brief-revision-v3", model: "fixture-model", requestCount: provider.calls, retryCount: 0, correctionCount: 0, requestAttempted: true, responseReceived: true, outputComplete: true, operations: BRIEF_V3_LIVE_EXPECTED_OPERATION_OBSERVATIONS.map((operation) => ({ ...operation })) }, transaction: { outcome: "COMMITTED", operationKey, attemptId: first.attemptId, changed: first.changed, resultChecksum: digestCertificationObject(first.currentBriefChecksum), workflowState: first.workflowState, projectionStatus: first.projectionStatus }, exactReplay: { outcome: exact.outcome === "COMMITTED_REPLAY" ? "COMMITTED_REPLAY" : "FAILED", providerCalls: exactProvider.calls, stateUnchanged: beforeReplay === afterReplay }, reconstructionReplay: { outcome: reconstructed.outcome === "COMMITTED_REPLAY" ? "COMMITTED_REPLAY" : "FAILED", providerCalls: reconstructedProvider.calls, stateUnchanged: true }, v2Runtime: { ...readV2TripwireSnapshot(), loadedLegacyMutationModules: [...readV2TripwireSnapshot().loadedLegacyMutationModules] }, v2FallbackSeamCalls: 0, cleanup: { ownershipId: projectId, cleanupAttempted: false, independentSession: false, remainingByArtifact: Object.fromEntries(SYNTHETIC_CLEANUP_ARTIFACTS.map((artifact) => [artifact, 1])) }, failureCode: null };
-  const expectedBrief = applyBriefChangeSet(f.brief, changeSet);
-  const verified = await verifyAcceptance({ observations, expected: { windowId, runId, projectId, projectVersion: 1, syntheticSlug: f.project.slug, operationKey, initialBrief: f.brief, expectedBrief, expectedChangeSet: changeSet, expectedOperations: BRIEF_V3_LIVE_EXPECTED_OPERATION_OBSERVATIONS, expectedUnchangedTargets: createSyntheticExpectedLocalityTargets(changeSet), expectedWorkflowTransition: "AWAITING_BRIEF_APPROVAL->CLARIFYING" }, readers: { database: f.database, projection, source: async () => source, v2: readV2TripwireSnapshot, cleanup: () => cleanupFixture(f.database, root, leaveArtifact) } });
-  return { f, root, source, windowId, runId, observations, verified, first };
+  const observations: LiveAcceptanceObservations = { schemaVersion: 1, windowId, runId, sourceHead: source.sourceHead, sourceFingerprint: source.fingerprint, sourceManifest: [...source.manifest], syntheticProjectId: projectId, syntheticSlug: f.project.slug, provider: { schema: "brief-revision-v3", model: "fixture-model", requestCount: provider.calls, retryCount: 0, correctionCount: 0, requestAttempted: true, responseReceived: true, outputComplete: true, operations: operations.map((operation) => ({ ...operation })) }, transaction: { outcome: "COMMITTED", operationKey, attemptId: first.attemptId, changed: first.changed, resultChecksum: digestCertificationObject(first.currentBriefChecksum), workflowState: first.workflowState, projectionStatus: first.projectionStatus }, exactReplay: { outcome: exact.outcome === "COMMITTED_REPLAY" ? "COMMITTED_REPLAY" : "FAILED", providerCalls: exactProvider.calls, stateUnchanged: beforeReplay === afterReplay }, reconstructionReplay: { outcome: reconstructed.outcome === "COMMITTED_REPLAY" ? "COMMITTED_REPLAY" : "FAILED", providerCalls: reconstructedProvider.calls, stateUnchanged: true }, v2Runtime: { ...readV2TripwireSnapshot(), loadedLegacyMutationModules: [...readV2TripwireSnapshot().loadedLegacyMutationModules] }, v2FallbackSeamCalls: 0, cleanup: { ownershipId: projectId, cleanupAttempted: false, independentSession: false, remainingByArtifact: Object.fromEntries(SYNTHETIC_CLEANUP_ARTIFACTS.map((artifact) => [artifact, 1])) }, failureCode: null };
+  const expectedBrief = applyBriefChangeSet(f.brief, expectedChangeSet);
+  const verified = await verifyAcceptance({ observations, expected: { windowId, runId, projectId, projectVersion: 1, syntheticSlug: f.project.slug, operationKey, initialBrief: f.brief, expectedBrief, expectedChangeSet, expectedOperations: operations, expectedUnchangedTargets: createSyntheticExpectedLocalityTargets(expectedChangeSet), expectedWorkflowTransition: "AWAITING_BRIEF_APPROVAL->CLARIFYING" }, readers: { database: f.database, projection, source: async () => source, v2: readV2TripwireSnapshot, cleanup: () => cleanupFixture(f.database, root, leaveArtifact) } });
+  return { f, root, source, windowId, runId, observations, verified, first, mappedChangeSet };
 }
 
 describe("EVIDENCE: Brief Revision V3 E1 deterministic evidence subsystem", () => {
   it("runs executor -> raw observations -> fresh verifier -> cleanup -> atomic finalization", async () => {
     const run = await executeAcceptance();
+    expect(run.mappedChangeSet).toEqual(productionExpectedChangeSet);
     const evidence = createBriefV3CertificationEvidence({ executionMode: "DETERMINISTIC_FIXTURE", observations: run.observations, verified: run.verified, createdAt: timestamp });
     expect(evidence.status).toBe("PASS");
     expect(run.observations.transaction.attemptId).toBe(run.first.attemptId);
@@ -123,6 +148,26 @@ describe("EVIDENCE: Brief Revision V3 E1 deterministic evidence subsystem", () =
       const finalized = await store.finalize({ windowId: created.windowId, runId: run.runId, sourceFingerprint: run.source.fingerprint, evidenceDigest: evidence.evidenceDigest, evidenceSerialized: serializeBriefV3CertificationEvidence({ ...evidence, windowId: created.windowId, observations: { ...evidence.observations, windowId: created.windowId } }) });
       expect(finalized.state).toBe("FINALIZED");
     } finally { await rm(windowRoot, { recursive: true, force: true }); }
+  });
+
+  it("verifies production-shaped mixed effective and no-op history independently from provenance", async () => {
+    const dto = { contractVersion: 1 as const, changes: [
+      { operation: "SET" as const, target: "DATABASE_MODE" as const, value: "SUPABASE" as const },
+      { operation: "SET" as const, target: "SEO_TITLE" as const, value: cleanBriefV3.seo.exactTitle },
+    ] } satisfies ProviderBriefChangeSet;
+    const expectedChangeSet: BriefChangeSet = { contractVersion: 1, changes: [
+      { operation: "SET", target: "DATABASE_MODE", value: "SUPABASE", sourceRefs: [] },
+      { operation: "SET", target: "SEO_TITLE", value: cleanBriefV3.seo.exactTitle, sourceRefs: [] },
+    ], unresolved: [] };
+    const run = await executeAcceptance(undefined, dto, expectedChangeSet);
+    expect(run.mappedChangeSet).toEqual(expectedChangeSet);
+    expect(run.first.changed).toBe(true);
+    expect(run.verified.history.effectiveEntryCount).toBe(1);
+    expect(run.verified.history.expectedEffectiveEntryCount).toBe(1);
+    expect(run.verified.history.semanticEntriesMatch).toBe(true);
+    expect(run.verified.history.provenanceChecksumMatch).toBe(true);
+    expect(run.verified.history.noUnexpectedNoOpTargets).toBe(true);
+    expect(createBriefV3CertificationEvidence({ executionMode: "DETERMINISTIC_FIXTURE", observations: run.observations, verified: run.verified, createdAt: timestamp }).status).toBe("PASS");
   });
 
   it("denies PASS for every mandatory semantic/evidence failure class", async () => {

@@ -43,6 +43,10 @@ async function fixture(documentKind: "v3" | "legacy-v2" | "ambiguous-v2" = "v3")
 }
 
 const input = (currentness: ReturnType<typeof createRevisionCurrentnessToken>, overrides: Partial<Parameters<BriefV3TransactionService["execute"]>[0]> = {}) => ({ projectId, projectVersion: 1, revisionInstruction: "Change the synthetic SEO title.", expectedCurrentness: currentness, targetHints: ["SEO_TITLE"], targetWorkflowState: "CLARIFYING" as const, ...overrides });
+const mixedEffectiveNoOpChangeSet: BriefChangeSet = { contractVersion: 1, changes: [
+  { operation: "SET", target: "DATABASE_MODE", value: "SUPABASE" },
+  { operation: "SET", target: "SEO_TITLE", value: cleanBriefV3.seo.exactTitle },
+], unresolved: [] };
 
 async function readBriefV3Checksum(database: InMemoryPersistenceDatabase) {
   const document = await new DocumentRepository(database).get(projectId, 1, "brief-v3");
@@ -170,6 +174,18 @@ describe("isolated Brief Revision V3 transaction", () => {
     expect(await readBriefV3Checksum(f.database)).toBe(canonicalBriefChecksum(cleanBriefV3));
     await expect(service.execute(input(f.currentness))).resolves.toMatchObject({ outcome: "COMMITTED_REPLAY" });
     expect(provider.calls).toBe(1);
+  });
+
+  it("persists only effective history entries for a mixed effective and no-op ChangeSet", async () => {
+    const f = await fixture();
+    const provider = new FixtureProvider(() => mixedEffectiveNoOpChangeSet);
+    const service = new BriefV3TransactionService({ database: f.database, provider });
+    const result = await service.execute(input(f.currentness, { targetHints: ["DATABASE_MODE", "SEO_TITLE"] }));
+    const history = [...f.database.briefRevisionHistory.values()][0];
+    expect(result).toMatchObject({ outcome: "COMMITTED", changed: true, projectionStatus: "PENDING" });
+    expect(history?.entries).toHaveLength(1);
+    expect(history?.entries[0]).toMatchObject({ target: "DATABASE_MODE", operation: "SET", outcome: "CHANGED" });
+    expect(history?.entries.some((entry) => (entry as { outcome?: string }).outcome === "NO_OP")).toBe(false);
   });
 
   it("rejects a stale pre-provider token without provider work", async () => {

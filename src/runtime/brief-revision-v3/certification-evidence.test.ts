@@ -15,7 +15,19 @@ function observations(): LiveAcceptanceObservations {
 }
 
 function verified(): VerifiedAcceptanceFacts {
-  return { schemaVersion: 1, source: { head: "c318f7178aa130ae4402c3f97a402c5c8eb6acea", fingerprint: sourceFingerprint, manifest, staticReachableLegacyMutationPaths: [], manifestMatchesWindow: true, manifestMatchesObservation: true, sourceHeadMatchesObservation: true }, committed: { projectId, projectVersion: 1, attemptId, attemptStatus: "COMMITTED", transactionOutcome: "COMMITTED", changed: true, expectedBriefChecksum: digest, actualBriefChecksum: digest, semanticTargetDigests: {}, expectedTargetDigests: {}, semanticValuesMatch: true, localityDigests: {}, expectedLocalityDigests: {}, localityPreserved: true, documentChecksum: digest, documentReloadable: true, attemptBindingMatches: true, resultChecksumMatches: true, transactionObservationMatches: true, providerObservationValid: true }, history: { count: 1, entriesDigest: digest, expectedEntriesDigest: digest, semanticEntriesMatch: true, noUnexpectedNoOpTargets: true, noDuplicateRevision: true }, workflow: { count: 1, transition: "AWAITING_BRIEF_APPROVAL->CLARIFYING", expectedTransition: "AWAITING_BRIEF_APPROVAL->CLARIFYING", correspondsToCommit: true }, projection: { status: "SYNCED", databaseDocumentChecksum: digest, projectionDocumentChecksum: digest, matchesDocumentAuthority: true, databaseRemainsCanonical: true }, replay: { exactOutcome: "COMMITTED_REPLAY", exactProviderCalls: 0, exactStateUnchanged: true, reconstructionOutcome: "COMMITTED_REPLAY", reconstructionProviderCalls: 0, reconstructionStateUnchanged: true }, v2: { staticReachableLegacyMutationPaths: [], runtime: { providerMutationCalls: 0, mergeCalls: 0, revisionPersistenceCalls: 0, idempotencyMutationCalls: 0, loadedLegacyMutationModules: [] }, fallbackSeamCalls: 0 }, cleanup: { expectedArtifacts: ["idempotency_records"], independentSession: true, complete: true, remainingByArtifact: { idempotency_records: 0 } }, missingMandatoryObservations: [], bindingMatches: true } as unknown as VerifiedAcceptanceFacts;
+  return {
+    schemaVersion: 1,
+    source: { head: "c318f7178aa130ae4402c3f97a402c5c8eb6acea", fingerprint: sourceFingerprint, manifest, staticReachableLegacyMutationPaths: [], manifestMatchesWindow: true, manifestMatchesObservation: true, sourceHeadMatchesObservation: true },
+    committed: { projectId, projectVersion: 1, attemptId, attemptStatus: "COMMITTED", transactionOutcome: "COMMITTED", changed: true, expectedBriefChecksum: digest, actualBriefChecksum: digest, semanticTargetDigests: {}, expectedTargetDigests: {}, semanticValuesMatch: true, localityDigests: {}, expectedLocalityDigests: {}, localityPreserved: true, documentChecksum: digest, documentReloadable: true, attemptBindingMatches: true, resultChecksumMatches: true, transactionObservationMatches: true, providerObservationValid: true },
+    history: { count: 1, effectiveEntryCount: 1, expectedEffectiveEntryCount: 1, entriesDigest: digest, expectedEntriesDigest: digest, semanticEntriesMatch: true, provenanceChecksumMatch: true, noUnexpectedNoOpTargets: true, noDuplicateRevision: true },
+    workflow: { count: 1, transition: "AWAITING_BRIEF_APPROVAL->CLARIFYING", expectedTransition: "AWAITING_BRIEF_APPROVAL->CLARIFYING", correspondsToCommit: true },
+    projection: { status: "SYNCED", databaseDocumentChecksum: digest, projectionDocumentChecksum: digest, matchesDocumentAuthority: true, databaseRemainsCanonical: true },
+    replay: { exactOutcome: "COMMITTED_REPLAY", exactProviderCalls: 0, exactStateUnchanged: true, reconstructionOutcome: "COMMITTED_REPLAY", reconstructionProviderCalls: 0, reconstructionStateUnchanged: true },
+    v2: { staticReachableLegacyMutationPaths: [], runtime: { providerMutationCalls: 0, mergeCalls: 0, revisionPersistenceCalls: 0, idempotencyMutationCalls: 0, loadedLegacyMutationModules: [] }, fallbackSeamCalls: 0 },
+    cleanup: { expectedArtifacts: ["idempotency_records"], independentSession: true, complete: true, remainingByArtifact: { idempotency_records: 0 } },
+    missingMandatoryObservations: [],
+    bindingMatches: true,
+  } as unknown as VerifiedAcceptanceFacts;
 }
 
 describe("Brief Revision V3 evidence verdict", () => {
@@ -42,6 +54,10 @@ describe("Brief Revision V3 evidence verdict", () => {
     expect(deriveAcceptanceVerdict({ ...base, v2: { ...base.v2, runtime: { ...base.v2.runtime, loadedLegacyMutationModules: ["src/agents/lead/service.ts"] } } }, "FINALIZED")).toEqual({ status: "FAIL", reason: "V2_MUTATION_PATH_INVOKED_OR_REACHABLE" });
     expect(deriveAcceptanceVerdict({ ...base, committed: { ...base.committed, attemptBindingMatches: false } }, "FINALIZED")).toEqual({ status: "INCONCLUSIVE", reason: "TRANSACTION_ATTEMPT_BINDING_MISMATCH" });
     expect(deriveAcceptanceVerdict({ ...base, committed: { ...base.committed, transactionObservationMatches: false } }, "FINALIZED")).toEqual({ status: "FAIL", reason: "TRANSACTION_OBSERVATION_MISMATCH" });
+  });
+
+  it("reports provenance checksum drift separately from semantic history failure", () => {
+    expect(deriveAcceptanceVerdict({ ...verified(), history: { ...verified().history, provenanceChecksumMatch: false } }, "FINALIZED")).toEqual({ status: "FAIL", reason: "HISTORY_PROVENANCE_CHECKSUM_FAILED" });
   });
 
   it("invalidates a finalized artifact when the certified critical manifest changes", () => {

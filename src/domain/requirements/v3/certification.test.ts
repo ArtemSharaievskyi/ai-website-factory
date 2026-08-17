@@ -2,11 +2,13 @@ import { afterAll, describe, expect, it } from "vitest";
 import {
   assertKnownTarget,
   BriefChangeSetSchema,
+  type BriefChange,
   type BriefChangeSet,
   BriefV3Error,
   SEMANTIC_TARGETS,
   TARGET_CATALOG,
   applyBriefChangeSet,
+  reduceBriefChangeSet,
   canonicalBriefChecksum,
   canonicalBriefChecksumInput,
   changeSetChecksum,
@@ -42,6 +44,20 @@ afterAll(() => {
     "Serialization/checksum",
     "Golden fixtures",
     "Adversarial cases",
+    "Effective delta",
+    "SET changed",
+    "SET no-op",
+    "REMOVE changed",
+    "REMOVE no-op",
+    "UPSERT new",
+    "UPSERT changed",
+    "UPSERT no-op",
+    "Mixed effective/no-op",
+    "Entire no-op",
+    "Normalized duplicates",
+    "SourceRefs-only difference",
+    "History == effective delta",
+    "NO_OP effective entries absent",
   ];
   console.log("\nBRIEF REVISION V3 CORE CERTIFICATION");
   for (const group of groups) console.log(`${group.padEnd(30, ".")} ${passedGroups.has(group) ? "PASS" : "FAIL"}`);
@@ -161,11 +177,62 @@ describe("Brief Revision V3 certification", () => {
   it("derives provenance after reduction and never treats it as current input", () => {
     const changeSet = { contractVersion: 1 as const, changes: [{ operation: "SET" as const, target: "SEO_TITLE" as const, value: "New synthetic title", sourceRefs: ["fixture:history"] }], unresolved: [] };
     const next = applyBriefChangeSet(cleanBriefV3, changeSet);
-    const history = deriveBriefProvenance(cleanBriefV3, next, changeSet, "fixture-revision-1");
+    const history = deriveBriefProvenance(reduceBriefChangeSet(cleanBriefV3, changeSet), "fixture-revision-1");
     expect(history.entries[0]).toMatchObject({ target: "SEO_TITLE", operation: "SET", outcome: "CHANGED" });
     expect(JSON.stringify(history)).not.toContain("New synthetic title");
     expect(applyBriefChangeSet(cleanBriefV3, { ...changeSet, unresolved: [{ target: "history", reason: "Removed content remains historical.", sourceRefs: ["fixture"] }] }).seo).toEqual(next.seo);
     mark("History separation");
+  });
+
+  it("centralizes the effective semantic delta across SET, REMOVE, UPSERT, mixed, duplicate, and source-ref cases", () => {
+    const service = cleanBriefV3.requirements.find((entry) => entry.id === "REQUIREMENT:service")!;
+    const cases: Array<[BriefChange, number, string[]]> = [
+      [{ operation: "SET", target: "SEO_TITLE", value: "Synthetic revised title" }, 1, ["SEO_TITLE"]],
+      [{ operation: "SET", target: "SEO_TITLE", value: cleanBriefV3.seo.exactTitle }, 0, []],
+      [{ operation: "SET", target: "FORM_SUCCESS_MODE", value: "REAL" }, 1, ["FORM_SUCCESS_MODE"]],
+      [{ operation: "SET", target: "FORM_SUCCESS_MODE", value: cleanBriefV3.decisions.form.mode }, 0, []],
+      [{ operation: "REMOVE", target: "REQUIREMENT:service" }, 1, ["REQUIREMENT:service"]],
+      [{ operation: "REMOVE", target: "REQUIREMENT:absent" }, 0, []],
+      [{ operation: "UPSERT", target: "REQUIREMENT:new", value: { category: "FEATURE", statement: "Synthetic new requirement.", sourceRefs: ["fixture:new"] } }, 1, ["REQUIREMENT:new"]],
+      [{ operation: "UPSERT", target: "REQUIREMENT:service", value: { category: service.category, statement: "Synthetic changed service.", sourceRefs: service.sourceRefs } }, 1, ["REQUIREMENT:service"]],
+      [{ operation: "UPSERT", target: "REQUIREMENT:service", value: { category: service.category, statement: service.statement, sourceRefs: ["different:provenance"] } }, 0, []],
+    ];
+    for (const [change, count, targets] of cases) {
+      const reduction = reduceBriefChangeSet(cleanBriefV3, { contractVersion: 1, changes: [change], unresolved: [] });
+      expect(reduction.effectiveDelta).toHaveLength(count);
+      expect(reduction.effectiveDelta.map((entry) => entry.target)).toEqual(targets);
+      expect(reduction.changed).toBe(count > 0);
+      expect(deriveBriefProvenance(reduction, "fixture-effective-delta").entries).toHaveLength(count);
+    }
+    const mixed = reduceBriefChangeSet(cleanBriefV3, { contractVersion: 1, changes: [
+      { operation: "SET", target: "DATABASE_MODE", value: "SUPABASE" },
+      { operation: "SET", target: "SEO_TITLE", value: cleanBriefV3.seo.exactTitle },
+    ], unresolved: [] });
+    expect(mixed.effectiveDelta.map((entry) => entry.target)).toEqual(["DATABASE_MODE"]);
+    expect(deriveBriefProvenance(mixed, "fixture-effective-delta").entries.every((entry) => entry.outcome === "CHANGED")).toBe(true);
+    const duplicate = reduceBriefChangeSet(cleanBriefV3, { contractVersion: 1, changes: [
+      { operation: "SET", target: "SEO_TITLE", value: "Synthetic duplicate title", sourceRefs: ["a"] },
+      { operation: "SET", target: "SEO_TITLE", value: "Synthetic duplicate title", sourceRefs: ["b"] },
+    ], unresolved: [] });
+    expect(duplicate.changeSet.changes).toHaveLength(1);
+    expect(duplicate.effectiveDelta).toHaveLength(1);
+    const provenanceOnly = { contractVersion: 1 as const, changes: [{ operation: "SET" as const, target: "SEO_TITLE" as const, value: cleanBriefV3.seo.exactTitle, sourceRefs: ["different:provenance"] }], unresolved: [] };
+    expect(changeSetChecksum(provenanceOnly)).not.toBe(changeSetChecksum({ ...provenanceOnly, changes: [{ ...provenanceOnly.changes[0]!, sourceRefs: ["other:provenance"] }] }));
+    expect(reduceBriefChangeSet(cleanBriefV3, provenanceOnly).effectiveDelta).toHaveLength(0);
+    mark("Effective delta");
+    mark("SET changed");
+    mark("SET no-op");
+    mark("REMOVE changed");
+    mark("REMOVE no-op");
+    mark("UPSERT new");
+    mark("UPSERT changed");
+    mark("UPSERT no-op");
+    mark("Mixed effective/no-op");
+    mark("Entire no-op");
+    mark("Normalized duplicates");
+    mark("SourceRefs-only difference");
+    mark("History == effective delta");
+    mark("NO_OP effective entries absent");
   });
 
   it("migrates representative V1 deterministically without importing history or host metadata", () => {

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { DomainError } from "@/domain/shared/errors";
 import { BriefV3Error } from "@/domain/requirements/v3/errors";
-import { applyBriefChangeSet, isReductionNoOp } from "@/domain/requirements/v3/reducer";
+import { reduceBriefChangeSet } from "@/domain/requirements/v3/reducer";
 import { deriveBriefProvenance } from "@/domain/requirements/v3/history";
 import { normalizeBriefChangeSet } from "@/domain/requirements/v3/normalize";
 import { parseBriefChangeSet, type BriefChangeSet } from "@/domain/requirements/v3/changeset";
@@ -110,19 +110,19 @@ export class BriefV3TransactionService {
         throw new BriefV3TransactionError(code, { attemptId: claim.row.id });
       }
       let changeSet: BriefChangeSet;
-      let next: CanonicalBriefV3;
+      let reduction: ReturnType<typeof reduceBriefChangeSet>;
       try {
         changeSet = normalizeBriefChangeSet(parseBriefChangeSet(providerChanges));
-        next = applyBriefChangeSet(beforeProvider.canonical, changeSet);
-        const history = deriveBriefProvenance(beforeProvider.canonical, next, changeSet, claim.row.id);
-        if (history.previousCurrentChecksum !== beforeProvider.currentness.briefChecksum) throw new BriefV3Error("BRIEF_V3_REDUCTION_INVALID", { invariant: "currentness-checksum" });
+        reduction = reduceBriefChangeSet(beforeProvider.canonical, changeSet);
+        if (canonicalBriefChecksum(reduction.before) !== beforeProvider.currentness.briefChecksum) throw new BriefV3Error("BRIEF_V3_REDUCTION_INVALID", { invariant: "currentness-checksum" });
       } catch (error) {
         const code = classifyDomainFailure(error);
         await settle("REJECTED_INVALID", code);
         throw new BriefV3TransactionError(code, { attemptId: claim.row.id });
       }
-      const changed = !isReductionNoOp(beforeProvider.canonical, next);
-      const nextChecksum = canonicalBriefChecksum(next);
+      const next = reduction.after;
+      const changed = reduction.changed;
+      const nextChecksum = changed ? canonicalBriefChecksum(next) : beforeProvider.currentness.briefChecksum;
       const targetState = changed ? input.targetWorkflowState ?? beforeProvider.project.workflow_state : beforeProvider.project.workflow_state;
       if (changed && targetState !== beforeProvider.project.workflow_state) {
         try {
@@ -136,7 +136,7 @@ export class BriefV3TransactionService {
       const timestamp = now(input);
       const document = changed ? createBriefV3Document({ projectId: input.projectId, projectVersion: input.projectVersion, brief: next, createdAt: timestamp, updatedAt: timestamp }) : null;
       const documentRow = document ? mapDocumentToRow(document) : null;
-      const history = changed ? deriveBriefProvenance(beforeProvider.canonical, next, changeSet, claim.row.id) : null;
+      const history = changed ? deriveBriefProvenance(reduction, claim.row.id) : null;
       const workflowEvent = changed && targetState !== beforeProvider.project.workflow_state ? newWorkflowEvent(input.projectId, input.projectVersion, beforeProvider.project.workflow_state, targetState, input.actor ?? "brief-revision-v3", "Brief Revision V3 committed", identity.operationKey, claim.row.id) : null;
       const projection: BriefRevisionProjectionRow | null = changed && documentRow ? { id: randomUUID(), attemptId: claim.row.id, projectId: input.projectId, projectVersion: input.projectVersion, documentChecksum: documentRow.checksum, status: "PENDING", attemptCount: 0, lastFailureCode: null, nextAttemptAt: null, createdAt: timestamp, updatedAt: timestamp } : null;
       const historyId = history ? randomUUID() : null;

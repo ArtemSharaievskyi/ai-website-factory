@@ -1,16 +1,13 @@
-import { createHash } from "node:crypto";
-import type { BriefChangeSet } from "./changeset";
-import { validateCanonicalBriefV3, validateReductionInvariants } from "./invariants";
-import { canonicalBriefChecksum, changeSetChecksum, normalizeBriefChangeSet, normalizeCanonicalBrief, stableSerialize } from "./normalize";
-import { type CanonicalBriefV3 } from "./schema";
-import { readSemanticTarget } from "./state";
+import { canonicalBriefChecksum, changeSetChecksum, normalizeCanonicalBrief } from "./normalize";
+import { type BriefReductionResult } from "./reducer";
+import { validateCanonicalBriefV3 } from "./invariants";
 import type { SemanticTargetId } from "./targets";
 
 export type BriefProvenanceEntry = {
   revisionReference: string;
   target: SemanticTargetId;
   operation: "SET" | "UPSERT" | "REMOVE";
-  outcome: "CHANGED" | "NO_OP";
+  outcome: "CHANGED";
   beforeValueFingerprint: string;
   afterValueFingerprint: string;
 };
@@ -22,35 +19,22 @@ export type BriefRevisionHistory = {
   entries: readonly BriefProvenanceEntry[];
 };
 
-const fingerprint = (value: unknown) => createHash("sha256").update(stableSerialize(value)).digest("hex");
-
-/** Derive append-only provenance after reduction; this function has no path back into current state. */
-export function deriveBriefProvenance(
-  before: CanonicalBriefV3,
-  after: CanonicalBriefV3,
-  input: BriefChangeSet,
-  revisionReference: string,
-): BriefRevisionHistory {
-  const changes = normalizeBriefChangeSet(input);
-  const previous = normalizeCanonicalBrief(validateCanonicalBriefV3(before));
-  const next = normalizeCanonicalBrief(validateCanonicalBriefV3(after));
-  validateReductionInvariants(previous, next, changes);
-  const entries = changes.changes.map((change) => {
-    const beforeValue = readSemanticTarget(previous, change.target);
-    const afterValue = readSemanticTarget(next, change.target);
-    return {
+/** Derive append-only provenance from the reducer-owned effective delta. */
+export function deriveBriefProvenance(reduction: BriefReductionResult, revisionReference: string): BriefRevisionHistory {
+  const previous = normalizeCanonicalBrief(validateCanonicalBriefV3(reduction.before));
+  const next = normalizeCanonicalBrief(validateCanonicalBriefV3(reduction.after));
+  const entries = reduction.effectiveDelta.map((change) => ({
       revisionReference,
-      target: change.target as SemanticTargetId,
+      target: change.target,
       operation: change.operation,
-      outcome: stableSerialize(beforeValue) === stableSerialize(afterValue) ? "NO_OP" as const : "CHANGED" as const,
-      beforeValueFingerprint: fingerprint(beforeValue),
-      afterValueFingerprint: fingerprint(afterValue),
-    };
-  });
+      outcome: "CHANGED" as const,
+      beforeValueFingerprint: change.beforeValueFingerprint,
+      afterValueFingerprint: change.afterValueFingerprint,
+    }));
   return {
     previousCurrentChecksum: canonicalBriefChecksum(previous),
     nextCurrentChecksum: canonicalBriefChecksum(next),
-    changeSetChecksum: changeSetChecksum(changes),
+    changeSetChecksum: changeSetChecksum(reduction.changeSet),
     entries,
   };
 }
