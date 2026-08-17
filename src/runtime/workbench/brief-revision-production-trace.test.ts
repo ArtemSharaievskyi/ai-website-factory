@@ -4,14 +4,14 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { FactoryProjectSchema } from "@/domain/project/schema";
-import { ProjectBriefV2Schema } from "@/domain/requirements/schema";
-import { representativeV2Brief } from "@/domain/requirements/v3/fixtures";
+import { ProjectBriefV2Schema, RequirementSpecificationSchema, type RequirementSpecification } from "@/domain/requirements/schema";
+import { pilotShapedV1Brief, representativeV2Brief } from "@/domain/requirements/v3/fixtures";
 import type { ProviderBriefChangeSet } from "@/integrations/openai-v3/changeset";
 import { createProductionProviderBundle } from "@/integrations/openai/production";
 import { OpenAiBriefV3RevisionProvider } from "@/integrations/openai-v3/provider";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
-import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
+import { documentKey, InMemoryPersistenceDatabase } from "@/persistence/database/fake";
 import { FilesystemProjectMemorySyncPort } from "@/runtime/workspace/sync";
 import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
 import type { BriefV3RevisionProvider } from "@/runtime/brief-revision-v3/ports";
@@ -54,9 +54,19 @@ type Fixture = {
 };
 const activeFixtures: Fixture[] = [];
 
-function legacyBrief() {
+function legacyBrief(): RequirementSpecification {
   return ProjectBriefV2Schema.parse({
     ...representativeV2Brief,
+    projectId,
+    projectVersion: 1,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+}
+
+function pilotLegacyBrief(): RequirementSpecification {
+  return RequirementSpecificationSchema.parse({
+    ...pilotShapedV1Brief,
     projectId,
     projectVersion: 1,
     createdAt: timestamp,
@@ -77,10 +87,9 @@ function providerBundle(options: { failFirst?: boolean; failAlways?: boolean } =
   return { bundle, briefV3: new OpenAiBriefV3RevisionProvider(bundle.ai), get calls() { return calls; } };
 }
 
-async function fixture(options: { failFirst?: boolean; failAlways?: boolean } = {}): Promise<Fixture> {
+async function fixture(options: { failFirst?: boolean; failAlways?: boolean } = {}, legacy: RequirementSpecification = legacyBrief()): Promise<Fixture> {
   const database = new InMemoryPersistenceDatabase();
   const root = await mkdtemp(path.join(os.tmpdir(), "brief-v3-production-route-"));
-  const legacy = legacyBrief();
   const project = FactoryProjectSchema.parse({
     schemaVersion: 1,
     documentType: "factory-project",
@@ -187,6 +196,48 @@ describe("production-shaped Brief V3 request route", () => {
     expect(f.database.briefRevisionHistory.size).toBe(1);
     expect(getBriefRevisionTraceEvents()).toHaveLength(0);
     expect(readV2TripwireSnapshot()).toMatchObject({ providerMutationCalls: 0, mergeCalls: 0, revisionPersistenceCalls: 0, idempotencyMutationCalls: 0, loadedLegacyMutationModules: [] });
+  });
+
+  it("migrates a pilot-shaped V1 Brief in memory before the first atomic V3 commit", async () => {
+    const f = await fixture({}, pilotLegacyBrief());
+    clearWorkbenchDiagnosticEvents();
+    resetV2Tripwires();
+    const legacyBefore = await new DocumentRepository(f.database).get(projectId, 1, "requirements");
+    if (!legacyBefore) throw new Error("synthetic pilot-shaped legacy Brief is not ready");
+    const legacyChecksumBefore = checksumPersistedDocument(legacyBefore);
+    const legacyRowVersionBefore = f.database.documents.get(documentKey(projectId, 1, "requirements"))?.rowVersion;
+
+    const first = await f.app.handle(f.request);
+    expect(first.project?.workflowState).toBe("CLARIFYING");
+    expect(first.brief?.briefSchemaVersion).toBe(3);
+    expect(f.ai.calls).toBe(1);
+    expect(f.database.briefRevisionHistory.size).toBe(1);
+    expect(f.database.briefRevisionProjectionSync.size).toBe(1);
+    const legacyAfter = await new DocumentRepository(f.database).get(projectId, 1, "requirements");
+    expect(f.database.documents.get(documentKey(projectId, 1, "requirements"))?.rowVersion).toBe(legacyRowVersionBefore);
+    expect(legacyAfter ? checksumPersistedDocument(legacyAfter) : null).toBe(legacyChecksumBefore);
+    const v3 = await new DocumentRepository(f.database).get(projectId, 1, "brief-v3");
+    expect(v3?.documentType).toBe("brief-v3");
+    expect(v3?.schemaVersion).toBe(3);
+    if (!v3 || v3.documentType !== "brief-v3") throw new Error("synthetic V3 Brief was not persisted");
+    expect(v3.brief.requirements.some((entry) => entry.statement.startsWith("Historical revision instruction"))).toBe(false);
+    expect(v3.brief.requirements.some((entry) => entry.statement === "Unsupported synthetic assumption must stay diagnostic.")).toBe(false);
+    expect(v3.brief.decisions.analytics.mode).toBe("NONE");
+    expect(v3.brief.decisions.form.serverProcessingMode).toBe("NONE");
+    expect(v3.brief.legal.inventedFactsPolicy).toBe("FORBIDDEN");
+    expect(v3.brief.seo.exactTitle).toBe("Synthetic Atelier Revised");
+    expect(v3.brief.seo.exactMetaDescription).toBe("Synthetic local garden service description.");
+    expect(v3.brief.seo.primaryKeywords).toEqual(["local service", "synthetic garden", "synthetic region"]);
+    expect(f.database.documents.size).toBe(2);
+    expect([...f.database.documents.keys()].sort()).toEqual([documentKey(projectId, 1, "brief-v3"), documentKey(projectId, 1, "requirements")].sort());
+    expect([...f.database.briefRevisionAttempts.values()][0]?.currentnessToken).toMatchObject({ canonicalSchemaVersion: 3, documentType: "requirements" });
+    expect(readV2TripwireSnapshot()).toMatchObject({ providerMutationCalls: 0, mergeCalls: 0, revisionPersistenceCalls: 0, idempotencyMutationCalls: 0, loadedLegacyMutationModules: [] });
+
+    const beforeReplay = JSON.stringify({ projects: [...f.database.projects.values()], versions: [...f.database.versions.values()], documents: [...f.database.documents.values()], events: f.database.events, history: [...f.database.briefRevisionHistory.values()], projections: [...f.database.briefRevisionProjectionSync.values()] });
+    await expect(f.entry.requestBriefChanges(f.request)).resolves.toMatchObject({ projectId, workflowState: "CLARIFYING" });
+    const afterReplay = JSON.stringify({ projects: [...f.database.projects.values()], versions: [...f.database.versions.values()], documents: [...f.database.documents.values()], events: f.database.events, history: [...f.database.briefRevisionHistory.values()], projections: [...f.database.briefRevisionProjectionSync.values()] });
+    expect(afterReplay).toBe(beforeReplay);
+    expect(f.ai.calls).toBe(1);
   });
 
   it("fails closed on a provider failure and retries through V3 without invoking Lead V2", async () => {

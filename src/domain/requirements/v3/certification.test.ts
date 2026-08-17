@@ -23,7 +23,7 @@ import {
   isReductionNoOp,
   validateCanonicalBriefV3,
 } from ".";
-import { ambiguousV2Brief, cleanBriefV3, cleanFormRevisionChangeSet, conflictingChangeSet, expectedNormalizedBrief, expectedV1Migration, expectedV2Migration, multiDomainChangeSet, representativeV1Brief, representativeV2Brief } from "./fixtures";
+import { ambiguousV2Brief, cleanBriefV3, cleanFormRevisionChangeSet, conflictingChangeSet, expectedNormalizedBrief, expectedV1Migration, expectedV2Migration, multiDomainChangeSet, pilotShapedV1Brief, representativeV1Brief, representativeV2Brief } from "./fixtures";
 
 const passedGroups = new Set<string>();
 let generatedPropertyCases = 0;
@@ -248,6 +248,74 @@ describe("Brief Revision V3 certification", () => {
     expect(readLegacyRequirementHistory(withHistory)).toHaveLength(1);
     expect(JSON.stringify(migrated)).not.toMatch(/projectId|approval|requirementHistory/);
     expect(migrateV1ToCanonicalBriefV3(representativeV1Brief)).toEqual(migrated);
+  });
+
+  it("migrates a pilot-shaped V1 Brief losslessly at the legacy adapter boundary", () => {
+    const sourceBefore = stableSerialize(pilotShapedV1Brief);
+    const migrated = migrateV1ToCanonicalBriefV3(pilotShapedV1Brief);
+    const activeStatements = [
+      pilotShapedV1Brief.businessGoals,
+      pilotShapedV1Brief.targetAudiences,
+      pilotShapedV1Brief.userRoles,
+      pilotShapedV1Brief.features,
+      pilotShapedV1Brief.forms,
+      pilotShapedV1Brief.contentRequirements,
+      pilotShapedV1Brief.backendRequirements,
+      pilotShapedV1Brief.supabaseRequirements,
+      pilotShapedV1Brief.seoRequirements,
+      pilotShapedV1Brief.technicalConstraints,
+      pilotShapedV1Brief.explicitExclusions,
+      pilotShapedV1Brief.userAcceptanceCriteria,
+      pilotShapedV1Brief.contactFacts,
+      pilotShapedV1Brief.legalFacts,
+      pilotShapedV1Brief.brandFacts,
+      pilotShapedV1Brief.logoMetadata,
+      pilotShapedV1Brief.imageSourcingNotes,
+      pilotShapedV1Brief.recommendations,
+    ].flat();
+    for (const statement of activeStatements) expect(migrated.requirements.some((entry) => entry.statement === statement)).toBe(true);
+    expect(migrated.requirements.some((entry) => entry.statement.startsWith("administration: not-needed"))).toBe(true);
+    expect(migrated.requirements.some((entry) => entry.statement === "Historical removed requirement must stay absent.")).toBe(false);
+    for (const instruction of pilotShapedV1Brief.briefRevisionInstructions ?? []) expect(migrated.requirements.some((entry) => entry.statement === instruction)).toBe(false);
+    expect(migrated.requirements.some((entry) => entry.statement === "Unsupported synthetic assumption must stay diagnostic.")).toBe(false);
+    expect(migrated.requirements.every((entry) => entry.statement.length <= 4000)).toBe(true);
+    expect(migrated.pages.map((page) => page.slug)).toEqual(["contact", "home", "imprint", "privacy", "services"]);
+    expect(new Set(migrated.pages.map((page) => page.id)).size).toBe(migrated.pages.length);
+    expect(migrated.decisions.routePolicy.mode).toBe("MULTI_PAGE");
+    expect(migrated.decisions.form).toMatchObject({
+      mode: "UNRESOLVED",
+      formPresent: true,
+      transmissionMode: "NONE",
+      persistenceMode: "NONE",
+      serverProcessingMode: "NONE",
+      externalProviderMode: "NONE",
+      privacyConsentMode: "REQUIRED",
+    });
+    expect(migrated.decisions.database.mode).toBe("NONE");
+    expect(migrated.decisions.auth.mode).toBe("NONE");
+    expect(migrated.decisions.analytics.mode).toBe("NONE");
+    expect(migrated.scope.images).toEqual({ required: true, sourceStrategy: "CUSTOM" });
+    expect(migrated.seo).toMatchObject({
+      exactTitle: "Synthetic Garden Service",
+      exactMetaDescription: "Synthetic local garden service description.",
+      primaryKeywords: ["local service", "synthetic garden", "synthetic region"],
+    });
+    expect(migrated.seo.primaryKeywords).not.toContain("Use natural synthetic search language for local visitors.");
+    expect(migrated.legal).toEqual({ placeholderPolicy: "USE_EXPLICIT_PLACEHOLDERS", inventedFactsPolicy: "FORBIDDEN" });
+    expect(migrated.unresolved).toHaveLength(1);
+    expect(stableSerialize(pilotShapedV1Brief)).toBe(sourceBefore);
+  });
+
+  it("keeps pilot-shaped V1 migration deterministic and fails closed on ambiguous structured markers", () => {
+    const first = migrateV1ToCanonicalBriefV3(pilotShapedV1Brief);
+    const second = migrateV1ToCanonicalBriefV3(JSON.parse(JSON.stringify(pilotShapedV1Brief)));
+    const third = migrateV1ToCanonicalBriefV3(pilotShapedV1Brief);
+    expect(second).toEqual(first);
+    expect(third).toEqual(first);
+    expect(canonicalBriefChecksum(first)).toBe(canonicalBriefChecksum(second));
+    expectCode(() => migrateV1ToCanonicalBriefV3({ ...pilotShapedV1Brief, seoRequirements: [...pilotShapedV1Brief.seoRequirements, "SEO-Titel exakt: \"Conflicting synthetic title\"."] }), "BRIEF_V3_MIGRATION_AMBIGUOUS");
+    expectCode(() => migrateV1ToCanonicalBriefV3({ ...pilotShapedV1Brief, forms: [...pilotShapedV1Brief.forms, "Optional privacy checkbox."] }), "BRIEF_V3_MIGRATION_AMBIGUOUS");
+    expectCode(() => migrateV1ToCanonicalBriefV3({ ...pilotShapedV1Brief, backendRequirements: ["Synthetic server requirement."], explicitExclusions: [...pilotShapedV1Brief.explicitExclusions, "No backend processing."] }), "BRIEF_V3_MIGRATION_AMBIGUOUS");
   });
 
   it("migrates representative V2 typed decisions, assets, SEO, legal, and form semantics", () => {

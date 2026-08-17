@@ -48,6 +48,66 @@ export const representativeV1Brief: RequirementSpecification = RequirementSpecif
   briefVersion: 1,
 });
 
+export const pilotShapedV1Brief: RequirementSpecification = RequirementSpecificationSchema.parse({
+  ...representativeV1Brief,
+  projectSummary: "Synthetic multi-page local service brief.",
+  projectTitle: "Synthetic Garden Service",
+  pages: [
+    { slug: "home", purpose: "Introduce the synthetic local service." },
+    { slug: "services", purpose: "Explain the synthetic service options." },
+    { slug: "contact", purpose: "Provide the synthetic contact interaction." },
+    { slug: "imprint", purpose: "Show synthetic legal placeholder content." },
+    { slug: "privacy", purpose: "Show synthetic privacy placeholder content." },
+  ],
+  targetAudiences: ["Synthetic local visitors."],
+  features: ["Service overview.", "No analytics or tracking."],
+  forms: [
+    "Required privacy checkbox before local contact validation.",
+    "Show local validation and simulated success after frontend validation.",
+    "No successful submission may be faked.",
+  ],
+  contentRequirements: ["Use only supplied synthetic service facts."],
+  seoRequirements: [
+    "SEO-Titel exakt: „Synthetic Garden Service“.",
+    "Meta Description exakt: „Synthetic local garden service description.“",
+    "Use natural synthetic search language for local visitors.",
+    "Keywords: synthetic garden; local service; synthetic region.",
+    "Keep natural synthetic search language on service pages.",
+  ],
+  localization: { locales: ["en", "de"], defaultLocale: "en" },
+  imageSourceDecision: "custom",
+  suppliedBrandInformation: { status: "provided", value: "Synthetic green-and-copper identity." },
+  suppliedLogoLocation: { status: "provided", value: "Synthetic supplied logo reference." },
+  technicalConstraints: [
+    "Use multiple pages for the synthetic service.",
+    "No backend processing, API, database, or external services.",
+    "No invented business facts.",
+    "Use explicit placeholders for missing legal details.",
+  ],
+  explicitExclusions: [
+    "No actual form transmission or persistence.",
+    "No analytics or tracking.",
+  ],
+  userAcceptanceCriteria: [
+    "Visitors can read the synthetic service information.",
+    "The contact interaction remains local and visibly simulated.",
+  ],
+  legalFacts: ["Synthetic legal details are not supplied."],
+  brandFacts: ["Synthetic green-and-copper identity."],
+  logoMetadata: ["Synthetic supplied logo reference."],
+  imageSourcingNotes: ["Use the synthetic supplied image reference."],
+  unresolvedItems: [{ id: "33333333-3333-4333-8333-333333333333", description: "Synthetic legal details remain unresolved; use explicit placeholders before publication.", blocking: false }],
+  evidence: [{ field: "projectSummary", source: "synthetic-pilot-shaped-v1", excerpt: "Synthetic multi-page local service brief." }],
+  recommendations: ["Synthetic recommendation remains current."],
+  briefRevisionInstructions: [
+    "Historical revision instruction must never become a current requirement.",
+    `Historical oversized revision instruction ${"x".repeat(4500)}`,
+  ],
+  requirementHistory: [{ id: "REQUIREMENT:legacy-removed", statement: "Historical removed requirement must stay absent.", sourceRefs: ["fixture:history"], status: "REMOVED", operation: "REMOVE", revisionReference: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }],
+  analysisMetadata: { provider: "synthetic-pilot-provider", originalPromptChecksum: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", unsupportedAssumptions: ["Unsupported synthetic assumption must stay diagnostic."], contradictionCount: 0 },
+  briefVersion: 4,
+});
+
 export const representativeV2Brief: ProjectBriefV2 = ProjectBriefV2Schema.parse({
   ...representativeV1Brief,
   ...emptyBriefV2Fields(),
@@ -181,7 +241,7 @@ export const expectedV1Migration = {
   databaseMode: "NONE",
   authMode: "NONE",
   routePolicy: "SINGLE_PAGE",
-  legalInventedFactsPolicy: "UNRESOLVED",
+  legalInventedFactsPolicy: "FORBIDDEN",
 } as const;
 
 export const expectedV2Migration = {

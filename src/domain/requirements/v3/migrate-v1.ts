@@ -25,6 +25,86 @@ const imageStrategyFromV1 = (brief: RequirementSpecification): CanonicalBriefV3[
 const hasSinglePageConstraint = (values: readonly string[]) => values.some((value) => /single[- ]page|one[- ]page|nur eine seite|nur eine route/i.test(value));
 const hasMultiPageConstraint = (values: readonly string[]) => values.some((value) => /multi[- ]page|multiple pages|mehrere seiten|mehreren routen/i.test(value));
 
+const behaviorTextFromV1 = (brief: RequirementSpecification): string[] => [
+  ...brief.forms,
+  ...brief.explicitExclusions,
+  ...brief.technicalConstraints,
+  ...brief.userAcceptanceCriteria,
+];
+
+const hasMarker = (values: readonly string[], pattern: RegExp) => values.some((value) => pattern.test(value));
+
+const markerValues = (values: readonly string[], marker: string, field: string): string[] => {
+  const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const prefix = new RegExp(`^\\s*${escaped}\\s*:\\s*(.*)\\s*$`, "iu");
+  const matches = values.flatMap((value) => {
+    const match = prefix.exec(value);
+    if (!match) return [];
+    const body = match[1]?.trim() ?? "";
+    const quoted = /^(?:„|“|")(.+?)(?:“|”|")\.?\s*$/u.exec(body);
+    if (!quoted?.[1]?.trim()) throw new BriefV3MigrationAmbiguityError(field, "recognized legacy marker has an unsupported value shape");
+    return [quoted[1].trim()];
+  });
+  if (matches.length > 1) throw new BriefV3MigrationAmbiguityError(field, "duplicate legacy markers disagree or are ambiguous");
+  return matches;
+};
+
+function seoFromV1(brief: RequirementSpecification): CanonicalBriefV3["seo"] {
+  const exactTitle = markerValues(brief.seoRequirements, "SEO-Titel exakt", "seoRequirements.exactTitle")[0] ?? null;
+  const exactMetaDescription = markerValues(brief.seoRequirements, "Meta Description exakt", "seoRequirements.exactMetaDescription")[0] ?? null;
+  const keywordLines = brief.seoRequirements.flatMap((value) => {
+    const match = /^\s*Keywords\s*:\s*(.*?)\s*$/iu.exec(value);
+    return match ? [match[1]!.replace(/[.]\s*$/u, "").trim()] : [];
+  });
+  if (keywordLines.length > 1) throw new BriefV3MigrationAmbiguityError("seoRequirements.primaryKeywords", "duplicate legacy keyword markers are ambiguous");
+  const primaryKeywords = keywordLines[0]
+    ? keywordLines[0].split(";").map((keyword) => keyword.trim()).filter(Boolean)
+    : [];
+  return { primaryKeywords, exactTitle, exactMetaDescription, locationTargeting: [], pageMetadata: [] };
+}
+
+function legalFromV1(brief: RequirementSpecification): CanonicalBriefV3["legal"] {
+  const values = [...brief.legalFacts, ...brief.explicitExclusions, ...brief.technicalConstraints, ...brief.unresolvedItems.map((item) => item.description)];
+  const usePlaceholders = hasMarker(values, /(?:use|with|clear|explicit)\s+(?:explicit\s+)?(?:placeholders?|platzhalter)|(?:klare|explizite)\s+platzhalter/i);
+  const forbidPlaceholders = hasMarker(values, /(?:no|without|keine?|ohne)\s+(?:any\s+)?(?:placeholders?|platzhalter)/i);
+  if (usePlaceholders && forbidPlaceholders) throw new BriefV3MigrationAmbiguityError("legal.placeholderPolicy", "legacy placeholder policies conflict");
+  const inventedFactsForbidden = hasMarker(values, /(?:do not|never|no|without|keine?|nicht|ohne)\s+(?:invent\w*|fabricat\w*|erfinden|erfund\w*)\s+(?:facts?|fakten|business facts?|Unternehmensdaten)/i);
+  const inventedFactsAllowed = hasMarker(values, /(?:invent\w*|fabricat\w*|erfund\w*)\s+(?:facts?|fakten|business facts?|Unternehmensdaten)\s+(?:allowed|erlaubt)/i);
+  if (inventedFactsForbidden && inventedFactsAllowed) throw new BriefV3MigrationAmbiguityError("legal.inventedFactsPolicy", "legacy invented-facts policies conflict");
+  return {
+    placeholderPolicy: usePlaceholders ? "USE_EXPLICIT_PLACEHOLDERS" : forbidPlaceholders ? "NO_PLACEHOLDERS" : "UNRESOLVED",
+    inventedFactsPolicy: inventedFactsForbidden ? "FORBIDDEN" : inventedFactsAllowed ? "ALLOWED" : "UNRESOLVED",
+  };
+}
+
+function serverProcessingModeFromV1(brief: RequirementSpecification): "NONE" | "SERVER" | "UNRESOLVED" {
+  const hasServerRequirements = brief.backendRequirements.length > 0 || brief.supabaseRequirements.length > 0;
+  const noServer = hasMarker(behaviorTextFromV1(brief), /(?:keine?|kein|no|without|ohne)\s+(?:\w+\s+){0,4}(?:api|backend|server(?:\s+action)?|datenbank|database)/i);
+  if (hasServerRequirements && noServer) throw new BriefV3MigrationAmbiguityError("forms.serverProcessingMode", "legacy server-processing requirements conflict");
+  return hasServerRequirements ? "SERVER" : noServer ? "NONE" : "UNRESOLVED";
+}
+
+function externalProviderModeFromV1(brief: RequirementSpecification): "NONE" | "UNRESOLVED" {
+  const noExternalProvider = hasMarker(behaviorTextFromV1(brief), /(?:keine?|kein|no|without|ohne)[^.!?]{0,48}(?:external services?|extern\w*\s+(?:dienste|services?)|third[- ]party|external provider|drittanbieter)/i);
+  return noExternalProvider ? "NONE" : "UNRESOLVED";
+}
+
+function privacyConsentModeFromV1(brief: RequirementSpecification): "REQUIRED" | "OPTIONAL" | "UNRESOLVED" {
+  const values = behaviorTextFromV1(brief);
+  const required = hasMarker(values, /(?:required|mandatory|verpflicht\w*|pflicht\w*)\s+(?:\w+\s+){0,4}(?:privacy|consent|datenschutz|einwilligung|checkbox)/i);
+  const optional = hasMarker(values, /(?:optional|freiwillig)\s+(?:\w+\s+){0,4}(?:privacy|consent|datenschutz|einwilligung|checkbox)/i);
+  if (required && optional) throw new BriefV3MigrationAmbiguityError("forms.privacyConsentMode", "legacy privacy consent requirements conflict");
+  return required ? "REQUIRED" : optional ? "OPTIONAL" : "UNRESOLVED";
+}
+
+function analyticsModeFromV1(brief: RequirementSpecification): "NONE" | "APPROVED_PROVIDER" | "OTHER" | "UNRESOLVED" {
+  const values = [...brief.features, ...brief.technicalConstraints, ...brief.explicitExclusions, ...brief.recommendations];
+  const prohibited = hasMarker(values, /(?:keine?|kein|no|without|ohne)[^.!?]{0,48}(?:analytics|tracking|telemetrie|analyse)/i);
+  const required = hasMarker(values, /(?:require|needed|erforderlich|einrichten|aktivieren|enable|add)[^.!?]{0,48}(?:analytics|tracking|telemetrie|analyse)/i);
+  if (prohibited && required) throw new BriefV3MigrationAmbiguityError("analytics", "legacy analytics requirements conflict");
+  return prohibited ? "NONE" : "UNRESOLVED";
+}
+
 function formFromV1(brief: RequirementSpecification): CanonicalBriefV3["decisions"]["form"] {
   const formPresent = brief.forms.length > 0;
   if (!formPresent) {
@@ -33,13 +113,15 @@ function formFromV1(brief: RequirementSpecification): CanonicalBriefV3["decision
   }
   const transmissionMode = brief.emailDecision === "needed" ? "EMAIL" : brief.emailDecision === "not-needed" ? "NONE" : "UNRESOLVED";
   const persistenceMode = brief.storageDecision === "needed" ? "DATABASE" : brief.storageDecision === "not-needed" ? "NONE" : "UNRESOLVED";
-  const serverProcessingMode = brief.backendRequirements.length || brief.supabaseRequirements.length ? "SERVER" : "UNRESOLVED";
+  const serverProcessingMode = serverProcessingModeFromV1(brief);
   if (brief.storageDecision === "not-needed" && brief.supabaseRequirements.length) throw new BriefV3MigrationAmbiguityError("storageDecision/supabaseRequirements", "storage is marked not-needed while legacy database requirements are present");
   return {
     ...unresolvedFormBehaviorState({
       transmissionMode,
       persistenceMode,
       serverProcessingMode,
+      externalProviderMode: externalProviderModeFromV1(brief),
+      privacyConsentMode: privacyConsentModeFromV1(brief),
     }),
   };
 }
@@ -68,9 +150,10 @@ function requirementsFromV1(brief: RequirementSpecification): CanonicalBriefV3["
   const result = fieldMap.flatMap(([field, identity, category]) => strings(brief, field).map((statement, index) => legacyRequirement(1, identity, index, statement, category)));
   const prohibited = (brief.prohibitedRequirements ?? []).map((entry, index) => legacyEntryRequirement(1, "prohibited", index, entry, "PROHIBITED"));
   const administration = legacyRequirement(1, "administration", 0, `administration: ${brief.administrationDecision}`, "ADMINISTRATION", ["legacy:v1:administration"]);
-  const legacyInstructions = (brief.briefRevisionInstructions ?? []).map((statement, index) => legacyRequirement(1, "revision-instruction", index, statement, "DEFERRED_INTEGRATION"));
-  const unsupportedAssumptions = brief.analysisMetadata?.unsupportedAssumptions.map((statement, index) => legacyRequirement(1, "unsupported-assumption", index, statement, "RECOMMENDATION")) ?? [];
-  return [...result, administration, ...prohibited, ...legacyInstructions, ...unsupportedAssumptions];
+  // Revision prompts and analysis assumptions are historical/diagnostic fields, not current
+  // effective requirements. They remain on the legacy document but must not enter V3 current
+  // state, where doing so would resurrect history and can violate V3 bounds.
+  return [...result, administration, ...prohibited];
 }
 
 function unresolvedFromV1(brief: RequirementSpecification): CanonicalBriefV3["unresolved"] {
@@ -127,7 +210,7 @@ export function migrateV1RecordToCanonicalBriefV3(brief: RequirementSpecificatio
       form: formFromV1(brief),
       database: { mode: databaseMode },
       auth: { mode: authMode },
-      analytics: { mode: "UNRESOLVED" },
+      analytics: { mode: analyticsModeFromV1(brief) },
       routePolicy: { mode: routePolicy },
     },
     assets: [],
@@ -136,17 +219,8 @@ export function migrateV1RecordToCanonicalBriefV3(brief: RequirementSpecificatio
       suppliedInformation: sourceBrand,
       suppliedLogoDescription: logoDescription,
     },
-    seo: {
-      primaryKeywords: [],
-      exactTitle: null,
-      exactMetaDescription: null,
-      locationTargeting: [],
-      pageMetadata: [],
-    },
-    legal: {
-      placeholderPolicy: "UNRESOLVED",
-      inventedFactsPolicy: "UNRESOLVED",
-    },
+    seo: seoFromV1(brief),
+    legal: legalFromV1(brief),
     localization: brief.localization,
     evidence: brief.evidence.map((item, index) => ({ ...item, sourceRefs: [legacySourceRef(1, "evidence", index, `${item.field}:${item.source}:${item.excerpt}`)] })),
     unresolved: unresolvedFromV1(brief),
