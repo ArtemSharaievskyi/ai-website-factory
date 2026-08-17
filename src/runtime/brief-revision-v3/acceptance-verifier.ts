@@ -1,4 +1,6 @@
 import type { BriefChangeSet } from "@/domain/requirements/v3/changeset";
+import { ProviderBriefChangeSetSchema } from "@/integrations/openai-v3/changeset";
+import { mapProviderBriefChangeSet } from "@/integrations/openai-v3/mapper";
 import { deriveBriefProvenance } from "@/domain/requirements/v3/history";
 import { reduceBriefChangeSet } from "@/domain/requirements/v3/reducer";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
@@ -35,7 +37,6 @@ export type AcceptanceExpectedState = {
   operationKey: string;
   initialBrief: CanonicalBriefV3;
   expectedBrief: CanonicalBriefV3;
-  expectedChangeSet: BriefChangeSet;
   expectedOperations: ReadonlyArray<{ operation: "SET" | "UPSERT" | "REMOVE"; targetId: string; valueDigest: string }>;
   expectedUnchangedTargets: readonly string[];
   expectedWorkflowTransition: string;
@@ -43,10 +44,23 @@ export type AcceptanceExpectedState = {
 
 function sortedDigest(value: unknown) { return digestCertificationObject(value); }
 
+function reconstructExpectedProvenance(observations: LiveAcceptanceObservations, initialBrief: CanonicalBriefV3) {
+  const rawProviderChangeSet = observations.provider.rawProviderChangeSet;
+  if (!rawProviderChangeSet) return { failure: "RAW_PROVIDER_EVIDENCE_MISSING" as const };
+  try {
+    const providerChangeSet = ProviderBriefChangeSetSchema.parse(rawProviderChangeSet);
+    const changeSet = mapProviderBriefChangeSet(providerChangeSet);
+    return { changeSet, reduction: reduceBriefChangeSet(initialBrief, changeSet) };
+  } catch {
+    return { failure: "RAW_PROVIDER_EVIDENCE_INVALID" as const };
+  }
+}
+
 function missingObservations(observations: LiveAcceptanceObservations) {
   const missing: string[] = [];
   if (!observations.windowId || !observations.runId || !observations.sourceFingerprint || observations.sourceManifest.length === 0) missing.push("SOURCE_OR_WINDOW_OBSERVATION_MISSING");
   if (observations.provider.requestCount === 0 || observations.provider.schema === null || observations.provider.operations.length === 0) missing.push("PROVIDER_OBSERVATION_MISSING");
+  if (!observations.provider.rawProviderChangeSet) missing.push("RAW_PROVIDER_EVIDENCE_MISSING");
   if (observations.transaction.outcome === "NOT_RUN" || !observations.transaction.attemptId || !observations.transaction.operationKey) missing.push("TRANSACTION_OBSERVATION_MISSING");
   if (observations.exactReplay.outcome === "NOT_RUN" || observations.reconstructionReplay.outcome === "NOT_RUN") missing.push("REPLAY_OBSERVATION_MISSING");
   if (observations.failureCode !== null) missing.push(`EXECUTOR_FAILURE:${observations.failureCode}`);
@@ -56,6 +70,9 @@ function missingObservations(observations: LiveAcceptanceObservations) {
 export async function verifyAcceptance(input: { observations: LiveAcceptanceObservations; expected: AcceptanceExpectedState; readers: AcceptanceAuthoritativeReaders }): Promise<VerifiedAcceptanceFacts> {
   const observations = input.observations;
   const expected = input.expected;
+  const provenanceReconstruction = reconstructExpectedProvenance(observations, expected.initialBrief);
+  const missingMandatoryObservations = missingObservations(observations);
+  if (provenanceReconstruction.failure && !missingMandatoryObservations.includes(provenanceReconstruction.failure)) missingMandatoryObservations.push(provenanceReconstruction.failure);
   const source = await (input.readers.source ?? (async () => ({ ...await computeCriticalSourceFingerprint(), sourceHead: "0000000000000000000000000000000000000000" })))();
   assertSourceManifestCanonical(source.manifest);
   assertCriticalSourceCoverage(source.manifest, source.closure);
@@ -83,16 +100,18 @@ export async function verifyAcceptance(input: { observations: LiveAcceptanceObse
   const semanticTargetDigests = Object.fromEntries(input.expected.expectedOperations.map((operation) => [operation.targetId, sortedDigest(readSemanticTarget(actualBrief, operation.targetId as SemanticTargetId))]));
   const expectedLocalityDigests = Object.fromEntries(expected.expectedUnchangedTargets.map((target) => [target, sortedDigest(readSemanticTarget(expected.initialBrief, target as SemanticTargetId))]));
   const localityDigests = Object.fromEntries(expected.expectedUnchangedTargets.map((target) => [target, sortedDigest(readSemanticTarget(actualBrief, target as SemanticTargetId))]));
-  const expectedReduction = reduceBriefChangeSet(expected.initialBrief, expected.expectedChangeSet);
-  const expectedCommittedBrief = expectedReduction.changed ? expectedReduction.after : expectedReduction.before;
+  const expectedReduction = provenanceReconstruction.reduction;
+  const expectedCommittedBrief = expectedReduction ? (expectedReduction.changed ? expectedReduction.after : expectedReduction.before) : expected.expectedBrief;
   const semanticValuesMatch = canonicalBriefChecksum(actualBrief) === canonicalBriefChecksum(expectedCommittedBrief) && canonicalBriefChecksum(expected.expectedBrief) === canonicalBriefChecksum(expectedCommittedBrief) && expected.expectedOperations.every((operation) => semanticTargetDigests[operation.targetId] === operation.valueDigest);
   const localityPreserved = expected.expectedUnchangedTargets.every((target) => localityDigests[target] === expectedLocalityDigests[target]);
-  const expectedHistory = deriveBriefProvenance(expectedReduction, committed.attempt.id);
+  const expectedHistory = expectedReduction ? deriveBriefProvenance(expectedReduction, committed.attempt.id) : undefined;
   const actualHistory = committed.historyRows.filter((row) => row.attemptId === committed.attempt.id);
   const actualEntries = actualHistory[0]?.entries ?? [];
-  const historySemantics = committed.historyRows.length === 1 && actualHistory.length === 1 && actualHistory[0]?.revisionReference === committed.attempt.id && actualHistory[0]?.previousCurrentChecksum === canonicalBriefChecksum(expectedReduction.before) && actualHistory[0]?.nextCurrentChecksum === canonicalBriefChecksum(expectedCommittedBrief);
-  const provenanceChecksumMatch = actualHistory[0]?.changeSetChecksum === expectedHistory.changeSetChecksum;
-  const historyEntriesMatch = sortedDigest(actualEntries) === sortedDigest(expectedHistory.entries);
+  const historySemantics = Boolean(expectedReduction && committed.historyRows.length === 1 && actualHistory.length === 1 && actualHistory[0]?.revisionReference === committed.attempt.id && actualHistory[0]?.previousCurrentChecksum === canonicalBriefChecksum(expectedReduction.before) && actualHistory[0]?.nextCurrentChecksum === canonicalBriefChecksum(expectedCommittedBrief));
+  const observedChangeSetChecksum = actualHistory[0]?.changeSetChecksum ?? null;
+  const expectedChangeSetChecksum = expectedHistory?.changeSetChecksum ?? null;
+  const provenanceChecksumMatch = expectedChangeSetChecksum !== null && observedChangeSetChecksum === expectedChangeSetChecksum;
+  const historyEntriesMatch = expectedHistory ? sortedDigest(actualEntries) === sortedDigest(expectedHistory.entries) : false;
   const noUnexpectedNoOpTargets = actualEntries.every((entry) => Boolean(entry && typeof entry === "object" && (entry as { outcome?: unknown }).outcome === "CHANGED"));
   const noDuplicateRevision = new Set(committed.historyRows.map((row) => row.attemptId)).size === committed.historyRows.length && actualHistory.length === 1;
   const transition = committed.events.find((event) => event.revisionAttemptId === committed.attempt.id);
@@ -108,7 +127,7 @@ export async function verifyAcceptance(input: { observations: LiveAcceptanceObse
   const remaining = Object.fromEntries(SYNTHETIC_CLEANUP_ARTIFACTS.map((artifact) => [artifact, cleanup.remainingByArtifact[artifact] ?? 1]));
   const bindingMatches = observations.windowId === expected.windowId && observations.runId === expected.runId && observations.syntheticProjectId === expected.projectId && observations.syntheticSlug === expected.syntheticSlug && observations.transaction.attemptId === committed.attempt.id && observations.transaction.operationKey === expected.operationKey;
   const committedResult = committed.attempt.committedResult && typeof committed.attempt.committedResult === "object" ? committed.attempt.committedResult as Record<string, unknown> : null;
-  const actualChanged = expectedReduction.changed;
+  const actualChanged = expectedReduction?.changed ?? false;
   const transactionObservationMatches = observations.transaction.outcome === "COMMITTED" && observations.transaction.changed === actualChanged && observations.transaction.resultChecksum === digestCertificationObject(canonicalBriefChecksum(actualBrief)) && observations.transaction.workflowState === committed.project.workflow_state && observations.transaction.projectionStatus === (typeof committedResult?.projectionStatus === "string" ? committedResult.projectionStatus : null);
   const replayStateUnchanged = committed.historyRows.length === 1 && workflowEvents.length <= 1 && actualHistory.length === 1 && committed.attempt.id === observations.transaction.attemptId;
   const verifiedSource = { head: source.sourceHead, fingerprint: source.fingerprint, manifest: source.manifest, staticReachableLegacyMutationPaths, manifestMatchesWindow: observations.sourceFingerprint === source.fingerprint, manifestMatchesObservation: sortedDigest(observations.sourceManifest) === sortedDigest(source.manifest), sourceHeadMatchesObservation: observations.sourceHead === source.sourceHead };
@@ -116,13 +135,13 @@ export async function verifyAcceptance(input: { observations: LiveAcceptanceObse
     schemaVersion: 1,
     source: { ...verifiedSource, manifest: [...verifiedSource.manifest] },
     committed: { projectId: expected.projectId, projectVersion: expected.projectVersion, attemptId: committed.attempt.id, attemptStatus: committed.attempt.status, transactionOutcome: committed.attempt.status === "COMMITTED" ? "COMMITTED" : "FAILED", changed: actualChanged, expectedBriefChecksum: canonicalBriefChecksum(expectedCommittedBrief), actualBriefChecksum: canonicalBriefChecksum(actualBrief), semanticTargetDigests, expectedTargetDigests, semanticValuesMatch, localityDigests, expectedLocalityDigests, localityPreserved, documentChecksum: committed.documentRow.checksum, documentReloadable: true, attemptBindingMatches: bindingMatches, resultChecksumMatches: observations.transaction.resultChecksum === digestCertificationObject(canonicalBriefChecksum(actualBrief)), transactionObservationMatches, providerObservationValid },
-    history: { count: actualHistory.length, effectiveEntryCount: actualEntries.length, expectedEffectiveEntryCount: expectedReduction.effectiveDelta.length, entriesDigest: sortedDigest(actualEntries), expectedEntriesDigest: sortedDigest(expectedHistory.entries), semanticEntriesMatch: historySemantics && historyEntriesMatch, provenanceChecksumMatch, noUnexpectedNoOpTargets, noDuplicateRevision },
+    history: { count: actualHistory.length, effectiveEntryCount: actualEntries.length, expectedEffectiveEntryCount: expectedReduction?.effectiveDelta.length ?? 0, entriesDigest: sortedDigest(actualEntries), expectedEntriesDigest: sortedDigest(expectedHistory?.entries ?? []), expectedChangeSetChecksum, observedChangeSetChecksum, semanticEntriesMatch: historySemantics && historyEntriesMatch, provenanceChecksumMatch, noUnexpectedNoOpTargets, noDuplicateRevision },
     workflow: { count: workflowEvents.length, transition: actualTransition, expectedTransition: expected.expectedWorkflowTransition, correspondsToCommit: workflowCorresponds },
     projection: { status: committed.projection?.status ?? "NONE", databaseDocumentChecksum: committed.documentRow.checksum, projectionDocumentChecksum, matchesDocumentAuthority: Boolean(projectionMatches), databaseRemainsCanonical },
     replay: { exactOutcome: observations.exactReplay.outcome, exactProviderCalls: observations.exactReplay.providerCalls, exactStateUnchanged: observations.exactReplay.stateUnchanged === true && replayStateUnchanged, reconstructionOutcome: observations.reconstructionReplay.outcome, reconstructionProviderCalls: observations.reconstructionReplay.providerCalls, reconstructionStateUnchanged: observations.reconstructionReplay.stateUnchanged === true && replayStateUnchanged },
     v2: { staticReachableLegacyMutationPaths, runtime: { providerMutationCalls: v2.providerMutationCalls, mergeCalls: v2.mergeCalls, revisionPersistenceCalls: v2.revisionPersistenceCalls, idempotencyMutationCalls: v2.idempotencyMutationCalls, loadedLegacyMutationModules: [...v2.loadedLegacyMutationModules] }, fallbackSeamCalls: observations.v2FallbackSeamCalls },
     cleanup: { expectedArtifacts: [...SYNTHETIC_CLEANUP_ARTIFACTS], independentSession: cleanup.independentSession, complete: cleanup.complete && Object.values(remaining).every((count) => count === 0), remainingByArtifact: remaining },
-    missingMandatoryObservations: missingObservations(observations),
+    missingMandatoryObservations,
     bindingMatches,
   } as unknown as VerifiedAcceptanceFacts);
 }
@@ -132,8 +151,8 @@ export function expectedBriefFromChangeSet(initialBrief: CanonicalBriefV3, chang
   return reduction.changed ? reduction.after : reduction.before;
 }
 
-export function createSyntheticExpectedLocalityTargets(changeSet: BriefChangeSet) {
-  const changed = new Set<string>(changeSet.changes.map((change) => change.target));
+export function createSyntheticExpectedLocalityTargets(changedTargets: readonly string[]) {
+  const changed = new Set<string>(changedTargets);
   return ["FORM_SERVER_PROCESSING_MODE", "DATABASE_MODE", "AUTH_MODE", "ANALYTICS_MODE", "ROUTE_POLICY", "SEO_META_DESCRIPTION", "BRAND_REFERENCE_STRATEGY", "IMAGE_SOURCE_STRATEGY"].filter((target) => !changed.has(target));
 }
 

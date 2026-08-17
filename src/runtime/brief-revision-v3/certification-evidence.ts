@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { ProviderBriefChangeSetSchema } from "@/integrations/openai-v3/changeset";
 import { assertSourceManifestCanonical, sourceFingerprintFromManifest, type SourceManifestEntry } from "./source-fingerprint";
 import type { V2TripwireSnapshot } from "./v2-tripwire";
 import type { BriefV3ProjectionPort } from "./ports";
@@ -12,7 +13,7 @@ const OperationSchema = z.enum(["SET", "UPSERT", "REMOVE"]);
 
 const OperationObservationSchema = z.object({ operation: OperationSchema, targetId: z.string().min(1).max(180), valueDigest: Sha256Schema }).strict();
 const SourceManifestSchema = z.array(z.object({ path: SafePathSchema, digest: Sha256Schema }).strict()).min(1);
-const ProviderObservationSchema = z.object({ schema: z.string().min(1).max(120).nullable(), model: z.string().min(1).max(160), requestCount: z.number().int().nonnegative(), retryCount: z.number().int().nonnegative(), correctionCount: z.number().int().nonnegative(), requestAttempted: z.boolean().nullable(), responseReceived: z.boolean().nullable(), outputComplete: z.boolean().nullable(), operations: z.array(OperationObservationSchema) }).strict();
+const ProviderObservationSchema = z.object({ schema: z.string().min(1).max(120).nullable(), model: z.string().min(1).max(160), requestCount: z.number().int().nonnegative(), retryCount: z.number().int().nonnegative(), correctionCount: z.number().int().nonnegative(), requestAttempted: z.boolean().nullable(), responseReceived: z.boolean().nullable(), outputComplete: z.boolean().nullable(), operations: z.array(OperationObservationSchema), rawProviderChangeSet: ProviderBriefChangeSetSchema.nullable().optional() }).strict();
 const TransactionObservationSchema = z.object({ outcome: z.enum(["NOT_RUN", "COMMITTED", "FAILED"]), operationKey: z.string().min(1).max(300).nullable(), attemptId: UuidSchema.nullable(), changed: z.boolean().nullable(), resultChecksum: Sha256Schema.nullable(), workflowState: z.string().min(1).max(100).nullable(), projectionStatus: z.string().min(1).max(80).nullable() }).strict();
 const ReplayObservationSchema = z.object({ outcome: z.enum(["NOT_RUN", "COMMITTED_REPLAY", "FAILED"]), providerCalls: z.number().int().nonnegative(), stateUnchanged: z.boolean().nullable() }).strict();
 const CleanupObservationSchema = z.object({ ownershipId: UuidSchema, cleanupAttempted: z.boolean(), independentSession: z.boolean(), remainingByArtifact: z.record(z.string().min(1).max(120), z.number().int().nonnegative()) }).strict();
@@ -57,11 +58,23 @@ export function stableCertificationSerialize(value: unknown) { return JSON.strin
 export function digestCertificationValue(value: string) { return createHash("sha256").update(value, "utf8").digest("hex"); }
 export function digestCertificationObject(value: unknown) { return digestCertificationValue(stableCertificationSerialize(value)); }
 
+export function serializeLiveAcceptanceObservations(observations: LiveAcceptanceObservations) {
+  return stableCertificationSerialize(LiveAcceptanceObservationsSchema.parse(observations));
+}
+
+export function deserializeLiveAcceptanceObservations(serialized: string): LiveAcceptanceObservations {
+  try {
+    return LiveAcceptanceObservationsSchema.parse(JSON.parse(serialized));
+  } catch {
+    throw new Error("CERTIFICATION_PROVIDER_EVIDENCE_INVALID");
+  }
+}
+
 export const BRIEF_V3_LIVE_EXPECTED_OPERATION_OBSERVATIONS = Object.freeze(expectedOperationValues.map(({ operation, targetId, value }) => ({ operation, targetId, valueDigest: digestCertificationObject(value) })));
 
 const VerifiedSourceSchema = z.object({ head: GitHeadSchema, fingerprint: Sha256Schema, manifest: SourceManifestSchema, staticReachableLegacyMutationPaths: z.array(SafePathSchema), manifestMatchesWindow: z.boolean(), manifestMatchesObservation: z.boolean(), sourceHeadMatchesObservation: z.boolean() }).strict();
 const VerifiedCommittedSchema = z.object({ projectId: UuidSchema, projectVersion: z.number().int().positive(), attemptId: UuidSchema, attemptStatus: z.string().min(1).max(80), transactionOutcome: z.enum(["COMMITTED", "FAILED", "NOT_RUN"]), changed: z.boolean(), expectedBriefChecksum: Sha256Schema, actualBriefChecksum: Sha256Schema, semanticTargetDigests: z.record(z.string(), Sha256Schema), expectedTargetDigests: z.record(z.string(), Sha256Schema), semanticValuesMatch: z.boolean(), localityDigests: z.record(z.string(), Sha256Schema), expectedLocalityDigests: z.record(z.string(), Sha256Schema), localityPreserved: z.boolean(), documentChecksum: Sha256Schema, documentReloadable: z.boolean(), attemptBindingMatches: z.boolean(), resultChecksumMatches: z.boolean(), transactionObservationMatches: z.boolean(), providerObservationValid: z.boolean() }).strict();
-const VerifiedHistorySchema = z.object({ count: z.number().int().nonnegative(), effectiveEntryCount: z.number().int().nonnegative(), expectedEffectiveEntryCount: z.number().int().nonnegative(), entriesDigest: Sha256Schema, expectedEntriesDigest: Sha256Schema, semanticEntriesMatch: z.boolean(), provenanceChecksumMatch: z.boolean(), noUnexpectedNoOpTargets: z.boolean(), noDuplicateRevision: z.boolean() }).strict();
+const VerifiedHistorySchema = z.object({ count: z.number().int().nonnegative(), effectiveEntryCount: z.number().int().nonnegative(), expectedEffectiveEntryCount: z.number().int().nonnegative(), entriesDigest: Sha256Schema, expectedEntriesDigest: Sha256Schema, expectedChangeSetChecksum: Sha256Schema.nullable().optional(), observedChangeSetChecksum: Sha256Schema.nullable().optional(), semanticEntriesMatch: z.boolean(), provenanceChecksumMatch: z.boolean(), noUnexpectedNoOpTargets: z.boolean(), noDuplicateRevision: z.boolean() }).strict();
 const VerifiedWorkflowSchema = z.object({ count: z.number().int().nonnegative(), transition: z.string().min(1).max(160).nullable(), expectedTransition: z.string().min(1).max(160), correspondsToCommit: z.boolean() }).strict();
 const VerifiedProjectionSchema = z.object({ status: z.string().min(1).max(80), databaseDocumentChecksum: Sha256Schema, projectionDocumentChecksum: Sha256Schema.nullable(), matchesDocumentAuthority: z.boolean(), databaseRemainsCanonical: z.boolean() }).strict();
 const VerifiedReplaySchema = z.object({ exactOutcome: z.string().min(1).max(80), exactProviderCalls: z.number().int().nonnegative(), exactStateUnchanged: z.boolean(), reconstructionOutcome: z.string().min(1).max(80), reconstructionProviderCalls: z.number().int().nonnegative(), reconstructionStateUnchanged: z.boolean() }).strict();

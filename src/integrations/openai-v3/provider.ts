@@ -4,12 +4,13 @@ import type { BriefChangeSet } from "@/domain/requirements/v3/changeset";
 import type { ProviderDiagnostic, ProviderUsage } from "../openai/usage";
 import { OpenAiStructuredClient } from "../openai/client";
 import { mapProviderBriefChangeSet } from "./mapper";
-import { ProviderBriefChangeSetSchema } from "./changeset";
+import { ProviderBriefChangeSetSchema, type ProviderBriefChangeSet } from "./changeset";
 import { buildBriefV3RevisionPrompt, BRIEF_V3_PROVIDER_PROMPT_VERSION, BRIEF_V3_PROVIDER_SCHEMA_NAME, type BriefV3RevisionProviderInput } from "./prompt";
 
 export type { BriefV3RevisionProviderInput } from "./prompt";
 
 export type BriefV3ProviderEvidence = {
+  providerChangeSet: ProviderBriefChangeSet;
   changeSet: BriefChangeSet;
   requestId: string;
   usage: ProviderUsage;
@@ -29,7 +30,8 @@ export class OpenAiBriefV3RevisionProvider {
 
   async proposeChangesWithEvidence(input: BriefV3RevisionProviderInput): Promise<BriefV3ProviderEvidence> {
     const result = await this.requestTransport(input);
-    return { changeSet: mapProviderBriefChangeSet(result.value), requestId: result.requestId, usage: result.usage, ...(result.diagnostic ? { diagnostic: result.diagnostic } : {}) };
+    const providerChangeSet = ProviderBriefChangeSetSchema.parse(result.value);
+    return { providerChangeSet, changeSet: mapProviderBriefChangeSet(providerChangeSet), requestId: result.requestId, usage: result.usage, ...(result.diagnostic ? { diagnostic: result.diagnostic } : {}) };
   }
 
   private async requestTransport(input: BriefV3RevisionProviderInput) {
