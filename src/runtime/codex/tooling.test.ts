@@ -86,6 +86,9 @@ describe("Codex Level 2 repository guards", () => {
     const baselineFailure = makeFailure(fingerprintFailure("provider-contracts", "planning-package", "HOST_OWNED_PROVIDER_FIELDS"));
     expect(classifyBaselineFailures([baselineFailure], [baselineFailure], ["docs/task.md"]).baselineFailures[0]?.reason).toBe("BASELINE_FAILURE");
     expect(classifyBaselineFailures([baselineFailure], [baselineFailure], ["src/integrations/openai/adapters.ts"]).blocking[0]?.reason).toBe("TOUCHED_BASELINE_FAILURE");
+    const focusedFailure = { ...baselineFailure, affectedPathPrefixes: ["src/integrations/openai/adapters.ts"] };
+    expect(classifyBaselineFailures([focusedFailure], [focusedFailure], ["src/integrations/openai/client.ts"]).baselineFailures[0]?.reason).toBe("BASELINE_FAILURE");
+    expect(classifyBaselineFailures([focusedFailure], [focusedFailure], ["src/integrations/openai/adapters.ts"]).blocking[0]?.reason).toBe("TOUCHED_BASELINE_FAILURE");
     expect(classifyBaselineFailures([], [baselineFailure], ["docs/task.md"]).blocking[0]?.reason).toBe("NEW_FAILURE");
     const changed = makeFailure(fingerprintFailure("provider-contracts", "planning-package", "REQUEST_SCHEMA_CONSTRUCTION_FAILED"));
     expect(classifyBaselineFailures([baselineFailure], [changed], ["docs/task.md"]).blocking[0]?.reason).toBe("CHANGED_FINGERPRINT");

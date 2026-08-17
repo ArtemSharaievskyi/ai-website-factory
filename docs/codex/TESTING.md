@@ -83,9 +83,14 @@ mutate real customer data to make a documentation check pass.
   not rewrite production code.
 - Architecture and provider guard failures are fingerprinted at codex:start.
   codex:verify blocks new failures, changed fingerprints, resolved baseline
-  failures that return, and any task touching a baseline failure trigger path.
-  An exact unchanged failure outside its trigger paths is reported as
+  failures that return, and any task touching a baseline failure activation path.
+  An exact unchanged failure outside its activation paths is reported as
   BASELINE_FAILURE and is non-blocking. Config cannot declare a known failure.
+  Provider-contract metadata may use narrower `affectedPathPrefixes` for the
+  blocking decision while retaining broad `triggerPathPrefixes` to select the
+  executable guard. This keeps an unchanged contract failure visible without
+  blocking on an unrelated shared-client or diagnostics edit; changes to the
+  owning contract paths remain blocking.
 - Run npm run codex:review-context for a bounded independent-review handoff.
   It is structural context only; the reviewer remains read-only.
 

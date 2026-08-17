@@ -17,7 +17,7 @@ import { loadProviderContractRegistry, type ProviderContractMetadata } from "./c
 
 type ProviderSchema = unknown;
 type Builder = () => unknown;
-export type ProviderContractFailure = { guardId: "provider-contracts"; key: string; id: string; schemaName: string; code: string; fingerprint: string; triggerPathPrefixes: string[] };
+export type ProviderContractFailure = { guardId: "provider-contracts"; key: string; id: string; schemaName: string; code: string; fingerprint: string; triggerPathPrefixes: string[]; affectedPathPrefixes?: string[] };
 export type ProviderContractResult = { id: string; schemaName: string; passed: boolean; code: string };
 export type ProviderContractGuardResult = { passed: boolean; results: ProviderContractResult[]; failures: ProviderContractFailure[]; knownProductDefects: string[] };
 
@@ -114,6 +114,7 @@ export async function runProviderContractGuard(options: { emit?: boolean } = {})
       code: result.code,
       fingerprint: fingerprintFailure("provider-contracts", result.id, result.code, result.schemaName),
       triggerPathPrefixes,
+      ...(metadata?.affectedPathPrefixes?.length ? { affectedPathPrefixes: metadata.affectedPathPrefixes } : {}),
     };
   });
   const knownProductDefects = failures.filter((failure) => failure.id === "brief-revision").map((failure) => failure.id);

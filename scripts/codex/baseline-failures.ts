@@ -6,6 +6,7 @@ export type GuardFailure = {
   fingerprint: string;
   code: string;
   triggerPathPrefixes: string[];
+  affectedPathPrefixes?: string[];
 };
 
 export type ClassifiedFailure = GuardFailure & {
@@ -48,7 +49,8 @@ export function classifyBaselineFailures(baseline: readonly GuardFailure[], curr
       blocking.push({ ...failure, reason: "CHANGED_FINGERPRINT" });
       continue;
     }
-    if (failure.triggerPathPrefixes.some((prefix) => changedFiles.some((file) => matchesPath(file, prefix)))) {
+    const activationPaths = failure.affectedPathPrefixes?.length ? failure.affectedPathPrefixes : failure.triggerPathPrefixes;
+    if (activationPaths.some((prefix) => changedFiles.some((file) => matchesPath(file, prefix)))) {
       blocking.push({ ...failure, reason: "TOUCHED_BASELINE_FAILURE" });
       continue;
     }

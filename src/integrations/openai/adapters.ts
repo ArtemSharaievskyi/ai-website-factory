@@ -113,6 +113,22 @@ export const OrchestrationPlanSchema = z
 const checksumText = (value: string) =>
   createHash("sha256").update(value, "utf8").digest("hex");
 const dropNullFields = (value: Record<string, unknown>) => Object.fromEntries(Object.entries(value).filter(([, nested]) => nested !== null));
+const withoutProjectIdentity = <T extends Record<string, z.ZodTypeAny>>(shape: T) => {
+  const result = { ...shape };
+  delete result.projectId;
+  delete result.projectVersion;
+  return result;
+};
+function bindProjectIdentity<T>(value: T, host: { projectId: string; projectVersion: number }): T {
+  if (Array.isArray(value)) return value.map((item) => bindProjectIdentity(item, host)) as T;
+  if (!value || typeof value !== "object") return value;
+  const result = Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, bindProjectIdentity(item, host)]));
+  if (typeof result.documentType === "string") {
+    result.projectId = host.projectId;
+    result.projectVersion = host.projectVersion;
+  }
+  return result as T;
+}
 const normalizeAstTransportOperation = (operation: Record<string, unknown>) => {
   const { artifactId, expectedTarget, selector, payload, ...rest } = operation;
   return { ...rest, ...(artifactId === null ? {} : { artifactId }), ...(expectedTarget === null ? {} : { expectedTarget: dropNullFields(expectedTarget as Record<string, unknown>) }), selector: dropNullFields(selector as Record<string, unknown>), payload: dropNullFields(payload as Record<string, unknown>) };
@@ -152,8 +168,6 @@ const AstPatchStructuredBaseSchema = z.object({
   expectedResultChecksum: z.string().regex(/^[a-f0-9]{64}$/),
   encoding: z.literal("utf-8"),
   taskId: z.string().uuid(),
-  projectId: z.string().uuid(),
-  projectVersion: z.number().int().positive(),
   taskContractId: z.string().uuid(),
   taskContractChecksum: z.string().regex(/^[a-f0-9]{64}$/),
   taskGraphChecksum: z.string().regex(/^[a-f0-9]{64}$/),
@@ -199,8 +213,6 @@ const Phase7CStructuredBindingSchema = z.object({
 export const ImplementationChangeProposalStructuredOutputSchema = z
   .object({
     proposalId: z.string().uuid(),
-    projectId: z.string().uuid(),
-    projectVersion: z.number().int().positive(),
     taskId: z.string().uuid(),
     taskAttempt: z.number().int().nonnegative(),
     summary: z.string().min(1).max(1000),
@@ -335,7 +347,7 @@ const StrictDesignProviderSchema = z
     outputTokens: z.number().int().nonnegative(),
   })
   .strict();
-const { professionalCapability: _professionalCapability, ...DesignDirectionSetTransportShape } = DesignDirectionSetSchema.shape;
+const { professionalCapability: _professionalCapability, ...DesignDirectionSetTransportShape } = withoutProjectIdentity(DesignDirectionSetSchema.shape);
 void _professionalCapability;
 export const DesignDirectionStructuredOutputSchema = z
   .object({
@@ -523,7 +535,7 @@ const StrictFlowSchema = z
   .strict();
 const StrictArchitectureSchema = z
   .object({
-    ...TechnicalArchitectureSchema.shape,
+    ...withoutProjectIdentity(TechnicalArchitectureSchema.shape),
     backendPriority: z
       .array(z.enum(["server-actions", "route-handlers", "supabase-services"]))
       .min(3),
@@ -553,7 +565,7 @@ const StrictPlanningAcceptanceSchema = z
   .strict();
 const StrictAssetManifestSchema = z
   .object({
-    ...AssetManifestSchema.shape,
+    ...withoutProjectIdentity(AssetManifestSchema.shape),
     entries: z.array(
       z
         .object({
@@ -569,53 +581,78 @@ const StrictFormSchema = FormSchema.extend({
 });
 const StrictFormPlanSchema = z
   .object({
-    ...FormPlanSchema.shape,
+    ...withoutProjectIdentity(FormPlanSchema.shape),
     forms: z.array(StrictFormSchema),
     traceability: z.array(StrictTraceabilitySchema),
   })
   .strict();
 export const PlanningPackageStructuredOutputSchema =
-  PlanningPackageSchema.extend({
+  PlanningPackageSchema.omit({ projectId: true, projectVersion: true }).extend({
     databaseRecommendation: z.object({ recommendation: z.enum(["REQUIRED", "NOT_REQUIRED", "UNCERTAIN"]), rationale: z.string().min(1), requirementReferences: z.array(z.string().min(1)).min(1), userDecisionRequired: z.literal(true), selectedMode: z.enum(["NONE", "SUPABASE_NEW", "SUPABASE_EXISTING"]).nullable() }).strict().nullable(),
-    productScope: PlanningPackageSchema.shape.productScope.extend({
-      traceability: z.array(StrictTraceabilitySchema),
-    }),
-    sitemap: SitemapPlanSchema.extend({
-      routes: z.array(StrictRouteSchema),
-      traceability: z.array(StrictTraceabilitySchema),
-    }),
-    navigation: PlanningPackageSchema.shape.navigation.extend({
-      traceability: z.array(StrictTraceabilitySchema),
-    }),
-    pages: PlanningPackageSchema.shape.pages.extend({
-      traceability: z.array(StrictTraceabilitySchema),
-    }),
-    userFlows: UserFlowPlanSchema.extend({
-      flows: z.array(StrictFlowSchema),
-      traceability: z.array(StrictTraceabilitySchema),
-    }),
-    forms: StrictFormPlanSchema,
-    dataModel: PlanningPackageSchema.shape.dataModel.extend({
-      traceability: z.array(StrictTraceabilitySchema),
-    }),
-    authentication: PlanningPackageSchema.shape.authentication.extend({
-      traceability: z.array(StrictTraceabilitySchema),
-    }),
-    supabase: PlanningPackageSchema.shape.supabase.extend({
-      traceability: z.array(StrictTraceabilitySchema),
-    }),
-    email: PlanningPackageSchema.shape.email.extend({
-      traceability: z.array(StrictTraceabilitySchema),
-    }),
-    storage: z.object({
-      ...StoragePlanSchema.shape,
+    productScope: z.object({
+      ...withoutProjectIdentity(PlanningPackageSchema.shape.productScope.shape),
       traceability: z.array(StrictTraceabilitySchema),
     }).strict(),
-    administration: PlanningPackageSchema.shape.administration.extend({
+    sitemap: z.object({
+      ...withoutProjectIdentity(SitemapPlanSchema.shape),
+      routes: z.array(StrictRouteSchema),
       traceability: z.array(StrictTraceabilitySchema),
-    }),
+    }).strict(),
+    navigation: z.object({
+      ...withoutProjectIdentity(PlanningPackageSchema.shape.navigation.shape),
+      traceability: z.array(StrictTraceabilitySchema),
+    }).strict(),
+    pages: z.object({
+      ...withoutProjectIdentity(PlanningPackageSchema.shape.pages.shape),
+      traceability: z.array(StrictTraceabilitySchema),
+    }).strict(),
+    userFlows: z.object({
+      ...withoutProjectIdentity(UserFlowPlanSchema.shape),
+      flows: z.array(StrictFlowSchema),
+      traceability: z.array(StrictTraceabilitySchema),
+    }).strict(),
+    forms: StrictFormPlanSchema,
+    dataModel: z.object({
+      ...withoutProjectIdentity(PlanningPackageSchema.shape.dataModel.shape),
+      traceability: z.array(StrictTraceabilitySchema),
+    }).strict(),
+    authentication: z.object({
+      ...withoutProjectIdentity(PlanningPackageSchema.shape.authentication.shape),
+      traceability: z.array(StrictTraceabilitySchema),
+    }).strict(),
+    supabase: z.object({
+      ...withoutProjectIdentity(PlanningPackageSchema.shape.supabase.shape),
+      traceability: z.array(StrictTraceabilitySchema),
+    }).strict(),
+    email: z.object({
+      ...withoutProjectIdentity(PlanningPackageSchema.shape.email.shape),
+      traceability: z.array(StrictTraceabilitySchema),
+    }).strict(),
+    storage: z.object({
+      ...withoutProjectIdentity(StoragePlanSchema.shape),
+      traceability: z.array(StrictTraceabilitySchema),
+    }).strict(),
+    administration: z.object({
+      ...withoutProjectIdentity(PlanningPackageSchema.shape.administration.shape),
+      traceability: z.array(StrictTraceabilitySchema),
+    }).strict(),
+    content: z.object({
+      ...withoutProjectIdentity(PlanningPackageSchema.shape.content.shape),
+    }).strict(),
     assets: StrictAssetManifestSchema,
     architecture: StrictArchitectureSchema,
+    environment: z.object({
+      ...withoutProjectIdentity(PlanningPackageSchema.shape.environment.shape),
+    }).strict(),
+    dependencies: z.object({
+      ...withoutProjectIdentity(PlanningPackageSchema.shape.dependencies.shape),
+    }).strict(),
+    testStrategy: z.object({
+      ...withoutProjectIdentity(PlanningPackageSchema.shape.testStrategy.shape),
+    }).strict(),
+    security: z.object({
+      ...withoutProjectIdentity(PlanningPackageSchema.shape.security.shape),
+    }).strict(),
     traceability: z.array(StrictTraceabilitySchema),
     acceptance: StrictPlanningAcceptanceSchema,
   });
@@ -630,7 +667,7 @@ export const isPlaceholderImageApprovalBlocker = (text: string) =>
   );
 function normalizePlanningPackage(
   value: z.infer<typeof PlanningPackageStructuredOutputSchema>,
-  approvedBriefChecksum: string,
+  host: { projectId: string; projectVersion: number; approvedBriefChecksum: string },
   approvedBrief?: { imageSourceDecision?: string },
 ): PlanningPackage {
   const routeIdsByPath = new Map(
@@ -643,7 +680,7 @@ function normalizePlanningPackage(
   );
   const normalizeRouteReferences = (references: string[]) =>
     references.map((reference) => routeIdsByPath.get(reference) ?? reference);
-  const normalized = {
+  const normalized = bindProjectIdentity({
     ...value,
     ...(value.databaseRecommendation === null ? { databaseRecommendation: undefined } : {}),
     blockers: value.blockers.filter(
@@ -762,7 +799,7 @@ function normalizePlanningPackage(
     traceability: value.traceability.map((entry) =>
       omitNull(entry, ["unresolvedDependency"]),
     ),
-  };
+  }, host) as unknown as z.infer<typeof PlanningPackageSchema>;
   (normalized as unknown as { blockers: string[] }).blockers =
     value.blockers.filter(
       (blocker) =>
@@ -821,7 +858,7 @@ function normalizePlanningPackage(
   delete (normalized as unknown as { supersededAt?: unknown }).supersededAt;
   (
     normalized as unknown as { approvedBriefChecksum: string }
-  ).approvedBriefChecksum = approvedBriefChecksum;
+  ).approvedBriefChecksum = host.approvedBriefChecksum;
   (
     normalized as unknown as {
       architecture: {
@@ -884,8 +921,9 @@ const DESIGN_OPTIONAL_KEYS = [
 ];
 function normalizeDesignDirectionSet(
   value: z.infer<typeof DesignDirectionStructuredOutputSchema>,
+  host: { projectId: string; projectVersion: number },
 ): DesignDirectionSet {
-  const normalized = {
+  const normalized = bindProjectIdentity({
     ...value,
     directions: value.directions.map((direction) =>
       omitNull(direction, DESIGN_OPTIONAL_KEYS),
@@ -905,7 +943,7 @@ function normalizeDesignDirectionSet(
     ...(value.supersededAt === null
       ? {}
       : { supersededAt: value.supersededAt }),
-  };
+  }, host) as DesignDirectionSet;
   delete (normalized as unknown as { approvedBriefChecksum?: unknown })
     .approvedBriefChecksum;
   delete (normalized as unknown as { acceptedPlanningChecksum?: unknown })
@@ -1053,7 +1091,7 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
     });
     return normalizePlanningPackage(
       result.value,
-      input.approvedBriefChecksum,
+      { projectId: input.projectId, projectVersion: input.projectVersion, approvedBriefChecksum: input.approvedBriefChecksum },
       input.approvedBrief,
     );
   }
@@ -1083,7 +1121,7 @@ export class OpenAiDesignProvider implements DesignDirectionProvider {
       schemaName: "design-direction-set",
       idempotencyKey: `${input.idempotencyKey}:${skillContextIdentity}`,
     });
-    return normalizeDesignDirectionSet(result.value);
+    return normalizeDesignDirectionSet(result.value, { projectId: input.projectId, projectVersion: input.projectVersion });
   }
 }
 export class OpenAiImplementationProvider implements ImplementationProvider {
@@ -1143,7 +1181,7 @@ export class OpenAiImplementationProvider implements ImplementationProvider {
     const normalized = {
       ...result.value,
       operations: result.value.operations.map((operation) => {
-        if (operation.type === "ast-patch") return normalizeAstTransportOperation(operation as unknown as Record<string, unknown>);
+        if (operation.type === "ast-patch") return { ...normalizeAstTransportOperation(operation as unknown as Record<string, unknown>), projectId: context.task.projectId, projectVersion: context.task.projectVersion };
         const { expectedPriorChecksum, ...rest } = operation;
         const expectedResultChecksum = rest.type === "create-file" || rest.type === "replace-file" ? checksumText(rest.content) : rest.expectedResultChecksum;
         return { ...rest, expectedResultChecksum, ...(expectedPriorChecksum === null ? {} : { expectedPriorChecksum }) };
@@ -1158,6 +1196,8 @@ export class OpenAiImplementationProvider implements ImplementationProvider {
           ? {}
           : { outputTokens: result.value.providerMetadata.outputTokens }),
       },
+      projectId: context.task.projectId,
+      projectVersion: context.task.projectVersion,
     };
     return ImplementationChangeProposalSchema.parse(normalized);
   }

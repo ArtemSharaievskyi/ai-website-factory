@@ -14,6 +14,17 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 
 const config = { apiKey: "test", model: "test-model", modelLabel: "GPT-5.6 Luna", maxRetries: 1, maxConcurrentRequests: 1 };
 const schema = z.object({ ok: z.boolean(), summary: z.string() }).strict();
+const hostOwnedPaths = (value: unknown, path = "root"): string[] => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  const node = value as { properties?: Record<string, unknown>; items?: unknown; anyOf?: unknown[]; oneOf?: unknown[] };
+  const paths = Object.entries(node.properties ?? []).flatMap(([name, child]) => [
+    ...(new Set(["projectId", "projectVersion", "briefChecksum", "approval", "approvedAt", "approvedBy", "currentness", "history", "trace"]).has(name) ? [path + "." + name] : []),
+    ...hostOwnedPaths(child, path + "." + name),
+  ]);
+  if (node.items) paths.push(...hostOwnedPaths(node.items, path + "[]"));
+  for (const child of [...(node.anyOf ?? []), ...(node.oneOf ?? [])]) paths.push(...hostOwnedPaths(child, path + ".variant"));
+  return paths;
+};
 const request = { role: "test", promptVersion: "test.v1", system: "policy", user: "{}", schemaName: "test-output", schema, idempotencyKey: "same" };
 const validExecutor = async <T>() => ({ value: { ok: true, summary: "bounded" } as T, requestId: "req_test" });
 
@@ -85,11 +96,21 @@ describe("production AI provider boundary", () => {
   });
   it("uses a strict Implementation transport schema and normalizes nullable optional fields", async () => {
     expect(() => zodResponseFormat(ImplementationChangeProposalStructuredOutputSchema, "implementation-change-proposal")).not.toThrow();
-    const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: { proposalId: "11111111-1111-4111-8111-111111111111", projectId: "22222222-2222-4222-8222-222222222222", projectVersion: 1, taskId: "33333333-3333-4333-8333-333333333333", taskAttempt: 1, summary: "proposal", operations: [{ type: "create-file", relativePath: "src/app/page.tsx", expectedPriorChecksum: null, expectedResultChecksum: "a".repeat(64), encoding: "utf-8", reason: "approved", requirementReferences: ["requirement"], planningReferences: ["planning"], selectedDesignReferences: [], content: "export default function Page() {}" }], expectedChangedFiles: ["src/app/page.tsx"], expectedCreatedFiles: ["src/app/page.tsx"], expectedDeletedFiles: [], validationPlan: ["build"], requirementReferences: ["requirement"], planningReferences: ["planning"], selectedDesignReferences: [], providerMetadata: { provider: "openai", inputTokens: null, outputTokens: null }, generatedAt: "2026-08-07T00:00:00.000Z" } as T, requestId: "req_implementation" }) });
-    const result = await new OpenAiImplementationProvider(client).proposeTaskChanges({ task: { id: "33333333-3333-4333-8333-333333333333" }, contextChecksum: "b".repeat(64) } as never);
+    const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: { proposalId: "11111111-1111-4111-8111-111111111111", taskId: "33333333-3333-4333-8333-333333333333", taskAttempt: 1, summary: "proposal", operations: [{ type: "create-file", relativePath: "src/app/page.tsx", expectedPriorChecksum: null, expectedResultChecksum: "a".repeat(64), encoding: "utf-8", reason: "approved", requirementReferences: ["requirement"], planningReferences: ["planning"], selectedDesignReferences: [], content: "export default function Page() {}" }], expectedChangedFiles: ["src/app/page.tsx"], expectedCreatedFiles: ["src/app/page.tsx"], expectedDeletedFiles: [], validationPlan: ["build"], requirementReferences: ["requirement"], planningReferences: ["planning"], selectedDesignReferences: [], providerMetadata: { provider: "openai", inputTokens: null, outputTokens: null }, generatedAt: "2026-08-07T00:00:00.000Z" } as T, requestId: "req_implementation" }) });
+    const result = await new OpenAiImplementationProvider(client).proposeTaskChanges({ task: { id: "33333333-3333-4333-8333-333333333333", projectId: "22222222-2222-4222-8222-222222222222", projectVersion: 7 }, contextChecksum: "b".repeat(64) } as never);
+    expect(result.projectId).toBe("22222222-2222-4222-8222-222222222222");
+    expect(result.projectVersion).toBe(7);
     expect(result.operations[0]).not.toHaveProperty("expectedPriorChecksum");
     expect(result.operations[0]?.expectedResultChecksum).toBe(createHash("sha256").update("export default function Page() {}", "utf8").digest("hex"));
     expect(result.providerMetadata).toEqual({ provider: "openai" });
+  });
+  it("keeps host identity out of every registered Planner, Design, and Implementation response DTO", () => {
+    const contracts = [
+      [PlanningPackageStructuredOutputSchema, "planning-package"],
+      [DesignDirectionStructuredOutputSchema, "design-direction-set"],
+      [ImplementationChangeProposalStructuredOutputSchema, "implementation-change-proposal"],
+    ] as const;
+    for (const [contract, name] of contracts) expect(hostOwnedPaths((zodResponseFormat(contract, name) as { json_schema: { schema: unknown } }).json_schema.schema)).toEqual([]);
   });
   it("puts selected approved procedural guidance in the actual Lead provider request", async () => {
     let sent: { system: string; user: string; idempotencyKey?: string } | undefined;

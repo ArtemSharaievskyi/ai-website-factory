@@ -27,7 +27,7 @@ export type CheckMapRule = {
 export type CheckMapConfig = { version: 1; defaultCheckIds: ControlledCheckId[]; rules: CheckMapRule[] };
 export type RegressionRule = { id: RegressionId; pathPrefixes: string[]; checkIds: ControlledCheckId[]; executable: boolean };
 export type RegressionConfig = { version: 1; regressions: RegressionRule[] };
-export type ProviderContractMetadata = { id: string; schemaName: string; productionReference: string; triggerPathPrefixes: string[] };
+export type ProviderContractMetadata = { id: string; schemaName: string; productionReference: string; triggerPathPrefixes: string[]; affectedPathPrefixes?: string[] };
 export type ProviderContractConfig = { version: 1; contracts: ProviderContractMetadata[] };
 
 const object = (value: unknown, code: string): Record<string, unknown> => {
@@ -77,7 +77,7 @@ export function parseProviderContractRegistry(value: unknown): ProviderContractC
   const contracts = root.contracts.map((item) => {
     const contract = object(item, "CODEX_PROVIDER_REGISTRY_ENTRY_INVALID");
     if ([contract.id, contract.schemaName, contract.productionReference].some((field) => typeof field !== "string" || !field.trim())) throw new Error("CODEX_PROVIDER_REGISTRY_METADATA_INVALID");
-    return { id: contract.id as string, schemaName: contract.schemaName as string, productionReference: contract.productionReference as string, triggerPathPrefixes: prefixList(contract.triggerPathPrefixes, "CODEX_PROVIDER_REGISTRY_PREFIXES_INVALID") };
+    return { id: contract.id as string, schemaName: contract.schemaName as string, productionReference: contract.productionReference as string, triggerPathPrefixes: prefixList(contract.triggerPathPrefixes, "CODEX_PROVIDER_REGISTRY_PREFIXES_INVALID"), ...(contract.affectedPathPrefixes === undefined ? {} : { affectedPathPrefixes: prefixList(contract.affectedPathPrefixes, "CODEX_PROVIDER_REGISTRY_AFFECTED_PREFIXES_INVALID") }) };
   });
   return { version: 1, contracts };
 }
