@@ -13,6 +13,7 @@ import { BriefRevisionAttemptRepository } from "@/persistence/database/repositor
 import { mapDocumentToRow, mapRowToDocument } from "@/persistence/database/mapping";
 import { PersistenceError } from "@/persistence/database/errors";
 import type { BriefRevisionAttemptRow, BriefRevisionAtomicCommitInput, BriefRevisionFaultInjector, BriefRevisionProjectionRow, PersistenceDatabase, ProjectRow, ProjectVersionRow } from "@/persistence/database/types";
+import { ProviderFailureDiagnosticSchema, type ProviderFailureDiagnostic } from "@/domain/shared/provider-failure";
 import { newWorkflowEvent } from "@/persistence/database/workflow-events";
 import { BriefV3ProviderError } from "@/integrations/openai-v3/errors";
 import type { CanonicalBriefV3 } from "@/domain/requirements/v3/schema";
@@ -32,6 +33,11 @@ function classifyProviderFailure(error: unknown): BriefV3TransactionErrorCode {
   if (error instanceof BriefV3ProviderError) return "PROVIDER_INVALID_OUTPUT";
   const code = typeof error === "object" && error && "code" in error && typeof error.code === "string" ? error.code : "";
   return code === "AI_OUTPUT_REFUSED" || code === "AI_REQUEST_REFUSED" ? "PROVIDER_REFUSED" : "PROVIDER_FAILED";
+}
+function providerFailureDiagnostic(error: unknown): ProviderFailureDiagnostic | undefined {
+  if (!error || typeof error !== "object" || !("failureDiagnostic" in error)) return undefined;
+  const parsed = ProviderFailureDiagnosticSchema.safeParse((error as { failureDiagnostic?: unknown }).failureDiagnostic);
+  return parsed.success ? parsed.data : undefined;
 }
 function classifyDomainFailure(error: unknown): BriefV3TransactionErrorCode {
   if (error instanceof BriefV3ProviderError) return "PROVIDER_INVALID_OUTPUT";
@@ -74,10 +80,10 @@ export class BriefV3TransactionService {
     if (claim.outcome === "TERMINAL_REPLAY") throw new BriefV3TransactionError(claim.row.status === "REJECTED_STALE" ? "REJECTED_STALE" : "REJECTED_INVALID", { attemptId: claim.row.id });
     let settled = false;
     let committed = false;
-    const settle = async (to: "FAILED_RETRYABLE" | "REJECTED_INVALID" | "REJECTED_STALE", failureCode: string) => {
+    const settle = async (to: "FAILED_RETRYABLE" | "REJECTED_INVALID" | "REJECTED_STALE", failureCode: string, failureDiagnostic?: ProviderFailureDiagnostic) => {
       if (settled) return;
       try {
-        await this.attempts.transition({ attemptId: claim.row.id, operationKind: identity.operationKind, operationKey: identity.operationKey, payloadHash: identity.payloadHash, from: "PROVIDER_PENDING", to, attemptGeneration: claim.row.attemptGeneration, owner, now: now(input), failureCode });
+        await this.attempts.transition({ attemptId: claim.row.id, operationKind: identity.operationKind, operationKey: identity.operationKey, payloadHash: identity.payloadHash, from: "PROVIDER_PENDING", to, attemptGeneration: claim.row.attemptGeneration, owner, now: now(input), failureCode, failureDiagnostic });
         settled = true;
       } catch (error) {
         if (!(error instanceof PersistenceError) || error.code !== "PERSISTENCE_CONFLICT") throw error;
@@ -106,7 +112,7 @@ export class BriefV3TransactionService {
         await input.faults?.hit("after-provider");
       } catch (error) {
         const code = classifyProviderFailure(error);
-        await settle(code === "PROVIDER_INVALID_OUTPUT" ? "REJECTED_INVALID" : "FAILED_RETRYABLE", code);
+        await settle(code === "PROVIDER_INVALID_OUTPUT" ? "REJECTED_INVALID" : "FAILED_RETRYABLE", code, providerFailureDiagnostic(error));
         throw new BriefV3TransactionError(code, { attemptId: claim.row.id });
       }
       let changeSet: BriefChangeSet;

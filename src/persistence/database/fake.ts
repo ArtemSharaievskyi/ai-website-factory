@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { PersistenceError } from "./errors";
+import { appendBriefRevisionFailureDiagnostic } from "./brief-revision-failure-diagnostics";
 import { checksumPersistedDocument } from "./serialization";
 import type { BriefRevisionAtomicCommitResult, BriefRevisionAttemptClaim, BriefRevisionAttemptRow, BriefRevisionAttemptStatus, BriefRevisionAttemptTransition, BriefRevisionProjectionRow, PersistenceDatabase, PersistenceTransaction, ProjectRow, ProjectAssetRow, ProjectVersionRow, WorkflowEvent, CostRecord, IdempotencyRecord } from "./types";
 import { mapRowToDocument, type DocumentRow } from "./mapping";
@@ -102,7 +103,7 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
           if (existing.payloadHash !== input.payloadHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The V3 operation key was used with a different payload.");
           return copy(existing);
         }
-        const row: BriefRevisionAttemptRow = { id: input.id, operationKind: input.operationKind, operationKey: input.operationKey, payloadHash: input.payloadHash, projectId: input.projectId, projectVersion: input.projectVersion, currentnessToken: copy(input.currentnessToken), status: "RESERVED", leaseOwner: null, leaseExpiresAt: null, attemptGeneration: 0, claimedAt: null, committedResult: null, failureCode: null, createdAt: input.now, updatedAt: input.now };
+        const row: BriefRevisionAttemptRow = { id: input.id, operationKind: input.operationKind, operationKey: input.operationKey, payloadHash: input.payloadHash, projectId: input.projectId, projectVersion: input.projectVersion, currentnessToken: copy(input.currentnessToken), status: "RESERVED", leaseOwner: null, leaseExpiresAt: null, attemptGeneration: 0, claimedAt: null, committedResult: null, failureCode: null, failureDiagnostics: null, createdAt: input.now, updatedAt: input.now };
         this.briefRevisionAttempts.set(row.id, row);
         return copy(row);
       },
@@ -123,7 +124,7 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
         if (!allowed[input.from].includes(input.to)) throw new PersistenceError("PERSISTENCE_CONFLICT", "The V3 attempt transition is invalid.");
         const row = this.briefRevisionAttempts.get(input.attemptId);
         if (!row || row.operationKind !== input.operationKind || row.operationKey !== input.operationKey || row.payloadHash !== input.payloadHash || row.status !== input.from || row.attemptGeneration !== input.attemptGeneration || (input.owner && row.leaseOwner !== input.owner)) throw new PersistenceError("PERSISTENCE_CONFLICT", "The V3 attempt transition was stale.");
-        const next: BriefRevisionAttemptRow = { ...row, status: input.to, leaseOwner: null, leaseExpiresAt: null, failureCode: input.failureCode ?? null, committedResult: input.committedResult ?? null, updatedAt: input.now };
+        const next: BriefRevisionAttemptRow = { ...row, status: input.to, leaseOwner: null, leaseExpiresAt: null, failureCode: input.failureCode ?? null, failureDiagnostics: input.failureDiagnostic ? appendBriefRevisionFailureDiagnostic(row.failureDiagnostics, input.attemptGeneration, input.failureDiagnostic) : row.failureDiagnostics, committedResult: input.committedResult ?? null, updatedAt: input.now };
         this.briefRevisionAttempts.set(row.id, next);
         return copy(next);
       },

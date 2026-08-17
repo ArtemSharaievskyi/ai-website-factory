@@ -5,6 +5,7 @@ import { readServerEnvironment, requireDatabaseSsl } from "./env";
 import { PersistenceError } from "./errors";
 import { mapRowToDocument, type DocumentRow } from "./mapping";
 import { canonicalBriefChecksumForDocument } from "./brief-revision-v3-contracts";
+import { appendBriefRevisionFailureDiagnostic, normalizeBriefRevisionFailureDiagnostics } from "./brief-revision-failure-diagnostics";
 import type { BriefRevisionAtomicCommitInput, BriefRevisionAtomicCommitResult, BriefRevisionAttemptClaim, BriefRevisionAttemptRow, BriefRevisionAttemptStatus, BriefRevisionAttemptTransition, BriefRevisionProjectionRow, BriefRevisionProjectionStatus, OperationReservation, PersistenceDatabase, PersistenceTransaction, ProjectAssetRow, ProjectRow, ProjectVersionRow, WorkflowEvent, CostRecord } from "./types";
 import type { DecisionRecord } from "@/domain/workflow/decision";
 
@@ -45,7 +46,7 @@ const normalizeBriefRevisionAttempt = (row: Record<string, unknown>): BriefRevis
   id: String(row.id), operationKind: String(row.operationKind), operationKey: String(row.operationKey), payloadHash: String(row.payloadHash),
   projectId: String(row.projectId), projectVersion: Number(row.projectVersion), currentnessToken: row.currentnessToken as Record<string, unknown>,
   status: String(row.status) as BriefRevisionAttemptStatus, leaseOwner: row.leaseOwner == null ? null : String(row.leaseOwner), leaseExpiresAt: isoTimestamp(row.leaseExpiresAt),
-  attemptGeneration: Number(row.attemptGeneration), claimedAt: isoTimestamp(row.claimedAt), committedResult: row.committedResult ?? null, failureCode: row.failureCode == null ? null : String(row.failureCode),
+  attemptGeneration: Number(row.attemptGeneration), claimedAt: isoTimestamp(row.claimedAt), committedResult: row.committedResult ?? null, failureCode: row.failureCode == null ? null : String(row.failureCode), failureDiagnostics: normalizeBriefRevisionFailureDiagnostics(row.failureDiagnostics),
   createdAt: isoTimestamp(row.createdAt) as string, updatedAt: isoTimestamp(row.updatedAt) as string,
 });
 const normalizeBriefRevisionProjection = (row: Record<string, unknown>): BriefRevisionProjectionRow => ({
@@ -162,7 +163,7 @@ class PostgresTransaction implements PersistenceTransaction {
   }
   private async readBriefRevisionAttempt(input: { operationKind: string; operationKey: string; forUpdate?: boolean }) {
     const lock = input.forUpdate ? " FOR UPDATE" : "";
-    const sql = "SELECT id, operation_kind AS \"operationKind\", operation_key AS \"operationKey\", payload_hash AS \"payloadHash\", project_id AS \"projectId\", project_version AS \"projectVersion\", currentness_token AS \"currentnessToken\", status, lease_owner AS \"leaseOwner\", lease_expires_at AS \"leaseExpiresAt\", attempt_generation AS \"attemptGeneration\", claimed_at AS \"claimedAt\", committed_result AS \"committedResult\", failure_code AS \"failureCode\", created_at AS \"createdAt\", updated_at AS \"updatedAt\" FROM brief_revision_attempts WHERE operation_kind=$1 AND operation_key=$2" + lock;
+    const sql = "SELECT id, operation_kind AS \"operationKind\", operation_key AS \"operationKey\", payload_hash AS \"payloadHash\", project_id AS \"projectId\", project_version AS \"projectVersion\", currentness_token AS \"currentnessToken\", status, lease_owner AS \"leaseOwner\", lease_expires_at AS \"leaseExpiresAt\", attempt_generation AS \"attemptGeneration\", claimed_at AS \"claimedAt\", committed_result AS \"committedResult\", failure_code AS \"failureCode\", failure_diagnostics AS \"failureDiagnostics\", created_at AS \"createdAt\", updated_at AS \"updatedAt\" FROM brief_revision_attempts WHERE operation_kind=$1 AND operation_key=$2" + lock;
     const row = value<Record<string, unknown>>(await this.query(sql, [input.operationKind, input.operationKey]));
     return row ? normalizeBriefRevisionAttempt(row) : null;
   }
@@ -172,7 +173,7 @@ class PostgresTransaction implements PersistenceTransaction {
     return row;
   }
   async listBriefRevisionAttempts(projectId: string, projectVersion: number) {
-    const result = await this.query<Record<string, unknown>>("SELECT id, operation_kind AS \"operationKind\", operation_key AS \"operationKey\", payload_hash AS \"payloadHash\", project_id AS \"projectId\", project_version AS \"projectVersion\", currentness_token AS \"currentnessToken\", status, lease_owner AS \"leaseOwner\", lease_expires_at AS \"leaseExpiresAt\", attempt_generation AS \"attemptGeneration\", claimed_at AS \"claimedAt\", committed_result AS \"committedResult\", failure_code AS \"failureCode\", created_at AS \"createdAt\", updated_at AS \"updatedAt\" FROM brief_revision_attempts WHERE project_id=$1 AND project_version=$2 ORDER BY created_at, id", [projectId, projectVersion]);
+    const result = await this.query<Record<string, unknown>>("SELECT id, operation_kind AS \"operationKind\", operation_key AS \"operationKey\", payload_hash AS \"payloadHash\", project_id AS \"projectId\", project_version AS \"projectVersion\", currentness_token AS \"currentnessToken\", status, lease_owner AS \"leaseOwner\", lease_expires_at AS \"leaseExpiresAt\", attempt_generation AS \"attemptGeneration\", claimed_at AS \"claimedAt\", committed_result AS \"committedResult\", failure_code AS \"failureCode\", failure_diagnostics AS \"failureDiagnostics\", created_at AS \"createdAt\", updated_at AS \"updatedAt\" FROM brief_revision_attempts WHERE project_id=$1 AND project_version=$2 ORDER BY created_at, id", [projectId, projectVersion]);
     return result.rows.map(normalizeBriefRevisionAttempt);
   }
   async getBriefRevisionHistory(attemptId: string) {
@@ -222,9 +223,12 @@ class PostgresTransaction implements PersistenceTransaction {
       REJECTED_STALE: [],
     };
     if (!allowed[input.from].includes(input.to)) throw new PersistenceError("PERSISTENCE_CONFLICT", "The V3 attempt transition is invalid.");
-    const ownerPredicate = input.owner ? " AND lease_owner=$12" : "";
-    const values = [input.to, input.leaseExpiresAt ?? null, input.failureCode ?? null, input.committedResult ?? null, input.now, input.attemptId, input.operationKind, input.operationKey, input.payloadHash, input.from, input.attemptGeneration, ...(input.owner ? [input.owner] : [])];
-    const updated = await this.query("UPDATE brief_revision_attempts SET status=$1, lease_owner=NULL, lease_expires_at=$2, failure_code=$3, committed_result=$4, updated_at=$5 WHERE id=$6 AND operation_kind=$7 AND operation_key=$8 AND payload_hash=$9 AND status=$10 AND attempt_generation=$11" + ownerPredicate, values);
+    const current = await this.readBriefRevisionAttempt({ operationKind: input.operationKind, operationKey: input.operationKey, forUpdate: true });
+    if (!current || current.id !== input.attemptId || current.payloadHash !== input.payloadHash || current.status !== input.from || current.attemptGeneration !== input.attemptGeneration || (input.owner && current.leaseOwner !== input.owner)) throw new PersistenceError("PERSISTENCE_CONFLICT", "The V3 attempt transition was stale.");
+    const failureDiagnostics = input.failureDiagnostic ? appendBriefRevisionFailureDiagnostic(current.failureDiagnostics, input.attemptGeneration, input.failureDiagnostic) : current.failureDiagnostics;
+    const ownerPredicate = input.owner ? " AND lease_owner=$13" : "";
+    const values = [input.to, input.leaseExpiresAt ?? null, input.failureCode ?? null, input.committedResult ?? null, failureDiagnostics ? JSON.stringify(failureDiagnostics) : null, input.now, input.attemptId, input.operationKind, input.operationKey, input.payloadHash, input.from, input.attemptGeneration, ...(input.owner ? [input.owner] : [])];
+    const updated = await this.query("UPDATE brief_revision_attempts SET status=$1, lease_owner=NULL, lease_expires_at=$2, failure_code=$3, committed_result=$4, failure_diagnostics=$5, updated_at=$6 WHERE id=$7 AND operation_kind=$8 AND operation_key=$9 AND payload_hash=$10 AND status=$11 AND attempt_generation=$12" + ownerPredicate, values);
     if (!updated.rowCount) throw new PersistenceError("PERSISTENCE_CONFLICT", "The V3 attempt transition was stale.");
     const row = await this.readBriefRevisionAttempt({ operationKind: input.operationKind, operationKey: input.operationKey, forUpdate: true });
     if (!row) throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "The V3 attempt transition was not returned.");

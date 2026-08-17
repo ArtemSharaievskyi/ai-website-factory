@@ -3,6 +3,8 @@ import type { WorkflowState } from "@/domain/workflow/engine";
 import type { DecisionRecord } from "@/domain/workflow/decision";
 import type { PersistedDocument, DocumentRow } from "./mapping";
 import type { ProjectAsset } from "@/domain/assets/project";
+import type { ProviderFailureDiagnostic } from "@/domain/shared/provider-failure";
+import type { BriefRevisionFailureDiagnosticEntry } from "./brief-revision-failure-diagnostics";
 
 export type ProjectRow = ReturnType<typeof import("./mapping").mapProjectToRow>;
 export type ProjectAssetRow = ProjectAsset;
@@ -18,11 +20,11 @@ export type OperationReservation =
 
 export type BriefRevisionAttemptStatus = "RESERVED" | "PROVIDER_PENDING" | "COMMITTED" | "FAILED_RETRYABLE" | "REJECTED_INVALID" | "REJECTED_STALE";
 export type BriefRevisionProjectionStatus = "PENDING" | "SYNCED" | "FAILED_RETRYABLE" | "SUPERSEDED";
-export type BriefRevisionAttemptRow = { id: string; operationKind: string; operationKey: string; payloadHash: string; projectId: string; projectVersion: number; currentnessToken: Record<string, unknown>; status: BriefRevisionAttemptStatus; leaseOwner: string | null; leaseExpiresAt: string | null; attemptGeneration: number; claimedAt: string | null; committedResult: unknown | null; failureCode: string | null; createdAt: string; updatedAt: string };
+export type BriefRevisionAttemptRow = { id: string; operationKind: string; operationKey: string; payloadHash: string; projectId: string; projectVersion: number; currentnessToken: Record<string, unknown>; status: BriefRevisionAttemptStatus; leaseOwner: string | null; leaseExpiresAt: string | null; attemptGeneration: number; claimedAt: string | null; committedResult: unknown | null; failureCode: string | null; failureDiagnostics: readonly BriefRevisionFailureDiagnosticEntry[] | null; createdAt: string; updatedAt: string };
 export type BriefRevisionHistoryRow = { id: string; attemptId: string; projectId: string; projectVersion: number; revisionReference: string; previousCurrentChecksum: string; nextCurrentChecksum: string; changeSetChecksum: string; entries: unknown[]; createdAt: string };
 export type BriefRevisionProjectionRow = { id: string; attemptId: string; projectId: string; projectVersion: number; documentChecksum: string; status: BriefRevisionProjectionStatus; attemptCount: number; lastFailureCode: string | null; nextAttemptAt: string | null; createdAt: string; updatedAt: string };
 export type BriefRevisionAttemptClaim = { outcome: "CLAIMED" | "IN_PROGRESS_DUPLICATE" | "COMMITTED_REPLAY" | "TERMINAL_REPLAY"; row: BriefRevisionAttemptRow };
-export type BriefRevisionAttemptTransition = { attemptId: string; operationKind: string; operationKey: string; payloadHash: string; from: BriefRevisionAttemptStatus; to: BriefRevisionAttemptStatus; attemptGeneration: number; owner?: string; now: string; leaseExpiresAt?: string | null; failureCode?: string | null; committedResult?: unknown };
+export type BriefRevisionAttemptTransition = { attemptId: string; operationKind: string; operationKey: string; payloadHash: string; from: BriefRevisionAttemptStatus; to: BriefRevisionAttemptStatus; attemptGeneration: number; owner?: string; now: string; leaseExpiresAt?: string | null; failureCode?: string | null; failureDiagnostic?: ProviderFailureDiagnostic | null; committedResult?: unknown };
 export type BriefRevisionFaultPoint = "before-provider" | "after-provider" | "before-final-transaction" | "after-cas" | "after-brief-write" | "after-history-write" | "after-workflow-write" | "after-attempt-committed-write" | "before-db-commit" | "after-db-commit" | "during-memory-sync" | "before-response";
 export type BriefRevisionFaultInjector = { hit(point: BriefRevisionFaultPoint): void | Promise<void> };
 export type BriefRevisionAtomicCommitInput = {

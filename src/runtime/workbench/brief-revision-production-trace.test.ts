@@ -10,7 +10,7 @@ import type { ProviderBriefChangeSet } from "@/integrations/openai-v3/changeset"
 import { createProductionProviderBundle } from "@/integrations/openai/production";
 import { OpenAiBriefV3RevisionProvider } from "@/integrations/openai-v3/provider";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
-import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
+import { BriefRevisionAttemptRepository, DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
 import { documentKey, InMemoryPersistenceDatabase } from "@/persistence/database/fake";
 import { FilesystemProjectMemorySyncPort } from "@/runtime/workspace/sync";
 import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
@@ -248,6 +248,28 @@ describe("production-shaped Brief V3 request route", () => {
     expect(await new DocumentRepository(f.database).get(projectId, 1, "brief-v3")).toBeNull();
     await expect(f.app.handle(f.request)).resolves.toMatchObject({ project: { workflowState: "CLARIFYING" }, brief: { briefSchemaVersion: 3 } });
     expect(f.ai.calls).toBe(2);
+    expect(readV2TripwireSnapshot()).toMatchObject({ providerMutationCalls: 0, mergeCalls: 0, revisionPersistenceCalls: 0, idempotencyMutationCalls: 0, loadedLegacyMutationModules: [] });
+  });
+
+  it("persists safe, generation-scoped diagnostics for a pilot-shaped provider failure across a reconstructed read", async () => {
+    const f = await fixture({ failAlways: true }, pilotLegacyBrief());
+    resetV2Tripwires();
+    await expect(f.app.handle(f.request)).rejects.toMatchObject({ code: "PROVIDER_FAILED" });
+    const first = [...f.database.briefRevisionAttempts.values()][0];
+    expect(first).toMatchObject({ status: "FAILED_RETRYABLE", attemptGeneration: 1, failureCode: "PROVIDER_FAILED" });
+    expect(first?.failureDiagnostics).toHaveLength(1);
+    expect(first?.failureDiagnostics?.[0]).toMatchObject({ generation: 1, diagnostic: { version: 1, category: "UNKNOWN", stage: "REQUEST_TRANSPORT", requestAttempted: true, provider: "openai", model: "synthetic-model", errorCode: "AI_OUTPUT_INVALID", schemaName: "brief-revision-v3" } });
+    expect(JSON.stringify(first?.failureDiagnostics)).not.toContain("synthetic-network-failure");
+
+    await expect(f.app.handle(f.request)).rejects.toMatchObject({ code: "PROVIDER_FAILED" });
+    const second = [...f.database.briefRevisionAttempts.values()][0];
+    expect(second?.attemptGeneration).toBe(2);
+    expect(second?.failureDiagnostics?.map((entry) => entry.generation)).toEqual([1, 2]);
+    if (!second) throw new Error("synthetic failure attempt was not persisted");
+    const reconstructedRead = await new BriefRevisionAttemptRepository(f.database).get({ operationKind: second.operationKind, operationKey: second.operationKey, payloadHash: second.payloadHash });
+    expect(reconstructedRead?.failureDiagnostics).toEqual(second?.failureDiagnostics);
+    expect(await new DocumentRepository(f.database).get(projectId, 1, "brief-v3")).toBeNull();
+    expect(f.database.briefRevisionHistory.size).toBe(0);
     expect(readV2TripwireSnapshot()).toMatchObject({ providerMutationCalls: 0, mergeCalls: 0, revisionPersistenceCalls: 0, idempotencyMutationCalls: 0, loadedLegacyMutationModules: [] });
   });
 

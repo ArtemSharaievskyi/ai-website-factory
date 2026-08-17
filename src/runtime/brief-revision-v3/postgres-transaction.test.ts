@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { afterAll, describe, expect, it } from "vitest";
 import { FactoryProjectSchema } from "@/domain/project/schema";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
+import { ProviderFailureDiagnosticSchema } from "@/domain/shared/provider-failure";
 import { cleanBriefV3, multiDomainChangeSet } from "@/domain/requirements/v3/fixtures";
 import { createBriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
 import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
@@ -141,6 +142,21 @@ describePostgres("Brief Revision V3 Postgres concurrency certification", () => {
     ]);
     expect(claims.filter((claim) => claim.outcome === "CLAIMED")).toHaveLength(1);
     expect(claims.filter((claim) => claim.outcome === "IN_PROGRESS_DUPLICATE")).toHaveLength(1);
+  });
+
+  it("round-trips bounded failure diagnostics through JSONB and preserves the first generation on reclaim", async () => {
+    const fixture = await createFixture(database);
+    const operationKind = "REQUEST_BRIEF_CHANGES_V3";
+    const operationKey = `diagnostic-round-trip:${runId}:${fixture.projectId}`;
+    const payloadHash = "a".repeat(64);
+    const diagnostic = (requestId: string) => ProviderFailureDiagnosticSchema.parse({ version: 1, category: "PROVIDER_UNAVAILABLE", stage: "REQUEST_TRANSPORT", requestAttempted: true, responseReceived: true, structuredParsingReached: false, retryabilityHint: true, provider: "openai", model: "synthetic-model", httpStatus: 503, requestId, sdkErrorClass: "Error", errorCode: "AI_PROVIDER_UNAVAILABLE", schemaName: "brief-revision-v3" });
+    const reserved = await database.transaction((tx) => tx.reserveBriefRevisionAttempt({ id: randomUUID(), operationKind, operationKey, payloadHash, projectId: fixture.projectId, projectVersion: 1, currentnessToken: {}, now: "2026-08-17T00:00:00.000Z" }));
+    const firstClaim = await database.transaction((tx) => tx.claimBriefRevisionAttempt({ attemptId: reserved.id, operationKind, operationKey, payloadHash, owner: "diagnostic-owner-a", now: "2026-08-17T00:00:01.000Z", leaseExpiresAt: "2026-08-17T00:00:02.000Z" }));
+    await database.transaction((tx) => tx.transitionBriefRevisionAttempt({ attemptId: reserved.id, operationKind, operationKey, payloadHash, from: "PROVIDER_PENDING", to: "FAILED_RETRYABLE", attemptGeneration: firstClaim.row.attemptGeneration, owner: "diagnostic-owner-a", now: "2026-08-17T00:00:03.000Z", failureCode: "PROVIDER_FAILED", failureDiagnostic: diagnostic("req_generation_1") }));
+    const secondClaim = await database.transaction((tx) => tx.claimBriefRevisionAttempt({ attemptId: reserved.id, operationKind, operationKey, payloadHash, owner: "diagnostic-owner-b", now: "2026-08-17T00:00:04.000Z", leaseExpiresAt: "2026-08-17T00:00:05.000Z" }));
+    await database.transaction((tx) => tx.transitionBriefRevisionAttempt({ attemptId: reserved.id, operationKind, operationKey, payloadHash, from: "PROVIDER_PENDING", to: "FAILED_RETRYABLE", attemptGeneration: secondClaim.row.attemptGeneration, owner: "diagnostic-owner-b", now: "2026-08-17T00:00:06.000Z", failureCode: "PROVIDER_FAILED", failureDiagnostic: diagnostic("req_generation_2") }));
+    const reread = await database.transaction((tx) => tx.getBriefRevisionAttempt({ operationKind, operationKey, payloadHash }));
+    expect(reread?.failureDiagnostics?.map((entry) => ({ generation: entry.generation, requestId: entry.diagnostic.requestId }))).toEqual([{ generation: 1, requestId: "req_generation_1" }, { generation: 2, requestId: "req_generation_2" }]);
   });
 
   it("keeps real Postgres committed replay races mutation-free", async () => {

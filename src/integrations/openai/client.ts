@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { z, type ZodType } from "zod";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { AiProviderError, isAiProviderError } from "./errors";
+import { createProviderFailureDiagnostic } from "./failure-diagnostics";
 import { FifoConcurrencyLimiter } from "./limiter";
 import { DEFAULT_AI_MAX_COMPLETION_TOKENS, type AiProviderConfig } from "./config";
 import type { ProviderDiagnostic, ProviderEventSink, ProviderOutputStage, ProviderUsage, ProviderUsageSink } from "./usage";
@@ -120,7 +121,7 @@ export class OpenAiStructuredClient {
     this.eventSink?.({ type: "request.started", provider: "openai", model: this.config.model, role: request.role, promptVersion: request.promptVersion, startedAt });
     try {
       while (true) {
-        if (request.signal?.aborted) throw new AiProviderError("AI_REQUEST_CANCELLED", "AI request was cancelled.");
+        if (request.signal?.aborted) throw new AiProviderError("AI_REQUEST_CANCELLED", "AI request was cancelled.", undefined, { stage: "request_construction", requestAttempted: false, apiResponseReceived: false, responseReceived: false, outputComplete: false, schemaName: request.schemaName });
         try {
           this.assertContextCapacity(request);
           const result = await this.executor(request, this.client, this.config, correction);
@@ -130,7 +131,7 @@ export class OpenAiStructuredClient {
           this.eventSink?.({ type: "request.completed", provider: "openai", model: this.config.model, role: request.role, promptVersion: request.promptVersion, requestId: result.requestId, retryCount: retries, startedAt, completedAt: new Date().toISOString(), elapsedMs: Date.now() - started, diagnostic: result.diagnostic });
           return { value: result.value, usage, requestId: result.requestId, diagnostic: result.diagnostic };
         } catch (error) {
-          const mapped = mapError(error, request.schemaName);
+          const mapped = mapError(error, request.schemaName, true, this.config.model);
           if (mapped.code === "AI_OUTPUT_SCHEMA_MISMATCH" && !correction) {
             correction = true;
             continue;
@@ -145,7 +146,7 @@ export class OpenAiStructuredClient {
         }
       }
     } catch (error) {
-      throw mapError(error, request.schemaName);
+      throw mapError(error, request.schemaName, true, this.config.model);
     }
   }
 
@@ -194,7 +195,7 @@ async function defaultExecutor<T>(request: StructuredRequest<T>, client: OpenAI,
   try {
     completion = await client.chat.completions.parse({ model: config.model, max_completion_tokens: config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, messages: [{ role: "system", content: `${request.system}${correction ? correctionInstruction : ""}` }, { role: "user", content: request.user }], response_format: responseSchema }, request.signal ? { signal: request.signal } : undefined);
   } catch (error) {
-    throw mapError(error, request.schemaName, true);
+    throw mapError(error, request.schemaName, true, config.model);
   }
   const choice = completion.choices[0];
   const message = choice?.message;
@@ -237,20 +238,28 @@ function diagnosticForError(error: unknown, schemaName: string, requestAttempted
   const responseReceived = safeStatus(shape.status) !== undefined;
   return { stage: requestAttempted ? "api_request" : "structured_parse", outputStage, requestAttempted, apiResponseReceived: responseReceived, responseReceived, outputComplete: false, httpStatus: safeStatus(shape.status), requestId: safeString(shape.requestID) ?? safeString(shape.request_id), sdkErrorClass: safeClassName(error), openaiErrorType: safeString(apiError.type) ?? safeString(shape.type), openaiErrorCode: safeString(apiError.code) ?? safeString(shape.code), openaiErrorParam: safeString(apiError.param) ?? safeString(shape.param), schemaName };
 }
-function mapError(error: unknown, schemaName = "unknown", requestAttempted = true): AiProviderError {
-  if (isAiProviderError(error)) return error;
-  if (error instanceof z.ZodError) return new AiProviderError("AI_STRUCTURED_PARSE_FAILED", "Provider structured output could not be parsed safely.", error, { ...diagnosticForError(error, schemaName, requestAttempted, "STRUCTURED_OUTPUT_PARSE_FAILED"), stage: "structured_parse", issueCode: zodIssueCode(error), fieldPath: zodIssuePaths(error)?.[0], issueCount: zodIssueCount(error), domainValidationIssuePaths: zodIssuePaths(error) });
+function withFailureDiagnostic(error: AiProviderError, schemaName: string, requestAttempted: boolean, model: string): AiProviderError {
+  const effectiveRequestAttempted = error.diagnostic?.requestAttempted ?? requestAttempted;
+  if (error.failureDiagnostic?.errorCode === error.code && error.failureDiagnostic.schemaName === schemaName && error.failureDiagnostic.model === model) return error;
+  return new AiProviderError(error.code, error.message, error.cause, error.diagnostic, createProviderFailureDiagnostic({ errorCode: error.code, model, schemaName, requestAttempted: effectiveRequestAttempted, diagnostic: error.diagnostic, error: error.cause ?? error }));
+}
+
+function mapError(error: unknown, schemaName = "unknown", requestAttempted = true, model = "unknown"): AiProviderError {
+  if (isAiProviderError(error)) return withFailureDiagnostic(error, schemaName, requestAttempted, model);
+  if (error instanceof z.ZodError) return withFailureDiagnostic(new AiProviderError("AI_STRUCTURED_PARSE_FAILED", "Provider structured output could not be parsed safely.", error, { ...diagnosticForError(error, schemaName, requestAttempted, "STRUCTURED_OUTPUT_PARSE_FAILED"), stage: "structured_parse", issueCode: zodIssueCode(error), fieldPath: zodIssuePaths(error)?.[0], issueCount: zodIssueCount(error), domainValidationIssuePaths: zodIssuePaths(error) }), schemaName, requestAttempted, model);
   const shape = safeProviderErrorShape(error);
   const status = safeStatus(shape.status);
   const code = safeString((shape.error ?? {}).code) ?? safeString(shape.code);
   const diagnostic = diagnosticForError(error, schemaName, requestAttempted);
-  if (status === 400 && (code === "unsupported_value" || code === "unsupported_parameter" || code === "unknown_parameter")) return new AiProviderError("AI_REQUEST_PARAMETER_UNSUPPORTED", "AI provider rejected an unsupported request parameter.", error, diagnostic);
-  if (status === 400) return new AiProviderError("AI_REQUEST_INVALID", "AI provider rejected the request contract.", error, diagnostic);
-  if (status === 401 || status === 403) return new AiProviderError("AI_AUTHENTICATION_FAILED", "AI provider authentication failed.", undefined, diagnostic);
-  if (status === 404) return new AiProviderError("AI_MODEL_ACCESS_FAILED", "AI provider rejected model access.", undefined, diagnostic);
-  if (status === 429) return new AiProviderError("AI_RATE_LIMITED", "AI provider rate limit reached.", undefined, diagnostic);
-  if (status !== undefined && status >= 500) return new AiProviderError("AI_PROVIDER_UNAVAILABLE", "AI provider is unavailable.", undefined, diagnostic);
-  if (shape.name === "AbortError" || code === "ETIMEDOUT" || code === "ECONNRESET") return new AiProviderError("AI_NETWORK_ERROR", "AI provider network request failed safely.", undefined, diagnostic);
-  return new AiProviderError("AI_OUTPUT_INVALID", "AI provider request failed safely.", error, diagnostic);
+  let mapped: AiProviderError;
+  if (status === 400 && (code === "unsupported_value" || code === "unsupported_parameter" || code === "unknown_parameter")) mapped = new AiProviderError("AI_REQUEST_PARAMETER_UNSUPPORTED", "AI provider rejected an unsupported request parameter.", error, diagnostic);
+  else if (status === 400) mapped = new AiProviderError("AI_REQUEST_INVALID", "AI provider rejected the request contract.", error, diagnostic);
+  else if (status === 401 || status === 403) mapped = new AiProviderError("AI_AUTHENTICATION_FAILED", "AI provider authentication failed.", undefined, diagnostic);
+  else if (status === 404) mapped = new AiProviderError("AI_MODEL_ACCESS_FAILED", "AI provider rejected model access.", undefined, diagnostic);
+  else if (status === 429) mapped = new AiProviderError("AI_RATE_LIMITED", "AI provider rate limit reached.", undefined, diagnostic);
+  else if (status !== undefined && status >= 500) mapped = new AiProviderError("AI_PROVIDER_UNAVAILABLE", "AI provider is unavailable.", undefined, diagnostic);
+  else if (shape.name === "AbortError" || code === "ETIMEDOUT" || code === "ECONNRESET") mapped = new AiProviderError("AI_NETWORK_ERROR", "AI provider network request failed safely.", undefined, diagnostic);
+  else mapped = new AiProviderError("AI_OUTPUT_INVALID", "AI provider request failed safely.", error, diagnostic);
+  return withFailureDiagnostic(mapped, schemaName, requestAttempted, model);
 }
 function isRetryable(error: AiProviderError) { return ["AI_PROVIDER_UNAVAILABLE", "AI_RATE_LIMITED", "AI_NETWORK_ERROR"].includes(error.code); }
