@@ -11,7 +11,7 @@ persistence, and bounded generated-project execution.
 | Workbench UI/API | transport, projections, safe user actions | canonical state, provider calls, SQL |
 | Trial Entry | project intake, clarification rounds, status, Brief approval/change requests | provider transport, browser authority |
 | Lead | extraction, clarification, Brief proposal through typed contracts | source code, approval authority, workflow mutation outside its service |
-| Domain requirements | canonical schema, effective requirements, revision semantics, contradictions | HTTP, persistence, provider transport |
+| Domain requirements | canonical schema, effective requirements, V3 reducer semantics, contradictions | HTTP, persistence, provider transport |
 | OpenAI adapter | transport, prompt assembly, strict provider parsing, role-port mapping | identity, checksums, approval, currentness, history |
 | Persistence | transactions, repositories, row versions, idempotency, document validation, events | UI decisions, prompt wording, architectural policy |
 | Orchestration | TaskGraph lifecycle, retries, repair, reconciliation | arbitrary model/tool access, unapproved scope |
@@ -21,6 +21,13 @@ persistence, and bounded generated-project execution.
 Canonical requirements are lossless and checksum-bound. Supporting technical
 context can be selected, sliced, or reduced with provenance. Provider results
 are proposals and must be validated before host-owned metadata is attached.
+
+Brief mutation has exactly one authority: `BriefV3TransactionService` with the
+V3 reducer and atomic persistence transaction. Legacy V1/V2 Briefs remain
+readable and migrate deterministically in memory; compatibility is not a legacy
+write path. Providers and future agents may propose bounded typed intent or
+review findings, but may not own canonical currentness, persistence identity,
+workflow state, idempotency, or mutation commit.
 
 ## Workflow shape
 
@@ -60,8 +67,9 @@ handles relative and tsconfig-alias imports, nested index modules, Windows and
 POSIX separators, and TS/TSX sources. The current rules prevent UI/app direct
 persistence or OpenAI imports, domain dependencies on Workbench/UI or provider
 implementations, OpenAI integration dependencies on Workbench/UI, persistence
-dependencies on UI, and direct OpenAI client imports outside the approved
-integration boundary.
+dependencies on UI, direct OpenAI client imports outside the approved
+integration boundary, and production Brief-mutation imports of obsolete V2
+mutation modules.
 
 Existing violations are captured by the execution-derived baseline at
 codex:start. They are reported as baseline debt; touching their source or

@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { ProviderBriefChangeSetSchema } from "@/integrations/openai-v3/changeset";
 import { assertSourceManifestCanonical, sourceFingerprintFromManifest, type SourceManifestEntry } from "./source-fingerprint";
-import type { V2TripwireSnapshot } from "./v2-tripwire";
 import type { BriefV3ProjectionPort } from "./ports";
 
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
@@ -31,8 +30,6 @@ export const LiveAcceptanceObservationsSchema = z.object({
   transaction: TransactionObservationSchema,
   exactReplay: ReplayObservationSchema,
   reconstructionReplay: ReplayObservationSchema,
-  v2Runtime: z.object({ providerMutationCalls: z.number().int().nonnegative(), mergeCalls: z.number().int().nonnegative(), revisionPersistenceCalls: z.number().int().nonnegative(), idempotencyMutationCalls: z.number().int().nonnegative(), loadedLegacyMutationModules: z.array(SafePathSchema) }).strict(),
-  v2FallbackSeamCalls: z.number().int().nonnegative(),
   cleanup: CleanupObservationSchema,
   failureCode: z.string().regex(/^[A-Z0-9_:-]{1,120}$/).nullable(),
 }).strict();
@@ -78,7 +75,7 @@ const VerifiedHistorySchema = z.object({ count: z.number().int().nonnegative(), 
 const VerifiedWorkflowSchema = z.object({ count: z.number().int().nonnegative(), transition: z.string().min(1).max(160).nullable(), expectedTransition: z.string().min(1).max(160), correspondsToCommit: z.boolean() }).strict();
 const VerifiedProjectionSchema = z.object({ status: z.string().min(1).max(80), databaseDocumentChecksum: Sha256Schema, projectionDocumentChecksum: Sha256Schema.nullable(), matchesDocumentAuthority: z.boolean(), databaseRemainsCanonical: z.boolean() }).strict();
 const VerifiedReplaySchema = z.object({ exactOutcome: z.string().min(1).max(80), exactProviderCalls: z.number().int().nonnegative(), exactStateUnchanged: z.boolean(), reconstructionOutcome: z.string().min(1).max(80), reconstructionProviderCalls: z.number().int().nonnegative(), reconstructionStateUnchanged: z.boolean() }).strict();
-const VerifiedV2Schema = z.object({ staticReachableLegacyMutationPaths: z.array(SafePathSchema), runtime: z.object({ providerMutationCalls: z.number().int().nonnegative(), mergeCalls: z.number().int().nonnegative(), revisionPersistenceCalls: z.number().int().nonnegative(), idempotencyMutationCalls: z.number().int().nonnegative(), loadedLegacyMutationModules: z.array(SafePathSchema) }).strict(), fallbackSeamCalls: z.number().int().nonnegative() }).strict();
+const VerifiedV2Schema = z.object({ staticReachableLegacyMutationPaths: z.array(SafePathSchema) }).strict();
 const VerifiedCleanupSchema = z.object({ expectedArtifacts: z.array(z.string().min(1).max(120)).min(1), independentSession: z.boolean(), complete: z.boolean(), remainingByArtifact: z.record(z.string(), z.number().int().nonnegative()) }).strict();
 
 const VerifiedAcceptanceFactsSchema = z.object({
@@ -103,7 +100,7 @@ export type BriefV3CertificationVerdict = { status: BriefV3CertificationStatus; 
 export function deriveAcceptanceVerdict(input: VerifiedAcceptanceFacts, finalizationState: "UNFINALIZED" | "FINALIZED" = "UNFINALIZED"): BriefV3CertificationVerdict {
   const facts = VerifiedAcceptanceFactsSchema.parse(input);
   if (finalizationState !== "FINALIZED") return { status: "INCONCLUSIVE", reason: "EVIDENCE_FINALIZATION_INCOMPLETE" };
-  if (facts.v2.staticReachableLegacyMutationPaths.length || facts.v2.runtime.providerMutationCalls > 0 || facts.v2.runtime.mergeCalls > 0 || facts.v2.runtime.revisionPersistenceCalls > 0 || facts.v2.runtime.idempotencyMutationCalls > 0 || facts.v2.runtime.loadedLegacyMutationModules.length > 0 || facts.v2.fallbackSeamCalls > 0) return { status: "FAIL", reason: "V2_MUTATION_PATH_INVOKED_OR_REACHABLE" };
+  if (facts.v2.staticReachableLegacyMutationPaths.length) return { status: "FAIL", reason: "V2_MUTATION_PATH_INVOKED_OR_REACHABLE" };
   if (!facts.bindingMatches || facts.missingMandatoryObservations.length) return { status: "INCONCLUSIVE", reason: facts.missingMandatoryObservations[0] ?? "ACCEPTANCE_BINDING_MISMATCH" };
   if (!facts.source.manifestMatchesWindow || !facts.source.manifestMatchesObservation || !facts.source.sourceHeadMatchesObservation || facts.source.fingerprint !== sourceFingerprintFromManifest(facts.source.manifest)) return { status: "INCONCLUSIVE", reason: "LIVE_EVIDENCE_STALE" };
   if (!facts.committed.attemptBindingMatches) return { status: "INCONCLUSIVE", reason: "TRANSACTION_ATTEMPT_BINDING_MISMATCH" };
@@ -167,10 +164,6 @@ export function serializeBriefV3CertificationEvidence(evidence: BriefV3Certifica
 export function assertCurrentBriefV3CertificationEvidence(evidence: BriefV3CertificationEvidence, current: { sourceHead: string; sourceFingerprint: string; sourceManifest: readonly SourceManifestEntry[] }) {
   assertCertificationEvidenceIntegrity(evidence);
   if (evidence.observations.sourceHead !== current.sourceHead || evidence.sourceFingerprint !== current.sourceFingerprint || stableCertificationSerialize(evidence.observations.sourceManifest) !== stableCertificationSerialize(current.sourceManifest)) throw new Error("CERTIFICATION_EVIDENCE_STALE");
-}
-
-export function v2SnapshotFromObservation(snapshot: V2TripwireSnapshot) {
-  return { providerMutationCalls: snapshot.providerMutationCalls, mergeCalls: snapshot.mergeCalls, revisionPersistenceCalls: snapshot.revisionPersistenceCalls, idempotencyMutationCalls: snapshot.idempotencyMutationCalls, loadedLegacyMutationModules: [...snapshot.loadedLegacyMutationModules] };
 }
 
 export async function assertBriefV3Projection(input: { projection: BriefV3ProjectionPort & { filesystemChecksums(projectVersion: number): Promise<Record<string, string>> }; projectId: string; projectVersion: number; expectedDocumentChecksum: string }) {

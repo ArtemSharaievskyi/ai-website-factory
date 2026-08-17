@@ -15,10 +15,9 @@ import { documentKey, InMemoryPersistenceDatabase } from "@/persistence/database
 import { FilesystemProjectMemorySyncPort } from "@/runtime/workspace/sync";
 import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
 import type { BriefV3RevisionProvider } from "@/runtime/brief-revision-v3/ports";
-import { readV2TripwireSnapshot, resetV2Tripwires } from "@/runtime/brief-revision-v3/v2-tripwire";
 import { TrialEntryService } from "@/runtime/trial-entry/service";
 import { WorkbenchApplication } from "./application";
-import { clearWorkbenchDiagnosticEvents, getBriefRevisionTraceEvents } from "./diagnostics";
+import { clearWorkbenchDiagnosticEvents } from "./diagnostics";
 
 const projectId = "12121212-1212-4121-8121-121212121212";
 const timestamp = "2026-08-17T00:00:00.000Z";
@@ -162,7 +161,6 @@ describe("production-shaped Brief V3 request route", () => {
   it("enters through Workbench, uses the strict V3 provider mapper, commits once, and replays through reconstructed composition", async () => {
     const f = await fixture();
     clearWorkbenchDiagnosticEvents();
-    resetV2Tripwires();
     const first = await f.app.handle(f.request);
     expect(first.project?.workflowState).toBe("CLARIFYING");
     expect(first.brief?.briefSchemaVersion).toBe(3);
@@ -194,14 +192,11 @@ describe("production-shaped Brief V3 request route", () => {
     expect(reconstructedResult).toMatchObject({ projectId, workflowState: "CLARIFYING" });
     expect(reconstructedCalls).toBe(0);
     expect(f.database.briefRevisionHistory.size).toBe(1);
-    expect(getBriefRevisionTraceEvents()).toHaveLength(0);
-    expect(readV2TripwireSnapshot()).toMatchObject({ providerMutationCalls: 0, mergeCalls: 0, revisionPersistenceCalls: 0, idempotencyMutationCalls: 0, loadedLegacyMutationModules: [] });
   });
 
   it("migrates a pilot-shaped V1 Brief in memory before the first atomic V3 commit", async () => {
     const f = await fixture({}, pilotLegacyBrief());
     clearWorkbenchDiagnosticEvents();
-    resetV2Tripwires();
     const legacyBefore = await new DocumentRepository(f.database).get(projectId, 1, "requirements");
     if (!legacyBefore) throw new Error("synthetic pilot-shaped legacy Brief is not ready");
     const legacyChecksumBefore = checksumPersistedDocument(legacyBefore);
@@ -231,7 +226,6 @@ describe("production-shaped Brief V3 request route", () => {
     expect(f.database.documents.size).toBe(2);
     expect([...f.database.documents.keys()].sort()).toEqual([documentKey(projectId, 1, "brief-v3"), documentKey(projectId, 1, "requirements")].sort());
     expect([...f.database.briefRevisionAttempts.values()][0]?.currentnessToken).toMatchObject({ canonicalSchemaVersion: 3, documentType: "requirements" });
-    expect(readV2TripwireSnapshot()).toMatchObject({ providerMutationCalls: 0, mergeCalls: 0, revisionPersistenceCalls: 0, idempotencyMutationCalls: 0, loadedLegacyMutationModules: [] });
 
     const beforeReplay = JSON.stringify({ projects: [...f.database.projects.values()], versions: [...f.database.versions.values()], documents: [...f.database.documents.values()], events: f.database.events, history: [...f.database.briefRevisionHistory.values()], projections: [...f.database.briefRevisionProjectionSync.values()] });
     await expect(f.entry.requestBriefChanges(f.request)).resolves.toMatchObject({ projectId, workflowState: "CLARIFYING" });
@@ -242,18 +236,15 @@ describe("production-shaped Brief V3 request route", () => {
 
   it("fails closed on a provider failure and retries through V3 without invoking Lead V2", async () => {
     const f = await fixture({ failFirst: true });
-    resetV2Tripwires();
     await expect(f.app.handle(f.request)).rejects.toMatchObject({ code: "PROVIDER_FAILED" });
     expect(f.database.briefRevisionHistory.size).toBe(0);
     expect(await new DocumentRepository(f.database).get(projectId, 1, "brief-v3")).toBeNull();
     await expect(f.app.handle(f.request)).resolves.toMatchObject({ project: { workflowState: "CLARIFYING" }, brief: { briefSchemaVersion: 3 } });
     expect(f.ai.calls).toBe(2);
-    expect(readV2TripwireSnapshot()).toMatchObject({ providerMutationCalls: 0, mergeCalls: 0, revisionPersistenceCalls: 0, idempotencyMutationCalls: 0, loadedLegacyMutationModules: [] });
   });
 
   it("persists safe, generation-scoped diagnostics for a pilot-shaped provider failure across a reconstructed read", async () => {
     const f = await fixture({ failAlways: true }, pilotLegacyBrief());
-    resetV2Tripwires();
     await expect(f.app.handle(f.request)).rejects.toMatchObject({ code: "PROVIDER_FAILED" });
     const first = [...f.database.briefRevisionAttempts.values()][0];
     expect(first).toMatchObject({ status: "FAILED_RETRYABLE", attemptGeneration: 1, failureCode: "PROVIDER_FAILED" });
@@ -270,16 +261,13 @@ describe("production-shaped Brief V3 request route", () => {
     expect(reconstructedRead?.failureDiagnostics).toEqual(second?.failureDiagnostics);
     expect(await new DocumentRepository(f.database).get(projectId, 1, "brief-v3")).toBeNull();
     expect(f.database.briefRevisionHistory.size).toBe(0);
-    expect(readV2TripwireSnapshot()).toMatchObject({ providerMutationCalls: 0, mergeCalls: 0, revisionPersistenceCalls: 0, idempotencyMutationCalls: 0, loadedLegacyMutationModules: [] });
   });
 
   it("rejects stale currentness before provider execution and leaves legacy state untouched", async () => {
     const f = await fixture();
-    resetV2Tripwires();
     await expect(f.app.handle({ ...f.request, expectedRowVersion: f.request.expectedRowVersion + 1 })).rejects.toMatchObject({ code: "STALE_BEFORE_PROVIDER" });
     expect(f.ai.calls).toBe(0);
     expect(f.database.briefRevisionHistory.size).toBe(0);
     expect(f.database.briefRevisionAttempts.size).toBe(1);
-    expect(readV2TripwireSnapshot()).toMatchObject({ providerMutationCalls: 0, mergeCalls: 0, revisionPersistenceCalls: 0, idempotencyMutationCalls: 0, loadedLegacyMutationModules: [] });
   });
 });

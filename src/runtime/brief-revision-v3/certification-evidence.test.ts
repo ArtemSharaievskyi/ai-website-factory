@@ -11,7 +11,7 @@ const manifest = [{ path: "entry.ts", digest }];
 const sourceFingerprint = sourceFingerprintFromManifest(manifest);
 
 function observations(): LiveAcceptanceObservations {
-  return { schemaVersion: 1, windowId, runId, sourceHead: "c318f7178aa130ae4402c3f97a402c5c8eb6acea", sourceFingerprint, sourceManifest: manifest, syntheticProjectId: projectId, syntheticSlug: "synthetic-evidence", provider: { schema: "brief-revision-v3", model: "fixture-model", requestCount: 1, retryCount: 0, correctionCount: 0, requestAttempted: true, responseReceived: true, outputComplete: true, operations: [...BRIEF_V3_LIVE_EXPECTED_OPERATION_OBSERVATIONS] }, transaction: { outcome: "COMMITTED", operationKey: "REQUEST_BRIEF_CHANGES_V3:synthetic", attemptId, changed: true, resultChecksum: digest, workflowState: "CLARIFYING", projectionStatus: "SYNCED" }, exactReplay: { outcome: "COMMITTED_REPLAY", providerCalls: 0, stateUnchanged: true }, reconstructionReplay: { outcome: "COMMITTED_REPLAY", providerCalls: 0, stateUnchanged: true }, v2Runtime: { providerMutationCalls: 0, mergeCalls: 0, revisionPersistenceCalls: 0, idempotencyMutationCalls: 0, loadedLegacyMutationModules: [] }, v2FallbackSeamCalls: 0, cleanup: { ownershipId: projectId, cleanupAttempted: false, independentSession: false, remainingByArtifact: { idempotency_records: 0 } }, failureCode: null };
+  return { schemaVersion: 1, windowId, runId, sourceHead: "c318f7178aa130ae4402c3f97a402c5c8eb6acea", sourceFingerprint, sourceManifest: manifest, syntheticProjectId: projectId, syntheticSlug: "synthetic-evidence", provider: { schema: "brief-revision-v3", model: "fixture-model", requestCount: 1, retryCount: 0, correctionCount: 0, requestAttempted: true, responseReceived: true, outputComplete: true, operations: [...BRIEF_V3_LIVE_EXPECTED_OPERATION_OBSERVATIONS] }, transaction: { outcome: "COMMITTED", operationKey: "REQUEST_BRIEF_CHANGES_V3:synthetic", attemptId, changed: true, resultChecksum: digest, workflowState: "CLARIFYING", projectionStatus: "SYNCED" }, exactReplay: { outcome: "COMMITTED_REPLAY", providerCalls: 0, stateUnchanged: true }, reconstructionReplay: { outcome: "COMMITTED_REPLAY", providerCalls: 0, stateUnchanged: true }, cleanup: { ownershipId: projectId, cleanupAttempted: false, independentSession: false, remainingByArtifact: { idempotency_records: 0 } }, failureCode: null };
 }
 
 function verified(): VerifiedAcceptanceFacts {
@@ -23,7 +23,7 @@ function verified(): VerifiedAcceptanceFacts {
     workflow: { count: 1, transition: "AWAITING_BRIEF_APPROVAL->CLARIFYING", expectedTransition: "AWAITING_BRIEF_APPROVAL->CLARIFYING", correspondsToCommit: true },
     projection: { status: "SYNCED", databaseDocumentChecksum: digest, projectionDocumentChecksum: digest, matchesDocumentAuthority: true, databaseRemainsCanonical: true },
     replay: { exactOutcome: "COMMITTED_REPLAY", exactProviderCalls: 0, exactStateUnchanged: true, reconstructionOutcome: "COMMITTED_REPLAY", reconstructionProviderCalls: 0, reconstructionStateUnchanged: true },
-    v2: { staticReachableLegacyMutationPaths: [], runtime: { providerMutationCalls: 0, mergeCalls: 0, revisionPersistenceCalls: 0, idempotencyMutationCalls: 0, loadedLegacyMutationModules: [] }, fallbackSeamCalls: 0 },
+    v2: { staticReachableLegacyMutationPaths: [] },
     cleanup: { expectedArtifacts: ["idempotency_records"], independentSession: true, complete: true, remainingByArtifact: { idempotency_records: 0 } },
     missingMandatoryObservations: [],
     bindingMatches: true,
@@ -50,8 +50,6 @@ describe("Brief Revision V3 evidence verdict", () => {
     expect(deriveAcceptanceVerdict({ ...base, source: { ...base.source, manifestMatchesObservation: false } }, "FINALIZED")).toEqual({ status: "INCONCLUSIVE", reason: "LIVE_EVIDENCE_STALE" });
     expect(deriveAcceptanceVerdict({ ...base, source: { ...base.source, sourceHeadMatchesObservation: false } }, "FINALIZED")).toEqual({ status: "INCONCLUSIVE", reason: "LIVE_EVIDENCE_STALE" });
     expect(deriveAcceptanceVerdict({ ...base, v2: { ...base.v2, staticReachableLegacyMutationPaths: ["src/agents/lead/service.ts"] } }, "FINALIZED")).toEqual({ status: "FAIL", reason: "V2_MUTATION_PATH_INVOKED_OR_REACHABLE" });
-    expect(deriveAcceptanceVerdict({ ...base, v2: { ...base.v2, runtime: { ...base.v2.runtime, mergeCalls: 1 } } }, "FINALIZED")).toEqual({ status: "FAIL", reason: "V2_MUTATION_PATH_INVOKED_OR_REACHABLE" });
-    expect(deriveAcceptanceVerdict({ ...base, v2: { ...base.v2, runtime: { ...base.v2.runtime, loadedLegacyMutationModules: ["src/agents/lead/service.ts"] } } }, "FINALIZED")).toEqual({ status: "FAIL", reason: "V2_MUTATION_PATH_INVOKED_OR_REACHABLE" });
     expect(deriveAcceptanceVerdict({ ...base, committed: { ...base.committed, attemptBindingMatches: false } }, "FINALIZED")).toEqual({ status: "INCONCLUSIVE", reason: "TRANSACTION_ATTEMPT_BINDING_MISMATCH" });
     expect(deriveAcceptanceVerdict({ ...base, committed: { ...base.committed, transactionObservationMatches: false } }, "FINALIZED")).toEqual({ status: "FAIL", reason: "TRANSACTION_OBSERVATION_MISMATCH" });
   });

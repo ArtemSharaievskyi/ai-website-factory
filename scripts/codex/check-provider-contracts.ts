@@ -7,7 +7,6 @@ import {
   ImplementationChangeProposalStructuredOutputSchema,
   OrchestrationPlanSchema,
   PlanningPackageStructuredOutputSchema,
-  buildProductionBriefRevisionResponseFormat,
 } from "@/integrations/openai/adapters";
 import { ProviderBriefChangeSetSchema } from "@/integrations/openai-v3/changeset";
 import { ClarificationPlanProviderOutputSchema, LeadAnalysisProviderOutputSchema } from "@/agents/lead/contracts";
@@ -25,7 +24,6 @@ const builders: Record<string, Builder> = {
   "lead-analysis": () => buildProductionResponseFormat(LeadAnalysisProviderOutputSchema, "lead-analysis"),
   "clarification-plan": () => buildProductionResponseFormat(ClarificationPlanProviderOutputSchema, "clarification-plan"),
   "project-brief": () => buildProductionResponseFormat(BriefDraftStructuredOutputSchema, "brief-draft"),
-  "brief-revision": () => buildProductionBriefRevisionResponseFormat(),
   "brief-revision-v3": () => buildProductionResponseFormat(ProviderBriefChangeSetSchema, "brief-revision-v3"),
   "planning-package": () => buildProductionResponseFormat(PlanningPackageStructuredOutputSchema, "planning-package"),
   "design-direction-set": () => buildProductionResponseFormat(DesignDirectionStructuredOutputSchema, "design-direction-set"),
@@ -117,7 +115,7 @@ export async function runProviderContractGuard(options: { emit?: boolean } = {})
       ...(metadata?.affectedPathPrefixes?.length ? { affectedPathPrefixes: metadata.affectedPathPrefixes } : {}),
     };
   });
-  const knownProductDefects = failures.filter((failure) => failure.id === "brief-revision").map((failure) => failure.id);
+  const knownProductDefects: string[] = [];
   const output: ProviderContractGuardResult = { passed: failures.length === 0, results, failures, knownProductDefects };
   if (options.emit !== false) printProviderContractResult(output);
   return output;

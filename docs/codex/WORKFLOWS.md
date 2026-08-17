@@ -37,18 +37,17 @@ the distinction between a replay and a new clarification round.
 ## Request Brief changes
 
 The Workbench action `request-brief-changes` enters
-`TrialEntryService.requestBriefChanges`, which validates the current project,
-reserves the revision operation, invokes the Lead revision path, and persists a
-new canonical requirements document only through the existing service and
-repository boundaries. Revision semantics in
-`src/domain/requirements/revision.ts` preserve unmentioned requirements when
-requested, record history, remove or replace resolved targets, and calculate
-the current effective requirements.
+`TrialEntryService.requestBriefChanges`, reconstructs currentness from the
+authoritative project/document rows, and delegates the complete mutation to
+`BriefV3TransactionService`. The V3 provider emits a bounded ChangeSet; the V3
+reducer, effective delta, history, workflow event, idempotency, and atomic
+persistence transaction remain host-owned. Legacy V1/V2 documents are read and
+migrated in memory only.
 
 When diagnosing a revision failure, trace the real path from Workbench action
-to Trial Entry to Lead/provider adapter to canonical revision/effective
-requirements to persistence. A domain-only test does not establish that the
-production provider response and host mapping are correct.
+to Trial Entry to the V3 provider/mapper/reducer and transaction boundary. A
+domain-only test does not establish that the production provider response and
+host mapping are correct.
 
 ## Approve the Brief
 

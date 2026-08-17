@@ -45,6 +45,12 @@
       "message": "OpenAI integration code must not depend on Workbench UI or routes."
     },
     {
+      "id": "PRODUCTION_BRIEF_MUTATION_CANNOT_IMPORT_V2_MUTATION",
+      "sourcePrefixes": ["src/app/", "src/agents/lead/", "src/runtime/brief-revision-v3/", "src/runtime/trial-entry/", "src/runtime/workbench/"],
+      "forbiddenTargetPrefixes": ["src/domain/requirements/revision.ts", "src/runtime/brief-revision-v3/v2-tripwire.ts"],
+      "message": "Production Brief mutation areas may use only the V3 transaction authority; legacy V2 mutation modules are forbidden."
+    },
+    {
       "id": "PERSISTENCE_CANNOT_IMPORT_UI",
       "sourcePrefixes": ["src/persistence/"],
       "forbiddenTargetPrefixes": ["src/app/"],

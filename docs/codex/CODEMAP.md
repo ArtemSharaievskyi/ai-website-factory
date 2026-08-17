@@ -41,16 +41,16 @@ repositories, and validators remain canonical.
 - `src/integrations/openai/config.ts`, `errors.ts`, `limiter.ts`, and `usage.ts`
   cover configuration, safe failures, rate limiting, and usage accounting.
 - `src/integrations/openai/provider.test.ts` and
-  `brief-v2-provider-contract.test.ts` cover provider boundaries and strict
-  structured output behavior.
+  `src/integrations/openai-v3/brief-v3-provider-contract.test.ts` cover provider
+  boundaries and strict structured output behavior.
 
 ## Brief and canonical requirements
 
 - `src/domain/requirements/schema.ts` is the typed requirements contract.
 - `src/domain/requirements/brief.ts` contains Brief construction and related
   canonical transformations.
-- `src/domain/requirements/revision.ts` applies revision intent, provider
-  operations, preservation, history, and revision diagnostics.
+- `src/domain/requirements/v3/` owns the active ChangeSet reducer, effective
+  delta, history, migration, and serialization boundaries.
 - `src/domain/requirements/effective.ts` separates current effective
   requirements from retained historical requirements.
 - `src/domain/requirements/brief-validation.ts` detects contradictions and

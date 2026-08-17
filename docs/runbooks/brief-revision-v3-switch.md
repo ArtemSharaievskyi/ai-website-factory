@@ -24,13 +24,9 @@ Make one coherent capability switch at the TrialEntry application boundary:
 `BriefV3TransactionService.execute`
 
 The public Workbench envelope and action remain
-`action: "request-brief-changes"`. Replace one production route, then run the
-V3 application service end to end. Do not introduce independent provider,
-persistence, history, or feature flags. There is no dual-write and no V2
-fallback. Keep the V2 mutation code temporarily unreachable only as a
-code-level rollback option before the first V3 canonical commit. Once any V3
-commit exists, do not restore the old route globally; Phase 4 must enforce that
-per-project authority boundary or hold traffic while fixing forward.
+`action: "request-brief-changes"`. The production route now enters the V3
+transaction service directly. There is no independent provider, persistence,
+history, or feature-flag authority, no dual-write, and no V2 fallback.
 
 ## POST-SWITCH SYNTHETIC ACCEPTANCE
 
@@ -52,35 +48,18 @@ additional revisions, approve the Brief, or use the pilot to tune the provider.
 
 ## ROLLBACK
 
-Before any V3 canonical commit, routing may be restored to the old path if the
-switch is not healthy.
-
-After a successful V3 canonical commit, do not rewrite that project through V2
-mutation semantics and do not globally restore the old route. If deployment
-rollback is needed after the first V3 commit, hold or isolate new revision
-traffic and fix forward in V3; the committed V3 database state remains
-authoritative.
-
-**Routing rollback is NOT canonical-state rollback.** Restoring a route does not
-undo or translate a committed V3 state.
+After a V3 canonical commit, do not rewrite that project through legacy mutation
+semantics or restore a legacy revision route. If deployment rollback is needed,
+hold or isolate new revision traffic and fix forward in V3; the committed V3
+database state remains authoritative.
 
 ## DELETION GATE
 
-After synthetic and one controlled pilot acceptance pass, delete the obsolete
-V2 mutation architecture only after a separate review confirms no route still
-depends on it. Delete:
-
-- the V2 mutation call in `LeadAgentService.requestBriefRevision` and its
-  `mergeRevisionRequirements` path;
-- preservation and text-target mutation helpers: `addMissingPreserved`,
-  `removeTarget`, `resolveTargetValues`, `requirementDimensionForText`,
-  `isSimulationProhibitionRequirement`, and
-  `getEffectiveBriefRequirements` where they serve revision mutation;
-- the full-candidate V2 revision contract and diagnostics, including
-  `BriefRevisionStructuredOutputSchema`, `BriefRevisionOperation`, and the
-  `reviseBrief` adapter;
-- obsolete V2 revision idempotency, including
-  `REQUEST_BRIEF_CHANGES_OPERATION` and `briefRevisionOperationKey`.
+Phase 4C closes this gate after synthetic and controlled pilot acceptance. The
+obsolete full-candidate V2 provider, merge/preservation semantics, Lead mutation
+service branch, mutation-only diagnostics, and V2 revision idempotency are
+removed. The architecture guard prevents production Brief mutation areas from
+importing those modules again.
 
 Keep legacy V1/V2 readers and the deterministic V2 -> V3 migration adapter.
 Do not globally rewrite legacy rows and do not delete compatibility reads.
@@ -95,14 +74,6 @@ The current production path is:
   `REQUEST_BRIEF_CHANGES` case;
 - TrialEntry boundary: `src/runtime/trial-entry/service.ts`,
   `TrialEntryService.requestBriefChanges`;
-- V2 idempotency: `src/runtime/trial-entry/idempotency.ts`,
-  `REQUEST_BRIEF_CHANGES_OPERATION` and `briefRevisionOperationKey`;
-- V2 Lead: `src/agents/lead/service.ts`,
-  `LeadAgentService.requestBriefRevision` and `mergeRevisionRequirements`;
-- V2 provider: `src/integrations/openai/adapters.ts`, `reviseBrief` and
-  `BriefRevisionStructuredOutputSchema`;
-- V2 persistence/workflow and response mapping: the existing TrialEntry and
-  Lead service repository boundaries;
 - V3 application boundary: `src/runtime/brief-revision-v3/service.ts`,
   `BriefV3TransactionService.execute`;
 - V3 provider boundary: `src/integrations/openai-v3/provider.ts`,

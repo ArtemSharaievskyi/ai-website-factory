@@ -26,7 +26,7 @@ repository gates required by `CONTRIBUTING.md` for a handoff.
   src/runtime/workbench/brief-revision-production-trace.test.ts
   src/runtime/workbench/brief-revision-lossless.test.ts
   src/runtime/workbench/brief-revision-idempotency.test.ts
-  src/domain/requirements/brief-v2.test.ts`.
+  src/runtime/brief-revision-v3/certification.test.ts`.
 - Context losslessness: `npm run test --
   src/runtime/context/lossless-context.test.ts`.
 - Assets and persistence: `npm run test --
@@ -54,7 +54,7 @@ domain schema:
    live check as the only regression proof.
 
 Relevant tests are `src/integrations/openai/provider.test.ts`,
-`src/integrations/openai/brief-v2-provider-contract.test.ts`, and
+`src/integrations/openai-v3/brief-v3-provider-contract.test.ts`, and
 `src/integrations/openai/prompts.test.ts`.
 
 ## Database and larger boundaries

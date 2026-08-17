@@ -27,7 +27,6 @@ import { SYNTHETIC_CLEANUP_ARTIFACTS } from "./cleanup-policy";
 import { createBriefV3OperationIdentity, createRevisionCurrentnessToken } from "./identity";
 import { BriefV3TransactionService } from "./service";
 import { assertCriticalSourceCoverage, assertSourceManifestCanonical, assertV3SourceClosureDoesNotReachV2, computeCriticalSourceFingerprint, type SourceFingerprint } from "./source-fingerprint";
-import { readV2TripwireSnapshot, resetV2Tripwires } from "./v2-tripwire";
 
 const projectId = "88888888-8888-4888-8888-888888888888";
 const timestamp = "2026-08-16T00:00:00.000Z";
@@ -106,7 +105,6 @@ async function cleanupFixture(database: InMemoryPersistenceDatabase, root: strin
 }
 
 async function executeAcceptance(leaveArtifact?: string, dto: ProviderBriefChangeSet = providerDto, expectedChangeSet: BriefChangeSet = productionExpectedChangeSet, options: { providerEvidence?: "normal" | "missing"; observedChangeSetChecksum?: string } = {}) {
-  resetV2Tripwires();
   const f = await fixture();
   const root = await mkdtemp(path.join(os.tmpdir(), "brief-v3-e1-acceptance-"));
   const projection = new FilesystemProjectMemorySyncPort(root, f.project.slug);
@@ -131,11 +129,10 @@ async function executeAcceptance(leaveArtifact?: string, dto: ProviderBriefChang
     if (!historyRow) throw new Error("ACCEPTANCE_TEST_HISTORY_MISSING");
     f.database.briefRevisionHistory.set(historyRow[0], { ...historyRow[1], changeSetChecksum: options.observedChangeSetChecksum });
   }
-  const v2Snapshot = readV2TripwireSnapshot();
-  const observations: LiveAcceptanceObservations = { schemaVersion: 1, windowId, runId, sourceHead: source.sourceHead, sourceFingerprint: source.fingerprint, sourceManifest: [...source.manifest], syntheticProjectId: projectId, syntheticSlug: f.project.slug, provider: { schema: "brief-revision-v3", model: "fixture-model", requestCount: provider.calls, retryCount: 0, correctionCount: 0, requestAttempted: true, responseReceived: true, outputComplete: true, operations: operations.map((operation) => ({ ...operation })), rawProviderChangeSet: options.providerEvidence === "missing" ? null : provider.evidence?.providerChangeSet ?? null }, transaction: { outcome: "COMMITTED", operationKey, attemptId: first.attemptId, changed: first.changed, resultChecksum: digestCertificationObject(first.currentBriefChecksum), workflowState: first.workflowState, projectionStatus: first.projectionStatus }, exactReplay: { outcome: exact.outcome === "COMMITTED_REPLAY" ? "COMMITTED_REPLAY" : "FAILED", providerCalls: exactProvider.calls, stateUnchanged: beforeReplay === afterReplay }, reconstructionReplay: { outcome: reconstructed.outcome === "COMMITTED_REPLAY" ? "COMMITTED_REPLAY" : "FAILED", providerCalls: reconstructedProvider.calls, stateUnchanged: true }, v2Runtime: { ...v2Snapshot, loadedLegacyMutationModules: [...v2Snapshot.loadedLegacyMutationModules] }, v2FallbackSeamCalls: 0, cleanup: { ownershipId: projectId, cleanupAttempted: false, independentSession: false, remainingByArtifact: Object.fromEntries(SYNTHETIC_CLEANUP_ARTIFACTS.map((artifact) => [artifact, 1])) }, failureCode: null };
+  const observations: LiveAcceptanceObservations = { schemaVersion: 1, windowId, runId, sourceHead: source.sourceHead, sourceFingerprint: source.fingerprint, sourceManifest: [...source.manifest], syntheticProjectId: projectId, syntheticSlug: f.project.slug, provider: { schema: "brief-revision-v3", model: "fixture-model", requestCount: provider.calls, retryCount: 0, correctionCount: 0, requestAttempted: true, responseReceived: true, outputComplete: true, operations: operations.map((operation) => ({ ...operation })), rawProviderChangeSet: options.providerEvidence === "missing" ? null : provider.evidence?.providerChangeSet ?? null }, transaction: { outcome: "COMMITTED", operationKey, attemptId: first.attemptId, changed: first.changed, resultChecksum: digestCertificationObject(first.currentBriefChecksum), workflowState: first.workflowState, projectionStatus: first.projectionStatus }, exactReplay: { outcome: exact.outcome === "COMMITTED_REPLAY" ? "COMMITTED_REPLAY" : "FAILED", providerCalls: exactProvider.calls, stateUnchanged: beforeReplay === afterReplay }, reconstructionReplay: { outcome: reconstructed.outcome === "COMMITTED_REPLAY" ? "COMMITTED_REPLAY" : "FAILED", providerCalls: reconstructedProvider.calls, stateUnchanged: true }, cleanup: { ownershipId: projectId, cleanupAttempted: false, independentSession: false, remainingByArtifact: Object.fromEntries(SYNTHETIC_CLEANUP_ARTIFACTS.map((artifact) => [artifact, 1])) }, failureCode: null };
   const expectedBrief = applyBriefChangeSet(f.brief, expectedChangeSet);
   const verifierObservations = deserializeLiveAcceptanceObservations(serializeLiveAcceptanceObservations(observations));
-  const verified = await verifyAcceptance({ observations: verifierObservations, expected: { windowId, runId, projectId, projectVersion: 1, syntheticSlug: f.project.slug, operationKey, initialBrief: f.brief, expectedBrief, expectedOperations: operations, expectedUnchangedTargets: createSyntheticExpectedLocalityTargets(expectedChangeSet.changes.map((change) => change.target)), expectedWorkflowTransition: "AWAITING_BRIEF_APPROVAL->CLARIFYING" }, readers: { database: f.database, projection, source: async () => source, v2: readV2TripwireSnapshot, cleanup: () => cleanupFixture(f.database, root, leaveArtifact) } });
+  const verified = await verifyAcceptance({ observations: verifierObservations, expected: { windowId, runId, projectId, projectVersion: 1, syntheticSlug: f.project.slug, operationKey, initialBrief: f.brief, expectedBrief, expectedOperations: operations, expectedUnchangedTargets: createSyntheticExpectedLocalityTargets(expectedChangeSet.changes.map((change) => change.target)), expectedWorkflowTransition: "AWAITING_BRIEF_APPROVAL->CLARIFYING" }, readers: { database: f.database, projection, source: async () => source, cleanup: () => cleanupFixture(f.database, root, leaveArtifact) } });
   return { f, root, source, windowId, runId, observations: verifierObservations, verified, first, mappedChangeSet };
 }
 
@@ -225,8 +222,6 @@ describe("EVIDENCE: Brief Revision V3 E1 deterministic evidence subsystem", () =
       ["workflow", { workflow: { ...run.verified.workflow, correspondsToCommit: false } }],
       ["projection", { projection: { ...run.verified.projection, matchesDocumentAuthority: false } }],
       ["static-v2", { v2: { ...run.verified.v2, staticReachableLegacyMutationPaths: ["src/agents/lead/service.ts"] } }],
-      ["runtime-v2", { v2: { ...run.verified.v2, runtime: { ...run.verified.v2.runtime, mergeCalls: 1 } } }],
-      ["fallback", { v2: { ...run.verified.v2, fallbackSeamCalls: 1 } }],
       ["cleanup", { cleanup: { ...run.verified.cleanup, complete: false, remainingByArtifact: { ...run.verified.cleanup.remainingByArtifact, idempotency_records: 1 } } }],
       ["run-binding", { bindingMatches: false }],
       ["replay", { replay: { ...run.verified.replay, exactProviderCalls: 1 } }],
@@ -246,12 +241,11 @@ describe("EVIDENCE: Brief Revision V3 E1 deterministic evidence subsystem", () =
     expect(evidence.statusReason).toBe("SYNTHETIC_CLEANUP_INCOMPLETE");
   });
 
-  it("keeps the typed V3 failure path free of every real V2 seam", async () => {
-    resetV2Tripwires();
+  it("keeps the typed V3 failure path fail-closed and statically outside legacy mutation modules", async () => {
     const f = await fixture();
     await expect(new BriefV3TransactionService({ database: f.database, provider: { proposeChanges: async () => { throw new Error("synthetic-provider-failure"); } } }).execute({ projectId, projectVersion: 1, revisionInstruction: "Synthetic failure path.", expectedCurrentness: f.currentness, targetHints: ["SEO_TITLE"], targetWorkflowState: "CLARIFYING" })).rejects.toBeDefined();
-    const snapshot = readV2TripwireSnapshot();
-    expect(snapshot.providerMutationCalls + snapshot.mergeCalls + snapshot.revisionPersistenceCalls + snapshot.idempotencyMutationCalls).toBe(0);
-    expect(snapshot.loadedLegacyMutationModules).toEqual([]);
+    const source = await computeCriticalSourceFingerprint();
+    expect(source.closure).not.toContain("src/domain/requirements/revision.ts");
+    expect(source.closure).not.toContain("src/runtime/brief-revision-v3/v2-tripwire.ts");
   });
 });

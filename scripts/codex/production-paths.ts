@@ -11,8 +11,7 @@ export function productionPath(id: string, label: string, testFile: string, mark
 export const PRODUCTION_PATHS: readonly ProductionPath[] = [
   productionPath("WORKBENCH_MUTATION", "Workbench mutation", "src/runtime/workbench/brief-revision-production-trace.test.ts", ["new WorkbenchApplication", "action: \"request-brief-changes\""]),
   productionPath("TRIAL_ENTRY_CONTINUATION", "Trial Entry continuation", "src/runtime/trial-entry/service.test.ts", ["new TrialEntryService", "entry.respond", "DeterministicLeadProvider"]),
-  productionPath("LEAD_PROVIDER_PATH", "Lead provider path", "src/integrations/openai/brief-v2-provider-contract.test.ts", ["OpenAiStructuredClient", "buildProductionBriefRevisionResponseFormat", "schemaName: \"brief-revision\""]),
-  productionPath("BRIEF_REVISION_PATH", "Brief revision path", "src/runtime/workbench/brief-revision-production-trace.test.ts", ["action: \"request-brief-changes\"", "getBriefRevisionTraceEvents"]),
+  productionPath("BRIEF_V3_MUTATION_PATH", "Brief V3 mutation path", "src/runtime/workbench/brief-revision-production-trace.test.ts", ["action: \"request-brief-changes\"", "BriefV3TransactionService"]),
   productionPath("ASSET_INTAKE", "Asset intake", "src/runtime/trial-entry/lead-asset-context.test.ts", ["new ProjectAssetService", "assets.upload", "new WorkbenchApplication"]),
 ];
 

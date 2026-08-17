@@ -2,12 +2,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { buildProductionBriefRevisionResponseFormat } from "@/integrations/openai/adapters";
 import { classifyBaselineFailures, fingerprintFailure, type GuardFailure } from "../../../scripts/codex/baseline-failures";
 import { evaluateProviderContract, runProviderContractGuard } from "../../../scripts/codex/check-provider-contracts";
 import { resolveAffectedChecks } from "../../../scripts/codex/affected";
 import { loadCheckMap, loadRegressionMap, parseCheckMap, parseRegressionMap, parseProviderContractRegistry } from "../../../scripts/codex/config";
 import { CONTROLLED_CHECKS, requiredChecksPassed } from "../../../scripts/codex/checks";
+import { loadArchitectureConfig } from "../../../scripts/codex/check-architecture";
 import { isIgnored, readGitHead, untrackedFiles } from "../../../scripts/codex/git";
 import { assertSessionStartAllowed, buildSession, compareProtectedSnapshot, loadSession, toProtectedSnapshot } from "../../../scripts/codex/protected-state";
 import { verifyProductionPathEvidence } from "../../../scripts/codex/production-paths";
@@ -47,9 +47,20 @@ describe("Codex Level 2 repository guards", () => {
 
   it("maps Brief, Workbench, persistence, and asset areas to real checks", async () => {
     const [checkMap, regressionMap] = await Promise.all([loadCheckMap(), loadRegressionMap()]);
-    const result = resolveAffectedChecks(["src/domain/requirements/revision.ts", "src/runtime/workbench/application.ts", "src/persistence/database/repositories.ts", "src/runtime/assets/service.ts"], checkMap, regressionMap);
+    const result = resolveAffectedChecks(["src/domain/requirements/v3/reducer.ts", "src/runtime/workbench/application.ts", "src/persistence/database/repositories.ts", "src/runtime/assets/service.ts"], checkMap, regressionMap);
     expect(result.areas).toEqual(expect.arrayContaining(["Brief requirements", "Workbench", "Persistence", "Asset intake"]));
     expect(result.checkIds).toEqual(expect.arrayContaining(["brief-tests", "brief-revision-tests", "workbench-tests", "persistence-tests", "asset-tests", "db-validation", "db-integrity", "db-verify"]));
+  });
+
+  it("registers the single-authority guard against obsolete V2 Brief mutation imports", async () => {
+    const config = await loadArchitectureConfig();
+    expect(config.rules).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "PRODUCTION_BRIEF_MUTATION_CANNOT_IMPORT_V2_MUTATION",
+        sourcePrefixes: expect.arrayContaining(["src/runtime/brief-revision-v3/", "src/runtime/trial-entry/", "src/runtime/workbench/"]),
+        forbiddenTargetPrefixes: expect.arrayContaining(["src/domain/requirements/revision.ts", "src/runtime/brief-revision-v3/v2-tripwire.ts"]),
+      }),
+    ]));
   });
 
   it("rejects unknown checks and regressions safely", () => {
@@ -61,11 +72,6 @@ describe("Codex Level 2 repository guards", () => {
   it("uses code-owned controlled commands instead of JSON command fields", () => {
     expect(CONTROLLED_CHECKS.typecheck).toMatchObject({ kind: "command", args: ["run", "typecheck"] });
     expect(JSON.stringify(CONTROLLED_CHECKS)).not.toContain("del *");
-  });
-
-  it("constructs the registered Brief revision response format with strict mode", () => {
-    const result = evaluateProviderContract({ id: "brief-revision", schemaName: "brief-revision", productionReference: "production", triggerPathPrefixes: [] }, buildProductionBriefRevisionResponseFormat);
-    expect(result).toMatchObject({ passed: true, code: "PASS" });
   });
 
   it("reports a production schema construction failure as a failed guard", () => {
@@ -112,7 +118,7 @@ describe("Codex Level 2 repository guards", () => {
   });
 
   it("reports missing production-path evidence instead of accepting a unit test", async () => {
-    const [present, missing] = await Promise.all([verifyProductionPathEvidence(process.cwd(), ["BRIEF_REVISION_PATH"]), verifyProductionPathEvidence(process.cwd(), ["NOT_REGISTERED"]) ]);
+    const [present, missing] = await Promise.all([verifyProductionPathEvidence(process.cwd(), ["BRIEF_V3_MUTATION_PATH"]), verifyProductionPathEvidence(process.cwd(), ["NOT_REGISTERED"]) ]);
     expect(present[0]).toMatchObject({ present: true, code: "PASS" });
     expect(missing[0]).toMatchObject({ present: false, code: "FILE_MISSING" });
   });

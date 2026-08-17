@@ -67,18 +67,23 @@ entry names the invariant and the regression boundary that must be exercised.
 
 - Symptom: removed or superseded historical requirements reappear in current
   effective Brief requirements.
-- Rule: `getEffectiveBriefRequirements` excludes history; revision operations
-  and contradiction checks use the effective current document.
-- Regression: run Brief V2 and lossless revision tests and assert historical
-  entries remain historical.
+- Rule: `getEffectiveBriefRequirements` excludes history; legacy V1/V2 documents
+  are read and migrated to V3 without resurrecting historical entries.
+- Regression: run the V3 certification, legacy migration, and production-shaped
+  revision tests.
 
-## V1_TO_V2_BRIEF_REVISION
+## SINGLE_BRIEF_MUTATION_AUTHORITY
 
-- Symptom: a revision works in a helper but loses intent or semantics across
-  provider transport, host mapping, canonical revision, and persistence.
-- Rule: trace the full production revision path and preserve unmentioned
-  requirements according to the explicit revision intent.
-- Regression: run the production-trace, lossless, and idempotency revision tests.
+- Symptom: legacy compatibility code becomes a second Brief mutation authority,
+  often through a provider-generated full candidate, fallback branch, or direct
+  persistence write.
+- Rule: legacy V1/V2 support is read/migrate only. Every new Brief mutation must
+  enter `BriefV3TransactionService`; providers emit bounded intent and cannot
+  own currentness, persistence identity, workflow state, idempotency, or commit.
+  A new agent or provider must not create another canonical mutation authority.
+- Regression: run the architecture boundary guard, Workbench production trace,
+  V1/V2 migration certification, provider-failure fail-closed test, replay tests,
+  and the full pre-existing Brief regression gates before acceptance.
 
 ## STRUCTURED_OUTPUT_SCHEMA_CONSTRUCTION
 

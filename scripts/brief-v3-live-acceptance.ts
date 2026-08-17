@@ -26,7 +26,6 @@ import { executeSyntheticCleanupTransaction, SYNTHETIC_CLEANUP_ARTIFACTS, verify
 import { createBriefV3OperationIdentity, createRevisionCurrentnessToken } from "@/runtime/brief-revision-v3/identity";
 import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
 import { assertCriticalSourceCoverage, assertSourceManifestCanonical, assertV3SourceClosureDoesNotReachV2, computeCriticalSourceFingerprint } from "@/runtime/brief-revision-v3/source-fingerprint";
-import { readV2TripwireSnapshot, resetV2Tripwires, type V2TripwireSnapshot } from "@/runtime/brief-revision-v3/v2-tripwire";
 import { FilesystemProjectMemorySyncPort } from "@/runtime/workspace/sync";
 
 const revisionInstruction = "For the synthetic local atelier, make successful form behavior simulated after local validation, keep transmission and persistence disabled, and update the exact SEO title to Synthetic Atelier Contact.";
@@ -89,7 +88,7 @@ async function cleanupSyntheticProject(input: { pool: ReturnType<typeof createPo
 }
 
 function emptyObservations(input: { windowId: string; runId: string; source: SourceWithHead; identity: SyntheticIdentity; model: string; operationKey: string }): LiveAcceptanceObservations {
-  return { schemaVersion: 1, windowId: input.windowId, runId: input.runId, sourceHead: input.source.sourceHead, sourceFingerprint: input.source.fingerprint, sourceManifest: [...input.source.manifest], syntheticProjectId: input.identity.projectId, syntheticSlug: input.identity.slug, provider: { schema: null, model: input.model, requestCount: 0, retryCount: 0, correctionCount: 0, requestAttempted: null, responseReceived: null, outputComplete: null, operations: [], rawProviderChangeSet: null }, transaction: { outcome: "NOT_RUN", operationKey: input.operationKey, attemptId: null, changed: null, resultChecksum: null, workflowState: null, projectionStatus: null }, exactReplay: { outcome: "NOT_RUN", providerCalls: 0, stateUnchanged: null }, reconstructionReplay: { outcome: "NOT_RUN", providerCalls: 0, stateUnchanged: null }, v2Runtime: { providerMutationCalls: 0, mergeCalls: 0, revisionPersistenceCalls: 0, idempotencyMutationCalls: 0, loadedLegacyMutationModules: [] }, v2FallbackSeamCalls: 0, cleanup: { ownershipId: input.identity.projectId, cleanupAttempted: false, independentSession: false, remainingByArtifact: Object.fromEntries(SYNTHETIC_CLEANUP_ARTIFACTS.map((artifact) => [artifact, 1])) }, failureCode: null };
+  return { schemaVersion: 1, windowId: input.windowId, runId: input.runId, sourceHead: input.source.sourceHead, sourceFingerprint: input.source.fingerprint, sourceManifest: [...input.source.manifest], syntheticProjectId: input.identity.projectId, syntheticSlug: input.identity.slug, provider: { schema: null, model: input.model, requestCount: 0, retryCount: 0, correctionCount: 0, requestAttempted: null, responseReceived: null, outputComplete: null, operations: [], rawProviderChangeSet: null }, transaction: { outcome: "NOT_RUN", operationKey: input.operationKey, attemptId: null, changed: null, resultChecksum: null, workflowState: null, projectionStatus: null }, exactReplay: { outcome: "NOT_RUN", providerCalls: 0, stateUnchanged: null }, reconstructionReplay: { outcome: "NOT_RUN", providerCalls: 0, stateUnchanged: null }, cleanup: { ownershipId: input.identity.projectId, cleanupAttempted: false, independentSession: false, remainingByArtifact: Object.fromEntries(SYNTHETIC_CLEANUP_ARTIFACTS.map((artifact) => [artifact, 1])) }, failureCode: null };
 }
 
 function safeFailureCode(error: unknown) {
@@ -103,7 +102,6 @@ async function main() {
   if (process.env.BRIEF_V3_LIVE_ACCEPTANCE !== "1") { console.log("SYNTHETIC LIVE ACCEPTANCE: SKIPPED (set BRIEF_V3_LIVE_ACCEPTANCE=1 to opt in)"); return; }
   loadEnvConfig(process.cwd());
   if (!process.env.OPENAI_API_KEY || !process.env.OPENAI_MODEL || !process.env.DATABASE_URL) { console.log("SYNTHETIC LIVE ACCEPTANCE: SKIPPED (provider credentials/model/database are not configured)"); return; }
-  resetV2Tripwires();
   const identity: SyntheticIdentity = (() => { const projectId = randomUUID(); return { projectId, slug: `brief-v3-live-${projectId.slice(0, 8)}` }; })();
   const runId = randomUUID();
   const source = await sourceIdentity();
@@ -152,13 +150,10 @@ async function main() {
     observations.failureCode = safeFailureCode(error);
     if (provider?.evidence) observations.provider = { ...observations.provider, schema: provider.evidence.diagnostic?.schemaName ?? null, requestCount: provider.evidence.usage.requestCount, retryCount: provider.evidence.usage.retryCount, correctionCount: provider.evidence.usage.correctionCount };
     } finally {
-    const snapshot: V2TripwireSnapshot = readV2TripwireSnapshot();
-    observations.v2Runtime = { ...snapshot, loadedLegacyMutationModules: [...snapshot.loadedLegacyMutationModules] };
-    observations.v2FallbackSeamCalls = snapshot.providerMutationCalls + snapshot.mergeCalls + snapshot.revisionPersistenceCalls + snapshot.idempotencyMutationCalls;
     }
   const postSource = await sourceIdentity();
   const verifierObservations = deserializeLiveAcceptanceObservations(serializeLiveAcceptanceObservations(observations));
-  const verified = await verifyAcceptance({ observations: verifierObservations, expected: { windowId: window.windowId, runId, projectId: identity.projectId, projectVersion: 1, syntheticSlug: identity.slug, operationKey, initialBrief: initialExpected, expectedBrief, expectedOperations: BRIEF_V3_LIVE_EXPECTED_OPERATION_OBSERVATIONS, expectedUnchangedTargets: createSyntheticExpectedLocalityTargets(syntheticSemanticChangeSet.changes.map((change) => change.target)), expectedWorkflowTransition: "AWAITING_BRIEF_APPROVAL->CLARIFYING" }, readers: { database, projection: new FilesystemProjectMemorySyncPort(root, identity.slug), source: async () => postSource, v2: readV2TripwireSnapshot, cleanup: cleanupOnce } });
+  const verified = await verifyAcceptance({ observations: verifierObservations, expected: { windowId: window.windowId, runId, projectId: identity.projectId, projectVersion: 1, syntheticSlug: identity.slug, operationKey, initialBrief: initialExpected, expectedBrief, expectedOperations: BRIEF_V3_LIVE_EXPECTED_OPERATION_OBSERVATIONS, expectedUnchangedTargets: createSyntheticExpectedLocalityTargets(syntheticSemanticChangeSet.changes.map((change) => change.target)), expectedWorkflowTransition: "AWAITING_BRIEF_APPROVAL->CLARIFYING" }, readers: { database, projection: new FilesystemProjectMemorySyncPort(root, identity.slug), source: async () => postSource, cleanup: cleanupOnce } });
   const evidence = createBriefV3CertificationEvidence({ executionMode: "LIVE_OPENAI_SYNTHETIC", observations: verifierObservations, verified });
   assertCurrentBriefV3CertificationEvidence(evidence, { sourceHead: postSource.sourceHead, sourceFingerprint: postSource.fingerprint, sourceManifest: postSource.manifest });
   await windowStore.finalize({ windowId: window.windowId, runId, sourceFingerprint: source.fingerprint, evidenceDigest: evidence.evidenceDigest, evidenceSerialized: serializeBriefV3CertificationEvidence(evidence) });

@@ -1,11 +1,7 @@
 import type { ClarificationSession } from "@/domain/requirements/schema";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
-import { recordV2MutationModuleLoaded } from "@/runtime/brief-revision-v3/v2-tripwire";
-
-recordV2MutationModuleLoaded("src/runtime/trial-entry/idempotency.ts");
 
 export const ANSWER_CLARIFICATIONS_OPERATION = "trial-entry:answer-lead-clarifications:v2";
-export const REQUEST_BRIEF_CHANGES_OPERATION = "trial-entry:request-brief-changes:v2";
 
 export type ClarificationAnswerRequest = {
   questionId: string;
@@ -71,31 +67,6 @@ export const clarificationAnswerOperationKey = (input: {
     fingerprint,
     payload,
   };
-};
-
-export const briefRevisionOperationKey = (input: {
-  projectId: string;
-  projectVersion: number;
-  briefChecksum: string;
-  expectedRowVersion: number;
-  reason: string;
-  requirementKeys: readonly string[];
-}) => {
-  recordV2MutationModuleLoaded("src/runtime/trial-entry/idempotency.ts");
-  const normalizedReason = input.reason.replace(/\r\n?/g, "\n");
-  const payload = {
-    projectId: input.projectId,
-    projectVersion: input.projectVersion,
-    briefChecksum: input.briefChecksum,
-    expectedRowVersion: input.expectedRowVersion,
-    reason: normalizedReason,
-    requirementKeys: [...input.requirementKeys].sort(),
-  };
-  const fingerprint = checksumPersistedDocument({
-    operation: REQUEST_BRIEF_CHANGES_OPERATION,
-    ...payload,
-  });
-  return { key: `brief-revision:v3:${input.projectId}:${fingerprint}`, fingerprint, payload };
 };
 
 export const unresolvedQuestionIds = (session: ClarificationSession) =>

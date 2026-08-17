@@ -15,7 +15,6 @@ import { createPostgresPool, PostgresPersistenceDatabase } from "@/persistence/d
 import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
 import { FilesystemProjectMemorySyncPort } from "@/runtime/workspace/sync";
 import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
-import { readV2TripwireSnapshot, resetV2Tripwires } from "@/runtime/brief-revision-v3/v2-tripwire";
 import { TrialEntryService } from "@/runtime/trial-entry/service";
 import { WorkbenchApplication } from "./application";
 
@@ -87,7 +86,6 @@ describePostgres("production-shaped Brief V3 request route on Postgres", () => {
       const initial = await firstApp.app.handle({ action: "status", projectId });
       if (!initial.project || !initial.brief) throw new Error("Postgres synthetic Brief was not ready");
       const request = { action: "request-brief-changes" as const, projectId, projectVersion: initial.project.projectVersion, briefChecksum: initial.brief.checksum, expectedRowVersion: initial.project.rowVersion, reason: "Update the synthetic Postgres route title and add one feature.", requirementKeys: ["project-brief"] };
-      resetV2Tripwires();
       const first = await firstApp.app.handle(request);
       expect(first.project?.workflowState).toBe("CLARIFYING");
       expect(first.brief?.briefSchemaVersion).toBe(3);
@@ -101,7 +99,6 @@ describePostgres("production-shaped Brief V3 request route on Postgres", () => {
       const reconstructed = createApp(new OpenAiBriefV3RevisionProvider(reconstructedBundle.ai));
       await expect(reconstructed.entry.requestBriefChanges(request)).resolves.toMatchObject({ projectId, workflowState: "CLARIFYING" });
       expect(reconstructedCalls).toBe(0);
-      expect(readV2TripwireSnapshot()).toMatchObject({ providerMutationCalls: 0, mergeCalls: 0, revisionPersistenceCalls: 0, idempotencyMutationCalls: 0, loadedLegacyMutationModules: [] });
       await cleanup(pool, projectId);
       await expect(database.transaction(async (tx) => ({ project: await tx.getProject(projectId), version: await tx.getVersion(projectId, 1), attempts: await tx.listBriefRevisionAttempts(projectId, 1), history: await tx.listBriefRevisionHistory(projectId, 1) }))).resolves.toEqual({ project: null, version: null, attempts: [], history: [] });
     } finally {

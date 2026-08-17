@@ -1,4 +1,11 @@
-# Brief Revision V3 E1: deterministic acceptance evidence
+# Historical design record: Brief Revision V3 E1 deterministic acceptance evidence
+
+> E1 is a completed historical evidence plan. Its references to V2 mutation
+> seams and tripwire instrumentation describe the state at E1 time; Phase 4C
+> removed those mutation seams. Current Brief mutations enter only
+> `BriefV3TransactionService`, while V1/V2 support remains read/migrate only.
+> Use the current architecture and runbook documents for implementation
+> guidance.
 
 ## Goal
 

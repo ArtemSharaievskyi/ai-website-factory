@@ -65,7 +65,6 @@ export const REQUIRED_CRITICAL_SOURCE_PATHS = [
   "src/runtime/brief-revision-v3/projection.ts",
   "src/runtime/brief-revision-v3/service.ts",
   "src/runtime/brief-revision-v3/source-fingerprint.ts",
-  "src/runtime/brief-revision-v3/v2-tripwire.ts",
   "src/runtime/context/assembler.ts",
   "src/runtime/context/bridge.ts",
   "src/runtime/context/contracts.ts",

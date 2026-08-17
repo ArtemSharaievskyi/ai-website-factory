@@ -15,7 +15,6 @@ import { digestCertificationObject, digestCertificationValue, type LiveAcceptanc
 import { SYNTHETIC_CLEANUP_ARTIFACTS } from "./cleanup-policy";
 import { assertCriticalSourceCoverage, assertSourceManifestCanonical, assertV3SourceClosureDoesNotReachV2, computeCriticalSourceFingerprint, legacyMutationPathsInClosure, type SourceFingerprint } from "./source-fingerprint";
 import type { BriefV3ProjectionPort } from "./ports";
-import { readV2TripwireSnapshot, type V2TripwireSnapshot } from "./v2-tripwire";
 
 export type CleanupVerification = { independentSession: boolean; complete: boolean; remainingByArtifact: Record<string, number> };
 export type AcceptanceSourceIdentity = SourceFingerprint & { sourceHead: string };
@@ -24,7 +23,6 @@ export type AcceptanceAuthoritativeReaders = {
   database: PersistenceDatabase;
   projection?: AcceptanceProjectionReader;
   source?: () => Promise<AcceptanceSourceIdentity>;
-  v2?: () => V2TripwireSnapshot;
   cleanup: () => Promise<CleanupVerification>;
 };
 
@@ -122,7 +120,6 @@ export async function verifyAcceptance(input: { observations: LiveAcceptanceObse
   const projectionDocumentChecksum = projectionChecksums["brief-v3.json"] ?? null;
   const projectionMatches = committed.projection?.documentChecksum === committed.documentRow.checksum && projectionDocumentChecksum === committed.documentRow.checksum;
   const databaseRemainsCanonical = checksumPersistedDocument(committed.documentRow.payload) === committed.documentRow.checksum;
-  const v2 = (input.readers.v2 ?? readV2TripwireSnapshot)();
   const cleanup = await input.readers.cleanup();
   const remaining = Object.fromEntries(SYNTHETIC_CLEANUP_ARTIFACTS.map((artifact) => [artifact, cleanup.remainingByArtifact[artifact] ?? 1]));
   const bindingMatches = observations.windowId === expected.windowId && observations.runId === expected.runId && observations.syntheticProjectId === expected.projectId && observations.syntheticSlug === expected.syntheticSlug && observations.transaction.attemptId === committed.attempt.id && observations.transaction.operationKey === expected.operationKey;
@@ -139,7 +136,7 @@ export async function verifyAcceptance(input: { observations: LiveAcceptanceObse
     workflow: { count: workflowEvents.length, transition: actualTransition, expectedTransition: expected.expectedWorkflowTransition, correspondsToCommit: workflowCorresponds },
     projection: { status: committed.projection?.status ?? "NONE", databaseDocumentChecksum: committed.documentRow.checksum, projectionDocumentChecksum, matchesDocumentAuthority: Boolean(projectionMatches), databaseRemainsCanonical },
     replay: { exactOutcome: observations.exactReplay.outcome, exactProviderCalls: observations.exactReplay.providerCalls, exactStateUnchanged: observations.exactReplay.stateUnchanged === true && replayStateUnchanged, reconstructionOutcome: observations.reconstructionReplay.outcome, reconstructionProviderCalls: observations.reconstructionReplay.providerCalls, reconstructionStateUnchanged: observations.reconstructionReplay.stateUnchanged === true && replayStateUnchanged },
-    v2: { staticReachableLegacyMutationPaths, runtime: { providerMutationCalls: v2.providerMutationCalls, mergeCalls: v2.mergeCalls, revisionPersistenceCalls: v2.revisionPersistenceCalls, idempotencyMutationCalls: v2.idempotencyMutationCalls, loadedLegacyMutationModules: [...v2.loadedLegacyMutationModules] }, fallbackSeamCalls: observations.v2FallbackSeamCalls },
+    v2: { staticReachableLegacyMutationPaths },
     cleanup: { expectedArtifacts: [...SYNTHETIC_CLEANUP_ARTIFACTS], independentSession: cleanup.independentSession, complete: cleanup.complete && Object.values(remaining).every((count) => count === 0), remainingByArtifact: remaining },
     missingMandatoryObservations,
     bindingMatches,

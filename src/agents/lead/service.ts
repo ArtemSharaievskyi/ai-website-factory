@@ -7,11 +7,8 @@ import {
   type ClarificationQuestion,
   type ClarificationSession,
   RequirementSpecificationSchema,
-  ProjectBriefV2Schema,
 } from "@/domain/requirements/schema";
-import { applyBriefRevisionSemanticsWithOptions, extractBriefRevisionIntent, validateBriefRevisionSemantics, BriefRevisionSemanticsError, createBriefRevisionTraceSnapshot, type BriefRevisionOperation, type BriefRevisionTraceSink } from "@/domain/requirements/revision";
 import { briefApprovalBlockers } from "@/domain/requirements/brief-validation";
-import { recordV2Mutation, recordV2MutationModuleLoaded } from "@/runtime/brief-revision-v3/v2-tripwire";
 import { DecisionRecordSchema } from "@/domain/workflow/decision";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import {
@@ -52,7 +49,6 @@ import {
   type SkillSelectionPort,
 } from "./ports";
 
-recordV2MutationModuleLoaded("src/agents/lead/service.ts");
 import {
   CLARIFICATION_POLICY_VERSION,
   classifyRequirementCandidate,
@@ -60,19 +56,12 @@ import {
 } from "./clarification-policy";
 import { leadAgentDefinition } from "@/agents/catalog";
 import type { AgentSkillSelection } from "@/skills/runtime/resolver";
-import type { BriefRevisionProviderInput } from "./ports";
 import { FACTORY_OPERATOR_LANGUAGE, LanguageResolutionSchema, normalizeSiteLanguage, resolveLanguageAuthority, type LanguageResolution, type OperatorLanguage } from "@/domain/language/schema";
-import { emitBriefRevisionTrace } from "@/runtime/workbench/diagnostics";
 
 const now = () => new Date().toISOString();
 const normalizePrompt = (prompt: string) => prompt.replace(/\r\n?/g, "\n");
 const key = (projectId: string, version: number) => `${projectId}:${version}`;
 const ANALYSIS_CACHE_VERSION = "lead-analysis:analyze-project-prompt:v2";
-
-export async function invokeLegacyBriefRevisionProvider(provider: LeadAnalysisProvider, input: BriefRevisionProviderInput) {
-  recordV2Mutation("provider");
-  return provider.reviseBrief?.(input);
-}
 
 const analysisCacheKey = (input: Pick<LeadAgentInput, "projectId" | "projectVersion" | "operatorLanguage" | "siteLanguage">) => `${ANALYSIS_CACHE_VERSION}:${input.projectId}:${input.projectVersion}:${input.operatorLanguage}:${input.siteLanguage}`;
 const versionedQuestionId = (questionId: string, clarificationVersion: number) => {
@@ -132,12 +121,6 @@ const leadClarificationSchemaError = (error: z.ZodError) => {
     error,
   );
 };
-const revisionOutputFailure = (outputStage: "CANONICAL_BRIEF_V2_VALIDATION_FAILED" | "REVISION_SEMANTIC_VALIDATION_FAILED" | "BRIEF_CONTRADICTION_DETECTED", issueCode: string, fieldPath?: string, cause?: unknown) => new LeadError(
-  "LEAD_PROVIDER_FAILED",
-  "The provider revision did not satisfy the strict Project Brief V2 output contract.",
-  { outputStage, schemaName: "brief-revision", issueCode, ...(fieldPath ? { fieldPath } : {}) },
-  cause,
-);
 const parseClarificationPlan = (value: unknown) => {
   try {
     return ClarificationPlanSchema.parse(value);
@@ -162,27 +145,6 @@ const validateClarificationPlan = (plan: ClarificationPlan, parsed: LeadAgentInp
   return plan;
 };
 
-const uniqueStrings = (left: string[], right: string[]) => [...new Set([...left, ...right])];
-const uniqueRecords = <T>(left: T[], right: T[]) => [...left, ...right].filter((value, index, all) => all.findIndex((candidate) => JSON.stringify(candidate) === JSON.stringify(value)) === index);
-export const mergeRevisionRequirements = (existing: z.infer<typeof RequirementSpecificationSchema>, candidate: z.infer<typeof RequirementSpecificationSchema>, revisionInstruction: string, options: { providerOperations?: BriefRevisionOperation[]; trace?: BriefRevisionTraceSink } = {}) => {
-  recordV2MutationModuleLoaded("src/agents/lead/service.ts");
-  recordV2Mutation("merge");
-  const semantic = applyBriefRevisionSemanticsWithOptions(existing, candidate, revisionInstruction, options);
-  const merged = { ...semantic.brief } as Record<string, unknown>;
-  merged.unresolvedItems = candidate.unresolvedItems;
-  merged.evidence = uniqueRecords(existing.evidence, candidate.evidence);
-  merged.briefRevisionInstructions = uniqueStrings(existing.briefRevisionInstructions ?? [], [revisionInstruction]);
-  merged.projectId = existing.projectId;
-  merged.projectVersion = existing.projectVersion;
-  merged.createdAt = existing.createdAt;
-  merged.updatedAt = now();
-  merged.briefStatus = "draft";
-  merged.briefVersion = existing.briefVersion + 1;
-  merged.approval = { approved: false };
-  delete merged.briefApprovalNote;
-  const requiresV2 = existing.briefSchemaVersion === 2 || candidate.briefSchemaVersion === 2;
-  return requiresV2 ? ProjectBriefV2Schema.parse(merged) : RequirementSpecificationSchema.parse(merged);
-};
 export type LeadServiceDependencies = {
   database: PersistenceDatabase;
   memory: LeadMemoryPort;
@@ -984,199 +946,6 @@ export class LeadAgentService {
       result.brief,
     );
     return result;
-  }
-  async requestBriefRevision(input: {
-    projectId: string;
-    projectVersion: number;
-    requirementKeys: string[];
-    reason: string;
-    requestedBy: string;
-    idempotencyKey: string;
-    expectedBriefChecksum?: string;
-  }) {
-    const current = await this.projects.getWithVersion(input.projectId);
-    if (
-      !current ||
-      !["AWAITING_BRIEF_APPROVAL", "AWAITING_DESIGN_SELECTION"].includes(
-        current.project.workflowState,
-      )
-    )
-      throw new LeadError(
-        "BRIEF_REVISION_REQUIRED",
-        "Brief revision is only available before implementation.",
-      );
-    const existing = await this.documents.get(
-      input.projectId,
-      input.projectVersion,
-      "requirements",
-    );
-    if (!existing || existing.documentType !== "requirements")
-      throw new LeadError(
-        "BRIEF_NOT_READY",
-        "Requirements draft was not found.",
-      );
-    if (input.expectedBriefChecksum && checksumPersistedDocument(existing) !== input.expectedBriefChecksum)
-      throw new LeadError("BRIEF_CHECKSUM_MISMATCH", "The Project Brief changed before this revision was processed.");
-
-    const revisionInput: BriefRevisionProviderInput = {
-      projectId: input.projectId,
-      projectVersion: input.projectVersion,
-      originalPrompt: current.project.originalPrompt,
-      currentBrief: existing,
-      currentCanonicalRequirements: existing,
-      revisionInstruction: input.reason,
-      requirementKeys: input.requirementKeys,
-      operatorLanguage: existing.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE,
-      siteLanguage: current.project.siteLanguage,
-      currentWorkflowState: current.project.workflowState,
-    };
-    const revised = await invokeLegacyBriefRevisionProvider(this.provider, revisionInput);
-    if (revised) {
-      const providerOperations: BriefRevisionOperation[] = "revisionOperations" in revised ? revised.revisionOperations : [];
-      const revisedDraft = { ...revised } as Record<string, unknown>;
-      delete revisedDraft.revisionOperations;
-      const latest = await this.projects.getWithVersion(input.projectId);
-      const latestRequirements = await this.documents.get(input.projectId, input.projectVersion, "requirements");
-      if (!latest || latest.rowVersion !== current.rowVersion || latest.project.workflowState !== current.project.workflowState || !latestRequirements || latestRequirements.documentType !== "requirements" || checksumPersistedDocument(latestRequirements) !== checksumPersistedDocument(existing))
-        throw new LeadError("BRIEF_CHECKSUM_MISMATCH", "The Project Brief changed before this revision could be saved.");
-      let requirements: z.infer<typeof RequirementSpecificationSchema>;
-      const traceId = randomUUID();
-      const trace: BriefRevisionTraceSink = (snapshot) => emitBriefRevisionTrace({ ...snapshot, type: "workbench.brief-revision.trace", timestamp: new Date().toISOString(), traceId, operation: "REQUEST_BRIEF_CHANGES", projectId: input.projectId });
-      try {
-        requirements = mergeRevisionRequirements(existing, revised.requirements, input.reason, { providerOperations, trace });
-      } catch (error) {
-        if (error instanceof BriefRevisionSemanticsError) throw revisionOutputFailure("REVISION_SEMANTIC_VALIDATION_FAILED", error.issueCode, undefined, error);
-        if (error instanceof z.ZodError) {
-          const issue = error.issues[0];
-          throw revisionOutputFailure("CANONICAL_BRIEF_V2_VALIDATION_FAILED", issue?.code === "unrecognized_keys" ? "UNKNOWN_FIELD" : "INVALID_CANONICAL_V2", issue?.path.map(String).join("."), error);
-        }
-        throw error;
-      }
-      const semanticRevisionBlockers = validateBriefRevisionSemantics(existing, requirements, input.reason, providerOperations);
-      if (semanticRevisionBlockers.length) throw revisionOutputFailure("REVISION_SEMANTIC_VALIDATION_FAILED", semanticRevisionBlockers[0]!);
-      trace(createBriefRevisionTraceSnapshot("CONTRADICTION_INPUT", requirements, { operationTypes: extractBriefRevisionIntent(input.reason).operations.map((operation) => operation.kind).concat(providerOperations.map((operation) => operation.kind)), removeTargetResolved: true, removeVerificationPassed: true, contradictionCount: briefApprovalBlockers(requirements).length }));
-      const contradictionBlockers = briefApprovalBlockers(requirements);
-      if (contradictionBlockers.length) throw revisionOutputFailure("BRIEF_CONTRADICTION_DETECTED", contradictionBlockers[0]!.replace(/^BRIEF_CONTRADICTION_DETECTED:/, ""));
-      const blockingReasons = [...new Set([...revised.blockingReasons, ...requirements.unresolvedItems.filter((item) => item.blocking).map((item) => `REQUIREMENT_UNRESOLVED:${item.id}`)])];
-      const draft = BriefDraftSchema.parse({
-        ...revisedDraft,
-        projectId: input.projectId,
-        projectVersion: input.projectVersion,
-        requirements,
-        unresolvedItems: requirements.unresolvedItems.map((item) => ({ key: item.id, description: item.description, blocking: item.blocking })),
-        evidence: requirements.evidence,
-        blockingReasons,
-        readyForApproval: revised.readyForApproval && blockingReasons.length === 0,
-        briefChecksum: checksumPersistedDocument(requirements),
-      });
-      await this.documents.save(requirements, input.idempotencyKey);
-      await this.dependencies.memory.writeSnapshot(input.projectId, input.projectVersion, { "requirements.json": requirements });
-      let currentState = current.project.workflowState;
-      if (currentState === "AWAITING_DESIGN_SELECTION") {
-        const approval = await this.workflow.transition({
-          projectId: input.projectId,
-          projectVersion: input.projectVersion,
-          expectedState: "AWAITING_DESIGN_SELECTION",
-          expectedRowVersion: current.rowVersion,
-          targetState: "AWAITING_BRIEF_APPROVAL",
-          actor: input.requestedBy,
-          reason: "User requested a Project Brief revision.",
-          idempotencyKey: `${input.idempotencyKey}-approval`,
-        });
-        currentState = "AWAITING_BRIEF_APPROVAL";
-        if (!draft.readyForApproval) {
-          await this.workflow.transition({
-            projectId: input.projectId,
-            projectVersion: input.projectVersion,
-            expectedState: "AWAITING_BRIEF_APPROVAL",
-            expectedRowVersion: approval.rowVersion,
-            targetState: "CLARIFYING",
-            actor: input.requestedBy,
-            reason: "Project Brief revision requires clarification.",
-            idempotencyKey: `${input.idempotencyKey}-clarifying`,
-          });
-          currentState = "CLARIFYING";
-        }
-      } else if (!draft.readyForApproval && currentState === "AWAITING_BRIEF_APPROVAL") {
-        await this.workflow.transition({
-          projectId: input.projectId,
-          projectVersion: input.projectVersion,
-          expectedState: "AWAITING_BRIEF_APPROVAL",
-          expectedRowVersion: current.rowVersion,
-          targetState: "CLARIFYING",
-          actor: input.requestedBy,
-          reason: "Project Brief revision requires clarification.",
-          idempotencyKey: `${input.idempotencyKey}-clarifying`,
-        });
-        currentState = "CLARIFYING";
-      }
-      await this.appendDecision(input.projectId, input.projectVersion, "brief-revision", `Project Brief revision accepted; instruction checksum ${checksumPersistedDocument(input.reason)}.`, true, "approved", input.requestedBy);
-      this.drafts.set(key(input.projectId, input.projectVersion), draft);
-      return { ...requirements, revisionWorkflowState: currentState };
-    }
-    const next = RequirementSpecificationSchema.parse({
-      ...existing,
-      updatedAt: now(),
-      briefStatus: "draft",
-      approval: { approved: false },
-      unresolvedItems: [
-        ...existing.unresolvedItems,
-        ...input.requirementKeys.map((requirementKey) => ({
-          id: randomUUID(),
-          description: `Reconfirm ${requirementKey}: ${input.reason}`,
-          blocking: true,
-        })),
-      ],
-    });
-    await this.documents.save(next, input.idempotencyKey);
-    await this.dependencies.memory.writeSnapshot(
-      input.projectId,
-      input.projectVersion,
-      { "requirements.json": next },
-    );
-    if (current.project.workflowState === "AWAITING_DESIGN_SELECTION") {
-      const first = await this.workflow.transition({
-        projectId: input.projectId,
-        projectVersion: input.projectVersion,
-        expectedState: "AWAITING_DESIGN_SELECTION",
-        expectedRowVersion: current.rowVersion,
-        targetState: "AWAITING_BRIEF_APPROVAL",
-        actor: input.requestedBy,
-        reason: "User requested a Project Brief revision.",
-        idempotencyKey: `${input.idempotencyKey}-approval`,
-      });
-      await this.workflow.transition({
-        projectId: input.projectId,
-        projectVersion: input.projectVersion,
-        expectedState: "AWAITING_BRIEF_APPROVAL",
-        expectedRowVersion: first.rowVersion,
-        targetState: "CLARIFYING",
-        actor: input.requestedBy,
-        reason: "Project Brief revision reopened clarification.",
-        idempotencyKey: `${input.idempotencyKey}-clarifying`,
-      });
-    } else
-      await this.workflow.transition({
-        projectId: input.projectId,
-        projectVersion: input.projectVersion,
-        expectedState: "AWAITING_BRIEF_APPROVAL",
-        expectedRowVersion: current.rowVersion,
-        targetState: "CLARIFYING",
-        actor: input.requestedBy,
-        reason: "Project Brief revision reopened clarification.",
-        idempotencyKey: input.idempotencyKey,
-      });
-    await this.appendDecision(
-      input.projectId,
-      input.projectVersion,
-      "brief-revision",
-      input.reason,
-      true,
-      "approved",
-      input.requestedBy,
-    );
-    this.drafts.delete(key(input.projectId, input.projectVersion));
-    return next;
   }
   private async appendDecision(
     projectId: string,

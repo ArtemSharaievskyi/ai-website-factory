@@ -1,4 +1,14 @@
-# Executive decision
+# Historical design record (superseded by Phase 4C)
+
+> This document records the pre-Phase 4C audit and V3 replacement plan. Its
+> descriptions of the former V2 provider, Lead mutation path, merge helpers,
+> and deletion map are historical evidence, not current implementation
+> guidance. The current authority is `BriefV3TransactionService`; V1/V2
+> documents are read/migrated only. Use `docs/codex/ARCHITECTURE.md`,
+> `docs/codex/WORKFLOWS.md`, and `docs/runbooks/brief-revision-v3-switch.md`
+> for current behavior. Do not restore the deleted V2 mutation modules.
+
+## Historical executive decision
 
 **Decision: REBUILD.**
 

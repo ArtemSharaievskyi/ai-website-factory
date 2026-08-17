@@ -7,14 +7,14 @@
       "area": "OpenAI integration",
       "pathPrefixes": ["src/integrations/openai/", "src/agents/lead/ports.ts", "src/agents/lead/contracts.ts", "src/agents/planner/contracts.ts", "src/agents/design/contracts.ts", "src/agents/implementation/contracts.ts", "src/orchestration/orchestrator/contracts.ts", "src/domain/review/schema.ts"],
       "checkIds": ["provider-contracts", "openai-tests", "lead-provider-tests", "architecture", "typecheck", "lint"],
-      "productionPathIds": ["LEAD_PROVIDER_PATH", "BRIEF_REVISION_PATH"]
+      "productionPathIds": ["BRIEF_V3_MUTATION_PATH"]
     },
     {
       "id": "brief-requirements",
       "area": "Brief requirements",
       "pathPrefixes": ["src/domain/requirements/", "src/agents/lead/", "src/runtime/trial-entry/", "src/runtime/workbench/brief-"],
       "checkIds": ["brief-tests", "brief-revision-certification", "brief-revision-tests", "lead-tests", "trial-entry-production-tests", "architecture", "typecheck", "lint"],
-      "productionPathIds": ["TRIAL_ENTRY_CONTINUATION", "BRIEF_REVISION_PATH"]
+      "productionPathIds": ["TRIAL_ENTRY_CONTINUATION", "BRIEF_V3_MUTATION_PATH"]
     },
     {
       "id": "workbench",

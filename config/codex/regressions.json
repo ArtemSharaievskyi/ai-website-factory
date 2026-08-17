@@ -9,7 +9,7 @@
     { "id": "CLIENT_ASSET_AUTHORITY", "pathPrefixes": ["src/app/api/workbench/assets/", "src/runtime/assets/", "src/runtime/trial-entry/"], "checkIds": ["asset-tests"], "executable": true },
     { "id": "ASSET_PERSISTENCE_NULLABILITY", "pathPrefixes": ["src/domain/assets/", "src/runtime/assets/", "src/persistence/database/"], "checkIds": ["asset-tests", "persistence-tests"], "executable": true },
     { "id": "LEGACY_REQUIREMENT_REACTIVATION", "pathPrefixes": ["src/domain/requirements/", "src/runtime/workbench/", "src/agents/lead/"], "checkIds": ["brief-tests", "brief-revision-tests", "lead-tests"], "executable": true },
-    { "id": "V1_TO_V2_BRIEF_REVISION", "pathPrefixes": ["src/domain/requirements/", "src/runtime/workbench/", "src/agents/lead/", "src/integrations/openai/"], "checkIds": ["brief-revision-tests", "provider-contracts", "lead-provider-tests"], "executable": true },
+    { "id": "SINGLE_BRIEF_MUTATION_AUTHORITY", "pathPrefixes": ["src/domain/requirements/", "src/runtime/workbench/", "src/runtime/trial-entry/", "src/agents/lead/", "src/integrations/openai/"], "checkIds": ["brief-revision-tests", "provider-contracts", "architecture", "lead-provider-tests"], "executable": true },
     { "id": "STRUCTURED_OUTPUT_SCHEMA_CONSTRUCTION", "pathPrefixes": ["src/integrations/openai/"], "checkIds": ["provider-contracts"], "executable": true }
   ]
 }
