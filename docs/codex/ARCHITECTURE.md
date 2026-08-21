@@ -22,6 +22,14 @@ Canonical requirements are lossless and checksum-bound. Supporting technical
 context can be selected, sliced, or reduced with provenance. Provider results
 are proposals and must be validated before host-owned metadata is attached.
 
+Brief approval readiness and publication readiness are separate host-owned
+decisions. The V3 readiness evaluator may treat an unresolved legal fact as a
+non-blocking Brief placeholder only when the current legal policy explicitly
+authorizes marked placeholders; genuine product decisions, contradictions, and
+unanswered blocking clarifications remain approval blockers. Publication
+readiness still requires final legal facts, and neither the browser projection
+nor a provider may calculate or persist a replacement readiness decision.
+
 Brief mutation has exactly one authority: `BriefV3TransactionService` with the
 V3 reducer and atomic persistence transaction. Legacy V1/V2 Briefs remain
 readable and migrate deterministically in memory; compatibility is not a legacy

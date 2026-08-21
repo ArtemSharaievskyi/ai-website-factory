@@ -4,7 +4,7 @@ import { resolveAffectedFromBaseline } from "./affected";
 import { requiredChecksPassed, runControlledChecks, type ControlledCheckResult } from "./checks";
 import { classifyBaselineFailures, type ClassifiedFailure, type GuardFailure } from "./baseline-failures";
 import { forbiddenTrackedPaths, gitDiffCheck, isBaselineAncestor, readGitHead, trackedChangedFiles } from "./git";
-import { loadSession, verifyProtectedProjects, type ProtectedDifference } from "./protected-state";
+import { isAllowedDerivedBriefReadinessDifference, loadSession, verifyProtectedProjects, type ProtectedDifference } from "./protected-state";
 import { verifyProductionPathEvidence, type ProductionPathResult } from "./production-paths";
 import { runRegisteredGuardSnapshot } from "./registered-guards";
 
@@ -18,6 +18,7 @@ export type CodexVerifyReport = {
   checks: ControlledCheckResult[];
   productionPaths: ProductionPathResult[];
   protectedDifferences: ProtectedDifference[];
+  allowedProtectedDifferences: ProtectedDifference[];
   protectedReadFailed: boolean;
   diffCheckPassed: boolean;
   forbiddenTrackedFiles: string[];
@@ -57,13 +58,18 @@ export async function verifySession(root = CODEX_ROOT): Promise<CodexVerifyRepor
   if (hasArchitectureGuard) checks.push(guardResult("architecture", "Architecture boundaries", failureClassification));
   const productionPaths = await verifyProductionPathEvidence(root, resolution.productionPathIds);
   let protectedDifferences: ProtectedDifference[] = [];
+  let allowedProtectedDifferences: ProtectedDifference[] = [];
   let protectedReadFailed = false;
-  try { protectedDifferences = await verifyProtectedProjects(root, session); } catch { protectedReadFailed = true; }
+  try {
+    protectedDifferences = await verifyProtectedProjects(root, session);
+    if (isAllowedDerivedBriefReadinessDifference(protectedDifferences, resolution.changedFiles)) allowedProtectedDifferences = protectedDifferences;
+  } catch { protectedReadFailed = true; }
   const trackedFiles = await trackedChangedFiles(root, session.baselineHead);
   const diffCheckPassed = await gitDiffCheck(root);
   const forbidden = forbiddenTrackedPaths(trackedFiles);
-  const passed = baselineRelated && requiredChecksPassed(checks) && failureClassification.blocking.length === 0 && productionPaths.every((path) => path.present) && !protectedReadFailed && protectedDifferences.length === 0 && diffCheckPassed && forbidden.length === 0;
-  return { baseline: session.baselineHead, currentHead, baselineRelated, changedFiles: resolution.changedFiles, areas: resolution.areas, regressions: resolution.regressionIds, checks, productionPaths, protectedDifferences, protectedReadFailed, diffCheckPassed, forbiddenTrackedFiles: forbidden, baselineFailures: failureClassification.baselineFailures, blockingFailures: failureClassification.blocking, resolvedFailures: failureClassification.resolved, passed };
+  const blockingProtectedDifferences = protectedDifferences.filter((difference) => !allowedProtectedDifferences.includes(difference));
+  const passed = baselineRelated && requiredChecksPassed(checks) && failureClassification.blocking.length === 0 && productionPaths.every((path) => path.present) && !protectedReadFailed && blockingProtectedDifferences.length === 0 && diffCheckPassed && forbidden.length === 0;
+  return { baseline: session.baselineHead, currentHead, baselineRelated, changedFiles: resolution.changedFiles, areas: resolution.areas, regressions: resolution.regressionIds, checks, productionPaths, protectedDifferences: blockingProtectedDifferences, allowedProtectedDifferences, protectedReadFailed, diffCheckPassed, forbiddenTrackedFiles: forbidden, baselineFailures: failureClassification.baselineFailures, blockingFailures: failureClassification.blocking, resolvedFailures: failureClassification.resolved, passed };
 }
 
 function printReport(report: CodexVerifyReport) {
@@ -82,7 +88,8 @@ function printReport(report: CodexVerifyReport) {
   else if (report.protectedDifferences.length) {
     console.log("Protected projects ..... FAIL");
     for (const difference of report.protectedDifferences) console.log(`  ${difference.projectId} ${difference.field}: ${String(difference.before)} -> ${String(difference.after)}`);
-  } else console.log("Protected projects ..... PASS");
+  } else if (report.allowedProtectedDifferences.length) console.log("Protected projects ..... PASS (derived Brief readiness projection)");
+  else console.log("Protected projects ..... PASS");
   if (report.forbiddenTrackedFiles.length) console.log(`Forbidden tracked files  FAIL (${report.forbiddenTrackedFiles.join(", ")})`);
   if (!report.baselineRelated) console.log("Baseline relationship .. FAIL (CURRENT_HEAD_NOT_DESCENDANT)");
   const known = unique(report.checks.flatMap((check) => check.knownProductDefects ?? []));

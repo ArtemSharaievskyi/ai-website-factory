@@ -32,6 +32,7 @@ import { canonicalBriefChecksumForDocument } from "@/persistence/database/brief-
 import { mapRowToDocument } from "@/persistence/database/mapping";
 import { createBriefV3OperationIdentity, createRevisionCurrentnessToken, RevisionCurrentnessTokenSchema, type RevisionCurrentnessToken } from "@/runtime/brief-revision-v3/identity";
 import type { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
+import { evaluateBriefReadiness, type BriefReadinessApprovalBlocker } from "@/domain/requirements/v3/readiness";
 
 export type TrialEntryAnswer = {
   questionId: string;
@@ -118,6 +119,15 @@ const questionView = (question: {
   required: question.required,
   answerStatus: question.answerStatus,
 });
+
+const readinessBlockerReason = (blocker: BriefReadinessApprovalBlocker): string => {
+  switch (blocker.code) {
+    case "CANONICAL_CONTRADICTION": return `BRIEF_V3_CONTRADICTION:${blocker.invariant}`;
+    case "UNRESOLVED_CANONICAL_DECISION": return `BRIEF_V3_UNRESOLVED:${blocker.target}`;
+    case "UNRESOLVED_CANONICAL_REQUIREMENT": return `BRIEF_V3_UNRESOLVED:${blocker.target}`;
+    case "UNANSWERED_CLARIFICATION": return `CLARIFICATION_REQUIRED:${blocker.id}`;
+  }
+};
 
 const actionForState = (state: WorkflowState) => {
   switch (state) {
@@ -388,9 +398,11 @@ export class TrialEntryService {
       current.project.currentVersion,
       "brief-v3",
     );
+    const briefV3Readiness = briefV3?.documentType === "brief-v3"
+      ? evaluateBriefReadiness({ brief: briefV3.brief, clarificationSession: session ? { questions: session.questions } : undefined })
+      : undefined;
     const blockingReasons = [
-      ...(clarification?.blockingUnresolvedQuestionIds.map((id) => `CLARIFICATION_REQUIRED:${id}`) ?? []),
-      ...(briefV3?.documentType === "brief-v3" ? briefV3.brief.unresolved.map((item) => `BRIEF_V3_UNRESOLVED:${item.target}`) : []),
+      ...(briefV3Readiness ? briefV3Readiness.approvalBlockers.map((blocker) => readinessBlockerReason(blocker)) : clarification?.blockingUnresolvedQuestionIds.map((id) => `CLARIFICATION_REQUIRED:${id}`) ?? []),
       ...(briefV3?.documentType === "brief-v3"
         ? []
         : requirements?.documentType === "requirements"
@@ -413,7 +425,7 @@ export class TrialEntryService {
         ? {
             brief: {
               checksum: briefV3.briefChecksum,
-              readyForApproval: briefV3.brief.unresolved.length === 0,
+              readyForApproval: briefV3Readiness?.readyForApproval ?? false,
               approved: false,
             },
           }

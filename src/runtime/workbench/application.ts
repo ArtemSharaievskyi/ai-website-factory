@@ -40,9 +40,9 @@ const statements = (values: unknown, limit = 16): string[] => {
 const v3Statements = (brief: CanonicalBriefV3, categories: readonly RequirementCategory[]) =>
   brief.requirements.filter((requirement) => categories.includes(requirement.category)).map((requirement) => requirement.statement);
 
-const briefV3Projection = (brief: CanonicalBriefV3, checksum: string): WorkbenchBrief => ({
+const briefV3Projection = (brief: CanonicalBriefV3, checksum: string, readyForApproval: boolean): WorkbenchBrief => ({
   checksum,
-  readyForApproval: brief.unresolved.length === 0,
+  readyForApproval,
   approved: false,
   briefSchemaVersion: 3,
   projectSummary: brief.summary,
@@ -206,7 +206,7 @@ export class WorkbenchApplication {
         taskGraph?.documentType === "task-graph" && taskGraph.readyForExecution === true,
     });
     const brief = briefV3
-      ? briefV3Projection(briefV3.brief, briefV3.briefChecksum)
+      ? briefV3Projection(briefV3.brief, briefV3.briefChecksum, briefReady)
       : requirements?.documentType === "requirements"
         ? this.brief(requirements, status.brief?.checksum ?? checksumPersistedDocument(requirements), briefReady)
         : undefined;

@@ -9,7 +9,7 @@ import { loadCheckMap, loadRegressionMap, parseCheckMap, parseRegressionMap, par
 import { CONTROLLED_CHECKS, requiredChecksPassed } from "../../../scripts/codex/checks";
 import { loadArchitectureConfig } from "../../../scripts/codex/check-architecture";
 import { isIgnored, readGitHead, untrackedFiles } from "../../../scripts/codex/git";
-import { assertSessionStartAllowed, buildSession, compareProtectedSnapshot, loadSession, toProtectedSnapshot } from "../../../scripts/codex/protected-state";
+import { assertSessionStartAllowed, buildSession, compareProtectedSnapshot, isAllowedDerivedBriefReadinessDifference, loadSession, toProtectedSnapshot } from "../../../scripts/codex/protected-state";
 import { verifyProductionPathEvidence } from "../../../scripts/codex/production-paths";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
@@ -115,6 +115,14 @@ describe("Codex Level 2 repository guards", () => {
     expect(compareProtectedSnapshot(snapshot(), snapshot())).toEqual([]);
     expect(compareProtectedSnapshot(snapshot(), snapshot({ rowVersion: 4 }))).toEqual(expect.arrayContaining([expect.objectContaining({ field: "rowVersion", before: 3, after: 4 })]));
     expect(compareProtectedSnapshot(snapshot(), snapshot({ brief: { checksum: "b".repeat(64), approved: false, readyForApproval: true } }))).toEqual(expect.arrayContaining([expect.objectContaining({ field: "briefChecksum" })]));
+  });
+
+  it("allows only the intentional derived Brief readiness transition for the readiness repair", () => {
+    const differences = compareProtectedSnapshot(snapshot({ brief: { checksum: "a".repeat(64), approved: false, readyForApproval: false } }), snapshot());
+    const paths = ["src/domain/requirements/v3/readiness.ts", "src/runtime/trial-entry/service.ts", "src/runtime/workbench/application.ts"];
+    expect(isAllowedDerivedBriefReadinessDifference(differences, paths)).toBe(true);
+    expect(isAllowedDerivedBriefReadinessDifference([...differences, { ...differences[0]!, field: "rowVersion", before: 3, after: 4 }], paths)).toBe(false);
+    expect(isAllowedDerivedBriefReadinessDifference(differences, paths.slice(0, 2))).toBe(false);
   });
 
   it("reports missing production-path evidence instead of accepting a unit test", async () => {

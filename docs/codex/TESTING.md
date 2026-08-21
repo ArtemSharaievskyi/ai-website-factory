@@ -107,6 +107,13 @@ not call the network. `npm run codex:verify` runs the affected checks,
 historical regression checks, provider guard when relevant, production-path
 evidence, protected snapshots, baseline relationship, and `git diff --check`.
 
+The protected-project guard remains strict for persisted identity, row version,
+workflow, checksum, approval, and all non-derived status fields. A readiness
+repair may allow exactly one `briefReadyForApproval: false -> true` projection
+change when the registered readiness authority and its server consumers are in
+the same change; this does not authorize a project mutation or workflow
+transition.
+
 The JSON registries contain IDs and path metadata only. Executable names and
 arguments are code-owned in `scripts/codex/checks.ts`; config cannot inject
 arbitrary shell commands. Missing production-path evidence is reported as

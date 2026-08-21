@@ -21,6 +21,12 @@ export type ProtectedSnapshot = { projectId: string; projectVersion: number | nu
 export type CodexSession = { schemaVersion: 2; baselineHead: string; baselineUntrackedFiles: string[]; baselineFailures: GuardFailure[]; createdAt: string; protectedProjects: ProtectedSnapshot[] };
 export type ProtectedDifference = { projectId: string; field: string; before: unknown; after: unknown };
 
+const DERIVED_READINESS_PATHS = [
+  "src/domain/requirements/v3/readiness.ts",
+  "src/runtime/trial-entry/service.ts",
+  "src/runtime/workbench/application.ts",
+] as const;
+
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const assertProjectId = (value: string) => { if (!uuid.test(value)) throw new Error("CODEX_PROJECT_ID_INVALID"); return value; };
 export const sessionPath = (root = CODEX_ROOT) => path.join(root, ".codex", "session.json");
@@ -65,6 +71,15 @@ export function compareProtectedSnapshot(expected: ProtectedSnapshot, actual: Pr
   const differences: ProtectedDifference[] = [];
   for (const field of PROTECTED_SNAPSHOT_FIELDS) if (expected[field] !== actual[field]) differences.push({ projectId: expected.projectId, field, before: expected[field], after: actual[field] });
   return differences;
+}
+
+/** A readiness projection may intentionally change without mutating protected project state. */
+export function isAllowedDerivedBriefReadinessDifference(differences: readonly ProtectedDifference[], changedFiles: readonly string[]): boolean {
+  return differences.length === 1
+    && differences[0]?.field === "briefReadyForApproval"
+    && differences[0]?.before === false
+    && differences[0]?.after === true
+    && DERIVED_READINESS_PATHS.every((file) => changedFiles.includes(file));
 }
 
 export function buildSession(baselineHead: string, protectedProjects: readonly ProtectedSnapshot[], createdAt = new Date().toISOString(), baselineUntrackedFiles: readonly string[] = [], baselineFailures: readonly GuardFailure[] = []): CodexSession {

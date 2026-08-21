@@ -57,6 +57,12 @@ requirements, checks the supplied checksum and expected row version, and uses
 the Lead service's approval operation. Approval is a host/workflow decision;
 the provider cannot approve its own output.
 
+For V3 Briefs, `evaluateBriefReadiness` is the single deterministic authority
+behind the server status and Workbench projection. An explicit legal
+placeholder policy can make a Brief approval-ready while leaving publication
+blocked until final legal facts replace those placeholders. This distinction
+does not approve a Brief, advance workflow state, or authorize publication.
+
 ## Upload and use assets
 
 - `GET`, `POST`, and `DELETE` requests go to

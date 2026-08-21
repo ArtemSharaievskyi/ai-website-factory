@@ -6,7 +6,9 @@ import { DeterministicLeadProvider } from "@/agents/lead/ports";
 import { LeadAgentService } from "@/agents/lead/service";
 import { analyzePromptDeterministically, assembleRequirements, planClarificationsDeterministically } from "@/agents/lead/deterministic";
 import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
-import { cleanBriefV3, multiDomainChangeSet } from "@/domain/requirements/v3/fixtures";
+import { cleanBriefV3, multiDomainChangeSet, pilotShapedV1Brief } from "@/domain/requirements/v3/fixtures";
+import { migrateV1ToCanonicalBriefV3 } from "@/domain/requirements/v3/migrate-v1";
+import { applyBriefChangeSet } from "@/domain/requirements/v3/reducer";
 import { createBriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
 import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
 import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
@@ -106,6 +108,24 @@ describe("Factory Workbench projection and boundary", () => {
     if (!readyAgain.project || !readyAgain.brief) throw new Error("fixture Brief was not ready");
     const approved = await approvalApp.handle({ action: "approve-brief", projectId: readyAgain.project.projectId, briefChecksum: readyAgain.brief.checksum, expectedRowVersion: readyAgain.project.rowVersion });
     expect(approved.project?.workflowState).toBe("AWAITING_DESIGN_SELECTION");
+  });
+
+  it("projects pilot-shaped legal placeholders as Brief-ready without changing workflow state", async () => {
+    const database = new InMemoryPersistenceDatabase();
+    const projectId = "18181818-1818-4181-8181-181818181818";
+    const timestamp = "2026-08-17T00:00:00.000Z";
+    const project = { schemaVersion: 1 as const, documentType: "factory-project" as const, projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: projectId, slug: "workbench-readiness", origin: "TEST" as const, siteLanguage: "de" as const, originalPrompt: "Synthetic pilot-shaped readiness fixture.", currentVersion: 1, workflowState: "CLARIFYING" as const };
+    const brief = applyBriefChangeSet(migrateV1ToCanonicalBriefV3(pilotShapedV1Brief), { contractVersion: 1, changes: [{ operation: "SET", target: "FORM_SUCCESS_MODE", value: "SIMULATED" }], unresolved: [] });
+    await new ProjectRepository(database).create(project);
+    await new ProjectVersionRepository(database).create({ id: "19191919-1919-4191-8191-191919191919", projectId, versionNumber: 1, state: project.workflowState, memoryRootPath: null, requirementsChecksum: "a".repeat(64), selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
+    await new DocumentRepository(database).save(createBriefV3Document({ projectId, projectVersion: 1, brief, createdAt: timestamp, updatedAt: timestamp }));
+    const entry = new TrialEntryService({ database, createLeadAgent: () => { throw new Error("LEGACY_LEAD_READINESS_REACHED"); } });
+    const projection = await new WorkbenchApplication({ database, entry }).handle({ action: "status", projectId });
+
+    expect(projection.brief?.readyForApproval).toBe(true);
+    expect(projection.status.allowedActions).toEqual([]);
+    expect(projection.project?.workflowState).toBe("CLARIFYING");
+    expect((await entry.status(projectId)).blockingReasons).toEqual([]);
   });
 
   it("keeps action permission in one canonical mapper", () => {
