@@ -9,7 +9,8 @@ persistence, and bounded generated-project execution.
 | Boundary | Owns | Does not own |
 | --- | --- | --- |
 | Workbench UI/API | transport, projections, safe user actions | canonical state, provider calls, SQL |
-| Trial Entry | project intake, clarification rounds, status, Brief approval/change requests | provider transport, browser authority |
+| Trial Entry | project intake, clarification rounds, status, and routing approval/change requests | provider transport, browser authority |
+| BriefApprovalService | V3 readiness consumption, explicit approval envelope, currentness/CAS, approval audit, and one workflow transition | semantic Brief mutation, provider decisions, publication readiness |
 | Lead | extraction, clarification, Brief proposal through typed contracts | source code, approval authority, workflow mutation outside its service |
 | Domain requirements | canonical schema, effective requirements, V3 reducer semantics, contradictions | HTTP, persistence, provider transport |
 | OpenAI adapter | transport, prompt assembly, strict provider parsing, role-port mapping | identity, checksums, approval, currentness, history |
@@ -23,12 +24,23 @@ context can be selected, sliced, or reduced with provenance. Provider results
 are proposals and must be validated before host-owned metadata is attached.
 
 Brief approval readiness and publication readiness are separate host-owned
-decisions. The V3 readiness evaluator may treat an unresolved legal fact as a
+decisions. `evaluateBriefReadiness` is the single authority for V3 approval
+eligibility; Workbench, Trial Entry, Lead, and workflow code do not reclassify
+its blockers. The evaluator may treat an unresolved legal fact as a
 non-blocking Brief placeholder only when the current legal policy explicitly
 authorizes marked placeholders; genuine product decisions, contradictions, and
 unanswered blocking clarifications remain approval blockers. Publication
 readiness still requires final legal facts, and neither the browser projection
 nor a provider may calculate or persist a replacement readiness decision.
+
+`BriefApprovalService` consumes that readiness result only after reloading the
+authoritative V3 document and validating its typed currentness token. Explicit
+user approval then atomically adds host-owned lifecycle metadata, records a
+separate approval decision, and transitions a ready project from
+`CLARIFYING` (or the legacy approval-wait state) to
+`AWAITING_DESIGN_SELECTION`. The semantic V3 Brief checksum and revision history
+remain unchanged. Readiness never auto-approves, and workflow state cannot make
+a ready V3 Brief permanently ineligible by itself.
 
 Brief mutation has exactly one authority: `BriefV3TransactionService` with the
 V3 reducer and atomic persistence transaction. Legacy V1/V2 Briefs remain
@@ -42,6 +54,11 @@ workflow state, idempotency, or mutation commit.
 The current high-level lifecycle is:
 
 `DRAFT -> CLARIFYING -> AWAITING_BRIEF_APPROVAL -> AWAITING_DESIGN_SELECTION -> READY_FOR_IMPLEMENTATION -> IMPLEMENTING -> VALIDATING -> PROJECT_READY`
+
+For current V3 Briefs, explicit approval may transition directly from
+`CLARIFYING` to `AWAITING_DESIGN_SELECTION`; `AWAITING_BRIEF_APPROVAL` remains a
+legacy-compatible lifecycle position and is still guarded by the host approval
+service.
 
 `FAILED` is a safe failure state from operational phases. The domain workflow
 engine and persistence service enforce state, row-version, checksum, approval,

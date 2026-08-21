@@ -12,10 +12,10 @@ import { validateStartImplementationGate } from "@/domain/contracts/phase7c";
 
 export type WorkflowState = typeof WorkflowStateSchema.options[number];
 export const WORKFLOW_TRANSITIONS: Record<WorkflowState, readonly WorkflowState[]> = {
-  DRAFT: ["CLARIFYING"], CLARIFYING: ["AWAITING_BRIEF_APPROVAL"], AWAITING_BRIEF_APPROVAL: ["CLARIFYING", "AWAITING_DESIGN_SELECTION"], AWAITING_DESIGN_SELECTION: ["AWAITING_BRIEF_APPROVAL", "ARCHITECTURE_REVIEW", "READY_FOR_IMPLEMENTATION"], ARCHITECTURE_REVIEW: ["AWAITING_DESIGN_SELECTION", "CLARIFYING", "FAILED"], READY_FOR_IMPLEMENTATION: ["AWAITING_BRIEF_APPROVAL", "AWAITING_DESIGN_SELECTION", "CONTRACT_AUDIT", "IMPLEMENTING"], CONTRACT_AUDIT: ["READY_FOR_IMPLEMENTATION", "CLARIFYING", "FAILED"], IMPLEMENTING: ["CODE_INTEGRATION_REVIEW", "VALIDATING", "FAILED"], CODE_INTEGRATION_REVIEW: ["SECURITY_REVIEW", "VALIDATING", "REPAIRING", "FAILED"], SECURITY_REVIEW: ["VALIDATING", "TEST_QUALITY_REVIEW", "REPAIRING", "FAILED"], VALIDATING: ["CODE_INTEGRATION_REVIEW", "SECURITY_REVIEW", "TEST_QUALITY_REVIEW", "REPAIRING", "PROJECT_READY", "FAILED"], TEST_QUALITY_REVIEW: ["VALIDATING", "PROJECT_READY", "REPAIRING", "FAILED"], REPAIRING: ["VALIDATING", "CODE_INTEGRATION_REVIEW", "SECURITY_REVIEW", "TEST_QUALITY_REVIEW", "FAILED"], PROJECT_READY: [], FAILED: [],
+  DRAFT: ["CLARIFYING"], CLARIFYING: ["AWAITING_BRIEF_APPROVAL", "AWAITING_DESIGN_SELECTION"], AWAITING_BRIEF_APPROVAL: ["CLARIFYING", "AWAITING_DESIGN_SELECTION"], AWAITING_DESIGN_SELECTION: ["AWAITING_BRIEF_APPROVAL", "ARCHITECTURE_REVIEW", "READY_FOR_IMPLEMENTATION"], ARCHITECTURE_REVIEW: ["AWAITING_DESIGN_SELECTION", "CLARIFYING", "FAILED"], READY_FOR_IMPLEMENTATION: ["AWAITING_BRIEF_APPROVAL", "AWAITING_DESIGN_SELECTION", "CONTRACT_AUDIT", "IMPLEMENTING"], CONTRACT_AUDIT: ["READY_FOR_IMPLEMENTATION", "CLARIFYING", "FAILED"], IMPLEMENTING: ["CODE_INTEGRATION_REVIEW", "VALIDATING", "FAILED"], CODE_INTEGRATION_REVIEW: ["SECURITY_REVIEW", "VALIDATING", "REPAIRING", "FAILED"], SECURITY_REVIEW: ["VALIDATING", "TEST_QUALITY_REVIEW", "REPAIRING", "FAILED"], VALIDATING: ["CODE_INTEGRATION_REVIEW", "SECURITY_REVIEW", "TEST_QUALITY_REVIEW", "REPAIRING", "PROJECT_READY", "FAILED"], TEST_QUALITY_REVIEW: ["VALIDATING", "PROJECT_READY", "REPAIRING", "FAILED"], REPAIRING: ["VALIDATING", "CODE_INTEGRATION_REVIEW", "SECURITY_REVIEW", "TEST_QUALITY_REVIEW", "FAILED"], PROJECT_READY: [], FAILED: [],
 };
 
-export type TransitionContext = { requirements?: RequirementSpecification; clarificationSession?: ClarificationSession; requirementsChecksum?: string; designSet?: DesignDirectionSet; selectedDesign?: SelectedDesign; selectedDirectionChecksum?: string; architecture?: TechnicalArchitecture; decisions?: DecisionRecord[]; qualityReport?: QualityReport; releaseReport?: ReleaseReport; testQualityReviewApproved?: boolean; knownErrors?: string[]; recovery?: boolean; phase7cContractPackage?: Phase7CContractPackage };
+export type TransitionContext = { requirements?: RequirementSpecification; clarificationSession?: ClarificationSession; requirementsChecksum?: string; briefApproval?: { approved: true; canonicalChecksum: string }; designSet?: DesignDirectionSet; selectedDesign?: SelectedDesign; selectedDirectionChecksum?: string; architecture?: TechnicalArchitecture; decisions?: DecisionRecord[]; qualityReport?: QualityReport; releaseReport?: ReleaseReport; testQualityReviewApproved?: boolean; knownErrors?: string[]; recovery?: boolean; phase7cContractPackage?: Phase7CContractPackage };
 
 function reject(code: ConstructorParameters<typeof DomainError>[0], message: string): never { throw new DomainError(code, message); }
 
@@ -26,10 +26,17 @@ export function transitionWorkflow(state: WorkflowState, next: WorkflowState, co
   if (!(state === "FAILED" && context.recovery && recoveryTargets.includes(next)) && !WORKFLOW_TRANSITIONS[state].includes(next)) reject("WORKFLOW_TRANSITION_INVALID", `Transition from ${state} to ${next} is not permitted.`);
   const unresolvedClarification = context.clarificationSession?.questions.some((question) => question.blocking && question.answerStatus === "unresolved") ?? false;
   if (state === "CLARIFYING" && next === "AWAITING_BRIEF_APPROVAL" && (unresolvedClarification || context.requirements?.unresolvedItems.some((item) => item.blocking))) reject("BLOCKING_CLARIFICATIONS_REMAIN", "Blocking clarification items remain unresolved.");
+  if (state === "CLARIFYING" && next === "AWAITING_DESIGN_SELECTION") {
+    if (!context.briefApproval?.approved || !context.briefApproval.canonicalChecksum) reject("REQUIREMENTS_NOT_APPROVED", "An explicitly approved current Brief is required.");
+  }
   if (state === "AWAITING_BRIEF_APPROVAL" && next === "AWAITING_DESIGN_SELECTION") {
-    if (!context.requirements?.approval.approved) reject("REQUIREMENTS_NOT_APPROVED", "Requirements must be approved first.");
-    if (!context.requirementsChecksum || context.requirements.approval.approvedRequirementsChecksum !== context.requirementsChecksum) reject("REQUIREMENTS_CHECKSUM_MISMATCH", "Approved requirements checksum does not match.");
-    if (context.requirements.unresolvedItems.some((item) => item.blocking)) reject("BLOCKING_CLARIFICATIONS_REMAIN", "Blocking requirement items remain unresolved.");
+    if (context.briefApproval) {
+      if (!context.briefApproval.approved || !context.briefApproval.canonicalChecksum) reject("REQUIREMENTS_NOT_APPROVED", "An explicitly approved current Brief is required.");
+    } else {
+      if (!context.requirements?.approval.approved) reject("REQUIREMENTS_NOT_APPROVED", "Requirements must be approved first.");
+      if (!context.requirementsChecksum || context.requirements.approval.approvedRequirementsChecksum !== context.requirementsChecksum) reject("REQUIREMENTS_CHECKSUM_MISMATCH", "Approved requirements checksum does not match.");
+      if (context.requirements.unresolvedItems.some((item) => item.blocking)) reject("BLOCKING_CLARIFICATIONS_REMAIN", "Blocking requirement items remain unresolved.");
+    }
   }
   if (state === "AWAITING_DESIGN_SELECTION" && next === "READY_FOR_IMPLEMENTATION") {
     if (!context.designSet || context.designSet.directions.length !== 3 || !context.designSet.readyForSelection) reject("DESIGN_DIRECTIONS_INVALID", "Exactly three ready design directions are required.");

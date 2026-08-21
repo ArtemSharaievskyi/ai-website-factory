@@ -249,7 +249,9 @@ export function actionsForWorkbenchState(input: {
   canRefreshClarifications?: boolean;
 }): WorkbenchAction[] {
   switch (input.workflowState) {
-    case "CLARIFYING": return input.hasBlockingQuestions ? ["ANSWER_LEAD_CLARIFICATIONS", ...(input.canRefreshClarifications ? ["REFRESH_LEAD_CLARIFICATIONS" as WorkbenchAction] : [])] : [];
+    case "CLARIFYING":
+      if (input.hasBrief && input.briefReady && !input.hasBlockingQuestions) return ["APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES"];
+      return input.hasBlockingQuestions ? ["ANSWER_LEAD_CLARIFICATIONS", ...(input.canRefreshClarifications ? ["REFRESH_LEAD_CLARIFICATIONS" as WorkbenchAction] : [])] : [];
     case "AWAITING_BRIEF_APPROVAL": return input.hasBrief && input.briefReady ? ["APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES"] : [];
     case "AWAITING_DESIGN_SELECTION":
       return [

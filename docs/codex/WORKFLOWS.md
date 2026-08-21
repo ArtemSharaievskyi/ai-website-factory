@@ -52,16 +52,22 @@ host mapping are correct.
 ## Approve the Brief
 
 `action: "approve-brief"` reaches `TrialEntryService.approveBrief`. It reloads
-the current Brief and clarification session, rejects unresolved or contradictory
-requirements, checks the supplied checksum and expected row version, and uses
-the Lead service's approval operation. Approval is a host/workflow decision;
-the provider cannot approve its own output.
+the current Brief and clarification session, consumes the canonical V3 readiness
+evaluator, checks the supplied checksum and expected row version, and delegates
+to `BriefApprovalService`. The service owns the explicit approval envelope,
+currentness/CAS validation, audit record, and one transition to
+`AWAITING_DESIGN_SELECTION`. Approval is a host/workflow decision; Lead and the
+provider can propose a Brief but cannot approve it.
 
 For V3 Briefs, `evaluateBriefReadiness` is the single deterministic authority
 behind the server status and Workbench projection. An explicit legal
 placeholder policy can make a Brief approval-ready while leaving publication
 blocked until final legal facts replace those placeholders. This distinction
 does not approve a Brief, advance workflow state, or authorize publication.
+Workflow state remains a lifecycle guard, not a competing definition of V3
+readiness; a ready V3 Brief may be approved from `CLARIFYING`, while unrelated
+states remain ineligible. Legacy requirements remain readable for compatibility,
+but approval of a current V3 Brief never writes or approves a legacy document.
 
 ## Upload and use assets
 

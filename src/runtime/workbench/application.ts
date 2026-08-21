@@ -30,6 +30,8 @@ import { isUserFacingProjectOrigin } from "@/domain/project/provenance";
 import type { ProjectAssetService } from "@/runtime/assets/service";
 import type { WorkbenchAsset } from "./contracts";
 import type { CanonicalBriefV3, RequirementCategory } from "@/domain/requirements/v3/schema";
+import { RequirementSpecificationSchema, type RequirementSpecification } from "@/domain/requirements/schema";
+import { BriefV3DocumentSchema, type BriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
 
 const list = (values: string[] | undefined, limit = 12) => (values ?? []).slice(0, limit).map((value) => value.slice(0, 500));
 const statements = (values: unknown, limit = 16): string[] => {
@@ -40,10 +42,27 @@ const statements = (values: unknown, limit = 16): string[] => {
 const v3Statements = (brief: CanonicalBriefV3, categories: readonly RequirementCategory[]) =>
   brief.requirements.filter((requirement) => categories.includes(requirement.category)).map((requirement) => requirement.statement);
 
-const briefV3Projection = (brief: CanonicalBriefV3, checksum: string, readyForApproval: boolean): WorkbenchBrief => ({
+/** Host approval is persisted on V3; this legacy-shaped value is only an in-memory agent adapter. */
+const approvedLegacyRequirementsForDownstream = (brief: RequirementSpecification, document: BriefV3Document) => {
+  if (!document.approval?.approved || document.approval.approvedCanonicalChecksum !== document.briefChecksum) throw new WorkbenchActionError("BRIEF_APPROVAL_REQUIRED", "The current CanonicalBriefV3 is not approved.");
+  return RequirementSpecificationSchema.parse({
+    ...brief,
+    updatedAt: document.approval.approvedAt,
+    briefStatus: "approved",
+    approval: {
+      approved: true,
+      approvedAt: document.approval.approvedAt,
+      approvedBy: document.approval.approvedBy,
+      approvedRequirementsChecksum: document.briefChecksum,
+    },
+    ...(document.approval.approvalNote ? { briefApprovalNote: document.approval.approvalNote } : {}),
+  });
+};
+
+const briefV3Projection = (brief: CanonicalBriefV3, checksum: string, readyForApproval: boolean, approved: boolean): WorkbenchBrief => ({
   checksum,
   readyForApproval,
-  approved: false,
+  approved,
   briefSchemaVersion: 3,
   projectSummary: brief.summary,
   businessGoals: v3Statements(brief, ["BUSINESS_GOAL"]),
@@ -206,7 +225,7 @@ export class WorkbenchApplication {
         taskGraph?.documentType === "task-graph" && taskGraph.readyForExecution === true,
     });
     const brief = briefV3
-      ? briefV3Projection(briefV3.brief, briefV3.briefChecksum, briefReady)
+      ? briefV3Projection(briefV3.brief, briefV3.briefChecksum, briefReady, briefV3.approval?.approved === true && briefV3.approval.approvedCanonicalChecksum === briefV3.briefChecksum)
       : requirements?.documentType === "requirements"
         ? this.brief(requirements, status.brief?.checksum ?? checksumPersistedDocument(requirements), briefReady)
         : undefined;
@@ -280,11 +299,14 @@ export class WorkbenchApplication {
   private async approvePlanning(projectId: string) {
     const scope = await this.scope(projectId);
     const current = await this.projects.getWithVersion(projectId);
-    const brief = await this.documents.get(projectId, current?.project.currentVersion ?? 1, "requirements");
-    if (!current || !brief || brief.documentType !== "requirements") throw new WorkbenchActionError("PLANNING_UPSTREAM_MISSING", "Planning requires a current approved Project Brief.");
-    const version = current.project.currentVersion;
+    const version = current?.project.currentVersion ?? 1;
+    const persistedBrief = await this.documents.get(projectId, version, "requirements");
+    const briefV3Document = await this.documents.get(projectId, version, "brief-v3");
+    if (!current || !persistedBrief || persistedBrief.documentType !== "requirements" || !briefV3Document || briefV3Document.documentType !== "brief-v3") throw new WorkbenchActionError("PLANNING_UPSTREAM_MISSING", "Planning requires a current approved Project Brief.");
+    const briefV3 = BriefV3DocumentSchema.parse(briefV3Document);
+    const brief = approvedLegacyRequirementsForDownstream(persistedBrief, briefV3);
     const decisions = await new DecisionRepository(this.dependencies.database).list(projectId, version);
-    const approvedBriefChecksum = brief.approval.approvedRequirementsChecksum ?? checksumPersistedDocument(brief);
+    const approvedBriefChecksum = briefV3.briefChecksum;
     const planning = await scope.planner.planApprovedProject({ projectId, projectVersion: version, approvedBrief: brief, approvedBriefChecksum, originalPromptReference: "original-prompt.md", clarificationEvidenceReferences: ["clarification-log.json"], currentWorkflowState: "AWAITING_DESIGN_SELECTION", existingDecisions: decisions, suppliedFiles: [], allowedSkills: [], idempotencyKey: `workbench-planning:${projectId}`, expectedRowVersion: current.rowVersion });
     const accepted = await scope.planner.acceptPlanningPackage({ projectId, projectVersion: version, planningChecksum: planningChecksum(planning), acceptedAt: new Date().toISOString(), acceptedBy: "workbench-user", expectedRowVersion: (await this.projects.getWithVersion(projectId))?.rowVersion ?? current.rowVersion, idempotencyKey: `workbench-planning-accept:${projectId}` });
     const reviewed = await scope.architectureReviewer.reviewAndRoute({ projectId, projectVersion: version, approvedBrief: brief, approvedBriefChecksum, acceptedPlanningPackage: accepted.package, acceptedPlanningChecksum: accepted.planningChecksum, factoryArchitecturePolicy: { policyVersion: "factory-architecture-v1", stack: [...FACTORY_ARCHITECTURE_STACK], prohibitedTechnologies: ["redis", "nestjs", "bullmq", "pnpm", "yarn"], serverActionPreference: "preferred", routeHandlerPreference: "second", packageManager: "npm" }, relevantProjectConstraints: brief.technicalConstraints, idempotencyKey: `workbench-architecture-review:${projectId}`, expectedRowVersion: (await this.projects.getWithVersion(projectId))?.rowVersion ?? accepted.rowVersion });
@@ -334,13 +356,16 @@ export class WorkbenchApplication {
     if (!this.dependencies.getWorkflowScope) throw new WorkbenchActionError("IMPLEMENTATION_START_BLOCKED", "The canonical Orchestrator runtime is not available.");
     const scope = await this.scope(projectId);
     const version = current.project.currentVersion;
-    const brief = await this.documents.get(projectId, version, "requirements");
+    const persistedBrief = await this.documents.get(projectId, version, "requirements");
+    const briefV3Document = await this.documents.get(projectId, version, "brief-v3");
     const planning = await this.documents.get(projectId, version, "planning-package");
     const selected = await this.documents.get(projectId, version, "selected-design");
     const phase7c = await this.documents.get(projectId, version, "phase-7c-contract-package");
-    if (!brief || brief.documentType !== "requirements" || !planning || planning.documentType !== "planning-package" || !selected || selected.documentType !== "selected-design" || !phase7c || phase7c.documentType !== "phase-7c-contract-package") throw new WorkbenchActionError("IMPLEMENTATION_START_BLOCKED", "The current Brief, Planning, Design, and Phase 7C package are required before implementation.");
+    if (!persistedBrief || persistedBrief.documentType !== "requirements" || !briefV3Document || briefV3Document.documentType !== "brief-v3" || !planning || planning.documentType !== "planning-package" || !selected || selected.documentType !== "selected-design" || !phase7c || phase7c.documentType !== "phase-7c-contract-package") throw new WorkbenchActionError("IMPLEMENTATION_START_BLOCKED", "The current Brief, Planning, Design, and Phase 7C package are required before implementation.");
+    const briefV3 = BriefV3DocumentSchema.parse(briefV3Document);
+    const brief = approvedLegacyRequirementsForDownstream(persistedBrief, briefV3);
     const decisions = await new DecisionRepository(this.dependencies.database).list(projectId, version);
-    const input = { projectId, projectVersion: version, approvedBrief: brief, approvedBriefChecksum: brief.approval.approvedRequirementsChecksum ?? checksumPersistedDocument(brief), acceptedPlanningPackage: planning, acceptedPlanningChecksum: planningChecksum(planning), selectedDesign: selected, selectedDesignChecksum: checksumPersistedDocument(selected), technicalArchitecture: planning.architecture, contentPlan: planning.content, assetManifest: planning.assets, currentWorkflowState: "READY_FOR_IMPLEMENTATION" as const, existingDecisions: decisions, allowedRoles: ["lead", "planner-architect", "design", "implementation", "qa-release"] as ("lead" | "planner-architect" | "design" | "implementation" | "qa-release")[], approvedSkillRegistrySnapshot: { schemaVersion: 1 as const, checksum: "0".repeat(64), skills: [] }, toolPolicyVersion: "tools-v1", orchestrationPolicyVersion: DEFAULT_ORCHESTRATION_POLICY.version, idempotencyKey: `workbench-orchestrator:${projectId}`, expectedRowVersion: current.rowVersion, workspaceReserved: true, projectImmutable: false, phase7cContractPackage: phase7c };
+    const input = { projectId, projectVersion: version, approvedBrief: brief, approvedBriefChecksum: briefV3.briefChecksum, acceptedPlanningPackage: planning, acceptedPlanningChecksum: planningChecksum(planning), selectedDesign: selected, selectedDesignChecksum: checksumPersistedDocument(selected), technicalArchitecture: planning.architecture, contentPlan: planning.content, assetManifest: planning.assets, currentWorkflowState: "READY_FOR_IMPLEMENTATION" as const, existingDecisions: decisions, allowedRoles: ["lead", "planner-architect", "design", "implementation", "qa-release"] as ("lead" | "planner-architect" | "design" | "implementation" | "qa-release")[], approvedSkillRegistrySnapshot: { schemaVersion: 1 as const, checksum: "0".repeat(64), skills: [] }, toolPolicyVersion: "tools-v1", orchestrationPolicyVersion: DEFAULT_ORCHESTRATION_POLICY.version, idempotencyKey: `workbench-orchestrator:${projectId}`, expectedRowVersion: current.rowVersion, workspaceReserved: true, projectImmutable: false, phase7cContractPackage: phase7c };
     const graph = await scope.orchestrator.createImplementationTaskGraph(input);
     if (!graph.valid || !graph.readyForExecution) throw new WorkbenchActionError("IMPLEMENTATION_START_BLOCKED", "The canonical implementation graph is not ready.");
     await scope.orchestrator.startImplementation({ ...input, expectedRowVersion: (await this.projects.getWithVersion(projectId))?.rowVersion ?? current.rowVersion });

@@ -103,10 +103,9 @@ describe("Factory Workbench projection and boundary", () => {
     expect(ready.status.allowedActions).toEqual(["APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES"]);
     const revised = await app.handle({ action: "request-brief-changes", projectId, projectVersion: ready.project.projectVersion, briefChecksum: ready.brief.checksum, expectedRowVersion: ready.project.rowVersion, reason: "Synthetic correction", requirementKeys: [] });
     expect(revised.project?.workflowState).toBe("CLARIFYING");
-    const approvalApp = fixture().app;
-    const readyAgain = await createBriefReadyProject(approvalApp);
+    const readyAgain = await app.handle({ action: "status", projectId });
     if (!readyAgain.project || !readyAgain.brief) throw new Error("fixture Brief was not ready");
-    const approved = await approvalApp.handle({ action: "approve-brief", projectId: readyAgain.project.projectId, briefChecksum: readyAgain.brief.checksum, expectedRowVersion: readyAgain.project.rowVersion });
+    const approved = await app.handle({ action: "approve-brief", projectId, briefChecksum: readyAgain.brief.checksum, expectedRowVersion: readyAgain.project.rowVersion });
     expect(approved.project?.workflowState).toBe("AWAITING_DESIGN_SELECTION");
   });
 
@@ -123,7 +122,7 @@ describe("Factory Workbench projection and boundary", () => {
     const projection = await new WorkbenchApplication({ database, entry }).handle({ action: "status", projectId });
 
     expect(projection.brief?.readyForApproval).toBe(true);
-    expect(projection.status.allowedActions).toEqual([]);
+    expect(projection.status.allowedActions).toEqual(["APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES"]);
     expect(projection.project?.workflowState).toBe("CLARIFYING");
     expect((await entry.status(projectId)).blockingReasons).toEqual([]);
   });

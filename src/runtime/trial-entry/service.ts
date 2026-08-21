@@ -30,9 +30,12 @@ import { normalizeCanonicalUserInputText } from "@/domain/project/canonical-inpu
 import { briefApprovalBlockers } from "@/domain/requirements/brief-validation";
 import { canonicalBriefChecksumForDocument } from "@/persistence/database/brief-revision-v3-contracts";
 import { mapRowToDocument } from "@/persistence/database/mapping";
+import { migrateLegacyBriefToCanonicalBriefV3 } from "@/domain/requirements/v3/migrate";
+import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { createBriefV3OperationIdentity, createRevisionCurrentnessToken, RevisionCurrentnessTokenSchema, type RevisionCurrentnessToken } from "@/runtime/brief-revision-v3/identity";
 import type { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
 import { evaluateBriefReadiness, type BriefReadinessApprovalBlocker } from "@/domain/requirements/v3/readiness";
+import { BriefApprovalService } from "./brief-approval";
 
 export type TrialEntryAnswer = {
   questionId: string;
@@ -99,6 +102,7 @@ type TrialEntryDependencies = {
   database: PersistenceDatabase;
   createLeadAgent: (slug: string) => LeadAgentService;
   createBriefRevisionV3?: (slug: string) => BriefV3TransactionService;
+  createBriefApproval?: (slug: string) => BriefApprovalService;
   assets?: ProjectAssetService;
 };
 
@@ -398,17 +402,31 @@ export class TrialEntryService {
       current.project.currentVersion,
       "brief-v3",
     );
+    const legacyBriefV3 = !briefV3 && requirements?.documentType === "requirements"
+      ? (() => {
+          try { return migrateLegacyBriefToCanonicalBriefV3(requirements); } catch { return undefined; }
+        })()
+      : undefined;
+    const readinessBrief = briefV3?.documentType === "brief-v3" ? briefV3.brief : legacyBriefV3;
     const briefV3Readiness = briefV3?.documentType === "brief-v3"
       ? evaluateBriefReadiness({ brief: briefV3.brief, clarificationSession: session ? { questions: session.questions } : undefined })
-      : undefined;
+      : legacyBriefV3
+        ? evaluateBriefReadiness({ brief: legacyBriefV3, clarificationSession: session ? { questions: session.questions } : undefined })
+        : undefined;
     const blockingReasons = [
       ...(briefV3Readiness ? briefV3Readiness.approvalBlockers.map((blocker) => readinessBlockerReason(blocker)) : clarification?.blockingUnresolvedQuestionIds.map((id) => `CLARIFICATION_REQUIRED:${id}`) ?? []),
-      ...(briefV3?.documentType === "brief-v3"
+      ...(readinessBrief
         ? []
         : requirements?.documentType === "requirements"
           ? [...requirements.unresolvedItems.filter((item) => item.blocking).map((item) => `REQUIREMENT_UNRESOLVED:${item.id}`), ...briefApprovalBlockers(requirements)]
           : []),
     ];
+    const approvalLifecycle = current.project.workflowState === "CLARIFYING" || current.project.workflowState === "AWAITING_BRIEF_APPROVAL";
+    const statusActions = readinessBrief && approvalLifecycle && briefV3Readiness?.readyForApproval === true && blockingReasons.length === 0
+      ? ["APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES"]
+      : readinessBrief && approvalLifecycle
+        ? []
+        : actions.nextAllowedActions;
     return {
       projectId: current.project.id,
       slug: current.project.slug,
@@ -417,7 +435,7 @@ export class TrialEntryService {
       rowVersion: current.rowVersion,
       pendingUserAction: actions.pendingUserAction,
       blockingReasons,
-      nextAllowedActions: actions.nextAllowedActions,
+      nextAllowedActions: statusActions,
       operatorLanguage: session?.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE,
       siteLanguage: current.project.siteLanguage,
       ...(clarification ? { clarification } : {}),
@@ -426,15 +444,15 @@ export class TrialEntryService {
             brief: {
               checksum: briefV3.briefChecksum,
               readyForApproval: briefV3Readiness?.readyForApproval ?? false,
-              approved: false,
+              approved: briefV3.approval?.approved === true && briefV3.approval.approvedCanonicalChecksum === briefV3.briefChecksum,
             },
           }
         : requirements?.documentType === "requirements"
         ? {
             brief: {
-              checksum: requirements.approval.approvedRequirementsChecksum ?? checksumPersistedDocument(requirements),
-              readyForApproval: requirements.briefStatus === "draft" && !requirements.unresolvedItems.some((item) => item.blocking) && briefApprovalBlockers(requirements).length === 0,
-              approved: requirements.approval.approved,
+              checksum: legacyBriefV3 ? canonicalBriefChecksum(legacyBriefV3) : checksumPersistedDocument(requirements),
+              readyForApproval: briefV3Readiness?.readyForApproval ?? false,
+              approved: false,
             },
           }
         : {}),
@@ -485,30 +503,21 @@ export class TrialEntryService {
     return result;
   }
 
-  /** Rehydrates Lead's typed draft from durable requirements before approval. */
+  /** Routes current V3 approval to the host-owned readiness/currentness authority. */
   async approveBrief(input: { projectId: string; briefChecksum: string; expectedRowVersion: number; approvalNote?: string; approvedBy?: string }) {
     const current = await this.projects.getWithVersion(input.projectId);
     if (!current) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");
-    if (current.project.workflowState !== "AWAITING_BRIEF_APPROVAL") throw new Error("TRIAL_ENTRY_NOT_AWAITING_BRIEF_APPROVAL");
-    const lead = this.dependencies.createLeadAgent(current.project.slug);
-    const session = await this.clarifications.getSession(input.projectId, current.project.currentVersion);
-    const leadInput = await this.inputForProject(current.project, `brief-approval:${input.projectId}:${input.briefChecksum}`, session?.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE, session?.languageResolution);
-    await lead.analyzeProjectPrompt(leadInput);
-    await lead.planClarifications(leadInput);
-    const clarification = await lead.getClarificationStatus(input.projectId, current.project.currentVersion);
-    if (clarification.unresolved.length) throw new Error("TRIAL_ENTRY_CLARIFICATIONS_REMAIN");
-    const draft = await lead.buildBriefDraft(input.projectId, current.project.currentVersion);
-    const result = await lead.approveBrief({
+    const approval = this.dependencies.createBriefApproval?.(current.project.slug) ?? new BriefApprovalService({ database: this.dependencies.database });
+    const result = await approval.approve({
       projectId: input.projectId,
       projectVersion: current.project.currentVersion,
       briefChecksum: input.briefChecksum,
-      approvedAt: new Date().toISOString(),
       approvedBy: input.approvedBy ?? "workbench-user",
       ...(input.approvalNote ? { approvalNote: input.approvalNote } : {}),
       expectedRowVersion: input.expectedRowVersion,
       idempotencyKey: `workbench-approve-brief:${input.projectId}:${input.briefChecksum}`,
     });
-    return { projectId: input.projectId, workflowState: result.projectState, rowVersion: result.rowVersion, briefChecksum: draft.briefChecksum };
+    return { projectId: input.projectId, workflowState: result.projectState, rowVersion: result.rowVersion, briefChecksum: result.briefChecksum };
   }
 
   private revisionTargetState(state: WorkflowState): WorkflowState {
@@ -544,7 +553,7 @@ export class TrialEntryService {
     const legacyDocument = snapshot.legacy ? mapRowToDocument(snapshot.legacy) : null;
     const selected = v3Document && (input.briefChecksum === canonicalBriefChecksumForDocument(v3Document) || input.briefChecksum === snapshot.v3?.checksum)
       ? { document: v3Document, row: snapshot.v3 }
-      : legacyDocument && input.briefChecksum === snapshot.legacy?.checksum
+      : legacyDocument && (input.briefChecksum === snapshot.legacy?.checksum || input.briefChecksum === canonicalBriefChecksumForDocument(legacyDocument))
         ? { document: legacyDocument, row: snapshot.legacy }
         : null;
     if (!selected || !selected.row) throw new LeadError("BRIEF_CHECKSUM_MISMATCH", "The Project Brief changed before this revision was processed.");

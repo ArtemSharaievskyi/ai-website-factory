@@ -12,6 +12,7 @@ import {
 import { TrialEntryService } from "./service";
 import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
 import { OpenAiBriefV3RevisionProvider } from "@/integrations/openai-v3/provider";
+import { BriefApprovalService } from "./brief-approval";
 
 /** Node/tsx composition for standalone Trial Entry commands. */
 export function createNodeTrialEntryRuntime(options: {
@@ -43,6 +44,7 @@ export function createNodeTrialEntryRuntime(options: {
   const briefV3Provider = ai ? new OpenAiBriefV3RevisionProvider(ai.ai) : undefined;
   const service = new TrialEntryService({
     database,
+    createBriefApproval: (slug) => new BriefApprovalService({ database, projection: new FilesystemProjectMemorySyncPort(workspaceRoot, slug) }),
     createBriefRevisionV3: (slug) => {
       if (!briefV3Provider) throw new Error("TRIAL_ENTRY_AI_NOT_CONFIGURED");
       const existing = briefRevisions.get(slug);

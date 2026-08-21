@@ -85,6 +85,22 @@ entry names the invariant and the regression boundary that must be exercised.
   V1/V2 migration certification, provider-failure fail-closed test, replay tests,
   and the full pre-existing Brief regression gates before acceptance.
 
+## BRIEF_APPROVAL_ELIGIBILITY_IS_OWNED_BY_CANONICAL_READINESS
+
+- Symptom: a current CanonicalBriefV3 reports `readyForApproval` with no
+  blockers, but a stale workflow label independently rejects explicit approval.
+- Rule: `evaluateBriefReadiness` is the only semantic approval-eligibility
+  authority. A host-owned approval command must reload the current V3 Brief,
+  validate readiness and exact currentness/CAS, persist lifecycle approval
+  atomically, and perform one valid lifecycle transition. Readiness never
+  auto-approves; workflow state remains a lifecycle guard rather than a second
+  readiness definition. Approval metadata is outside the semantic Brief
+  checksum, does not create revision history, and does not change publication
+  readiness or publication-only placeholders.
+- Regression: run the production-shaped ready-`CLARIFYING` approval,
+  not-ready/clarification/contradiction rejection, stale-token, CAS rollback,
+  semantic-checksum, projection, exact-one-transition, and replay tests.
+
 ## STRUCTURED_OUTPUT_SCHEMA_CONSTRUCTION
 
 - Symptom: a domain-only Zod test passes while the provider call fails because

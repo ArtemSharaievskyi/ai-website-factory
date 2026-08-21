@@ -28,7 +28,7 @@ export function getProductionWorkbench(): WorkbenchApplication {
       scopes.set(slug, created);
       return created;
     };
-    const entry = new TrialEntryService({ database: factory.database, assets, createLeadAgent: (slug) => scopeFor(slug).lead, createBriefRevisionV3: (slug) => scopeFor(slug).briefRevisionV3 });
+    const entry = new TrialEntryService({ database: factory.database, assets, createLeadAgent: (slug) => scopeFor(slug).lead, createBriefRevisionV3: (slug) => scopeFor(slug).briefRevisionV3, createBriefApproval: (slug) => scopeFor(slug).briefApproval });
     runtime = {
       application: new WorkbenchApplication({ database: factory.database, entry, assets, getWorkflowScope: (slug) => scopeFor(slug) }),
       assets,

@@ -31,6 +31,7 @@ import {
   type OrchestratorMemoryPort,
 } from "@/orchestration/orchestrator/service";
 import { FilesystemProjectMemorySyncPort } from "@/runtime/workspace/sync";
+import { BriefApprovalService } from "@/runtime/trial-entry/brief-approval";
 import { WorkspaceManager } from "@/runtime/workspace/manager";
 import { ProjectMemoryStore } from "@/persistence/project-memory/store";
 import { versionDirectoryName } from "@/runtime/workspace/schemas";
@@ -106,6 +107,7 @@ export type ProductionAdapterIdentity = {
 export type ProductionFactoryProjectScope = {
   database: PersistenceDatabase;
   lead: LeadAgentService;
+  briefApproval: BriefApprovalService;
   briefRevisionV3: BriefV3TransactionService;
   planner: PlannerArchitectService;
   design: DesignAgentService;
@@ -403,6 +405,7 @@ export function createProductionFactoryRuntime(
         memory: new LeadMemoryAdapter(sync, decisions, workspaceRoot),
         resolveSkills: resolveLeadSkills,
       });
+      const briefApproval = new BriefApprovalService({ database, projection: sync });
       const briefRevisionV3 = new BriefV3TransactionService({
         database,
         provider: new OpenAiBriefV3RevisionProvider(ai.ai),
@@ -529,6 +532,7 @@ export function createProductionFactoryRuntime(
       return {
         database,
         lead,
+        briefApproval,
         briefRevisionV3,
         planner,
         design,
