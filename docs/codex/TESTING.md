@@ -35,6 +35,9 @@ repository gates required by `CONTRIBUTING.md` for a handoff.
   src/persistence/database/persistence.test.ts
   src/persistence/database/postgres.test.ts`.
 - Agent/reviewer contracts: `npm run test:reviewers`.
+- Planner dependency admission: `npm run test --
+  src/dependencies/authority.test.ts src/agents/planner/planner.test.ts
+  src/agents/planner/admission.test.ts`.
 
 ## Provider structured-output rule
 

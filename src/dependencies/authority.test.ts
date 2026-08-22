@@ -6,8 +6,10 @@ import {
   GENERATED_BASELINE_DEV_DEPENDENCIES,
   allowedDependencyNamesForPlan,
   decideDependency,
+  parseDependencySpec,
   validateDependencyNames,
   validateDependencyPlan,
+  validateDependencyReferences,
   validateGeneratedLockfile,
   validateGeneratedPackageManifest,
 } from "./authority";
@@ -65,6 +67,23 @@ describe("dependency authority", () => {
     expect(validateDependencyPlan([{ name: "zod", runtime: "dev", required: true }]).valid).toBe(false);
     expect(validateDependencyPlan([{ name: "react-hook-form", runtime: "runtime", required: true }]).valid).toBe(false);
     expect(validateDependencyNames(["zod"]).valid).toBe(true);
+  });
+
+  it("parses scoped and unscoped package specs without discarding versions", () => {
+    expect(parseDependencySpec("next@16.2.12")).toEqual({ packageName: "next", versionSpec: "16.2.12" });
+    expect(parseDependencySpec("@scope/package@1.2.3")).toEqual({ packageName: "@scope/package", versionSpec: "1.2.3" });
+    expect(parseDependencySpec("zod")).toEqual({ packageName: "zod" });
+    expect(validateDependencyPlan([{ name: "next@16.2.12", runtime: "runtime", required: true }]).decisions[0]).toMatchObject({ code: "APPROVED", packageName: "next", requestedSpec: "16.2.12", allowedSpec: "16.2.12" });
+    expect(validateDependencyPlan([{ name: "next@16.2.11", runtime: "runtime", required: true }]).decisions[0].code).toBe("VERSION_NOT_APPROVED");
+    expect(validateDependencyPlan([{ name: "@scope/package@1.2.3", runtime: "runtime", required: true }]).decisions[0].code).toBe("PACKAGE_NOT_APPROVED");
+  });
+
+  it("requires architecture references to match the project dependency plan", () => {
+    const plan = [{ name: "zod@^4.4.3", runtime: "runtime" as const, required: true }];
+    expect(validateDependencyReferences(["zod@^4.4.3"], plan).valid).toBe(true);
+    expect(validateDependencyReferences(["zod@^4.4.2"], plan).decisions[0].code).toBe("VERSION_NOT_APPROVED");
+    expect(validateDependencyReferences(["next@16.2.12"], plan).decisions[0].code).toBe("NOT_IN_PROJECT_PLAN");
+    expect(validateDependencyReferences(["unknown-package@1.0.0"], plan).decisions[0].code).toBe("PACKAGE_NOT_APPROVED");
   });
 
   it("matches only npm root direct declarations while ignoring transitive packages", () => {

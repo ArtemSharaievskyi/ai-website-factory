@@ -122,3 +122,25 @@ entry names the invariant and the regression boundary that must be exercised.
   test; test transport wrapper, strictness, and adapter mapping together.
 - Regression: run the OpenAI provider contract tests and, only when necessary,
   a synthetic live transport check.
+
+## PLANNER_DEPENDENCY_REFERENCE_NORMALIZATION
+
+- Symptom: a valid Planner dependency such as `package@version` is sent to
+  package authority as one package name, or an architecture reference silently
+  diverges from the project DependencyPlan.
+- Rule: parse package identity and requested version at the host boundary,
+  validate both against the catalog, preserve scoped-name handling, and require
+  architecture references to match the current project plan.
+- Regression: run `src/dependencies/authority.test.ts` and the Planner
+  admission assertions in `src/agents/planner/planner.test.ts`.
+
+## PLANNER_ADMISSION_BEFORE_PERSISTENCE
+
+- Symptom: an invalid provider planning package is persisted as a draft before
+  deterministic dependency, structure, traceability, or fixed-stack validation.
+- Rule: deterministic admission must pass before initial planning, persisted
+  reconciliation, or architecture-review correction saves a package. Expected
+  user-resolution/publication blockers remain draft blockers and are evaluated
+  by Planning Acceptance.
+- Regression: `src/agents/planner/admission.test.ts` proves an invalid
+  dependency package is rejected with no planning-package row persisted.

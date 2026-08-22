@@ -15,8 +15,7 @@ import { PersistenceError } from "@/persistence/database/errors";
 import {
   buildPlanningPackage,
   planningChecksum,
-  validatePlanningDependencies,
-  validatePlanningStructure,
+  validatePlanningAdmission,
 } from "./deterministic";
 import {
   PlannerAgentInputSchema,
@@ -225,6 +224,11 @@ export class PlannerArchitectService {
         "BRIEF_CHECKSUM_MISMATCH",
         "Planner output references a different Brief.",
       );
+    if (!validatePlanningAdmission(planningPackage).ready)
+      throw new PlannerError(
+        "PLANNING_PACKAGE_INVALID",
+        "Planner output failed deterministic admission.",
+      );
     this.inputKeys.set(input.idempotencyKey, requestHash);
     if (skillSelection)
       this.skillSelections.set(
@@ -289,6 +293,11 @@ export class PlannerArchitectService {
       blockers,
       updatedAt: now(),
     });
+    if (!validatePlanningAdmission(corrected).ready)
+      throw new PlannerError(
+        "PLANNING_PACKAGE_INVALID",
+        "Reconciled planning package failed deterministic admission.",
+      );
     await this.persistPackage(corrected, idempotencyKey);
     this.packages.set(this.packageKey(projectId, projectVersion), corrected);
     return corrected;
@@ -296,25 +305,8 @@ export class PlannerArchitectService {
   async validatePlanningPackage(projectId: string, projectVersion: number) {
     const status = await this.getPlanningStatus(projectId, projectVersion);
     const packageValue = PlanningPackageSchema.parse(status.package);
-    const blockers = [
-      ...packageValue.blockers,
-      ...validatePlanningStructure(packageValue),
-      ...validatePlanningDependencies(packageValue).filter((item) => !item.approved).map((item) => `${item.code}:${item.packageName}`),
-    ];
-    if (
-      packageValue.traceability.some(
-        (entry) => entry.requirementReferences.length === 0,
-      )
-    )
-      blockers.push("REQUIREMENT_TRACEABILITY_MISSING");
-    if (packageValue.architecture.packageManager !== "npm")
-      blockers.push("PACKAGE_MANAGER_VIOLATION");
-    if (
-      packageValue.architecture.dependencies.some((dependency) =>
-        /nest|redis|bullmq|pnpm|yarn/i.test(dependency.name),
-      )
-    )
-      blockers.push("FIXED_STACK_VIOLATION");
+    const admission = validatePlanningAdmission(packageValue);
+    const blockers = [...packageValue.blockers, ...admission.blockers];
     return {
       ready: blockers.length === 0,
       blockers: [...new Set(blockers)],
@@ -561,6 +553,11 @@ export class PlannerArchitectService {
       acceptance: {},
       updatedAt: now(),
     });
+    if (!validatePlanningAdmission(next).ready)
+      throw new PlannerError(
+        "PLANNING_PACKAGE_INVALID",
+        "Planner correction failed deterministic admission.",
+      );
     await this.persistPackage(next, input.idempotencyKey);
     this.packages.set(key, next);
     this.architectureCorrectionCycles.set(key, cycle + 1);

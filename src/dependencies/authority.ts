@@ -153,6 +153,32 @@ export function isSupportedDirectVersionSpec(versionSpec: string) {
   return value.length > 0 && !forbiddenSpec.test(value) && !unsupportedSpec.test(value);
 }
 
+export type ParsedDependencySpec = {
+  packageName: string;
+  versionSpec?: string;
+};
+
+/**
+ * Dependency plans use one string for a direct package reference. Keep the
+ * package identity and requested version separate at the authority boundary;
+ * scoped npm names have an `@` before the package name as well as before the
+ * version.
+ */
+export function parseDependencySpec(value: string): ParsedDependencySpec {
+  const trimmed = value.trim();
+  const separator = trimmed.startsWith("@")
+    ? (() => {
+        const slash = trimmed.indexOf("/");
+        return slash > 1 ? trimmed.indexOf("@", slash + 1) : -1;
+      })()
+    : trimmed.indexOf("@");
+  if (separator < 0) return { packageName: trimmed };
+  return {
+    packageName: trimmed.slice(0, separator),
+    versionSpec: trimmed.slice(separator + 1),
+  };
+}
+
 function plannedDependency(context: DependencyAuthorityContext | undefined, packageName: string) {
   return context?.plannedDependencies?.find((dependency) => dependency.name === packageName);
 }
@@ -249,23 +275,131 @@ export function validateDependencyPlan(
 ) {
   const decisions: DependencyDecision[] = [];
   const seen = new Set<string>();
+  const canonicalDependencies = dependencies.map((dependency) => ({
+    ...dependency,
+    name: parseDependencySpec(dependency.name).packageName,
+  }));
+  const plannedDependencies = context.plannedDependencies?.map((dependency) => ({
+    ...dependency,
+    name: parseDependencySpec(dependency.name).packageName,
+  })) ?? canonicalDependencies;
   for (const dependency of dependencies) {
     const section: DependencySection = dependency.runtime === "runtime" ? "dependencies" : "devDependencies";
-    if (seen.has(dependency.name)) {
-      decisions.push({ approved: false, code: "DUPLICATE_DEPENDENCY", packageName: dependency.name, dependencySection: section, reason: "DependencyPlan cannot declare a package more than once." });
+    const parsed = parseDependencySpec(dependency.name);
+    if (seen.has(parsed.packageName)) {
+      decisions.push({ approved: false, code: "DUPLICATE_DEPENDENCY", packageName: parsed.packageName, dependencySection: section, reason: "DependencyPlan cannot declare a package more than once." });
       continue;
     }
-    seen.add(dependency.name);
-    const entry = getDependencyCatalogEntry(dependency.name);
-    if (!entry) {
-      decisions.push({ approved: false, code: "PACKAGE_NOT_APPROVED", packageName: dependency.name, dependencySection: section, reason: "Planner dependency intent is not present in the host catalog." });
+    seen.add(parsed.packageName);
+    decisions.push(decideDependency({
+      operation: "ADD",
+      packageName: parsed.packageName,
+      ...(parsed.versionSpec === undefined ? {} : { versionSpec: parsed.versionSpec }),
+      dependencySection: section,
+      context: {
+        ...context,
+        plannedDependencies,
+      },
+    }));
+  }
+  return { valid: decisions.every((item) => item.approved), decisions };
+}
+
+export function validateDependencyReferences(
+  references: readonly string[],
+  dependencies: readonly DependencyPlanIntent[],
+  context: DependencyAuthorityContext = {},
+) {
+  const planValidation = validateDependencyPlan(dependencies, context);
+  const planByName = new Map(
+    dependencies.map((dependency) => [
+      parseDependencySpec(dependency.name).packageName,
+      dependency,
+    ]),
+  );
+  const decisions: DependencyDecision[] = [];
+  const seen = new Set<string>();
+  for (const reference of references) {
+    const parsed = parseDependencySpec(reference);
+    const planned = planByName.get(parsed.packageName);
+    const planDecision = planValidation.decisions.find(
+      (item) => item.packageName === parsed.packageName,
+    );
+    const section: DependencySection = planned?.runtime === "dev"
+      ? "devDependencies"
+      : "dependencies";
+    if (seen.has(parsed.packageName)) {
+      decisions.push({
+        approved: false,
+        code: "DUPLICATE_DEPENDENCY",
+        packageName: parsed.packageName,
+        dependencySection: section,
+        reason: "Architecture dependency references cannot repeat a package.",
+      });
       continue;
     }
-    if (entry.allowedDependencySection !== section) {
-      decisions.push({ approved: false, code: "DEPENDENCY_SECTION_NOT_ALLOWED", packageName: dependency.name, dependencySection: section, allowedSpec: entry.allowedVersionSpec, reason: "DependencyPlan runtime/dev classification does not match the catalog section." });
+    seen.add(parsed.packageName);
+    if (!planned) {
+      const authority = decideDependency({
+        operation: "ADD",
+        packageName: parsed.packageName,
+        ...(parsed.versionSpec === undefined ? {} : { versionSpec: parsed.versionSpec }),
+        dependencySection: section,
+        context: {
+          ...context,
+          plannedDependencies: context.plannedDependencies?.map((dependency) => ({
+            ...dependency,
+            name: parseDependencySpec(dependency.name).packageName,
+          })) ?? dependencies.map((dependency) => ({
+            ...dependency,
+            name: parseDependencySpec(dependency.name).packageName,
+          })),
+        },
+      });
+      decisions.push(authority.approved
+        ? {
+            ...authority,
+            approved: false,
+            code: "NOT_IN_PROJECT_PLAN",
+            reason: "Architecture dependency references must point to the current project DependencyPlan.",
+          }
+        : authority);
       continue;
     }
-    decisions.push(decideDependency({ operation: "ADD", packageName: dependency.name, versionSpec: entry.allowedVersionSpec, dependencySection: section, context: { ...context, plannedDependencies: context.plannedDependencies ?? dependencies } }));
+    if (!planDecision || !planDecision.approved) {
+      decisions.push(planDecision ?? {
+        approved: false,
+        code: "NOT_IN_PROJECT_PLAN",
+        packageName: parsed.packageName,
+        dependencySection: section,
+        reason: "Architecture dependency references must point to an approved project DependencyPlan entry.",
+      });
+      continue;
+    }
+    const catalogEntry = getDependencyCatalogEntry(parsed.packageName);
+    const expectedSpec = planDecision.allowedSpec ?? catalogEntry?.allowedVersionSpec;
+    const effectiveRequestedSpec = parsed.versionSpec ?? expectedSpec;
+    if (!expectedSpec || effectiveRequestedSpec !== expectedSpec) {
+      decisions.push({
+        approved: false,
+        code: "VERSION_NOT_APPROVED",
+        packageName: parsed.packageName,
+        ...(parsed.versionSpec === undefined ? {} : { requestedSpec: parsed.versionSpec }),
+        ...(expectedSpec ? { allowedSpec: expectedSpec } : {}),
+        dependencySection: section,
+        reason: "Architecture dependency reference must use the exact DependencyPlan/catalog version specification.",
+      });
+      continue;
+    }
+    decisions.push({
+      approved: true,
+      code: "APPROVED",
+      packageName: parsed.packageName,
+      ...(parsed.versionSpec === undefined ? {} : { requestedSpec: parsed.versionSpec }),
+      allowedSpec: expectedSpec,
+      dependencySection: section,
+      reason: "Architecture dependency reference matches the approved DependencyPlan and host catalog.",
+    });
   }
   return { valid: decisions.every((item) => item.approved), decisions };
 }
@@ -286,7 +420,7 @@ export function allowedDependencyNamesForPlan(
 ) {
   const names = new Set(BASELINE_REQUIRED_PACKAGE_NAMES);
   for (const dependency of dependencies) {
-    const entry = getDependencyCatalogEntry(dependency.name);
+    const entry = getDependencyCatalogEntry(parseDependencySpec(dependency.name).packageName);
     if (entry && (!taskType || entry.allowedCapabilities.includes(taskType))) names.add(entry.packageName);
   }
   return [...names].sort();
