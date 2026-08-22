@@ -101,6 +101,19 @@ entry names the invariant and the regression boundary that must be exercised.
   not-ready/clarification/contradiction rejection, stale-token, CAS rollback,
   semantic-checksum, projection, exact-one-transition, and replay tests.
 
+## PERSISTENCE_SQL_BINDINGS_MUST_BE_REAL_DB_CERTIFIED
+
+- Symptom: a critical raw-SQL write declares a different number or order of
+  columns/placeholders and parameters, or a database-native value is returned
+  in a shape that does not match the typed persistence contract.
+- Rule: audit the complete column/placeholder/parameter mapping, preserve
+  nullable and required semantics, normalize database-native values at the
+  persistence edge, and verify every persisted field through a real Postgres
+  round-trip. Count-only checks are insufficient.
+- Regression: exercise the actual write against Postgres with representative
+  non-null and nullable neighboring values, then re-read the row and run the
+  atomic success, rollback, stale-currentness, and repeat-operation tests.
+
 ## STRUCTURED_OUTPUT_SCHEMA_CONSTRUCTION
 
 - Symptom: a domain-only Zod test passes while the provider call fails because

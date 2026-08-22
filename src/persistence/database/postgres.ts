@@ -7,7 +7,7 @@ import { mapRowToDocument, type DocumentRow } from "./mapping";
 import { canonicalBriefChecksumForDocument } from "./brief-revision-v3-contracts";
 import { appendBriefRevisionFailureDiagnostic, normalizeBriefRevisionFailureDiagnostics } from "./brief-revision-failure-diagnostics";
 import type { BriefRevisionAtomicCommitInput, BriefRevisionAtomicCommitResult, BriefRevisionAttemptClaim, BriefRevisionAttemptRow, BriefRevisionAttemptStatus, BriefRevisionAttemptTransition, BriefRevisionProjectionRow, BriefRevisionProjectionStatus, OperationReservation, PersistenceDatabase, PersistenceTransaction, ProjectAssetRow, ProjectRow, ProjectVersionRow, WorkflowEvent, CostRecord } from "./types";
-import type { DecisionRecord } from "@/domain/workflow/decision";
+import { DecisionRecordSchema, type DecisionRecord } from "@/domain/workflow/decision";
 
 const safeProviderError = (error: unknown): never => { const providerCode = typeof error === "object" && error && "code" in error && typeof error.code === "string" ? error.code : "unknown"; throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "The database operation failed.", { providerCode }, error); };
 const value = <T>(result: { rows: QueryResultRow[] }) => result.rows[0] as T | undefined;
@@ -53,6 +53,20 @@ const normalizeBriefRevisionProjection = (row: Record<string, unknown>): BriefRe
   id: String(row.id), attemptId: String(row.attemptId), projectId: String(row.projectId), projectVersion: Number(row.projectVersion), documentChecksum: String(row.documentChecksum),
   status: String(row.status) as BriefRevisionProjectionStatus, attemptCount: Number(row.attemptCount), lastFailureCode: row.lastFailureCode == null ? null : String(row.lastFailureCode),
   nextAttemptAt: isoTimestamp(row.nextAttemptAt), createdAt: isoTimestamp(row.createdAt) as string, updatedAt: isoTimestamp(row.updatedAt) as string,
+});
+const normalizeDecisionRecord = (row: Record<string, unknown>): DecisionRecord => DecisionRecordSchema.parse({
+  id: row.id,
+  timestamp: isoTimestamp(row.timestamp),
+  actorType: row.actorType,
+  actorIdentifier: row.actorIdentifier,
+  category: row.category,
+  decision: row.decision,
+  rationale: row.rationale,
+  affectedDocuments: row.affectedDocuments,
+  requirementChange: row.requirementChange,
+  userApprovalRequired: row.userApprovalRequired,
+  userApprovalStatus: row.userApprovalStatus,
+  ...(row.supersedesDecisionId == null ? {} : { supersedesDecisionId: row.supersedesDecisionId }),
 });
 
 export function createPostgresPool(input: Record<string, string | undefined> = process.env) {
@@ -139,8 +153,8 @@ class PostgresTransaction implements PersistenceTransaction {
     return normalizeDocumentRow(updated);
   }
   async deleteDocument(projectId: string, version: number, documentType: string) { await this.query("DELETE FROM workflow_documents WHERE project_id=$1 AND project_version=$2 AND document_type=$3", [projectId, version, documentType]); }
-  async appendDecision(projectId: string, version: number, record: DecisionRecord, revisionAttemptId?: string) { const result = value<DecisionRecord>(await this.query("INSERT INTO decision_records (id, project_id, project_version, timestamp, actor_type, actor_identifier, category, decision, rationale, affected_documents, requirement_change, user_approval_required, user_approval_status, supersedes_decision_id, revision_attempt_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id, timestamp, actor_type AS \"actorType\", actor_identifier AS \"actorIdentifier\", category, decision, rationale, affected_documents AS \"affectedDocuments\", requirement_change AS \"requirementChange\", user_approval_required AS \"userApprovalRequired\", user_approval_status AS \"userApprovalStatus\", supersedes_decision_id AS \"supersedesDecisionId\"", [record.id, projectId, version, record.timestamp, record.actorType, record.actorIdentifier, record.category, record.decision, JSON.stringify(record.affectedDocuments), record.requirementChange, record.userApprovalRequired, record.userApprovalStatus, record.supersedesDecisionId ?? null, revisionAttemptId ?? null])); if (!result) throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "Decision insert returned no row."); return result; }
-  async listDecisions(projectId: string, version: number) { const result = await this.query<DecisionRecord>("SELECT id, timestamp, actor_type AS \"actorType\", actor_identifier AS \"actorIdentifier\", category, decision, rationale, affected_documents AS \"affectedDocuments\", requirement_change AS \"requirementChange\", user_approval_required AS \"userApprovalRequired\", user_approval_status AS \"userApprovalStatus\", supersedes_decision_id AS \"supersedesDecisionId\" FROM decision_records WHERE project_id=$1 AND project_version=$2 ORDER BY timestamp, id", [projectId, version]); return result.rows; }
+  async appendDecision(projectId: string, version: number, record: DecisionRecord, revisionAttemptId?: string) { const result = value<Record<string, unknown>>(await this.query("INSERT INTO decision_records (id, project_id, project_version, timestamp, actor_type, actor_identifier, category, decision, rationale, affected_documents, requirement_change, user_approval_required, user_approval_status, supersedes_decision_id, revision_attempt_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id, timestamp, actor_type AS \"actorType\", actor_identifier AS \"actorIdentifier\", category, decision, rationale, affected_documents AS \"affectedDocuments\", requirement_change AS \"requirementChange\", user_approval_required AS \"userApprovalRequired\", user_approval_status AS \"userApprovalStatus\", supersedes_decision_id AS \"supersedesDecisionId\"", [record.id, projectId, version, record.timestamp, record.actorType, record.actorIdentifier, record.category, record.decision, record.rationale, JSON.stringify(record.affectedDocuments), record.requirementChange, record.userApprovalRequired, record.userApprovalStatus, record.supersedesDecisionId ?? null, revisionAttemptId ?? null])); if (!result) throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "Decision insert returned no row."); return normalizeDecisionRecord(result); }
+  async listDecisions(projectId: string, version: number) { const result = await this.query<Record<string, unknown>>("SELECT id, timestamp, actor_type AS \"actorType\", actor_identifier AS \"actorIdentifier\", category, decision, rationale, affected_documents AS \"affectedDocuments\", requirement_change AS \"requirementChange\", user_approval_required AS \"userApprovalRequired\", user_approval_status AS \"userApprovalStatus\", supersedes_decision_id AS \"supersedesDecisionId\" FROM decision_records WHERE project_id=$1 AND project_version=$2 ORDER BY timestamp, id", [projectId, version]); return result.rows.map(normalizeDecisionRecord); }
   async appendWorkflowEvent(event: WorkflowEvent) { await this.query("INSERT INTO workflow_events (id, project_id, project_version, from_state, to_state, actor, reason, created_at, idempotency_key, revision_attempt_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)", [event.id, event.projectId, event.projectVersion, event.fromState, event.toState, event.actor, event.reason, event.createdAt, event.idempotencyKey ?? null, event.revisionAttemptId ?? null]); return event; }
   async saveCost(record: CostRecord) { await this.query("INSERT INTO cost_records (id, project_id, project_version, role, task_id, provider, model, input_tokens, cached_input_tokens, output_tokens, estimated_cost, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)", [record.id, record.projectId, record.projectVersion, record.role, record.taskId ?? null, record.provider, record.model, record.inputTokens, record.cachedInputTokens, record.outputTokens, record.estimatedCost, record.createdAt]); return record; }
   async reserveOperation(input: { operation: string; key: string; payloadHash: string }): Promise<OperationReservation> {
