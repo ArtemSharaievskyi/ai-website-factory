@@ -14,6 +14,7 @@ import { PlannerError } from "./errors";
 import { PersistenceError } from "@/persistence/database/errors";
 import {
   buildPlanningPackage,
+  evaluatePlanningAcceptanceReadiness,
   planningChecksum,
   validatePlanningAdmission,
 } from "./deterministic";
@@ -305,11 +306,13 @@ export class PlannerArchitectService {
   async validatePlanningPackage(projectId: string, projectVersion: number) {
     const status = await this.getPlanningStatus(projectId, projectVersion);
     const packageValue = PlanningPackageSchema.parse(status.package);
-    const admission = validatePlanningAdmission(packageValue);
-    const blockers = [...packageValue.blockers, ...admission.blockers];
+    const context = await this.planningAcceptanceContext(projectId, projectVersion);
+    const readiness = evaluatePlanningAcceptanceReadiness({ planningPackage: packageValue, context });
     return {
-      ready: blockers.length === 0,
-      blockers: [...new Set(blockers)],
+      ready: readiness.readyForAcceptance,
+      blockers: readiness.blockingItems.map((item) => item.reason),
+      deferredItems: readiness.deferredItems,
+      readiness,
       checksum: planningChecksum(packageValue),
       package: packageValue,
     };
@@ -628,6 +631,14 @@ export class PlannerArchitectService {
         "asset-manifest.json": packageValue.assets,
       },
     );
+  }
+
+  private async planningAcceptanceContext(projectId: string, projectVersion: number) {
+    const canonical = await this.documents.get(projectId, projectVersion, "brief-v3");
+    if (canonical?.documentType === "brief-v3") return { legalPlaceholderPolicy: canonical.brief.legal.placeholderPolicy } as const;
+    const legacy = await this.documents.get(projectId, projectVersion, "requirements");
+    const policy = legacy?.documentType === "requirements" ? legacy.legalComplianceConstraints?.placeholderPolicy : undefined;
+    return policy ? { legalPlaceholderPolicy: policy } as const : undefined;
   }
 }
 function TechnicalArchitectureAcceptance(

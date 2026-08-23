@@ -213,9 +213,14 @@ function PlanningCard({
           />
         </div>
       </div>
-      {planning.blockers.length > 0 && (
+      {planning.blockingItems.length > 0 && (
         <div className="warning-box">
-          Planning blockers remain: {planning.blockers.join(", ")}
+          Planning blockers remain: {planning.blockingItems.join(", ")}
+        </div>
+      )}
+      {planning.deferredItems.length > 0 && (
+        <div className="notice-box">
+          Later-stage items remain visible: {planning.deferredItems.join(", ")}
         </div>
       )}
       {!planning.accepted && (
@@ -224,7 +229,7 @@ function PlanningCard({
             <button
               className="button button-primary"
               onClick={() => onAction("APPROVE_PLANNING")}
-              disabled={busy || planning.blockers.length > 0}
+              disabled={busy || !planning.readyForAcceptance}
             >
               Approve Planning
             </button>

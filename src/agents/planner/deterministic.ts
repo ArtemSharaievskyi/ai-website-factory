@@ -17,6 +17,79 @@ const trace = (category: string, refs: string[], rationale: string, system: stri
 const safePath = (slug: string) => slug === "home" || slug === "index" ? "/" : `/${slug.replace(/^\//, "").replace(/[^a-z0-9-]/g, "-")}`;
 const briefFeatures = (brief: RequirementSpecification) => [...brief.features, ...brief.forms, ...brief.backendRequirements, ...brief.supabaseRequirements].join(" ").toLowerCase();
 
+export type PlanningBlockerClass = "A" | "B" | "C" | "D" | "E" | "F";
+export type PlanningDeferredStage = "DESIGN" | "PUBLICATION";
+export type PlanningAcceptanceContext = {
+  legalPlaceholderPolicy?: "USE_EXPLICIT_PLACEHOLDERS" | "NO_PLACEHOLDERS" | "UNRESOLVED";
+};
+export type PlanningAcceptanceItem = {
+  id: string;
+  type: "PACKAGE_BLOCKER" | "DETERMINISTIC_ADMISSION";
+  sourcePath: string;
+  sourceValidator: string;
+  reason: string;
+  classification: PlanningBlockerClass;
+  deferredStage?: PlanningDeferredStage;
+  publicationSafetyRequired?: boolean;
+};
+export type PlanningAcceptanceReadiness = {
+  readyForAcceptance: boolean;
+  blockingItems: PlanningAcceptanceItem[];
+  deferredItems: PlanningAcceptanceItem[];
+};
+
+const legalMarker = /(?:legal|gesetz|impressum|datenschutz|privacy|anschrift|address|ladungs|steuer|tax|register|pflichtangab|platzhalter|placeholder)/i;
+const publicationMarker = /(?:public|publication|publish|release|ver.?ffentlich)/i;
+const legalFactMarker = /(?:address|anschrift|register|tax|steuer|pflichtangab|fact|detail|information|angab|placeholder|platzhalter|replace|ersetzen|bereit)/i;
+const photoMarker = /(?:photo|photograph|photography|image|imagery|foto|bild|stock)/i;
+const rightsMarker = /(?:right|license|licen[cs]|provenance|recht|lizenz|herkunft|urheber)/i;
+const futurePhotoMarker = /(?:future|additional|later|selection|select|pending|unverified|zus[aä]tz|sp[aä]ter|noch|aussteh)/i;
+const designMarker = /(?:design|visual|brand|direction|selection|typograph|layout|imagery)/i;
+
+const hasLegalRoutes = (planningPackage: PlanningPackage) => {
+  const routes = new Set(planningPackage.sitemap.routes.map((route) => route.path.toLowerCase()));
+  return routes.has("/impressum") && routes.has("/datenschutz");
+};
+
+const hasOnlyDeferredPhotographySlots = (planningPackage: PlanningPackage) => {
+  const entries = planningPackage.assets.entries.filter((entry) => !entry.isLogo);
+  return entries.some((entry) => entry.sourceDecision === "custom" && entry.userApprovalRequired && ["planned", "pending-approval"].includes(entry.generationStatus))
+    && entries.every((entry) => ["planned", "pending-approval"].includes(entry.generationStatus));
+};
+
+const hasKnownInvalidConcreteAsset = (planningPackage: PlanningPackage, blocker: string) =>
+  planningPackage.assets.entries.some((entry) => entry.generationStatus === "rejected") && /asset|image|imagery|photo|photography|logo|reference/i.test(blocker);
+
+const admissionSourcePath = (blocker: string) => ({
+  DUPLICATE_ROUTE: "planning-package.sitemap.routes",
+  DYNAMIC_ROUTE_CONFLICT: "planning-package.sitemap.routes",
+  NAVIGATION_ROUTE_MISSING: "planning-package.navigation.routeReferences",
+  AUTH_ARCHITECTURE_PENDING: "planning-package.authentication",
+  LEGACY_FORM_FIELD_CONTRACT: "planning-package.forms.forms[].fields",
+  FORM_FIELD_ID_INVALID: "planning-package.forms.forms[].fields",
+  DEPENDENCY_NOT_ALLOWED: "planning-package.dependencies.dependencies",
+  DEPENDENCY_VERSION_INVALID: "planning-package.dependencies.dependencies",
+  ARCHITECTURE_DEPENDENCY_MISMATCH: "planning-package.architecture.dependencies",
+  REQUIREMENT_TRACEABILITY_MISSING: "planning-package.traceability",
+  PACKAGE_MANAGER_VIOLATION: "planning-package.architecture.packageManager",
+  FIXED_STACK_VIOLATION: "planning-package.architecture",
+  ASSET_MANIFEST_INVALID: "planning-package.assets.entries",
+}[blocker] ?? "planning-package");
+
+function classifyPackageBlocker(planningPackage: PlanningPackage, blocker: string, context: PlanningAcceptanceContext | undefined, index: number): PlanningAcceptanceItem {
+  const sourcePath = `planning-package.blockers[${index}]`;
+  if (hasKnownInvalidConcreteAsset(planningPackage, blocker)) return { id: "CONCRETE_ASSET_INVALID", type: "PACKAGE_BLOCKER", sourcePath, sourceValidator: "planning acceptance asset safety classification", reason: blocker, classification: "A" };
+  const legalPublicationBlocker = legalMarker.test(blocker)
+    && publicationMarker.test(blocker)
+    && legalFactMarker.test(blocker)
+    && hasLegalRoutes(planningPackage)
+    && (context ? context.legalPlaceholderPolicy === "USE_EXPLICIT_PLACEHOLDERS" : /placeholder|platzhalter/i.test(blocker));
+  if (legalPublicationBlocker) return { id: "FINAL_LEGAL_FACTS_REQUIRED", type: "PACKAGE_BLOCKER", sourcePath, sourceValidator: "planning acceptance lifecycle classification", reason: blocker, classification: "D", deferredStage: "PUBLICATION", publicationSafetyRequired: true };
+  if (photoMarker.test(blocker) && rightsMarker.test(blocker) && futurePhotoMarker.test(blocker) && hasOnlyDeferredPhotographySlots(planningPackage)) return { id: "PHOTO_RIGHTS_PROVENANCE_REQUIRED", type: "PACKAGE_BLOCKER", sourcePath, sourceValidator: "planning acceptance lifecycle classification", reason: blocker, classification: "B", deferredStage: "DESIGN", publicationSafetyRequired: true };
+  if (designMarker.test(blocker) && !publicationMarker.test(blocker)) return { id: "DESIGN_TIME_REQUIREMENT", type: "PACKAGE_BLOCKER", sourcePath, sourceValidator: "planning acceptance lifecycle classification", reason: blocker, classification: "B", deferredStage: "DESIGN" };
+  return { id: `PACKAGE_BLOCKER_${index + 1}`, type: "PACKAGE_BLOCKER", sourcePath, sourceValidator: "planning acceptance package blocker validation", reason: blocker, classification: "A" };
+}
+
 export function selectApplicationProfile(brief: RequirementSpecification) {
   const text = briefFeatures(brief); const stateful = brief.protectedFunctionalityRequired || brief.authenticationDecision === "authentication-required" || brief.userRoles.length > 0 || brief.backendRequirements.length > 0 || brief.storageDecision === "needed" || /dashboard|portal|booking|reservation|account|persist|catalog|upload|saved|database/.test(text);
   const business = stateful || brief.emailDecision === "needed" || brief.administrationDecision === "needed" || brief.forms.length > 0 || brief.pages.some((page) => /contact|booking|catalog|services/.test(page.slug));
@@ -65,6 +138,10 @@ export function validatePlanningStructure(planningPackage: PlanningPackage) {
   const blockers: string[] = []; const paths = planningPackage.sitemap.routes.map((route) => route.path); if (new Set(paths).size !== paths.length) blockers.push("DUPLICATE_ROUTE"); if (paths.some((path) => /\/:[^/]+\/[^/]+/.test(path))) blockers.push("DYNAMIC_ROUTE_CONFLICT"); const routeIds = new Set(planningPackage.sitemap.routes.map((route) => route.id)); if (planningPackage.navigation.routeReferences.some((routeId) => !routeIds.has(routeId))) blockers.push("NAVIGATION_ROUTE_MISSING"); if (planningPackage.sitemap.routes.some((route) => route.authRequired) && planningPackage.authentication.decision === "none") blockers.push("AUTH_ARCHITECTURE_PENDING"); for (const form of planningPackage.forms.forms) { const ids = form.fields.map(formFieldId); if (form.fields.some(isLegacyFormField)) blockers.push("LEGACY_FORM_FIELD_CONTRACT"); if (ids.some((id) => !id) || new Set(ids).size !== ids.length) blockers.push("FORM_FIELD_ID_INVALID"); } return blockers;
 }
 
+export function validatePlanningAssets(planningPackage: PlanningPackage) {
+  return planningPackage.assets.entries.some((entry) => entry.generationStatus === "rejected") ? ["ASSET_MANIFEST_INVALID"] : [];
+}
+
 export function validatePlanningDependencies(planningPackage: PlanningPackage) {
   const dependencyPlan = validateDependencyPlan(planningPackage.dependencies.dependencies);
   const architectureDependencies = validateDependencyReferences(
@@ -77,6 +154,7 @@ export function validatePlanningDependencies(planningPackage: PlanningPackage) {
 export function validatePlanningAdmission(planningPackage: PlanningPackage) {
   const blockers = [
     ...validatePlanningStructure(planningPackage),
+    ...validatePlanningAssets(planningPackage),
     ...validatePlanningDependencies(planningPackage)
       .filter((item) => !item.approved)
       .map((item) => `${item.code}:${item.packageName}`),
@@ -96,4 +174,22 @@ export function validatePlanningAdmission(planningPackage: PlanningPackage) {
   )
     blockers.push("FIXED_STACK_VIOLATION");
   return { ready: blockers.length === 0, blockers: [...new Set(blockers)] };
+}
+
+/** The single host-owned Planning Acceptance authority. */
+export function evaluatePlanningAcceptanceReadiness(input: { planningPackage: PlanningPackage; context?: PlanningAcceptanceContext }): PlanningAcceptanceReadiness {
+  const packageValue = input.planningPackage;
+  const admission = validatePlanningAdmission(packageValue);
+  const blockingItems: PlanningAcceptanceItem[] = [];
+  const deferredItems: PlanningAcceptanceItem[] = [];
+  packageValue.blockers.forEach((blocker, index) => {
+    const item = classifyPackageBlocker(packageValue, blocker, input.context, index);
+    if (item.classification === "B" || item.classification === "C" || item.classification === "D" || item.classification === "F") deferredItems.push(item);
+    else blockingItems.push(item);
+  });
+  for (const blocker of admission.blockers) {
+    if (packageValue.blockers.includes(blocker)) continue;
+    blockingItems.push({ id: blocker, type: "DETERMINISTIC_ADMISSION", sourcePath: admissionSourcePath(blocker), sourceValidator: "validatePlanningAdmission", reason: blocker, classification: "A" });
+  }
+  return { readyForAcceptance: blockingItems.length === 0, blockingItems, deferredItems };
 }

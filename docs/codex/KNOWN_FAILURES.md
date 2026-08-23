@@ -144,3 +144,18 @@ entry names the invariant and the regression boundary that must be exercised.
   by Planning Acceptance.
 - Regression: `src/agents/planner/admission.test.ts` proves an invalid
   dependency package is rejected with no planning-package row persisted.
+
+## PLANNING_ACCEPTANCE_MUST_NOT_CONFLATE_PUBLICATION
+
+- Symptom: a Planning Package that has no technical or concrete asset defect is
+  rejected because it still records final legal facts or future photography
+  rights that are required only for later publication-safe completion.
+- Rule: `evaluatePlanningAcceptanceReadiness` is the single host-owned
+  acceptance authority. It keeps real technical blockers blocking, preserves
+  deferred lifecycle obligations visibly, and never treats deferred work as
+  publication authorization. Downstream guards must consume its result rather
+  than inspect `planning-package.blockers` directly.
+- Regression: `src/agents/planner/acceptance.test.ts` covers deferred legal and
+  photography work, genuine technical blockers, placeholder-policy changes,
+  and concrete rejected assets; inspect the real package read-only at the
+  Planning Acceptance boundary before any pilot mutation.

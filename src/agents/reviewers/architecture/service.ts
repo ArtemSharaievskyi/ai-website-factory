@@ -15,7 +15,7 @@ import {
 } from "@/domain/review/schema";
 import { PlanningPackageSchema } from "@/agents/planner/contracts";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
-import { validatePlanningStructure } from "@/agents/planner/deterministic";
+import { evaluatePlanningAcceptanceReadiness, validatePlanningStructure } from "@/agents/planner/deterministic";
 import { architectureReviewerAgentDefinition } from "@/agents/catalog";
 import { ArchitectureReviewError } from "./errors";
 import {
@@ -268,7 +268,7 @@ export class ArchitectureReviewService {
       )
         throw new Error("The PlanningPackage checksum is stale.");
       if (
-        planning.blockers.length ||
+        !evaluatePlanningAcceptanceReadiness({ planningPackage: planning }).readyForAcceptance ||
         brief.unresolvedItems.some((item) => item.blocking)
       )
         throw new Error(

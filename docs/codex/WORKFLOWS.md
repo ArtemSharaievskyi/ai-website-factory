@@ -85,9 +85,17 @@ After Brief approval, Workbench action `approve-planning` calls the configured
 workflow scope in `src/runtime/workbench/application.ts`:
 
 1. Planner creates a planning package from the approved Brief.
-2. Planner accepts and persists it.
-3. Architecture review validates and routes the package.
-4. Design generates exactly three structured directions.
+2. The host evaluates Planning Acceptance readiness. Technical blockers prevent
+   acceptance; explicitly permitted publication-only legal facts and future
+   photography selection remain visible as deferred obligations.
+3. Planner accepts and persists it only after `blockingItems` is empty.
+4. Architecture review validates and routes the package.
+5. Design generates exactly three structured directions.
+
+Planning Acceptance does not mean publication readiness. Final legal facts and
+verified image rights remain mandatory before public release. The Workbench
+projection shows both blocking and deferred items, while downstream guards use
+the same host-owned readiness evaluator.
 
 The user may request planning changes, make the database/dependency decisions,
 and select one current Design Direction. Selection is explicit and checksum

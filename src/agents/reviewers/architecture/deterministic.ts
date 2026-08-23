@@ -1,4 +1,5 @@
 import { ArchitectureReviewResultSchema, type ArchitectureReviewResult } from "@/domain/review/schema";
+import { evaluatePlanningAcceptanceReadiness } from "@/agents/planner/deterministic";
 import type { ArchitectureReviewInput } from "./contracts";
 import type { ArchitectureReviewProvider } from "./ports";
 
@@ -29,7 +30,7 @@ export function deterministicArchitectureReview(input: ArchitectureReviewInput):
   if (hasDuplicate(routeIds) || hasDuplicate(planning.pages.pages.map((page) => page.id)) || hasDuplicate(planning.forms.forms.map((form) => form.id))) findings.push(finding("unstable-domain-identifiers", "IDENTITY_MODEL", "ERROR", "Planning contains duplicate internal identifiers.", ["planning:sitemap", "planning:pages", "planning:forms"], "Assign unique stable language-independent identifiers."));
   for (const form of planning.forms.forms) for (const field of form.fields) if ("fieldId" in field && field.fieldId === field.label) findings.push(finding(`localized-identity-${form.id}-${field.fieldId.toLowerCase()}`, "IDENTITY_MODEL", "ERROR", "A user-facing field label is also used as the internal field identity.", [`form:${form.id}`, "planning:forms"], "Use a stable English machine fieldId and keep the localized label separate."));
   if (planning.architecture.componentDecisions.some((decision) => decision.serverOrClient === "client" && /secret|database|service role|private key/i.test(decision.rationale))) findings.push(finding("client-secret-boundary", "SERVER_CLIENT_BOUNDARY", "CRITICAL", "Planning places secret or database responsibilities in a client boundary.", ["planning:architecture", "planning:security"], "Move secrets and privileged data access to a server boundary."));
-  if (planning.blockers.length || !planning.accepted || !planning.architecture.acceptance.accepted) findings.push(finding("planning-not-ready", "MISSING_DECISION", "ERROR", "Planning contains unresolved blockers or lacks accepted architecture evidence.", ["planning:architecture", "planning:traceability"], "Resolve blockers and rerun Planning Acceptance before review."));
+  if (!evaluatePlanningAcceptanceReadiness({ planningPackage: planning }).readyForAcceptance || !planning.accepted || !planning.architecture.acceptance.accepted) findings.push(finding("planning-not-ready", "MISSING_DECISION", "ERROR", "Planning contains unresolved acceptance blockers or lacks accepted architecture evidence.", ["planning:architecture", "planning:traceability"], "Resolve technical blockers and rerun Planning Acceptance before review."));
   const verdict = findings.some((item) => item.severity === "ERROR" || item.severity === "CRITICAL") ? "CHANGES_REQUIRED" : "APPROVED";
   return ArchitectureReviewResultSchema.parse({ verdict, findings, reviewedArtifactRefs: ["brief:projectSummary", "planning:architecture"], policyVersion: "architecture-review-v1", });
 }

@@ -137,12 +137,15 @@ export type WorkbenchBrief = {
 export type WorkbenchPlanning = {
   checksum: string;
   accepted: boolean;
+  readyForAcceptance: boolean;
   architecture: string;
   routes: string[];
   majorFeatures: string[];
   databaseRecommendation?: string;
   dependencies: Array<{ name: string; purpose: string; runtime: string; required: boolean }>;
   blockers: string[];
+  blockingItems: string[];
+  deferredItems: string[];
 };
 
 export type WorkbenchDatabase = {

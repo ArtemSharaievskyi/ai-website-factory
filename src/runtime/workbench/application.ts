@@ -2,7 +2,7 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import { DecisionRepository, DocumentRepository, ProjectRepository } from "@/persistence/database/repositories";
 import type { PersistenceDatabase } from "@/persistence/database/types";
 import type { WorkflowState } from "@/domain/workflow/engine";
-import { planningChecksum } from "@/agents/planner/deterministic";
+import { evaluatePlanningAcceptanceReadiness, planningChecksum } from "@/agents/planner/deterministic";
 import { FACTORY_ARCHITECTURE_STACK } from "@/agents/reviewers/architecture/contracts";
 import type { PlannerArchitectService } from "@/agents/planner/service";
 import type { ArchitectureReviewOrchestrationService } from "@/orchestration/architecture-review/service";
@@ -229,7 +229,7 @@ export class WorkbenchApplication {
       : requirements?.documentType === "requirements"
         ? this.brief(requirements, status.brief?.checksum ?? checksumPersistedDocument(requirements), briefReady)
         : undefined;
-    const planningProjection = planning?.documentType === "planning-package" ? this.planning(planning) : undefined;
+    const planningProjection = planning?.documentType === "planning-package" ? this.planning(planning, briefV3?.brief.legal.placeholderPolicy) : undefined;
     const database = phase7c?.documentType === "phase-7c-contract-package" ? {
       packageChecksum: checksumPersistedDocument(phase7c),
       recommendation: phase7c.databaseDecision.plannerRecommendation,
@@ -398,16 +398,20 @@ export class WorkbenchApplication {
     };
   }
 
-  private planning(value: Extract<Awaited<ReturnType<DocumentRepository["get"]>>, { documentType: "planning-package" }>): WorkbenchPlanning {
+  private planning(value: Extract<Awaited<ReturnType<DocumentRepository["get"]>>, { documentType: "planning-package" }>, legalPlaceholderPolicy?: "USE_EXPLICIT_PLACEHOLDERS" | "NO_PLACEHOLDERS" | "UNRESOLVED"): WorkbenchPlanning {
+    const readiness = evaluatePlanningAcceptanceReadiness({ planningPackage: value, context: legalPlaceholderPolicy ? { legalPlaceholderPolicy } : undefined });
     return {
       checksum: checksumPersistedDocument(value),
       accepted: value.accepted,
+      readyForAcceptance: readiness.readyForAcceptance,
       architecture: `${value.architecture.applicationProfile} · ${value.architecture.packageManager}`,
       routes: value.architecture.routes.slice(0, 16).map((route) => `${route.path}: ${route.responsibility}`),
       majorFeatures: list(value.productScope.inScopeCapabilities),
       ...(value.databaseRecommendation ? { databaseRecommendation: value.databaseRecommendation.recommendation } : {}),
       dependencies: value.dependencies.dependencies.slice(0, 20).map((dependency) => ({ name: dependency.name, purpose: dependency.purpose, runtime: dependency.runtime, required: dependency.required })),
       blockers: list(value.blockers),
+      blockingItems: readiness.blockingItems.map((item) => item.reason),
+      deferredItems: readiness.deferredItems.map((item) => item.reason),
     };
   }
 

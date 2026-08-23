@@ -60,6 +60,13 @@ Relevant tests are `src/integrations/openai/provider.test.ts`,
 `src/integrations/openai-v3/brief-v3-provider-contract.test.ts`, and
 `src/integrations/openai/prompts.test.ts`.
 
+Planning Acceptance readiness is covered by
+`src/agents/planner/acceptance.test.ts`. The focused suite must prove that
+technical admission failures and concrete rejected assets block acceptance,
+while explicitly permitted publication-only legal facts and future photography
+rights remain visible as deferred items. The service-boundary assertion must use
+the same evaluator as the Workbench projection and downstream guards.
+
 ## Database and larger boundaries
 
 - `npm run db:validate` validates migration structure.

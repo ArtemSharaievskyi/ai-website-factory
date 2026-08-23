@@ -49,6 +49,16 @@ write path. Providers and future agents may propose bounded typed intent or
 review findings, but may not own canonical currentness, persistence identity,
 workflow state, idempotency, or mutation commit.
 
+Planning Acceptance has the same separation. The host-owned
+`evaluatePlanningAcceptanceReadiness` authority is the only semantic source for
+`readyForAcceptance`, `blockingItems`, and `deferredItems`. Technical admission
+failures and concrete unsafe assets block acceptance; lifecycle work such as
+explicitly permitted legal placeholders or future photography selection remains
+visible as deferred work with publication-safety metadata. A deferred item can
+never make publication ready, and Workbench, Design, reviewers, and orchestration
+consume the projection of this authority rather than reinterpreting raw package
+blockers independently.
+
 ## Workflow shape
 
 The current high-level lifecycle is:

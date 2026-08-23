@@ -18,6 +18,7 @@ import {
 import { ArchitectureReviewRecordSchema } from "@/domain/review/schema";
 import { DecisionRecordSchema } from "@/domain/workflow/decision";
 import { PlanningPackageSchema } from "@/agents/planner/contracts";
+import { evaluatePlanningAcceptanceReadiness } from "@/agents/planner/deterministic";
 import type { PersistenceDatabase } from "@/persistence/database/types";
 import {
   DesignAgentInputSchema,
@@ -208,10 +209,10 @@ export class DesignAgentService {
         "UNAPPROVED_REQUIREMENT_CHANGE",
         "An unapproved requirement change blocks design.",
       );
-    if (planning.blockers.length)
+    if (!evaluatePlanningAcceptanceReadiness({ planningPackage: planning }).readyForAcceptance)
       throw new DesignError(
         "DESIGN_BLOCKED",
-        "The accepted planning package contains unresolved blockers.",
+        "The accepted planning package contains unresolved technical blockers.",
       );
     return { brief, planning };
   }
