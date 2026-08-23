@@ -237,6 +237,23 @@ entry names the invariant and the regression boundary that must be exercised.
   between proposal and commit and asserts stale rejection with no review,
   decision, or workflow event.
 
+## CHECKSUM_DOMAIN_MUST_BE_EXPLICIT
+
+- Symptom: a semantic Phase 7C PlanningPackage binding is compared with the
+  accepted persisted PlanningPackage document/envelope checksum, so acceptance
+  metadata causes a false Architecture Review stale result.
+- Rule: semantic compatibility uses `planningSemanticChecksum`; persisted
+  currentness uses `planningDocumentChecksum` plus row/CAS identity. Envelope
+  metadata changes must not invalidate semantic dependencies, and semantic
+  equality must never bypass persisted currentness. Downstream binding fields
+  must declare their checksum domain in their owning contract.
+- Regression: the Planning Acceptance and Architecture Review certification
+  suites prove stable semantic identity with a changed envelope, semantic
+  staleness before provider execution, Phase 7C semantic binding integrity,
+  and commit-time rejection of an envelope-only row change on both in-memory
+  and real Postgres paths; real Postgres additionally proves that a row-version
+  advance alone cannot bypass commit currentness.
+
 ## DERIVED_PROJECTION_FAILURE_DOES_NOT_REQUIRE_REVIEW_REEXECUTION
 
 - Symptom: a Project Memory/filesystem failure causes a canonical Architecture

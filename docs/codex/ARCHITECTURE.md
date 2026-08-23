@@ -83,6 +83,15 @@ event/state transition. A provider call is never held inside the database
 transaction. Project Memory receives the decision only after commit and can be
 reconciled from canonical decision rows if projection fails.
 
+Planning checksum domains are explicit. `planningSemanticChecksum` identifies
+PlanningPackage meaning and is the binding used by Phase 7C and other semantic
+compatibility checks. `planningDocumentChecksum` identifies the exact persisted
+PlanningPackage document/envelope and is used for accepted-package identity and
+CAS/currentness. Acceptance metadata may change the document checksum without
+changing the semantic checksum; Architecture Review must validate both domains
+independently. A semantic match never bypasses persisted row/document
+currentness.
+
 ## Workflow shape
 
 The current high-level lifecycle is:

@@ -14,8 +14,8 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import { createPostgresPool, PostgresPersistenceDatabase } from "@/persistence/database/postgres";
 import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
 import type { PersistenceDatabase } from "@/persistence/database/types";
-import { buildPlanningPackage, evaluatePlanningAcceptanceReadiness } from "@/agents/planner/deterministic";
-import type { PlannerAgentInput, PlanningPackage } from "@/agents/planner/contracts";
+import { buildPlanningPackage, evaluatePlanningAcceptanceReadiness, planningSemanticChecksum } from "@/agents/planner/deterministic";
+import { PlanningPackageSchema, type PlannerAgentInput, type PlanningPackage } from "@/agents/planner/contracts";
 import { architectureReviewerAgentDefinition } from "@/agents/catalog";
 import { rolePrompt } from "@/integrations/openai/prompts";
 import { ArchitectureReviewOrchestrationService } from "@/orchestration/architecture-review/service";
@@ -85,7 +85,7 @@ async function createFixture(database: PersistenceDatabase = new InMemoryPersist
   await documents.save(planning.content);
   await documents.save(planning.assets);
   const input = reviewInput(brief, planning, { approvedBriefChecksum: approvedBriefV3.briefChecksum });
-  const phase7c = buildPhase7CContractPackage({ projectId: brief.projectId, projectVersion: 1, createdAt: timestamp, approvedBriefChecksum: input.approvedBriefChecksum, planningChecksum: checksumPersistedDocument(planning), architectureChecksum: checksumPersistedDocument(planning.architecture), designChecksum: "0".repeat(64), planning });
+  const phase7c = buildPhase7CContractPackage({ projectId: brief.projectId, projectVersion: 1, createdAt: timestamp, approvedBriefChecksum: input.approvedBriefChecksum, planningChecksum: planningSemanticChecksum(planning), architectureChecksum: checksumPersistedDocument(planning.architecture), designChecksum: "0".repeat(64), planning });
   await documents.save(phase7c);
   return { database, brief, briefV3: approvedBriefV3, planning, input };
 }
@@ -96,6 +96,7 @@ async function stateOf(database: PersistenceDatabase, projectId: string) {
     brief: await tx.getDocument(projectId, 1, "requirements"),
     briefV3: await tx.getDocument(projectId, 1, "brief-v3"),
     planning: await tx.getDocument(projectId, 1, "planning-package"),
+    phase7c: await tx.getDocument(projectId, 1, "phase-7c-contract-package"),
     review: await tx.getDocument(projectId, 1, "architecture-review"),
     history: await tx.getDocument(projectId, 1, "architecture-review-history"),
     decisions: await tx.listDecisions(projectId, 1),
@@ -144,6 +145,57 @@ describe("Architecture Reviewer", () => {
     expect(state.planning?.checksum).toBe(checksumPersistedDocument(fixture.planning));
   });
 
+  it("keeps Phase 7C and Architecture Review current across an envelope-only PlanningPackage change", async () => {
+    const fixture = await createFixture();
+    const documents = new DocumentRepository(fixture.database);
+    const original = await documents.get(fixture.brief.projectId, 1, "planning-package");
+    if (!original || original.documentType !== "planning-package") throw new Error("fixture planning missing");
+    await documents.save({ ...original, updatedAt: "2026-08-23T12:00:01.000Z" });
+    const current = await documents.get(fixture.brief.projectId, 1, "planning-package");
+    if (!current || current.documentType !== "planning-package") throw new Error("current planning missing");
+    expect(planningSemanticChecksum(current)).toBe(planningSemanticChecksum(fixture.planning));
+    expect(checksumPersistedDocument(current)).not.toBe(checksumPersistedDocument(fixture.planning));
+    const input = { ...fixture.input, acceptedPlanningPackage: current, acceptedPlanningChecksum: checksumPersistedDocument(current) };
+    let providerCalls = 0;
+    const provider = { promptVersion: "architecture-reviewer.v1", review: async (reviewInput: ArchitectureReviewInput) => { providerCalls += 1; return deterministicArchitectureReview(reviewInput); } };
+    await expect(new ArchitectureReviewOrchestrationService(fixture.database, new ArchitectureReviewService(fixture.database, { provider })).reviewAndRoute(input)).resolves.toMatchObject({ projectState: "AWAITING_DESIGN_SELECTION" });
+    const state = await stateOf(fixture.database, fixture.brief.projectId);
+    expect(providerCalls).toBe(1);
+    expect(state.phase7c?.payload).toMatchObject({ planningChecksum: planningSemanticChecksum(current), currentness: { status: "CURRENT", derivedFromChecksum: planningSemanticChecksum(current) } });
+  });
+
+  it("rejects a semantic PlanningPackage change before provider execution", async () => {
+    const fixture = await createFixture();
+    const documents = new DocumentRepository(fixture.database);
+    const current = await documents.get(fixture.brief.projectId, 1, "planning-package");
+    if (!current || current.documentType !== "planning-package") throw new Error("fixture planning missing");
+    const changed = PlanningPackageSchema.parse({ ...current, sitemap: { ...current.sitemap, routes: current.sitemap.routes.map((route, index) => index === 0 ? { ...route, titlePurpose: `${route.titlePurpose} (semantic change)` } : route) }, updatedAt: "2026-08-23T12:00:01.000Z" });
+    await documents.save(changed);
+    const input = { ...fixture.input, acceptedPlanningPackage: changed, acceptedPlanningChecksum: checksumPersistedDocument(changed) };
+    let providerCalls = 0;
+    const provider = { promptVersion: "architecture-reviewer.v1", review: async (reviewInput: ArchitectureReviewInput) => { providerCalls += 1; return deterministicArchitectureReview(reviewInput); } };
+    await expect(new ArchitectureReviewOrchestrationService(fixture.database, new ArchitectureReviewService(fixture.database, { provider })).reviewAndRoute(input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE" });
+    const state = await stateOf(fixture.database, fixture.brief.projectId);
+    expect(providerCalls).toBe(0);
+    expect(state.review).toBeNull();
+    expect(state.decisions).toHaveLength(0);
+    expect(state.events).toHaveLength(0);
+  });
+
+  it("rejects a Phase 7C binding that uses the Planning document checksum", async () => {
+    const fixture = await createFixture();
+    const documents = new DocumentRepository(fixture.database);
+    const phase7c = await documents.get(fixture.brief.projectId, 1, "phase-7c-contract-package");
+    if (!phase7c || phase7c.documentType !== "phase-7c-contract-package") throw new Error("fixture Phase 7C package missing");
+    const planningDocumentChecksum = checksumPersistedDocument(fixture.planning);
+    await documents.save({ ...phase7c, planningChecksum: planningDocumentChecksum, currentness: { ...phase7c.currentness, derivedFromChecksum: planningDocumentChecksum }, updatedAt: "2026-08-23T12:00:01.000Z" });
+    let providerCalls = 0;
+    const provider = { promptVersion: "architecture-reviewer.v1", review: async (reviewInput: ArchitectureReviewInput) => { providerCalls += 1; return deterministicArchitectureReview(reviewInput); } };
+    await expect(new ArchitectureReviewOrchestrationService(fixture.database, new ArchitectureReviewService(fixture.database, { provider })).reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE", message: expect.stringMatching(/Phase 7C/) });
+    expect(providerCalls).toBe(0);
+    expect((await stateOf(fixture.database, fixture.brief.projectId)).review).toBeNull();
+  });
+
   it.each([
     ["BLOCKED", { verdict: "BLOCKED", findings: [], reviewedArtifactRefs: ["planning:architecture"], policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION, blockedReason: "Synthetic canonical evidence block." }],
     ["CHANGES_REQUIRED", { verdict: "CHANGES_REQUIRED", findings: [{ findingId: "missing-decision", category: "MISSING_DECISION", severity: "ERROR", summary: "A decision is missing.", evidenceRefs: ["planning:architecture"], affectedArtifacts: ["planning:architecture"], recommendedAction: "Resolve the decision." }], reviewedArtifactRefs: ["planning:architecture"], policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION }],
@@ -173,9 +225,16 @@ describe("Architecture Reviewer", () => {
 
   it("rejects a currentness conflict after the provider returns without canonical writes", async () => {
     const fixture = await createFixture();
-    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => { const current = await new DocumentRepository(fixture.database).get(fixture.brief.projectId, 1, "planning-package"); if (!current || current.documentType !== "planning-package") throw new Error("fixture planning missing"); await new DocumentRepository(fixture.database).save({ ...current, updatedAt: "2026-08-23T12:01:00.000Z" }); return deterministicArchitectureReview(fixture.input); } };
+    const semanticBefore = planningSemanticChecksum(fixture.planning);
+    let providerCalls = 0;
+    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => { providerCalls += 1; const current = await new DocumentRepository(fixture.database).get(fixture.brief.projectId, 1, "planning-package"); if (!current || current.documentType !== "planning-package") throw new Error("fixture planning missing"); await new DocumentRepository(fixture.database).save({ ...current, updatedAt: "2026-08-23T12:01:00.000Z" }); return deterministicArchitectureReview(fixture.input); } };
     const service = new ArchitectureReviewService(fixture.database, { provider });
     await expect(new ArchitectureReviewOrchestrationService(fixture.database, service).reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE" });
+    const current = await new DocumentRepository(fixture.database).get(fixture.brief.projectId, 1, "planning-package");
+    if (!current || current.documentType !== "planning-package") throw new Error("current planning missing");
+    expect(providerCalls).toBe(1);
+    expect(planningSemanticChecksum(current)).toBe(semanticBefore);
+    expect(checksumPersistedDocument(current)).not.toBe(fixture.input.acceptedPlanningChecksum);
     const state = await stateOf(fixture.database, fixture.brief.projectId);
     expect(state.review).toBeNull();
     expect(state.decisions).toHaveLength(0);
@@ -312,10 +371,75 @@ describePostgres("Architecture Review real Postgres certification", () => {
     postgresProjectIds.push(fixture.brief.projectId);
     await expect(new ArchitectureReviewOrchestrationService(database, new ArchitectureReviewService(database, { provider: deterministicProvider })).reviewAndRoute(fixture.input)).resolves.toMatchObject({ projectState: "AWAITING_DESIGN_SELECTION" });
     const state = await stateOf(database, fixture.brief.projectId);
+    const planning = await new DocumentRepository(database).get(fixture.brief.projectId, 1, "planning-package");
+    const phase7c = await new DocumentRepository(database).get(fixture.brief.projectId, 1, "phase-7c-contract-package");
     expect(state.project).toMatchObject({ workflow_state: "AWAITING_DESIGN_SELECTION", row_version: 2 });
     expect(state.review).not.toBeNull();
     expect(state.decisions).toHaveLength(1);
     expect(state.events).toHaveLength(1);
+    expect(planning && phase7c && planning.documentType === "planning-package" && phase7c.documentType === "phase-7c-contract-package").toBe(true);
+    if (planning?.documentType === "planning-package" && phase7c?.documentType === "phase-7c-contract-package") {
+      expect(planningSemanticChecksum(planning)).toBe(phase7c.planningChecksum);
+      expect(checksumPersistedDocument(planning)).not.toBe(phase7c.planningChecksum);
+    }
+  });
+
+  it("passes real Postgres currentness after an envelope-only PlanningPackage change", async () => {
+    const fixture = await createFixture(database);
+    postgresProjectIds.push(fixture.brief.projectId);
+    const documents = new DocumentRepository(database);
+    const original = await documents.get(fixture.brief.projectId, 1, "planning-package");
+    if (!original || original.documentType !== "planning-package") throw new Error("fixture planning missing");
+    await documents.save({ ...original, updatedAt: "2026-08-23T12:00:01.000Z" });
+    const current = await documents.get(fixture.brief.projectId, 1, "planning-package");
+    if (!current || current.documentType !== "planning-package") throw new Error("current planning missing");
+    const input = { ...fixture.input, acceptedPlanningPackage: current, acceptedPlanningChecksum: checksumPersistedDocument(current) };
+    await expect(new ArchitectureReviewOrchestrationService(database, new ArchitectureReviewService(database, { provider: deterministicProvider })).reviewAndRoute(input)).resolves.toMatchObject({ projectState: "AWAITING_DESIGN_SELECTION" });
+    expect(planningSemanticChecksum(current)).toBe(planningSemanticChecksum(fixture.planning));
+    expect(checksumPersistedDocument(current)).not.toBe(checksumPersistedDocument(fixture.planning));
+  });
+
+  it("rejects a real Postgres semantic PlanningPackage change before provider execution", async () => {
+    const fixture = await createFixture(database);
+    postgresProjectIds.push(fixture.brief.projectId);
+    const documents = new DocumentRepository(database);
+    const current = await documents.get(fixture.brief.projectId, 1, "planning-package");
+    if (!current || current.documentType !== "planning-package") throw new Error("fixture planning missing");
+    const changed = PlanningPackageSchema.parse({ ...current, sitemap: { ...current.sitemap, routes: current.sitemap.routes.map((route, index) => index === 0 ? { ...route, titlePurpose: `${route.titlePurpose} (semantic change)` } : route) }, updatedAt: "2026-08-23T12:00:01.000Z" });
+    await documents.save(changed);
+    const input = { ...fixture.input, acceptedPlanningPackage: changed, acceptedPlanningChecksum: checksumPersistedDocument(changed) };
+    let providerCalls = 0;
+    const provider = { promptVersion: "architecture-reviewer.v1", review: async (reviewInput: ArchitectureReviewInput) => { providerCalls += 1; return deterministicArchitectureReview(reviewInput); } };
+    await expect(new ArchitectureReviewOrchestrationService(database, new ArchitectureReviewService(database, { provider })).reviewAndRoute(input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE" });
+    expect(providerCalls).toBe(0);
+    expect((await stateOf(database, fixture.brief.projectId)).review).toBeNull();
+  });
+
+  it("rejects a real Postgres envelope change at commit even when semantic planning is unchanged", async () => {
+    const fixture = await createFixture(database);
+    postgresProjectIds.push(fixture.brief.projectId);
+    let providerCalls = 0;
+    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => { providerCalls += 1; const current = await new DocumentRepository(database).get(fixture.brief.projectId, 1, "planning-package"); if (!current || current.documentType !== "planning-package") throw new Error("fixture planning missing"); await new DocumentRepository(database).save({ ...current, updatedAt: "2026-08-23T12:01:00.000Z" }); return deterministicArchitectureReview(fixture.input); } };
+    await expect(new ArchitectureReviewOrchestrationService(database, new ArchitectureReviewService(database, { provider })).reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE" });
+    expect(providerCalls).toBe(1);
+    const state = await stateOf(database, fixture.brief.projectId);
+    expect(state.review).toBeNull();
+    expect(state.decisions).toHaveLength(0);
+    expect(state.events).toHaveLength(0);
+  });
+
+  it("rejects a real Postgres PlanningPackage row-version change with identical document semantics", async () => {
+    const fixture = await createFixture(database);
+    postgresProjectIds.push(fixture.brief.projectId);
+    let providerCalls = 0;
+    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => { providerCalls += 1; const current = await new DocumentRepository(database).get(fixture.brief.projectId, 1, "planning-package"); if (!current || current.documentType !== "planning-package") throw new Error("fixture planning missing"); await new DocumentRepository(database).save(current); return deterministicArchitectureReview(fixture.input); } };
+    await expect(new ArchitectureReviewOrchestrationService(database, new ArchitectureReviewService(database, { provider })).reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE", message: "The accepted PlanningPackage row is stale." });
+    expect(providerCalls).toBe(1);
+    const state = await stateOf(database, fixture.brief.projectId);
+    expect(state.planning?.rowVersion).toBe(2);
+    expect(state.review).toBeNull();
+    expect(state.decisions).toHaveLength(0);
+    expect(state.events).toHaveLength(0);
   });
 
   it("rolls back real Postgres writes after the decision boundary", async () => {

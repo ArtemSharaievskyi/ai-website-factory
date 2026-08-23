@@ -3,6 +3,7 @@ import { mapRowToDocument, type DocumentRow } from "@/persistence/database/mappi
 import type { PersistenceTransaction } from "@/persistence/database/types";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { PlanningPackageSchema } from "@/agents/planner/contracts";
+import { planningSemanticChecksum } from "@/agents/planner/deterministic";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
 import type { ArchitectureReviewInput } from "./contracts";
 import { ArchitectureReviewError } from "./errors";
@@ -10,6 +11,7 @@ import { ArchitectureReviewError } from "./errors";
 export type CanonicalReviewContext = {
   project: NonNullable<Awaited<ReturnType<PersistenceTransaction["getProject"]>>>;
   version: NonNullable<Awaited<ReturnType<PersistenceTransaction["getVersion"]>>>;
+  planningRowVersion: number;
   architectureChecksum: string;
   phase7cChecksum: string;
   reviewRow: DocumentRow | null;
@@ -61,12 +63,14 @@ export async function readCanonicalReviewContext(
   }
 
   const planningRow = await tx.getDocument(input.projectId, input.projectVersion, "planning-package");
-  if (!planningRow || planningRow.checksum !== input.acceptedPlanningChecksum)
+  const expectedPlanningDocumentChecksum = input.acceptedPlanningChecksum;
+  if (!planningRow || planningRow.checksum !== expectedPlanningDocumentChecksum)
     throw new ArchitectureReviewError(
       "ARCHITECTURE_REVIEW_STALE",
       "The accepted PlanningPackage is stale at Architecture Review commit.",
     );
   const planning = PlanningPackageSchema.parse(mapRowToDocument(planningRow));
+  const currentPlanningSemanticChecksum = planningSemanticChecksum(planning);
   if (
     checksumPersistedDocument(input.acceptedPlanningPackage) !== planningRow.checksum ||
     !planning.accepted ||
@@ -102,10 +106,16 @@ export async function readCanonicalReviewContext(
       "The current Phase 7C contract package is missing.",
     );
   const phase7c = mapRowToDocument(phase7cRow);
+  if (phase7c.documentType !== "phase-7c-contract-package")
+    throw new ArchitectureReviewError(
+      "ARCHITECTURE_REVIEW_STALE",
+      "The current Phase 7C contract package is stale at Architecture Review commit.",
+    );
+  const phase7cPlanningSemanticChecksum = phase7c.planningChecksum;
   if (
-    phase7c.documentType !== "phase-7c-contract-package" ||
     phase7c.approvedBriefChecksum !== input.approvedBriefChecksum ||
-    phase7c.planningChecksum !== input.acceptedPlanningChecksum ||
+    phase7cPlanningSemanticChecksum !== currentPlanningSemanticChecksum ||
+    phase7c.currentness.derivedFromChecksum !== currentPlanningSemanticChecksum ||
     phase7c.architectureChecksum !== architectureRow.checksum ||
     phase7c.currentness.status !== "CURRENT" ||
     phase7cRow.checksum !== checksumPersistedDocument(phase7c)
@@ -118,6 +128,7 @@ export async function readCanonicalReviewContext(
   return {
     project,
     version,
+    planningRowVersion: planningRow.rowVersion,
     architectureChecksum: architectureRow.checksum,
     phase7cChecksum: phase7cRow.checksum,
     reviewRow: await tx.getDocument(input.projectId, input.projectVersion, "architecture-review"),

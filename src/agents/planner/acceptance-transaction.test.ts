@@ -12,7 +12,7 @@ import type { PersistenceDatabase } from "@/persistence/database/types";
 import { createPostgresPool, PostgresPersistenceDatabase } from "@/persistence/database/postgres";
 import { FakePlannerMemoryPort } from "./memory";
 import { PlannerArchitectService } from "./service";
-import { buildPlanningPackage, evaluatePlanningAcceptanceReadiness, planningChecksum, planningSemanticChecksum } from "./deterministic";
+import { buildPlanningPackage, evaluatePlanningAcceptanceReadiness, planningDocumentChecksum, planningSemanticChecksum } from "./deterministic";
 import { PlanningPackageSchema, type PlannerAgentInput, type PlanningPackage } from "./contracts";
 
 const runId = randomUUID().replaceAll("-", "").slice(0, 10);
@@ -133,7 +133,7 @@ function acceptanceInput(fixture: Awaited<ReturnType<typeof createFixture>>, ove
   return {
     projectId: fixture.projectId,
     projectVersion: 1,
-    planningChecksum: overrides.planningChecksum ?? planningChecksum(fixture.planning),
+    planningChecksum: overrides.planningChecksum ?? planningDocumentChecksum(fixture.planning),
     acceptedBy: "synthetic-user",
     acceptedAt: timestamp,
     expectedRowVersion: overrides.expectedRowVersion ?? 1,
@@ -191,6 +191,7 @@ describe("Planning Acceptance canonical transaction", () => {
     const beforeSemantic = JSON.stringify(semanticPlanningValue(fixture.planning));
     const beforeSemanticChecksum = planningSemanticChecksum(fixture.planning);
     const accepted = PlanningPackageSchema.parse(mapRowToDocument(state.planning!));
+    const phase7c = state.phase7c?.documentType === "phase-7c-contract-package" ? mapRowToDocument(state.phase7c) : null;
     const readiness = evaluatePlanningAcceptanceReadiness({ planningPackage: accepted, context: { legalPlaceholderPolicy: "USE_EXPLICIT_PLACEHOLDERS" } });
 
     expect(result.projectState).toBe("ARCHITECTURE_REVIEW");
@@ -208,7 +209,9 @@ describe("Planning Acceptance canonical transaction", () => {
     expect(accepted.accepted).toBe(true);
     expect(JSON.stringify(semanticPlanningValue(accepted))).toBe(beforeSemantic);
     expect(planningSemanticChecksum(accepted)).toBe(beforeSemanticChecksum);
-    expect(planningChecksum(accepted)).not.toBe(planningChecksum(fixture.planning));
+    expect(planningDocumentChecksum(accepted)).not.toBe(planningDocumentChecksum(fixture.planning));
+    expect(phase7c?.documentType === "phase-7c-contract-package" ? phase7c.planningChecksum : null).toBe(beforeSemanticChecksum);
+    expect(phase7c?.documentType === "phase-7c-contract-package" ? phase7c.planningChecksum : null).not.toBe(planningDocumentChecksum(accepted));
     expect(accepted.blockers).toEqual(fixture.planning.blockers);
     expect(readiness.deferredItems.map((item) => item.id)).toEqual(["FINAL_LEGAL_FACTS_REQUIRED", "PHOTO_RIGHTS_PROVENANCE_REQUIRED"]);
     expect(state.brief?.checksum).toBe(beforeBrief.checksum);

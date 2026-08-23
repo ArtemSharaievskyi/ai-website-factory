@@ -13,7 +13,7 @@ import { PlanningPackageSchema } from "@/agents/planner/contracts";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
 import { evaluatePlanningAcceptanceReadiness, validatePlanningStructure } from "@/agents/planner/deterministic";
 import { architectureReviewerAgentDefinition } from "@/agents/catalog";
-import { ArchitectureReviewError } from "./errors";
+import { ArchitectureReviewError, rethrowWrappedArchitectureReviewError } from "./errors";
 import {
   ARCHITECTURE_REVIEW_POLICY_VERSION,
   ArchitectureReviewInputSchema,
@@ -38,6 +38,7 @@ export type ArchitectureReviewProposal = {
   promptVersion: string;
   skillContextChecksum: string;
   versionRowVersion: number;
+  planningRowVersion: number;
   architectureChecksum: string;
   phase7cChecksum: string;
 };
@@ -102,9 +103,14 @@ export class ArchitectureReviewService {
       policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION,
       promptVersion: this.provider.promptVersion,
     });
-    const canonical = await this.database.transaction((tx) =>
-      readCanonicalReviewContext(tx, input),
-    );
+    let canonical: CanonicalReviewContext;
+    try {
+      canonical = await this.database.transaction((tx) =>
+        readCanonicalReviewContext(tx, input),
+      );
+    } catch (error) {
+      rethrowWrappedArchitectureReviewError(error);
+    }
     const prior = this.idempotency.get(input.idempotencyKey);
     if (prior) {
       if (prior.inputHash !== inputHash)
@@ -122,6 +128,7 @@ export class ArchitectureReviewService {
         promptVersion: this.provider.promptVersion,
         skillContextChecksum: skillSelection.identityChecksum,
         versionRowVersion: canonical.version.rowVersion,
+        planningRowVersion: canonical.planningRowVersion,
         architectureChecksum: canonical.architectureChecksum,
         phase7cChecksum: canonical.phase7cChecksum,
       } satisfies ArchitectureReviewProposal;
@@ -151,6 +158,7 @@ export class ArchitectureReviewService {
         promptVersion: this.provider.promptVersion,
         skillContextChecksum: skillSelection.identityChecksum,
         versionRowVersion: canonical.version.rowVersion,
+        planningRowVersion: canonical.planningRowVersion,
         architectureChecksum: canonical.architectureChecksum,
         phase7cChecksum: canonical.phase7cChecksum,
       } satisfies ArchitectureReviewProposal;

@@ -86,7 +86,11 @@ review-result/history/decision writes and workflow-transition failure,
 commit-time Brief/Planning/Architecture/Phase 7C currentness, exact one
 approved transition, repeat/restart safety, unchanged upstream semantics, and
 post-commit Project Memory decision projection recovery without a second
-provider call.
+provider call. The checksum-domain cases must also prove that acceptance-only
+PlanningPackage envelope changes preserve the Phase 7C semantic binding, true
+semantic changes reject before provider execution, and an envelope/row change
+after provider execution still rejects at commit even when semantic identity
+and, where applicable, the document checksum are unchanged.
 
 ## Database and larger boundaries
 

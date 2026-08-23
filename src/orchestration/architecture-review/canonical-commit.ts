@@ -22,7 +22,7 @@ import {
   ArchitectureReviewInputSchema,
   type ArchitectureReviewInput,
 } from "@/agents/reviewers/architecture/contracts";
-import { ArchitectureReviewError } from "@/agents/reviewers/architecture/errors";
+import { ArchitectureReviewError, rethrowWrappedArchitectureReviewError } from "@/agents/reviewers/architecture/errors";
 import type { ArchitectureReviewProposal } from "@/agents/reviewers/architecture/service";
 import { readCanonicalReviewContext, type CanonicalReviewContext } from "@/agents/reviewers/architecture/currentness";
 
@@ -88,6 +88,11 @@ export class ArchitectureReviewCanonicalCommitService {
         throw new ArchitectureReviewError(
           "ARCHITECTURE_REVIEW_STALE",
           "The Architecture Review project-version row is stale.",
+        );
+      if (proposal.planningRowVersion !== canonical.planningRowVersion)
+        throw new ArchitectureReviewError(
+          "ARCHITECTURE_REVIEW_STALE",
+          "The accepted PlanningPackage row is stale.",
         );
       const replay = this.replayResult(canonical, input, proposal.inputHash);
       if (replay) {
@@ -222,7 +227,7 @@ export class ArchitectureReviewCanonicalCommitService {
         decision,
         replay: false as const,
       };
-    });
+    }).catch((error) => rethrowWrappedArchitectureReviewError(error));
     if (committed.replay)
       return {
         result: committed.result,

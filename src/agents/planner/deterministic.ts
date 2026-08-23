@@ -132,7 +132,8 @@ export function buildPlanningPackage(input: PlannerAgentInput): PlanningPackage 
   return PlanningPackageSchema.parse(packageValue);
 }
 
-export const planningChecksum = (planningPackage: PlanningPackage) => checksumPersistedDocument(planningPackage);
+/** Checksum for the exact persisted PlanningPackage document/envelope. */
+export const planningDocumentChecksum = (planningPackage: PlanningPackage) => checksumPersistedDocument(planningPackage);
 
 /** Checksum for PlanningPackage meaning, excluding the host-owned acceptance envelope. */
 export const planningSemanticChecksum = (planningPackage: PlanningPackage) => checksumPersistedDocument({

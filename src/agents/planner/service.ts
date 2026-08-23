@@ -20,7 +20,8 @@ import { PersistenceError } from "@/persistence/database/errors";
 import {
   buildPlanningPackage,
   evaluatePlanningAcceptanceReadiness,
-  planningChecksum,
+  planningDocumentChecksum,
+  planningSemanticChecksum,
   validatePlanningAdmission,
 } from "./deterministic";
 import {
@@ -263,7 +264,7 @@ export class PlannerArchitectService {
       );
     return {
       package: packageValue,
-      checksum: planningChecksum(packageValue),
+      checksum: planningDocumentChecksum(packageValue),
       blockers: packageValue.blockers,
       accepted: packageValue.accepted,
     };
@@ -322,7 +323,7 @@ export class PlannerArchitectService {
       blockers: readiness.blockingItems.map((item) => item.reason),
       deferredItems: readiness.deferredItems,
       readiness,
-      checksum: planningChecksum(packageValue),
+      checksum: planningDocumentChecksum(packageValue),
       package: packageValue,
     };
   }
@@ -380,7 +381,7 @@ export class PlannerArchitectService {
       const packageRow = await tx.getDocument(input.projectId, input.projectVersion, "planning-package");
       if (!packageRow) throw new PlannerError("PLANNING_NOT_ACCEPTED", "No planning package is available.");
       const packageValue = PlanningPackageSchema.parse(mapRowToDocument(packageRow));
-      const checksum = planningChecksum(packageValue);
+      const checksum = planningDocumentChecksum(packageValue);
       if (checksum !== input.planningChecksum)
         throw new PlannerError("PLANNING_CHECKSUM_MISMATCH", "The planning package checksum is stale.");
       if (packageValue.accepted)
@@ -414,7 +415,7 @@ export class PlannerArchitectService {
         projectVersion: input.projectVersion,
         createdAt: input.acceptedAt,
         approvedBriefChecksum: acceptedPackage.approvedBriefChecksum,
-        planningChecksum: input.planningChecksum,
+        planningChecksum: planningSemanticChecksum(acceptedPackage),
         architectureChecksum: checksumPersistedDocument(acceptedArchitecture),
         designChecksum: "0".repeat(64),
         planning: acceptedPackage,
@@ -455,7 +456,7 @@ export class PlannerArchitectService {
     });
     return {
       package: committed.acceptedPackage,
-      planningChecksum: planningChecksum(committed.acceptedPackage),
+      planningChecksum: planningDocumentChecksum(committed.acceptedPackage),
       projectState: "ARCHITECTURE_REVIEW" as const,
       rowVersion: committed.transition.rowVersion,
     };
@@ -594,7 +595,7 @@ export class PlannerArchitectService {
     });
     return {
       package: next,
-      planningChecksum: planningChecksum(next),
+      planningChecksum: planningDocumentChecksum(next),
       projectState: "AWAITING_DESIGN_SELECTION" as const,
       rowVersion: transition.rowVersion,
       correctionCycle: cycle + 1,
@@ -667,7 +668,7 @@ export class PlannerArchitectService {
         architecture: packageValue.architecture,
         content: packageValue.content,
         assets: packageValue.assets,
-        phase7cContractPackage: phase7c?.documentType === "phase-7c-contract-package" ? phase7c : buildPhase7CContractPackage({ projectId, projectVersion, createdAt: packageValue.updatedAt, approvedBriefChecksum: packageValue.approvedBriefChecksum, planningChecksum: packageValue.acceptance.checksum ?? planningChecksum(packageValue), architectureChecksum: checksumPersistedDocument(packageValue.architecture), designChecksum: "0".repeat(64), planning: packageValue }),
+        phase7cContractPackage: phase7c?.documentType === "phase-7c-contract-package" ? phase7c : buildPhase7CContractPackage({ projectId, projectVersion, createdAt: packageValue.updatedAt, approvedBriefChecksum: packageValue.approvedBriefChecksum, planningChecksum: planningSemanticChecksum(packageValue), architectureChecksum: checksumPersistedDocument(packageValue.architecture), designChecksum: "0".repeat(64), planning: packageValue }),
         decision,
       };
     });

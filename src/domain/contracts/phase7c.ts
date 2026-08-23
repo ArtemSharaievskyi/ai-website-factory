@@ -205,6 +205,7 @@ export const Phase7CContractPackageSchema = DocumentBaseSchema.extend({
   phaseId: z.literal("PHASE_7C"),
   contractPolicyVersion: z.literal(PHASE_7C_POLICY_VERSION),
   approvedBriefChecksum: HashSchema,
+  // Semantic PlanningPackage identity; never the accepted document/envelope checksum.
   planningChecksum: HashSchema,
   architectureChecksum: HashSchema,
   designChecksum: HashSchema,
