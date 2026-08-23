@@ -122,6 +122,10 @@ export class ProjectMemoryStore {
     const previousManifest = await this.readManifest();
     let previous: Buffer | undefined;
     try { previous = await readFile(this.file(JSONL_NAME)); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    if (previous) {
+      const existing = previous.toString("utf8").split(/\r?\n/).filter(Boolean).map((line) => { try { return DecisionRecordSchema.parse(JSON.parse(line)); } catch { return undefined; } }).find((candidate) => candidate?.id === parsed.id);
+      if (existing) return existing;
+    }
     const bytes = Buffer.from(`${JSON.stringify(stableValue(parsed))}\n`, "utf8");
     await this.atomicWrite(JSONL_NAME, Buffer.concat([previous ?? Buffer.alloc(0), bytes]));
     try { await this.rebuildManifestInternal(); } catch (error) {

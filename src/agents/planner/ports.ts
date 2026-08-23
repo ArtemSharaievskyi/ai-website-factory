@@ -7,4 +7,6 @@ export interface PlannerArchitectureProvider { plan(input: PlannerAgentInput & {
 export type PlannerDocumentationPort = Context7DocumentationPort;
 export interface PlannerSkillSelectionPort { select(input: { role: "planner-architect"; taskType: "product-scope" | "ux-architecture" | "technical-architecture" | "content-planning" | "asset-planning" }): Promise<string[]>; }
 export class EmptyPlannerSkillSelectionPort implements PlannerSkillSelectionPort { async select() { return []; } }
-export interface PlannerMemoryPort { writeSnapshot(projectId: string, version: number, documents: Record<string, unknown>): Promise<void>; appendDecision(projectId: string, version: number, decision: DecisionRecord): Promise<void>; checksums(projectId: string, version: number): Promise<Record<string, string>>; }
+export type PlannerAcceptanceFaultPoint = "after-acceptance-write" | "before-decision-write" | "after-decision-write" | "before-workflow-transition";
+export type PlannerAcceptanceFaultInjector = { hit(point: PlannerAcceptanceFaultPoint): void | Promise<void> };
+export interface PlannerMemoryPort { writeSnapshot(projectId: string, version: number, documents: Record<string, unknown>): Promise<void>; appendDecision(projectId: string, version: number, decision: DecisionRecord): Promise<void>; writeDecisionProjection(projectId: string, version: number, decision: DecisionRecord): Promise<void>; checksums(projectId: string, version: number): Promise<Record<string, string>>; }

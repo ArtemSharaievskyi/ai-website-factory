@@ -59,6 +59,18 @@ never make publication ready, and Workbench, Design, reviewers, and orchestratio
 consume the projection of this authority rather than reinterpreting raw package
 blockers independently.
 
+Planning Acceptance has one canonical commit authority:
+`PlannerArchitectService.acceptPlanningPackage`. It re-reads the current
+project, Brief context, and PlanningPackage inside one persistence transaction,
+rechecks readiness and row-version/checksum currentness, then commits the
+accepted package envelope, modified architecture, Phase 7C package, acceptance
+decision, workflow state, and workflow event together. Unchanged content and
+asset documents are not rewritten as acceptance side effects. Filesystem
+Project Memory is a recoverable derived projection after the database commit;
+`reconcileAcceptedPlanningProjection` rebuilds it from canonical rows when a
+projection write fails. No provider, agent, Workbench caller, or alternate
+entrypoint owns any part of this commit.
+
 ## Workflow shape
 
 The current high-level lifecycle is:

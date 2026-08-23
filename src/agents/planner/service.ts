@@ -4,12 +4,17 @@ import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
 import { DecisionRecordSchema } from "@/domain/workflow/decision";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import {
+  appendDecisionInTransaction,
   DecisionRepository,
   DocumentRepository,
   ProjectRepository,
+  saveDocumentCASInTransaction,
+  saveDocumentInTransaction,
+  transitionWorkflowInTransaction,
   WorkflowPersistenceService,
 } from "@/persistence/database/repositories";
-import type { PersistenceDatabase } from "@/persistence/database/types";
+import { mapRowToDocument } from "@/persistence/database/mapping";
+import type { PersistenceDatabase, PersistenceTransaction } from "@/persistence/database/types";
 import { PlannerError } from "./errors";
 import { PersistenceError } from "@/persistence/database/errors";
 import {
@@ -29,6 +34,7 @@ import {
   type PlannerArchitectureProvider,
   type PlannerDocumentationPort,
   type PlannerMemoryPort,
+  type PlannerAcceptanceFaultInjector,
   type PlannerSkillSelectionPort,
 } from "./ports";
 import { requestPlannerDocumentation } from "../../integrations/context7/planner";
@@ -49,6 +55,7 @@ export type PlannerServiceDependencies = {
   skills?: PlannerSkillSelectionPort;
   context7?: PlannerDocumentationPort;
   resolveSkills?: (input: PlannerAgentInput) => Promise<AgentSkillSelection>;
+  acceptanceFaultInjector?: PlannerAcceptanceFaultInjector;
 };
 
 export class PlannerArchitectService {
@@ -59,6 +66,7 @@ export class PlannerArchitectService {
   private readonly provider: PlannerArchitectureProvider;
   private readonly skills: PlannerSkillSelectionPort;
   private readonly resolveSkills?: PlannerServiceDependencies["resolveSkills"];
+  private readonly acceptanceFaultInjector?: PlannerServiceDependencies["acceptanceFaultInjector"];
   private readonly skillSelections = new Map<string, AgentSkillSelection>();
   private readonly packages = new Map<string, PlanningPackage>();
   private readonly inputKeys = new Map<string, string>();
@@ -73,6 +81,7 @@ export class PlannerArchitectService {
     };
     this.skills = dependencies.skills ?? new EmptyPlannerSkillSelectionPort();
     this.resolveSkills = dependencies.resolveSkills;
+    this.acceptanceFaultInjector = dependencies.acceptanceFaultInjector;
   }
   getAgentDefinition() {
     return plannerAgentDefinition;
@@ -340,55 +349,6 @@ export class PlannerArchitectService {
         "ARCHITECTURE_BLOCKED",
         `Planning blockers must be resolved before acceptance: ${validation.blockers.slice(0, 10).join(", ")}.`,
       );
-    const current = await this.projects.getWithVersion(input.projectId);
-    if (
-      !current ||
-      current.project.workflowState !== "AWAITING_DESIGN_SELECTION"
-    )
-      throw new PlannerError(
-        "PLANNER_WORKFLOW_STATE_INVALID",
-        "Planning acceptance is only available while awaiting design selection.",
-      );
-    if (current.rowVersion !== input.expectedRowVersion)
-      throw new PlannerError(
-        "PLANNING_STALE",
-        "The project row version is stale.",
-      );
-    const acceptedArchitecture = TechnicalArchitectureAcceptance(
-      validation.package.architecture,
-      input.acceptedAt,
-      input.acceptedBy,
-    );
-    const acceptedPackage = PlanningPackageSchema.parse({
-      ...validation.package,
-      architecture: acceptedArchitecture,
-      accepted: true,
-      acceptance: {
-        acceptedAt: input.acceptedAt,
-        acceptedBy: input.acceptedBy,
-        checksum: input.planningChecksum,
-      },
-      updatedAt: input.acceptedAt,
-    });
-    const phase7cContractPackage = buildPhase7CContractPackage({
-      projectId: input.projectId,
-      projectVersion: input.projectVersion,
-      createdAt: input.acceptedAt,
-      approvedBriefChecksum: acceptedPackage.approvedBriefChecksum,
-      planningChecksum: input.planningChecksum,
-      architectureChecksum: checksumPersistedDocument(acceptedArchitecture),
-      designChecksum: "0".repeat(64),
-      planning: acceptedPackage,
-    });
-    await this.persistPackage(acceptedPackage, input.idempotencyKey);
-    await this.documents.save(
-      phase7cContractPackage,
-      `planning-phase-7c-${input.projectId}-${input.projectVersion}-${input.idempotencyKey}`,
-    );
-    this.packages.set(
-      this.packageKey(input.projectId, input.projectVersion),
-      acceptedPackage,
-    );
     const record = DecisionRecordSchema.parse({
       id: randomUUID(),
       timestamp: input.acceptedAt,
@@ -408,38 +368,96 @@ export class PlannerArchitectService {
       userApprovalRequired: false,
       userApprovalStatus: "not-required",
     });
-    await this.dependencies.memory.appendDecision(
-      input.projectId,
-      input.projectVersion,
-      record,
-    );
-    await this.dependencies.memory.writeSnapshot(
-      input.projectId,
-      input.projectVersion,
-      {
-        "planning-package.json": acceptedPackage,
-        "architecture.json": acceptedArchitecture,
-        "content-plan.json": acceptedPackage.content,
-        "asset-manifest.json": acceptedPackage.assets,
-        "phase-7c-contract-package.json": phase7cContractPackage,
-      },
-    );
-    const transition = await this.workflow.transition({
+    const committed = await this.dependencies.database.transaction(async (tx) => {
+      const current = await tx.getProject(input.projectId);
+      if (!current || current.current_version !== input.projectVersion || current.workflow_state !== "AWAITING_DESIGN_SELECTION")
+        throw new PlannerError(
+          "PLANNER_WORKFLOW_STATE_INVALID",
+          "Planning acceptance is only available while awaiting design selection.",
+        );
+      if (current.row_version !== input.expectedRowVersion)
+        throw new PlannerError("PLANNING_STALE", "The project row version is stale.");
+      const packageRow = await tx.getDocument(input.projectId, input.projectVersion, "planning-package");
+      if (!packageRow) throw new PlannerError("PLANNING_NOT_ACCEPTED", "No planning package is available.");
+      const packageValue = PlanningPackageSchema.parse(mapRowToDocument(packageRow));
+      const checksum = planningChecksum(packageValue);
+      if (checksum !== input.planningChecksum)
+        throw new PlannerError("PLANNING_CHECKSUM_MISMATCH", "The planning package checksum is stale.");
+      if (packageValue.accepted)
+        throw new PlannerError("PLANNING_STALE", "The planning package has already been accepted.");
+      const briefRow = (await tx.getDocument(input.projectId, input.projectVersion, "brief-v3")) ?? (await tx.getDocument(input.projectId, input.projectVersion, "requirements"));
+      if (!briefRow) throw new PlannerError("BRIEF_NOT_APPROVED", "An approved Brief is required for Planning Acceptance.");
+      const brief = mapRowToDocument(briefRow);
+      const briefCurrent = brief.documentType === "brief-v3"
+        ? Boolean(brief.approval?.approved && packageValue.approvedBriefChecksum === brief.briefChecksum)
+        : brief.documentType === "requirements"
+          ? Boolean(brief.approval.approved && brief.briefStatus === "approved" && (packageValue.approvedBriefChecksum === checksumPersistedDocument(brief) || packageValue.approvedBriefChecksum === brief.approval.approvedRequirementsChecksum))
+          : false;
+      if (!briefCurrent) throw new PlannerError("BRIEF_CHECKSUM_MISMATCH", "The approved Brief checksum is stale.");
+      const context = await this.planningAcceptanceContextInTransaction(tx, input.projectId, input.projectVersion);
+      const readiness = evaluatePlanningAcceptanceReadiness({ planningPackage: packageValue, context });
+      if (!readiness.readyForAcceptance)
+        throw new PlannerError(
+          "ARCHITECTURE_BLOCKED",
+          `Planning blockers must be resolved before acceptance: ${readiness.blockingItems.slice(0, 10).map((item) => item.reason).join(", ")}.`,
+        );
+      const acceptedArchitecture = TechnicalArchitectureAcceptance(packageValue.architecture, input.acceptedAt, input.acceptedBy);
+      const acceptedPackage = PlanningPackageSchema.parse({
+        ...packageValue,
+        architecture: acceptedArchitecture,
+        accepted: true,
+        acceptance: { acceptedAt: input.acceptedAt, acceptedBy: input.acceptedBy, checksum: input.planningChecksum },
+        updatedAt: input.acceptedAt,
+      });
+      const phase7cContractPackage = buildPhase7CContractPackage({
+        projectId: input.projectId,
+        projectVersion: input.projectVersion,
+        createdAt: input.acceptedAt,
+        approvedBriefChecksum: acceptedPackage.approvedBriefChecksum,
+        planningChecksum: input.planningChecksum,
+        architectureChecksum: checksumPersistedDocument(acceptedArchitecture),
+        designChecksum: "0".repeat(64),
+        planning: acceptedPackage,
+      });
+      await saveDocumentCASInTransaction(tx, acceptedPackage, packageRow.rowVersion, packageRow.checksum);
+      const architectureRow = await tx.getDocument(input.projectId, input.projectVersion, "architecture");
+      const architectureChecksum = checksumPersistedDocument(packageValue.architecture);
+      if (architectureRow && architectureRow.checksum !== architectureChecksum) throw new PlannerError("PLANNING_STALE", "The planning architecture is stale.");
+      await saveDocumentCASInTransaction(tx, acceptedArchitecture, architectureRow?.rowVersion ?? null, architectureRow?.checksum ?? null);
+      await saveDocumentInTransaction(tx, phase7cContractPackage, `planning-phase-7c-${input.projectId}-${input.projectVersion}-${input.idempotencyKey}`);
+      await this.acceptanceFaultInjector?.hit("after-acceptance-write");
+      await this.acceptanceFaultInjector?.hit("before-decision-write");
+      await appendDecisionInTransaction(tx, input.projectId, input.projectVersion, record);
+      await this.acceptanceFaultInjector?.hit("after-decision-write");
+      await this.acceptanceFaultInjector?.hit("before-workflow-transition");
+      const transition = await transitionWorkflowInTransaction(tx, {
+        projectId: input.projectId,
+        projectVersion: input.projectVersion,
+        expectedState: "AWAITING_DESIGN_SELECTION",
+        expectedRowVersion: input.expectedRowVersion,
+        targetState: "ARCHITECTURE_REVIEW",
+        actor: input.acceptedBy,
+        reason: "Planning Acceptance completed; architecture review is required before Design.",
+        idempotencyKey: `${input.idempotencyKey}:architecture-review`,
+      });
+      return { acceptedPackage, acceptedArchitecture, phase7cContractPackage, record, transition };
+    });
+    this.packages.set(this.packageKey(input.projectId, input.projectVersion), committed.acceptedPackage);
+    await this.syncPlanningAcceptanceProjection({
       projectId: input.projectId,
       projectVersion: input.projectVersion,
-      expectedState: "AWAITING_DESIGN_SELECTION",
-      expectedRowVersion: current.rowVersion,
-      targetState: "ARCHITECTURE_REVIEW",
-      actor: input.acceptedBy,
-      reason:
-        "Planning Acceptance completed; architecture review is required before Design.",
-      idempotencyKey: `${input.idempotencyKey}:architecture-review`,
+      package: committed.acceptedPackage,
+      architecture: committed.acceptedArchitecture,
+      content: committed.acceptedPackage.content,
+      assets: committed.acceptedPackage.assets,
+      phase7cContractPackage: committed.phase7cContractPackage,
+      decision: committed.record,
     });
     return {
-      package: acceptedPackage,
-      planningChecksum: planningChecksum(acceptedPackage),
+      package: committed.acceptedPackage,
+      planningChecksum: planningChecksum(committed.acceptedPackage),
       projectState: "ARCHITECTURE_REVIEW" as const,
-      rowVersion: transition.rowVersion,
+      rowVersion: committed.transition.rowVersion,
     };
   }
   async requestPlanningClarification(input: {
@@ -633,10 +651,60 @@ export class PlannerArchitectService {
     );
   }
 
+  async reconcileAcceptedPlanningProjection(projectId: string, projectVersion: number) {
+    const canonical = await this.dependencies.database.transaction(async (tx) => {
+      const packageRow = await tx.getDocument(projectId, projectVersion, "planning-package");
+      const phase7cRow = await tx.getDocument(projectId, projectVersion, "phase-7c-contract-package");
+      const decisions = await tx.listDecisions(projectId, projectVersion);
+      if (!packageRow) throw new PlannerError("PLANNING_NOT_ACCEPTED", "No planning package is available.");
+      const packageValue = PlanningPackageSchema.parse(mapRowToDocument(packageRow));
+      const decision = decisions.filter((candidate) => candidate.category === "planning-acceptance").at(-1);
+      if (!packageValue.accepted || !packageValue.acceptance.acceptedAt || !decision)
+        throw new PlannerError("PLANNING_NOT_ACCEPTED", "Planning Acceptance has not been committed.");
+      const phase7c = phase7cRow ? mapRowToDocument(phase7cRow) : null;
+      return {
+        package: packageValue,
+        architecture: packageValue.architecture,
+        content: packageValue.content,
+        assets: packageValue.assets,
+        phase7cContractPackage: phase7c?.documentType === "phase-7c-contract-package" ? phase7c : buildPhase7CContractPackage({ projectId, projectVersion, createdAt: packageValue.updatedAt, approvedBriefChecksum: packageValue.approvedBriefChecksum, planningChecksum: packageValue.acceptance.checksum ?? planningChecksum(packageValue), architectureChecksum: checksumPersistedDocument(packageValue.architecture), designChecksum: "0".repeat(64), planning: packageValue }),
+        decision,
+      };
+    });
+    this.packages.set(this.packageKey(projectId, projectVersion), canonical.package);
+    await this.syncPlanningAcceptanceProjection({ projectId, projectVersion, ...canonical });
+    return { projectId, projectVersion, projectionStatus: "SYNCED" as const };
+  }
+
+  private async syncPlanningAcceptanceProjection(input: { projectId: string; projectVersion: number; package: PlanningPackage; architecture: PlanningPackage["architecture"]; content: PlanningPackage["content"]; assets: PlanningPackage["assets"]; phase7cContractPackage: ReturnType<typeof buildPhase7CContractPackage>; decision: z.infer<typeof DecisionRecordSchema> }) {
+    try {
+      await this.dependencies.memory.writeDecisionProjection(input.projectId, input.projectVersion, input.decision);
+      await this.dependencies.memory.writeSnapshot(input.projectId, input.projectVersion, {
+        "planning-package.json": input.package,
+        "architecture.json": input.architecture,
+        "content-plan.json": input.content,
+        "asset-manifest.json": input.assets,
+        "phase-7c-contract-package.json": input.phase7cContractPackage,
+      });
+    } catch (error) {
+      throw new PlannerError("PLANNING_PROJECTION_FAILED", "Planning Acceptance was persisted, but its derived Project Memory projection failed.", error);
+    }
+  }
+
   private async planningAcceptanceContext(projectId: string, projectVersion: number) {
     const canonical = await this.documents.get(projectId, projectVersion, "brief-v3");
     if (canonical?.documentType === "brief-v3") return { legalPlaceholderPolicy: canonical.brief.legal.placeholderPolicy } as const;
     const legacy = await this.documents.get(projectId, projectVersion, "requirements");
+    const policy = legacy?.documentType === "requirements" ? legacy.legalComplianceConstraints?.placeholderPolicy : undefined;
+    return policy ? { legalPlaceholderPolicy: policy } as const : undefined;
+  }
+
+  private async planningAcceptanceContextInTransaction(tx: PersistenceTransaction, projectId: string, projectVersion: number) {
+    const canonicalRow = await tx.getDocument(projectId, projectVersion, "brief-v3");
+    const canonical = canonicalRow ? mapRowToDocument(canonicalRow) : null;
+    if (canonical?.documentType === "brief-v3") return { legalPlaceholderPolicy: canonical.brief.legal.placeholderPolicy } as const;
+    const legacyRow = await tx.getDocument(projectId, projectVersion, "requirements");
+    const legacy = legacyRow ? mapRowToDocument(legacyRow) : null;
     const policy = legacy?.documentType === "requirements" ? legacy.legalComplianceConstraints?.placeholderPolicy : undefined;
     return policy ? { legalPlaceholderPolicy: policy } as const : undefined;
   }

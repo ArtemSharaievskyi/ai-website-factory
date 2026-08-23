@@ -134,6 +134,15 @@ export function buildPlanningPackage(input: PlannerAgentInput): PlanningPackage 
 
 export const planningChecksum = (planningPackage: PlanningPackage) => checksumPersistedDocument(planningPackage);
 
+/** Checksum for PlanningPackage meaning, excluding the host-owned acceptance envelope. */
+export const planningSemanticChecksum = (planningPackage: PlanningPackage) => checksumPersistedDocument({
+  ...planningPackage,
+  accepted: false,
+  acceptance: {},
+  updatedAt: planningPackage.createdAt,
+  architecture: { ...planningPackage.architecture, acceptance: { accepted: false } },
+});
+
 export function validatePlanningStructure(planningPackage: PlanningPackage) {
   const blockers: string[] = []; const paths = planningPackage.sitemap.routes.map((route) => route.path); if (new Set(paths).size !== paths.length) blockers.push("DUPLICATE_ROUTE"); if (paths.some((path) => /\/:[^/]+\/[^/]+/.test(path))) blockers.push("DYNAMIC_ROUTE_CONFLICT"); const routeIds = new Set(planningPackage.sitemap.routes.map((route) => route.id)); if (planningPackage.navigation.routeReferences.some((routeId) => !routeIds.has(routeId))) blockers.push("NAVIGATION_ROUTE_MISSING"); if (planningPackage.sitemap.routes.some((route) => route.authRequired) && planningPackage.authentication.decision === "none") blockers.push("AUTH_ARCHITECTURE_PENDING"); for (const form of planningPackage.forms.forms) { const ids = form.fields.map(formFieldId); if (form.fields.some(isLegacyFormField)) blockers.push("LEGACY_FORM_FIELD_CONTRACT"); if (ids.some((id) => !id) || new Set(ids).size !== ids.length) blockers.push("FORM_FIELD_ID_INVALID"); } return blockers;
 }

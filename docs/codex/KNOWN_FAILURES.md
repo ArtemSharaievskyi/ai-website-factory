@@ -159,3 +159,29 @@ entry names the invariant and the regression boundary that must be exercised.
   photography work, genuine technical blockers, placeholder-policy changes,
   and concrete rejected assets; inspect the real package read-only at the
   Planning Acceptance boundary before any pilot mutation.
+
+## PLANNING_ACCEPTANCE_IS_ONE_CANONICAL_TRANSACTION
+
+- Symptom: accepted planning documents, the acceptance decision, and the
+  workflow transition are written by separate transactions, so a failure can
+  leave acceptance ahead of workflow or audit state.
+- Rule: `PlannerArchitectService.acceptPlanningPackage` is the single host-owned
+  acceptance authority. It must re-read currentness and readiness inside one
+  database transaction and commit all canonical acceptance consequences or none.
+  Workbench and E2E callers delegate to this service; they must not compose the
+  writes themselves.
+- Regression: `src/agents/planner/acceptance-transaction.test.ts` covers real
+  Postgres success, post-write rollback, decision/workflow failure rollback,
+  CAS, repeat acceptance, semantic immutability, and entrypoint convergence.
+
+## DERIVED_PROJECTIONS_MUST_NOT_SHARE_CANONICAL_COMMIT_AUTHORITY
+
+- Symptom: a filesystem or Project Memory failure is treated as a reason to
+  compensate or partially undo a committed database acceptance, or is silently
+  reported as synchronized.
+- Rule: database acceptance commits first. Project Memory/filesystem is a
+  recoverable derived projection; failures surface a projection error and
+  reconciliation rebuilds it from canonical rows.
+- Regression: the Planning Acceptance transaction certification injects a
+  projection failure, verifies canonical state remains internally consistent,
+  then restores the projection from a fresh service.

@@ -88,7 +88,11 @@ workflow scope in `src/runtime/workbench/application.ts`:
 2. The host evaluates Planning Acceptance readiness. Technical blockers prevent
    acceptance; explicitly permitted publication-only legal facts and future
    photography selection remain visible as deferred obligations.
-3. Planner accepts and persists it only after `blockingItems` is empty.
+3. Planner accepts it only after `blockingItems` is empty. The host rechecks
+   currentness and readiness inside one canonical transaction that commits the
+   accepted package, acceptance audit, Phase 7C package, and transition to
+   `ARCHITECTURE_REVIEW` together; unchanged content and asset rows are not
+   churned.
 4. Architecture review validates and routes the package.
 5. Design generates exactly three structured directions.
 
@@ -96,6 +100,12 @@ Planning Acceptance does not mean publication readiness. Final legal facts and
 verified image rights remain mandatory before public release. The Workbench
 projection shows both blocking and deferred items, while downstream guards use
 the same host-owned readiness evaluator.
+
+Project Memory/filesystem writes follow the database commit as recoverable
+projections. A projection failure leaves canonical acceptance and its workflow
+state intact, reports the projection failure, and is repaired from persistence
+by `reconcileAcceptedPlanningProjection`; it cannot roll back or independently
+authorize acceptance.
 
 The user may request planning changes, make the database/dependency decisions,
 and select one current Design Direction. Selection is explicit and checksum

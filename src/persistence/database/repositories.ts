@@ -18,6 +18,42 @@ import { ProjectAssetSchema, type ProjectAsset } from "@/domain/assets/project";
 const parse = <T>(schema: z.ZodType<T>, value: unknown, message: string): T => { const result = schema.safeParse(value); if (!result.success) throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", message, undefined, result.error); return result.data; };
 const token = (key: string | undefined, payload: unknown) => key ? { key, payloadHash: documentPayloadHash(payload) } : undefined;
 
+export async function saveDocumentInTransaction(tx: PersistenceTransaction, document: StoredDocument, idempotencyKey?: string) {
+  const row = mapDocumentToRow(document);
+  if (document.documentType === "design-directions" && document.directions.length !== 3) throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", "A design direction set must contain exactly three directions.");
+  const version = await tx.getVersion(document.projectId, document.projectVersion);
+  if (version?.immutable) throw new PersistenceError("PERSISTENCE_IMMUTABLE", "Released project versions are immutable.");
+  return mapRowToDocument(await tx.saveDocument(row, token(idempotencyKey, document)));
+}
+
+export async function saveDocumentCASInTransaction(tx: PersistenceTransaction, document: StoredDocument, expectedRowVersion: number | null, expectedChecksum: string | null) {
+  const row = mapDocumentToRow(document);
+  if (document.documentType === "design-directions" && document.directions.length !== 3) throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", "A design direction set must contain exactly three directions.");
+  const version = await tx.getVersion(document.projectId, document.projectVersion);
+  if (version?.immutable) throw new PersistenceError("PERSISTENCE_IMMUTABLE", "Released project versions are immutable.");
+  return mapRowToDocument(await tx.saveDocumentCAS({ row, expectedRowVersion, expectedChecksum }));
+}
+
+export async function appendDecisionInTransaction(tx: PersistenceTransaction, projectId: string, version: number, record: DecisionRecord) {
+  const parsed = parse(DecisionRecordSchema, record, "Decision does not match its domain contract.");
+  const versionRow = await tx.getVersion(projectId, version);
+  if (versionRow?.immutable) throw new PersistenceError("PERSISTENCE_IMMUTABLE", "Released project versions are immutable.");
+  return tx.appendDecision(projectId, version, parsed);
+}
+
+export type WorkflowTransitionInput = { projectId: string; projectVersion: number; expectedState: WorkflowState; expectedRowVersion: number; targetState: WorkflowState; actor: string; reason: string; context?: TransitionContext; idempotencyKey?: string };
+
+export async function transitionWorkflowInTransaction(tx: PersistenceTransaction, input: WorkflowTransitionInput) {
+  const current = await tx.getProject(input.projectId);
+  if (!current) throw new PersistenceError("PERSISTENCE_NOT_FOUND", "Project was not found.");
+  if (current.current_version !== input.projectVersion || current.workflow_state !== input.expectedState || current.row_version !== input.expectedRowVersion) throw new PersistenceError("PERSISTENCE_CONFLICT", "The workflow state is stale.");
+  transitionWorkflow(input.expectedState, input.targetState, input.context);
+  const timestamp = new Date().toISOString();
+  const updated = await tx.updateProjectState({ id: input.projectId, expectedState: input.expectedState, expectedRowVersion: input.expectedRowVersion, state: input.targetState, updatedAt: timestamp, ...(input.targetState === "IMPLEMENTING" ? { implementationStartedAt: timestamp } : {}), ...(input.targetState === "PROJECT_READY" ? { completedAt: timestamp } : {}) });
+  await tx.appendWorkflowEvent(newWorkflowEvent(input.projectId, input.projectVersion, input.expectedState, input.targetState, input.actor, input.reason, input.idempotencyKey));
+  return { project: mapRowToProject(updated), rowVersion: updated.row_version };
+}
+
 export class ProjectRepository {
   constructor(private readonly db: PersistenceDatabase) {}
   async create(project: FactoryProject, idempotencyKey?: string) { const parsed = parse(FactoryProjectSchema, project, "Project does not match its domain contract."); return this.db.transaction((tx) => tx.insertProject(mapProjectToRow(parsed), token(idempotencyKey, parsed))).then(mapRowToProject); }
@@ -49,7 +85,7 @@ export class ProjectVersionRepository {
 
 export class DocumentRepository {
   constructor(private readonly db: PersistenceDatabase) {}
-  async save(document: StoredDocument, idempotencyKey?: string) { const row = mapDocumentToRow(document); if (document.documentType === "design-directions" && document.directions.length !== 3) throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", "A design direction set must contain exactly three directions."); return this.db.transaction(async (tx) => { const version = await tx.getVersion(document.projectId, document.projectVersion); if (version?.immutable) throw new PersistenceError("PERSISTENCE_IMMUTABLE", "Released project versions are immutable."); return mapRowToDocument(await tx.saveDocument(row, token(idempotencyKey, document))); }); }
+  async save(document: StoredDocument, idempotencyKey?: string) { return this.db.transaction((tx) => saveDocumentInTransaction(tx, document, idempotencyKey)); }
   async get(projectId: string, version: number, documentType: string) { return this.db.transaction(async (tx) => { const row = await tx.getDocument(projectId, version, documentType); return row ? mapRowToDocument(row) : null; }); }
   async delete(projectId: string, version: number, documentType: string) { return this.db.transaction((tx) => tx.deleteDocument(projectId, version, documentType)); }
 }
@@ -88,23 +124,13 @@ export class OperationRepository {
 
 export class DecisionRepository {
   constructor(private readonly db: PersistenceDatabase) {}
-  async append(projectId: string, version: number, record: DecisionRecord) { const parsed = parse(DecisionRecordSchema, record, "Decision does not match its domain contract."); return this.db.transaction(async (tx) => { const versionRow = await tx.getVersion(projectId, version); if (versionRow?.immutable) throw new PersistenceError("PERSISTENCE_IMMUTABLE", "Released project versions are immutable."); return tx.appendDecision(projectId, version, parsed); }); }
+  async append(projectId: string, version: number, record: DecisionRecord) { return this.db.transaction((tx) => appendDecisionInTransaction(tx, projectId, version, record)); }
   async list(projectId: string, version: number) { return this.db.transaction((tx) => tx.listDecisions(projectId, version)); }
 }
 
 export class WorkflowPersistenceService {
   constructor(private readonly db: PersistenceDatabase) {}
-  async transition(input: { projectId: string; projectVersion: number; expectedState: WorkflowState; expectedRowVersion: number; targetState: WorkflowState; actor: string; reason: string; context?: TransitionContext; idempotencyKey?: string }) {
-    return this.db.transaction(async (tx) => {
-      const current = await tx.getProject(input.projectId); if (!current) throw new PersistenceError("PERSISTENCE_NOT_FOUND", "Project was not found.");
-      if (current.current_version !== input.projectVersion || current.workflow_state !== input.expectedState || current.row_version !== input.expectedRowVersion) throw new PersistenceError("PERSISTENCE_CONFLICT", "The workflow state is stale.");
-      transitionWorkflow(input.expectedState, input.targetState, input.context);
-      const timestamp = new Date().toISOString();
-      const updated = await tx.updateProjectState({ id: input.projectId, expectedState: input.expectedState, expectedRowVersion: input.expectedRowVersion, state: input.targetState, updatedAt: timestamp, ...(input.targetState === "IMPLEMENTING" ? { implementationStartedAt: timestamp } : {}), ...(input.targetState === "PROJECT_READY" ? { completedAt: timestamp } : {}) });
-      await tx.appendWorkflowEvent(newWorkflowEvent(input.projectId, input.projectVersion, input.expectedState, input.targetState, input.actor, input.reason, input.idempotencyKey));
-      return { project: mapRowToProject(updated), rowVersion: updated.row_version };
-    });
-  }
+  async transition(input: WorkflowTransitionInput) { return this.db.transaction((tx) => transitionWorkflowInTransaction(tx, input)); }
 }
 
 export class ReleaseRepository {

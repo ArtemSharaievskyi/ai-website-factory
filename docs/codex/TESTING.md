@@ -61,11 +61,19 @@ Relevant tests are `src/integrations/openai/provider.test.ts`,
 `src/integrations/openai/prompts.test.ts`.
 
 Planning Acceptance readiness is covered by
-`src/agents/planner/acceptance.test.ts`. The focused suite must prove that
+`src/agents/planner/acceptance.test.ts`; canonical transaction behavior is
+covered by `src/agents/planner/acceptance-transaction.test.ts`. The focused
+suite must prove that
 technical admission failures and concrete rejected assets block acceptance,
 while explicitly permitted publication-only legal facts and future photography
 rights remain visible as deferred items. The service-boundary assertion must use
 the same evaluator as the Workbench projection and downstream guards.
+
+The transaction certification must also prove one real-Postgres production-shaped
+commit, full rollback after acceptance/decision/workflow fault injection, current
+row-version CAS, safe repeat acceptance, unchanged semantic PlanningPackage and
+Brief state, preserved deferred items, and post-commit projection recovery. It
+must not call OpenAI or execute Design.
 
 ## Database and larger boundaries
 

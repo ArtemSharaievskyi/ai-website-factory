@@ -13,8 +13,17 @@ authorize publication and are not silently removed from the persisted package.
 
 Acceptance requires a matching approved-Brief checksum, an empty
 `blockingItems` result, npm, fixed-stack compliance, no speculative feature, and
-no unnecessary infrastructure. It persists the package and checksums, writes
-Project Memory, records a DecisionRecord, and remains in
-`AWAITING_DESIGN_SELECTION`. It does not create design directions or transition
-toward implementation. Publication readiness is a separate, stricter decision
-that still requires final legal facts and verified asset rights.
+no unnecessary infrastructure. `PlannerArchitectService.acceptPlanningPackage`
+re-reads current canonical rows and commits the accepted PlanningPackage
+envelope, the acceptance decision, the Phase 7C package, and the transition to
+`ARCHITECTURE_REVIEW` in one host-owned database transaction. Unchanged content
+and asset documents are not rewritten merely to materialize acceptance.
+
+The PlanningPackage semantic checksum excludes the host-owned acceptance
+envelope; acceptance metadata may advance its persisted document row without
+changing planning meaning. Project Memory and filesystem snapshots are derived
+post-commit projections. If projection fails, canonical acceptance remains
+reconstructable and `reconcileAcceptedPlanningProjection` can restore it; a
+projection failure is never reported as a successful synchronized snapshot.
+Acceptance does not create design directions or authorize publication. Final
+legal facts and verified asset rights remain required for publication readiness.
