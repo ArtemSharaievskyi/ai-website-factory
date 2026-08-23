@@ -1,14 +1,21 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import type { Pool } from "pg";
 import { RequirementSpecificationSchema, type RequirementSpecification } from "@/domain/requirements/schema";
+import { createBriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
+import { migrateLegacyBriefToCanonicalBriefV3 } from "@/domain/requirements/v3/migrate";
 import { FactoryProjectSchema } from "@/domain/project/schema";
-import { ProjectRepository, ProjectVersionRepository, DocumentRepository } from "@/persistence/database/repositories";
+import { buildPhase7CContractPackage } from "@/domain/contracts/phase7c";
+import { FakeProjectMemorySyncPort } from "@/persistence/database/sync";
+import type { ArchitectureReviewResult } from "@/domain/review/schema";
 import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
-import { buildPlanningPackage } from "@/agents/planner/deterministic";
+import { createPostgresPool, PostgresPersistenceDatabase } from "@/persistence/database/postgres";
+import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
+import type { PersistenceDatabase } from "@/persistence/database/types";
+import { buildPlanningPackage, evaluatePlanningAcceptanceReadiness } from "@/agents/planner/deterministic";
 import type { PlannerAgentInput, PlanningPackage } from "@/agents/planner/contracts";
-import { PlannerArchitectService } from "@/agents/planner/service";
-import { FakePlannerMemoryPort } from "@/agents/planner/memory";
 import { architectureReviewerAgentDefinition } from "@/agents/catalog";
 import { rolePrompt } from "@/integrations/openai/prompts";
 import { ArchitectureReviewOrchestrationService } from "@/orchestration/architecture-review/service";
@@ -18,25 +25,327 @@ import { deterministicArchitectureReview } from "./deterministic";
 import { ArchitectureReviewService } from "./service";
 
 const id = () => randomUUID();
-const baseBrief = (overrides: Partial<RequirementSpecification> = {}): RequirementSpecification => RequirementSpecificationSchema.parse({ schemaVersion: 1, documentType: "requirements", projectId: id(), projectVersion: 1, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", projectSummary: "A public information site", protectedFunctionalityRequired: false, imagesRequired: false, businessGoals: ["Explain the service"], targetAudiences: ["Visitors"], pages: [{ slug: "home", purpose: "Explain the service" }], userRoles: [], features: [], forms: [], contentRequirements: [], backendRequirements: [], supabaseRequirements: [], authenticationDecision: "no-authentication-guest-first", storageDecision: "not-needed", emailDecision: "not-needed", administrationDecision: "not-needed", seoRequirements: [], localization: { locales: ["en"], defaultLocale: "en" }, imageSourceDecision: "placeholders", suppliedBrandInformation: { status: "missing" }, suppliedLogoLocation: { status: "missing" }, technicalConstraints: [], explicitExclusions: [], userAcceptanceCriteria: ["Home loads"], unresolvedItems: [], approval: { approved: true, approvedAt: "2026-01-01T00:00:00.000Z", approvedBy: "user" }, briefStatus: "approved", briefVersion: 1, ...overrides });
-const plannerInput = (brief: RequirementSpecification): PlannerAgentInput => ({ projectId: brief.projectId, projectVersion: 1, approvedBrief: brief, approvedBriefChecksum: checksumPersistedDocument(brief), originalPromptReference: "original-prompt.md", clarificationEvidenceReferences: [], currentWorkflowState: "AWAITING_DESIGN_SELECTION", existingDecisions: [], suppliedFiles: [], allowedSkills: [], idempotencyKey: id(), expectedRowVersion: 1 });
-const acceptedPlanning = (brief: RequirementSpecification, changes: Partial<PlanningPackage> = {}) => { const planning = buildPlanningPackage(plannerInput(brief)); return { ...planning, ...changes, accepted: true, acceptance: { acceptedAt: "2026-01-01T00:00:00.000Z", acceptedBy: "user", checksum: checksumPersistedDocument(planning) }, architecture: { ...planning.architecture, acceptance: { accepted: true, acceptedAt: "2026-01-01T00:00:00.000Z", acceptedBy: "user" } } } as PlanningPackage; };
-const reviewInput = (brief: RequirementSpecification, planning: PlanningPackage, overrides: Partial<ArchitectureReviewInput> = {}): ArchitectureReviewInput => ({ projectId: brief.projectId, projectVersion: 1, approvedBrief: brief, approvedBriefChecksum: checksumPersistedDocument(brief), acceptedPlanningPackage: planning, acceptedPlanningChecksum: checksumPersistedDocument(planning), factoryArchitecturePolicy: { policyVersion: "factory-architecture-v1", stack: [...FACTORY_ARCHITECTURE_STACK], prohibitedTechnologies: ["redis", "nestjs"], serverActionPreference: "preferred", routeHandlerPreference: "second", packageManager: "npm" }, relevantProjectConstraints: [], idempotencyKey: id(), expectedRowVersion: 1, ...overrides });
-async function projectInReview(database: InMemoryPersistenceDatabase, projectId: string) { const project = FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId, projectVersion: 1, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", id: projectId, slug: "review-fixture", originalPrompt: "review fixture", currentVersion: 1, workflowState: "ARCHITECTURE_REVIEW" }); await new ProjectRepository(database).create(project); await new ProjectVersionRepository(database).create({ id: id(), projectId, versionNumber: 1, state: "ARCHITECTURE_REVIEW", memoryRootPath: null, requirementsChecksum: null, selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: project.createdAt, updatedAt: project.updatedAt, rowVersion: 1 }); }
+const timestamp = "2026-08-23T12:00:00.000Z";
+
+const baseBrief = (overrides: Partial<RequirementSpecification> = {}): RequirementSpecification => RequirementSpecificationSchema.parse({
+  schemaVersion: 1, documentType: "requirements", projectId: id(), projectVersion: 1, createdAt: timestamp, updatedAt: timestamp,
+  projectSummary: "A public information site", protectedFunctionalityRequired: false, imagesRequired: true,
+  businessGoals: ["Explain the service"], targetAudiences: ["Visitors"], pages: [{ slug: "home", purpose: "Explain the service" }, { slug: "impressum", purpose: "Show legal information placeholders" }, { slug: "datenschutz", purpose: "Show privacy information placeholders" }],
+  userRoles: [], features: [], forms: [], contentRequirements: [], backendRequirements: [], supabaseRequirements: [],
+  authenticationDecision: "no-authentication-guest-first", storageDecision: "not-needed", emailDecision: "not-needed", administrationDecision: "not-needed", seoRequirements: [],
+  localization: { locales: ["en"], defaultLocale: "en" }, imageSourceDecision: "custom", suppliedBrandInformation: { status: "missing" }, suppliedLogoLocation: { status: "missing" },
+  technicalConstraints: [], explicitExclusions: [], userAcceptanceCriteria: ["Home loads"], unresolvedItems: [],
+  approval: { approved: true, approvedAt: timestamp, approvedBy: "user" }, briefStatus: "approved", briefVersion: 1,
+  contactFacts: [], legalFacts: [], brandFacts: [], logoMetadata: [], imageSourcingNotes: [], evidence: [], recommendations: [],
+  legalComplianceConstraints: { constraints: [], placeholderPolicy: "USE_EXPLICIT_PLACEHOLDERS", inventedFactsForbidden: true },
+  ...overrides,
+});
+
+const plannerInput = (brief: RequirementSpecification): PlannerAgentInput => ({
+  projectId: brief.projectId, projectVersion: 1, approvedBrief: brief, approvedBriefChecksum: checksumPersistedDocument(brief),
+  originalPromptReference: "original-prompt.md", clarificationEvidenceReferences: [], currentWorkflowState: "AWAITING_DESIGN_SELECTION",
+  existingDecisions: [], suppliedFiles: [], allowedSkills: [], idempotencyKey: id(), expectedRowVersion: 1,
+});
+
+const acceptedPlanning = (brief: RequirementSpecification, changes: Partial<PlanningPackage> = {}) => {
+  const planning = buildPlanningPackage(plannerInput(brief));
+  return {
+    ...planning,
+    ...changes,
+    accepted: true,
+    acceptance: { acceptedAt: timestamp, acceptedBy: "user", checksum: checksumPersistedDocument(planning) },
+    architecture: { ...planning.architecture, acceptance: { accepted: true, acceptedAt: timestamp, acceptedBy: "user" } },
+    assets: { ...planning.assets, entries: planning.assets.entries.map((entry) => ({ ...entry, generationStatus: "pending-approval" as const, userApprovalRequired: true })) },
+    blockers: ["Final legal address and registry facts must replace explicit placeholders before public publication.", "Rights and licenses for future additional photography must be checked and documented before publication."],
+  } as PlanningPackage;
+};
+
+const reviewInput = (brief: RequirementSpecification, planning: PlanningPackage, overrides: Partial<ArchitectureReviewInput> = {}): ArchitectureReviewInput => ({
+  projectId: brief.projectId, projectVersion: 1, approvedBrief: brief, approvedBriefChecksum: checksumPersistedDocument(brief),
+  acceptedPlanningPackage: planning, acceptedPlanningChecksum: checksumPersistedDocument(planning),
+  factoryArchitecturePolicy: { policyVersion: "factory-architecture-v1", stack: [...FACTORY_ARCHITECTURE_STACK], prohibitedTechnologies: ["redis", "nestjs"], serverActionPreference: "preferred", routeHandlerPreference: "second", packageManager: "npm" },
+  relevantProjectConstraints: [], idempotencyKey: id(), expectedRowVersion: 1, ...overrides,
+});
+
+async function createFixture(database: PersistenceDatabase = new InMemoryPersistenceDatabase()) {
+  const initialBrief = baseBrief();
+  const initialV3 = createBriefV3Document({ projectId: initialBrief.projectId, projectVersion: 1, brief: migrateLegacyBriefToCanonicalBriefV3(initialBrief), createdAt: timestamp, updatedAt: timestamp });
+  const brief = RequirementSpecificationSchema.parse({ ...initialBrief, approval: { ...initialBrief.approval, approvedRequirementsChecksum: initialV3.briefChecksum } });
+  const briefV3 = createBriefV3Document({ projectId: brief.projectId, projectVersion: 1, brief: migrateLegacyBriefToCanonicalBriefV3(brief), createdAt: timestamp, updatedAt: timestamp });
+  const approvedBriefV3 = { ...briefV3, approval: { approved: true as const, approvedAt: timestamp, approvedBy: "user", approvedCanonicalChecksum: briefV3.briefChecksum } };
+  const planning = acceptedPlanning(brief);
+  const project = FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId: brief.projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: brief.projectId, slug: `architecture-review-${brief.projectId.slice(0, 8)}`, origin: "SYNTHETIC", originalPrompt: "Synthetic Architecture Review transaction fixture.", currentVersion: 1, workflowState: "ARCHITECTURE_REVIEW" });
+  await new ProjectRepository(database).create(project);
+  await new ProjectVersionRepository(database).create({ id: id(), projectId: brief.projectId, versionNumber: 1, state: "ARCHITECTURE_REVIEW", memoryRootPath: null, requirementsChecksum: approvedBriefV3.briefChecksum, selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
+  const documents = new DocumentRepository(database);
+  await documents.save(brief);
+  await documents.save(approvedBriefV3);
+  await documents.save(planning);
+  await documents.save(planning.architecture);
+  await documents.save(planning.content);
+  await documents.save(planning.assets);
+  const input = reviewInput(brief, planning, { approvedBriefChecksum: approvedBriefV3.briefChecksum });
+  const phase7c = buildPhase7CContractPackage({ projectId: brief.projectId, projectVersion: 1, createdAt: timestamp, approvedBriefChecksum: input.approvedBriefChecksum, planningChecksum: checksumPersistedDocument(planning), architectureChecksum: checksumPersistedDocument(planning.architecture), designChecksum: "0".repeat(64), planning });
+  await documents.save(phase7c);
+  return { database, brief, briefV3: approvedBriefV3, planning, input };
+}
+
+async function stateOf(database: PersistenceDatabase, projectId: string) {
+  return database.transaction(async (tx) => ({
+    project: await tx.getProject(projectId),
+    brief: await tx.getDocument(projectId, 1, "requirements"),
+    briefV3: await tx.getDocument(projectId, 1, "brief-v3"),
+    planning: await tx.getDocument(projectId, 1, "planning-package"),
+    review: await tx.getDocument(projectId, 1, "architecture-review"),
+    history: await tx.getDocument(projectId, 1, "architecture-review-history"),
+    decisions: await tx.listDecisions(projectId, 1),
+    events: await tx.listWorkflowEvents(projectId, 1),
+  }));
+}
+
+const deterministicProvider = { promptVersion: "architecture-reviewer.v1", review: async (input: ArchitectureReviewInput) => deterministicArchitectureReview(input) };
 
 describe("Architecture Reviewer", () => {
-  it("has a valid read-only catalog definition with its complete approved portfolio", () => { expect(architectureReviewerAgentDefinition.role).toBe("review"); expect(architectureReviewerAgentDefinition.capabilities).toEqual(["review.architecture"]); expect(architectureReviewerAgentDefinition.allowedTools).toEqual(["openai-generation"]); expect(architectureReviewerAgentDefinition.allowedSkillIds).toEqual(["module-boundaries-fb20497b5c35", "review-maintainability-d9faf7cb9775", "architecture-tradeoff-review"]); expect(architectureReviewerAgentDefinition.readOnly).toBe(true); expect(architectureReviewerAgentDefinition.executionPolicy.concurrencyClass).not.toBe("exclusive-write"); });
-  it("prompt reviews rather than redesigning", () => { const prompt = rolePrompt("architecture-reviewer", {}); expect(prompt.promptVersion).toBe("architecture-reviewer.v1"); expect(prompt.system).toMatch(/review architecture/i); expect(prompt.system).toMatch(/do not invent requirements/i); expect(prompt.system).toMatch(/fixed Factory stack/i); expect(prompt.system).toMatch(/stable English internal identifiers/i); expect(prompt.system).toMatch(/evidence-backed findings/i); expect(prompt.system).toMatch(/do not.*write project state/i); });
-  it("approves a minimal valid architecture", () => { const brief = baseBrief(); const result = deterministicArchitectureReview(reviewInput(brief, acceptedPlanning(brief))); expect(result.verdict).toBe("APPROVED"); });
-  it("requires persistence architecture for persistent requirements", () => { const brief = baseBrief({ backendRequirements: ["Persist submitted requests"] }); const planning = acceptedPlanning(brief, { dataModel: { ...acceptedPlanning(brief).dataModel, entities: [] }, supabase: { ...acceptedPlanning(brief).supabase, postgres: false } }); expect(deterministicArchitectureReview(reviewInput(brief, planning)).findings.some((item) => item.category === "DATA_ARCHITECTURE")).toBe(true); });
-  it("rejects unnecessary auth and infrastructure for a static site", () => { const brief = baseBrief(); const original = acceptedPlanning(brief); const planning = { ...original, authentication: { ...original.authentication, decision: "supabase-auth", required: true }, supabase: { ...original.supabase, auth: true } } as PlanningPackage; const result = deterministicArchitectureReview(reviewInput(brief, planning)); expect(result.verdict).toBe("CHANGES_REQUIRED"); expect(result.findings.some((item) => item.category === "UNNECESSARY_COMPLEXITY")).toBe(true); });
-  it("detects localized content reused as an internal identity", () => { const brief = baseBrief({ forms: ["Contact form"], pages: [{ slug: "contact", purpose: "Contact" }] }); const original = acceptedPlanning(brief); const form = original.forms.forms[0]; const planning = { ...original, forms: { ...original.forms, forms: form ? [{ ...form, fields: form.fields.map((field) => "fieldId" in field ? { ...field, fieldId: field.label } : field) }] : [] } } as PlanningPackage; expect(deterministicArchitectureReview(reviewInput(brief, planning)).findings.some((item) => item.category === "IDENTITY_MODEL")).toBe(true); });
-  it("preserves material Brief evidence references at the reviewer boundary", async () => { const brief = baseBrief(); const planning = acceptedPlanning(brief); const database = new InMemoryPersistenceDatabase(); await projectInReview(database, brief.projectId); const materialBriefRefs = ["brief:contentRequirements", "brief:seoRequirements", "brief:userRoles", "brief:explicitExclusions", "brief:userAcceptanceCriteria", "brief:unresolvedItems", "brief:localization", "brief:storageDecision", "brief:emailDecision", "brief:administrationDecision"]; const service = new ArchitectureReviewService(database, { provider: { promptVersion: "architecture-reviewer.v1", review: async () => ({ verdict: "APPROVED" as const, findings: [], reviewedArtifactRefs: materialBriefRefs, policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION }) } }); await expect(service.review(reviewInput(brief, planning))).resolves.toMatchObject({ verdict: "APPROVED" }); });
-  it("blocks stale or structurally invalid canonical input before provider work", async () => { const brief = baseBrief(); const planning = acceptedPlanning(brief); const database = new InMemoryPersistenceDatabase(); await projectInReview(database, brief.projectId); const service = new ArchitectureReviewService(database, { provider: { promptVersion: "architecture-reviewer.v1", review: async () => { throw new Error("provider must not run"); } } }); await expect(service.review(reviewInput(brief, planning, { approvedBriefChecksum: "a".repeat(64) }))).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_BLOCKED" }); });
-  it("persists and reuses an idempotent review result", async () => { const brief = baseBrief(); const planning = acceptedPlanning(brief); const database = new InMemoryPersistenceDatabase(); await projectInReview(database, brief.projectId); const service = new ArchitectureReviewService(database); const input = reviewInput(brief, planning, { idempotencyKey: "same-review" }); const first = await service.review(input); const second = await service.review(input); expect(second).toEqual(first); expect(await new DocumentRepository(database).get(brief.projectId, 1, "architecture-review")).toBeTruthy(); expect((await service.getCurrentReview(brief.projectId, 1, input.approvedBriefChecksum, input.acceptedPlanningChecksum))?.result.verdict).toBe("APPROVED"); });
-  it("invalidates reuse when bounded architecture context changes but ignores operational row versions", async () => { const brief = baseBrief(); const planning = acceptedPlanning(brief); const database = new InMemoryPersistenceDatabase(); await projectInReview(database, brief.projectId); const service = new ArchitectureReviewService(database); const input = reviewInput(brief, planning, { idempotencyKey: "context-currentness" }); await service.review(input); await expect(service.review({ ...input, relevantProjectConstraints: ["Must preserve the approved public boundary"] })).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_IDEMPOTENCY_CONFLICT" }); const stableInput = reviewInput(brief, planning, { idempotencyKey: "operational-input-stability" }); const first = await service.review(stableInput); await expect(service.review({ ...stableInput, expectedRowVersion: 999 })).resolves.toEqual(first); });
-  it("normalizes exact duplicate findings and prevents invented evidence", async () => { const brief = baseBrief(); const planning = acceptedPlanning(brief); const database = new InMemoryPersistenceDatabase(); await projectInReview(database, brief.projectId); const item = { findingId: "minimality-warning", category: "UNNECESSARY_COMPLEXITY" as const, severity: "WARNING" as const, summary: "The architecture could be simpler.", evidenceRefs: ["planning:architecture"], affectedArtifacts: ["planning:architecture"], recommendedAction: "Keep only justified boundaries." }; const service = new ArchitectureReviewService(database, { provider: { promptVersion: "architecture-reviewer.v1", review: async () => ({ verdict: "APPROVED" as const, findings: [item, item], reviewedArtifactRefs: ["planning:architecture"], policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION }) } }); const result = await service.review(reviewInput(brief, planning)); expect(result.findings).toHaveLength(1); const blockedDatabase = new InMemoryPersistenceDatabase(); const blockedBrief = baseBrief(); const blockedPlanning = acceptedPlanning(blockedBrief); await projectInReview(blockedDatabase, blockedBrief.projectId); const blocked = new ArchitectureReviewService(blockedDatabase, { provider: { promptVersion: "architecture-reviewer.v1", review: async () => ({ verdict: "APPROVED" as const, findings: [{ ...item, evidenceRefs: ["planning:invented"], affectedArtifacts: ["planning:invented"] }], reviewedArtifactRefs: ["planning:architecture"], policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION }) } }); await expect(blocked.review(reviewInput(blockedBrief, blockedPlanning))).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_OUTPUT_INVALID" }); });
-  it("lets the orchestration boundary, not the reviewer, unlock Design", async () => { const brief = baseBrief(); const planning = acceptedPlanning(brief); const database = new InMemoryPersistenceDatabase(); await projectInReview(database, brief.projectId); const coordinator = new ArchitectureReviewOrchestrationService(database); const result = await coordinator.reviewAndRoute(reviewInput(brief, planning)); expect(result.projectState).toBe("AWAITING_DESIGN_SELECTION"); expect((await new ProjectRepository(database).getWithVersion(brief.projectId))?.project.workflowState).toBe("AWAITING_DESIGN_SELECTION"); });
-  it("enforces bounded correction cycles", async () => { const service = new ArchitectureReviewService(new InMemoryPersistenceDatabase()); const projectId = id(); service.recordCorrectionCycle(projectId, 1); service.recordCorrectionCycle(projectId, 1); expect(() => service.recordCorrectionCycle(projectId, 1)).toThrowError(ArchitectureReviewError); });
-  it("routes structured changes back to Planner without changing the Brief", async () => { const brief = baseBrief(); const planning = acceptedPlanning(brief); const database = new InMemoryPersistenceDatabase(); await projectInReview(database, brief.projectId); const planner = new PlannerArchitectService({ database, memory: new FakePlannerMemoryPort(), provider: { plan: async () => planning } }); const review = { verdict: "CHANGES_REQUIRED" as const, findings: [{ findingId: "missing-decision", category: "MISSING_DECISION" as const, severity: "ERROR" as const, summary: "A decision is missing.", evidenceRefs: ["planning:architecture"], affectedArtifacts: ["planning:architecture"], recommendedAction: "Add the minimal decision." }], reviewedArtifactRefs: ["planning:architecture"], policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION }; const result = await planner.correctAfterArchitectureReview({ ...plannerInput(brief), currentPlanningPackage: planning, currentPlanningChecksum: checksumPersistedDocument(planning), architectureReview: review }); expect(result.projectState).toBe("AWAITING_DESIGN_SELECTION"); expect(result.approvedBrief).toEqual(brief); expect((await new ProjectRepository(database).getWithVersion(brief.projectId))?.project.workflowState).toBe("AWAITING_DESIGN_SELECTION"); });
+  it("has a read-only catalog definition and review-only prompt", () => {
+    expect(architectureReviewerAgentDefinition.readOnly).toBe(true);
+    expect(architectureReviewerAgentDefinition.allowedTools).toEqual(["openai-generation"]);
+    const prompt = rolePrompt("architecture-reviewer", {});
+    expect(prompt.system).toMatch(/do not.*write project state/i);
+  });
+
+  it("approves a minimal valid architecture deterministically", async () => {
+    const fixture = await createFixture();
+    expect(deterministicArchitectureReview(fixture.input).verdict).toBe("APPROVED");
+  });
+
+  it("keeps reviewer proposal output separate from canonical persistence", async () => {
+    const fixture = await createFixture();
+    const service = new ArchitectureReviewService(fixture.database, { provider: deterministicProvider });
+    await expect(service.review(fixture.input)).resolves.toMatchObject({ verdict: "APPROVED" });
+    expect((await stateOf(fixture.database, fixture.brief.projectId)).review).toBeNull();
+  });
+
+  it("commits PASS result, history, decision, event, and routing together", async () => {
+    const fixture = await createFixture();
+    const result = await new ArchitectureReviewOrchestrationService(fixture.database, new ArchitectureReviewService(fixture.database, { provider: deterministicProvider })).reviewAndRoute(fixture.input);
+    const state = await stateOf(fixture.database, fixture.brief.projectId);
+    expect(result).toMatchObject({ projectState: "AWAITING_DESIGN_SELECTION", rowVersion: 2 });
+    expect(state.project).toMatchObject({ workflow_state: "AWAITING_DESIGN_SELECTION", row_version: 2 });
+    expect(state.review?.documentType).toBe("architecture-review");
+    expect(state.review?.payload).toMatchObject({ architectureChecksum: checksumPersistedDocument(fixture.planning.architecture), phase7cChecksum: expect.stringMatching(/^[a-f0-9]{64}$/), reviewInputChecksum: expect.stringMatching(/^[a-f0-9]{64}$/) });
+    expect(state.briefV3?.payload).toMatchObject({ documentType: "brief-v3", approval: { approved: true, approvedCanonicalChecksum: fixture.briefV3.briefChecksum }, briefChecksum: fixture.input.approvedBriefChecksum });
+    expect(state.history?.documentType).toBe("architecture-review-history");
+    expect(state.decisions).toHaveLength(1);
+    expect(state.decisions[0]).toMatchObject({ category: "architecture-review", actorIdentifier: "architecture-reviewer" });
+    expect(state.events).toHaveLength(1);
+    expect(state.events[0]).toMatchObject({ fromState: "ARCHITECTURE_REVIEW", toState: "AWAITING_DESIGN_SELECTION" });
+    expect(evaluatePlanningAcceptanceReadiness({ planningPackage: fixture.planning }).deferredItems.map((item) => item.id)).toEqual(["FINAL_LEGAL_FACTS_REQUIRED", "PHOTO_RIGHTS_PROVENANCE_REQUIRED"]);
+    expect(state.brief?.checksum).toBe(checksumPersistedDocument(fixture.brief));
+    expect(state.planning?.checksum).toBe(checksumPersistedDocument(fixture.planning));
+  });
+
+  it.each([
+    ["BLOCKED", { verdict: "BLOCKED", findings: [], reviewedArtifactRefs: ["planning:architecture"], policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION, blockedReason: "Synthetic canonical evidence block." }],
+    ["CHANGES_REQUIRED", { verdict: "CHANGES_REQUIRED", findings: [{ findingId: "missing-decision", category: "MISSING_DECISION", severity: "ERROR", summary: "A decision is missing.", evidenceRefs: ["planning:architecture"], affectedArtifacts: ["planning:architecture"], recommendedAction: "Resolve the decision." }], reviewedArtifactRefs: ["planning:architecture"], policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION }],
+  ] as const)("persists %s without advancing Design eligibility", async (_label, providerResult) => {
+    const fixture = await createFixture();
+    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => providerResult as unknown as ArchitectureReviewResult };
+    const result = await new ArchitectureReviewOrchestrationService(fixture.database, new ArchitectureReviewService(fixture.database, { provider })).reviewAndRoute(fixture.input);
+    const state = await stateOf(fixture.database, fixture.brief.projectId);
+    expect(result.projectState).toBe("ARCHITECTURE_REVIEW");
+    expect(state.project).toMatchObject({ workflow_state: "ARCHITECTURE_REVIEW", row_version: 1 });
+    expect(state.review).not.toBeNull();
+    expect(state.decisions).toHaveLength(1);
+    expect(state.events).toHaveLength(0);
+  });
+
+  it.each(["after-review-result-write", "after-review-history-write", "after-decision-write", "before-workflow-transition"] as const)("rolls back every canonical consequence at %s", async (point) => {
+    const fixture = await createFixture();
+    const service = new ArchitectureReviewService(fixture.database, { provider: deterministicProvider });
+    await expect(new ArchitectureReviewOrchestrationService(fixture.database, service, { faultInjector: { hit: async (current) => { if (current === point) throw new Error(`synthetic-${point}`); } } }).reviewAndRoute(fixture.input)).rejects.toThrow(`synthetic-${point}`);
+    const state = await stateOf(fixture.database, fixture.brief.projectId);
+    expect(state.project).toMatchObject({ workflow_state: "ARCHITECTURE_REVIEW", row_version: 1 });
+    expect(state.review).toBeNull();
+    expect(state.history).toBeNull();
+    expect(state.decisions).toHaveLength(0);
+    expect(state.events).toHaveLength(0);
+  });
+
+  it("rejects a currentness conflict after the provider returns without canonical writes", async () => {
+    const fixture = await createFixture();
+    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => { const current = await new DocumentRepository(fixture.database).get(fixture.brief.projectId, 1, "planning-package"); if (!current || current.documentType !== "planning-package") throw new Error("fixture planning missing"); await new DocumentRepository(fixture.database).save({ ...current, updatedAt: "2026-08-23T12:01:00.000Z" }); return deterministicArchitectureReview(fixture.input); } };
+    const service = new ArchitectureReviewService(fixture.database, { provider });
+    await expect(new ArchitectureReviewOrchestrationService(fixture.database, service).reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE" });
+    const state = await stateOf(fixture.database, fixture.brief.projectId);
+    expect(state.review).toBeNull();
+    expect(state.decisions).toHaveLength(0);
+    expect(state.events).toHaveLength(0);
+  });
+
+  it.each(["architecture", "phase-7c-contract-package"] as const)("rejects a stale %s artifact at the commit boundary", async (documentType) => {
+    const fixture = await createFixture();
+    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => { const current = await new DocumentRepository(fixture.database).get(fixture.brief.projectId, 1, documentType); if (!current) throw new Error("fixture document missing"); await new DocumentRepository(fixture.database).save({ ...current, updatedAt: "2026-08-23T12:01:00.000Z" }); return deterministicArchitectureReview(fixture.input); } };
+    const service = new ArchitectureReviewService(fixture.database, { provider });
+    await expect(new ArchitectureReviewOrchestrationService(fixture.database, service).reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE" });
+    const state = await stateOf(fixture.database, fixture.brief.projectId);
+    expect(state.review).toBeNull();
+    expect(state.decisions).toHaveLength(0);
+    expect(state.events).toHaveLength(0);
+  });
+
+  it("rejects a stale project-version row at the commit boundary", async () => {
+    const fixture = await createFixture();
+    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => {
+      await fixture.database.transaction((tx) => tx.updateVersionRequirementsChecksum({ projectId: fixture.brief.projectId, version: 1, expectedRowVersion: 1, checksum: "a".repeat(64), updatedAt: "2026-08-23T12:01:00.000Z" }));
+      return deterministicArchitectureReview(fixture.input);
+    } };
+    const service = new ArchitectureReviewService(fixture.database, { provider });
+    await expect(new ArchitectureReviewOrchestrationService(fixture.database, service).reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE" });
+    const state = await stateOf(fixture.database, fixture.brief.projectId);
+    expect(state.review).toBeNull();
+    expect(state.decisions).toHaveLength(0);
+    expect(state.events).toHaveLength(0);
+  });
+
+  it("replays a committed review after a fresh service reconstruction without provider work", async () => {
+    const fixture = await createFixture();
+    const first = new ArchitectureReviewService(fixture.database, { provider: deterministicProvider });
+    await expect(new ArchitectureReviewOrchestrationService(fixture.database, first).reviewAndRoute(fixture.input)).resolves.toMatchObject({ projectState: "AWAITING_DESIGN_SELECTION" });
+    const second = new ArchitectureReviewService(fixture.database, { provider: { promptVersion: "architecture-reviewer.v1", review: async () => { throw new Error("provider must not run on replay"); } } });
+    await expect(new ArchitectureReviewOrchestrationService(fixture.database, second).reviewAndRoute(fixture.input)).resolves.toMatchObject({ projectState: "AWAITING_DESIGN_SELECTION", projectionStatus: "REPLAYED" });
+    const state = await stateOf(fixture.database, fixture.brief.projectId);
+    expect(state.decisions).toHaveLength(1);
+    expect(state.events).toHaveLength(1);
+  });
+
+  it("rejects idempotency reuse when bounded review context changes", async () => {
+    const fixture = await createFixture();
+    const service = new ArchitectureReviewService(fixture.database, { provider: deterministicProvider });
+    await service.review({ ...fixture.input, idempotencyKey: "same-review" });
+    await expect(service.review({ ...fixture.input, idempotencyKey: "same-review", relevantProjectConstraints: ["Preserve the public boundary."] })).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_IDEMPOTENCY_CONFLICT" });
+  });
+
+  it("enforces bounded correction cycles", () => {
+    const service = new ArchitectureReviewService(new InMemoryPersistenceDatabase());
+    const projectId = id();
+    service.recordCorrectionCycle(projectId, 1);
+    service.recordCorrectionCycle(projectId, 1);
+    expect(() => service.recordCorrectionCycle(projectId, 1)).toThrowError(ArchitectureReviewError);
+  });
+
+  it("recovers a failed derived decision projection without rerunning review", async () => {
+    const fixture = await createFixture();
+    class FailingProjection extends FakeProjectMemorySyncPort {
+      fail = true;
+      override async appendDecision(projectId: string, version: number, decision: Parameters<FakeProjectMemorySyncPort["appendDecision"]>[2]) { if (this.fail) throw new Error("synthetic-projection-failure"); return super.appendDecision(projectId, version, decision); }
+    }
+    const projection = new FailingProjection();
+    const service = new ArchitectureReviewService(fixture.database, { provider: deterministicProvider });
+    const orchestration = new ArchitectureReviewOrchestrationService(fixture.database, service, { projection });
+    await expect(orchestration.reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_PROJECTION_FAILED" });
+    expect((await stateOf(fixture.database, fixture.brief.projectId)).decisions).toHaveLength(1);
+    projection.fail = false;
+    await expect(orchestration.reconcileArchitectureReviewProjection(fixture.brief.projectId, 1)).resolves.toMatchObject({ projectionStatus: "SYNCED", decisionCount: 1 });
+    expect(projection.decisions.get(`${fixture.brief.projectId}:1`)).toHaveLength(1);
+  });
+
+  it("keeps alternate production entrypoints on the atomic orchestration boundary", () => {
+    const workbench = readFileSync("src/runtime/workbench/application.ts", "utf8");
+    const alternate = readFileSync("src/runtime/production-e2e-stage-runner.ts", "utf8");
+    expect(workbench).toContain("scope.architectureReviewer.reviewAndRoute");
+    expect(alternate).toContain("scope.architectureReviewer.reviewAndRoute");
+    expect(readFileSync("src/orchestration/architecture-review/service.ts", "utf8")).not.toContain("workflow.transition");
+  });
 });
+
+function configuredDatabaseUrl() {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  for (const filename of [".env.local", ".env"]) {
+    if (!existsSync(filename)) continue;
+    const line = readFileSync(filename, "utf8").split(/\r?\n/).find((candidate) => /^\s*DATABASE_URL\s*=/.test(candidate));
+    const value = line?.replace(/^\s*DATABASE_URL\s*=\s*/, "").trim().replace(/^['"]|['"]$/g, "");
+    if (value) return value;
+  }
+  return undefined;
+}
+
+const databaseUrl = configuredDatabaseUrl();
+const describePostgres = describe.skipIf(!databaseUrl);
+const postgresProjectIds: string[] = [];
+
+async function cleanupPostgres(pool: Pool) {
+  for (const projectId of postgresProjectIds) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("DELETE FROM workflow_events WHERE project_id=$1", [projectId]);
+      await client.query("DELETE FROM decision_records WHERE project_id=$1", [projectId]);
+      await client.query("DELETE FROM workflow_documents WHERE project_id=$1", [projectId]);
+      await client.query("DELETE FROM project_versions WHERE project_id=$1", [projectId]);
+      await client.query("DELETE FROM factory_projects WHERE id=$1", [projectId]);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+}
+
+describePostgres("Architecture Review real Postgres certification", () => {
+  let pool: ReturnType<typeof createPostgresPool>;
+  let database: PostgresPersistenceDatabase;
+
+  beforeAll(() => {
+    pool = createPostgresPool({ DATABASE_URL: databaseUrl, NODE_ENV: "test" });
+    database = new PostgresPersistenceDatabase(pool);
+  });
+
+  afterAll(async () => {
+    await cleanupPostgres(pool);
+    await pool.end();
+  });
+
+  it("commits the production-shaped PASS on real Postgres", async () => {
+    const fixture = await createFixture(database);
+    postgresProjectIds.push(fixture.brief.projectId);
+    await expect(new ArchitectureReviewOrchestrationService(database, new ArchitectureReviewService(database, { provider: deterministicProvider })).reviewAndRoute(fixture.input)).resolves.toMatchObject({ projectState: "AWAITING_DESIGN_SELECTION" });
+    const state = await stateOf(database, fixture.brief.projectId);
+    expect(state.project).toMatchObject({ workflow_state: "AWAITING_DESIGN_SELECTION", row_version: 2 });
+    expect(state.review).not.toBeNull();
+    expect(state.decisions).toHaveLength(1);
+    expect(state.events).toHaveLength(1);
+  });
+
+  it("rolls back real Postgres writes after the decision boundary", async () => {
+    const fixture = await createFixture(database);
+    postgresProjectIds.push(fixture.brief.projectId);
+    const service = new ArchitectureReviewService(database, { provider: deterministicProvider });
+    await expect(new ArchitectureReviewOrchestrationService(database, service, { faultInjector: { hit: async (point) => { if (point === "after-decision-write") throw new Error("synthetic-postgres-rollback"); } } }).reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "PERSISTENCE_PROVIDER_ERROR" });
+    const state = await stateOf(database, fixture.brief.projectId);
+    expect(state.project).toMatchObject({ workflow_state: "ARCHITECTURE_REVIEW", row_version: 1 });
+    expect(state.review).toBeNull();
+    expect(state.history).toBeNull();
+    expect(state.decisions).toHaveLength(0);
+    expect(state.events).toHaveLength(0);
+  });
+
+  it("rolls back real Postgres writes when workflow transition persistence fails", async () => {
+    const fixture = await createFixture(database);
+    postgresProjectIds.push(fixture.brief.projectId);
+    const failingDatabase: PersistenceDatabase = {
+      transaction: (work) => database.transaction((tx) => work({ ...tx, updateProjectState: async () => { throw new Error("synthetic-transition-failure"); } })),
+    };
+    const service = new ArchitectureReviewService(failingDatabase, { provider: deterministicProvider });
+    await expect(new ArchitectureReviewOrchestrationService(failingDatabase, service).reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "PERSISTENCE_PROVIDER_ERROR" });
+    const state = await stateOf(database, fixture.brief.projectId);
+    expect(state.project).toMatchObject({ workflow_state: "ARCHITECTURE_REVIEW", row_version: 1 });
+    expect(state.review).toBeNull();
+    expect(state.decisions).toHaveLength(0);
+    expect(state.events).toHaveLength(0);
+  });
+});
+
+if (!databaseUrl) console.log("ARCHITECTURE REVIEW POSTGRES CERTIFICATION: SKIPPED (DATABASE_URL unavailable)");
+else console.log("ARCHITECTURE REVIEW POSTGRES CERTIFICATION: ENABLED");

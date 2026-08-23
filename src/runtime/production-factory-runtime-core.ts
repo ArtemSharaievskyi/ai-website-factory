@@ -424,6 +424,7 @@ export function createProductionFactoryRuntime(
           provider: ai.architectureReviewer,
           resolveSkills: resolveArchitectureSkills,
         }),
+        { projection: sync },
       );
       const contractAuditor = new ContractAuditOrchestrationService(
         database,

@@ -78,6 +78,16 @@ must additionally prove that decision records remain isolated by project and
 version, duplicate reconciliation is idempotent, and the scoped projection
 root is used without a generic fallback.
 
+Architecture Review transaction certification is covered by
+`src/agents/reviewers/architecture/architecture.test.ts`. It must exercise the
+real production-shaped orchestration path with a deterministic provider and
+real Postgres when configured: PASS, BLOCKED, CHANGES_REQUIRED, rollback after
+review-result/history/decision writes and workflow-transition failure,
+commit-time Brief/Planning/Architecture/Phase 7C currentness, exact one
+approved transition, repeat/restart safety, unchanged upstream semantics, and
+post-commit Project Memory decision projection recovery without a second
+provider call.
+
 ## Database and larger boundaries
 
 - `npm run db:validate` validates migration structure.

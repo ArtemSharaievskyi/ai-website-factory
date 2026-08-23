@@ -96,6 +96,15 @@ workflow scope in `src/runtime/workbench/application.ts`:
 4. Architecture review validates and routes the package.
 5. Design generates exactly three structured directions.
 
+Architecture Review is one canonical commit. The provider result is parsed and
+validated before a short host transaction re-reads currentness, binds the
+review to the exact Brief, PlanningPackage, Architecture, and Phase 7C
+checksums, writes the review result/history and decision, and routes only an
+approved result. `CHANGES_REQUIRED` and `BLOCKED` remain in
+`ARCHITECTURE_REVIEW` with their finding/decision committed consistently. A
+failure at any canonical write rolls back the complete review consequence;
+filesystem Project Memory is a post-commit, recoverable decision projection.
+
 Planning Acceptance does not mean publication readiness. Final legal facts and
 verified image rights remain mandatory before public release. The Workbench
 projection shows both blocking and deferred items, while downstream guards use

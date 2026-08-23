@@ -199,3 +199,50 @@ entry names the invariant and the regression boundary that must be exercised.
   cross-project and cross-version isolation, duplicate decision idempotency,
   and integrity verification; transaction certification covers projection
   failure and recovery without rerunning acceptance.
+
+## ARCHITECTURE_REVIEW_CANONICAL_CONSEQUENCES_COMMIT_ATOMICALLY
+
+- Symptom: an Architecture Review document/history survives while workflow
+  routing or its audit decision fails, leaving review authority ahead of the
+  lifecycle state.
+- Rule: `ArchitectureReviewOrchestrationService` uses one host-owned
+  transaction for the review result, history, architecture-review decision,
+  and approved workflow event/state transition. Provider work stays outside
+  that short transaction, and currentness/CAS is rechecked at commit.
+- Regression: `src/agents/reviewers/architecture/architecture.test.ts` proves
+  production-shaped Postgres PASS, BLOCKED/CHANGES_REQUIRED behavior, failure
+  injection after result/history/decision writes and at workflow transition,
+  exact artifact binding, stale currentness rejection, repeat safety, and
+  alternate-entrypoint convergence.
+
+## REVIEW_RESULT_CANNOT_OUTRUN_WORKFLOW_STATE
+
+- Symptom: a persisted APPROVED review can be observed without the exact
+  lifecycle transition, or a BLOCKED/CHANGES_REQUIRED result can accidentally
+  make Design eligible.
+- Rule: the host owns deterministic verdict routing. APPROVED transitions once
+  to the repository-defined Design-selection state; other verdicts persist
+  their result/decision while remaining in `ARCHITECTURE_REVIEW`.
+- Regression: the Architecture Review atomic transaction suite asserts exact
+  decision/event counts and no transition for BLOCKED or CHANGES_REQUIRED.
+
+## REVIEW_CURRENTNESS_IS_RECHECKED_AT_COMMIT
+
+- Symptom: Brief, PlanningPackage, Architecture, or Phase 7C changes while a
+  provider is running, but the stale review is still persisted.
+- Rule: the commit transaction re-reads project/version/workflow state and
+  exact reviewed-artifact checksums after provider completion; stale input
+  produces zero canonical review writes.
+- Regression: the Architecture Review suite mutates each reviewed artifact
+  between proposal and commit and asserts stale rejection with no review,
+  decision, or workflow event.
+
+## DERIVED_PROJECTION_FAILURE_DOES_NOT_REQUIRE_REVIEW_REEXECUTION
+
+- Symptom: a Project Memory/filesystem failure causes a canonical Architecture
+  Review to be repeated, duplicating its decision or workflow event.
+- Rule: review commit completes in the database first; decision projection is
+  derived and `reconcileArchitectureReviewProjection` rebuilds it from
+  canonical decisions without invoking the provider or creating a review.
+- Regression: the Architecture Review suite injects projection failure, then
+  reconciles and asserts one review, one decision, and one workflow event.

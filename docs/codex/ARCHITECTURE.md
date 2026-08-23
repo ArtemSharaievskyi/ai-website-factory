@@ -73,6 +73,16 @@ the single filesystem root authority for Project Memory projection documents
 and decision records. No provider, agent, Workbench caller, or alternate
 entrypoint owns any part of this commit or reconstructs a raw projection root.
 
+Architecture Review has the same host-owned commit rule. The Architecture
+Reviewer emits only a typed proposal; `ArchitectureReviewOrchestrationService`
+delegates the proposal and canonical commit to one transaction authority. The
+commit rechecks project/workflow/CAS and the current Brief, PlanningPackage,
+Architecture, and Phase 7C checksums before atomically writing the review
+result, review history, architecture-review decision, and any approved routing
+event/state transition. A provider call is never held inside the database
+transaction. Project Memory receives the decision only after commit and can be
+reconciled from canonical decision rows if projection fails.
+
 ## Workflow shape
 
 The current high-level lifecycle is:

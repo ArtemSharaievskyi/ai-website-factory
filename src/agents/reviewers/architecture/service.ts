@@ -1,13 +1,9 @@
-import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
-import {
-  DocumentRepository,
-  ProjectRepository,
-} from "@/persistence/database/repositories";
+import { DocumentRepository } from "@/persistence/database/repositories";
 import type { PersistenceDatabase } from "@/persistence/database/types";
+import { mapRowToDocument } from "@/persistence/database/mapping";
 import {
-  ArchitectureReviewHistorySchema,
   ArchitectureReviewProviderOutputSchema,
   ArchitectureReviewRecordSchema,
   ArchitectureReviewResultSchema,
@@ -27,11 +23,7 @@ import { canonicalArchitectureEvidence } from "./deterministic";
 import { DeterministicArchitectureReviewProvider } from "./deterministic";
 import type { ArchitectureReviewProvider } from "./ports";
 import type { ReviewerSkillSelection } from "@/skills/runtime/resolver";
-
-const now = () => new Date().toISOString();
-const exactFindingKey = (
-  finding: ArchitectureReviewResult["findings"][number],
-) => JSON.stringify(finding);
+import { readCanonicalReviewContext, type CanonicalReviewContext } from "./currentness";
 
 export type ArchitectureReviewServiceDependencies = {
   provider?: ArchitectureReviewProvider;
@@ -40,32 +32,43 @@ export type ArchitectureReviewServiceDependencies = {
   ) => Promise<ReviewerSkillSelection>;
 };
 
+export type ArchitectureReviewProposal = {
+  result: ArchitectureReviewResult;
+  inputHash: string;
+  promptVersion: string;
+  skillContextChecksum: string;
+  versionRowVersion: number;
+  architectureChecksum: string;
+  phase7cChecksum: string;
+};
+
 export class ArchitectureReviewService {
   private readonly documents: DocumentRepository;
-  private readonly projects: ProjectRepository;
   private readonly provider: ArchitectureReviewProvider;
   private readonly idempotency = new Map<
     string,
-    { inputHash: string; result: ArchitectureReviewResult }
+    { inputHash: string; proposal: ArchitectureReviewProposal }
   >();
   private readonly correctionCycles = new Map<string, number>();
   private readonly resolveSkills?: ArchitectureReviewServiceDependencies["resolveSkills"];
+
   constructor(
     private readonly database: PersistenceDatabase,
     dependencies: ArchitectureReviewServiceDependencies = {},
   ) {
     this.documents = new DocumentRepository(database);
-    this.projects = new ProjectRepository(database);
-    this.provider =
-      dependencies.provider ?? new DeterministicArchitectureReviewProvider();
+    this.provider = dependencies.provider ?? new DeterministicArchitectureReviewProvider();
     this.resolveSkills = dependencies.resolveSkills;
   }
+
   getAgentDefinition() {
     return architectureReviewerAgentDefinition;
   }
+
   getCorrectionCycle(projectId: string, projectVersion: number) {
     return this.correctionCycles.get(`${projectId}:${projectVersion}`) ?? 0;
   }
+
   assertCorrectionAvailable(projectId: string, projectVersion: number) {
     if (this.getCorrectionCycle(projectId, projectVersion) >= 2)
       throw new ArchitectureReviewError(
@@ -73,27 +76,18 @@ export class ArchitectureReviewService {
         "The maximum architecture review correction cycles has been reached.",
       );
   }
+
   recordCorrectionCycle(projectId: string, projectVersion: number) {
     this.assertCorrectionAvailable(projectId, projectVersion);
     const key = `${projectId}:${projectVersion}`;
     this.correctionCycles.set(key, (this.correctionCycles.get(key) ?? 0) + 1);
   }
 
-  async review(
+  async reviewProposal(
     rawInput: ArchitectureReviewInput,
     signal?: AbortSignal,
-  ): Promise<ArchitectureReviewResult> {
+  ): Promise<ArchitectureReviewProposal> {
     const input = this.parseAndPrecheck(rawInput);
-    const project = await this.projects.getWithVersion(input.projectId);
-    if (
-      !project ||
-      project.project.currentVersion !== input.projectVersion ||
-      project.project.workflowState !== "ARCHITECTURE_REVIEW"
-    )
-      throw new ArchitectureReviewError(
-        "ARCHITECTURE_REVIEW_WORKFLOW_INVALID",
-        "Architecture review is only available in the ARCHITECTURE_REVIEW workflow stage.",
-      );
     const skillSelection = this.resolveSkills
       ? await this.resolveSkills(input)
       : { contexts: [], identityChecksum: "none", selectedSkillIds: [], selectedSkillChecksums: [] };
@@ -108,6 +102,9 @@ export class ArchitectureReviewService {
       policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION,
       promptVersion: this.provider.promptVersion,
     });
+    const canonical = await this.database.transaction((tx) =>
+      readCanonicalReviewContext(tx, input),
+    );
     const prior = this.idempotency.get(input.idempotencyKey);
     if (prior) {
       if (prior.inputHash !== inputHash)
@@ -115,71 +112,50 @@ export class ArchitectureReviewService {
           "ARCHITECTURE_REVIEW_IDEMPOTENCY_CONFLICT",
           "Architecture review idempotency key was reused with different canonical inputs.",
         );
-      return prior.result;
+      return prior.proposal;
     }
+    const replay = this.replayResult(canonical, input, inputHash);
+    if (replay) {
+      const proposal = {
+        result: replay,
+        inputHash,
+        promptVersion: this.provider.promptVersion,
+        skillContextChecksum: skillSelection.identityChecksum,
+        versionRowVersion: canonical.version.rowVersion,
+        architectureChecksum: canonical.architectureChecksum,
+        phase7cChecksum: canonical.phase7cChecksum,
+      } satisfies ArchitectureReviewProposal;
+      this.idempotency.set(input.idempotencyKey, { inputHash, proposal });
+      return proposal;
+    }
+    if (
+      !canonical.project ||
+      canonical.project.current_version !== input.projectVersion ||
+      canonical.project.workflow_state !== "ARCHITECTURE_REVIEW"
+    )
+      throw new ArchitectureReviewError(
+        "ARCHITECTURE_REVIEW_WORKFLOW_INVALID",
+        "Architecture review is only available in the ARCHITECTURE_REVIEW workflow stage.",
+      );
     try {
       const providerResult = await this.provider.review(
         input,
         signal,
-      skillSelection.contexts,
-      skillSelection.identityChecksum,
+        skillSelection.contexts,
+        skillSelection.identityChecksum,
       );
       const result = this.normalizeResult(providerResult, input);
-      const record = ArchitectureReviewRecordSchema.parse({
-        schemaVersion: 1,
-        documentType: "architecture-review",
-        projectId: input.projectId,
-        projectVersion: input.projectVersion,
-        createdAt: now(),
-        updatedAt: now(),
-        reviewId: randomUUID(),
-        reviewerAgentId: architectureReviewerAgentDefinition.agentId,
-        reviewerVersion: architectureReviewerAgentDefinition.version,
-        capability: "review.architecture",
-        policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION,
-        promptVersion: this.provider.promptVersion,
-        approvedBriefChecksum: input.approvedBriefChecksum,
-        acceptedPlanningChecksum: input.acceptedPlanningChecksum,
-        resultChecksum: checksumPersistedDocument(result),
+      const proposal = {
         result,
-      });
-      const priorRecord = await this.documents.get(
-        input.projectId,
-        input.projectVersion,
-        "architecture-review",
-      );
-      const priorHistory = await this.documents.get(
-        input.projectId,
-        input.projectVersion,
-        "architecture-review-history",
-      );
-      const historicalRecords = [
-        ...(priorHistory?.documentType === "architecture-review-history"
-          ? priorHistory.records
-          : []),
-        ...(priorRecord?.documentType === "architecture-review"
-          ? [ArchitectureReviewRecordSchema.parse(priorRecord)]
-          : []),
-        record,
-      ];
-      await this.documents.save(
-        ArchitectureReviewHistorySchema.parse({
-          schemaVersion: 1,
-          documentType: "architecture-review-history",
-          projectId: input.projectId,
-          projectVersion: input.projectVersion,
-          createdAt: historicalRecords[0]!.createdAt,
-          updatedAt: now(),
-          records: historicalRecords,
-        }),
-        `architecture-review-history:${input.idempotencyKey}`,
-      );
-      await this.documents.save(
-        record,
-        `architecture-review:${input.idempotencyKey}`,
-      );
-      this.idempotency.set(input.idempotencyKey, { inputHash, result });
-      return result;
+        inputHash,
+        promptVersion: this.provider.promptVersion,
+        skillContextChecksum: skillSelection.identityChecksum,
+        versionRowVersion: canonical.version.rowVersion,
+        architectureChecksum: canonical.architectureChecksum,
+        phase7cChecksum: canonical.phase7cChecksum,
+      } satisfies ArchitectureReviewProposal;
+      this.idempotency.set(input.idempotencyKey, { inputHash, proposal });
+      return proposal;
     } catch (error) {
       if (error instanceof ArchitectureReviewError) throw error;
       if (error instanceof z.ZodError)
@@ -194,6 +170,13 @@ export class ArchitectureReviewService {
         error,
       );
     }
+  }
+
+  async review(
+    rawInput: ArchitectureReviewInput,
+    signal?: AbortSignal,
+  ): Promise<ArchitectureReviewResult> {
+    return (await this.reviewProposal(rawInput, signal)).result;
   }
 
   async getCurrentReview(
@@ -217,6 +200,28 @@ export class ArchitectureReviewService {
       : null;
   }
 
+  private replayResult(
+    canonical: CanonicalReviewContext,
+    input: ArchitectureReviewInput,
+    inputHash: string,
+  ) {
+    if (!canonical.reviewRow) return null;
+    const record = ArchitectureReviewRecordSchema.parse(
+      mapRowToDocument(canonical.reviewRow),
+    );
+    if (
+      record.projectId !== input.projectId ||
+      record.projectVersion !== input.projectVersion ||
+      record.reviewInputChecksum !== inputHash ||
+      record.approvedBriefChecksum !== input.approvedBriefChecksum ||
+      record.acceptedPlanningChecksum !== input.acceptedPlanningChecksum ||
+      record.architectureChecksum !== canonical.architectureChecksum ||
+      record.phase7cChecksum !== canonical.phase7cChecksum
+    )
+      return null;
+    return record.result;
+  }
+
   private parseAndPrecheck(rawInput: ArchitectureReviewInput) {
     let input: ArchitectureReviewInput;
     try {
@@ -230,40 +235,32 @@ export class ArchitectureReviewService {
     }
     try {
       const brief = RequirementSpecificationSchema.parse(input.approvedBrief);
-      const planning = PlanningPackageSchema.parse(
-        input.acceptedPlanningPackage,
-      );
+      const planning = PlanningPackageSchema.parse(input.acceptedPlanningPackage);
       if (
         Buffer.byteLength(JSON.stringify(input), "utf8") >
           architectureReviewerAgentDefinition.contextPolicy.maxBytes ||
         input.relevantProjectConstraints.length >
           architectureReviewerAgentDefinition.contextPolicy.maxItems
       )
-        throw new Error(
-          "Architecture review context exceeds its bounded policy.",
-        );
+        throw new Error("Architecture review context exceeds its bounded policy.");
       if (
         brief.projectId !== input.projectId ||
         planning.projectId !== input.projectId ||
         brief.projectVersion !== input.projectVersion ||
         planning.projectVersion !== input.projectVersion
       )
-        throw new Error(
-          "Canonical artifacts belong to a different project version.",
-        );
+        throw new Error("Canonical artifacts belong to a different project version.");
       if (!brief.approval.approved || brief.briefStatus !== "approved")
         throw new Error("The approved Brief is not approved.");
       if (
         input.approvedBriefChecksum !== checksumPersistedDocument(brief) &&
-        input.approvedBriefChecksum !==
-          brief.approval.approvedRequirementsChecksum
+        input.approvedBriefChecksum !== brief.approval.approvedRequirementsChecksum
       )
         throw new Error("The Brief checksum is stale.");
       if (!planning.accepted || !planning.architecture.acceptance.accepted)
         throw new Error("The PlanningPackage is not accepted.");
       if (
-        input.acceptedPlanningChecksum !==
-          checksumPersistedDocument(planning) &&
+        input.acceptedPlanningChecksum !== checksumPersistedDocument(planning) &&
         input.acceptedPlanningChecksum !== planning.acceptance.checksum
       )
         throw new Error("The PlanningPackage checksum is stale.");
@@ -271,9 +268,7 @@ export class ArchitectureReviewService {
         !evaluatePlanningAcceptanceReadiness({ planningPackage: planning }).readyForAcceptance ||
         brief.unresolvedItems.some((item) => item.blocking)
       )
-        throw new Error(
-          "Blocking canonical architecture items remain unresolved.",
-        );
+        throw new Error("Blocking canonical architecture items remain unresolved.");
       if (validatePlanningStructure(planning).length)
         throw new Error("Planning structural validation failed.");
       if (
@@ -299,9 +294,7 @@ export class ArchitectureReviewService {
   ): ArchitectureReviewResult {
     let parsed: ArchitectureReviewResult;
     try {
-      parsed = ArchitectureReviewProviderOutputSchema.parse(
-        raw,
-      ) as ArchitectureReviewResult;
+      parsed = ArchitectureReviewProviderOutputSchema.parse(raw) as ArchitectureReviewResult;
     } catch (error) {
       throw new ArchitectureReviewError(
         "ARCHITECTURE_REVIEW_OUTPUT_INVALID",
@@ -321,12 +314,13 @@ export class ArchitectureReviewService {
           "ARCHITECTURE_REVIEW_OUTPUT_INVALID",
           `Review references invented evidence: ${reference}.`,
         );
-    const deduped = [];
+    const deduped: ArchitectureReviewResult["findings"] = [];
     const seenExact = new Set<string>();
     const seenIds = new Set<string>();
     for (const item of parsed.findings) {
+      const exact = JSON.stringify(item);
       if (seenIds.has(item.findingId)) {
-        if (!seenExact.has(exactFindingKey(item)))
+        if (!seenExact.has(exact))
           throw new ArchitectureReviewError(
             "ARCHITECTURE_REVIEW_OUTPUT_INVALID",
             `Finding ID is reused with different content: ${item.findingId}.`,
@@ -340,7 +334,7 @@ export class ArchitectureReviewService {
             `Finding references invented evidence: ${reference}.`,
           );
       seenIds.add(item.findingId);
-      seenExact.add(exactFindingKey(item));
+      seenExact.add(exact);
       deduped.push(item);
     }
     const blocking = deduped.some(
@@ -353,9 +347,6 @@ export class ArchitectureReviewService {
         "ARCHITECTURE_REVIEW_OUTPUT_INVALID",
         "CHANGES_REQUIRED requires findings.",
       );
-    return ArchitectureReviewResultSchema.parse({
-      ...parsed,
-      findings: deduped,
-    });
+    return ArchitectureReviewResultSchema.parse({ ...parsed, findings: deduped });
   }
 }
