@@ -96,14 +96,18 @@ workflow scope in `src/runtime/workbench/application.ts`:
 4. Architecture review validates and routes the package.
 5. Design generates exactly three structured directions.
 
-Architecture Review is one canonical commit. The provider result is parsed and
-validated before a short host transaction re-reads currentness, binds the
-review to the exact Brief, PlanningPackage, Architecture, and Phase 7C
-checksums, writes the review result/history and decision, and routes only an
-approved result. `CHANGES_REQUIRED` and `BLOCKED` remain in
-`ARCHITECTURE_REVIEW` with their finding/decision committed consistently. A
-failure at any canonical write rolls back the complete review consequence;
-filesystem Project Memory is a post-commit, recoverable decision projection.
+Architecture Review is one canonical commit. The provider returns only the
+semantic verdict, findings, and evidence references; the host owns policy
+provenance, artifact identity, row/CAS metadata, and workflow routing. The host
+captures the policy before provider execution, stamps it onto the result, then
+parses and validates before a short transaction re-reads currentness, rechecks
+the policy snapshot, binds the review to the exact Brief, PlanningPackage,
+Architecture, and Phase 7C checksums, writes the review result/history and
+decision, and routes only an approved result. `CHANGES_REQUIRED` and `BLOCKED`
+remain in `ARCHITECTURE_REVIEW` with their finding/decision committed
+consistently. A failure at any canonical write rolls back the complete review
+consequence; filesystem Project Memory is a post-commit, recoverable decision
+projection.
 
 Planning Acceptance does not mean publication readiness. Final legal facts and
 verified image rights remain mandatory before public release. The Workbench

@@ -21,7 +21,6 @@ const validTestQualityOutput = {
   verdict: "APPROVED" as const,
   findings: [],
   reviewedArtifactRefs: ["test:catalog-reviewer-execution"],
-  policyVersion: "test-quality-review-v1",
   blockedReason: null,
 };
 

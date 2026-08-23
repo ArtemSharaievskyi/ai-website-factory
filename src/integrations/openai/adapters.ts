@@ -40,7 +40,7 @@ import type { ProviderDiagnostic, ProviderUsageSink } from "./usage";
 import type { OrchestrationPlanningProvider } from "@/orchestration/orchestrator/service";
 import {
   ArchitectureReviewProviderOutputSchema,
-  type ArchitectureReviewResult,
+  type ArchitectureReviewProviderOutput,
 } from "@/domain/review/schema";
 import type { ArchitectureReviewInput } from "@/agents/reviewers/architecture/contracts";
 import type { ArchitectureReviewProvider } from "@/agents/reviewers/architecture/ports";
@@ -48,25 +48,25 @@ import type { ContractAuditProvider } from "@/agents/reviewers/contracts/ports";
 import type { ContractAuditInput } from "@/agents/reviewers/contracts/contracts";
 import {
   ContractAuditProviderOutputSchema,
-  type ContractAuditResult,
+  type ContractAuditProviderOutput,
 } from "@/domain/review/schema";
 import type { CodeIntegrationReviewProvider } from "@/agents/reviewers/code-integration/ports";
 import type { CodeIntegrationReviewInput } from "@/agents/reviewers/code-integration/contracts";
 import {
   CodeIntegrationReviewProviderOutputSchema,
-  type CodeIntegrationReviewResult,
+  type CodeIntegrationReviewProviderOutput,
 } from "@/domain/review/schema";
 import type { SecurityReviewProvider } from "@/agents/reviewers/security/ports";
 import type { SecurityReviewInput } from "@/agents/reviewers/security/contracts";
 import {
   SecurityReviewProviderOutputSchema,
-  type SecurityReviewResult,
+  type SecurityReviewProviderOutput,
 } from "@/domain/review/schema";
 import type { TestQualityReviewProvider } from "@/agents/reviewers/test-quality/ports";
 import type { TestQualityReviewInput } from "@/agents/reviewers/test-quality/contracts";
 import {
   TestQualityReviewProviderOutputSchema,
-  type TestQualityReviewResult,
+  type TestQualityReviewProviderOutput,
 } from "@/domain/review/schema";
 import { z } from "zod";
 import {
@@ -1180,7 +1180,7 @@ export class OpenAiArchitectureReviewerProvider implements ArchitectureReviewPro
     signal?: AbortSignal,
     approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
     skillContextIdentity = "none",
-  ): Promise<ArchitectureReviewResult> {
+  ): Promise<ArchitectureReviewProviderOutput> {
     const prompt = rolePrompt(
       "architecture-reviewer",
       input,
@@ -1196,7 +1196,7 @@ export class OpenAiArchitectureReviewerProvider implements ArchitectureReviewPro
         signal,
         idempotencyKey: `${input.idempotencyKey}:${skillContextIdentity}`,
       })
-    ).value as ArchitectureReviewResult;
+    ).value as ArchitectureReviewProviderOutput;
   }
 }
 export class OpenAiContractAuditorProvider implements ContractAuditProvider {
@@ -1207,7 +1207,7 @@ export class OpenAiContractAuditorProvider implements ContractAuditProvider {
     signal?: AbortSignal,
     approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
     skillContextIdentity = "none",
-  ): Promise<ContractAuditResult> {
+  ): Promise<ContractAuditProviderOutput> {
     const prompt = rolePrompt("contract-auditor", input, false, approvedSkills);
     return (
       await this.ai.request({
@@ -1218,7 +1218,7 @@ export class OpenAiContractAuditorProvider implements ContractAuditProvider {
         signal,
         idempotencyKey: `${input.idempotencyKey}:${skillContextIdentity}`,
       })
-    ).value as ContractAuditResult;
+    ).value as ContractAuditProviderOutput;
   }
 }
 export class OpenAiCodeIntegrationReviewProvider implements CodeIntegrationReviewProvider {
@@ -1229,7 +1229,7 @@ export class OpenAiCodeIntegrationReviewProvider implements CodeIntegrationRevie
     signal?: AbortSignal,
     approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
     skillContextIdentity = "none",
-  ): Promise<CodeIntegrationReviewResult> {
+  ): Promise<CodeIntegrationReviewProviderOutput> {
     const prompt = rolePrompt(
       "code-integration-reviewer",
       input,
@@ -1245,7 +1245,7 @@ export class OpenAiCodeIntegrationReviewProvider implements CodeIntegrationRevie
         signal,
         idempotencyKey: `${input.idempotencyKey}:${skillContextIdentity}`,
       })
-    ).value as CodeIntegrationReviewResult;
+    ).value as CodeIntegrationReviewProviderOutput;
   }
 }
 export class OpenAiSecurityReviewProvider implements SecurityReviewProvider {
@@ -1256,7 +1256,7 @@ export class OpenAiSecurityReviewProvider implements SecurityReviewProvider {
     signal?: AbortSignal,
     approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
     skillContextIdentity = "none",
-  ): Promise<SecurityReviewResult> {
+  ): Promise<SecurityReviewProviderOutput> {
     const prompt = rolePrompt(
       "security-reviewer",
       input,
@@ -1272,7 +1272,7 @@ export class OpenAiSecurityReviewProvider implements SecurityReviewProvider {
         signal,
         idempotencyKey: `${input.idempotencyKey}:${skillContextIdentity}`,
       })
-    ).value as SecurityReviewResult;
+    ).value as SecurityReviewProviderOutput;
   }
 }
 export class OpenAiTestQualityReviewProvider implements TestQualityReviewProvider {
@@ -1283,7 +1283,7 @@ export class OpenAiTestQualityReviewProvider implements TestQualityReviewProvide
     signal?: AbortSignal,
     approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
     skillContextIdentity = "none",
-  ): Promise<TestQualityReviewResult> {
+  ): Promise<TestQualityReviewProviderOutput> {
     const prompt = rolePrompt(
       "test-quality-reviewer",
       input,
@@ -1299,7 +1299,7 @@ export class OpenAiTestQualityReviewProvider implements TestQualityReviewProvide
         signal,
         idempotencyKey: `${input.idempotencyKey}:${skillContextIdentity}`,
       })
-    ).value as TestQualityReviewResult;
+    ).value as TestQualityReviewProviderOutput;
   }
 }
 export function createProviderAdapters(ai: OpenAiStructuredClient) {

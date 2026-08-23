@@ -1,6 +1,6 @@
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
-import { SecurityReviewResultSchema, type SecurityReviewResult, type SecuritySurface } from "@/domain/review/schema";
-import { SecurityReviewInputSchema, type SecurityReviewInput, SECURITY_REVIEW_POLICY_VERSION } from "./contracts";
+import { SecurityReviewProviderOutputSchema, type SecurityReviewResult, type SecuritySurface } from "@/domain/review/schema";
+import { SecurityReviewInputSchema, type SecurityReviewInput } from "./contracts";
 import type { SecurityReviewProvider } from "./ports";
 
 const secretPattern = /(sk-[A-Za-z0-9]{12,}|AKIA[A-Z0-9]{12,}|(?:SERVICE_ROLE|DATABASE_URL|API_KEY|SECRET|TOKEN)\s*[:=]\s*['\"]?[A-Za-z0-9_./+=-]{8,})/i;
@@ -19,7 +19,7 @@ export function classifySecuritySurface(raw: SecurityReviewInput): SecuritySurfa
   if (input.sourceManifest.some((file) => /route\.(ts|js)$|route-handler/i.test(file.relativePath))) surfaces.add("ROUTE_HANDLER");
   return surfaces.size ? [...surfaces] : ["NONE"];
 }
-export function deterministicSecurityReview(raw: SecurityReviewInput): SecurityReviewResult {
+export function deterministicSecurityReview(raw: SecurityReviewInput) {
   const input = SecurityReviewInputSchema.parse(raw); const surfaces = classifySecuritySurface(input); const findings = [] as SecurityReviewResult["findings"];
   const evidence = new Set(["brief", "planning-package", "architecture-review", "selected-design", "contract-audit", "code-integration-review", "task-graph", "source", ...input.deterministicSecurityEvidence.evidenceRefs, ...input.unitTestEvidence.evidenceRefs, ...input.sourceManifest.map((file) => `source:${file.relativePath}`), ...input.taskGraph.tasks.map((task) => task.id), ...input.securitySensitiveArtifacts.map((artifact) => artifact.relativePath)]);
   if (input.deterministicSecurityEvidence.status !== "PASSED" && input.deterministicSecurityEvidence.status !== "NOT_REQUIRED") findings.push(finding("security-evidence-invalid", "SECURITY_CONTRACT_MISMATCH", "Deterministic security evidence is not valid.", ["source"]));
@@ -44,7 +44,7 @@ export function deterministicSecurityReview(raw: SecurityReviewInput): SecurityR
   if (input.securityPolicySummary.rlsRequired && !passedTasks.has("implement-rls-policy")) findings.push(finding("rls-owner-missing", "RLS_POLICY", "RLS is required but no completed RLS responsibility exists.", ["planning-package", "task-graph"]));
   if (input.securityPolicySummary.storageDecision !== "not-required" && !passedTasks.has("implement-storage")) findings.push(finding("storage-owner-missing", "STORAGE_ACCESS", "Storage is required but no completed storage responsibility exists.", ["planning-package", "task-graph"]));
   if (input.securityPolicySummary.adminDecision !== "no-admin" && !passedTasks.has("implement-authentication")) findings.push(finding("admin-owner-missing", "ADMIN_PROTECTION", "Admin functionality requires a completed authorization responsibility.", ["planning-package", "task-graph"]));
-  const result = { verdict: findings.length ? "CHANGES_REQUIRED" as const : "APPROVED" as const, findings, reviewedArtifactRefs: ["brief", "planning-package", "architecture-review", "selected-design", "contract-audit", "code-integration-review", "task-graph", "source"], policyVersion: SECURITY_REVIEW_POLICY_VERSION };
-  return SecurityReviewResultSchema.parse(result);
+  const result = { verdict: findings.length ? "CHANGES_REQUIRED" as const : "APPROVED" as const, findings, reviewedArtifactRefs: ["brief", "planning-package", "architecture-review", "selected-design", "contract-audit", "code-integration-review", "task-graph", "source"] };
+  return SecurityReviewProviderOutputSchema.parse(result);
 }
 export class DeterministicSecurityReviewProvider implements SecurityReviewProvider { readonly promptVersion = "security-reviewer.v1"; async review(input: SecurityReviewInput) { return deterministicSecurityReview(input); } }

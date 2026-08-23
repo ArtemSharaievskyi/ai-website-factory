@@ -10,6 +10,7 @@ import {
   ContractAuditProviderOutputSchema,
   ContractAuditRecordSchema,
   ContractAuditResultSchema,
+  type ContractAuditProviderOutput,
   type ContractAuditResult,
 } from "@/domain/review/schema";
 import { contractAuditorAgentDefinition } from "@/agents/catalog";
@@ -346,7 +347,7 @@ export class ContractAuditService {
       );
     }
   }
-  private normalize(raw: ContractAuditResult, input: ContractAuditInput) {
+  private normalize(raw: ContractAuditProviderOutput, input: ContractAuditInput) {
     let parsed;
     try {
       parsed = ContractAuditProviderOutputSchema.parse(raw);
@@ -357,11 +358,6 @@ export class ContractAuditService {
         error,
       );
     }
-    if (parsed.policyVersion !== CONTRACT_AUDIT_POLICY_VERSION)
-      throw new ContractAuditError(
-        "CONTRACT_AUDIT_OUTPUT_INVALID",
-        "Contract Audit policy version is stale.",
-      );
     const evidence = canonicalContractEvidence(input);
     for (const ref of parsed.reviewedArtifactRefs)
       if (!evidence.has(ref))
@@ -407,6 +403,6 @@ export class ContractAuditService {
         "CONTRACT_AUDIT_OUTPUT_INVALID",
         "CHANGES_REQUIRED requires findings.",
       );
-    return ContractAuditResultSchema.parse({ ...parsed, findings });
+    return ContractAuditResultSchema.parse({ ...parsed, findings, policyVersion: CONTRACT_AUDIT_POLICY_VERSION });
   }
 }

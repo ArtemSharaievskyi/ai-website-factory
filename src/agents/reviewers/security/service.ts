@@ -11,6 +11,7 @@ import {
   SecurityReviewProviderOutputSchema,
   SecurityReviewRecordSchema,
   SecurityReviewResultSchema,
+  type SecurityReviewProviderOutput,
   type SecurityReviewResult,
 } from "@/domain/review/schema";
 import { securityReviewerAgentDefinition } from "@/agents/catalog";
@@ -261,7 +262,7 @@ export class SecurityReviewService {
       ? record
       : null;
   }
-  private normalize(raw: SecurityReviewResult, input: SecurityReviewInput) {
+  private normalize(raw: SecurityReviewProviderOutput, input: SecurityReviewInput) {
     const parsed = SecurityReviewProviderOutputSchema.parse(raw);
     const evidence = new Set([
       "brief",
@@ -299,7 +300,7 @@ export class SecurityReviewService {
         );
       return item;
     });
-    const result = SecurityReviewResultSchema.parse({ ...parsed, findings });
+    const result = SecurityReviewResultSchema.parse({ ...parsed, findings, policyVersion: SECURITY_REVIEW_POLICY_VERSION });
     if (
       result.verdict === "APPROVED" &&
       findings.some(

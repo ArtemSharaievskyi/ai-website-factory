@@ -15,10 +15,15 @@ entry names the invariant and the regression boundary that must be exercised.
 ## HOST_OWNED_PROVIDER_FIELDS
 
 - Symptom: provider output attempts to set project identity, version, checksum,
-  approval, currentness, history, or trace metadata.
-- Rule: the host assigns and persists those fields after typed mapping.
-- Regression: assert the provider DTO excludes them and the canonical result
-  receives host values.
+  approval, currentness, history, trace metadata, policy version, or workflow
+  routing.
+- Rule: provider output is a strict semantic proposal only. The host assigns
+  and persists policy provenance, artifact identity, row/CAS metadata, audit
+  fields, and workflow consequences after typed mapping. A legacy provider
+  policy field is rejected rather than silently treated as authority.
+- Regression: assert the provider DTO excludes host-owned fields and the
+  canonical result receives host values, including strict rejection of a
+  provider policy/workflow field.
 
 ## CANONICAL_REQUIREMENT_TRUNCATION
 
@@ -230,12 +235,14 @@ entry names the invariant and the regression boundary that must be exercised.
 
 - Symptom: Brief, PlanningPackage, Architecture, or Phase 7C changes while a
   provider is running, but the stale review is still persisted.
-- Rule: the commit transaction re-reads project/version/workflow state and
-  exact reviewed-artifact checksums after provider completion; stale input
-  produces zero canonical review writes.
+- Rule: the host captures the review policy before provider execution. The
+  commit transaction re-reads that policy snapshot, project/version/workflow
+  state, and exact reviewed-artifact checksums after provider completion; any
+  stale input produces zero canonical review writes.
 - Regression: the Architecture Review suite mutates each reviewed artifact
   between proposal and commit and asserts stale rejection with no review,
-  decision, or workflow event.
+  decision, or workflow event. It also certifies P1/P1 success and P1/P2
+  policy change rejection on in-memory and configured real Postgres paths.
 
 ## CHECKSUM_DOMAIN_MUST_BE_EXPLICIT
 

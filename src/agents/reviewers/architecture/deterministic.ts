@@ -1,4 +1,4 @@
-import { ArchitectureReviewResultSchema, type ArchitectureReviewResult } from "@/domain/review/schema";
+import { ArchitectureReviewProviderOutputSchema, type ArchitectureReviewResult } from "@/domain/review/schema";
 import { evaluatePlanningAcceptanceReadiness } from "@/agents/planner/deterministic";
 import type { ArchitectureReviewInput } from "./contracts";
 import type { ArchitectureReviewProvider } from "./ports";
@@ -20,7 +20,7 @@ export function canonicalArchitectureEvidence(input: ArchitectureReviewInput) {
   ]);
 }
 
-export function deterministicArchitectureReview(input: ArchitectureReviewInput): ArchitectureReviewResult {
+export function deterministicArchitectureReview(input: ArchitectureReviewInput) {
   const planning = input.acceptedPlanningPackage;
   const findings: ArchitectureReviewResult["findings"] = [];
   if (isStaticProfile(input) && (planning.authentication.decision !== "none" || planning.dataModel.entities.length > 0 || planning.supabase.postgres || planning.storage.decision !== "not-required" || planning.email.decision !== "not-required" || planning.administration.decision !== "no-admin")) findings.push(finding("unnecessary-infrastructure", "UNNECESSARY_COMPLEXITY", "ERROR", "Planning introduces infrastructure beyond the approved static-site requirements.", ["brief:features", "brief:backendRequirements", "planning:authentication", "planning:dataModel", "planning:supabase", "planning:storage", "planning:email", "planning:administration"], "Remove infrastructure not justified by the approved Brief."));
@@ -32,7 +32,7 @@ export function deterministicArchitectureReview(input: ArchitectureReviewInput):
   if (planning.architecture.componentDecisions.some((decision) => decision.serverOrClient === "client" && /secret|database|service role|private key/i.test(decision.rationale))) findings.push(finding("client-secret-boundary", "SERVER_CLIENT_BOUNDARY", "CRITICAL", "Planning places secret or database responsibilities in a client boundary.", ["planning:architecture", "planning:security"], "Move secrets and privileged data access to a server boundary."));
   if (!evaluatePlanningAcceptanceReadiness({ planningPackage: planning }).readyForAcceptance || !planning.accepted || !planning.architecture.acceptance.accepted) findings.push(finding("planning-not-ready", "MISSING_DECISION", "ERROR", "Planning contains unresolved acceptance blockers or lacks accepted architecture evidence.", ["planning:architecture", "planning:traceability"], "Resolve technical blockers and rerun Planning Acceptance before review."));
   const verdict = findings.some((item) => item.severity === "ERROR" || item.severity === "CRITICAL") ? "CHANGES_REQUIRED" : "APPROVED";
-  return ArchitectureReviewResultSchema.parse({ verdict, findings, reviewedArtifactRefs: ["brief:projectSummary", "planning:architecture"], policyVersion: "architecture-review-v1", });
+  return ArchitectureReviewProviderOutputSchema.parse({ verdict, findings, reviewedArtifactRefs: ["brief:projectSummary", "planning:architecture"] });
 }
 
 export class DeterministicArchitectureReviewProvider implements ArchitectureReviewProvider {

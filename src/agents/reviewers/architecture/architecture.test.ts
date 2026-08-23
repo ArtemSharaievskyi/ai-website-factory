@@ -19,7 +19,7 @@ import { PlanningPackageSchema, type PlannerAgentInput, type PlanningPackage } f
 import { architectureReviewerAgentDefinition } from "@/agents/catalog";
 import { rolePrompt } from "@/integrations/openai/prompts";
 import { ArchitectureReviewOrchestrationService } from "@/orchestration/architecture-review/service";
-import { ARCHITECTURE_REVIEW_POLICY_VERSION, FACTORY_ARCHITECTURE_STACK, type ArchitectureReviewInput } from "./contracts";
+import { FACTORY_ARCHITECTURE_STACK, type ArchitectureReviewInput } from "./contracts";
 import { ArchitectureReviewError } from "./errors";
 import { deterministicArchitectureReview } from "./deterministic";
 import { ArchitectureReviewService } from "./service";
@@ -126,6 +126,53 @@ describe("Architecture Reviewer", () => {
     expect((await stateOf(fixture.database, fixture.brief.projectId)).review).toBeNull();
   });
 
+  it("stamps host policy and canonical identity after a semantic provider proposal", async () => {
+    const fixture = await createFixture();
+    const policy = "architecture-review-p1";
+    const authority = () => policy;
+    const service = new ArchitectureReviewService(fixture.database, { provider: deterministicProvider, policyVersion: authority });
+    const result = await new ArchitectureReviewOrchestrationService(fixture.database, service, { policyVersion: authority }).reviewAndRoute(fixture.input);
+    const state = await stateOf(fixture.database, fixture.brief.projectId);
+    expect(result.result.policyVersion).toBe("architecture-review-p1");
+    expect(state.review?.payload).toMatchObject({ projectId: fixture.brief.projectId, projectVersion: 1, policyVersion: "architecture-review-p1", approvedBriefChecksum: fixture.input.approvedBriefChecksum, acceptedPlanningChecksum: fixture.input.acceptedPlanningChecksum, reviewerAgentId: "architecture-reviewer", capability: "review.architecture" });
+    expect((state.review?.payload as { result?: { policyVersion?: string } } | undefined)?.result?.policyVersion).toBe("architecture-review-p1");
+    expect(state.events[0]).toMatchObject({ toState: "AWAITING_DESIGN_SELECTION" });
+  });
+
+  it("rejects a provider-authored legacy policy field as an invalid semantic proposal", async () => {
+    const fixture = await createFixture();
+    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => ({ ...deterministicArchitectureReview(fixture.input), policyVersion: "provider-authored-old-policy" } as unknown as ReturnType<typeof deterministicArchitectureReview>) };
+    await expect(new ArchitectureReviewService(fixture.database, { provider }).review(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_OUTPUT_INVALID" });
+    const state = await stateOf(fixture.database, fixture.brief.projectId);
+    expect(state.review).toBeNull();
+    expect(state.decisions).toHaveLength(0);
+    expect(state.events).toHaveLength(0);
+  });
+
+  it("rejects a malformed semantic proposal without canonical writes", async () => {
+    const fixture = await createFixture();
+    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => ({ verdict: "APPROVED", findings: [], reviewedArtifactRefs: [] } as never) };
+    await expect(new ArchitectureReviewService(fixture.database, { provider }).review(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_OUTPUT_INVALID" });
+    const state = await stateOf(fixture.database, fixture.brief.projectId);
+    expect(state.review).toBeNull();
+    expect(state.decisions).toHaveLength(0);
+    expect(state.events).toHaveLength(0);
+  });
+
+  it("rejects a P1 proposal when host policy changes to P2 before commit", async () => {
+    const fixture = await createFixture();
+    let policy = "architecture-review-p1";
+    const authority = () => policy;
+    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => { policy = "architecture-review-p2"; return deterministicArchitectureReview(fixture.input); } };
+    const service = new ArchitectureReviewService(fixture.database, { provider, policyVersion: authority });
+    await expect(new ArchitectureReviewOrchestrationService(fixture.database, service, { policyVersion: authority }).reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE", message: expect.stringMatching(/policy changed/i) });
+    const state = await stateOf(fixture.database, fixture.brief.projectId);
+    expect(state.review).toBeNull();
+    expect(state.history).toBeNull();
+    expect(state.decisions).toHaveLength(0);
+    expect(state.events).toHaveLength(0);
+  });
+
   it("commits PASS result, history, decision, event, and routing together", async () => {
     const fixture = await createFixture();
     const result = await new ArchitectureReviewOrchestrationService(fixture.database, new ArchitectureReviewService(fixture.database, { provider: deterministicProvider })).reviewAndRoute(fixture.input);
@@ -197,8 +244,8 @@ describe("Architecture Reviewer", () => {
   });
 
   it.each([
-    ["BLOCKED", { verdict: "BLOCKED", findings: [], reviewedArtifactRefs: ["planning:architecture"], policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION, blockedReason: "Synthetic canonical evidence block." }],
-    ["CHANGES_REQUIRED", { verdict: "CHANGES_REQUIRED", findings: [{ findingId: "missing-decision", category: "MISSING_DECISION", severity: "ERROR", summary: "A decision is missing.", evidenceRefs: ["planning:architecture"], affectedArtifacts: ["planning:architecture"], recommendedAction: "Resolve the decision." }], reviewedArtifactRefs: ["planning:architecture"], policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION }],
+    ["BLOCKED", { verdict: "BLOCKED", findings: [], reviewedArtifactRefs: ["planning:architecture"], blockedReason: "Synthetic canonical evidence block." }],
+    ["CHANGES_REQUIRED", { verdict: "CHANGES_REQUIRED", findings: [{ findingId: "missing-decision", category: "MISSING_DECISION", severity: "ERROR", summary: "A decision is missing.", evidenceRefs: ["planning:architecture"], affectedArtifacts: ["planning:architecture"], recommendedAction: "Resolve the decision." }], reviewedArtifactRefs: ["planning:architecture"] }],
   ] as const)("persists %s without advancing Design eligibility", async (_label, providerResult) => {
     const fixture = await createFixture();
     const provider = { promptVersion: "architecture-reviewer.v1", review: async () => providerResult as unknown as ArchitectureReviewResult };
@@ -424,6 +471,21 @@ describePostgres("Architecture Review real Postgres certification", () => {
     expect(providerCalls).toBe(1);
     const state = await stateOf(database, fixture.brief.projectId);
     expect(state.review).toBeNull();
+    expect(state.decisions).toHaveLength(0);
+    expect(state.events).toHaveLength(0);
+  });
+
+  it("rejects a real Postgres P1 proposal after the host policy changes to P2", async () => {
+    const fixture = await createFixture(database);
+    postgresProjectIds.push(fixture.brief.projectId);
+    let policy = "architecture-review-p1";
+    const authority = () => policy;
+    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => { policy = "architecture-review-p2"; return deterministicArchitectureReview(fixture.input); } };
+    const service = new ArchitectureReviewService(database, { provider, policyVersion: authority });
+    await expect(new ArchitectureReviewOrchestrationService(database, service, { policyVersion: authority }).reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE" });
+    const state = await stateOf(database, fixture.brief.projectId);
+    expect(state.review).toBeNull();
+    expect(state.history).toBeNull();
     expect(state.decisions).toHaveLength(0);
     expect(state.events).toHaveLength(0);
   });

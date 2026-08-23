@@ -7,6 +7,7 @@ import {
   ArchitectureReviewProviderOutputSchema,
   ArchitectureReviewRecordSchema,
   ArchitectureReviewResultSchema,
+  type ArchitectureReviewProviderOutput,
   type ArchitectureReviewResult,
 } from "@/domain/review/schema";
 import { PlanningPackageSchema } from "@/agents/planner/contracts";
@@ -27,6 +28,7 @@ import { readCanonicalReviewContext, type CanonicalReviewContext } from "./curre
 
 export type ArchitectureReviewServiceDependencies = {
   provider?: ArchitectureReviewProvider;
+  policyVersion?: () => string;
   resolveSkills?: (
     input: ArchitectureReviewInput,
   ) => Promise<ReviewerSkillSelection>;
@@ -41,6 +43,7 @@ export type ArchitectureReviewProposal = {
   planningRowVersion: number;
   architectureChecksum: string;
   phase7cChecksum: string;
+  policyVersion: string;
 };
 
 export class ArchitectureReviewService {
@@ -52,6 +55,7 @@ export class ArchitectureReviewService {
   >();
   private readonly correctionCycles = new Map<string, number>();
   private readonly resolveSkills?: ArchitectureReviewServiceDependencies["resolveSkills"];
+  private readonly policyVersion: () => string;
 
   constructor(
     private readonly database: PersistenceDatabase,
@@ -60,6 +64,7 @@ export class ArchitectureReviewService {
     this.documents = new DocumentRepository(database);
     this.provider = dependencies.provider ?? new DeterministicArchitectureReviewProvider();
     this.resolveSkills = dependencies.resolveSkills;
+    this.policyVersion = dependencies.policyVersion ?? (() => ARCHITECTURE_REVIEW_POLICY_VERSION);
   }
 
   getAgentDefinition() {
@@ -89,6 +94,7 @@ export class ArchitectureReviewService {
     signal?: AbortSignal,
   ): Promise<ArchitectureReviewProposal> {
     const input = this.parseAndPrecheck(rawInput);
+    const policyVersion = this.policyVersion();
     const skillSelection = this.resolveSkills
       ? await this.resolveSkills(input)
       : { contexts: [], identityChecksum: "none", selectedSkillIds: [], selectedSkillChecksums: [] };
@@ -100,7 +106,7 @@ export class ArchitectureReviewService {
       factoryArchitecturePolicy: input.factoryArchitecturePolicy,
       relevantProjectConstraints: input.relevantProjectConstraints,
       skillContextChecksum: skillSelection.identityChecksum,
-      policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION,
+      policyVersion,
       promptVersion: this.provider.promptVersion,
     });
     let canonical: CanonicalReviewContext;
@@ -131,6 +137,7 @@ export class ArchitectureReviewService {
         planningRowVersion: canonical.planningRowVersion,
         architectureChecksum: canonical.architectureChecksum,
         phase7cChecksum: canonical.phase7cChecksum,
+        policyVersion: replay.policyVersion,
       } satisfies ArchitectureReviewProposal;
       this.idempotency.set(input.idempotencyKey, { inputHash, proposal });
       return proposal;
@@ -151,7 +158,7 @@ export class ArchitectureReviewService {
         skillSelection.contexts,
         skillSelection.identityChecksum,
       );
-      const result = this.normalizeResult(providerResult, input);
+      const result = this.normalizeResult(providerResult, input, policyVersion);
       const proposal = {
         result,
         inputHash,
@@ -161,6 +168,7 @@ export class ArchitectureReviewService {
         planningRowVersion: canonical.planningRowVersion,
         architectureChecksum: canonical.architectureChecksum,
         phase7cChecksum: canonical.phase7cChecksum,
+        policyVersion,
       } satisfies ArchitectureReviewProposal;
       this.idempotency.set(input.idempotencyKey, { inputHash, proposal });
       return proposal;
@@ -297,12 +305,13 @@ export class ArchitectureReviewService {
   }
 
   private normalizeResult(
-    raw: ArchitectureReviewResult,
+    raw: ArchitectureReviewProviderOutput,
     input: ArchitectureReviewInput,
+    policyVersion: string,
   ): ArchitectureReviewResult {
-    let parsed: ArchitectureReviewResult;
+    let parsed: ArchitectureReviewProviderOutput;
     try {
-      parsed = ArchitectureReviewProviderOutputSchema.parse(raw) as ArchitectureReviewResult;
+      parsed = ArchitectureReviewProviderOutputSchema.parse(raw);
     } catch (error) {
       throw new ArchitectureReviewError(
         "ARCHITECTURE_REVIEW_OUTPUT_INVALID",
@@ -310,11 +319,6 @@ export class ArchitectureReviewService {
         error,
       );
     }
-    if (parsed.policyVersion !== ARCHITECTURE_REVIEW_POLICY_VERSION)
-      throw new ArchitectureReviewError(
-        "ARCHITECTURE_REVIEW_OUTPUT_INVALID",
-        "Architecture review policy version is stale.",
-      );
     const evidence = canonicalArchitectureEvidence(input);
     for (const reference of parsed.reviewedArtifactRefs)
       if (!evidence.has(reference))
@@ -355,6 +359,6 @@ export class ArchitectureReviewService {
         "ARCHITECTURE_REVIEW_OUTPUT_INVALID",
         "CHANGES_REQUIRED requires findings.",
       );
-    return ArchitectureReviewResultSchema.parse({ ...parsed, findings: deduped });
+    return ArchitectureReviewResultSchema.parse({ ...parsed, findings: deduped, policyVersion });
   }
 }

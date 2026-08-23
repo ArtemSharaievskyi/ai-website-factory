@@ -11,6 +11,7 @@ import {
   TestQualityReviewProviderOutputSchema,
   TestQualityReviewRecordSchema,
   TestQualityReviewResultSchema,
+  type TestQualityReviewProviderOutput,
   type TestQualityReviewResult,
 } from "@/domain/review/schema";
 import { testQualityReviewerAgentDefinition } from "@/agents/catalog";
@@ -240,7 +241,7 @@ export class TestQualityReviewService {
       : null;
   }
   private normalize(
-    raw: TestQualityReviewResult,
+    raw: TestQualityReviewProviderOutput,
     input: TestQualityReviewInput,
   ) {
     const parsed = TestQualityReviewProviderOutputSchema.parse(raw);
@@ -283,6 +284,7 @@ export class TestQualityReviewService {
     const result = TestQualityReviewResultSchema.parse({
       ...parsed,
       findings: parsed.findings,
+      policyVersion: TEST_QUALITY_REVIEW_POLICY_VERSION,
     });
     return result.findings.some(
       (item) => item.severity === "ERROR" || item.severity === "CRITICAL",

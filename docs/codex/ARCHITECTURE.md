@@ -74,14 +74,17 @@ and decision records. No provider, agent, Workbench caller, or alternate
 entrypoint owns any part of this commit or reconstructs a raw projection root.
 
 Architecture Review has the same host-owned commit rule. The Architecture
-Reviewer emits only a typed proposal; `ArchitectureReviewOrchestrationService`
-delegates the proposal and canonical commit to one transaction authority. The
-commit rechecks project/workflow/CAS and the current Brief, PlanningPackage,
-Architecture, and Phase 7C checksums before atomically writing the review
-result, review history, architecture-review decision, and any approved routing
-event/state transition. A provider call is never held inside the database
-transaction. Project Memory receives the decision only after commit and can be
-reconciled from canonical decision rows if projection fails.
+Reviewer emits only a typed semantic proposal; provider output excludes policy
+version, project/artifact identity, row/CAS metadata, provenance, and workflow
+routing. `ArchitectureReviewOrchestrationService` delegates the proposal and
+canonical commit to one transaction authority. The host captures the policy
+version before provider execution, stamps it onto the canonical result, then
+rechecks that policy snapshot plus project/workflow/CAS and the current Brief,
+PlanningPackage, Architecture, and Phase 7C checksums before atomically writing
+the review result, review history, architecture-review decision, and any
+approved routing event/state transition. A provider call is never held inside
+the database transaction. Project Memory receives the decision only after
+commit and can be reconciled from canonical decision rows if projection fails.
 
 Planning checksum domains are explicit. `planningSemanticChecksum` identifies
 PlanningPackage meaning and is the binding used by Phase 7C and other semantic

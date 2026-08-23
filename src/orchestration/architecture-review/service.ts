@@ -10,11 +10,15 @@ export class ArchitectureReviewOrchestrationService {
   private readonly commitService: ArchitectureReviewCanonicalCommitService;
   constructor(
     database: PersistenceDatabase,
-    private readonly reviewer = new ArchitectureReviewService(database),
+    reviewer?: ArchitectureReviewService,
     dependencies: ArchitectureReviewCanonicalCommitDependencies = {},
   ) {
+    this.reviewer = reviewer ?? new ArchitectureReviewService(database, {
+      policyVersion: dependencies.policyVersion,
+    });
     this.commitService = new ArchitectureReviewCanonicalCommitService(database, dependencies);
   }
+  private readonly reviewer: ArchitectureReviewService;
   get reviewerService() { return this.reviewer; }
   async reviewAndRoute(input: ArchitectureReviewInput, signal?: AbortSignal) {
     const proposal = await this.reviewer.reviewProposal(input, signal);

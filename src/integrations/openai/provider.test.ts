@@ -39,8 +39,10 @@ describe("production AI provider boundary", () => {
     ] as const;
     for (const [name, schema, category] of schemas) {
       expect(() => zodResponseFormat(schema, name)).not.toThrow();
-      const zeroFinding = { verdict: "APPROVED", findings: [], reviewedArtifactRefs: ["file:src/app.ts"], policyVersion: "review-v1", blockedReason: null };
+      const zeroFinding = { verdict: "APPROVED", findings: [], reviewedArtifactRefs: ["file:src/app.ts"], blockedReason: null };
       expect(schema.safeParse(zeroFinding).success).toBe(true);
+      expect(schema.safeParse({ ...zeroFinding, policyVersion: "provider-authored-old-policy" }).success).toBe(false);
+      expect(schema.safeParse({ ...zeroFinding, targetWorkflowState: "AWAITING_DESIGN_SELECTION" }).success).toBe(false);
       const oneFinding = { ...zeroFinding, verdict: "CHANGES_REQUIRED", findings: [{ findingId: "finding-1", severity: "INFO", category, summary: "Bounded finding.", evidenceRefs: ["file:src/app.ts"], affectedArtifacts: [], recommendedAction: "Review the cited evidence.", ...(category === "REQUIREMENT_NOT_TRACED" ? { correctionTarget: "PLANNING" } : {}), ...(category === "CONTRACT_IMPLEMENTATION_MISMATCH" ? { correctionTarget: "IMPLEMENTATION_TASK", ownerTaskId: null } : {}), ...(category === "TRUST_BOUNDARY" ? { correctionTarget: "IMPLEMENTATION_TASK", ownerTaskId: null } : {}), ...(category === "REQUIREMENT_NOT_VERIFIED" ? { correctionTarget: "TEST_TASK", ownerTaskId: null } : {}) }] };
       expect(schema.safeParse(oneFinding).success).toBe(true);
     }
@@ -67,7 +69,7 @@ describe("production AI provider boundary", () => {
         ...(category === "TRUST_BOUNDARY" ? { correctionTarget: "IMPLEMENTATION_TASK", ownerTaskId: null } : {}),
         ...(category === "REQUIREMENT_NOT_VERIFIED" ? { correctionTarget: "TEST_TASK", ownerTaskId: null } : {}),
       };
-      const valid = { verdict: "CHANGES_REQUIRED", findings: [finding], reviewedArtifactRefs: ["file:src/app.ts"], policyVersion: "review-v1", blockedReason: null };
+      const valid = { verdict: "CHANGES_REQUIRED", findings: [finding], reviewedArtifactRefs: ["file:src/app.ts"], blockedReason: null };
       expect(schema.safeParse({ ...valid, findings: [{ ...finding, severity: "SEVERE" }] }).success).toBe(false);
       expect(schema.safeParse({ ...valid, verdict: "UNKNOWN" }).success).toBe(false);
       expect(schema.safeParse({ ...valid, findings: [{ ...finding, evidenceRefs: [] }] }).success).toBe(false);

@@ -1,10 +1,10 @@
-import { CodeIntegrationReviewResultSchema, type CodeIntegrationReviewResult } from "@/domain/review/schema";
+import { CodeIntegrationReviewProviderOutputSchema, type CodeIntegrationReviewResult } from "@/domain/review/schema";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
-import { CodeIntegrationReviewInputSchema, type CodeIntegrationReviewInput, CODE_INTEGRATION_REVIEW_POLICY_VERSION } from "./contracts";
+import { CodeIntegrationReviewInputSchema, type CodeIntegrationReviewInput } from "./contracts";
 import type { CodeIntegrationReviewProvider } from "./ports";
 
 const finding = (id: string, category: CodeIntegrationReviewResult["findings"][number]["category"], summary: string, refs: string[], ownerTaskId?: string) => ({ findingId: id, severity: "ERROR" as const, category, summary, evidenceRefs: refs, affectedArtifacts: refs, recommendedAction: ownerTaskId ? `Correct the implementation owned by task ${ownerTaskId}.` : "Correct the upstream contract and rerun implementation review.", correctionTarget: ownerTaskId ? "IMPLEMENTATION_TASK" as const : "UPSTREAM_CONTRACT" as const, ...(ownerTaskId ? { ownerTaskId } : {}) });
-export function deterministicCodeIntegrationReview(raw: CodeIntegrationReviewInput): CodeIntegrationReviewResult {
+export function deterministicCodeIntegrationReview(raw: CodeIntegrationReviewInput) {
   const input = CodeIntegrationReviewInputSchema.parse(raw);
   const findings = [] as CodeIntegrationReviewResult["findings"];
   if (input.staticValidation.sourceChecksum !== input.sourceChecksum) findings.push(finding("source-checksum-stale", "CONTRACT_IMPLEMENTATION_MISMATCH", "Static validation evidence does not describe the current source checksum.", ["source"]));
@@ -20,7 +20,7 @@ export function deterministicCodeIntegrationReview(raw: CodeIntegrationReviewInp
   for (const slice of input.sourceSlices) if (!manifest.has(slice.relativePath)) findings.push(finding(`source-ref-${slice.relativePath.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`, "MODULE_INTEGRATION_MISMATCH", "A source slice is not present in the bounded source manifest.", [`source:${slice.relativePath}`]));
   const taskIds = new Set(input.implementationTasks.map((task) => task.taskId));
   for (const task of input.taskGraph.tasks.filter((task) => task.role === "implementation" && task.taskType.startsWith("implement-"))) if (task.status === "passed" && !taskIds.has(task.id)) findings.push(finding(`task-summary-${task.id}`, "IMPLEMENTATION_RESPONSIBILITY_MISMATCH", "A passed implementation task is missing from the current source review summaries.", [task.id]));
-  const result = { verdict: findings.length ? "CHANGES_REQUIRED" as const : "APPROVED" as const, findings, reviewedArtifactRefs: ["brief", "planning-package", "architecture-review", "selected-design", "contract-audit", "task-graph", "source"], policyVersion: CODE_INTEGRATION_REVIEW_POLICY_VERSION };
-  return CodeIntegrationReviewResultSchema.parse(result);
+  const result = { verdict: findings.length ? "CHANGES_REQUIRED" as const : "APPROVED" as const, findings, reviewedArtifactRefs: ["brief", "planning-package", "architecture-review", "selected-design", "contract-audit", "task-graph", "source"] };
+  return CodeIntegrationReviewProviderOutputSchema.parse(result);
 }
 export class DeterministicCodeIntegrationReviewProvider implements CodeIntegrationReviewProvider { readonly promptVersion = "code-integration-reviewer.v1"; async review(input: CodeIntegrationReviewInput) { return deterministicCodeIntegrationReview(input); } }

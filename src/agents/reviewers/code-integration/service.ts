@@ -11,6 +11,7 @@ import {
   CodeIntegrationReviewProviderOutputSchema,
   CodeIntegrationReviewRecordSchema,
   CodeIntegrationReviewResultSchema,
+  type CodeIntegrationReviewProviderOutput,
   type CodeIntegrationReviewResult,
 } from "@/domain/review/schema";
 import { codeIntegrationReviewerAgentDefinition } from "@/agents/catalog";
@@ -226,7 +227,7 @@ export class CodeIntegrationReviewService {
       : null;
   }
   private normalize(
-    raw: CodeIntegrationReviewResult,
+    raw: CodeIntegrationReviewProviderOutput,
     input: CodeIntegrationReviewInput,
   ) {
     const parsed = CodeIntegrationReviewProviderOutputSchema.parse(raw);
@@ -267,6 +268,7 @@ export class CodeIntegrationReviewService {
     const result = CodeIntegrationReviewResultSchema.parse({
       ...parsed,
       findings,
+      policyVersion: CODE_INTEGRATION_REVIEW_POLICY_VERSION,
     });
     if (
       result.verdict === "APPROVED" &&

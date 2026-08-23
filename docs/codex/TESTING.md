@@ -80,17 +80,19 @@ root is used without a generic fallback.
 
 Architecture Review transaction certification is covered by
 `src/agents/reviewers/architecture/architecture.test.ts`. It must exercise the
-real production-shaped orchestration path with a deterministic provider and
-real Postgres when configured: PASS, BLOCKED, CHANGES_REQUIRED, rollback after
-review-result/history/decision writes and workflow-transition failure,
-commit-time Brief/Planning/Architecture/Phase 7C currentness, exact one
-approved transition, repeat/restart safety, unchanged upstream semantics, and
-post-commit Project Memory decision projection recovery without a second
-provider call. The checksum-domain cases must also prove that acceptance-only
-PlanningPackage envelope changes preserve the Phase 7C semantic binding, true
-semantic changes reject before provider execution, and an envelope/row change
-after provider execution still rejects at commit even when semantic identity
-and, where applicable, the document checksum are unchanged.
+real production-shaped orchestration path with a deterministic semantic-only
+provider and real Postgres when configured: host policy stamping, strict
+rejection of legacy provider policy/workflow fields, malformed semantic output,
+P1/P1 success, P1/P2 policy currentness rejection, PASS, BLOCKED,
+CHANGES_REQUIRED, rollback after review-result/history/decision writes and
+workflow-transition failure, commit-time Brief/Planning/Architecture/Phase 7C
+currentness, exact one approved transition, repeat/restart safety, unchanged
+upstream semantics, and post-commit Project Memory decision projection recovery
+without a second provider call. The checksum-domain cases must also prove that
+acceptance-only PlanningPackage envelope changes preserve the Phase 7C semantic
+binding, true semantic changes reject before provider execution, and an
+envelope/row change after provider execution still rejects at commit even when
+semantic identity and, where applicable, the document checksum are unchanged.
 
 ## Database and larger boundaries
 

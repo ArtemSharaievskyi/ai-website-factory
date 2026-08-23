@@ -41,6 +41,7 @@ export type ArchitectureReviewFaultInjector = {
 export type ArchitectureReviewCanonicalCommitDependencies = {
   projection?: ProjectMemorySyncPort;
   faultInjector?: ArchitectureReviewFaultInjector;
+  policyVersion?: () => string;
 };
 
 export type ArchitectureReviewCommitResult = {
@@ -54,6 +55,7 @@ export class ArchitectureReviewCanonicalCommitService {
   private readonly decisions: DecisionRepository;
   private readonly projection?: ProjectMemorySyncPort;
   private readonly faultInjector?: ArchitectureReviewFaultInjector;
+  private readonly policyVersion: () => string;
 
   constructor(
     private readonly database: PersistenceDatabase,
@@ -62,6 +64,7 @@ export class ArchitectureReviewCanonicalCommitService {
     this.decisions = new DecisionRepository(database);
     this.projection = dependencies.projection;
     this.faultInjector = dependencies.faultInjector;
+    this.policyVersion = dependencies.policyVersion ?? (() => ARCHITECTURE_REVIEW_POLICY_VERSION);
   }
 
   async commit(
@@ -69,7 +72,10 @@ export class ArchitectureReviewCanonicalCommitService {
     proposal: ArchitectureReviewProposal,
   ): Promise<ArchitectureReviewCommitResult> {
     const input = this.parseInput(rawInput);
-    const result = ArchitectureReviewResultSchema.parse(proposal.result);
+    const result = ArchitectureReviewResultSchema.parse({
+      ...proposal.result,
+      policyVersion: proposal.policyVersion,
+    });
     const inputHash = this.reviewInputIdentity(input, proposal);
     if (inputHash !== proposal.inputHash)
       throw new ArchitectureReviewError(
@@ -93,6 +99,11 @@ export class ArchitectureReviewCanonicalCommitService {
         throw new ArchitectureReviewError(
           "ARCHITECTURE_REVIEW_STALE",
           "The accepted PlanningPackage row is stale.",
+        );
+      if (proposal.policyVersion !== this.policyVersion())
+        throw new ArchitectureReviewError(
+          "ARCHITECTURE_REVIEW_STALE",
+          "The Architecture Review policy changed after provider context was captured.",
         );
       const replay = this.replayResult(canonical, input, proposal.inputHash);
       if (replay) {
@@ -154,7 +165,7 @@ export class ArchitectureReviewCanonicalCommitService {
         reviewerAgentId: architectureReviewerAgentDefinition.agentId,
         reviewerVersion: architectureReviewerAgentDefinition.version,
         capability: "review.architecture",
-        policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION,
+        policyVersion: proposal.policyVersion,
         promptVersion: proposal.promptVersion,
         reviewInputChecksum: proposal.inputHash,
         approvedBriefChecksum: input.approvedBriefChecksum,
@@ -298,7 +309,7 @@ export class ArchitectureReviewCanonicalCommitService {
       factoryArchitecturePolicy: input.factoryArchitecturePolicy,
       relevantProjectConstraints: input.relevantProjectConstraints,
       skillContextChecksum: proposal.skillContextChecksum,
-      policyVersion: ARCHITECTURE_REVIEW_POLICY_VERSION,
+      policyVersion: proposal.policyVersion,
       promptVersion: proposal.promptVersion,
     });
   }
