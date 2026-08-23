@@ -32,4 +32,33 @@ describe("filesystem Project Memory synchronization", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it("projects decisions by project and version without duplicates", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "factory-memory-sync-decisions-"));
+    try {
+      const alpha = new FilesystemProjectMemorySyncPort(root, "project-alpha");
+      const beta = new FilesystemProjectMemorySyncPort(root, "project-beta");
+      const decision = (id: string, category: string) => ({ id, timestamp: "2026-01-01T00:00:00.000Z", actorType: "system" as const, actorIdentifier: "synthetic-test", category, decision: `Synthetic ${category}`, rationale: "Synthetic isolation fixture", affectedDocuments: [], requirementChange: false, userApprovalRequired: false, userApprovalStatus: "not-required" as const });
+      const alphaV1 = decision("33333333-3333-4333-8333-333333333331", "alpha-v1");
+      const betaV1 = decision("33333333-3333-4333-8333-333333333332", "beta-v1");
+      const alphaV2 = decision("33333333-3333-4333-8333-333333333333", "alpha-v2");
+      await alpha.writeVersionSnapshot("44444444-4444-4444-8444-444444444444", 1, { "original-prompt.md": "Synthetic alpha v1" });
+      await beta.writeVersionSnapshot("55555555-5555-4555-8555-555555555555", 1, { "original-prompt.md": "Synthetic beta v1" });
+      await alpha.writeVersionSnapshot("44444444-4444-4444-8444-444444444444", 2, { "original-prompt.md": "Synthetic alpha v2" });
+      await alpha.appendDecision("44444444-4444-4444-8444-444444444444", 1, alphaV1);
+      await alpha.appendDecision("44444444-4444-4444-8444-444444444444", 1, alphaV1);
+      await beta.appendDecision("55555555-5555-4555-8555-555555555555", 1, betaV1);
+      await alpha.appendDecision("44444444-4444-4444-8444-444444444444", 2, alphaV2);
+      const readDecisions = async (slug: string, version: number) => (await readFile(path.join(root, slug, `v${version}`, ".factory", "decisions.jsonl"), "utf8")).trim().split(/\r?\n/).map((line) => ({ id: (JSON.parse(line) as { id: string }).id }));
+      await expect(readDecisions("project-alpha", 1)).resolves.toEqual([{ id: alphaV1.id }]);
+      await expect(readDecisions("project-beta", 1)).resolves.toEqual([{ id: betaV1.id }]);
+      await expect(readDecisions("project-alpha", 2)).resolves.toEqual([{ id: alphaV2.id }]);
+      await expect(readFile(path.join(root, "v1", ".factory", "decisions.jsonl"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(alpha.verifyVersionSnapshot("44444444-4444-4444-8444-444444444444", 1)).resolves.toBe(true);
+      await expect(beta.verifyVersionSnapshot("55555555-5555-4555-8555-555555555555", 1)).resolves.toBe(true);
+      await expect(alpha.verifyVersionSnapshot("44444444-4444-4444-8444-444444444444", 2)).resolves.toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

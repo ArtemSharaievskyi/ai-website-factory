@@ -73,7 +73,10 @@ The transaction certification must also prove one real-Postgres production-shape
 commit, full rollback after acceptance/decision/workflow fault injection, current
 row-version CAS, safe repeat acceptance, unchanged semantic PlanningPackage and
 Brief state, preserved deferred items, and post-commit projection recovery. It
-must not call OpenAI or execute Design.
+must not call OpenAI or execute Design. Filesystem Project Memory certification
+must additionally prove that decision records remain isolated by project and
+version, duplicate reconciliation is idempotent, and the scoped projection
+root is used without a generic fallback.
 
 ## Database and larger boundaries
 

@@ -1,3 +1,4 @@
+import path from "node:path";
 import { z } from "zod";
 import { IsoDateTimeSchema, NonEmptyStringSchema, ProjectVersionSchema, UuidSchema } from "@/domain/shared/schemas";
 
@@ -11,4 +12,5 @@ export type WorkspaceProjectMetadata = z.infer<typeof WorkspaceProjectMetadataSc
 export type WorkspaceVersionSummary = z.infer<typeof WorkspaceVersionSummarySchema>;
 
 export function normalizeWorkspaceRoot(value: string) { const parsed = WorkspaceRootSchema.parse(value); if (/^[A-Za-z]:[\\/]$/.test(parsed)) return `${parsed[0]}:${parsed[1]}`; return parsed.replace(/[\\/]$/, ""); }
+export function resolveWorkspaceProjectRoot(workspaceRoot: string, slug: string) { return path.join(normalizeWorkspaceRoot(path.resolve(workspaceRoot)), WorkspaceSlugSchema.parse(slug)); }
 export function versionDirectoryName(version: number) { return `v${ProjectVersionSchema.parse(version)}`; }

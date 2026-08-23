@@ -185,3 +185,17 @@ entry names the invariant and the regression boundary that must be exercised.
 - Regression: the Planning Acceptance transaction certification injects a
   projection failure, verifies canonical state remains internally consistent,
   then restores the projection from a fresh service.
+
+## PROJECT_MEMORY_ROOT_MUST_BE_PROJECT_AND_VERSION_SCOPED
+
+- Symptom: `decisions.jsonl` is written under a generic workspace/version root,
+  so a Project Memory projection is invisible to the owning project or can be
+  mixed with another project.
+- Rule: the project/version-scoped `ProjectMemorySyncPort` owns every Project
+  Memory projection write, including decision projection, at
+  `<configured-root>/<slug>/vN/.factory`. Agent memory adapters and
+  orchestrators must not reconstruct raw filesystem roots.
+- Regression: the filesystem sync test covers the wrong-root boundary,
+  cross-project and cross-version isolation, duplicate decision idempotency,
+  and integrity verification; transaction certification covers projection
+  failure and recovery without rerunning acceptance.

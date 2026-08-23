@@ -68,8 +68,10 @@ decision, workflow state, and workflow event together. Unchanged content and
 asset documents are not rewritten as acceptance side effects. Filesystem
 Project Memory is a recoverable derived projection after the database commit;
 `reconcileAcceptedPlanningProjection` rebuilds it from canonical rows when a
-projection write fails. No provider, agent, Workbench caller, or alternate
-entrypoint owns any part of this commit.
+projection write fails. The project/version-scoped `ProjectMemorySyncPort` is
+the single filesystem root authority for Project Memory projection documents
+and decision records. No provider, agent, Workbench caller, or alternate
+entrypoint owns any part of this commit or reconstructs a raw projection root.
 
 ## Workflow shape
 

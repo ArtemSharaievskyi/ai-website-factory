@@ -217,7 +217,7 @@ describe("isolated Brief Revision V3 transaction", () => {
 
   it("keeps the committed DB state authoritative when projection sync fails", async () => {
     const f = await fixture();
-    const projection: ProjectMemorySyncPort = { writeVersionSnapshot: async () => { throw new Error("synthetic memory failure"); }, verifyVersionSnapshot: async () => false, compareDatabaseAndFilesystemChecksums: async () => ({ matches: false, mismatches: ["brief-v3.json"] }) };
+    const projection: ProjectMemorySyncPort = { writeVersionSnapshot: async () => { throw new Error("synthetic memory failure"); }, appendDecision: async () => undefined, verifyVersionSnapshot: async () => false, compareDatabaseAndFilesystemChecksums: async () => ({ matches: false, mismatches: ["brief-v3.json"] }) };
     const provider = new FixtureProvider(() => multiDomainChangeSet);
     const service = new BriefV3TransactionService({ database: f.database, provider, projection });
     const result = await service.execute(input(f.currentness));
@@ -305,7 +305,7 @@ describe("isolated Brief Revision V3 transaction", () => {
     for (const point of ["after-db-commit", "during-memory-sync", "before-response"] as const) {
       faultCaseCount += 1;
       const f = await fixture();
-      const projection: ProjectMemorySyncPort = { writeVersionSnapshot: async () => undefined, verifyVersionSnapshot: async () => true, compareDatabaseAndFilesystemChecksums: async () => ({ matches: true, mismatches: [] }) };
+      const projection: ProjectMemorySyncPort = { writeVersionSnapshot: async () => undefined, appendDecision: async () => undefined, verifyVersionSnapshot: async () => true, compareDatabaseAndFilesystemChecksums: async () => ({ matches: true, mismatches: [] }) };
       const provider = new FixtureProvider(() => multiDomainChangeSet);
       const service = new BriefV3TransactionService({ database: f.database, provider, projection });
       await expect(service.execute(input(f.currentness, { faults: faultAt(point) }))).rejects.toThrow(`synthetic fault: ${point}`);
@@ -392,7 +392,7 @@ describe("isolated Brief Revision V3 transaction", () => {
   it("recovers a failed Project Memory projection without changing canonical authority", async () => {
     const f = await fixture();
     let fail = true;
-    const projection: ProjectMemorySyncPort = { writeVersionSnapshot: async () => { if (fail) throw new Error("synthetic projection failure"); }, verifyVersionSnapshot: async () => true, compareDatabaseAndFilesystemChecksums: async () => ({ matches: true, mismatches: [] }) };
+    const projection: ProjectMemorySyncPort = { writeVersionSnapshot: async () => { if (fail) throw new Error("synthetic projection failure"); }, appendDecision: async () => undefined, verifyVersionSnapshot: async () => true, compareDatabaseAndFilesystemChecksums: async () => ({ matches: true, mismatches: [] }) };
     const provider = new FixtureProvider(() => multiDomainChangeSet);
     const service = new BriefV3TransactionService({ database: f.database, provider, projection });
     await expect(service.execute(input(f.currentness))).resolves.toMatchObject({ outcome: "COMMITTED" });

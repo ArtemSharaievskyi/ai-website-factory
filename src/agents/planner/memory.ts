@@ -1,15 +1,12 @@
-import path from "node:path";
 import type { DecisionRecord } from "@/domain/workflow/decision";
 import type { ProjectMemorySyncPort } from "@/persistence/database/sync";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import type { PlannerMemoryPort } from "./ports";
-import { ProjectMemoryStore } from "@/persistence/project-memory/store";
-import { versionDirectoryName } from "../../runtime/workspace/schemas";
 export class PlannerMemoryAdapter implements PlannerMemoryPort {
-  constructor(private readonly sync: ProjectMemorySyncPort, private readonly decisions: { append(projectId: string, version: number, decision: DecisionRecord): Promise<unknown> }, private readonly projectRoot?: string) {}
+  constructor(private readonly sync: ProjectMemorySyncPort, private readonly decisions: { append(projectId: string, version: number, decision: DecisionRecord): Promise<unknown> }) {}
   async writeSnapshot(projectId: string, version: number, documents: Record<string, unknown>) { await this.sync.writeVersionSnapshot(projectId, version, documents); }
-  async appendDecision(projectId: string, version: number, decision: DecisionRecord) { if (this.projectRoot) await new ProjectMemoryStore(path.join(this.projectRoot, versionDirectoryName(version), ".factory")).appendDecision(decision); await this.decisions.append(projectId, version, decision); }
-  async writeDecisionProjection(_projectId: string, version: number, decision: DecisionRecord) { if (this.projectRoot) await new ProjectMemoryStore(path.join(this.projectRoot, versionDirectoryName(version), ".factory")).appendDecision(decision); }
+  async appendDecision(projectId: string, version: number, decision: DecisionRecord) { await this.sync.appendDecision(projectId, version, decision); await this.decisions.append(projectId, version, decision); }
+  async writeDecisionProjection(projectId: string, version: number, decision: DecisionRecord) { await this.sync.appendDecision(projectId, version, decision); }
   async checksums(_projectId: string, version: number) { const candidate = this.sync as ProjectMemorySyncPort & { filesystemChecksums?: (version: number) => Promise<Record<string, string>> }; return candidate.filesystemChecksums ? candidate.filesystemChecksums(version) : {}; }
 }
 export class FakePlannerMemoryPort implements PlannerMemoryPort {

@@ -3,10 +3,11 @@ import { FakeProjectMemorySyncPort } from "@/persistence/database/sync";
 import { LeadMemoryAdapter } from "./memory";
 
 describe("Lead production memory adapter", () => {
-  it("does not persist a DecisionRecord a second time", async () => {
-    const duplicatePersistence = { append: vi.fn(async () => undefined) };
-    const adapter = new LeadMemoryAdapter(new FakeProjectMemorySyncPort(), duplicatePersistence);
+  it("delegates decision projection to the scoped sync port", async () => {
+    const sync = new FakeProjectMemorySyncPort();
+    const projection = vi.spyOn(sync, "appendDecision");
+    const adapter = new LeadMemoryAdapter(sync);
     await adapter.appendDecision("project", 1, {} as never);
-    expect(duplicatePersistence.append).not.toHaveBeenCalled();
+    expect(projection).toHaveBeenCalledOnce();
   });
 });

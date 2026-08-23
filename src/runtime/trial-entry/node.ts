@@ -4,7 +4,6 @@ import { createLeadAgentService } from "@/agents/lead/service";
 import { LeadMemoryAdapter } from "@/agents/lead/memory";
 import { FilesystemProjectMemorySyncPort } from "@/runtime/workspace/sync";
 import { readWorkspaceEnvironment } from "@/runtime/workspace/config";
-import { DecisionRepository } from "@/persistence/database/repositories";
 import {
   createPostgresPool,
   PostgresPersistenceDatabase,
@@ -65,11 +64,7 @@ export function createNodeTrialEntryRuntime(options: {
       const lead = createLeadAgentService({
         database,
         provider: ai.lead,
-        memory: new LeadMemoryAdapter(
-          sync,
-          new DecisionRepository(database),
-          workspaceRoot,
-        ),
+        memory: new LeadMemoryAdapter(sync),
       });
       leads.set(slug, lead);
       return lead;

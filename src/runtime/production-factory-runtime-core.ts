@@ -33,8 +33,6 @@ import {
 import { FilesystemProjectMemorySyncPort } from "@/runtime/workspace/sync";
 import { BriefApprovalService } from "@/runtime/trial-entry/brief-approval";
 import { WorkspaceManager } from "@/runtime/workspace/manager";
-import { ProjectMemoryStore } from "@/persistence/project-memory/store";
-import { versionDirectoryName } from "@/runtime/workspace/schemas";
 import {
   DecisionRepository,
   ProjectVersionRepository,
@@ -395,14 +393,10 @@ export function createProductionFactoryRuntime(
       const versions = new ProjectVersionRepository(database);
       const sync = new FilesystemProjectMemorySyncPort(workspaceRoot, slug);
       const workspace = new WorkspaceManager({ root: workspaceRoot, versions });
-      const memoryRoot = (version: number) =>
-        new ProjectMemoryStore(
-          `${workspaceRoot}/${slug}/${versionDirectoryName(version)}/.factory`,
-        );
       const lead = createLeadAgentService({
         database,
         provider: ai.lead,
-        memory: new LeadMemoryAdapter(sync, decisions, workspaceRoot),
+        memory: new LeadMemoryAdapter(sync),
         resolveSkills: resolveLeadSkills,
       });
       const briefApproval = new BriefApprovalService({ database, projection: sync });
@@ -414,13 +408,13 @@ export function createProductionFactoryRuntime(
       const planner = createPlannerArchitectService({
         database,
         provider: ai.planner,
-        memory: new PlannerMemoryAdapter(sync, decisions, workspaceRoot),
+        memory: new PlannerMemoryAdapter(sync, decisions),
         resolveSkills: resolvePlannerSkills,
       });
       const design = createDesignAgentService({
         database,
         provider: ai.design,
-        memory: new DesignMemoryAdapter(sync, workspaceRoot),
+        memory: new DesignMemoryAdapter(sync),
         resolveSkills: resolveDesignSkills,
         professionalPipeline: new ProfessionalDesignCapabilityPipeline(),
       });
@@ -505,9 +499,7 @@ export function createProductionFactoryRuntime(
         writeSnapshot: (projectId, version, documents) =>
           sync.writeVersionSnapshot(projectId, version, documents),
         appendDecision: async (projectId, version, decision) => {
-          await memoryRoot(version).appendDecision(
-            decision as Parameters<ProjectMemoryStore["appendDecision"]>[0],
-          );
+          await sync.appendDecision(projectId, version, decision as Parameters<DecisionRepository["append"]>[2]);
           await decisions.append(
             projectId,
             version,
