@@ -8,6 +8,7 @@ import type { PlannerArchitectService } from "@/agents/planner/service";
 import type { ArchitectureReviewOrchestrationService } from "@/orchestration/architecture-review/service";
 import type { DesignAgentService } from "@/agents/design/service";
 import type { OrchestratorService } from "@/orchestration/orchestrator/service";
+import type { ContractAuditOrchestrationService } from "@/orchestration/contract-audit/service";
 import { DEFAULT_ORCHESTRATION_POLICY } from "@/orchestration/orchestrator/contracts";
 import { Phase7CContractService } from "@/operations/phase7c";
 import { directionSetChecksum } from "@/agents/design/deterministic";
@@ -32,6 +33,7 @@ import type { WorkbenchAsset } from "./contracts";
 import type { CanonicalBriefV3, RequirementCategory } from "@/domain/requirements/v3/schema";
 import { RequirementSpecificationSchema, type RequirementSpecification } from "@/domain/requirements/schema";
 import { BriefV3DocumentSchema, type BriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
+import { taskExecutionCapability } from "@/orchestration/execution/capabilities";
 
 const list = (values: string[] | undefined, limit = 12) => (values ?? []).slice(0, limit).map((value) => value.slice(0, 500));
 const statements = (values: unknown, limit = 16): string[] => {
@@ -106,6 +108,7 @@ export type WorkbenchWorkflowScope = {
   architectureReviewer: ArchitectureReviewOrchestrationService;
   design: DesignAgentService;
   orchestrator: OrchestratorService;
+  contractAuditor: ContractAuditOrchestrationService;
 };
 
 export class WorkbenchApplication {
@@ -368,7 +371,15 @@ export class WorkbenchApplication {
     const input = { projectId, projectVersion: version, approvedBrief: brief, approvedBriefChecksum: briefV3.briefChecksum, acceptedPlanningPackage: planning, acceptedPlanningChecksum: planningDocumentChecksum(planning), selectedDesign: selected, selectedDesignChecksum: checksumPersistedDocument(selected), technicalArchitecture: planning.architecture, contentPlan: planning.content, assetManifest: planning.assets, currentWorkflowState: "READY_FOR_IMPLEMENTATION" as const, existingDecisions: decisions, allowedRoles: ["lead", "planner-architect", "design", "implementation", "qa-release"] as ("lead" | "planner-architect" | "design" | "implementation" | "qa-release")[], approvedSkillRegistrySnapshot: { schemaVersion: 1 as const, checksum: "0".repeat(64), skills: [] }, toolPolicyVersion: "tools-v1", orchestrationPolicyVersion: DEFAULT_ORCHESTRATION_POLICY.version, idempotencyKey: `workbench-orchestrator:${projectId}`, expectedRowVersion: current.rowVersion, workspaceReserved: true, projectImmutable: false, phase7cContractPackage: phase7c };
     const graph = await scope.orchestrator.createImplementationTaskGraph(input);
     if (!graph.valid || !graph.readyForExecution) throw new WorkbenchActionError("IMPLEMENTATION_START_BLOCKED", "The canonical implementation graph is not ready.");
-    await scope.orchestrator.startImplementation({ ...input, expectedRowVersion: (await this.projects.getWithVersion(projectId))?.rowVersion ?? current.rowVersion });
+    const architectureReview = await this.documents.get(projectId, version, "architecture-review");
+    if (!architectureReview || architectureReview.documentType !== "architecture-review" || architectureReview.result.verdict !== "APPROVED") throw new WorkbenchActionError("IMPLEMENTATION_START_BLOCKED", "The current approved Architecture Review is required before Contract Audit.");
+    const auditEntry = await scope.contractAuditor.enterAudit({ projectId, projectVersion: version, expectedRowVersion: (await this.projects.getWithVersion(projectId))?.rowVersion ?? current.rowVersion, idempotencyKey: `workbench-contract-audit-enter:${projectId}` });
+    const executorCatalog = [{ executorId: "factory-runtime", kind: "runtime" as const, current: true, capabilities: [...new Set(graph.taskGraph.tasks.map((task) => taskExecutionCapability(task.taskType)).filter(Boolean) as string[])] }];
+    const audit = await scope.contractAuditor.auditAndRoute({ projectId, projectVersion: version, approvedBrief: brief, briefChecksum: briefV3.briefChecksum, acceptedPlanningPackage: planning, planningChecksum: planningDocumentChecksum(planning), approvedArchitectureReview: architectureReview, architectureReviewChecksum: checksumPersistedDocument(architectureReview), selectedDesign: selected, designChecksum: checksumPersistedDocument(selected), taskGraph: graph.taskGraph, taskGraphChecksum: graph.taskGraph.graphChecksum!, executorCatalog, idempotencyKey: `workbench-contract-audit:${projectId}`, expectedRowVersion: auditEntry.rowVersion });
+    if (audit.result.verdict !== "APPROVED") throw new WorkbenchActionError("IMPLEMENTATION_START_BLOCKED", "Contract Audit rejected the current implementation chain.");
+    const approvedAudit = await this.documents.get(projectId, version, "contract-audit");
+    if (!approvedAudit || approvedAudit.documentType !== "contract-audit") throw new WorkbenchActionError("IMPLEMENTATION_START_BLOCKED", "The approved Contract Audit was not persisted.");
+    await scope.orchestrator.startImplementation({ ...input, approvedContractAuditChecksum: checksumPersistedDocument(approvedAudit), expectedRowVersion: (await this.projects.getWithVersion(projectId))?.rowVersion ?? current.rowVersion });
   }
 
   private brief(requirements: Extract<Awaited<ReturnType<DocumentRepository["get"]>>, { documentType: "requirements" }>, checksum: string, readyForApproval: boolean): WorkbenchBrief {

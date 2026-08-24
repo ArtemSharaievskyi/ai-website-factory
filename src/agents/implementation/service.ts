@@ -4,7 +4,10 @@ import {
   DocumentRepository,
   ProjectRepository,
   ProjectVersionRepository,
+  saveDocumentCASInTransaction,
+  saveDocumentInTransaction,
 } from "@/persistence/database/repositories";
+import { mapRowToDocument } from "@/persistence/database/mapping";
 import type { PersistenceDatabase } from "@/persistence/database/types";
 import {
   ImplementationRunsSchema,
@@ -34,6 +37,7 @@ import { validateSupportedTask, validateTaskResult } from "./validators";
 import type { BackendPlans } from "./backend";
 import { implementationAgentDefinition } from "@/agents/catalog";
 import { PlanningPackageSchema, StoragePlanSchema } from "@/agents/planner/contracts";
+import { planningSemanticChecksum } from "@/agents/planner/deterministic";
 import type { DependencyAuthorityContext } from "@/dependencies/authority";
 import { validatePhase7CContractPackage, validateTaskContractBinding } from "@/domain/contracts/phase7c";
 import { validateDirectionDesignCapability } from "@/domain/design/capability";
@@ -240,14 +244,12 @@ export class ImplementationAgentService {
     input: ImplementationAgentInput,
     run: ImplementationExecutionRun,
     graph: TaskGraph,
+    expectedGraph?: { rowVersion: number; checksum: string },
   ) {
-    const existing = await this.documents.get(
-      input.projectId,
-      input.projectVersion,
-      "implementation-runs",
-    );
-    const runs: ImplementationRuns =
-      existing?.documentType === "implementation-runs"
+    const runs = await this.database.transaction(async (tx) => {
+      const existingRow = await tx.getDocument(input.projectId, input.projectVersion, "implementation-runs");
+      const existing = existingRow ? mapRowToDocument(existingRow) : null;
+      const nextRuns: ImplementationRuns = existing?.documentType === "implementation-runs"
         ? {
             ...existing,
             runs: [
@@ -266,9 +268,12 @@ export class ImplementationAgentService {
             createdAt: input.task.createdAt,
             updatedAt: now(),
             runs: [run],
-          };
-    await this.documents.save(ImplementationRunsSchema.parse(runs));
-    await this.documents.save(graph);
+        };
+      await saveDocumentInTransaction(tx, ImplementationRunsSchema.parse(nextRuns));
+      if (expectedGraph) await saveDocumentCASInTransaction(tx, graph, expectedGraph.rowVersion, expectedGraph.checksum);
+      else await saveDocumentInTransaction(tx, graph);
+      return nextRuns;
+    });
     if (this.memory)
       await this.memory.writeSnapshot(input.projectId, input.projectVersion, {
         "implementation-runs.json": runs,
@@ -346,6 +351,7 @@ export class ImplementationAgentService {
     const startedAt = now();
     let run = runBase(input, "running", startedAt);
     let graph = input.taskGraph;
+    let graphCommitContext: { rowVersion: number; checksum: string } | undefined;
     try {
       const project = await this.projects.getWithVersion(input.projectId);
       const version = await this.versions.get(
@@ -362,24 +368,46 @@ export class ImplementationAgentService {
           "IMPLEMENTATION_VERSION_IMMUTABLE",
           "Project version is unavailable or immutable.",
         );
-      graph = this.updateGraph(
-        graph,
-        input.taskId,
-        "running",
-        input.task.attempt + 1,
-      );
-      await this.documents.save(graph);
+      const persistedGraph = await this.documents.getWithMetadata(input.projectId, input.projectVersion, "task-graph");
+      if (persistedGraph) {
+        if (persistedGraph.document.documentType !== "task-graph" || persistedGraph.rowVersion !== input.expectedTaskRowVersion || persistedGraph.document.graphChecksum !== input.taskGraphChecksum)
+          throw new ImplementationError("IMPLEMENTATION_GRAPH_STALE", "The persisted TaskGraph changed before implementation admission.");
+        graph = persistedGraph.document;
+      }
+      const [brief, planning, selected] = await Promise.all([
+        this.documents.get(input.projectId, input.projectVersion, "requirements"),
+        this.documents.get(input.projectId, input.projectVersion, "planning-package"),
+        this.documents.get(input.projectId, input.projectVersion, "selected-design"),
+      ]);
+      const parsedPlanning = planning?.documentType === "planning-package" ? PlanningPackageSchema.parse(planning) : null;
+      if ([brief, planning, selected].some(Boolean) && (!brief || brief.documentType !== "requirements" || (input.approvedBriefChecksum !== checksumPersistedDocument(brief) && input.approvedBriefChecksum !== brief.approval.approvedRequirementsChecksum) || !parsedPlanning || (input.acceptedPlanningChecksum !== checksumPersistedDocument(parsedPlanning) && input.acceptedPlanningChecksum !== parsedPlanning.acceptance.checksum) || checksumPersistedDocument(input.assetManifest) !== checksumPersistedDocument(parsedPlanning.assets) || input.architectureChecksum !== checksumPersistedDocument(parsedPlanning.architecture) || !selected || selected.documentType !== "selected-design" || input.selectedDesignChecksum !== checksumPersistedDocument(selected)))
+        throw new ImplementationError("IMPLEMENTATION_DOCUMENT_STALE", "Canonical implementation documents changed before execution.");
       if (input.phase7cContractPackage) {
         try {
           const contract = input.phase7cContractPackage.taskContracts.find((candidate) => candidate.taskId === input.task.id);
           if (!contract) throw new Error("TaskContract is missing.");
           validatePhase7CContractPackage(input.phase7cContractPackage);
+          if (input.phase7cContractPackage.projectId !== input.projectId || input.phase7cContractPackage.projectVersion !== input.projectVersion || input.phase7cContractPackage.currentness.status !== "CURRENT" || input.phase7cContractPackage.approvedBriefChecksum !== input.approvedBriefChecksum || !parsedPlanning || input.phase7cContractPackage.planningChecksum !== planningSemanticChecksum(parsedPlanning) || input.phase7cContractPackage.architectureChecksum !== checksumPersistedDocument(parsedPlanning.architecture)) throw new Error("Phase 7C package is stale.");
           validateTaskContractBinding(input.task, contract);
           if (input.task.phase7c?.taskContractChecksum !== contract.checksum) throw new Error("Task binding checksum is stale.");
         } catch (error) {
           throw new ImplementationError("IMPLEMENTATION_GRAPH_STALE", "Implementation is blocked by a stale Phase 7C contract package.", error);
         }
       }
+      if (persistedGraph && persistedGraph.document.documentType === "task-graph") {
+        const currentTask = persistedGraph.document.tasks.find((candidate) => candidate.id === input.taskId);
+        if (!currentTask || currentTask.status !== input.expectedTaskState || currentTask.attempt !== input.task.attempt) throw new ImplementationError("IMPLEMENTATION_GRAPH_STALE", "The implementation task is no longer admissible from the current TaskGraph.");
+      }
+      const graphAdmission = persistedGraph ? { rowVersion: persistedGraph.rowVersion, checksum: persistedGraph.checksum } : undefined;
+      graph = this.updateGraph(
+        graph,
+        input.taskId,
+        "running",
+        input.task.attempt + 1,
+      );
+      if (graphAdmission) await this.database.transaction((tx) => saveDocumentCASInTransaction(tx, graph, graphAdmission.rowVersion, graphAdmission.checksum));
+      else await this.documents.save(graph);
+      graphCommitContext = { rowVersion: graphAdmission ? graphAdmission.rowVersion + 1 : 1, checksum: checksumPersistedDocument(graph) };
       if (input.cancellation.requested || signal?.aborted)
         throw new ImplementationError(
           "IMPLEMENTATION_CANCELLED",
@@ -464,7 +492,7 @@ export class ImplementationAgentService {
         "passed",
         input.task.attempt + 1,
       );
-      await this.saveRun(input, run, graph);
+      await this.saveRun(input, run, graph, graphCommitContext);
       this.idempotency.set(key, { hash, result: run });
       return run;
     } catch (error) {
@@ -487,17 +515,19 @@ export class ImplementationAgentService {
         safeFailureSummary: implementationError.message,
         completedAt: now(),
       };
-      graph = this.updateGraph(
-        graph,
-        input.taskId,
-        status,
-        Math.min(input.task.attempt + 1, input.task.maxAttempts),
-        {
-          code: implementationError.code,
-          summary: implementationError.message,
-        },
-      );
-      await this.saveRun(input, run, graph);
+      if (graphCommitContext) {
+        graph = this.updateGraph(
+          graph,
+          input.taskId,
+          status,
+          Math.min(input.task.attempt + 1, input.task.maxAttempts),
+          {
+            code: implementationError.code,
+            summary: implementationError.message,
+          },
+        );
+        await this.saveRun(input, run, graph, graphCommitContext);
+      }
       this.idempotency.set(key, { hash, result: run });
       throw implementationError;
     } finally {

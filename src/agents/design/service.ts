@@ -6,10 +6,15 @@ import {
   DocumentRepository,
   ProjectRepository,
   WorkflowPersistenceService,
+  appendDecisionInTransaction,
+  saveDocumentInTransaction,
+  transitionWorkflowInTransaction,
 } from "@/persistence/database/repositories";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
+import { mapRowToDocument } from "@/persistence/database/mapping";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
 import { resolveLogoPolicy } from "@/domain/requirements/logo-policy";
+import { planningSemanticChecksum } from "@/agents/planner/deterministic";
 import {
   DesignDirectionSetSchema,
   SelectedDesignSchema,
@@ -143,6 +148,11 @@ export class DesignAgentService {
         "DESIGN_PLANNING_STALE",
         "The accepted planning checksum is stale.",
       );
+    if (checksumPersistedDocument(input.assetManifest) !== checksumPersistedDocument(planning.assets))
+      throw new DesignError(
+        "DESIGN_PLANNING_STALE",
+        "The Design asset manifest is stale relative to accepted Planning.",
+      );
     if (!(
       input.currentWorkflowState === "AWAITING_DESIGN_SELECTION" ||
       (allowReady && input.currentWorkflowState === "READY_FOR_IMPLEMENTATION")
@@ -174,6 +184,24 @@ export class DesignAgentService {
         "DESIGN_ARCHITECTURE_REVIEW_STALE",
         "The approved Architecture Review is stale or not approved.",
       );
+    const phase7c = await this.documents.get(
+      input.projectId,
+      input.projectVersion,
+      "phase-7c-contract-package",
+    );
+    if (phase7c) {
+      if (
+        phase7c.documentType !== "phase-7c-contract-package" ||
+        phase7c.currentness.status !== "CURRENT" ||
+        phase7c.approvedBriefChecksum !== input.approvedBriefChecksum ||
+        phase7c.planningChecksum !== planningSemanticChecksum(planning) ||
+        phase7c.architectureChecksum !== checksumPersistedDocument(planning.architecture)
+      )
+        throw new DesignError(
+          "DESIGN_PLANNING_STALE",
+          "The current Phase 7C contract package is stale before Design.",
+        );
+    }
     if (brief.imagesRequired && input.imageSourceDecision === "pending")
       throw new DesignError(
         "IMAGE_SOURCE_PENDING",
@@ -239,6 +267,11 @@ export class DesignAgentService {
     const persisted = await this.documents.get(input.projectId, input.projectVersion, "design-directions");
     if (!options.replaceExisting && persisted?.documentType === "design-directions" && persisted.approvedBriefChecksum === input.approvedBriefChecksum && persisted.acceptedPlanningChecksum === input.acceptedPlanningChecksum && persisted.generationIdempotencyKey && persisted.generationIdempotencyKey !== input.idempotencyKey) throw new DesignError("IDEMPOTENCY_CONFLICT", "Design generation idempotency key was reused with different input.");
     if (!options.replaceExisting && persisted?.documentType === "design-directions" && persisted.approvedBriefChecksum === input.approvedBriefChecksum && persisted.acceptedPlanningChecksum === input.acceptedPlanningChecksum) {
+      try {
+        await this.dependencies.memory.writeSnapshot(input.projectId, input.projectVersion, { "design-directions.json": persisted });
+      } catch (error) {
+        throw new DesignError("DESIGN_PROVIDER_FAILED", "Design replay could not resynchronize its projection.", error);
+      }
       return DesignGenerationResultSchema.parse({ directionSet: persisted, readiness: { readyForSelection: persisted.readyForSelection, blockingReasons: persisted.blockingReasons ?? [], warnings: persisted.warnings ?? [], directionSetChecksum: directionSetChecksum(persisted) } });
     }
     const skillSelection = this.resolveSkills
@@ -316,8 +349,15 @@ export class DesignAgentService {
         readiness,
       );
     }
+    const generatedAt = now();
     set = DesignDirectionSetSchema.parse({
       ...set,
+      projectId: input.projectId,
+      projectVersion: input.projectVersion,
+      createdAt: generatedAt,
+      updatedAt: generatedAt,
+      generatedAt,
+      generatedBy: "factory-design-agent",
       readyForSelection: readiness.readyForSelection,
       blockingReasons: readiness.blockingReasons,
       warnings: readiness.warnings,
@@ -325,22 +365,44 @@ export class DesignAgentService {
       acceptedPlanningChecksum: input.acceptedPlanningChecksum,
       generationIdempotencyKey: input.idempotencyKey,
     });
-    await this.documents.save(
-      set,
-      `design-directions-${input.projectId}-${input.projectVersion}-${input.idempotencyKey}`,
-    );
-    await this.dependencies.memory.writeSnapshot(
-      input.projectId,
-      input.projectVersion,
-      { "design-directions.json": set },
-    );
+    const persistedSet = await this.dependencies.database.transaction(async (tx) => {
+      const projectRow = await tx.getProject(input.projectId);
+      const briefRow = await tx.getDocument(input.projectId, input.projectVersion, "requirements");
+      const planningRow = await tx.getDocument(input.projectId, input.projectVersion, "planning-package");
+      const reviewRow = await tx.getDocument(input.projectId, input.projectVersion, "architecture-review");
+      if (!projectRow || projectRow.current_version !== input.projectVersion || projectRow.workflow_state !== "AWAITING_DESIGN_SELECTION" || projectRow.row_version !== input.expectedRowVersion) throw new DesignError("DESIGN_SELECTION_STALE", "Design generation became stale before its canonical commit.");
+      const brief = briefRow ? mapRowToDocument(briefRow) : null;
+      const planning = planningRow ? mapRowToDocument(planningRow) : null;
+      const review = reviewRow ? mapRowToDocument(reviewRow) : null;
+      if (!brief || brief.documentType !== "requirements" || (!brief.approval.approvedRequirementsChecksum ? checksumPersistedDocument(brief) !== input.approvedBriefChecksum : brief.approval.approvedRequirementsChecksum !== input.approvedBriefChecksum && checksumPersistedDocument(brief) !== input.approvedBriefChecksum)) throw new DesignError("DESIGN_BRIEF_STALE", "The approved Brief changed before Design commit.");
+      if (!planning || planning.documentType !== "planning-package" || (!planning.acceptance?.checksum ? checksumPersistedDocument(planning) !== input.acceptedPlanningChecksum : planning.acceptance.checksum !== input.acceptedPlanningChecksum && checksumPersistedDocument(planning) !== input.acceptedPlanningChecksum)) throw new DesignError("DESIGN_PLANNING_STALE", "Accepted Planning changed before Design commit.");
+      if (!review || review.documentType !== "architecture-review" || review.result.verdict !== "APPROVED" || review.approvedBriefChecksum !== input.approvedBriefChecksum || review.acceptedPlanningChecksum !== input.acceptedPlanningChecksum) throw new DesignError("DESIGN_ARCHITECTURE_REVIEW_STALE", "Architecture Review changed before Design commit.");
+      const existingRow = await tx.getDocument(input.projectId, input.projectVersion, "design-directions");
+      if (!options.replaceExisting && existingRow) {
+        const existing = mapRowToDocument(existingRow);
+        if (existing.documentType === "design-directions" && existing.approvedBriefChecksum === input.approvedBriefChecksum && existing.acceptedPlanningChecksum === input.acceptedPlanningChecksum) return existing;
+      }
+      return saveDocumentInTransaction(tx, set, `design-directions-${input.projectId}-${input.projectVersion}-${input.idempotencyKey}`);
+    });
+    try {
+      await this.dependencies.memory.writeSnapshot(input.projectId, input.projectVersion, { "design-directions.json": persistedSet });
+    } catch (error) {
+      throw new DesignError("DESIGN_PROVIDER_FAILED", "Design was committed but its projection could not be synchronized.", error);
+    }
     return DesignGenerationResultSchema.parse({
-      directionSet: set,
+      directionSet: persistedSet,
       readiness: {
         ...readiness,
         directionSetChecksum: directionSetChecksum(set),
       },
     });
+  }
+  async reconcileDesignProjection(projectId: string, projectVersion: number) {
+    const set = await this.documents.get(projectId, projectVersion, "design-directions");
+    const selected = await this.documents.get(projectId, projectVersion, "selected-design");
+    if (!set || set.documentType !== "design-directions") throw new DesignError("DESIGN_SET_NOT_READY", "No canonical Design direction set is available.");
+    await this.dependencies.memory.writeSnapshot(projectId, projectVersion, { "design-directions.json": set, ...(selected?.documentType === "selected-design" ? { "selected-design.json": selected } : {}) });
+    return { set, selected: selected?.documentType === "selected-design" ? selected : null };
   }
   async getDesignDirectionSet(projectId: string, projectVersion: number) {
     const set = await this.documents.get(projectId, projectVersion, "design-directions");
@@ -445,7 +507,16 @@ export class DesignAgentService {
     }
     if (existing?.documentType === "selected-design") {
       if (existing.selectionIdempotencyKey && existing.selectionIdempotencyKey !== request.idempotencyKey) throw new DesignError("DESIGN_SELECTION_CONFLICT", "Design selection idempotency key was reused with different input.");
-      if (existing.directionSetId === request.designDirectionSetId && existing.selectedDirectionId === request.selectedDirectionId && existing.selectedDirectionChecksum === request.selectedDirectionChecksum) return { selectedDesign: existing, projectState: "READY_FOR_IMPLEMENTATION" as const, rowVersion: (await this.projects.getWithVersion(request.projectId))?.rowVersion ?? request.expectedRowVersion };
+      if (existing.directionSetId === request.designDirectionSetId && existing.selectedDirectionId === request.selectedDirectionId && existing.selectedDirectionChecksum === request.selectedDirectionChecksum) {
+        try {
+          await this.dependencies.memory.writeSnapshot(request.projectId, request.projectVersion, { "design-directions.json": set, "selected-design.json": existing });
+          const selectionDecision = (await this.decisions.list(request.projectId, request.projectVersion)).find((decision) => decision.category === "design-selection");
+          if (selectionDecision) await this.dependencies.memory.appendDecision(request.projectId, request.projectVersion, selectionDecision);
+        } catch (error) {
+          throw new DesignError("DESIGN_PROVIDER_FAILED", "Design selection replay could not resynchronize its projection.", error);
+        }
+        return { selectedDesign: existing, projectState: "READY_FOR_IMPLEMENTATION" as const, rowVersion: (await this.projects.getWithVersion(request.projectId))?.rowVersion ?? request.expectedRowVersion };
+      }
     }
     if (
       !current ||
@@ -525,32 +596,6 @@ export class DesignAgentService {
         "DESIGN_DIRECTION_NOT_FOUND",
         "The selection does not reference the current direction set.",
       );
-    await this.designs.select(selected, request.idempotencyKey);
-    await this.dependencies.memory.writeSnapshot(
-      request.projectId,
-      request.projectVersion,
-      { "design-directions.json": set, "selected-design.json": selected },
-    );
-    const transition = await this.workflow.transition({
-      projectId: request.projectId,
-      projectVersion: request.projectVersion,
-      expectedState: "AWAITING_DESIGN_SELECTION",
-      expectedRowVersion: request.expectedRowVersion,
-      targetState: "READY_FOR_IMPLEMENTATION",
-      actor: request.selectedBy,
-      reason: "User selected a design direction.",
-      context: {
-        requirements,
-        requirementsChecksum:
-          requirements.approval.approvedRequirementsChecksum,
-        designSet: set,
-        selectedDesign: selected,
-        selectedDirectionChecksum: request.selectedDirectionChecksum,
-        architecture: planning.architecture,
-        decisions,
-      },
-      idempotencyKey: request.idempotencyKey,
-    });
     const record = DecisionRecordSchema.parse({
       id: randomUUID(),
       timestamp: request.selectedAt,
@@ -565,16 +610,25 @@ export class DesignAgentService {
       userApprovalRequired: false,
       userApprovalStatus: "not-required",
     });
-    await this.decisions.append(
-      request.projectId,
-      request.projectVersion,
-      record,
-    );
-    await this.dependencies.memory.appendDecision(
-      request.projectId,
-      request.projectVersion,
-      record,
-    );
+    const transition = await this.dependencies.database.transaction(async (tx) => {
+      const projectRow = await tx.getProject(request.projectId);
+      const requirementsRow = await tx.getDocument(request.projectId, request.projectVersion, "requirements");
+      const planningRow = await tx.getDocument(request.projectId, request.projectVersion, "planning-package");
+      const reviewRow = await tx.getDocument(request.projectId, request.projectVersion, "architecture-review");
+      const directionRow = await tx.getDocument(request.projectId, request.projectVersion, "design-directions");
+      if (!projectRow || projectRow.current_version !== request.projectVersion || projectRow.workflow_state !== "AWAITING_DESIGN_SELECTION" || projectRow.row_version !== request.expectedRowVersion) throw new DesignError("DESIGN_SELECTION_STALE", "Design selection became stale before its canonical commit.");
+      if (!requirementsRow || !planningRow || !reviewRow || requirementsRow.checksum !== checksumPersistedDocument(requirements) || planningRow.checksum !== checksumPersistedDocument(planning) || reviewRow.checksum !== checksumPersistedDocument(reviewDocument)) throw new DesignError("DESIGN_SELECTION_STALE", "A canonical Design input changed before selection commit.");
+      if (!directionRow || mapRowToDocument(directionRow).documentType !== "design-directions" || directionRow.checksum !== checksumPersistedDocument(set)) throw new DesignError("DESIGN_SET_CHECKSUM_MISMATCH", "The current Design direction set changed before selection commit.");
+      await saveDocumentInTransaction(tx, selected, request.idempotencyKey);
+      await appendDecisionInTransaction(tx, request.projectId, request.projectVersion, record);
+      return transitionWorkflowInTransaction(tx, { projectId: request.projectId, projectVersion: request.projectVersion, expectedState: "AWAITING_DESIGN_SELECTION", expectedRowVersion: request.expectedRowVersion, targetState: "READY_FOR_IMPLEMENTATION", actor: request.selectedBy, reason: "User selected a design direction.", context: { requirements, requirementsChecksum: requirements.approval.approvedRequirementsChecksum, designSet: set, selectedDesign: selected, selectedDirectionChecksum: request.selectedDirectionChecksum, architecture: planning.architecture, decisions }, idempotencyKey: request.idempotencyKey });
+    });
+    try {
+      await this.dependencies.memory.writeSnapshot(request.projectId, request.projectVersion, { "design-directions.json": set, "selected-design.json": selected });
+      await this.dependencies.memory.appendDecision(request.projectId, request.projectVersion, record);
+    } catch (error) {
+      throw new DesignError("DESIGN_PROVIDER_FAILED", "Design selection was committed but its projection could not be synchronized.", error);
+    }
     return {
       selectedDesign: selected,
       projectState: "READY_FOR_IMPLEMENTATION" as const,

@@ -499,14 +499,8 @@ export function createProductionFactoryRuntime(
       const orchestratorMemory: OrchestratorMemoryPort = {
         writeSnapshot: (projectId, version, documents) =>
           sync.writeVersionSnapshot(projectId, version, documents),
-        appendDecision: async (projectId, version, decision) => {
-          await sync.appendDecision(projectId, version, decision as Parameters<DecisionRepository["append"]>[2]);
-          await decisions.append(
-            projectId,
-            version,
-            decision as Parameters<DecisionRepository["append"]>[2],
-          );
-        },
+        appendDecision: (projectId, version, decision) =>
+          sync.appendDecision(projectId, version, decision as Parameters<DecisionRepository["append"]>[2]),
       };
       const orchestrator = new OrchestratorService(database, {
         memory: orchestratorMemory,

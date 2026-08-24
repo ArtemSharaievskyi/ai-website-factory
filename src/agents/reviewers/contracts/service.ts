@@ -4,6 +4,7 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import {
   DocumentRepository,
   ProjectRepository,
+  saveDocumentInTransaction,
 } from "@/persistence/database/repositories";
 import {
   ContractAuditHistorySchema,
@@ -206,8 +207,7 @@ export class ContractAuditService {
         ...(previous?.documentType === "contract-audit" ? [previous] : []),
         record,
       ];
-      await this.documents.save(
-        ContractAuditHistorySchema.parse({
+      const historyDocument = ContractAuditHistorySchema.parse({
           schemaVersion: 1,
           documentType: "contract-audit-history",
           projectId: input.projectId,
@@ -215,13 +215,13 @@ export class ContractAuditService {
           createdAt: records[0]!.createdAt,
           updatedAt: now(),
           records,
-        }),
-        `contract-audit-history:${input.idempotencyKey}`,
-      );
-      await this.documents.save(
-        record,
-        `contract-audit:${input.idempotencyKey}`,
-      );
+        });
+      await this.database.transaction(async (tx) => {
+        const current = await tx.getProject(input.projectId);
+        if (!current || current.current_version !== input.projectVersion || current.workflow_state !== "CONTRACT_AUDIT" || current.row_version !== input.expectedRowVersion) throw new ContractAuditError("CONTRACT_AUDIT_STALE", "The Contract Audit inputs became stale before the canonical commit.");
+        await saveDocumentInTransaction(tx, historyDocument, `contract-audit-history:${input.idempotencyKey}`);
+        await saveDocumentInTransaction(tx, record, `contract-audit:${input.idempotencyKey}`);
+      });
       this.idempotency.set(input.idempotencyKey, { inputHash, result });
       return result;
     } catch (error) {

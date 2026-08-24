@@ -270,3 +270,18 @@ entry names the invariant and the regression boundary that must be exercised.
   canonical decisions without invoking the provider or creating a review.
 - Regression: the Architecture Review suite injects projection failure, then
   reconciles and asserts one review, one decision, and one workflow event.
+
+## TASKGRAPH_SEMANTIC_AND_ROW_CHECKSUMS_ARE_DISTINCT
+
+- Symptom: Implementation admission compares a TaskGraph semantic checksum
+  with a persisted document row checksum, or advances a task before its
+  current Phase 7C/task binding is admitted.
+- Rule: `graphChecksum` proves the TaskGraph meaning; the repository row
+  checksum and row version prove persisted currentness/CAS. Production
+  execution must carry both domains, validate the canonical Phase 7C package
+  and ready-task binding before the first graph write, and commit run/graph
+  changes with the row CAS.
+- Regression: the synthetic real-Postgres downstream lifecycle and the
+  Implementation/production-adapter tests must cover stale graph, stale
+  Phase 7C/task binding, and QA source-currentness rejection without opening
+  an execution side effect.

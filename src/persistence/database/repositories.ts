@@ -87,6 +87,7 @@ export class DocumentRepository {
   constructor(private readonly db: PersistenceDatabase) {}
   async save(document: StoredDocument, idempotencyKey?: string) { return this.db.transaction((tx) => saveDocumentInTransaction(tx, document, idempotencyKey)); }
   async get(projectId: string, version: number, documentType: string) { return this.db.transaction(async (tx) => { const row = await tx.getDocument(projectId, version, documentType); return row ? mapRowToDocument(row) : null; }); }
+  async getWithMetadata(projectId: string, version: number, documentType: string) { return this.db.transaction(async (tx) => { const row = await tx.getDocument(projectId, version, documentType); return row ? { document: mapRowToDocument(row), rowVersion: row.rowVersion, checksum: row.checksum } : null; }); }
   async delete(projectId: string, version: number, documentType: string) { return this.db.transaction((tx) => tx.deleteDocument(projectId, version, documentType)); }
 }
 
