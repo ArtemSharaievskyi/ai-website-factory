@@ -120,6 +120,13 @@ describe("Architecture Reviewer", () => {
     const fixture = await createFixture();
     expect(deterministicArchitectureReview(fixture.input).verdict).toBe("APPROVED");
   });
+
+  it("flags backend priority when a no-backend Brief is paired with an active priority list", async () => {
+    const fixture = await createFixture();
+    const planning = PlanningPackageSchema.parse({ ...fixture.planning, architecture: { ...fixture.planning.architecture, backendPriority: ["server-actions", "route-handlers", "supabase-services"] } });
+    const result = deterministicArchitectureReview(reviewInput(fixture.brief, planning, { approvedBriefChecksum: fixture.input.approvedBriefChecksum }));
+    expect(result.findings.map((item) => item.findingId)).toContain("architecture-backend-priority-conflict");
+  });
   it("treats unresolved frontend-only form submission as a contradictory decision", () => {
     const v2 = emptyBriefV2Fields();
     const brief = baseBrief({ ...v2, forms: ["Contact form"], pages: [{ slug: "home", purpose: "Explain the service" }, { slug: "contact", purpose: "Contact form" }], formBehaviorRequirements: { ...v2.formBehaviorRequirements, formPresent: true, validation: "ACTIVE", successUx: "SIMULATED", dataTransmission: "NONE", persistence: "NONE", thirdParty: "NONE", privacyCheckbox: "REQUIRED" } });

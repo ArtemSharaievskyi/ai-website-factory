@@ -139,6 +139,16 @@ describePostgres("synthetic downstream lifecycle on real Postgres", () => {
     expect(planning.forms.forms[0]?.submissionMechanism).toBe("client-only");
     expect(planning.dataModel.entities).toHaveLength(0);
     expect(planning.architecture.serverActions).toHaveLength(0);
+    expect(planning.architecture.routeHandlers).toHaveLength(0);
+    expect(planning.architecture.backendPriority).toEqual([]);
+    expect(planning.supabase.postgres).toBe(false);
+    expect(planning.supabase.auth).toBe(false);
+    expect(planning.supabase.storage).toBe(false);
+    expect(planning.supabase.realtime).toBe(false);
+    expect(planning.authentication.required).toBe(false);
+    expect(planning.storage.decision).toBe("not-required");
+    expect(planning.email.decision).toBe("not-required");
+    expect(graph.taskGraph.tasks.filter((task) => ["implement-server-action", "implement-route-handler", "implement-database-schema", "implement-rls-policy", "implement-email", "implement-authentication", "implement-storage"].includes(task.taskType))).toHaveLength(0);
     expect(graph.taskGraph.tasks.some((task) => ["implement-server-action", "implement-route-handler", "implement-database-schema", "implement-rls-policy", "implement-email", "implement-authentication", "implement-storage"].includes(task.taskType))).toBe(false);
     const entered = await new ContractAuditOrchestrationService(database).enterAudit({ projectId: brief.projectId, projectVersion: 1, expectedRowVersion: (await new ProjectRepository(database).getWithVersion(brief.projectId))!.rowVersion, idempotencyKey: `synthetic-audit-enter-${brief.projectId}` });
     const audit = new ContractAuditOrchestrationService(database);

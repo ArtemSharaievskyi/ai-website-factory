@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { DocumentBaseSchema, IsoDateTimeSchema, NonEmptyStringSchema } from "../shared/schemas";
 
+export const BackendPrioritySchema = z
+  .array(z.enum(["server-actions", "route-handlers", "supabase-services"]))
+  .max(3)
+  .refine((values) => new Set(values).size === values.length, "Backend priorities must be unique.");
+
 export const TechnicalArchitectureSchema = DocumentBaseSchema.extend({
   documentType: z.literal("architecture"),
   applicationProfile: z.enum(["marketing-site", "business-site", "web-application"]),
@@ -10,7 +15,7 @@ export const TechnicalArchitectureSchema = DocumentBaseSchema.extend({
   componentDecisions: z.array(z.object({ area: NonEmptyStringSchema, serverOrClient: z.enum(["server", "client"]), rationale: NonEmptyStringSchema }).strict()),
   serverActions: z.array(NonEmptyStringSchema),
   routeHandlers: z.array(NonEmptyStringSchema),
-  backendPriority: z.tuple([z.literal("server-actions"), z.literal("route-handlers"), z.literal("supabase-services")]),
+  backendPriority: BackendPrioritySchema,
   supabaseDatabaseRequirements: z.array(NonEmptyStringSchema),
   schemaPlan: z.array(NonEmptyStringSchema),
   rlsRequirements: z.array(NonEmptyStringSchema),

@@ -13,7 +13,7 @@ import {
   type LeadAnalysisProviderOutput,
 } from "@/agents/lead/contracts";
 import type { PlannerArchitectureProvider } from "@/agents/planner/ports";
-import { isClientOnlyFormBrief } from "@/agents/planner/deterministic";
+import { isClientOnlyFormBrief, isNoBackendBrief } from "@/agents/planner/deterministic";
 import {
   FormFieldSchema,
   FormPlanSchema,
@@ -515,7 +515,7 @@ const StrictArchitectureSchema = z
     ...withoutProjectIdentity(TechnicalArchitectureSchema.shape),
     backendPriority: z
       .array(z.enum(["server-actions", "route-handlers", "supabase-services"]))
-      .min(3),
+      .max(3),
     npmScripts: z.array(
       z
         .object({ name: NonEmptyStringSchema, command: NonEmptyStringSchema })
@@ -645,6 +645,7 @@ export const isPlaceholderImageApprovalBlocker = (text: string) =>
 type PlannerBriefNormalizationInput = {
   imageSourceDecision?: string;
   forms?: unknown[];
+  features?: string[];
   formBehaviorRequirements?: RequirementSpecification["formBehaviorRequirements"];
   backendRequirements?: string[];
   supabaseRequirements?: string[];
@@ -860,17 +861,14 @@ function normalizePlanningPackage(
   (
     normalized as unknown as { approvedBriefChecksum: string }
   ).approvedBriefChecksum = host.approvedBriefChecksum;
+  const noBackend = approvedBrief ? isNoBackendBrief(approvedBrief) : false;
   (
     normalized as unknown as {
       architecture: {
-        backendPriority: [
-          "server-actions",
-          "route-handlers",
-          "supabase-services",
-        ];
+        backendPriority: Array<"server-actions" | "route-handlers" | "supabase-services">;
       };
     }
-  ).architecture.backendPriority = [
+  ).architecture.backendPriority = noBackend ? [] : [
     "server-actions",
     "route-handlers",
     "supabase-services",

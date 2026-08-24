@@ -21,6 +21,7 @@ import {
   buildPlanningPackage,
   evaluatePlanningAcceptanceReadiness,
   isClientOnlyFormBrief,
+  isNoBackendBrief,
   planningDocumentChecksum,
   planningSemanticChecksum,
   validatePlanningAdmission,
@@ -556,7 +557,33 @@ export class PlannerArchitectService {
       && currentPlanningPackage.dataModel.entities.length === 0
       && !currentPlanningPackage.supabase.postgres
       && currentPlanningPackage.email.decision === "not-required";
-    if (canResolveClientOnlyDeterministically) {
+    const noBackendFinding = (finding: ArchitectureReviewResult["findings"][number]) => finding.findingId === "architecture-backend-priority-conflict" || finding.findingId === "architecture-no-backend-capability-conflict";
+    const canResolveNoBackendDeterministically = isNoBackendBrief(brief)
+      && currentPlanningPackage.architecture.backendPriority.length > 0
+      && review.findings.length > 0
+      && review.findings.every(noBackendFinding)
+      && currentPlanningPackage.architecture.serverActions.length === 0
+      && currentPlanningPackage.architecture.routeHandlers.length === 0
+      && currentPlanningPackage.architecture.supabaseDatabaseRequirements.length === 0
+      && currentPlanningPackage.architecture.schemaPlan.length === 0
+      && currentPlanningPackage.architecture.rlsRequirements.length === 0
+      && currentPlanningPackage.dataModel.entities.length === 0
+      && !currentPlanningPackage.supabase.postgres
+      && !currentPlanningPackage.supabase.auth
+      && !currentPlanningPackage.supabase.storage
+      && !currentPlanningPackage.supabase.realtime
+      && !currentPlanningPackage.supabase.edgeFunctions
+      && currentPlanningPackage.authentication.decision === "none"
+      && !currentPlanningPackage.authentication.required
+      && currentPlanningPackage.storage.decision === "not-required"
+      && currentPlanningPackage.email.decision === "not-required"
+      && currentPlanningPackage.administration.decision === "no-admin";
+    if (canResolveNoBackendDeterministically) {
+      corrected = PlanningPackageSchema.parse({
+        ...currentPlanningPackage,
+        architecture: { ...currentPlanningPackage.architecture, backendPriority: [] },
+      });
+    } else if (canResolveClientOnlyDeterministically) {
       corrected = PlanningPackageSchema.parse({
         ...currentPlanningPackage,
         forms: {

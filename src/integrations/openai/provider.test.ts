@@ -1,16 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { buildProductionResponseFormat, OpenAiStructuredClient, type StructuredRequest } from "./client";
 import { AiProviderError } from "./errors";
 import { FifoConcurrencyLimiter } from "./limiter";
 import { zodResponseFormat } from "openai/helpers/zod";
-import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, OpenAiLeadProvider, PlanningPackageStructuredOutputSchema, isWorkflowApprovalBlocker } from "./adapters";
+import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, OpenAiLeadProvider, OpenAiPlannerProvider, PlanningPackageStructuredOutputSchema, isWorkflowApprovalBlocker } from "./adapters";
 import { readAiProviderConfig } from "./config";
 import { ArchitectureReviewProviderOutputSchema, CodeIntegrationReviewProviderOutputSchema, ContractAuditProviderOutputSchema, SecurityReviewProviderOutputSchema, TestQualityReviewProviderOutputSchema } from "@/domain/review/schema";
 import { analyzePromptDeterministically } from "@/agents/lead/deterministic";
 import { ClarificationPlanProviderOutputSchema, LeadAnalysisProviderOutputSchema } from "@/agents/lead/contracts";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
+import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
+import { emptyBriefV2Fields } from "@/domain/requirements/brief";
+import { buildPlanningPackage } from "@/agents/planner/deterministic";
 
 const config = { apiKey: "test", model: "test-model", modelLabel: "GPT-5.6 Luna", maxRetries: 1, maxConcurrentRequests: 1 };
 const schema = z.object({ ok: z.boolean(), summary: z.string() }).strict();
@@ -27,6 +30,37 @@ const hostOwnedPaths = (value: unknown, path = "root"): string[] => {
 };
 const request = { role: "test", promptVersion: "test.v1", system: "policy", user: "{}", schemaName: "test-output", schema, idempotencyKey: "same" };
 const validExecutor = async <T>() => ({ value: { ok: true, summary: "bounded" } as T, requestId: "req_test" });
+
+const noBackendPlannerTransport = () => {
+  const projectId = randomUUID();
+  const v2 = emptyBriefV2Fields();
+  const brief = RequirementSpecificationSchema.parse({
+    schemaVersion: 1, documentType: "requirements", projectId, projectVersion: 1, createdAt: "2026-08-24T00:00:00.000Z", updatedAt: "2026-08-24T00:00:00.000Z",
+    projectSummary: "A public information site", protectedFunctionalityRequired: false, imagesRequired: false, businessGoals: ["Explain the offer"], targetAudiences: ["Visitors"], pages: [{ slug: "home", purpose: "Explain the offer" }, { slug: "contact", purpose: "Contact form" }], userRoles: ["public visitor"], features: ["Local contact form"], forms: ["Contact form"], contentRequirements: [], backendRequirements: [], supabaseRequirements: [], authenticationDecision: "no-authentication-guest-first", storageDecision: "not-needed", emailDecision: "not-needed", administrationDecision: "not-needed", seoRequirements: [], localization: { locales: ["en"], defaultLocale: "en" }, imageSourceDecision: "user-supplied", suppliedBrandInformation: { status: "missing" }, suppliedLogoLocation: { status: "missing" }, technicalConstraints: [], explicitExclusions: [], userAcceptanceCriteria: ["Visitors can submit the local form"], unresolvedItems: [], approval: { approved: true, approvedRequirementsChecksum: "a".repeat(64) }, briefStatus: "approved", briefVersion: 1,
+    ...v2, formBehaviorRequirements: { ...v2.formBehaviorRequirements, formPresent: true, validation: "ACTIVE", successUx: "SIMULATED", dataTransmission: "NONE", persistence: "NONE", thirdParty: "NONE", privacyCheckbox: "REQUIRED" },
+  });
+  const input = { projectId, projectVersion: 1, approvedBrief: brief, approvedBriefChecksum: checksumPersistedDocument(brief), originalPromptReference: "original-prompt.md", clarificationEvidenceReferences: [], currentWorkflowState: "AWAITING_DESIGN_SELECTION" as const, existingDecisions: [], suppliedFiles: [], allowedSkills: [], idempotencyKey: "provider-no-backend", expectedRowVersion: 1 };
+  const canonical = buildPlanningPackage(input);
+  const stripIdentity = (value: unknown): unknown => Array.isArray(value) ? value.map(stripIdentity) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value as Record<string, unknown>).filter(([key, nested]) => key !== "projectId" && key !== "projectVersion" && nested !== undefined).map(([key, nested]) => [key, stripIdentity(nested)])) : value;
+  const transport = JSON.parse(JSON.stringify(stripIdentity(canonical))) as Record<string, unknown>;
+  transport.databaseRecommendation = null;
+  const architecture = transport.architecture as Record<string, unknown>;
+  architecture.backendPriority = ["server-actions", "route-handlers", "supabase-services"];
+  architecture.npmScripts = Object.entries(canonical.architecture.npmScripts).map(([name, command]) => ({ name, command }));
+  architecture.acceptance = { accepted: false, acceptedAt: null, acceptedBy: null };
+  transport.acceptance = { acceptedAt: null, acceptedBy: null, checksum: null };
+  for (const key of ["productScope", "sitemap", "navigation", "pages", "userFlows", "forms", "dataModel", "authentication", "supabase", "email", "storage", "administration", "traceability"]) {
+    const node = transport[key];
+    if (Array.isArray(node)) transport[key] = node.map((entry) => ({ ...(entry as Record<string, unknown>), unresolvedDependency: null }));
+    else if (node && typeof node === "object" && Array.isArray((node as Record<string, unknown>).traceability)) (node as Record<string, unknown>).traceability = ((node as Record<string, unknown>).traceability as unknown[]).map((entry) => ({ ...(entry as Record<string, unknown>), unresolvedDependency: null }));
+  }
+  const sitemap = transport.sitemap as Record<string, unknown>;
+  sitemap.routes = (sitemap.routes as Array<Record<string, unknown>>).map((route) => ({ ...route, primaryCta: route.primaryCta ?? null, parentId: route.parentId ?? null }));
+  const userFlows = transport.userFlows as Record<string, unknown>;
+  userFlows.flows = (userFlows.flows as Array<Record<string, unknown>>).map((flow) => ({ ...flow, steps: (flow.steps as Array<Record<string, unknown>>).map((step) => ({ ...step, routeId: step.routeId ?? null, decision: step.decision ?? null })) }));
+  PlanningPackageStructuredOutputSchema.parse(transport);
+  return { brief, input, transport };
+};
 
 describe("production AI provider boundary", () => {
   it("constructs every reviewer strict transport schema with required nullable metadata", () => {
@@ -93,6 +127,13 @@ describe("production AI provider boundary", () => {
   });
   it("uses a strict Planner transport schema without weakening the canonical package", () => {
     expect(() => zodResponseFormat(PlanningPackageStructuredOutputSchema, "planning-package")).not.toThrow();
+  });
+  it("normalizes a provider backend priority to no-backend when the approved Brief requires frontend-only behavior", async () => {
+    const fixture = noBackendPlannerTransport();
+    const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: fixture.transport as T, requestId: "req_no_backend_planner" }) });
+    const result = await new OpenAiPlannerProvider(client).plan(fixture.input);
+    expect(result.architecture.backendPriority).toEqual([]);
+    expect(result.forms.forms[0]?.submissionMechanism).toBe("client-only");
   });
   it("uses a strict Design transport schema without weakening the canonical direction set", () => {
     expect(() => zodResponseFormat(DesignDirectionStructuredOutputSchema, "design-direction-set")).not.toThrow();
