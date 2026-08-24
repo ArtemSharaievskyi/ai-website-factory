@@ -3,7 +3,7 @@ import { FunctionalQaDiagnosticSchema, type FunctionalQaDiagnostic, type Functio
 const pagePath = (route: string) => `src/app${route === "/" ? "" : route}/page.tsx`;
 const ownershipFor = (scenario: FunctionalQaScenario, result: FunctionalQaScenarioResult) => {
   const action = result.evidence.find((item) => item.result === "failed")?.action;
-  if (scenario.requiresForm || ["fill", "submit", "select", "check"].includes(action ?? "")) return scenario.requiresForm && action === "submit" ? ["implement-form", "implement-server-action"] as const : ["implement-form"] as const;
+  if (scenario.requiresForm || ["fill", "submit", "select", "check"].includes(action ?? "")) return scenario.requiresForm && action === "submit" && scenario.formSubmissionMechanism !== "client-only" ? ["implement-form", "implement-server-action"] as const : ["implement-form"] as const;
   if (action === "click") return ["implement-navigation"] as const;
   return ["implement-page"] as const;
 };

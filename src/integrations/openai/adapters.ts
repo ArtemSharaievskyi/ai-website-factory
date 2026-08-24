@@ -13,6 +13,7 @@ import {
   type LeadAnalysisProviderOutput,
 } from "@/agents/lead/contracts";
 import type { PlannerArchitectureProvider } from "@/agents/planner/ports";
+import { isClientOnlyFormBrief } from "@/agents/planner/deterministic";
 import {
   FormFieldSchema,
   FormPlanSchema,
@@ -74,7 +75,7 @@ import {
   NonEmptyStringSchema,
   UserValueSchema,
 } from "@/domain/shared/schemas";
-import { ProjectBriefV2Schema } from "@/domain/requirements/schema";
+import { ProjectBriefV2Schema, type RequirementSpecification } from "@/domain/requirements/schema";
 import {
   BriefAssetRequirementsSchema,
   BriefBrandVisualRequirementsSchema,
@@ -552,7 +553,7 @@ const StrictAssetManifestSchema = z
     ),
   })
   .strict();
-const StrictFormSchema = FormSchema.extend({
+const StrictFormSchema = FormSchema.safeExtend({
   fields: z.array(FormFieldSchema),
 });
 const StrictFormPlanSchema = z
@@ -641,10 +642,23 @@ export const isPlaceholderImageApprovalBlocker = (text: string) =>
   /(?:image|imagery|placeholder).*(?:approval|approved)|(?:approval|approved).*(?:image|imagery|placeholder)/i.test(
     text,
   );
+type PlannerBriefNormalizationInput = {
+  imageSourceDecision?: string;
+  forms?: unknown[];
+  formBehaviorRequirements?: RequirementSpecification["formBehaviorRequirements"];
+  backendRequirements?: string[];
+  supabaseRequirements?: string[];
+  emailDecision?: RequirementSpecification["emailDecision"];
+  storageDecision?: RequirementSpecification["storageDecision"];
+  authenticationDecision?: RequirementSpecification["authenticationDecision"];
+  administrationDecision?: RequirementSpecification["administrationDecision"];
+  userRoles?: string[];
+  protectedFunctionalityRequired?: boolean;
+};
 function normalizePlanningPackage(
   value: z.infer<typeof PlanningPackageStructuredOutputSchema>,
   host: { projectId: string; projectVersion: number; approvedBriefChecksum: string },
-  approvedBrief?: { imageSourceDecision?: string },
+  approvedBrief?: PlannerBriefNormalizationInput,
 ): PlanningPackage {
   const routeIdsByPath = new Map(
     value.sitemap.routes.flatMap((route) => [
@@ -714,6 +728,17 @@ function normalizePlanningPackage(
     },
     forms: {
       ...value.forms,
+      forms: approvedBrief && isClientOnlyFormBrief(approvedBrief)
+        ? value.forms.forms.map((form) => ({
+            ...form,
+            submissionMechanism: "client-only" as const,
+            databaseWrite: "No database write; local client state only.",
+            emailBehavior: "No email and no external provider.",
+            successState: "Show simulated local success, then reset.",
+            rateLimitRequired: false,
+            spamProtectionRequired: false,
+          }))
+        : value.forms.forms,
       traceability: value.forms.traceability.map((entry) =>
         omitNull(entry, ["unresolvedDependency"]),
       ),
@@ -1034,11 +1059,12 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
     const prompt = rolePrompt("planner", input, false, approvedSkills);
     const languageInstruction = `The generated website locale is the approved Brief localization.defaultLocale: ${input.approvedBrief.localization.defaultLocale}; planner summaries, rationale, and operator-facing explanations must use approved Brief operatorLanguage=${input.approvedBrief.operatorLanguage}. For every planned form field, output an explicit English machine fieldId independent of that locale and a separate user-facing label in the requested locale. Never derive fieldId from label.`;
     const dependencyInstruction = `Generated-project direct dependency authority is host-owned. You may express only a project DependencyPlan using this bounded catalog: ${dependencyCatalogPromptContext()}. Do not invent package names, versions, package sources, or package managers; the host validates and owns the resulting manifest.`;
+    const formInstruction = `Form behavior authority: when the approved Brief's formBehaviorRequirements explicitly says formPresent=true, successUx=SIMULATED, dataTransmission=NONE, persistence=NONE, and thirdParty=NONE, every matching form must use submissionMechanism=client-only. Do not reopen that decision as pending-decision, server-action, or route-handler, and do not add database, email, external-provider, authentication, or server-boundary work for that form. The host will deterministically normalize and validate this boundary.`;
     const result = await this.ai.request<
       z.infer<typeof PlanningPackageStructuredOutputSchema>
     >({
       ...prompt,
-      system: `${prompt.system}\n${languageInstruction}\n${dependencyInstruction}`,
+      system: `${prompt.system}\n${languageInstruction}\n${dependencyInstruction}\n${formInstruction}`,
       role: "planner",
       schema: PlanningPackageStructuredOutputSchema,
       schemaName: "planning-package",

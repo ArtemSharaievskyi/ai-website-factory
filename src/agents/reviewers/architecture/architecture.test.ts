@@ -24,6 +24,7 @@ import { ArchitectureReviewError } from "./errors";
 import { canonicalArchitectureEvidence, deterministicArchitectureReview } from "./deterministic";
 import { ArchitectureReviewService } from "./service";
 import { createReviewEvidenceCatalog, evidenceIdFor } from "../evidence";
+import { emptyBriefV2Fields } from "@/domain/requirements/brief";
 
 const id = () => randomUUID();
 const timestamp = "2026-08-23T12:00:00.000Z";
@@ -118,6 +119,17 @@ describe("Architecture Reviewer", () => {
   it("approves a minimal valid architecture deterministically", async () => {
     const fixture = await createFixture();
     expect(deterministicArchitectureReview(fixture.input).verdict).toBe("APPROVED");
+  });
+  it("treats unresolved frontend-only form submission as a contradictory decision", () => {
+    const v2 = emptyBriefV2Fields();
+    const brief = baseBrief({ ...v2, forms: ["Contact form"], pages: [{ slug: "home", purpose: "Explain the service" }, { slug: "contact", purpose: "Contact form" }], formBehaviorRequirements: { ...v2.formBehaviorRequirements, formPresent: true, validation: "ACTIVE", successUx: "SIMULATED", dataTransmission: "NONE", persistence: "NONE", thirdParty: "NONE", privacyCheckbox: "REQUIRED" } });
+    const planning = PlanningPackageSchema.parse({ ...acceptedPlanning(brief), blockers: [] });
+    const initialReview = deterministicArchitectureReview(reviewInput(brief, planning));
+    expect(initialReview.verdict).toBe("APPROVED");
+    const pending = PlanningPackageSchema.parse({ ...planning, forms: { ...planning.forms, forms: planning.forms.forms.map((form) => ({ ...form, submissionMechanism: "pending-decision" as const })) } });
+    const review = deterministicArchitectureReview(reviewInput(brief, pending));
+    expect(review.verdict).toBe("CHANGES_REQUIRED");
+    expect(review.findings.map((finding) => finding.findingId)).toContain("architecture-review-local-form-submission-decision");
   });
 
   it("keeps reviewer proposal output separate from canonical persistence", async () => {

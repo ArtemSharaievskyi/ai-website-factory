@@ -20,9 +20,11 @@ import { PersistenceError } from "@/persistence/database/errors";
 import {
   buildPlanningPackage,
   evaluatePlanningAcceptanceReadiness,
+  isClientOnlyFormBrief,
   planningDocumentChecksum,
   planningSemanticChecksum,
   validatePlanningAdmission,
+  validatePlanningPackageAgainstBrief,
 } from "./deterministic";
 import {
   PlannerAgentInputSchema,
@@ -239,6 +241,12 @@ export class PlannerArchitectService {
       throw new PlannerError(
         "PLANNING_PACKAGE_INVALID",
         "Planner output failed deterministic admission.",
+      );
+    const contractIssues = validatePlanningPackageAgainstBrief(brief, planningPackage);
+    if (contractIssues.length > 0)
+      throw new PlannerError(
+        "PLANNING_PACKAGE_INVALID",
+        `Planner output violated approved form behavior: ${contractIssues.join(", ")}.`,
       );
     this.inputKeys.set(input.idempotencyKey, requestHash);
     if (skillSelection)
@@ -535,36 +543,58 @@ export class PlannerArchitectService {
         "PLANNING_STALE",
         "The correction PlanningPackage is stale.",
       );
-    const skillSelection = this.resolveSkills
-      ? await this.resolveSkills(parsed)
-      : undefined;
     let corrected: PlanningPackage;
-    try {
-      corrected = PlanningPackageSchema.parse(
-        await this.provider.plan({
-          ...parsed,
-          approvedBrief: brief,
-          architectureReview: review,
-          currentPlanningPackage,
-          correctionOnly: true,
-        } as PlannerAgentInput & {
-          architectureReview: ArchitectureReviewResult;
-          currentPlanningPackage: PlanningPackage;
-          correctionOnly: boolean;
-        }, skillSelection?.contexts, skillSelection?.identityChecksum),
-      );
-    } catch (error) {
-      if (error instanceof z.ZodError)
+    const clientOnlyFinding = (finding: ArchitectureReviewResult["findings"][number]) =>
+      finding.findingId === "architecture-review-local-form-submission-decision"
+      || (finding.category === "CONTRADICTORY_DECISION" && finding.evidenceRefs.includes("planning:forms") && /form|submission|frontend|client|local|pending/i.test(`${finding.summary} ${finding.recommendedAction}`));
+    const canResolveClientOnlyDeterministically = isClientOnlyFormBrief(brief)
+      && currentPlanningPackage.forms.forms.some((form) => form.submissionMechanism === "pending-decision")
+      && review.findings.length > 0
+      && review.findings.every(clientOnlyFinding)
+      && currentPlanningPackage.architecture.serverActions.length === 0
+      && currentPlanningPackage.architecture.routeHandlers.length === 0
+      && currentPlanningPackage.dataModel.entities.length === 0
+      && !currentPlanningPackage.supabase.postgres
+      && currentPlanningPackage.email.decision === "not-required";
+    if (canResolveClientOnlyDeterministically) {
+      corrected = PlanningPackageSchema.parse({
+        ...currentPlanningPackage,
+        forms: {
+          ...currentPlanningPackage.forms,
+          forms: currentPlanningPackage.forms.forms.map((form) => form.submissionMechanism === "pending-decision" ? { ...form, submissionMechanism: "client-only" } : form),
+        },
+      });
+    } else {
+      const skillSelection = this.resolveSkills
+        ? await this.resolveSkills(parsed)
+        : undefined;
+      try {
+        corrected = PlanningPackageSchema.parse(
+          await this.provider.plan({
+            ...parsed,
+            approvedBrief: brief,
+            architectureReview: review,
+            currentPlanningPackage,
+            correctionOnly: true,
+          } as PlannerAgentInput & {
+            architectureReview: ArchitectureReviewResult;
+            currentPlanningPackage: PlanningPackage;
+            correctionOnly: boolean;
+          }, skillSelection?.contexts, skillSelection?.identityChecksum),
+        );
+      } catch (error) {
+        if (error instanceof z.ZodError)
+          throw new PlannerError(
+            "PLANNING_PACKAGE_INVALID",
+            "Planner correction did not match the strict contract.",
+            error,
+          );
         throw new PlannerError(
-          "PLANNING_PACKAGE_INVALID",
-          "Planner correction did not match the strict contract.",
+          "PLANNER_PROVIDER_FAILED",
+          "Planner correction failed.",
           error,
         );
-      throw new PlannerError(
-        "PLANNER_PROVIDER_FAILED",
-        "Planner correction failed.",
-        error,
-      );
+      }
     }
     const next = PlanningPackageSchema.parse({
       ...corrected,
@@ -579,6 +609,12 @@ export class PlannerArchitectService {
       throw new PlannerError(
         "PLANNING_PACKAGE_INVALID",
         "Planner correction failed deterministic admission.",
+      );
+    const correctionIssues = validatePlanningPackageAgainstBrief(brief, next);
+    if (correctionIssues.length > 0)
+      throw new PlannerError(
+        "PLANNING_PACKAGE_INVALID",
+        `Planner correction violated approved form behavior: ${correctionIssues.join(", ")}.`,
       );
     await this.persistPackage(next, input.idempotencyKey);
     this.packages.set(key, next);

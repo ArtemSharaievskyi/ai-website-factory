@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { QualityCheckSchema } from "@/domain/quality/schema";
 import { QaWorkspaceCleanupResultSchema, type QaWorkspaceHandle } from "./workspace";
-import { type PlanningPackage } from "@/agents/planner/contracts";
+import { FormSubmissionMechanismSchema, type PlanningPackage } from "@/agents/planner/contracts";
 import { type RequirementSpecification } from "@/domain/requirements/schema";
 import { DocumentBaseSchema } from "@/domain/shared/schemas";
 import { RuntimeDiagnosticReferenceSchema } from "@/runtime/validation/contracts";
@@ -27,7 +27,7 @@ export const FunctionalQaStepSchema = z.object({ stepId: Ref.optional(), order: 
 export type FunctionalQaStep = z.infer<typeof FunctionalQaStepSchema>;
 
 export const FunctionalQaAssertionSchema = z.object({ category: z.enum(["route", "navigation", "form", "auth", "authorization", "runtime", "status"]), expected: Ref, mandatory: z.boolean() }).strict();
-export const FunctionalQaScenarioSchema = z.object({ scenarioId: Ref, scenarioType: FunctionalQaScenarioTypeSchema.default("route"), title: Ref, actor: Ref, purpose: Ref, acceptanceCriteriaReferences: z.array(Ref).min(1), requirementReferences: z.array(Ref).min(1), planningReferences: z.array(Ref).default([]), userFlowReferences: z.array(Ref), artifactReferences: z.array(Ref).default([]), ownershipCandidates: z.array(z.enum(["implement-navigation", "implement-page", "implement-form", "implement-server-action", "implement-route-handler", "implement-authentication", "implement-shared-layout"])).default([]), startRoute: Route, preconditions: z.array(Ref), steps: z.array(FunctionalQaStepSchema).min(1), assertions: z.array(FunctionalQaAssertionSchema).min(1), expectedOutcome: Ref, failureCategory: z.string().regex(/^QA_[A-Z0-9_]+$/), requiresAuth: z.boolean(), requiresForm: z.boolean(), requiresDatabaseFixture: z.boolean(), timeoutMs: z.number().int().positive().max(120000) }).strict();
+export const FunctionalQaScenarioSchema = z.object({ scenarioId: Ref, scenarioType: FunctionalQaScenarioTypeSchema.default("route"), title: Ref, actor: Ref, purpose: Ref, acceptanceCriteriaReferences: z.array(Ref).min(1), requirementReferences: z.array(Ref).min(1), planningReferences: z.array(Ref).default([]), userFlowReferences: z.array(Ref), artifactReferences: z.array(Ref).default([]), ownershipCandidates: z.array(z.enum(["implement-navigation", "implement-page", "implement-form", "implement-server-action", "implement-route-handler", "implement-authentication", "implement-shared-layout"])).default([]), startRoute: Route, preconditions: z.array(Ref), steps: z.array(FunctionalQaStepSchema).min(1), assertions: z.array(FunctionalQaAssertionSchema).min(1), expectedOutcome: Ref, failureCategory: z.string().regex(/^QA_[A-Z0-9_]+$/), requiresAuth: z.boolean(), requiresForm: z.boolean(), formSubmissionMechanism: FormSubmissionMechanismSchema.optional(), requiresDatabaseFixture: z.boolean(), timeoutMs: z.number().int().positive().max(120000) }).strict();
 export type FunctionalQaScenario = z.infer<typeof FunctionalQaScenarioSchema>;
 
 export const FunctionalQaPlanSchema = z.object({ planId: Uuid, projectId: Uuid, projectVersion: z.number().int().positive(), scenarios: z.array(FunctionalQaScenarioSchema), selectedBriefChecksum: z.string().regex(/^[a-f0-9]{64}$/), selectedPlanningChecksum: z.string().regex(/^[a-f0-9]{64}$/), selectedDesignChecksum: z.string().regex(/^[a-f0-9]{64}$/), policyVersion: Ref }).strict();
