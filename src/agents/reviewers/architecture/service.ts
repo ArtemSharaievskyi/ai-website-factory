@@ -9,6 +9,7 @@ import {
   ArchitectureReviewResultSchema,
   type ArchitectureReviewProviderOutput,
   type ArchitectureReviewResult,
+  type ReviewEvidenceProvenance,
 } from "@/domain/review/schema";
 import { PlanningPackageSchema } from "@/agents/planner/contracts";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
@@ -25,6 +26,13 @@ import { DeterministicArchitectureReviewProvider } from "./deterministic";
 import type { ArchitectureReviewProvider } from "./ports";
 import type { ReviewerSkillSelection } from "@/skills/runtime/resolver";
 import { readCanonicalReviewContext, type CanonicalReviewContext } from "./currentness";
+import {
+  createReviewEvidenceCatalog,
+  evidenceCatalogChecksum,
+  providerEvidenceCatalog,
+  resolveProviderReviewEvidence,
+  type ProviderReviewEvidenceCatalog,
+} from "../evidence";
 
 export type ArchitectureReviewServiceDependencies = {
   provider?: ArchitectureReviewProvider;
@@ -44,6 +52,9 @@ export type ArchitectureReviewProposal = {
   architectureChecksum: string;
   phase7cChecksum: string;
   policyVersion: string;
+  evidenceCatalogId?: string;
+  evidenceCatalogChecksum?: string;
+  evidenceProvenance?: ReviewEvidenceProvenance[];
 };
 
 export class ArchitectureReviewService {
@@ -94,6 +105,13 @@ export class ArchitectureReviewService {
     signal?: AbortSignal,
   ): Promise<ArchitectureReviewProposal> {
     const input = this.parseAndPrecheck(rawInput);
+    const evidenceCatalog = createReviewEvidenceCatalog({
+      projectId: input.projectId,
+      projectVersion: input.projectVersion,
+      evidenceRefs: canonicalArchitectureEvidence(input),
+      requestContext: input,
+    });
+    const providerInput = { ...input, evidenceCatalog: providerEvidenceCatalog(evidenceCatalog) };
     const policyVersion = this.policyVersion();
     const skillSelection = this.resolveSkills
       ? await this.resolveSkills(input)
@@ -105,6 +123,7 @@ export class ArchitectureReviewService {
       acceptedPlanningChecksum: input.acceptedPlanningChecksum,
       factoryArchitecturePolicy: input.factoryArchitecturePolicy,
       relevantProjectConstraints: input.relevantProjectConstraints,
+      evidenceCatalogChecksum: evidenceCatalogChecksum(evidenceCatalog),
       skillContextChecksum: skillSelection.identityChecksum,
       policyVersion,
       promptVersion: this.provider.promptVersion,
@@ -138,6 +157,8 @@ export class ArchitectureReviewService {
         architectureChecksum: canonical.architectureChecksum,
         phase7cChecksum: canonical.phase7cChecksum,
         policyVersion: replay.policyVersion,
+        evidenceCatalogId: evidenceCatalog.catalogId,
+        evidenceCatalogChecksum: evidenceCatalogChecksum(evidenceCatalog),
       } satisfies ArchitectureReviewProposal;
       this.idempotency.set(input.idempotencyKey, { inputHash, proposal });
       return proposal;
@@ -153,14 +174,14 @@ export class ArchitectureReviewService {
       );
     try {
       const providerResult = await this.provider.review(
-        input,
+        providerInput,
         signal,
         skillSelection.contexts,
         skillSelection.identityChecksum,
       );
-      const result = this.normalizeResult(providerResult, input, policyVersion);
+      const normalized = this.normalizeResult(providerResult, input, policyVersion, evidenceCatalog);
       const proposal = {
-        result,
+        result: normalized.result,
         inputHash,
         promptVersion: this.provider.promptVersion,
         skillContextChecksum: skillSelection.identityChecksum,
@@ -169,6 +190,9 @@ export class ArchitectureReviewService {
         architectureChecksum: canonical.architectureChecksum,
         phase7cChecksum: canonical.phase7cChecksum,
         policyVersion,
+        evidenceCatalogId: evidenceCatalog.catalogId,
+        evidenceCatalogChecksum: evidenceCatalogChecksum(evidenceCatalog),
+        evidenceProvenance: normalized.provenance,
       } satisfies ArchitectureReviewProposal;
       this.idempotency.set(input.idempotencyKey, { inputHash, proposal });
       return proposal;
@@ -308,7 +332,8 @@ export class ArchitectureReviewService {
     raw: ArchitectureReviewProviderOutput,
     input: ArchitectureReviewInput,
     policyVersion: string,
-  ): ArchitectureReviewResult {
+    evidenceCatalog: ProviderReviewEvidenceCatalog,
+  ): { result: ArchitectureReviewResult; provenance: ReviewEvidenceProvenance[] } {
     let parsed: ArchitectureReviewProviderOutput;
     try {
       parsed = ArchitectureReviewProviderOutputSchema.parse(raw);
@@ -319,18 +344,22 @@ export class ArchitectureReviewService {
         error,
       );
     }
-    const evidence = canonicalArchitectureEvidence(input);
-    for (const reference of parsed.reviewedArtifactRefs)
-      if (!evidence.has(reference))
-        throw new ArchitectureReviewError(
-          "ARCHITECTURE_REVIEW_OUTPUT_INVALID",
-          `Review references invented evidence: ${reference}.`,
-        );
+    let resolved: ReturnType<typeof resolveProviderReviewEvidence<typeof parsed.findings[number]>>;
+    try {
+      resolved = resolveProviderReviewEvidence<typeof parsed.findings[number]>(evidenceCatalog, parsed);
+    } catch (error) {
+      throw new ArchitectureReviewError(
+        "ARCHITECTURE_REVIEW_OUTPUT_INVALID",
+        "Architecture Review output referenced evidence outside the host-issued catalog.",
+        error,
+      );
+    }
     const deduped: ArchitectureReviewResult["findings"] = [];
     const seenExact = new Set<string>();
     const seenIds = new Set<string>();
-    for (const item of parsed.findings) {
-      const exact = JSON.stringify(item);
+    for (const [index, item] of parsed.findings.entries()) {
+      const resolvedItem = resolved.findings[index]!;
+      const exact = JSON.stringify(resolvedItem);
       if (seenIds.has(item.findingId)) {
         if (!seenExact.has(exact))
           throw new ArchitectureReviewError(
@@ -339,15 +368,9 @@ export class ArchitectureReviewService {
           );
         continue;
       }
-      for (const reference of [...item.evidenceRefs, ...item.affectedArtifacts])
-        if (!evidence.has(reference))
-          throw new ArchitectureReviewError(
-            "ARCHITECTURE_REVIEW_OUTPUT_INVALID",
-            `Finding references invented evidence: ${reference}.`,
-          );
       seenIds.add(item.findingId);
       seenExact.add(exact);
-      deduped.push(item);
+      deduped.push(resolvedItem);
     }
     const blocking = deduped.some(
       (item) => item.severity === "ERROR" || item.severity === "CRITICAL",
@@ -359,6 +382,14 @@ export class ArchitectureReviewService {
         "ARCHITECTURE_REVIEW_OUTPUT_INVALID",
         "CHANGES_REQUIRED requires findings.",
       );
-    return ArchitectureReviewResultSchema.parse({ ...parsed, findings: deduped, policyVersion });
+    return {
+      result: ArchitectureReviewResultSchema.parse({
+        ...parsed,
+        reviewedArtifactRefs: resolved.reviewedArtifactRefs,
+        findings: deduped,
+        policyVersion,
+      }),
+      provenance: resolved.provenance,
+    };
   }
 }

@@ -20,7 +20,7 @@ const reviewerClientConfig = { apiKey: "test-key", model: "test-model", modelLab
 const validTestQualityOutput = {
   verdict: "APPROVED" as const,
   findings: [],
-  reviewedArtifactRefs: ["test:catalog-reviewer-execution"],
+  reviewedArtifactRefs: [`E${"1".repeat(16)}-001`],
   blockedReason: null,
 };
 

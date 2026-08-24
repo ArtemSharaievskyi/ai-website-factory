@@ -2,12 +2,14 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import { TestQualityReviewProviderOutputSchema, type TestQualityReviewResult } from "@/domain/review/schema";
 import { TestQualityReviewInputSchema, type TestQualityReviewInput } from "./contracts";
 import type { TestQualityReviewProvider } from "./ports";
+import { createReviewEvidenceCatalog, toProviderReviewEvidence, withoutProviderEvidenceCatalog } from "../evidence";
+import { canonicalTestQualityEvidence } from "./service";
 
 const finding = (id: string, category: TestQualityReviewResult["findings"][number]["category"], summary: string, refs: string[], target: TestQualityReviewResult["findings"][number]["correctionTarget"], ownerTaskId?: string) => ({ findingId: id, severity: "ERROR" as const, category, summary, evidenceRefs: refs, affectedArtifacts: refs, recommendedAction: ownerTaskId ? `Correct the bounded behavior or validation owned by task ${ownerTaskId}.` : "Add or correct the smallest meaningful validation evidence and rerun quality review.", correctionTarget: target, ...(ownerTaskId ? { ownerTaskId } : {}) });
 const has = (input: TestQualityReviewInput, pattern: RegExp) => pattern.test(JSON.stringify(input.approvedBrief)) || pattern.test(JSON.stringify(input.acceptedPlanningPackage));
 
 export function deterministicTestQualityReview(raw: TestQualityReviewInput) {
-  const input = TestQualityReviewInputSchema.parse(raw); const findings: TestQualityReviewResult["findings"] = [];
+  const input = TestQualityReviewInputSchema.parse(withoutProviderEvidenceCatalog(raw)); const findings: TestQualityReviewResult["findings"] = [];
   const stale = input.qualityEvidence.sourceChecksum !== input.sourceChecksum || input.qualityEvidence.testSourceChecksum !== input.testSourceChecksum || input.qualityEvidence.qualityGates.some((gate) => gate.sourceChecksum !== input.sourceChecksum) || input.qualityEvidence.unitTests.sourceChecksum !== input.sourceChecksum;
   if (stale) findings.push(finding("quality-evidence-stale", "QUALITY_EVIDENCE_STALE", "Quality evidence is not bound to the current application and test source checksums.", ["quality-evidence", "source"], "UPSTREAM_TEST_CONTRACT"));
   const canonical = [["brief", input.approvedBrief, input.briefChecksum], ["planning-package", input.acceptedPlanningPackage, input.planningChecksum], ["architecture-review", input.approvedArchitectureReview, input.architectureReviewChecksum], ["selected-design", input.selectedDesign, input.designChecksum], ["contract-audit", input.approvedContractAudit, input.contractAuditChecksum], ["code-integration-review", input.approvedCodeIntegrationReview, input.codeIntegrationReviewChecksum], ["security-review", input.approvedSecurityReview, input.securityReviewChecksum]] as const;
@@ -28,6 +30,7 @@ export function deterministicTestQualityReview(raw: TestQualityReviewInput) {
   if (input.qualityEvidence.unitTests.status === "PASSED" && !input.qualityEvidence.unitTests.meaningfulAssertions) findings.push(finding("weak-unit-assertions", "WEAK_ASSERTION", "Unit-test evidence is marked passing but does not contain meaningful assertions for the bounded requirements.", input.qualityEvidence.unitTests.evidenceRefs, "TEST_TASK"));
   for (const scenario of input.qualityEvidence.functionalScenarios) if (scenario.status === "PASSED" && !scenario.assertions.length) findings.push(finding(`scenario-${scenario.scenarioId.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`, "FUNCTIONAL_SCENARIO_INCOMPLETE", `Functional scenario ${scenario.scenarioId} has no outcome assertion.`, scenario.evidenceRefs, "FUNCTIONAL_QA_TASK"));
   const result = { verdict: findings.length ? "CHANGES_REQUIRED" as const : "APPROVED" as const, findings, reviewedArtifactRefs: ["brief", "planning-package", "task-graph", "source", "quality-evidence"] };
-  return TestQualityReviewProviderOutputSchema.parse(result);
+  const catalog = createReviewEvidenceCatalog({ projectId: input.projectId, projectVersion: input.projectVersion, evidenceRefs: canonicalTestQualityEvidence(input), requestContext: input });
+  return TestQualityReviewProviderOutputSchema.parse(toProviderReviewEvidence(raw, result, catalog));
 }
 export class DeterministicTestQualityReviewProvider implements TestQualityReviewProvider { readonly promptVersion = "test-quality-reviewer.v1"; async review(input: TestQualityReviewInput) { return deterministicTestQualityReview(input); } }

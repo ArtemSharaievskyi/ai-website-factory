@@ -2,10 +2,12 @@ import { CodeIntegrationReviewProviderOutputSchema, type CodeIntegrationReviewRe
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { CodeIntegrationReviewInputSchema, type CodeIntegrationReviewInput } from "./contracts";
 import type { CodeIntegrationReviewProvider } from "./ports";
+import { createReviewEvidenceCatalog, toProviderReviewEvidence, withoutProviderEvidenceCatalog } from "../evidence";
+import { canonicalCodeIntegrationEvidence } from "./service";
 
 const finding = (id: string, category: CodeIntegrationReviewResult["findings"][number]["category"], summary: string, refs: string[], ownerTaskId?: string) => ({ findingId: id, severity: "ERROR" as const, category, summary, evidenceRefs: refs, affectedArtifacts: refs, recommendedAction: ownerTaskId ? `Correct the implementation owned by task ${ownerTaskId}.` : "Correct the upstream contract and rerun implementation review.", correctionTarget: ownerTaskId ? "IMPLEMENTATION_TASK" as const : "UPSTREAM_CONTRACT" as const, ...(ownerTaskId ? { ownerTaskId } : {}) });
 export function deterministicCodeIntegrationReview(raw: CodeIntegrationReviewInput) {
-  const input = CodeIntegrationReviewInputSchema.parse(raw);
+  const input = CodeIntegrationReviewInputSchema.parse(withoutProviderEvidenceCatalog(raw));
   const findings = [] as CodeIntegrationReviewResult["findings"];
   if (input.staticValidation.sourceChecksum !== input.sourceChecksum) findings.push(finding("source-checksum-stale", "CONTRACT_IMPLEMENTATION_MISMATCH", "Static validation evidence does not describe the current source checksum.", ["source"]));
   if (checksumPersistedDocument(input.approvedBrief) !== input.briefChecksum) findings.push(finding("brief-checksum-stale", "CONTRACT_IMPLEMENTATION_MISMATCH", "The supplied Brief checksum is stale.", ["brief"]));
@@ -21,6 +23,7 @@ export function deterministicCodeIntegrationReview(raw: CodeIntegrationReviewInp
   const taskIds = new Set(input.implementationTasks.map((task) => task.taskId));
   for (const task of input.taskGraph.tasks.filter((task) => task.role === "implementation" && task.taskType.startsWith("implement-"))) if (task.status === "passed" && !taskIds.has(task.id)) findings.push(finding(`task-summary-${task.id}`, "IMPLEMENTATION_RESPONSIBILITY_MISMATCH", "A passed implementation task is missing from the current source review summaries.", [task.id]));
   const result = { verdict: findings.length ? "CHANGES_REQUIRED" as const : "APPROVED" as const, findings, reviewedArtifactRefs: ["brief", "planning-package", "architecture-review", "selected-design", "contract-audit", "task-graph", "source"] };
-  return CodeIntegrationReviewProviderOutputSchema.parse(result);
+  const catalog = createReviewEvidenceCatalog({ projectId: input.projectId, projectVersion: input.projectVersion, evidenceRefs: canonicalCodeIntegrationEvidence(input), requestContext: input });
+  return CodeIntegrationReviewProviderOutputSchema.parse(toProviderReviewEvidence(raw, result, catalog));
 }
 export class DeterministicCodeIntegrationReviewProvider implements CodeIntegrationReviewProvider { readonly promptVersion = "code-integration-reviewer.v1"; async review(input: CodeIntegrationReviewInput) { return deterministicCodeIntegrationReview(input); } }

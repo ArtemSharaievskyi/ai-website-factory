@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CodeIntegrationReviewResultSchema, ContractAuditResultSchema } from "@/domain/review/schema";
+import { CodeIntegrationReviewProviderOutputSchema, ContractAuditProviderOutputSchema } from "@/domain/review/schema";
 import { calculateUnblockedGroups, classifyReviewerOutput, loadVerificationConfig } from "../../scripts/phase-6b-cg01-verification";
 
 describe("cg-01 correction verification harness", () => {
@@ -13,13 +13,14 @@ describe("cg-01 correction verification harness", () => {
     expect(config.model).toBe("gpt-5.6-luna");
   });
   it("accepts only strict approved empty reviewer results as resolved", () => {
-    const result = classifyReviewerOutput("contract-auditor", ContractAuditResultSchema.parse({ verdict: "APPROVED", findings: [], reviewedArtifactRefs: ["current:contracts-contract"], policyVersion: "contract-audit-v1" }), new Set(["current:contracts-contract"]), 1);
+    const result = classifyReviewerOutput("contract-auditor", ContractAuditProviderOutputSchema.parse({ verdict: "APPROVED", findings: [], reviewedArtifactRefs: [`E${"2".repeat(16)}-001`] }), new Set([`E${"2".repeat(16)}-001`]), 1);
     expect(result.state).toBe("RESOLVED");
     expect(result.realGptCalls).toBe(1);
   });
   it("keeps a reviewer finding active and rejects invented evidence", () => {
-    const output = CodeIntegrationReviewResultSchema.parse({ verdict: "CHANGES_REQUIRED", findings: [{ findingId: "identity-still-active", severity: "ERROR", category: "CONTRACT_IMPLEMENTATION_MISMATCH", summary: "The identity binding remains incomplete.", evidenceRefs: ["current:code-contract"], affectedArtifacts: ["current:code-contract"], recommendedAction: "Bind the artifact identity.", correctionTarget: "UPSTREAM_CONTRACT" }], reviewedArtifactRefs: ["current:code-contract"], policyVersion: "code-integration-review-v1" });
-    const result = classifyReviewerOutput("code-integration-reviewer", output, new Set(["current:code-contract"]), 1);
+    const evidenceId = `E${"3".repeat(16)}-001`;
+    const output = CodeIntegrationReviewProviderOutputSchema.parse({ verdict: "CHANGES_REQUIRED", findings: [{ findingId: "identity-still-active", severity: "ERROR", category: "CONTRACT_IMPLEMENTATION_MISMATCH", summary: "The identity binding remains incomplete.", evidenceRefs: [evidenceId], affectedArtifacts: [evidenceId], recommendedAction: "Bind the artifact identity.", correctionTarget: "UPSTREAM_CONTRACT" }], reviewedArtifactRefs: [evidenceId] });
+    const result = classifyReviewerOutput("code-integration-reviewer", output, new Set([evidenceId]), 1);
     expect(result.state).toBe("STILL_ACTIVE");
     expect(() => classifyReviewerOutput("code-integration-reviewer", output, new Set(), 1)).toThrow(/VERIFICATION_EVIDENCE_INVALID/);
   });

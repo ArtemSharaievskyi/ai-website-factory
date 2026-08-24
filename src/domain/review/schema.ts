@@ -5,6 +5,17 @@ export const ReviewVerdictSchema = z.enum(["APPROVED", "CHANGES_REQUIRED", "BLOC
 export const ReviewSeveritySchema = z.enum(["INFO", "WARNING", "ERROR", "CRITICAL"]);
 export const ArchitectureFindingCategorySchema = z.enum(["REQUIREMENT_TRACEABILITY", "SOURCE_OF_TRUTH", "DOMAIN_MODEL", "IDENTITY_MODEL", "DATA_ARCHITECTURE", "AUTH_ARCHITECTURE", "STORAGE_ARCHITECTURE", "API_BOUNDARY", "SERVER_CLIENT_BOUNDARY", "DEPENDENCY_ARCHITECTURE", "SECURITY_ARCHITECTURE", "IMPLEMENTABILITY", "UNNECESSARY_COMPLEXITY", "MISSING_DECISION", "CONTRADICTORY_DECISION"]);
 export const ReviewEvidenceReferenceSchema = z.string().min(1).max(500);
+export const ReviewEvidenceIdSchema = z.string().regex(/^E[0-9a-f]{16}-[0-9]{3}$/);
+export const ReviewEvidenceCatalogSchema = z.object({
+  catalogId: z.string().regex(/^evidence-catalog-[0-9a-f]{16}$/),
+  contextChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+  projectId: z.string().uuid(),
+  projectVersion: z.number().int().positive(),
+  entries: z.array(z.object({ id: ReviewEvidenceIdSchema, canonicalRef: ReviewEvidenceReferenceSchema }).strict()).min(1),
+}).strict();
+export type ReviewEvidenceCatalog = z.infer<typeof ReviewEvidenceCatalogSchema>;
+export const ReviewEvidenceProvenanceSchema = z.object({ evidenceId: ReviewEvidenceIdSchema, canonicalRef: ReviewEvidenceReferenceSchema }).strict();
+export type ReviewEvidenceProvenance = z.infer<typeof ReviewEvidenceProvenanceSchema>;
 export const ReviewFindingSchema = z.object({
   findingId: z.string().regex(/^[a-z0-9]+(?:[-_.][a-z0-9]+)*$/),
   severity: ReviewSeveritySchema,
@@ -15,6 +26,10 @@ export const ReviewFindingSchema = z.object({
   recommendedAction: z.string().min(1),
 }).strict();
 export type ReviewFinding = z.infer<typeof ReviewFindingSchema>;
+const ProviderReviewFindingSchema = ReviewFindingSchema.extend({
+  evidenceRefs: z.array(ReviewEvidenceIdSchema).min(1),
+  affectedArtifacts: z.array(ReviewEvidenceIdSchema),
+}).strict();
 
 export const ReviewResultSchema = z.object({
   verdict: ReviewVerdictSchema,
@@ -32,11 +47,11 @@ export type ReviewResult = z.infer<typeof ReviewResultSchema>;
 export const ArchitectureReviewFindingSchema = ReviewFindingSchema.extend({ category: ArchitectureFindingCategorySchema });
 export const ArchitectureReviewResultSchema = ReviewResultSchema.safeExtend({ findings: z.array(ArchitectureReviewFindingSchema) }).strict();
 export type ArchitectureReviewResult = z.infer<typeof ArchitectureReviewResultSchema>;
-export const ArchitectureReviewProviderOutputSchema = z.object({ verdict: ReviewVerdictSchema, findings: z.array(ArchitectureReviewFindingSchema), reviewedArtifactRefs: z.array(ReviewEvidenceReferenceSchema).min(1), blockedReason: z.string().min(1).nullable().optional() }).strict();
+export const ArchitectureReviewProviderOutputSchema = z.object({ verdict: ReviewVerdictSchema, findings: z.array(ProviderReviewFindingSchema.extend({ category: ArchitectureFindingCategorySchema }).strict()), reviewedArtifactRefs: z.array(ReviewEvidenceIdSchema).min(1), blockedReason: z.string().min(1).nullable().optional() }).strict();
 export type ArchitectureReviewProviderOutput = z.infer<typeof ArchitectureReviewProviderOutputSchema>;
 export const ArchitectureReviewRecordSchema = z.object({
   schemaVersion: z.literal(1), documentType: z.literal("architecture-review"), projectId: z.string().uuid(), projectVersion: z.number().int().positive(), createdAt: IsoDateTimeSchema, updatedAt: IsoDateTimeSchema,
-  reviewId: z.string().uuid(), reviewerAgentId: z.literal("architecture-reviewer"), reviewerVersion: z.string().min(1), capability: z.literal("review.architecture"), policyVersion: z.string().min(1), promptVersion: z.string().min(1), reviewInputChecksum: z.string().regex(/^[a-f0-9]{64}$/), approvedBriefChecksum: z.string().regex(/^[a-f0-9]{64}$/), acceptedPlanningChecksum: z.string().regex(/^[a-f0-9]{64}$/), architectureChecksum: z.string().regex(/^[a-f0-9]{64}$/), phase7cChecksum: z.string().regex(/^[a-f0-9]{64}$/), resultChecksum: z.string().regex(/^[a-f0-9]{64}$/), result: ArchitectureReviewResultSchema,
+  reviewId: z.string().uuid(), reviewerAgentId: z.literal("architecture-reviewer"), reviewerVersion: z.string().min(1), capability: z.literal("review.architecture"), policyVersion: z.string().min(1), promptVersion: z.string().min(1), reviewInputChecksum: z.string().regex(/^[a-f0-9]{64}$/), approvedBriefChecksum: z.string().regex(/^[a-f0-9]{64}$/), acceptedPlanningChecksum: z.string().regex(/^[a-f0-9]{64}$/), architectureChecksum: z.string().regex(/^[a-f0-9]{64}$/), phase7cChecksum: z.string().regex(/^[a-f0-9]{64}$/), evidenceCatalogId: z.string().regex(/^evidence-catalog-[0-9a-f]{16}$/).optional(), evidenceCatalogChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(), evidenceProvenance: z.array(ReviewEvidenceProvenanceSchema).optional(), resultChecksum: z.string().regex(/^[a-f0-9]{64}$/), result: ArchitectureReviewResultSchema,
 }).strict();
 export type ArchitectureReviewRecord = z.infer<typeof ArchitectureReviewRecordSchema>;
 export const ArchitectureReviewHistorySchema = z.object({ schemaVersion: z.literal(1), documentType: z.literal("architecture-review-history"), projectId: z.string().uuid(), projectVersion: z.number().int().positive(), createdAt: IsoDateTimeSchema, updatedAt: IsoDateTimeSchema, records: z.array(ArchitectureReviewRecordSchema) }).strict();
@@ -46,12 +61,12 @@ export const ContractAuditFindingSchema = ReviewFindingSchema.extend({ category:
 export const ContractAuditResultSchema = ReviewResultSchema.safeExtend({ findings: z.array(ContractAuditFindingSchema) }).strict();
 export type ContractAuditFinding = z.infer<typeof ContractAuditFindingSchema>;
 export type ContractAuditResult = z.infer<typeof ContractAuditResultSchema>;
-export const ContractAuditProviderOutputSchema = z.object({ verdict: ReviewVerdictSchema, findings: z.array(ContractAuditFindingSchema), reviewedArtifactRefs: z.array(ReviewEvidenceReferenceSchema).min(1), blockedReason: z.string().min(1).nullable().optional() }).strict();
+export const ContractAuditProviderOutputSchema = z.object({ verdict: ReviewVerdictSchema, findings: z.array(ProviderReviewFindingSchema.extend({ category: ContractFindingCategorySchema, correctionTarget: ContractCorrectionTargetSchema.nullable().optional() }).strict()), reviewedArtifactRefs: z.array(ReviewEvidenceIdSchema).min(1), blockedReason: z.string().min(1).nullable().optional() }).strict();
 export type ContractAuditProviderOutput = z.infer<typeof ContractAuditProviderOutputSchema>;
 export const ContractAuditRecordSchema = z.object({
   schemaVersion: z.literal(1), documentType: z.literal("contract-audit"), projectId: z.string().uuid(), projectVersion: z.number().int().positive(), createdAt: IsoDateTimeSchema, updatedAt: IsoDateTimeSchema,
   auditId: z.string().uuid(), auditorAgentId: z.literal("contract-auditor"), auditorVersion: z.string().min(1), capability: z.literal("review.contracts"), policyVersion: z.literal("contract-audit-v1"), promptVersion: z.string().min(1),
-  briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), planningChecksum: z.string().regex(/^[a-f0-9]{64}$/), architectureReviewId: z.string().uuid(), architectureReviewChecksum: z.string().regex(/^[a-f0-9]{64}$/), designChecksum: z.string().regex(/^[a-f0-9]{64}$/), taskGraphChecksum: z.string().regex(/^[a-f0-9]{64}$/), resultChecksum: z.string().regex(/^[a-f0-9]{64}$/), result: ContractAuditResultSchema,
+  briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), planningChecksum: z.string().regex(/^[a-f0-9]{64}$/), architectureReviewId: z.string().uuid(), architectureReviewChecksum: z.string().regex(/^[a-f0-9]{64}$/), designChecksum: z.string().regex(/^[a-f0-9]{64}$/), taskGraphChecksum: z.string().regex(/^[a-f0-9]{64}$/), evidenceCatalogId: z.string().regex(/^evidence-catalog-[0-9a-f]{16}$/).optional(), evidenceCatalogChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(), evidenceProvenance: z.array(ReviewEvidenceProvenanceSchema).optional(), resultChecksum: z.string().regex(/^[a-f0-9]{64}$/), result: ContractAuditResultSchema,
 }).strict();
 export type ContractAuditRecord = z.infer<typeof ContractAuditRecordSchema>;
 export const ContractAuditHistorySchema = z.object({ schemaVersion: z.literal(1), documentType: z.literal("contract-audit-history"), projectId: z.string().uuid(), projectVersion: z.number().int().positive(), createdAt: IsoDateTimeSchema, updatedAt: IsoDateTimeSchema, records: z.array(ContractAuditRecordSchema) }).strict();
@@ -60,12 +75,12 @@ export const CodeIntegrationCorrectionTargetSchema = z.enum(["IMPLEMENTATION_TAS
 export const CodeIntegrationFindingSchema = ReviewFindingSchema.extend({ category: CodeIntegrationFindingCategorySchema, correctionTarget: CodeIntegrationCorrectionTargetSchema, ownerTaskId: z.string().uuid().nullable().optional() });
 export const CodeIntegrationReviewResultSchema = ReviewResultSchema.safeExtend({ findings: z.array(CodeIntegrationFindingSchema) }).strict();
 export type CodeIntegrationReviewResult = z.infer<typeof CodeIntegrationReviewResultSchema>;
-export const CodeIntegrationReviewProviderOutputSchema = z.object({ verdict: ReviewVerdictSchema, findings: z.array(CodeIntegrationFindingSchema), reviewedArtifactRefs: z.array(ReviewEvidenceReferenceSchema).min(1), blockedReason: z.string().min(1).nullable().optional() }).strict();
+export const CodeIntegrationReviewProviderOutputSchema = z.object({ verdict: ReviewVerdictSchema, findings: z.array(ProviderReviewFindingSchema.extend({ category: CodeIntegrationFindingCategorySchema, correctionTarget: CodeIntegrationCorrectionTargetSchema, ownerTaskId: z.string().uuid().nullable().optional() }).strict()), reviewedArtifactRefs: z.array(ReviewEvidenceIdSchema).min(1), blockedReason: z.string().min(1).nullable().optional() }).strict();
 export type CodeIntegrationReviewProviderOutput = z.infer<typeof CodeIntegrationReviewProviderOutputSchema>;
 export const CodeIntegrationReviewRecordSchema = z.object({
   schemaVersion: z.literal(1), documentType: z.literal("code-integration-review"), projectId: z.string().uuid(), projectVersion: z.number().int().positive(), createdAt: IsoDateTimeSchema, updatedAt: IsoDateTimeSchema,
   reviewId: z.string().uuid(), reviewerAgentId: z.literal("code-integration-reviewer"), reviewerVersion: z.string().min(1), capability: z.literal("review.integration"), policyVersion: z.literal("code-integration-review-v1"), promptVersion: z.string().min(1),
-  briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), planningChecksum: z.string().regex(/^[a-f0-9]{64}$/), architectureReviewChecksum: z.string().regex(/^[a-f0-9]{64}$/), designChecksum: z.string().regex(/^[a-f0-9]{64}$/), contractAuditChecksum: z.string().regex(/^[a-f0-9]{64}$/), taskGraphChecksum: z.string().regex(/^[a-f0-9]{64}$/), sourceChecksum: z.string().regex(/^[a-f0-9]{64}$/), resultChecksum: z.string().regex(/^[a-f0-9]{64}$/), result: CodeIntegrationReviewResultSchema,
+  briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), planningChecksum: z.string().regex(/^[a-f0-9]{64}$/), architectureReviewChecksum: z.string().regex(/^[a-f0-9]{64}$/), designChecksum: z.string().regex(/^[a-f0-9]{64}$/), contractAuditChecksum: z.string().regex(/^[a-f0-9]{64}$/), taskGraphChecksum: z.string().regex(/^[a-f0-9]{64}$/), sourceChecksum: z.string().regex(/^[a-f0-9]{64}$/), evidenceCatalogId: z.string().regex(/^evidence-catalog-[0-9a-f]{16}$/).optional(), evidenceCatalogChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(), evidenceProvenance: z.array(ReviewEvidenceProvenanceSchema).optional(), resultChecksum: z.string().regex(/^[a-f0-9]{64}$/), result: CodeIntegrationReviewResultSchema,
 }).strict();
 export const CodeIntegrationReviewHistorySchema = z.object({ schemaVersion: z.literal(1), documentType: z.literal("code-integration-review-history"), projectId: z.string().uuid(), projectVersion: z.number().int().positive(), createdAt: IsoDateTimeSchema, updatedAt: IsoDateTimeSchema, records: z.array(CodeIntegrationReviewRecordSchema) }).strict();
 export const SecurityFindingCategorySchema = z.enum(["TRUST_BOUNDARY", "INPUT_VALIDATION", "AUTHORIZATION", "AUTHENTICATION_FLOW", "SERVER_CLIENT_EXPOSURE", "SECRET_EXPOSURE", "DATABASE_ACCESS", "RLS_POLICY", "STORAGE_ACCESS", "ADMIN_PROTECTION", "MASS_ASSIGNMENT", "UNSAFE_REDIRECT", "ERROR_INFORMATION_EXPOSURE", "EXTERNAL_INPUT_HANDLING", "FILE_UPLOAD_SECURITY", "DEPENDENCY_SECURITY", "SECURITY_CONTRACT_MISMATCH"]);
@@ -75,12 +90,12 @@ export type SecuritySurface = z.infer<typeof SecuritySurfaceSchema>;
 export const SecurityFindingSchema = ReviewFindingSchema.extend({ category: SecurityFindingCategorySchema, correctionTarget: SecurityCorrectionTargetSchema, ownerTaskId: z.string().uuid().nullable().optional() });
 export const SecurityReviewResultSchema = ReviewResultSchema.safeExtend({ findings: z.array(SecurityFindingSchema) }).strict();
 export type SecurityReviewResult = z.infer<typeof SecurityReviewResultSchema>;
-export const SecurityReviewProviderOutputSchema = z.object({ verdict: ReviewVerdictSchema, findings: z.array(SecurityFindingSchema), reviewedArtifactRefs: z.array(ReviewEvidenceReferenceSchema).min(1), blockedReason: z.string().min(1).nullable().optional() }).strict();
+export const SecurityReviewProviderOutputSchema = z.object({ verdict: ReviewVerdictSchema, findings: z.array(ProviderReviewFindingSchema.extend({ category: SecurityFindingCategorySchema, correctionTarget: SecurityCorrectionTargetSchema, ownerTaskId: z.string().uuid().nullable().optional() }).strict()), reviewedArtifactRefs: z.array(ReviewEvidenceIdSchema).min(1), blockedReason: z.string().min(1).nullable().optional() }).strict();
 export type SecurityReviewProviderOutput = z.infer<typeof SecurityReviewProviderOutputSchema>;
 export const SecurityReviewRecordSchema = z.object({
   schemaVersion: z.literal(1), documentType: z.literal("security-review"), projectId: z.string().uuid(), projectVersion: z.number().int().positive(), createdAt: IsoDateTimeSchema, updatedAt: IsoDateTimeSchema,
   reviewId: z.string().uuid(), reviewerAgentId: z.literal("security-reviewer"), reviewerVersion: z.string().min(1), capability: z.literal("review.security"), policyVersion: z.literal("security-review-v1"), promptVersion: z.string().min(1), securitySurface: z.array(SecuritySurfaceSchema).min(1), semanticReviewSkipped: z.boolean(),
-  briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), planningChecksum: z.string().regex(/^[a-f0-9]{64}$/), architectureReviewChecksum: z.string().regex(/^[a-f0-9]{64}$/), designChecksum: z.string().regex(/^[a-f0-9]{64}$/), contractAuditChecksum: z.string().regex(/^[a-f0-9]{64}$/), taskGraphChecksum: z.string().regex(/^[a-f0-9]{64}$/), codeIntegrationReviewChecksum: z.string().regex(/^[a-f0-9]{64}$/), sourceChecksum: z.string().regex(/^[a-f0-9]{64}$/), securityEvidenceChecksum: z.string().regex(/^[a-f0-9]{64}$/), resultChecksum: z.string().regex(/^[a-f0-9]{64}$/), result: SecurityReviewResultSchema,
+  briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), planningChecksum: z.string().regex(/^[a-f0-9]{64}$/), architectureReviewChecksum: z.string().regex(/^[a-f0-9]{64}$/), designChecksum: z.string().regex(/^[a-f0-9]{64}$/), contractAuditChecksum: z.string().regex(/^[a-f0-9]{64}$/), taskGraphChecksum: z.string().regex(/^[a-f0-9]{64}$/), codeIntegrationReviewChecksum: z.string().regex(/^[a-f0-9]{64}$/), sourceChecksum: z.string().regex(/^[a-f0-9]{64}$/), securityEvidenceChecksum: z.string().regex(/^[a-f0-9]{64}$/), evidenceCatalogId: z.string().regex(/^evidence-catalog-[0-9a-f]{16}$/).optional(), evidenceCatalogChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(), evidenceProvenance: z.array(ReviewEvidenceProvenanceSchema).optional(), resultChecksum: z.string().regex(/^[a-f0-9]{64}$/), result: SecurityReviewResultSchema,
 }).strict();
 export const SecurityReviewHistorySchema = z.object({ schemaVersion: z.literal(1), documentType: z.literal("security-review-history"), projectId: z.string().uuid(), projectVersion: z.number().int().positive(), createdAt: IsoDateTimeSchema, updatedAt: IsoDateTimeSchema, records: z.array(SecurityReviewRecordSchema) }).strict();
 export const TestQualityFindingCategorySchema = z.enum(["REQUIREMENT_NOT_VERIFIED", "CRITICAL_FLOW_NOT_VERIFIED", "WEAK_ASSERTION", "FALSE_CONFIDENCE_TEST", "FORM_FLOW_NOT_VERIFIED", "AUTH_FLOW_NOT_VERIFIED", "DATA_FLOW_NOT_VERIFIED", "ERROR_PATH_NOT_VERIFIED", "FUNCTIONAL_SCENARIO_INCOMPLETE", "TEST_CONTRACT_MISMATCH", "QUALITY_EVIDENCE_STALE", "UNNECESSARY_TEST_COMPLEXITY"]);
@@ -88,11 +103,11 @@ export const TestQualityCorrectionTargetSchema = z.enum(["TEST_TASK", "FUNCTIONA
 export const TestQualityFindingSchema = ReviewFindingSchema.extend({ category: TestQualityFindingCategorySchema, correctionTarget: TestQualityCorrectionTargetSchema, ownerTaskId: z.string().uuid().nullable().optional() });
 export const TestQualityReviewResultSchema = ReviewResultSchema.safeExtend({ findings: z.array(TestQualityFindingSchema) }).strict();
 export type TestQualityReviewResult = z.infer<typeof TestQualityReviewResultSchema>;
-export const TestQualityReviewProviderOutputSchema = z.object({ verdict: ReviewVerdictSchema, findings: z.array(TestQualityFindingSchema), reviewedArtifactRefs: z.array(ReviewEvidenceReferenceSchema).min(1), blockedReason: z.string().min(1).nullable().optional() }).strict();
+export const TestQualityReviewProviderOutputSchema = z.object({ verdict: ReviewVerdictSchema, findings: z.array(ProviderReviewFindingSchema.extend({ category: TestQualityFindingCategorySchema, correctionTarget: TestQualityCorrectionTargetSchema, ownerTaskId: z.string().uuid().nullable().optional() }).strict()), reviewedArtifactRefs: z.array(ReviewEvidenceIdSchema).min(1), blockedReason: z.string().min(1).nullable().optional() }).strict();
 export type TestQualityReviewProviderOutput = z.infer<typeof TestQualityReviewProviderOutputSchema>;
 export const TestQualityReviewRecordSchema = z.object({
   schemaVersion: z.literal(1), documentType: z.literal("test-quality-review"), projectId: z.string().uuid(), projectVersion: z.number().int().positive(), createdAt: IsoDateTimeSchema, updatedAt: IsoDateTimeSchema,
   reviewId: z.string().uuid(), reviewerAgentId: z.literal("test-quality-reviewer"), reviewerVersion: z.string().min(1), capability: z.literal("review.test-quality"), policyVersion: z.literal("test-quality-review-v1"), promptVersion: z.string().min(1),
-  briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), planningChecksum: z.string().regex(/^[a-f0-9]{64}$/), architectureReviewChecksum: z.string().regex(/^[a-f0-9]{64}$/), designChecksum: z.string().regex(/^[a-f0-9]{64}$/), contractAuditChecksum: z.string().regex(/^[a-f0-9]{64}$/), taskGraphChecksum: z.string().regex(/^[a-f0-9]{64}$/), codeIntegrationReviewChecksum: z.string().regex(/^[a-f0-9]{64}$/), securityReviewChecksum: z.string().regex(/^[a-f0-9]{64}$/), sourceChecksum: z.string().regex(/^[a-f0-9]{64}$/), testSourceChecksum: z.string().regex(/^[a-f0-9]{64}$/), qualityEvidenceChecksum: z.string().regex(/^[a-f0-9]{64}$/), resultChecksum: z.string().regex(/^[a-f0-9]{64}$/), result: TestQualityReviewResultSchema,
+  briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), planningChecksum: z.string().regex(/^[a-f0-9]{64}$/), architectureReviewChecksum: z.string().regex(/^[a-f0-9]{64}$/), contractAuditChecksum: z.string().regex(/^[a-f0-9]{64}$/), codeIntegrationReviewChecksum: z.string().regex(/^[a-f0-9]{64}$/), securityReviewChecksum: z.string().regex(/^[a-f0-9]{64}$/), sourceChecksum: z.string().regex(/^[a-f0-9]{64}$/), testSourceChecksum: z.string().regex(/^[a-f0-9]{64}$/), qualityEvidenceChecksum: z.string().regex(/^[a-f0-9]{64}$/), evidenceCatalogId: z.string().regex(/^evidence-catalog-[0-9a-f]{16}$/).optional(), evidenceCatalogChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(), evidenceProvenance: z.array(ReviewEvidenceProvenanceSchema).optional(), resultChecksum: z.string().regex(/^[a-f0-9]{64}$/), result: TestQualityReviewResultSchema,
 }).strict();
 export const TestQualityReviewHistorySchema = z.object({ schemaVersion: z.literal(1), documentType: z.literal("test-quality-review-history"), projectId: z.string().uuid(), projectVersion: z.number().int().positive(), createdAt: IsoDateTimeSchema, updatedAt: IsoDateTimeSchema, records: z.array(TestQualityReviewRecordSchema) }).strict();

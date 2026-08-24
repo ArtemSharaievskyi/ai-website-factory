@@ -13,6 +13,7 @@ import {
   CodeIntegrationReviewResultSchema,
   type CodeIntegrationReviewProviderOutput,
   type CodeIntegrationReviewResult,
+  type ReviewEvidenceProvenance,
 } from "@/domain/review/schema";
 import { codeIntegrationReviewerAgentDefinition } from "@/agents/catalog";
 import { CodeIntegrationReviewError } from "./errors";
@@ -27,7 +28,24 @@ import {
 } from "./deterministic";
 import type { CodeIntegrationReviewProvider } from "./ports";
 import type { AgentSkillSelection } from "@/skills/runtime/resolver";
+import { createReviewEvidenceCatalog, evidenceCatalogChecksum, providerEvidenceCatalog, resolveProviderReviewEvidence } from "../evidence";
 const now = () => new Date().toISOString();
+
+export function canonicalCodeIntegrationEvidence(input: CodeIntegrationReviewInput) {
+  return new Set([
+    "brief",
+    "planning-package",
+    "architecture-review",
+    "selected-design",
+    "contract-audit",
+    "task-graph",
+    "source",
+    ...input.staticValidation.evidenceRefs,
+    ...input.sourceManifest.map((file) => `source:${file.relativePath}`),
+    ...input.implementationTasks.map((task) => task.taskId),
+    ...input.taskGraph.tasks.map((task) => task.id),
+  ]);
+}
 export class CodeIntegrationReviewService {
   private readonly documents: DocumentRepository;
   private readonly projects: ProjectRepository;
@@ -93,6 +111,13 @@ export class CodeIntegrationReviewService {
         "CODE_REVIEW_PREREQUISITE_FAILED",
         "Lint, typecheck, and structural validation must pass before AI review.",
       );
+    const evidenceCatalog = createReviewEvidenceCatalog({
+      projectId: input.projectId,
+      projectVersion: input.projectVersion,
+      evidenceRefs: canonicalCodeIntegrationEvidence(input),
+      requestContext: input,
+    });
+    const providerInput = { ...input, evidenceCatalog: providerEvidenceCatalog(evidenceCatalog) };
     if (input.approvedContractAudit.result.verdict !== "APPROVED")
       throw new CodeIntegrationReviewError(
         "CODE_REVIEW_BLOCKED",
@@ -111,6 +136,7 @@ export class CodeIntegrationReviewService {
       contractAuditChecksum: input.contractAuditChecksum,
       taskGraphChecksum: input.taskGraphChecksum,
       sourceChecksum: input.sourceChecksum,
+      evidenceCatalogChecksum: evidenceCatalogChecksum(evidenceCatalog),
       policyVersion: CODE_INTEGRATION_REVIEW_POLICY_VERSION,
       promptVersion: this.provider.promptVersion,
       skillContextChecksum: skillSelection.identityChecksum,
@@ -125,12 +151,13 @@ export class CodeIntegrationReviewService {
       return prior.result;
     }
     try {
-      const deterministic = deterministicCodeIntegrationReview(input);
+      const deterministic = deterministicCodeIntegrationReview(providerInput);
       const providerResult =
         deterministic.verdict === "APPROVED"
-          ? await this.provider.review(input, signal, skillSelection.contexts, skillSelection.identityChecksum)
+          ? await this.provider.review(providerInput, signal, skillSelection.contexts, skillSelection.identityChecksum)
           : deterministic;
-      const result = this.normalize(providerResult, input);
+      const normalized = this.normalize(providerResult, input, evidenceCatalog);
+      const result = normalized.result;
       const record = CodeIntegrationReviewRecordSchema.parse({
         schemaVersion: 1,
         documentType: "code-integration-review",
@@ -151,6 +178,9 @@ export class CodeIntegrationReviewService {
         contractAuditChecksum: input.contractAuditChecksum,
         taskGraphChecksum: input.taskGraphChecksum,
         sourceChecksum: input.sourceChecksum,
+        evidenceCatalogId: evidenceCatalog.catalogId,
+        evidenceCatalogChecksum: evidenceCatalogChecksum(evidenceCatalog),
+        evidenceProvenance: normalized.provenance,
         resultChecksum: checksumPersistedDocument(result),
         result,
       });
@@ -229,28 +259,21 @@ export class CodeIntegrationReviewService {
   private normalize(
     raw: CodeIntegrationReviewProviderOutput,
     input: CodeIntegrationReviewInput,
-  ) {
+    evidenceCatalog: ReturnType<typeof createReviewEvidenceCatalog>,
+  ): { result: CodeIntegrationReviewResult; provenance: ReviewEvidenceProvenance[] } {
     const parsed = CodeIntegrationReviewProviderOutputSchema.parse(raw);
-    const evidence = new Set([
-      "brief",
-      "planning-package",
-      "architecture-review",
-      "selected-design",
-      "contract-audit",
-      "task-graph",
-      "source",
-      ...input.staticValidation.evidenceRefs,
-      ...input.sourceManifest.map((file) => `source:${file.relativePath}`),
-      ...input.implementationTasks.map((task) => task.taskId),
-      ...input.taskGraph.tasks.map((task) => task.id),
-    ]);
-    const findings = parsed.findings.map((item) => {
-      for (const ref of [...item.evidenceRefs, ...item.affectedArtifacts])
-        if (!evidence.has(ref))
-          throw new CodeIntegrationReviewError(
-            "CODE_REVIEW_OUTPUT_INVALID",
-            `Finding references unavailable evidence: ${ref}.`,
-          );
+    let resolved: ReturnType<typeof resolveProviderReviewEvidence<typeof parsed.findings[number]>>;
+    try {
+      resolved = resolveProviderReviewEvidence<typeof parsed.findings[number]>(evidenceCatalog, parsed);
+    } catch (error) {
+      throw new CodeIntegrationReviewError(
+        "CODE_REVIEW_OUTPUT_INVALID",
+        "Code / Integration Review output referenced evidence outside the host-issued catalog.",
+        error,
+      );
+    }
+    const findings = parsed.findings.map((item, index) => {
+      const resolvedItem = resolved.findings[index]!;
       if (
         (item.severity === "ERROR" || item.severity === "CRITICAL") &&
         item.correctionTarget === "IMPLEMENTATION_TASK" &&
@@ -263,10 +286,11 @@ export class CodeIntegrationReviewService {
           "CODE_REVIEW_OUTPUT_INVALID",
           "Finding owner task is not current implementation ownership.",
         );
-      return item;
+      return resolvedItem;
     });
     const result = CodeIntegrationReviewResultSchema.parse({
       ...parsed,
+      reviewedArtifactRefs: resolved.reviewedArtifactRefs,
       findings,
       policyVersion: CODE_INTEGRATION_REVIEW_POLICY_VERSION,
     });
@@ -276,10 +300,7 @@ export class CodeIntegrationReviewService {
         (item) => item.severity === "ERROR" || item.severity === "CRITICAL",
       )
     )
-      return CodeIntegrationReviewResultSchema.parse({
-        ...result,
-        verdict: "CHANGES_REQUIRED",
-      });
-    return result;
+      return { result: CodeIntegrationReviewResultSchema.parse({ ...result, verdict: "CHANGES_REQUIRED" }), provenance: resolved.provenance };
+    return { result, provenance: resolved.provenance };
   }
 }

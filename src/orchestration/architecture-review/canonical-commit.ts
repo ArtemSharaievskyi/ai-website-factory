@@ -25,6 +25,8 @@ import {
 import { ArchitectureReviewError, rethrowWrappedArchitectureReviewError } from "@/agents/reviewers/architecture/errors";
 import type { ArchitectureReviewProposal } from "@/agents/reviewers/architecture/service";
 import { readCanonicalReviewContext, type CanonicalReviewContext } from "@/agents/reviewers/architecture/currentness";
+import { canonicalArchitectureEvidence } from "@/agents/reviewers/architecture/deterministic";
+import { createReviewEvidenceCatalog, evidenceCatalogChecksum } from "@/agents/reviewers/evidence";
 
 const now = () => new Date().toISOString();
 
@@ -90,6 +92,20 @@ export class ArchitectureReviewCanonicalCommitService {
 
     const committed = await this.database.transaction(async (tx) => {
       const canonical = await readCanonicalReviewContext(tx, input);
+      const evidenceCatalog = createReviewEvidenceCatalog({
+        projectId: input.projectId,
+        projectVersion: input.projectVersion,
+        evidenceRefs: canonicalArchitectureEvidence(input),
+        requestContext: input,
+      });
+      if (
+        proposal.evidenceCatalogId !== evidenceCatalog.catalogId ||
+        proposal.evidenceCatalogChecksum !== evidenceCatalogChecksum(evidenceCatalog)
+      )
+        throw new ArchitectureReviewError(
+          "ARCHITECTURE_REVIEW_STALE",
+          "The host-issued Architecture Review evidence catalog is stale.",
+        );
       if (proposal.versionRowVersion !== canonical.version.rowVersion)
         throw new ArchitectureReviewError(
           "ARCHITECTURE_REVIEW_STALE",
@@ -172,6 +188,9 @@ export class ArchitectureReviewCanonicalCommitService {
         acceptedPlanningChecksum: input.acceptedPlanningChecksum,
         architectureChecksum: canonical.architectureChecksum,
         phase7cChecksum: canonical.phase7cChecksum,
+        evidenceCatalogId: evidenceCatalog.catalogId,
+        evidenceCatalogChecksum: evidenceCatalogChecksum(evidenceCatalog),
+        evidenceProvenance: proposal.evidenceProvenance ?? [],
         resultChecksum: checksumPersistedDocument(result),
         result,
       });
@@ -308,6 +327,12 @@ export class ArchitectureReviewCanonicalCommitService {
       acceptedPlanningChecksum: input.acceptedPlanningChecksum,
       factoryArchitecturePolicy: input.factoryArchitecturePolicy,
       relevantProjectConstraints: input.relevantProjectConstraints,
+      evidenceCatalogChecksum: evidenceCatalogChecksum(createReviewEvidenceCatalog({
+        projectId: input.projectId,
+        projectVersion: input.projectVersion,
+        evidenceRefs: canonicalArchitectureEvidence(input),
+        requestContext: input,
+      })),
       skillContextChecksum: proposal.skillContextChecksum,
       policyVersion: proposal.policyVersion,
       promptVersion: proposal.promptVersion,

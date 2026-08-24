@@ -13,6 +13,7 @@ import {
   TestQualityReviewResultSchema,
   type TestQualityReviewProviderOutput,
   type TestQualityReviewResult,
+  type ReviewEvidenceProvenance,
 } from "@/domain/review/schema";
 import { testQualityReviewerAgentDefinition } from "@/agents/catalog";
 import { TestQualityReviewError } from "./errors";
@@ -27,7 +28,21 @@ import {
 } from "./deterministic";
 import type { TestQualityReviewProvider } from "./ports";
 import type { AgentSkillSelection } from "@/skills/runtime/resolver";
+import { createReviewEvidenceCatalog, evidenceCatalogChecksum, providerEvidenceCatalog, resolveProviderReviewEvidence } from "../evidence";
 const now = () => new Date().toISOString();
+
+export function canonicalTestQualityEvidence(input: TestQualityReviewInput) {
+  return new Set([
+    "brief", "planning-package", "architecture-review", "selected-design", "contract-audit", "code-integration-review", "security-review", "task-graph", "source", "quality-evidence",
+    ...input.qualityEvidence.traceEdges,
+    ...input.qualityEvidence.requirements.flatMap((trace) => [trace.requirementId, ...trace.evidenceRefs]),
+    ...input.qualityEvidence.unitTests.evidenceRefs,
+    ...input.qualityEvidence.qualityGates.flatMap((gate) => gate.evidenceRefs),
+    ...input.qualityEvidence.functionalScenarios.flatMap((scenario) => scenario.evidenceRefs),
+    ...input.taskGraph.tasks.map((task) => task.id),
+    ...input.testSourceSlices.map((slice) => `source:${slice.relativePath}`),
+  ]);
+}
 export class TestQualityReviewService {
   private readonly documents: DocumentRepository;
   private readonly projects: ProjectRepository;
@@ -101,6 +116,13 @@ export class TestQualityReviewService {
     const qualityEvidenceChecksum = checksumPersistedDocument(
       input.qualityEvidence,
     );
+    const evidenceCatalog = createReviewEvidenceCatalog({
+      projectId: input.projectId,
+      projectVersion: input.projectVersion,
+      evidenceRefs: canonicalTestQualityEvidence(input),
+      requestContext: input,
+    });
+    const providerInput = { ...input, evidenceCatalog: providerEvidenceCatalog(evidenceCatalog) };
     const skillSelection = this.resolveSkills
       ? await this.resolveSkills(input)
       : { contexts: [], identityChecksum: "none", selectedSkillIds: [], selectedSkillChecksums: [] };
@@ -118,6 +140,7 @@ export class TestQualityReviewService {
       sourceChecksum: input.sourceChecksum,
       testSourceChecksum: input.testSourceChecksum,
       qualityEvidenceChecksum,
+      evidenceCatalogChecksum: evidenceCatalogChecksum(evidenceCatalog),
       policyVersion: TEST_QUALITY_REVIEW_POLICY_VERSION,
       promptVersion: this.provider.promptVersion,
       skillContextChecksum: skillSelection.identityChecksum,
@@ -132,12 +155,13 @@ export class TestQualityReviewService {
       return prior.result;
     }
     try {
-      const deterministic = deterministicTestQualityReview(input);
+      const deterministic = deterministicTestQualityReview(providerInput);
       const providerResult =
         deterministic.verdict === "APPROVED"
-          ? await this.provider.review(input, signal, skillSelection.contexts, skillSelection.identityChecksum)
+          ? await this.provider.review(providerInput, signal, skillSelection.contexts, skillSelection.identityChecksum)
           : deterministic;
-      const result = this.normalize(providerResult, input);
+      const normalized = this.normalize(providerResult, input, evidenceCatalog);
+      const result = normalized.result;
       const record = TestQualityReviewRecordSchema.parse({
         schemaVersion: 1,
         documentType: "test-quality-review",
@@ -162,6 +186,9 @@ export class TestQualityReviewService {
         sourceChecksum: input.sourceChecksum,
         testSourceChecksum: input.testSourceChecksum,
         qualityEvidenceChecksum,
+        evidenceCatalogId: evidenceCatalog.catalogId,
+        evidenceCatalogChecksum: evidenceCatalogChecksum(evidenceCatalog),
+        evidenceProvenance: normalized.provenance,
         resultChecksum: checksumPersistedDocument(result),
         result,
       });
@@ -243,34 +270,19 @@ export class TestQualityReviewService {
   private normalize(
     raw: TestQualityReviewProviderOutput,
     input: TestQualityReviewInput,
-  ) {
+    evidenceCatalog: ReturnType<typeof createReviewEvidenceCatalog>,
+  ): { result: TestQualityReviewResult; provenance: ReviewEvidenceProvenance[] } {
     const parsed = TestQualityReviewProviderOutputSchema.parse(raw);
-    const evidence = new Set([
-      "brief",
-      "planning-package",
-      "architecture-review",
-      "selected-design",
-      "contract-audit",
-      "code-integration-review",
-      "security-review",
-      "task-graph",
-      "source",
-      "quality-evidence",
-      ...input.qualityEvidence.traceEdges,
-      ...input.qualityEvidence.unitTests.evidenceRefs,
-      ...input.qualityEvidence.functionalScenarios.flatMap(
-        (s) => s.evidenceRefs,
-      ),
-      ...input.taskGraph.tasks.map((t) => t.id),
-      ...input.testSourceSlices.map((s) => `source:${s.relativePath}`),
-    ]);
-    for (const item of parsed.findings)
-      for (const ref of [...item.evidenceRefs, ...item.affectedArtifacts])
-        if (!evidence.has(ref))
-          throw new TestQualityReviewError(
-            "TEST_QUALITY_OUTPUT_INVALID",
-            `Finding references unavailable evidence: ${ref}.`,
-          );
+    let resolved: ReturnType<typeof resolveProviderReviewEvidence<typeof parsed.findings[number]>>;
+    try {
+      resolved = resolveProviderReviewEvidence<typeof parsed.findings[number]>(evidenceCatalog, parsed);
+    } catch (error) {
+      throw new TestQualityReviewError(
+        "TEST_QUALITY_OUTPUT_INVALID",
+        "Test / Quality Review output referenced evidence outside the host-issued catalog.",
+        error,
+      );
+    }
     for (const item of parsed.findings)
       if (
         (item.severity === "ERROR" || item.severity === "CRITICAL") &&
@@ -283,16 +295,14 @@ export class TestQualityReviewService {
         );
     const result = TestQualityReviewResultSchema.parse({
       ...parsed,
-      findings: parsed.findings,
+      reviewedArtifactRefs: resolved.reviewedArtifactRefs,
+      findings: resolved.findings,
       policyVersion: TEST_QUALITY_REVIEW_POLICY_VERSION,
     });
     return result.findings.some(
       (item) => item.severity === "ERROR" || item.severity === "CRITICAL",
     ) && result.verdict === "APPROVED"
-      ? TestQualityReviewResultSchema.parse({
-          ...result,
-          verdict: "CHANGES_REQUIRED",
-        })
-      : result;
+      ? { result: TestQualityReviewResultSchema.parse({ ...result, verdict: "CHANGES_REQUIRED" }), provenance: resolved.provenance }
+      : { result, provenance: resolved.provenance };
   }
 }

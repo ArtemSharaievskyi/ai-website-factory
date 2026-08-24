@@ -37,13 +37,14 @@ describe("production AI provider boundary", () => {
       ["security-review-result", SecurityReviewProviderOutputSchema, "TRUST_BOUNDARY"],
       ["test-quality-review-result", TestQualityReviewProviderOutputSchema, "REQUIREMENT_NOT_VERIFIED"],
     ] as const;
+    const evidenceId = `E${"0".repeat(16)}-001`;
     for (const [name, schema, category] of schemas) {
       expect(() => zodResponseFormat(schema, name)).not.toThrow();
-      const zeroFinding = { verdict: "APPROVED", findings: [], reviewedArtifactRefs: ["file:src/app.ts"], blockedReason: null };
+      const zeroFinding = { verdict: "APPROVED", findings: [], reviewedArtifactRefs: [evidenceId], blockedReason: null };
       expect(schema.safeParse(zeroFinding).success).toBe(true);
       expect(schema.safeParse({ ...zeroFinding, policyVersion: "provider-authored-old-policy" }).success).toBe(false);
       expect(schema.safeParse({ ...zeroFinding, targetWorkflowState: "AWAITING_DESIGN_SELECTION" }).success).toBe(false);
-      const oneFinding = { ...zeroFinding, verdict: "CHANGES_REQUIRED", findings: [{ findingId: "finding-1", severity: "INFO", category, summary: "Bounded finding.", evidenceRefs: ["file:src/app.ts"], affectedArtifacts: [], recommendedAction: "Review the cited evidence.", ...(category === "REQUIREMENT_NOT_TRACED" ? { correctionTarget: "PLANNING" } : {}), ...(category === "CONTRACT_IMPLEMENTATION_MISMATCH" ? { correctionTarget: "IMPLEMENTATION_TASK", ownerTaskId: null } : {}), ...(category === "TRUST_BOUNDARY" ? { correctionTarget: "IMPLEMENTATION_TASK", ownerTaskId: null } : {}), ...(category === "REQUIREMENT_NOT_VERIFIED" ? { correctionTarget: "TEST_TASK", ownerTaskId: null } : {}) }] };
+      const oneFinding = { ...zeroFinding, verdict: "CHANGES_REQUIRED", findings: [{ findingId: "finding-1", severity: "INFO", category, summary: "Bounded finding.", evidenceRefs: [evidenceId], affectedArtifacts: [], recommendedAction: "Review the cited evidence.", ...(category === "REQUIREMENT_NOT_TRACED" ? { correctionTarget: "PLANNING" } : {}), ...(category === "CONTRACT_IMPLEMENTATION_MISMATCH" ? { correctionTarget: "IMPLEMENTATION_TASK", ownerTaskId: null } : {}), ...(category === "TRUST_BOUNDARY" ? { correctionTarget: "IMPLEMENTATION_TASK", ownerTaskId: null } : {}), ...(category === "REQUIREMENT_NOT_VERIFIED" ? { correctionTarget: "TEST_TASK", ownerTaskId: null } : {}) }] };
       expect(schema.safeParse(oneFinding).success).toBe(true);
     }
   });

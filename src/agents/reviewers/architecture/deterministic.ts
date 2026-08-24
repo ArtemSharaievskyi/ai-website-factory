@@ -1,5 +1,6 @@
 import { ArchitectureReviewProviderOutputSchema, type ArchitectureReviewResult } from "@/domain/review/schema";
 import { evaluatePlanningAcceptanceReadiness } from "@/agents/planner/deterministic";
+import { createReviewEvidenceCatalog, toProviderReviewEvidence } from "../evidence";
 import type { ArchitectureReviewInput } from "./contracts";
 import type { ArchitectureReviewProvider } from "./ports";
 
@@ -32,7 +33,13 @@ export function deterministicArchitectureReview(input: ArchitectureReviewInput) 
   if (planning.architecture.componentDecisions.some((decision) => decision.serverOrClient === "client" && /secret|database|service role|private key/i.test(decision.rationale))) findings.push(finding("client-secret-boundary", "SERVER_CLIENT_BOUNDARY", "CRITICAL", "Planning places secret or database responsibilities in a client boundary.", ["planning:architecture", "planning:security"], "Move secrets and privileged data access to a server boundary."));
   if (!evaluatePlanningAcceptanceReadiness({ planningPackage: planning }).readyForAcceptance || !planning.accepted || !planning.architecture.acceptance.accepted) findings.push(finding("planning-not-ready", "MISSING_DECISION", "ERROR", "Planning contains unresolved acceptance blockers or lacks accepted architecture evidence.", ["planning:architecture", "planning:traceability"], "Resolve technical blockers and rerun Planning Acceptance before review."));
   const verdict = findings.some((item) => item.severity === "ERROR" || item.severity === "CRITICAL") ? "CHANGES_REQUIRED" : "APPROVED";
-  return ArchitectureReviewProviderOutputSchema.parse({ verdict, findings, reviewedArtifactRefs: ["brief:projectSummary", "planning:architecture"] });
+  const catalog = createReviewEvidenceCatalog({
+    projectId: input.projectId,
+    projectVersion: input.projectVersion,
+    evidenceRefs: canonicalArchitectureEvidence(input),
+    requestContext: input,
+  });
+  return ArchitectureReviewProviderOutputSchema.parse(toProviderReviewEvidence(input, { verdict, findings, reviewedArtifactRefs: ["brief:projectSummary", "planning:architecture"] }, catalog));
 }
 
 export class DeterministicArchitectureReviewProvider implements ArchitectureReviewProvider {

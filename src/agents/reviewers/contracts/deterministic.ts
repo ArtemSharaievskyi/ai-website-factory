@@ -4,6 +4,8 @@ import { validateFileScopes } from "@/orchestration/orchestrator/validation";
 import { ContractAuditProvider } from "./ports";
 import { assertProjectIdentity, type ContractAuditInput } from "./contracts";
 import { ContractAuditProviderOutputSchema, type ContractAuditFinding } from "@/domain/review/schema";
+import { createReviewEvidenceCatalog, toProviderReviewEvidence, withoutProviderEvidenceCatalog } from "../evidence";
+import { canonicalContractEvidence } from "./service";
 
 const reviewed = ["requirements", "planning-package", "architecture-review", "selected-design", "task-graph"];
 const text = (value: unknown) => JSON.stringify(value).toLowerCase();
@@ -27,7 +29,7 @@ const taskText = (task: ContractAuditInput["taskGraph"]["tasks"][number]) => tex
 const finding = (findingId: string, category: ContractAuditFinding["category"], summary: string, evidenceRefs: string[], affectedArtifacts: string[], recommendedAction: string, correctionTarget: ContractAuditFinding["correctionTarget"] = "TASKGRAPH", severity: ContractAuditFinding["severity"] = "ERROR"): ContractAuditFinding => ({ findingId: findingId.toLowerCase().replace(/[^a-z0-9_.-]+/g, "-"), severity, category, summary, evidenceRefs, affectedArtifacts, recommendedAction, correctionTarget });
 
 export function deterministicContractAudit(rawInput: ContractAuditInput) {
-  const input = rawInput;
+  const input = withoutProviderEvidenceCatalog(rawInput);
   assertProjectIdentity(
     input,
     [
@@ -63,7 +65,9 @@ export function deterministicContractAudit(rawInput: ContractAuditInput) {
   const requiredGates = [["validate-lint", "lint"], ["validate-typecheck", "typecheck"], ["validate-unit-tests", "unit-tests"], ["validate-build", "build"], ["validate-functional-flow", "functional-qa"]] as const; for (const [type, label] of requiredGates) if (!taskByType(type).length) add(`quality-${type}`, "VALIDATION_NOT_SCHEDULED", `Mandatory ${label} quality responsibility is missing.`, ["test-strategy", "task-graph"], ["task-graph"], `Add the ${label} quality task.`);
   const build = taskByType("validate-build")[0]; const qa = taskByType("validate-functional-flow")[0]; if (build && qa && !qa.dependencies.includes(build.id)) add("qa-before-build", "DEPENDENCY_CONTRACT_MISMATCH", "Functional QA does not depend on the build gate.", [`task:${build.id}`, `task:${qa.id}`], ["task-graph"], "Make Functional QA depend on the passed build task.");
   for (let i = 0; i < tasks.length; i++) for (let j = i + 1; j < tasks.length; j++) { const left = tasks[i]!, right = tasks[j]!; const sharedOwnershipAllowed = ["implement-shared-component", "implement-form"].includes(left.taskType) && left.taskType === right.taskType; if (!sharedOwnershipAllowed && left.taskType === right.taskType && left.executionMode === "exclusive-write" && left.fileScopes.some((scope) => right.fileScopes.includes(scope))) add(`multiple-owner-${left.id}-${right.id}`, "ARTIFACT_MULTIPLE_OWNERS", "Two exclusive tasks claim the same canonical writable scope.", [`task:${left.id}`, `task:${right.id}`, `scope:${left.fileScopes[0]}`], ["task-graph"], "Assign the scope to one bounded owner or split the scope."); }
-  const blocking = findings.some((item) => item.severity === "ERROR" || item.severity === "CRITICAL"); return ContractAuditProviderOutputSchema.parse({ verdict: blocking ? "CHANGES_REQUIRED" : "APPROVED", findings, reviewedArtifactRefs: reviewed });
+  const blocking = findings.some((item) => item.severity === "ERROR" || item.severity === "CRITICAL");
+  const catalog = createReviewEvidenceCatalog({ projectId: input.projectId, projectVersion: input.projectVersion, evidenceRefs: canonicalContractEvidence(input), requestContext: input });
+  return ContractAuditProviderOutputSchema.parse(toProviderReviewEvidence(rawInput, { verdict: blocking ? "CHANGES_REQUIRED" : "APPROVED", findings, reviewedArtifactRefs: reviewed }, catalog));
 }
 
 export class DeterministicContractAuditProvider implements ContractAuditProvider { readonly promptVersion = "contract-auditor.v1"; async review(input: ContractAuditInput) { return deterministicContractAudit(input); } }

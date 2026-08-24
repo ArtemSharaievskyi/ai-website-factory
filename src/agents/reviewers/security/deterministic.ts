@@ -2,6 +2,8 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import { SecurityReviewProviderOutputSchema, type SecurityReviewResult, type SecuritySurface } from "@/domain/review/schema";
 import { SecurityReviewInputSchema, type SecurityReviewInput } from "./contracts";
 import type { SecurityReviewProvider } from "./ports";
+import { createReviewEvidenceCatalog, toProviderReviewEvidence, withoutProviderEvidenceCatalog } from "../evidence";
+import { canonicalSecurityEvidence } from "./service";
 
 const secretPattern = /(sk-[A-Za-z0-9]{12,}|AKIA[A-Z0-9]{12,}|(?:SERVICE_ROLE|DATABASE_URL|API_KEY|SECRET|TOKEN)\s*[:=]\s*['\"]?[A-Za-z0-9_./+=-]{8,})/i;
 const finding = (id: string, category: SecurityReviewResult["findings"][number]["category"], summary: string, refs: string[], ownerTaskId?: string) => ({ findingId: id, severity: "ERROR" as const, category, summary, evidenceRefs: refs, affectedArtifacts: refs, recommendedAction: ownerTaskId ? `Correct the security-sensitive implementation owned by task ${ownerTaskId}.` : "Correct the security contract or implementation and rerun security review.", correctionTarget: ownerTaskId ? "IMPLEMENTATION_TASK" as const : "UPSTREAM_SECURITY_CONTRACT" as const, ...(ownerTaskId ? { ownerTaskId } : {}) });
@@ -20,7 +22,7 @@ export function classifySecuritySurface(raw: SecurityReviewInput): SecuritySurfa
   return surfaces.size ? [...surfaces] : ["NONE"];
 }
 export function deterministicSecurityReview(raw: SecurityReviewInput) {
-  const input = SecurityReviewInputSchema.parse(raw); const surfaces = classifySecuritySurface(input); const findings = [] as SecurityReviewResult["findings"];
+  const input = SecurityReviewInputSchema.parse(withoutProviderEvidenceCatalog(raw)); const surfaces = classifySecuritySurface(input); const findings = [] as SecurityReviewResult["findings"];
   const evidence = new Set(["brief", "planning-package", "architecture-review", "selected-design", "contract-audit", "code-integration-review", "task-graph", "source", ...input.deterministicSecurityEvidence.evidenceRefs, ...input.unitTestEvidence.evidenceRefs, ...input.sourceManifest.map((file) => `source:${file.relativePath}`), ...input.taskGraph.tasks.map((task) => task.id), ...input.securitySensitiveArtifacts.map((artifact) => artifact.relativePath)]);
   if (input.deterministicSecurityEvidence.status !== "PASSED" && input.deterministicSecurityEvidence.status !== "NOT_REQUIRED") findings.push(finding("security-evidence-invalid", "SECURITY_CONTRACT_MISMATCH", "Deterministic security evidence is not valid.", ["source"]));
   if (input.deterministicSecurityEvidence.npmAudit !== "PASSED" && input.deterministicSecurityEvidence.npmAudit !== "NOT_REQUIRED") findings.push(finding("dependency-audit-failed", "DEPENDENCY_SECURITY", "Current dependency audit evidence is not passing.", ["source"]));
@@ -45,6 +47,7 @@ export function deterministicSecurityReview(raw: SecurityReviewInput) {
   if (input.securityPolicySummary.storageDecision !== "not-required" && !passedTasks.has("implement-storage")) findings.push(finding("storage-owner-missing", "STORAGE_ACCESS", "Storage is required but no completed storage responsibility exists.", ["planning-package", "task-graph"]));
   if (input.securityPolicySummary.adminDecision !== "no-admin" && !passedTasks.has("implement-authentication")) findings.push(finding("admin-owner-missing", "ADMIN_PROTECTION", "Admin functionality requires a completed authorization responsibility.", ["planning-package", "task-graph"]));
   const result = { verdict: findings.length ? "CHANGES_REQUIRED" as const : "APPROVED" as const, findings, reviewedArtifactRefs: ["brief", "planning-package", "architecture-review", "selected-design", "contract-audit", "code-integration-review", "task-graph", "source"] };
-  return SecurityReviewProviderOutputSchema.parse(result);
+  const catalog = createReviewEvidenceCatalog({ projectId: input.projectId, projectVersion: input.projectVersion, evidenceRefs: canonicalSecurityEvidence(input), requestContext: input });
+  return SecurityReviewProviderOutputSchema.parse(toProviderReviewEvidence(raw, result, catalog));
 }
 export class DeterministicSecurityReviewProvider implements SecurityReviewProvider { readonly promptVersion = "security-reviewer.v1"; async review(input: SecurityReviewInput) { return deterministicSecurityReview(input); } }

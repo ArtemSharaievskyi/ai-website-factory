@@ -13,6 +13,7 @@ import {
   ContractAuditResultSchema,
   type ContractAuditProviderOutput,
   type ContractAuditResult,
+  type ReviewEvidenceProvenance,
 } from "@/domain/review/schema";
 import { contractAuditorAgentDefinition } from "@/agents/catalog";
 import { ContractAuditError } from "./errors";
@@ -28,6 +29,12 @@ import {
 } from "./deterministic";
 import type { ContractAuditProvider } from "./ports";
 import type { ReviewerSkillSelection } from "@/skills/runtime/resolver";
+import {
+  createReviewEvidenceCatalog,
+  evidenceCatalogChecksum,
+  providerEvidenceCatalog,
+  resolveProviderReviewEvidence,
+} from "../evidence";
 
 const now = () => new Date().toISOString();
 const findingKey = (value: unknown) => JSON.stringify(value);
@@ -45,18 +52,26 @@ export function canonicalContractEvidence(input: ContractAuditInput) {
     "architectureReviewChecksum",
     "designChecksum",
     "taskGraphChecksum",
+    "task-graph.sourceDocumentChecksums",
+    "data-model-plan",
+    "supabase-plan",
+    "requirements.authenticationDecision",
+    "authentication-plan",
     ...input.acceptedPlanningPackage.sitemap.routes.flatMap((route) => [
       `route:${route.id}`,
+      `planning:${route.id}`,
       route.id,
     ]),
     ...input.acceptedPlanningPackage.pages.pages.flatMap((page) => [
       `page:${page.id}`,
+      `planning:${page.id}`,
       `route:${page.routeId}`,
       page.id,
       page.routeId,
     ]),
     ...input.acceptedPlanningPackage.forms.forms.flatMap((form) => [
       `form:${form.id}`,
+      `planning:${form.id}`,
       form.id,
       ...form.fields.flatMap((field) =>
         "fieldId" in field ? [`field:${field.fieldId}`, field.fieldId] : [],
@@ -127,6 +142,13 @@ export class ContractAuditService {
     signal?: AbortSignal,
   ): Promise<ContractAuditResult> {
     const input = this.parseInput(rawInput);
+    const evidenceCatalog = createReviewEvidenceCatalog({
+      projectId: input.projectId,
+      projectVersion: input.projectVersion,
+      evidenceRefs: canonicalContractEvidence(input),
+      requestContext: input,
+    });
+    const providerInput = { ...input, evidenceCatalog: providerEvidenceCatalog(evidenceCatalog) };
     const project = await this.projects.getWithVersion(input.projectId);
     if (
       !project ||
@@ -148,6 +170,7 @@ export class ContractAuditService {
       architectureReviewChecksum: input.architectureReviewChecksum,
       designChecksum: input.designChecksum,
       taskGraphChecksum: input.taskGraphChecksum,
+      evidenceCatalogChecksum: evidenceCatalogChecksum(evidenceCatalog),
       skillContextChecksum: skillSelection.identityChecksum,
       policyVersion: CONTRACT_AUDIT_POLICY_VERSION,
       promptVersion: this.provider.promptVersion,
@@ -162,12 +185,13 @@ export class ContractAuditService {
       return prior.result;
     }
     try {
-      const deterministic = deterministicContractAudit(input);
+      const deterministic = deterministicContractAudit(providerInput);
       const providerResult =
         deterministic.verdict === "APPROVED"
-          ? await this.provider.review(input, signal, skillSelection.contexts, skillSelection.identityChecksum)
+          ? await this.provider.review(providerInput, signal, skillSelection.contexts, skillSelection.identityChecksum)
           : deterministic;
-      const result = this.normalize(providerResult, input);
+      const normalized = this.normalize(providerResult, input, evidenceCatalog);
+      const result = normalized.result;
       const record = ContractAuditRecordSchema.parse({
         schemaVersion: 1,
         documentType: "contract-audit",
@@ -187,6 +211,9 @@ export class ContractAuditService {
         architectureReviewChecksum: input.architectureReviewChecksum,
         designChecksum: input.designChecksum,
         taskGraphChecksum: input.taskGraphChecksum,
+        evidenceCatalogId: evidenceCatalog.catalogId,
+        evidenceCatalogChecksum: evidenceCatalogChecksum(evidenceCatalog),
+        evidenceProvenance: normalized.provenance,
         resultChecksum: checksumPersistedDocument(result),
         result,
       });
@@ -347,7 +374,7 @@ export class ContractAuditService {
       );
     }
   }
-  private normalize(raw: ContractAuditProviderOutput, input: ContractAuditInput) {
+  private normalize(raw: ContractAuditProviderOutput, input: ContractAuditInput, evidenceCatalog: ReturnType<typeof createReviewEvidenceCatalog>): { result: ContractAuditResult; provenance: ReviewEvidenceProvenance[] } {
     let parsed;
     try {
       parsed = ContractAuditProviderOutputSchema.parse(raw);
@@ -358,29 +385,27 @@ export class ContractAuditService {
         error,
       );
     }
-    const evidence = canonicalContractEvidence(input);
-    for (const ref of parsed.reviewedArtifactRefs)
-      if (!evidence.has(ref))
-        throw new ContractAuditError(
-          "CONTRACT_AUDIT_OUTPUT_INVALID",
-          `Audit references invented evidence: ${ref}.`,
-        );
+    let resolved: ReturnType<typeof resolveProviderReviewEvidence<typeof parsed.findings[number]>>;
+    try {
+      resolved = resolveProviderReviewEvidence<typeof parsed.findings[number]>(evidenceCatalog, parsed);
+    } catch (error) {
+      throw new ContractAuditError(
+        "CONTRACT_AUDIT_OUTPUT_INVALID",
+        "Contract Audit output referenced evidence outside the host-issued catalog.",
+        error,
+      );
+    }
     const findings = [];
     const ids = new Set<string>();
     const exact = new Set<string>();
-    for (const item of parsed.findings) {
-      for (const ref of [...item.evidenceRefs, ...item.affectedArtifacts])
-        if (!evidence.has(ref))
-          throw new ContractAuditError(
-            "CONTRACT_AUDIT_OUTPUT_INVALID",
-            `Finding references invented evidence: ${ref}.`,
-          );
+    for (const [index, item] of parsed.findings.entries()) {
+      const resolvedItem = resolved.findings[index]!;
       if (item.severity !== "INFO" && !item.correctionTarget)
         throw new ContractAuditError(
           "CONTRACT_AUDIT_OUTPUT_INVALID",
           `Actionable finding ${item.findingId} requires a correction target.`,
         );
-      const key = findingKey(item);
+      const key = findingKey(resolvedItem);
       if (ids.has(item.findingId)) {
         if (!exact.has(key))
           throw new ContractAuditError(
@@ -391,7 +416,7 @@ export class ContractAuditService {
       }
       ids.add(item.findingId);
       exact.add(key);
-      findings.push(item);
+      findings.push(resolvedItem);
     }
     const hasBlocking = findings.some(
       (item) => item.severity === "ERROR" || item.severity === "CRITICAL",
@@ -403,6 +428,14 @@ export class ContractAuditService {
         "CONTRACT_AUDIT_OUTPUT_INVALID",
         "CHANGES_REQUIRED requires findings.",
       );
-    return ContractAuditResultSchema.parse({ ...parsed, findings, policyVersion: CONTRACT_AUDIT_POLICY_VERSION });
+    return {
+      result: ContractAuditResultSchema.parse({
+        ...parsed,
+        reviewedArtifactRefs: resolved.reviewedArtifactRefs,
+        findings,
+        policyVersion: CONTRACT_AUDIT_POLICY_VERSION,
+      }),
+      provenance: resolved.provenance,
+    };
   }
 }

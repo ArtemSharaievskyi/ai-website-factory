@@ -13,6 +13,7 @@ import {
   SecurityReviewResultSchema,
   type SecurityReviewProviderOutput,
   type SecurityReviewResult,
+  type ReviewEvidenceProvenance,
 } from "@/domain/review/schema";
 import { securityReviewerAgentDefinition } from "@/agents/catalog";
 import { SecurityReviewError } from "./errors";
@@ -28,6 +29,7 @@ import {
 } from "./deterministic";
 import type { SecurityReviewProvider } from "./ports";
 import type { ReviewerSkillSelection } from "@/skills/runtime/resolver";
+import { createReviewEvidenceCatalog, evidenceCatalogChecksum, providerEvidenceCatalog, resolveProviderReviewEvidence } from "../evidence";
 const now = () => new Date().toISOString();
 const redact = (value: string) =>
   value.replace(
@@ -44,6 +46,16 @@ export function sanitizeSecurityInput(
       content: redact(slice.content),
     })),
   };
+}
+export function canonicalSecurityEvidence(input: SecurityReviewInput) {
+  return new Set([
+    "brief", "planning-package", "architecture-review", "selected-design", "contract-audit", "code-integration-review", "task-graph", "source",
+    ...input.deterministicSecurityEvidence.evidenceRefs,
+    ...input.unitTestEvidence.evidenceRefs,
+    ...input.sourceManifest.map((file) => `source:${file.relativePath}`),
+    ...input.taskGraph.tasks.map((task) => task.id),
+    ...input.securitySensitiveArtifacts.map((artifact) => artifact.relativePath),
+  ]);
 }
 export class SecurityReviewService {
   private readonly documents: DocumentRepository;
@@ -114,7 +126,14 @@ export class SecurityReviewService {
         "A current approved Code / Integration Review is required before Security Review.",
       );
     const surface = classifySecuritySurface(input);
-    const deterministic = deterministicSecurityReview(input);
+    const evidenceCatalog = createReviewEvidenceCatalog({
+      projectId: input.projectId,
+      projectVersion: input.projectVersion,
+      evidenceRefs: canonicalSecurityEvidence(input),
+      requestContext: input,
+    });
+    const providerInput = { ...input, evidenceCatalog: providerEvidenceCatalog(evidenceCatalog) };
+    const deterministic = deterministicSecurityReview(providerInput);
     const semanticReviewSkipped =
       surface.length === 1 &&
       surface[0] === "NONE" &&
@@ -136,6 +155,7 @@ export class SecurityReviewService {
       taskGraphChecksum: input.taskGraphChecksum,
       sourceChecksum: input.sourceChecksum,
       securityEvidenceChecksum: input.deterministicSecurityEvidence.checksum,
+      evidenceCatalogChecksum: evidenceCatalogChecksum(evidenceCatalog),
       surface,
       skillContextChecksum: skillSelection.identityChecksum,
       policyVersion: SECURITY_REVIEW_POLICY_VERSION,
@@ -152,8 +172,8 @@ export class SecurityReviewService {
     }
     try {
       const safeInput = semanticReviewSkipped
-        ? input
-        : sanitizeSecurityInput(input);
+        ? providerInput
+        : { ...sanitizeSecurityInput(input), evidenceCatalog: providerEvidenceCatalog(evidenceCatalog) };
       const providerResult =
         deterministic.verdict === "APPROVED" && !semanticReviewSkipped
           ? await this.provider.review(
@@ -163,7 +183,8 @@ export class SecurityReviewService {
               skillSelection.identityChecksum,
             )
           : deterministic;
-      const result = this.normalize(providerResult, input);
+      const normalized = this.normalize(providerResult, input, evidenceCatalog);
+      const result = normalized.result;
       const record = SecurityReviewRecordSchema.parse({
         schemaVersion: 1,
         documentType: "security-review",
@@ -188,6 +209,9 @@ export class SecurityReviewService {
         codeIntegrationReviewChecksum: input.codeIntegrationReviewChecksum,
         sourceChecksum: input.sourceChecksum,
         securityEvidenceChecksum: input.deterministicSecurityEvidence.checksum,
+        evidenceCatalogId: evidenceCatalog.catalogId,
+        evidenceCatalogChecksum: evidenceCatalogChecksum(evidenceCatalog),
+        evidenceProvenance: normalized.provenance,
         resultChecksum: checksumPersistedDocument(result),
         result,
       });
@@ -262,32 +286,20 @@ export class SecurityReviewService {
       ? record
       : null;
   }
-  private normalize(raw: SecurityReviewProviderOutput, input: SecurityReviewInput) {
+  private normalize(raw: SecurityReviewProviderOutput, input: SecurityReviewInput, evidenceCatalog: ReturnType<typeof createReviewEvidenceCatalog>): { result: SecurityReviewResult; provenance: ReviewEvidenceProvenance[] } {
     const parsed = SecurityReviewProviderOutputSchema.parse(raw);
-    const evidence = new Set([
-      "brief",
-      "planning-package",
-      "architecture-review",
-      "selected-design",
-      "contract-audit",
-      "code-integration-review",
-      "task-graph",
-      "source",
-      ...input.deterministicSecurityEvidence.evidenceRefs,
-      ...input.unitTestEvidence.evidenceRefs,
-      ...input.sourceManifest.map((file) => `source:${file.relativePath}`),
-      ...input.taskGraph.tasks.map((task) => task.id),
-      ...input.securitySensitiveArtifacts.map(
-        (artifact) => artifact.relativePath,
-      ),
-    ]);
-    const findings = parsed.findings.map((item) => {
-      for (const ref of [...item.evidenceRefs, ...item.affectedArtifacts])
-        if (!evidence.has(ref))
-          throw new SecurityReviewError(
-            "SECURITY_REVIEW_OUTPUT_INVALID",
-            `Finding references unavailable evidence: ${ref}.`,
-          );
+    let resolved: ReturnType<typeof resolveProviderReviewEvidence<typeof parsed.findings[number]>>;
+    try {
+      resolved = resolveProviderReviewEvidence<typeof parsed.findings[number]>(evidenceCatalog, parsed);
+    } catch (error) {
+      throw new SecurityReviewError(
+        "SECURITY_REVIEW_OUTPUT_INVALID",
+        "Security Review output referenced evidence outside the host-issued catalog.",
+        error,
+      );
+    }
+    const findings = parsed.findings.map((item, index) => {
+      const resolvedItem = resolved.findings[index]!;
       if (
         (item.severity === "ERROR" || item.severity === "CRITICAL") &&
         item.correctionTarget === "IMPLEMENTATION_TASK" &&
@@ -298,19 +310,16 @@ export class SecurityReviewService {
           "SECURITY_REVIEW_OUTPUT_INVALID",
           "Finding owner task is not current TaskGraph ownership.",
         );
-      return item;
+      return resolvedItem;
     });
-    const result = SecurityReviewResultSchema.parse({ ...parsed, findings, policyVersion: SECURITY_REVIEW_POLICY_VERSION });
+    const result = SecurityReviewResultSchema.parse({ ...parsed, reviewedArtifactRefs: resolved.reviewedArtifactRefs, findings, policyVersion: SECURITY_REVIEW_POLICY_VERSION });
     if (
       result.verdict === "APPROVED" &&
       findings.some(
         (item) => item.severity === "ERROR" || item.severity === "CRITICAL",
       )
     )
-      return SecurityReviewResultSchema.parse({
-        ...result,
-        verdict: "CHANGES_REQUIRED",
-      });
-    return result;
+      return { result: SecurityReviewResultSchema.parse({ ...result, verdict: "CHANGES_REQUIRED" }), provenance: resolved.provenance };
+    return { result, provenance: resolved.provenance };
   }
 }
