@@ -2,6 +2,7 @@ import { BriefV3DocumentSchema } from "@/persistence/database/brief-revision-v3-
 import { mapRowToDocument, type DocumentRow } from "@/persistence/database/mapping";
 import type { PersistenceTransaction } from "@/persistence/database/types";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
+import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { PlanningPackageSchema } from "@/agents/planner/contracts";
 import { planningSemanticChecksum } from "@/agents/planner/deterministic";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
@@ -37,7 +38,8 @@ export async function readCanonicalReviewContext(
     if (
       !brief.approval?.approved ||
       brief.approval.approvedCanonicalChecksum !== brief.briefChecksum ||
-      input.approvedBriefChecksum !== brief.briefChecksum
+      input.approvedBriefChecksum !== brief.briefChecksum ||
+      (input.canonicalBrief && canonicalBriefChecksum(input.canonicalBrief) !== brief.briefChecksum)
     )
       throw new ArchitectureReviewError(
         "ARCHITECTURE_REVIEW_STALE",

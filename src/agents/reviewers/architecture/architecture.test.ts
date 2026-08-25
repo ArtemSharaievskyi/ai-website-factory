@@ -262,6 +262,19 @@ describe("Architecture Reviewer", () => {
     expect(state.events).toHaveLength(0);
   });
 
+  it("rejects a mismatched canonical Brief payload before provider execution", async () => {
+    const fixture = await createFixture();
+    const input = {
+      ...fixture.input,
+      canonicalBrief: { ...fixture.briefV3.brief, summary: "Synthetic stale canonical payload." },
+    };
+    let providerCalls = 0;
+    const provider = { promptVersion: "architecture-reviewer.v1", review: async (reviewInput: ArchitectureReviewInput) => { providerCalls += 1; return deterministicArchitectureReview(reviewInput); } };
+    await expect(new ArchitectureReviewOrchestrationService(fixture.database, new ArchitectureReviewService(fixture.database, { provider })).reviewAndRoute(input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE" });
+    expect(providerCalls).toBe(0);
+    expect((await stateOf(fixture.database, fixture.brief.projectId)).review).toBeNull();
+  });
+
   it("rejects a Phase 7C binding that uses the Planning document checksum", async () => {
     const fixture = await createFixture();
     const documents = new DocumentRepository(fixture.database);

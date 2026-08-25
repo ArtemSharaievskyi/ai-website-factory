@@ -84,6 +84,7 @@ import {
 import { classifySecuritySurface } from "@/agents/reviewers/security/deterministic";
 import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
 import { OpenAiBriefV3RevisionProvider } from "@/integrations/openai-v3/provider";
+import { effectivePlannerBrief } from "@/agents/planner/brief-context";
 export const RUNTIME_MODES = ["DETERMINISTIC_TEST", "REAL_E2E"] as const;
 export type FactoryRuntimeMode = (typeof RUNTIME_MODES)[number];
 export type ProductionAdapterIdentity = {
@@ -288,7 +289,7 @@ export function createProductionFactoryRuntime(
   const resolvePlannerSkills = async (
     input: import("@/agents/planner/contracts").PlannerAgentInput,
   ) => {
-    const brief = input.approvedBrief;
+    const brief = effectivePlannerBrief(input);
     const hasData = brief.backendRequirements.length > 0 || brief.supabaseRequirements.length > 0 || brief.authenticationDecision === "authentication-required" || brief.storageDecision === "needed";
     const hasRisk = brief.technicalConstraints.length > 0 || hasData;
     const projectSurfaces = [

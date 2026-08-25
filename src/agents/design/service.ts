@@ -13,6 +13,9 @@ import {
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { mapRowToDocument } from "@/persistence/database/mapping";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
+import { BriefV3DocumentSchema } from "@/persistence/database/brief-revision-v3-contracts";
+import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
+import { canonicalBriefToPlannerBrief } from "@/agents/planner/brief-context";
 import { resolveLogoPolicy } from "@/domain/requirements/logo-policy";
 import { planningSemanticChecksum } from "@/agents/planner/deterministic";
 import {
@@ -99,13 +102,18 @@ export class DesignAgentService {
   private async loadDurableContext(projectId: string, projectVersion: number, idempotencyKey = "design-recovered") {
     const current = await this.projects.getWithVersion(projectId);
     const brief = await this.documents.get(projectId, projectVersion, "requirements");
+    const briefV3Document = await this.documents.get(projectId, projectVersion, "brief-v3");
     const planning = await this.documents.get(projectId, projectVersion, "planning-package");
     if (!current || !brief || brief.documentType !== "requirements") throw new DesignError("DESIGN_BRIEF_STALE", "Durable approved requirements are unavailable.");
     if (!planning || planning.documentType !== "planning-package") throw new DesignError("DESIGN_PLANNING_STALE", "Durable accepted planning is unavailable.");
+    const canonical = briefV3Document?.documentType === "brief-v3" ? BriefV3DocumentSchema.parse(briefV3Document) : undefined;
+    const currentBrief = canonical?.approval?.approved && canonical.approval.approvedCanonicalChecksum === canonical.briefChecksum
+      ? canonicalBriefToPlannerBrief(canonical.brief, brief, canonical.approval)
+      : brief;
     const decisions = await this.decisions.list(projectId, projectVersion);
-    const visualStatements = brief.brandVisualRequirements ? Object.values(brief.brandVisualRequirements).flatMap((items) => items.flatMap((item) => typeof item === "object" && item && "statement" in item ? String(item.statement) : [])) : [];
-    const prohibitedStatements = brief.prohibitedRequirements?.flatMap((item) => item.statement) ?? [];
-    return DesignAgentInputSchema.parse({ projectId, projectVersion, approvedBrief: brief, approvedBriefChecksum: checksumPersistedDocument(brief), acceptedPlanningPackage: planning, acceptedPlanningChecksum: checksumPersistedDocument(planning), contentPlan: planning.content, assetManifest: planning.assets, suppliedBrandMetadata: brief.brandVisualRequirements ?? {}, suppliedLogoMetadata: { ...brief.suppliedLogoLocation, ...(brief.assetRequirements ? { requiredAssets: brief.assetRequirements.requiredAssets.map((asset) => ({ reference: asset.reference, role: asset.role, replacementForbidden: asset.replacementForbidden })) } : {}) }, imageSourceDecision: brief.imageSourceDecision, designPreferences: visualStatements, explicitDesignExclusions: [...brief.explicitExclusions, ...prohibitedStatements], currentWorkflowState: current.project.workflowState, existingDecisions: decisions, allowedSkills: [], idempotencyKey, expectedRowVersion: current.rowVersion });
+    const visualStatements = currentBrief.brandVisualRequirements ? Object.values(currentBrief.brandVisualRequirements).flatMap((items) => items.flatMap((item) => typeof item === "object" && item && "statement" in item ? String(item.statement) : [])) : [];
+    const prohibitedStatements = currentBrief.prohibitedRequirements?.flatMap((item) => item.statement) ?? [];
+    return DesignAgentInputSchema.parse({ projectId, projectVersion, approvedBrief: currentBrief, ...(canonical ? { canonicalBrief: canonical.brief } : {}), approvedBriefChecksum: canonical?.briefChecksum ?? checksumPersistedDocument(currentBrief), acceptedPlanningPackage: planning, acceptedPlanningChecksum: checksumPersistedDocument(planning), contentPlan: planning.content, assetManifest: planning.assets, suppliedBrandMetadata: currentBrief.brandVisualRequirements ?? {}, suppliedLogoMetadata: { ...currentBrief.suppliedLogoLocation, ...(currentBrief.assetRequirements ? { requiredAssets: currentBrief.assetRequirements.requiredAssets.map((asset) => ({ reference: asset.reference, role: asset.role, replacementForbidden: asset.replacementForbidden })) } : {}) }, imageSourceDecision: currentBrief.imageSourceDecision, designPreferences: visualStatements, explicitDesignExclusions: [...currentBrief.explicitExclusions, ...prohibitedStatements], currentWorkflowState: current.project.workflowState, existingDecisions: decisions, allowedSkills: [], idempotencyKey, expectedRowVersion: current.rowVersion });
   }
   private parseInput(raw: DesignAgentInput) {
     try {
@@ -119,7 +127,15 @@ export class DesignAgentService {
     }
   }
   private async validateInput(input: DesignAgentInput, allowReady = false) {
-    const brief = RequirementSpecificationSchema.parse(input.approvedBrief);
+    const persistedV3 = await this.documents.get(input.projectId, input.projectVersion, "brief-v3");
+    const canonical = persistedV3?.documentType === "brief-v3" ? BriefV3DocumentSchema.parse(persistedV3) : undefined;
+    if (canonical && (!canonical.approval?.approved || canonical.approval.approvedCanonicalChecksum !== canonical.briefChecksum || (input.canonicalBrief && canonicalBriefChecksum(input.canonicalBrief) !== canonical.briefChecksum) || input.approvedBriefChecksum !== canonical.briefChecksum))
+      throw new DesignError("DESIGN_BRIEF_STALE", "The Design input is not bound to the current approved CanonicalBriefV3.");
+    const brief = canonical
+      ? canonicalBriefToPlannerBrief(canonical.brief, RequirementSpecificationSchema.parse(input.approvedBrief), canonical.approval)
+      : input.canonicalBrief
+        ? canonicalBriefToPlannerBrief(input.canonicalBrief, RequirementSpecificationSchema.parse(input.approvedBrief))
+        : RequirementSpecificationSchema.parse(input.approvedBrief);
     const planning = PlanningPackageSchema.parse(input.acceptedPlanningPackage);
     if (!brief.approval.approved || brief.briefStatus !== "approved")
       throw new DesignError(
@@ -131,6 +147,8 @@ export class DesignAgentService {
         "DESIGN_PLANNING_STALE",
         "The planning package is not accepted.",
       );
+    if (!canonical && input.canonicalBrief && canonicalBriefChecksum(input.canonicalBrief) !== input.approvedBriefChecksum)
+      throw new DesignError("DESIGN_BRIEF_STALE", "The Design input is not bound to the current approved CanonicalBriefV3.");
     if (
       input.approvedBriefChecksum !== checksumPersistedDocument(brief) &&
       input.approvedBriefChecksum !==
@@ -242,12 +260,15 @@ export class DesignAgentService {
         "DESIGN_BLOCKED",
         "The accepted planning package contains unresolved technical blockers.",
       );
-    return { brief, planning };
+    return { brief, planning, canonicalBrief: canonical?.brief };
   }
   async generateDesignDirections(rawInput: DesignAgentInput, options: { replaceExisting?: boolean } = {}): Promise<DesignGenerationResult> {
     const input = this.parseInput(rawInput);
     assertWorkbenchStyleIsolation(input);
-    await this.validateInput(input);
+    const validated = await this.validateInput(input);
+    const providerInput = validated.canonicalBrief
+      ? { ...input, approvedBrief: validated.brief, canonicalBrief: validated.canonicalBrief }
+      : { ...input, approvedBrief: validated.brief };
     const project = await this.projects.getWithVersion(input.projectId);
     if (!project || project.project.currentVersion !== input.projectVersion)
       throw new DesignError(
@@ -275,15 +296,15 @@ export class DesignAgentService {
       return DesignGenerationResultSchema.parse({ directionSet: persisted, readiness: { readyForSelection: persisted.readyForSelection, blockingReasons: persisted.blockingReasons ?? [], warnings: persisted.warnings ?? [], directionSetChecksum: directionSetChecksum(persisted) } });
     }
     const skillSelection = this.resolveSkills
-      ? await this.resolveSkills(input)
+      ? await this.resolveSkills(providerInput)
       : undefined;
     await this.skills.select({ role: "design", taskType: "visual-direction" });
-    await this.explorationTool.explore(input).catch(() => null);
+    await this.explorationTool.explore(providerInput).catch(() => null);
     let set: DesignDirectionSet;
     try {
       set = DesignDirectionSetSchema.parse(
         await this.provider.proposeDesignDirections(
-          input,
+          providerInput,
           skillSelection?.contexts,
           skillSelection?.identityChecksum,
         ),
@@ -316,7 +337,7 @@ export class DesignAgentService {
     }
     if (this.professionalPipeline) {
       try {
-        set = (await this.professionalPipeline.run({ projectId: input.projectId, projectVersion: input.projectVersion, directionSet: set, prompt: input.approvedBrief.projectSummary, idempotencyKey: input.idempotencyKey })).directionSet;
+      set = (await this.professionalPipeline.run({ projectId: input.projectId, projectVersion: input.projectVersion, directionSet: set, prompt: providerInput.approvedBrief.projectSummary, idempotencyKey: input.idempotencyKey })).directionSet;
       } catch (error) {
         const message = error instanceof Error ? error.message : "";
         const code = message.startsWith("DESIGN_SKILL_NOT_AVAILABLE_THROUGH_APPROVED_SOURCE") ? "DESIGN_SKILL_NOT_AVAILABLE_THROUGH_APPROVED_SOURCE" : message.startsWith("FONTPAIR_") ? "FONTPAIR_SOURCE_INTEGRATION_UNRESOLVED" : message.startsWith("IMPECCABLE_") ? "IMPECCABLE_DETECTOR_INTEGRATION_UNRESOLVED" : message.startsWith("PHASE_7F_EVIDENCE_INVALID") ? "PHASE_7F_EVIDENCE_INVALID" : message.startsWith("UNAPPROVED_DESIGN_DEPENDENCY") ? "UNAPPROVED_DESIGN_DEPENDENCY" : "DESIGN_PROVIDER_FAILED";
@@ -332,7 +353,7 @@ export class DesignAgentService {
         "DESIGN_DIRECTION_COUNT_INVALID",
         "Exactly three directions for the current project version are required.",
       );
-    const readiness = validateDesignDirectionSet(input, set);
+    const readiness = validateDesignDirectionSet(providerInput, set);
     if (!readiness.readyForSelection) {
       const code = readiness.blockingReasons.includes(
         "DESIGN_DIRECTION_DUPLICATE",
@@ -374,7 +395,11 @@ export class DesignAgentService {
       const brief = briefRow ? mapRowToDocument(briefRow) : null;
       const planning = planningRow ? mapRowToDocument(planningRow) : null;
       const review = reviewRow ? mapRowToDocument(reviewRow) : null;
-      if (!brief || brief.documentType !== "requirements" || (!brief.approval.approvedRequirementsChecksum ? checksumPersistedDocument(brief) !== input.approvedBriefChecksum : brief.approval.approvedRequirementsChecksum !== input.approvedBriefChecksum && checksumPersistedDocument(brief) !== input.approvedBriefChecksum)) throw new DesignError("DESIGN_BRIEF_STALE", "The approved Brief changed before Design commit.");
+      const briefV3 = await tx.getDocument(input.projectId, input.projectVersion, "brief-v3");
+      if (briefV3?.documentType === "brief-v3") {
+        const currentBrief = BriefV3DocumentSchema.parse(briefV3);
+        if (!currentBrief.approval?.approved || currentBrief.approval.approvedCanonicalChecksum !== currentBrief.briefChecksum || input.approvedBriefChecksum !== currentBrief.briefChecksum || (input.canonicalBrief && canonicalBriefChecksum(input.canonicalBrief) !== currentBrief.briefChecksum)) throw new DesignError("DESIGN_BRIEF_STALE", "The approved CanonicalBriefV3 changed before Design commit.");
+      } else if (!brief || brief.documentType !== "requirements" || (!brief.approval.approvedRequirementsChecksum ? checksumPersistedDocument(brief) !== input.approvedBriefChecksum : brief.approval.approvedRequirementsChecksum !== input.approvedBriefChecksum && checksumPersistedDocument(brief) !== input.approvedBriefChecksum)) throw new DesignError("DESIGN_BRIEF_STALE", "The approved Brief changed before Design commit.");
       if (!planning || planning.documentType !== "planning-package" || (!planning.acceptance?.checksum ? checksumPersistedDocument(planning) !== input.acceptedPlanningChecksum : planning.acceptance.checksum !== input.acceptedPlanningChecksum && checksumPersistedDocument(planning) !== input.acceptedPlanningChecksum)) throw new DesignError("DESIGN_PLANNING_STALE", "Accepted Planning changed before Design commit.");
       if (!review || review.documentType !== "architecture-review" || review.result.verdict !== "APPROVED" || review.approvedBriefChecksum !== input.approvedBriefChecksum || review.acceptedPlanningChecksum !== input.acceptedPlanningChecksum) throw new DesignError("DESIGN_ARCHITECTURE_REVIEW_STALE", "Architecture Review changed before Design commit.");
       const existingRow = await tx.getDocument(input.projectId, input.projectVersion, "design-directions");

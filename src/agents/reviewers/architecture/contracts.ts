@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
+import { CanonicalBriefV3Schema, type CanonicalBriefV3 } from "@/domain/requirements/v3/schema";
 import { PlanningPackageSchema } from "@/agents/planner/contracts";
 import type { ArchitectureReviewProviderOutput } from "@/domain/review/schema";
 
@@ -11,7 +12,8 @@ export const FactoryArchitecturePolicySchema = z.object({
 export type FactoryArchitecturePolicy = z.infer<typeof FactoryArchitecturePolicySchema>;
 
 export const ArchitectureReviewInputSchema = z.object({
-  projectId: z.string().uuid(), projectVersion: z.number().int().positive(), approvedBrief: RequirementSpecificationSchema, approvedBriefChecksum: z.string().regex(/^[a-f0-9]{64}$/), acceptedPlanningPackage: PlanningPackageSchema, acceptedPlanningChecksum: z.string().regex(/^[a-f0-9]{64}$/), factoryArchitecturePolicy: FactoryArchitecturePolicySchema, relevantProjectConstraints: z.array(z.string().min(1)).max(40), idempotencyKey: z.string().min(1), expectedRowVersion: z.number().int().positive(),
+  projectId: z.string().uuid(), projectVersion: z.number().int().positive(), approvedBrief: RequirementSpecificationSchema, canonicalBrief: CanonicalBriefV3Schema.optional(), approvedBriefChecksum: z.string().regex(/^[a-f0-9]{64}$/), acceptedPlanningPackage: PlanningPackageSchema, acceptedPlanningChecksum: z.string().regex(/^[a-f0-9]{64}$/), factoryArchitecturePolicy: FactoryArchitecturePolicySchema, relevantProjectConstraints: z.array(z.string().min(1)).max(40), idempotencyKey: z.string().min(1), expectedRowVersion: z.number().int().positive(),
 }).strict();
 export type ArchitectureReviewInput = z.input<typeof ArchitectureReviewInputSchema>;
+export type { CanonicalBriefV3 };
 export type ArchitectureReviewOutput = ArchitectureReviewProviderOutput;

@@ -39,6 +39,7 @@ const CANONICAL_KEYS = new Set([
   "session",
   "analysis",
   "approvedBrief",
+  "canonicalBrief",
   "projectBrief",
   "brief",
   "currentBrief",

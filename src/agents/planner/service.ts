@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
 import { DecisionRecordSchema } from "@/domain/workflow/decision";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import {
@@ -33,6 +32,7 @@ import {
   type PlannerAgentInput,
   type PlanningPackage,
 } from "./contracts";
+import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
 import {
   EmptyPlannerSkillSelectionPort,
   type PlannerArchitectureProvider,
@@ -50,6 +50,9 @@ import {
 } from "@/domain/review/schema";
 import type { AgentSkillSelection } from "@/skills/runtime/resolver";
 import { buildPhase7CContractPackage } from "@/domain/contracts/phase7c";
+import { BriefV3DocumentSchema } from "@/persistence/database/brief-revision-v3-contracts";
+import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
+import { canonicalBriefToPlannerBrief, effectivePlannerBrief } from "./brief-context";
 
 const now = () => new Date().toISOString();
 export type PlannerServiceDependencies = {
@@ -104,8 +107,14 @@ export class PlannerArchitectService {
       );
     }
   }
-  private validateBrief(input: PlannerAgentInput) {
-    const brief = RequirementSpecificationSchema.parse(input.approvedBrief);
+  private validateBrief(input: PlannerAgentInput, currentCanonical?: z.infer<typeof BriefV3DocumentSchema>) {
+    const brief = currentCanonical
+      ? canonicalBriefToPlannerBrief(
+          currentCanonical.brief,
+          RequirementSpecificationSchema.parse(input.approvedBrief),
+          currentCanonical.approval,
+        )
+      : effectivePlannerBrief(input);
     if (!brief.approval.approved || brief.briefStatus !== "approved")
       throw new PlannerError(
         "BRIEF_NOT_APPROVED",
@@ -144,6 +153,26 @@ export class PlannerArchitectService {
       );
     return brief;
   }
+  private async validateCurrentCanonicalBrief(input: PlannerAgentInput) {
+    const stored = await this.documents.get(
+      input.projectId,
+      input.projectVersion,
+      "brief-v3",
+    );
+    if (!stored || stored.documentType !== "brief-v3") return;
+    const document = BriefV3DocumentSchema.parse(stored);
+    if (
+      !document.approval?.approved ||
+      document.approval.approvedCanonicalChecksum !== document.briefChecksum ||
+      (input.canonicalBrief && canonicalBriefChecksum(input.canonicalBrief) !== document.briefChecksum) ||
+      input.approvedBriefChecksum !== document.briefChecksum
+    )
+      throw new PlannerError(
+        "BRIEF_CHECKSUM_MISMATCH",
+        "The Planner input is not bound to the current approved CanonicalBriefV3.",
+      );
+    return document;
+  }
   async planApprovedProject(rawInput: PlannerAgentInput) {
     const input = this.parseInput(rawInput);
     if (input.currentWorkflowState !== "AWAITING_DESIGN_SELECTION")
@@ -151,7 +180,8 @@ export class PlannerArchitectService {
         "PLANNER_WORKFLOW_STATE_INVALID",
         "Planning starts only while awaiting design selection.",
       );
-    const brief = this.validateBrief(input);
+    const currentCanonical = await this.validateCurrentCanonicalBrief(input);
+    const brief = this.validateBrief(input, currentCanonical);
     const project = await this.projects.getWithVersion(input.projectId);
     if (!project || project.project.currentVersion !== input.projectVersion)
       throw new PlannerError(
@@ -168,8 +198,9 @@ export class PlannerArchitectService {
         "PLANNING_STALE",
         "The project row version is stale.",
       );
+    await this.validateCurrentCanonicalBrief(input);
     const skillSelection = this.resolveSkills
-      ? await this.resolveSkills(input)
+      ? await this.resolveSkills(currentCanonical ? { ...input, canonicalBrief: currentCanonical.brief } : input)
       : undefined;
     const requestHash = checksumPersistedDocument({
       projectId: input.projectId,
@@ -210,7 +241,7 @@ export class PlannerArchitectService {
           : [];
       planningPackage = PlanningPackageSchema.parse(
         await this.provider.plan(
-          { ...input, approvedBrief: brief, documentationExcerpts },
+          { ...input, approvedBrief: brief, ...(currentCanonical ? { canonicalBrief: currentCanonical.brief } : {}), documentationExcerpts },
           skillSelection?.contexts,
           skillSelection?.identityChecksum,
         ),

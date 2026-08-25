@@ -13,6 +13,7 @@ import {
 } from "@/domain/review/schema";
 import { PlanningPackageSchema } from "@/agents/planner/contracts";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
+import { canonicalBriefToPlannerBrief } from "@/agents/planner/brief-context";
 import { evaluatePlanningAcceptanceReadiness, validatePlanningStructure } from "@/agents/planner/deterministic";
 import { architectureReviewerAgentDefinition } from "@/agents/catalog";
 import { ArchitectureReviewError, rethrowWrappedArchitectureReviewError } from "./errors";
@@ -274,7 +275,9 @@ export class ArchitectureReviewService {
       );
     }
     try {
-      const brief = RequirementSpecificationSchema.parse(input.approvedBrief);
+      const brief = input.canonicalBrief
+        ? canonicalBriefToPlannerBrief(input.canonicalBrief, RequirementSpecificationSchema.parse(input.approvedBrief))
+        : RequirementSpecificationSchema.parse(input.approvedBrief);
       const planning = PlanningPackageSchema.parse(input.acceptedPlanningPackage);
       if (
         Buffer.byteLength(JSON.stringify(input), "utf8") >

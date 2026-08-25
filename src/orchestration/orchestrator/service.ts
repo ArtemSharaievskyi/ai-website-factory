@@ -13,6 +13,8 @@ import { FUNCTIONAL_QA_DIAGNOSTIC_POLICY_VERSION } from "../../runtime/qa/contra
 import { bindTaskContractsToPackage, validatePhase7CContractPackage, validateStartImplementationGate } from "@/domain/contracts/phase7c";
 import { DesignDependencyAmendmentSchema, validateDirectionDesignCapability } from "@/domain/design/capability";
 import { evaluatePlanningAcceptanceReadiness, planningSemanticChecksum } from "@/agents/planner/deterministic";
+import { BriefV3DocumentSchema } from "@/persistence/database/brief-revision-v3-contracts";
+import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 
 export interface OrchestratorMemoryPort { writeSnapshot(projectId: string, version: number, documents: Record<string, unknown>): Promise<void>; appendDecision(projectId: string, version: number, decision: unknown): Promise<void>; }
 export interface OrchestratorWorkspacePort { verify(projectId: string, version: number): Promise<boolean>; reserve?(projectId: string, version: number): Promise<boolean>; }
@@ -41,8 +43,9 @@ export class OrchestratorService {
     // admission always has the canonical project and downstream documents.
     if (!current) return;
     if (current.project.currentVersion !== input.projectVersion || current.project.workflowState !== "READY_FOR_IMPLEMENTATION" || current.rowVersion !== input.expectedRowVersion) throw new OrchestratorError("ORCHESTRATOR_WORKFLOW_STATE_INVALID", "The canonical project state is stale before TaskGraph creation.");
-    const [brief, planning, selected, review, architecture, phase7c] = await Promise.all([
+    const [brief, briefV3, planning, selected, review, architecture, phase7c] = await Promise.all([
       this.documents.get(input.projectId, input.projectVersion, "requirements"),
+      this.documents.get(input.projectId, input.projectVersion, "brief-v3"),
       this.documents.get(input.projectId, input.projectVersion, "planning-package"),
       this.documents.get(input.projectId, input.projectVersion, "selected-design"),
       this.documents.get(input.projectId, input.projectVersion, "architecture-review"),
@@ -51,8 +54,11 @@ export class OrchestratorService {
     ]);
     // Keep legacy pure-service fixtures usable, but once any canonical artifact
     // exists, missing or mismatched downstream inputs fail closed.
-    if (![brief, planning, selected, review, phase7c].some(Boolean)) return;
-    if (!brief || brief.documentType !== "requirements" || (checksumPersistedDocument(brief) !== input.approvedBriefChecksum && brief.approval.approvedRequirementsChecksum !== input.approvedBriefChecksum)) throw new OrchestratorError("ORCHESTRATOR_BRIEF_STALE", "The persisted approved Brief is stale.");
+    if (![brief, briefV3, planning, selected, review, phase7c].some(Boolean)) return;
+    if (briefV3?.documentType === "brief-v3") {
+      const currentBrief = BriefV3DocumentSchema.parse(briefV3);
+      if (!currentBrief.approval?.approved || currentBrief.approval.approvedCanonicalChecksum !== currentBrief.briefChecksum || (input.canonicalBrief && canonicalBriefChecksum(input.canonicalBrief) !== currentBrief.briefChecksum) || input.approvedBriefChecksum !== currentBrief.briefChecksum) throw new OrchestratorError("ORCHESTRATOR_BRIEF_STALE", "The persisted approved CanonicalBriefV3 is stale.");
+    } else if (!brief || brief.documentType !== "requirements" || (checksumPersistedDocument(brief) !== input.approvedBriefChecksum && brief.approval.approvedRequirementsChecksum !== input.approvedBriefChecksum)) throw new OrchestratorError("ORCHESTRATOR_BRIEF_STALE", "The persisted approved Brief is stale.");
     if (!planning || planning.documentType !== "planning-package" || (checksumPersistedDocument(planning) !== input.acceptedPlanningChecksum && planning.acceptance.checksum !== input.acceptedPlanningChecksum)) throw new OrchestratorError("ORCHESTRATOR_PLANNING_STALE", "The persisted accepted Planning package is stale.");
     if (!selected || selected.documentType !== "selected-design" || checksumPersistedDocument(selected) !== input.selectedDesignChecksum) throw new OrchestratorError("ORCHESTRATOR_DESIGN_STALE", "The persisted selected Design is stale.");
     if (!review || review.documentType !== "architecture-review" || review.result.verdict !== "APPROVED" || review.approvedBriefChecksum !== input.approvedBriefChecksum || review.acceptedPlanningChecksum !== input.acceptedPlanningChecksum) throw new OrchestratorError("ORCHESTRATOR_INPUT_INVALID", "A current approved Architecture Review is required.");
