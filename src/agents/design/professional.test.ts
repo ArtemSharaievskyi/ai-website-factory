@@ -34,7 +34,10 @@ describe("professional design capability pipeline", () => {
     await expect(configured.run({ projectId: randomUUID(), projectVersion: 1, directionSet: directionSet(), prompt: "A bounded design", idempotencyKey: "professional-missing-skill" })).rejects.toThrow("PHASE_7F_REQUIRED_DESIGN_CAPABILITY_SOURCE_MISSING");
   });
 
-  it("does not silently treat a contract-less direction set as professionally ready", async () => {
-    await expect(pipeline().run({ projectId: randomUUID(), projectVersion: 1, directionSet: directionSet(), prompt: "A bounded design", idempotencyKey: "professional-missing-contract" })).rejects.toThrow("DESIGN_CONTRACT_STALE");
+  it("creates a host baseline before enriching provider-shaped directions", async () => {
+    const result = await pipeline().run({ projectId: randomUUID(), projectVersion: 1, directionSet: directionSet(), prompt: "A bounded design", idempotencyKey: "professional-missing-contract" });
+    expect(result.directionSet.directions).toHaveLength(3);
+    expect(result.directionSet.directions.every((direction) => direction.professionalDesign?.typography.source === "fontpair")).toBe(true);
+    expect(result.directionSet.directions.every((direction) => direction.professionalDesign?.componentDiscovery.length === 4)).toBe(true);
   });
 });

@@ -54,7 +54,7 @@ import { designAgentDefinition } from "@/agents/catalog";
 import type { AgentSkillSelection } from "@/skills/runtime/resolver";
 import { assertWorkbenchStyleIsolation } from "@/integrations/design/isolation";
 import { ProfessionalDesignCapabilityPipeline } from "./professional";
-import { approveDesignDependencyAmendment, buildDesignDependencyAmendment, DesignDependencyAmendmentSchema, stableDesignChecksum } from "@/domain/design/capability";
+import { approveDesignDependencyAmendment, buildDesignDependencyAmendment, DesignDependencyAmendmentSchema } from "@/domain/design/capability";
 
 const now = () => new Date().toISOString();
 type DesignServiceDependencies = {
@@ -589,7 +589,7 @@ export class DesignAgentService {
       selectedDirectionChecksum: request.selectedDirectionChecksum,
       selectionIdempotencyKey: request.idempotencyKey,
       ...(direction.professionalDesign ? { selectedDirectionContract: direction.professionalDesign } : {}),
-      ...(direction.professionalDesign ? { designContract: { directionSetChecksum: directionSetChecksum(set), selectedDirectionChecksum: request.selectedDirectionChecksum, visualSystemChecksum: direction.professionalDesign.visualSystem.tokenChecksum, typographyChecksum: direction.professionalDesign.typography.checksum, motionChecksum: direction.professionalDesign.motion.checksum, interactionChecksum: stableDesignChecksum(direction.professionalDesign.interactions), selectedAt: request.selectedAt, currentness: { status: "CURRENT" as const, checkedAt: request.selectedAt } } } : {}),
+      ...(direction.professionalDesign ? { designContract: { directionSetChecksum: directionSetChecksum(set), selectedDirectionChecksum: request.selectedDirectionChecksum, visualSystemChecksum: direction.professionalDesign.visualSystem.tokenChecksum, typographyChecksum: direction.professionalDesign.typography.checksum, motionChecksum: direction.professionalDesign.motion.checksum, interactionChecksum: checksumPersistedDocument(direction.professionalDesign.interactions), selectedAt: request.selectedAt, currentness: { status: "CURRENT" as const, checkedAt: request.selectedAt } } } : {}),
     });
     if (selected.directionSetId !== set.setId)
       throw new DesignError(

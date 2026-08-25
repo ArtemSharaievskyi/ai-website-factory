@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { DesignDirectionSetSchema, type DesignDirectionSet } from "@/domain/design/schema";
+import { DesignDirectionSetSchema, type DesignDirection, type DesignDirectionSet } from "@/domain/design/schema";
 import { DesignCapabilityPackageSchema, DirectionDesignCapabilitySchema, stableDesignChecksum, validateExactThreeDesignCapabilities, type DesignCapabilityPassEvidence, type DesignToolProvenance } from "@/domain/design/capability";
 import { decideDependency } from "@/dependencies/authority";
 import { FontpairAdapter } from "@/integrations/design/fontpair";
@@ -17,6 +17,132 @@ const evidence = (capabilityId: DesignCapabilityPassEvidence["capabilityId"], di
 const skillSourceRef = (repository: string) => `https://github.com/${repository}`;
 const discoveryTool = (source: DesignSourceResearch["source"]): DesignToolProvenance["toolId"] => source === "twenty-first-dev" ? "twenty-first-dev" : source === "react-bits" ? "react-bits" : source === "magic-ui" ? "magic-ui" : "shadcn-ui";
 const researchToCapability = (source: DesignSourceResearch) => ({ source: source.source, query: source.query, sourceReference: source.sourceReference, sourceChecksum: source.sourceChecksum, liveEvidence: source.liveEvidence, writeAuthority: "NONE" as const, candidates: source.candidates.map((item) => ({ candidateId: item.candidateId, componentIdentity: item.componentIdentity, disposition: item.disposition, decisionReason: item.decisionReason, dependencies: item.dependencies })), deduplicatedCandidateCount: source.candidates.length });
+
+const stableUuid = (value: string) => {
+  const bytes = Buffer.from(sourceChecksum(value).slice(0, 32), "hex");
+  bytes[6] = (bytes[6]! & 15) | 0x40;
+  bytes[8] = (bytes[8]! & 63) | 128;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+};
+
+const capabilityIds: DesignCapabilityPassEvidence["capabilityId"][] = [
+  "fontpair-normalization",
+  "fontpair-multiple-candidates",
+  "twenty-first-discovery",
+  "react-bits-discovery",
+  "magic-ui-discovery",
+  "shadcn-base-discovery",
+  "impeccable-semantic-skill",
+  "impeccable-critique",
+  "impeccable-antipattern-detector",
+  "emil-design-review",
+  "emil-animation-opportunities",
+  "emil-animation-review",
+  "transitions-pattern-mapping",
+  "transitions-polish",
+  "motion-suitability",
+];
+
+// The provider transport deliberately omits the host-owned professional contract.
+// Start with a deterministic, direction-bound foundation, then replace its
+// provisional evidence with the bounded capability sources below.
+const foundationCapability = (direction: DesignDirection, idempotencyKey: string, checkedAt: string) => {
+  const identity = `${direction.id}:${idempotencyKey}`;
+  const colorTokens = [
+    ["canvas", "canvas"],
+    ["surface", "surface"],
+    ["text", "text"],
+    ["muted-text", "muted-text"],
+    ["brand", "brand"],
+    ["accent", "accent"],
+  ].map(([name, contrastRole]) => ({ name, value: `direction-${name}`, contrastRole }));
+  const visualSystem = {
+    schemaVersion: 1 as const,
+    contractId: stableUuid(`${identity}:visual-system`),
+    tokenChecksum: stableDesignChecksum({ identity, colorTokens }),
+    colorTokens,
+    layout: {
+      grid: direction.layoutStrategy,
+      container: "bounded readable content container",
+      spacingScale: ["0.25rem", "0.5rem", "1rem", "1.5rem", "2.5rem"],
+      breakpoints: [{ name: "mobile", minWidth: 0 }, { name: "tablet", minWidth: 640 }, { name: "desktop", minWidth: 1024 }],
+      density: "moderate" as const,
+    },
+    componentRules: ["Every component has an explicit purpose.", "Use one coherent control language."],
+    logoRules: ["Use only the supplied logo or approved text wordmark."],
+    antiTemplateRules: direction.antiTemplateRules.length ? direction.antiTemplateRules : ["No generic filler sections."],
+  };
+  const typographyBase = {
+    schemaVersion: 1 as const,
+    decisionId: stableUuid(`${identity}:typography`),
+    displayFamily: "system-ui",
+    bodyFamily: "ui-sans-serif",
+    fallbackStack: ["system-ui", "sans-serif"],
+    normalizedPair: { display: "system-ui", body: "ui-sans-serif" },
+    source: "system-approved" as const,
+    sourceEvidenceChecksum: sourceChecksum(`${identity}:system-approved-typography`),
+    weights: [400, 500, 600, 700],
+    loadingStrategy: "system-stack" as const,
+    usageRules: ["Use display type for hierarchy.", "Keep body type readable at every viewport."],
+  };
+  const motionSuitability = /\b(?:none|no motion|without motion|static)\b/i.test(direction.motionPolicy) ? "NONE" as const : "CSS_NATIVE" as const;
+  const motionBase = {
+    schemaVersion: 1 as const,
+    decisionId: stableUuid(`${identity}:motion`),
+    suitability: motionSuitability,
+    purpose: direction.motionPolicy,
+    navigation: motionSuitability === "NONE" ? "No animated navigation." : "Use short, purposeful transitions.",
+    sectionEntrance: motionSuitability === "NONE" ? "No section entrance animation." : "Use subtle entrance only when it improves orientation.",
+    microinteractions: "Use feedback-oriented state cues only.",
+    reducedMotionFallback: "Remove non-essential movement and preserve state changes.",
+    transitionPattern: motionSuitability === "NONE" ? "none" : "CSS transition on transform and opacity",
+  };
+  const interactionBase = {
+    schemaVersion: 1 as const,
+    interactionId: stableUuid(`${identity}:interaction`),
+    surface: "primary action and relevant feedback",
+    trigger: "user activation",
+    states: ["idle", "active", "success", "error"],
+    response: "Show the next state and preserve a recovery path.",
+    transitionStrategy: motionSuitability === "NONE" ? "NONE" as const : "CSS_TRANSITION" as const,
+    keyboardBehavior: "Enter and Space activate the same action.",
+    focusBehavior: "Visible focus remains on the active control or announced result.",
+    reducedMotionBehavior: "Keep state and focus changes while removing movement.",
+    requirementReferences: direction.requirementReferences.length ? direction.requirementReferences.map((reference) => `brief:${reference}`) : ["brief:direction"],
+  };
+  const sources = ([
+    ["twenty-first-dev", "https://21st.dev/"],
+    ["react-bits", "https://reactbits.dev/"],
+    ["magic-ui", "https://magicui.design/"],
+    ["shadcn-ui", "https://ui.shadcn.com/"],
+  ] as const).map(([source, sourceReference]) => {
+    const sourceChecksumValue = sourceChecksum(`${identity}:${source}`);
+    return {
+      source,
+      query: (direction.shortName ?? direction.label).toLowerCase(),
+      sourceReference,
+      sourceChecksum: sourceChecksumValue,
+      liveEvidence: false,
+      writeAuthority: "NONE" as const,
+      candidates: [{ candidateId: `foundation-${source}`, componentIdentity: `${direction.label} ${source} reference`, disposition: "NOT_APPLICABLE_AFTER_ANALYSIS" as const, decisionReason: "The host baseline is provisional until the bounded professional source is resolved.", dependencies: [] }],
+      deduplicatedCandidateCount: 1,
+    };
+  });
+  const toolProvenance = [{ toolId: "host-deterministic" as const, status: "AVAILABLE" as const, source: "host-deterministic" as const, sourceVersion: "professional-design-foundation-v1", sourceChecksum: sourceChecksum(identity), retrievedAt: checkedAt, liveEvidence: false, contentTrust: "HOST_VALIDATED" as const, redacted: false }];
+  const passEvidence = capabilityIds.map((capabilityId) => ({ capabilityId, status: capabilityId === "motion-suitability" ? "PASS" as const : "NOT_RUN" as const, evidenceId: `${direction.id}:${capabilityId}:foundation`, summary: "Host baseline is provisional until the professional capability pipeline completes.", checkedAt }));
+  const base = {
+    visualSystem,
+    typography: { ...typographyBase, checksum: stableDesignChecksum(typographyBase) },
+    motion: { ...motionBase, checksum: stableDesignChecksum(motionBase) },
+    interactions: [{ ...interactionBase, checksum: stableDesignChecksum(interactionBase) }],
+    componentDiscovery: sources,
+    toolProvenance,
+    passEvidence,
+    currentness: { status: "CURRENT" as const, checkedAt },
+  };
+  return DirectionDesignCapabilitySchema.parse({ ...base, contractChecksum: stableDesignChecksum(base) });
+};
 
 export class ProfessionalDesignCapabilityPipeline {
   constructor(private readonly dependencies: { fontpair?: FontpairAdapter; twentyFirstDev?: TwentyFirstDevAdapter; reactBits?: ReactBitsAdapter; magicUi?: MagicUiAdapter; approvedSkillEvidence?: () => Promise<ApprovedDesignSkillEvidence[]> } = {}) {}
@@ -40,7 +166,6 @@ export class ProfessionalDesignCapabilityPipeline {
     const sourceResearch: ProfessionalDesignPipelineResult["sourceResearch"] = [];
 
     for (const [index, direction] of input.directionSet.directions.entries()) {
-      if (!direction.professionalDesign) throw new Error("DESIGN_CONTRACT_STALE");
       const category = (direction.shortName ?? direction.id).toLowerCase();
       const sources = await Promise.all([
         twentyFirstDev.searchComponents({ category, directionId: direction.id, signal: input.signal }),
@@ -59,7 +184,7 @@ export class ProfessionalDesignCapabilityPipeline {
       const deduplicatedCount = normalizeAndDeduplicateCandidates(markedSources).length;
       sourceResearch.push({ directionId: direction.id, sources: markedSources, deduplicatedCandidateCount: deduplicatedCount });
       const pair = pairCandidates[index] ?? pairCandidates[0]!;
-      const current = direction.professionalDesign;
+      const current = direction.professionalDesign ?? foundationCapability(direction, input.idempotencyKey, checkedAt);
       const typographyBase = { ...current.typography, displayFamily: pair.displayFamily, bodyFamily: pair.bodyFamily, normalizedPair: { display: pair.displayFamily, body: pair.bodyFamily }, source: "fontpair" as const, sourceEvidenceChecksum: pair.normalizedChecksum, loadingStrategy: "google-fonts-css" as const };
       const typography = { ...typographyBase, checksum: stableDesignChecksum(typographyBase) };
       const provenance: DesignToolProvenance[] = [

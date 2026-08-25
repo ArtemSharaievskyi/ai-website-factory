@@ -8,6 +8,7 @@ import { buildPlanningPackage } from "@/agents/planner/deterministic";
 import type { PlannerAgentInput, PlanningPackage } from "@/agents/planner/contracts";
 import { DesignAgentInputSchema } from "@/agents/design/contracts";
 import { DesignAgentService } from "@/agents/design/service";
+import { ProfessionalDesignCapabilityPipeline } from "@/agents/design/professional";
 import { buildDesignDirectionSet, directionChecksum, directionSetChecksum } from "@/agents/design/deterministic";
 import { FakeDesignMemoryPort } from "@/agents/design/memory";
 import { ArchitectureReviewOrchestrationService } from "@/orchestration/architecture-review/service";
@@ -19,6 +20,7 @@ import { OrchestratorService } from "@/orchestration/orchestrator/service";
 import { taskExecutionCapability } from "@/orchestration/execution/capabilities";
 import { DEFAULT_ORCHESTRATION_POLICY } from "@/orchestration/orchestrator/contracts";
 import { buildPhase7CContractPackage, buildDependencyProposal, approveDatabaseDecision, approveDependencyProposal, approvePhase7CContractPackage } from "@/domain/contracts/phase7c";
+import { validateDirectionDesignCapability } from "@/domain/design/capability";
 import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { planningSemanticChecksum } from "@/agents/planner/deterministic";
@@ -62,6 +64,48 @@ const makePlanning = (brief: RequirementSpecification): PlanningPackage => {
   const input: PlannerAgentInput = { projectId: brief.projectId, projectVersion: 1, approvedBrief: brief, approvedBriefChecksum: checksumPersistedDocument(brief), originalPromptReference: "synthetic-prompt", clarificationEvidenceReferences: [], currentWorkflowState: "AWAITING_DESIGN_SELECTION", existingDecisions: [], suppliedFiles: [], allowedSkills: [], idempotencyKey: id(), expectedRowVersion: 1 };
   const planning = buildPlanningPackage(input);
   return { ...planning, accepted: true, acceptance: { acceptedAt: timestamp, acceptedBy: "synthetic-user", checksum: checksumPersistedDocument(planning) }, architecture: { ...planning.architecture, acceptance: { accepted: true, acceptedAt: timestamp, acceptedBy: "synthetic-user" } } } as PlanningPackage;
+};
+
+const makeProfessionalPipeline = () => {
+  const sources = {
+    "twenty-first-dev": "https://21st.dev/",
+    "react-bits": "https://reactbits.dev/",
+    "magic-ui": "https://raw.githubusercontent.com/magicuidesign/magicui/main/registry.json",
+    "shadcn-ui": "https://ui.shadcn.com/",
+  } as const;
+  const research = (source: keyof typeof sources) => ({
+    source,
+    query: "synthetic",
+    sourceReference: sources[source],
+    sourceChecksum: "b".repeat(64),
+    retrievedAt: timestamp,
+    liveEvidence: true,
+    writeAuthority: "NONE" as const,
+    candidates: [{
+      candidateId: `${source}-candidate`,
+      source,
+      componentIdentity: `${source} synthetic candidate`,
+      category: "synthetic",
+      purpose: "Bounded synthetic discovery evidence.",
+      dependencies: [],
+      motionCharacteristics: "Evaluated.",
+      compatibility: "adaptation-required" as const,
+      sourceReference: sources[source],
+      sourceChecksum: "b".repeat(64),
+      retrievedAt: timestamp,
+      freePolicy: source === "shadcn-ui" ? "EXISTING_APPROVED" as const : source === "magic-ui" ? "FREE_OPEN_SOURCE" as const : "FREE_PUBLIC_READ_ONLY" as const,
+      disposition: "USED_FOR_RESEARCH_NOT_SELECTED" as const,
+      decisionReason: "Compared within the bounded synthetic fixture.",
+    }],
+  });
+  const skillEvidence = ["impeccable", "emil-design-eng", "review-animations", "improve-animations", "find-animation-opportunities", "animation-vocabulary", "transitions-dev"].map((skillId) => ({ skillId, officialRepository: skillId === "impeccable" ? "pbakaus/impeccable" : skillId === "transitions-dev" ? "Jakubantalik/transitions.dev" : "emilkowalski/skills", status: "APPROVED_IMMUTABLE" as const, sourceChecksum: "a".repeat(64), approvedDirectory: `skills/${skillId}` }));
+  return new ProfessionalDesignCapabilityPipeline({
+    fontpair: { listPairings: async () => [1, 2, 3].map((index) => ({ pairingId: `pair-${index}`, displayFamily: `Display ${index}`, bodyFamily: `Body ${index}`, sourceTypes: ["google-fonts"], styleUseCase: "synthetic", sourceUrl: "https://fontpair.co/", sourceChecksum: "c".repeat(64), normalizedChecksum: `${index}`.repeat(64) })) } as never,
+    twentyFirstDev: { searchComponents: async () => research("twenty-first-dev") } as never,
+    reactBits: { searchComponents: async () => research("react-bits") } as never,
+    magicUi: { searchComponents: async () => research("magic-ui") } as never,
+    approvedSkillEvidence: async () => skillEvidence,
+  });
 };
 
 async function cleanup(pool: Pool) {
@@ -118,9 +162,19 @@ describePostgres("synthetic downstream lifecycle on real Postgres", () => {
     const approvedArchitectureReview = review;
 
     const designInput = DesignAgentInputSchema.parse({ projectId: brief.projectId, projectVersion: 1, approvedBrief: brief, approvedBriefChecksum: checksumPersistedDocument(brief), acceptedPlanningPackage: planning, acceptedPlanningChecksum: checksumPersistedDocument(planning), contentPlan: planning.content, assetManifest: planning.assets, suppliedBrandMetadata: {}, suppliedLogoMetadata: brief.suppliedLogoLocation, imageSourceDecision: brief.imageSourceDecision, designPreferences: [], explicitDesignExclusions: [], currentWorkflowState: "AWAITING_DESIGN_SELECTION", existingDecisions: [], allowedSkills: [], idempotencyKey: `synthetic-design-${brief.projectId}`, expectedRowVersion: architectureReview.rowVersion });
-    const design = new DesignAgentService({ database, memory: new FakeDesignMemoryPort(), provider: { proposeDesignDirections: async (input) => { const set = buildDesignDirectionSet(input); return { ...set, directions: set.directions.map((direction) => { const copy = { ...direction }; delete copy.professionalDesign; return copy; }) }; } } });
+    const professionalPipeline = makeProfessionalPipeline();
+    const providerShapedDirections = (input: Parameters<typeof buildDesignDirectionSet>[0]) => { const set = buildDesignDirectionSet(input); return { ...set, directions: set.directions.map((direction) => { const copy = { ...direction }; delete copy.professionalDesign; return copy; }) }; };
+    const invalidDesign = (input: Parameters<typeof buildDesignDirectionSet>[0]) => { const set = providerShapedDirections(input); return { ...set, directions: set.directions.map((_, index) => ({ ...set.directions[0]!, id: index === 0 ? set.directions[0]!.id : id(), label: `Synthetic duplicate ${index}` })) }; };
+    const failingDesign = new DesignAgentService({ database, memory: new FakeDesignMemoryPort(), professionalPipeline, provider: { proposeDesignDirections: async (input) => invalidDesign(input) } });
+    await expect(failingDesign.generateDesignDirections(designInput)).rejects.toMatchObject({ code: "DESIGN_DIRECTIONS_TOO_SIMILAR" });
+    expect(await documents.get(brief.projectId, 1, "design-directions")).toBeNull();
+    expect(await documents.get(brief.projectId, 1, "selected-design")).toBeNull();
+    const design = new DesignAgentService({ database, memory: new FakeDesignMemoryPort(), professionalPipeline, provider: { proposeDesignDirections: async (input) => providerShapedDirections(input) } });
     const generated = await design.generateDesignDirections(designInput);
     expect(generated.directionSet.directions).toHaveLength(3);
+    expect(generated.directionSet.directions.every((direction) => direction.professionalDesign?.currentness.status === "CURRENT")).toBe(true);
+    expect(generated.directionSet.professionalCapability?.directions).toHaveLength(3);
+    expect(await documents.get(brief.projectId, 1, "selected-design")).toBeNull();
     const selected = await design.selectDesignDirection({ projectId: brief.projectId, projectVersion: 1, designDirectionSetId: generated.directionSet.setId, selectedDirectionId: generated.directionSet.directions[0]!.id, directionSetChecksum: directionSetChecksum(generated.directionSet), selectedDirectionChecksum: directionChecksum(generated.directionSet.directions[0]!), expectedRowVersion: architectureReview.rowVersion, selectedBy: "synthetic-user", selectedAt: timestamp, selectionNotes: "Synthetic explicit selection", idempotencyKey: `synthetic-selection-${brief.projectId}` });
 
     const phaseDraft = buildPhase7CContractPackage({ projectId: brief.projectId, projectVersion: 1, createdAt: timestamp, approvedBriefChecksum: checksumPersistedDocument(brief), planningChecksum: planningSemanticChecksum(planning), architectureChecksum: checksumPersistedDocument(planning.architecture), designChecksum: checksumPersistedDocument(selected.selectedDesign), planning });
@@ -157,6 +211,8 @@ describePostgres("synthetic downstream lifecycle on real Postgres", () => {
     expect(auditResult).toMatchObject({ projectState: "READY_FOR_IMPLEMENTATION", result: { verdict: "APPROVED" } });
     const auditDocument = await documents.get(brief.projectId, 1, "contract-audit");
     expect(auditDocument?.documentType).toBe("contract-audit");
+    const selectedReadiness = validateDirectionDesignCapability(selected.selectedDesign.selectedDirectionId, selected.selectedDesign.selectedDirectionContract!, { requireLiveEvidence: true, approvedDependencies: new Set() });
+    expect(selectedReadiness).toMatchObject({ valid: true });
     const started = await orchestrator.startImplementation({ ...orchestratorInput, approvedContractAuditChecksum: checksumPersistedDocument(auditDocument!), expectedRowVersion: (await new ProjectRepository(database).getWithVersion(brief.projectId))!.rowVersion });
     expect(started.project.workflowState).toBe("IMPLEMENTING");
     const qaTask = started.taskGraph.tasks.find((task) => task.taskType === "validate-functional-flow")!;
