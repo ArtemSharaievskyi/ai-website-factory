@@ -18,6 +18,15 @@ export const TaskStopConditionSchema = z.enum([
   "CHANGES_REQUIRED",
 ]);
 
+export const AgentPolicyModeSchema = z.enum(["SINGLE", "BOUNDED_PARALLEL", "READ_ONLY_SWARM"]);
+export const AgentPolicySchema = z.object({
+  mode: AgentPolicyModeSchema,
+  maxSubagents: z.number().int().min(0).max(4),
+  parallelCanonicalWrites: z.literal(false),
+  singleIntegrationAuthority: z.literal(true),
+  canonicalMutationAuthorities: z.array(z.string().trim().min(1).max(120)).max(1).optional(),
+}).strict();
+
 export const ProviderBudgetSchema = z.object({
   lead: z.number().int().min(0).max(100).optional(),
   planner: z.number().int().min(0).max(100).optional(),
@@ -40,7 +49,7 @@ export const TaskEnvelopeSchema = z.object({
   allowedCanonicalMutation: z.boolean(),
   targetState: z.string().min(1),
   stopAt: z.array(TaskStopConditionSchema).min(1).refine((items) => new Set(items).size === items.length, "stopAt must not contain duplicates."),
-  subagents: z.literal(0),
+  agentPolicy: AgentPolicySchema,
 }).strict();
 
 export type TaskEnvelope = z.infer<typeof TaskEnvelopeSchema>;
@@ -76,6 +85,18 @@ export function validateTaskEnvelope(input: unknown): TaskEnvelope {
   }
   if (envelope.mode === "READ_ONLY_AUDIT" && (envelope.allowedSourceMutation || envelope.allowedCanonicalMutation)) {
     throw new TaskEnvelopeError("TASK_ENVELOPE_READ_ONLY_MUTATION_INVALID");
+  }
+  if (envelope.agentPolicy.mode === "SINGLE" && envelope.agentPolicy.maxSubagents !== 0) {
+    throw new TaskEnvelopeError("TASK_ENVELOPE_SINGLE_AGENT_BOUND_INVALID");
+  }
+  if (envelope.agentPolicy.mode === "BOUNDED_PARALLEL" && envelope.agentPolicy.maxSubagents < 1) {
+    throw new TaskEnvelopeError("TASK_ENVELOPE_BOUNDED_PARALLEL_BOUND_INVALID");
+  }
+  if (envelope.agentPolicy.mode === "READ_ONLY_SWARM" && envelope.agentPolicy.maxSubagents < 1) {
+    throw new TaskEnvelopeError("TASK_ENVELOPE_READ_ONLY_SWARM_BOUND_INVALID");
+  }
+  if (envelope.agentPolicy.mode === "READ_ONLY_SWARM" && (envelope.allowedSourceMutation || envelope.allowedCanonicalMutation)) {
+    throw new TaskEnvelopeError("TASK_ENVELOPE_READ_ONLY_SWARM_MUTATION_INVALID");
   }
   if (envelope.mode === "SOURCE_REPAIR") assertZeroProviderBudget(envelope, "TASK_ENVELOPE_SOURCE_REPAIR_PROVIDER_BUDGET_FORBIDDEN");
   if (envelope.mode === "READ_ONLY_AUDIT") assertZeroProviderBudget(envelope, "TASK_ENVELOPE_READ_ONLY_PROVIDER_BUDGET_FORBIDDEN");

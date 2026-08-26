@@ -8,6 +8,7 @@ import { parsePorcelainPaths, preflightTaskEnvelope, validateTaskEnvelope, type 
 const projectId = "11111111-1111-4111-8111-111111111111";
 const head = "a".repeat(40);
 const budget = { planner: 0, architectureReview: 0, design: 0 };
+const singlePolicy = { mode: "SINGLE" as const, maxSubagents: 0, parallelCanonicalWrites: false as const, singleIntegrationAuthority: true as const };
 const base = (overrides: Partial<TaskEnvelope> = {}): TaskEnvelope => ({
   mode: "SOURCE_REPAIR",
   expectedHead: head,
@@ -17,15 +18,15 @@ const base = (overrides: Partial<TaskEnvelope> = {}): TaskEnvelope => ({
   allowedCanonicalMutation: false,
   targetState: "CERTIFIED",
   stopAt: ["SOURCE_DEFECT", "PROVIDER_FAILURE"],
-  subagents: 0,
+  agentPolicy: singlePolicy,
   ...overrides,
 });
 
 describe("Codex task envelope", () => {
   it.each([
     ["SOURCE_REPAIR", base()],
-    ["REAL_LIFECYCLE", base({ mode: "REAL_LIFECYCLE", operation: "PLANNING_REFRESH", protectedProjectId: projectId, allowedSourceMutation: false, allowedCanonicalMutation: true, providerBudget: { planner: 1 } })],
-    ["READ_ONLY_AUDIT", base({ mode: "READ_ONLY_AUDIT", operation: "AUDIT", allowedSourceMutation: false, allowedCanonicalMutation: false })],
+    ["REAL_LIFECYCLE", base({ mode: "REAL_LIFECYCLE", operation: "PLANNING_REFRESH", protectedProjectId: projectId, allowedSourceMutation: false, allowedCanonicalMutation: true, providerBudget: { planner: 1 }, agentPolicy: { mode: "BOUNDED_PARALLEL", maxSubagents: 4, parallelCanonicalWrites: false, singleIntegrationAuthority: true } })],
+    ["READ_ONLY_AUDIT", base({ mode: "READ_ONLY_AUDIT", operation: "AUDIT", allowedSourceMutation: false, allowedCanonicalMutation: false, agentPolicy: { mode: "READ_ONLY_SWARM", maxSubagents: 2, parallelCanonicalWrites: false, singleIntegrationAuthority: true } })],
   ])("accepts a valid %s envelope", (_, envelope) => {
     expect(validateTaskEnvelope(envelope)).toEqual(envelope);
   });
@@ -52,6 +53,32 @@ describe("Codex task envelope", () => {
     expect(() => validateTaskEnvelope(base({ providerBudget: { planner: "one" } as never }))).toThrow("TASK_ENVELOPE_SCHEMA_INVALID");
     expect(() => validateTaskEnvelope(base({ providerBudget: { planner: 1 } }))).toThrow("TASK_ENVELOPE_SOURCE_REPAIR_PROVIDER_BUDGET_FORBIDDEN");
     expect(() => validateTaskEnvelope(base({ providerBudget: { unknown: 0 } as never }))).toThrow("TASK_ENVELOPE_SCHEMA_INVALID");
+  });
+
+  it.each([
+    ["SINGLE", singlePolicy],
+    ["BOUNDED_PARALLEL", { mode: "BOUNDED_PARALLEL" as const, maxSubagents: 4, parallelCanonicalWrites: false as const, singleIntegrationAuthority: true as const }],
+    ["READ_ONLY_SWARM", { mode: "READ_ONLY_SWARM" as const, maxSubagents: 2, parallelCanonicalWrites: false as const, singleIntegrationAuthority: true as const }],
+  ])("accepts bounded agent policy %s", (_, agentPolicy) => {
+    const envelope = base({ mode: "READ_ONLY_AUDIT", operation: "AUDIT", agentPolicy, allowedSourceMutation: false, allowedCanonicalMutation: false });
+    expect(validateTaskEnvelope(envelope).agentPolicy).toEqual(agentPolicy);
+  });
+
+  it("rejects parallel canonical writes", () => {
+    expect(() => validateTaskEnvelope(base({ agentPolicy: { ...singlePolicy, mode: "BOUNDED_PARALLEL", maxSubagents: 2, parallelCanonicalWrites: true as never } }))).toThrow("TASK_ENVELOPE_SCHEMA_INVALID");
+  });
+
+  it("rejects multiple canonical mutation authorities", () => {
+    expect(() => validateTaskEnvelope(base({ agentPolicy: { ...singlePolicy, canonicalMutationAuthorities: ["planning", "lead"] } }))).toThrow("TASK_ENVELOPE_SCHEMA_INVALID");
+  });
+
+  it("rejects invalid or unbounded agent counts", () => {
+    expect(() => validateTaskEnvelope(base({ agentPolicy: { ...singlePolicy, mode: "BOUNDED_PARALLEL", maxSubagents: 0 } }))).toThrow("TASK_ENVELOPE_BOUNDED_PARALLEL_BOUND_INVALID");
+    expect(() => validateTaskEnvelope(base({ agentPolicy: { ...singlePolicy, maxSubagents: 5 } as never }))).toThrow("TASK_ENVELOPE_SCHEMA_INVALID");
+  });
+
+  it("rejects mutation from a read-only swarm", () => {
+    expect(() => validateTaskEnvelope(base({ agentPolicy: { mode: "READ_ONLY_SWARM", maxSubagents: 2, parallelCanonicalWrites: false, singleIntegrationAuthority: true }, allowedSourceMutation: true }))).toThrow("TASK_ENVELOPE_READ_ONLY_SWARM_MUTATION_INVALID");
   });
 
   it("parses status paths without mutating state", () => {

@@ -41,6 +41,15 @@ explicit provider budget.
 `READ_ONLY_AUDIT` permits neither source nor canonical mutation and uses zero
 provider calls.
 
+## Agent policy
+
+The task envelope may select `SINGLE`, `BOUNDED_PARALLEL`, or
+`READ_ONLY_SWARM`. Parallel work is bounded to at most four read-only lanes;
+the Lead remains the single integration authority, and parallel canonical
+writes are forbidden. `READ_ONLY_SWARM` permits no source, canonical, or
+provider mutation. This is a coordination policy, not a new orchestration
+framework.
+
 ## Provider policy
 
 Run deterministic preflight before provider spend. Exploratory calls, correction

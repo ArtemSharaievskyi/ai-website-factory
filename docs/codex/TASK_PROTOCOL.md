@@ -4,8 +4,10 @@ Every execution task declares its operation envelope. The envelope is
 machine-readable; this document defines the stable meaning of its fields.
 
 Required fields are `MODE`, `EXPECTED_HEAD`, `OPERATION`, `PROVIDER_BUDGET`,
-`ALLOWED_SOURCE_MUTATION`, `ALLOWED_CANONICAL_MUTATION`, `TARGET_STATE`, and
-`STOP_CONDITIONS`. `SUBAGENTS` is always zero. Use
+`ALLOWED_SOURCE_MUTATION`, `ALLOWED_CANONICAL_MUTATION`, `TARGET_STATE`,
+`STOP_CONDITIONS`, and `AGENT_POLICY`. `AGENT_POLICY` declares a bounded
+`SINGLE`, `BOUNDED_PARALLEL`, or `READ_ONLY_SWARM` mode, with at most four
+subagents, one integration authority, and no parallel canonical writes. Use
 `npm run codex:task -- --file <task-envelope.json>` for deterministic preflight.
 
 Supported modes:
@@ -17,7 +19,7 @@ Supported modes:
   provider budget. Run `codex:start -- --protect <project-id>` first.
 - `READ_ONLY_AUDIT`: source, canonical, and provider mutation are forbidden.
 
-The runner validates schema, mode/mutation compatibility, zero subagents,
+The runner validates schema, mode/mutation compatibility, agent-policy bounds,
 provider-budget shape, expected HEAD, protected-session membership where
 required, and source cleanliness. It is a guard, not a workflow engine; it does
 not call providers, mutate canonical state, start lifecycle work, or replace
@@ -31,7 +33,8 @@ Report only fields relevant to the operation, using this compact shape:
 initial HEAD: <sha>
 final HEAD: <sha>
 source commit: <sha or none>
-subagents: 0
+agent policy: <mode; maxSubagents; single integration authority>
+subagents used: <count; bounded by envelope>
 provider calls by stage: <stage=count>
 retries/corrections/fallbacks: <counts>
 protected pilot mutations: <count>

@@ -5,6 +5,7 @@ import {
 } from "@/domain/requirements/schema";
 import type { BriefV3Approval } from "@/persistence/database/brief-revision-v3-contracts";
 import type { CanonicalBriefV3, CanonicalRequirement, RequirementCategory } from "@/domain/requirements/v3/schema";
+import { canonicalUnresolvedBlocksStage } from "@/domain/requirements/v3/unresolved";
 
 /**
  * The Planner still has a V1-shaped internal contract. This adapter is the
@@ -65,7 +66,7 @@ export const canonicalBriefToPlannerBrief = (
   const unresolvedItems = canonical.unresolved.map((item) => ({
     id: stableUnresolvedId(item.target, item.reason),
     description: item.reason,
-    blocking: true,
+    blocking: canonicalUnresolvedBlocksStage(canonical, item, "PLANNING"),
   }));
   const unmappedPlanningRequirements = requirements.filter((entry) =>
     ["OTHER", "FORM_INTERACTION", "DECISION", "DEFERRED_INTEGRATION", "ADMINISTRATION"].includes(entry.category),

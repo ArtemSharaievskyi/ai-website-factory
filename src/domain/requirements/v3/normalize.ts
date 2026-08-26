@@ -95,6 +95,12 @@ const mergeRequirement = (entries: readonly CanonicalRequirement[], context: str
   return [...byId.values()].sort((a, b) => compareStrings(a.id, b.id));
 };
 
+const normalizeUnresolved = (item: CanonicalBriefV3["unresolved"][number]) => ({
+  ...item,
+  sourceRefs: uniqueSorted(item.sourceRefs),
+  ...(item.blockingStages !== undefined ? { blockingStages: [...item.blockingStages].sort(compareStrings) } : {}),
+});
+
 const normalizePage = (page: CanonicalPage): CanonicalPage => ({ ...page, sourceRefs: uniqueSorted(page.sourceRefs) });
 const normalizeAsset = (asset: CanonicalAsset): CanonicalAsset => ({ ...asset, sourceRefs: uniqueSorted(asset.sourceRefs) });
 const normalizeEvidence = (evidence: CanonicalEvidence): CanonicalEvidence => ({ ...evidence, sourceRefs: uniqueSorted(evidence.sourceRefs) });
@@ -149,7 +155,7 @@ export function normalizeCanonicalBrief(input: unknown): CanonicalBriefV3 {
       .filter((item, index, values) => values.findIndex((candidate) => stableSerialize(candidate) === stableSerialize(item)) === index)
       .sort((a, b) => compareStrings(stableSerialize(a), stableSerialize(b))),
     unresolved: brief.unresolved
-      .map((item) => ({ ...item, sourceRefs: uniqueSorted(item.sourceRefs) }))
+      .map(normalizeUnresolved)
       .filter((item, index, values) => values.findIndex((candidate) => stableSerialize(candidate) === stableSerialize(item)) === index)
       .sort((a, b) => compareStrings(stableSerialize(a), stableSerialize(b))),
   } satisfies CanonicalBriefV3;

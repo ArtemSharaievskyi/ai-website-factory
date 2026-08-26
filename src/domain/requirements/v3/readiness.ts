@@ -2,6 +2,7 @@ import { BriefV3Error } from "./errors";
 import { validateCanonicalBriefV3 } from "./invariants";
 import type { CanonicalBriefV3 } from "./schema";
 import type { ClarificationQuestion } from "../schema";
+import { canonicalUnresolvedBlockingStages, isPhotoRightsUnresolvedRequirement } from "./unresolved";
 
 export type BriefReadinessClarification = {
   questions: ReadonlyArray<Pick<ClarificationQuestion, "id" | "blocking" | "answerStatus">>;
@@ -15,6 +16,7 @@ export type BriefReadinessApprovalBlocker =
 
 export type BriefPublicationBlockerCode =
   | "FINAL_LEGAL_FACTS_REQUIRED"
+  | "PHOTO_RIGHTS_PROVENANCE_REQUIRED"
   | "CURRENT_BRIEF_UNRESOLVED"
   | "CANONICAL_BRIEF_NOT_READY";
 
@@ -26,25 +28,11 @@ export type BriefReadinessResult = {
   nonBlockingUnresolvedTargets: ReadonlyArray<string>;
 };
 
-const legalFactMarker = /(?:\blegal\b|\brecht(?:lich)?\b|gesetz(?:lich)?|impressum|datenschutz|privacy|anschrift|address|ladungs|steuer|tax|handelsregister|company details|business details)/iu;
-const missingFactMarker = /(?:unresolved|not (?:provided|supplied|available)|missing|remain(?:s)?|lack(?:s)?|fehlen|fehlend|nicht (?:bereitgestellt|vorhanden|geliefert)|ausstehend)/iu;
-const placeholderMarker = /(?:placeholder|platzhalter)/iu;
 const analyticsMarker = /(?:analytics|tracking|telemetrie|analyse)/iu;
 const analyticsProhibitionMarker = /(?:no\b|without|kein\w*|keine\w*|ohne|nicht)[^.!?]{0,80}(?:analytics|tracking|telemetrie|analyse)|(?:analytics|tracking|telemetrie|analyse)[^.!?]{0,80}(?:not allowed|forbidden|verboten)/iu;
-const publicationMarker = /(?:public(?:ation|ly)?|publish(?:ing|ed)?|release|veröffentlich|öffent(?:lich|licher|liche)|freigabe)/iu;
 const inventionMarker = /(?:invent\w*|fabricat\w*|erfind\w*|erfund\w*|business facts?|fakten|unternehmensdaten|geschäftsdaten)/iu;
 const inventionProhibitionMarker = /(?:do not|never|without|no\b|kein\w*|keine\w*|nicht|ohne|forbidden|prohibited|verboten)/iu;
 const inventionPermissionMarker = /(?:allowed|allow|erlaubt|zulässig)/iu;
-
-function isPublicationOnlyLegalPlaceholder(brief: CanonicalBriefV3, item: CanonicalBriefV3["unresolved"][number]): boolean {
-  if (brief.legal.placeholderPolicy !== "USE_EXPLICIT_PLACEHOLDERS") return false;
-  const targetLooksLegal = /(?:^|:)(?:legal|legal[_-]|imprint|privacy)(?:$|[:_-])/iu.test(item.target);
-  const text = `${item.target} ${item.reason} ${item.sourceRefs.join(" ")}`;
-  return legalFactMarker.test(text)
-    && missingFactMarker.test(text)
-    && placeholderMarker.test(text)
-    && (targetLooksLegal || publicationMarker.test(text));
-}
 
 function explicitlyForbidsInventedFacts(brief: CanonicalBriefV3): boolean {
   return brief.requirements.some(({ statement }) => {
@@ -127,7 +115,8 @@ export function evaluateBriefReadiness(input: {
   for (const target of unresolvedTargets.filter((candidate) => isUnresolvedDecisionApprovalBlocker(brief, candidate))) approvalBlockers.push({ code: "UNRESOLVED_CANONICAL_DECISION", target });
 
   for (const item of brief.unresolved) {
-    if (isPublicationOnlyLegalPlaceholder(brief, item)) nonBlockingUnresolvedTargets.push(item.target);
+    const stages = canonicalUnresolvedBlockingStages(brief, item);
+    if (!stages.includes("PLANNING") && !stages.includes("BRIEF_APPROVAL")) nonBlockingUnresolvedTargets.push(item.target);
     else approvalBlockers.push({ code: "UNRESOLVED_CANONICAL_REQUIREMENT", target: item.target });
   }
 
@@ -138,6 +127,7 @@ export function evaluateBriefReadiness(input: {
 
   const publicationBlockers = new Set<BriefPublicationBlockerCode>();
   if (brief.legal.placeholderPolicy !== "NO_PLACEHOLDERS" || nonBlockingUnresolvedTargets.length > 0) publicationBlockers.add("FINAL_LEGAL_FACTS_REQUIRED");
+  if (brief.unresolved.some((item) => isPhotoRightsUnresolvedRequirement(item) && canonicalUnresolvedBlockingStages(brief, item).includes("ASSET_REVIEW"))) publicationBlockers.add("PHOTO_RIGHTS_PROVENANCE_REQUIRED");
   if (brief.unresolved.length > 0 || unansweredQuestions.length > 0) publicationBlockers.add("CURRENT_BRIEF_UNRESOLVED");
   if (approvalBlockers.length > 0) publicationBlockers.add("CANONICAL_BRIEF_NOT_READY");
 

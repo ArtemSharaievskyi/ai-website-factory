@@ -12,5 +12,10 @@
   "allowedCanonicalMutation": true,
   "targetState": "PLANNING_REFRESH_PENDING_APPROVAL",
   "stopAt": ["USER_APPROVAL", "SOURCE_DEFECT", "PROVIDER_FAILURE"],
-  "subagents": 0
+  "agentPolicy": {
+    "mode": "BOUNDED_PARALLEL",
+    "maxSubagents": 4,
+    "parallelCanonicalWrites": false,
+    "singleIntegrationAuthority": true
+  }
 }

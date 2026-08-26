@@ -79,6 +79,17 @@ export const CanonicalAssetSchema = CanonicalAssetValueSchema.extend({
 }).strict();
 export type CanonicalAsset = z.infer<typeof CanonicalAssetSchema>;
 
+/** Lifecycle stages that may own an unresolved canonical requirement. */
+export const CanonicalUnresolvedStageSchema = z.enum([
+  "BRIEF_APPROVAL",
+  "PLANNING",
+  "ARCHITECTURE_REVIEW",
+  "DESIGN",
+  "ASSET_REVIEW",
+  "PUBLICATION",
+]);
+export type CanonicalUnresolvedStage = z.infer<typeof CanonicalUnresolvedStageSchema>;
+
 const InteractionStatesSchema = z.array(CanonicalRequirementSchema);
 export const FormSimulationPolicySchema = z.enum(["ALLOWED", "FORBIDDEN", "UNRESOLVED"]);
 export const FormTransmissionModeSchema = z.enum(["NONE", "EMAIL", "API", "OTHER", "UNRESOLVED"]);
@@ -207,6 +218,9 @@ export const CanonicalBriefV3Schema = z.object({
     target: NonEmptyStringSchema.max(300),
     reason: NonEmptyStringSchema.max(2000),
     sourceRefs: z.array(SourceRefSchema).min(1),
+    // Optional by design: omitting it keeps historical canonical checksums
+    // valid. Host compatibility logic classifies such items conservatively.
+    blockingStages: z.array(CanonicalUnresolvedStageSchema).min(0).refine((items) => new Set(items).size === items.length, "blockingStages must not contain duplicates.").optional(),
   }).strict()),
 }).strict();
 export type CanonicalBriefV3 = z.infer<typeof CanonicalBriefV3Schema>;

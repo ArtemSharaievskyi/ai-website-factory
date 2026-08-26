@@ -239,6 +239,9 @@ export class PlannerArchitectService {
               taskType: "technical-architecture",
             })
           : [];
+      // Re-check the host-owned currentness token immediately before provider
+      // spend; skill/context preparation may have overlapped a Brief update.
+      await this.validateCurrentCanonicalBrief(input);
       planningPackage = PlanningPackageSchema.parse(
         await this.provider.plan(
           { ...input, approvedBrief: brief, ...(currentCanonical ? { canonicalBrief: currentCanonical.brief } : {}), documentationExcerpts },

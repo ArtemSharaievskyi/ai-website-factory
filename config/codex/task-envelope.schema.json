@@ -13,7 +13,7 @@
     "allowedCanonicalMutation",
     "targetState",
     "stopAt",
-    "subagents"
+    "agentPolicy"
   ],
   "properties": {
     "mode": { "enum": ["SOURCE_REPAIR", "REAL_LIFECYCLE", "READ_ONLY_AUDIT"] },
@@ -56,6 +56,17 @@
         ]
       }
     },
-    "subagents": { "const": 0 }
+    "agentPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "maxSubagents", "parallelCanonicalWrites", "singleIntegrationAuthority"],
+      "properties": {
+        "mode": { "enum": ["SINGLE", "BOUNDED_PARALLEL", "READ_ONLY_SWARM"] },
+        "maxSubagents": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "parallelCanonicalWrites": { "const": false },
+        "singleIntegrationAuthority": { "const": true },
+        "canonicalMutationAuthorities": { "type": "array", "minItems": 0, "maxItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 120 } }
+      }
+    }
   }
 }

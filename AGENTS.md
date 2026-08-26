@@ -12,7 +12,9 @@ transient local artifacts.
 
 ## Codex execution invariants
 
-- Use one Codex agent only; never spawn subagents.
+- Execution may use `SINGLE`, `BOUNDED_PARALLEL`, or `READ_ONLY_SWARM` agent
+  policy within an envelope; max four, one integration authority, and never
+  parallel canonical writes. The Lead owns all integration and canonical work.
 - `CanonicalBriefV3.current` is the current V3 requirements authority. Legacy
   requirements are compatibility-only, and canonical requirements stay lossless.
 - Never manually mutate canonical persistence. Preserve semantic versus document

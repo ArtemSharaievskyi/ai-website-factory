@@ -5,7 +5,7 @@ import type { SemanticTargetId } from "./targets";
 
 export type BriefProvenanceEntry = {
   revisionReference: string;
-  target: SemanticTargetId;
+  target: SemanticTargetId | `UNRESOLVED:${string}`;
   operation: "SET" | "UPSERT" | "REMOVE";
   outcome: "CHANGED";
   beforeValueFingerprint: string;

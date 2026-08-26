@@ -18,6 +18,7 @@ import {
 } from "./changeset";
 import { SEMANTIC_TARGETS, isAssetTarget, isPageTarget, isRequirementTarget, type SemanticTargetId } from "./targets";
 import { readSemanticTarget } from "./state";
+import { canonicalUnresolvedBlockingStages } from "./unresolved";
 
 type FormTarget =
   | typeof SEMANTIC_TARGETS.FORM_SUCCESS_MODE
@@ -240,7 +241,8 @@ function applyRemove(brief: CanonicalBriefV3, change: Extract<BriefChange, { ope
 }
 
 export type BriefEffectiveDeltaEntry = {
-  target: SemanticTargetId;
+  /** Semantic target IDs plus host-owned unresolved-item delta IDs. */
+  target: SemanticTargetId | `UNRESOLVED:${string}`;
   operation: BriefChange["operation"];
   beforeValueFingerprint: string;
   afterValueFingerprint: string;
@@ -266,12 +268,24 @@ function semanticFingerprint(value: unknown): string {
 }
 
 function effectiveDelta(before: CanonicalBriefV3, after: CanonicalBriefV3, changeSet: BriefChangeSet): readonly BriefEffectiveDeltaEntry[] {
-  return changeSet.changes.flatMap((change) => {
+  const changeDelta = changeSet.changes.flatMap((change) => {
     const beforeValueFingerprint = semanticFingerprint(readSemanticTarget(before, change.target));
     const afterValueFingerprint = semanticFingerprint(readSemanticTarget(after, change.target));
     if (beforeValueFingerprint === afterValueFingerprint) return [];
     return [{ target: change.target, operation: change.operation, beforeValueFingerprint, afterValueFingerprint }];
   });
+  const unresolvedDelta = changeSet.unresolved.flatMap((item) => {
+    const beforeItem = before.unresolved.find((candidate) => candidate.target === item.target && candidate.reason === item.reason);
+    const afterItem = after.unresolved.find((candidate) => candidate.target === item.target && candidate.reason === item.reason);
+    if (!afterItem || (beforeItem && semanticFingerprint(beforeItem) === semanticFingerprint(afterItem))) return [];
+    return [{
+      target: `UNRESOLVED:${item.target}` as const,
+      operation: "UPSERT" as const,
+      beforeValueFingerprint: semanticFingerprint(beforeItem),
+      afterValueFingerprint: semanticFingerprint(afterItem),
+    }];
+  });
+  return [...changeDelta, ...unresolvedDelta];
 }
 
 /** The sole V3 reduction boundary: pure canonical state plus its effective semantic delta. */
@@ -286,14 +300,30 @@ export function reduceBriefChangeSet(current: CanonicalBriefV3, input: BriefChan
     else if (change.operation === "UPSERT") next = applyUpsert(next, change);
     else next = applyRemove(next, change);
   }
-  next = changeSet.unresolved.length
-    ? { ...next, unresolved: [...next.unresolved, ...changeSet.unresolved] }
-    : next;
+  if (changeSet.unresolved.length) {
+    const unresolved = [...next.unresolved];
+    for (const item of changeSet.unresolved) {
+      const existingIndex = unresolved.findIndex((existing) => existing.target === item.target && existing.reason === item.reason);
+      if (existingIndex < 0) {
+        unresolved.push({ ...item, blockingStages: [...canonicalUnresolvedBlockingStages(next, item)] });
+        continue;
+      }
+      const existing = unresolved[existingIndex]!;
+      const sourceRefs = [...new Set([...existing.sourceRefs, ...item.sourceRefs])].sort();
+      if (sourceRefs.length !== existing.sourceRefs.length) unresolved[existingIndex] = { ...existing, sourceRefs };
+    }
+    next = { ...next, unresolved };
+  }
   next = normalizeCanonicalBrief(next);
   validateCanonicalBriefV3(next);
   validateReductionInvariants(currentCanonical, next, changeSet);
   const delta = effectiveDelta(currentCanonical, next, changeSet);
-  return { before: currentCanonical, after: next, changeSet, effectiveDelta: delta, changed: delta.length > 0 };
+  const unresolvedSemanticValue = (item: CanonicalBriefV3["unresolved"][number]) => {
+    return Object.fromEntries(Object.entries(item).filter(([key]) => key !== "sourceRefs"));
+  };
+  const unresolvedChanged = stableSerialize(currentCanonical.unresolved.map(unresolvedSemanticValue))
+    !== stableSerialize(next.unresolved.map(unresolvedSemanticValue));
+  return { before: currentCanonical, after: next, changeSet, effectiveDelta: delta, changed: delta.length > 0 || unresolvedChanged };
 }
 
 /** Compatibility projection for callers that only need canonical AFTER state. */

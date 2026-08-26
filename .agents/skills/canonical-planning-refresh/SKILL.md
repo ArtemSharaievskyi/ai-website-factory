@@ -18,6 +18,9 @@ candidate. It is generic and never contains project state.
   before provider spend.
 - Assemble lossless Planner input; legacy requirements may be read/migrated for
   compatibility but never used as current authority.
+- Preserve canonical unresolved-item stage ownership losslessly. Planner blocks
+  only unresolved items owned by the Planning stage; deferred legal, asset, or
+  publication items remain visible and are enforced by their later host gate.
 - Use the production Planner port and deterministic admission validators.
 
 ## Allowed mutations
