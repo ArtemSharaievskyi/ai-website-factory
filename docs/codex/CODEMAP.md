@@ -130,7 +130,10 @@ repositories, and validators remain canonical.
   changed, or touched failures and reports exact unchanged failures as
   BASELINE_FAILURE.
 - .agents/skills contains the procedural debug-production-bug,
-  modify-openai-contract, review-implementation, and finish-task skills.
+  modify-openai-contract, review-implementation, finish-task,
+  canonical-planning-refresh, restore-artifact-currentness,
+  architecture-review-run, design-generation-run, and
+  provider-failure-forensics skills.
 - scripts/codex/review-context.ts emits bounded structural handoff context for
   an independent read-only review.
 
@@ -142,6 +145,8 @@ repositories, and validators remain canonical.
 - `scripts/codex/check-affected.ts` resolves changed files against the saved
   `.codex/session.json` baseline and can run the code-owned checks in
   `scripts/codex/checks.ts`.
+- `scripts/codex/task-envelope.ts` validates the mode/mutation/budget contract;
+  `scripts/codex/task.ts` is its read-only `codex:task` preflight entrypoint.
 - `scripts/codex/check-provider-contracts.ts` calls the real structured-output
   builders without constructing an OpenAI client or making a network request.
 - `scripts/codex/start.ts`, `protected-state.ts`, and `verify.ts` manage the

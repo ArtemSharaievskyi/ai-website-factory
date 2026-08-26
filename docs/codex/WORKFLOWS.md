@@ -135,10 +135,13 @@ validation remain in `src/orchestration/execution/` and `src/runtime/`.
 
 ## Codex verification workflow
 
-Level 2.5 adds four repository procedures under .agents/skills:
-debug-production-bug, modify-openai-contract, review-implementation, and
-finish-task. Production implementation work follows verification, bounded
-commit, independent read-only review, repair, and re-verification.
+Level 2.5 adds reusable repository procedures under .agents/skills:
+debug-production-bug, modify-openai-contract, review-implementation,
+finish-task, canonical-planning-refresh, restore-artifact-currentness,
+architecture-review-run, design-generation-run, and
+provider-failure-forensics. Production implementation work follows
+verification, bounded commit, independent read-only review, repair, and
+re-verification.
 
 The optional codex:review-context command gives a fresh reviewer only the
 baseline/current heads, changed paths, affected checks, architecture status,
@@ -152,3 +155,10 @@ automatically select `codex:provider-contracts`; the command uses the actual
 production response-format builders and makes no network request. The session
 snapshot is read-only and contains no prompt, answer, provider, asset, or
 secret content.
+
+For any operation task, validate its machine-readable envelope with
+`npm run codex:task -- --file <task-envelope.json>` before execution. The
+preflight compares the expected HEAD, checks source/mutation compatibility and
+provider budgets, and requires the protected session for `REAL_LIFECYCLE`.
+It performs no provider call or canonical mutation and does not replace the
+existing lifecycle services or Codex verification commands.

@@ -285,3 +285,44 @@ entry names the invariant and the regression boundary that must be exercised.
   Implementation/production-adapter tests must cover stale graph, stale
   Phase 7C/task binding, and QA source-currentness rejection without opening
   an execution side effect.
+
+## REVIEW_EVIDENCE_REFERENCES_MUST_BE_HOST_ISSUED
+
+- Symptom: a provider invents a plausible evidence path or cites an artifact
+  outside the request-bound review evidence set.
+- Rule: the host issues the bounded `EvidenceCatalog`, validates strict
+  membership, and owns evidence identity and provenance; providers return only
+  semantic findings.
+- Regression: architecture and reviewer contract tests reject unknown or
+  free-form evidence references and preserve host-owned provenance.
+
+## CLIENT_FORM_CONTRACT_MUST_HAVE_A_SERVER_BOUNDARY
+
+- Symptom: a generated form works in the browser but has no validated server
+  action, persistence/notification contract, or safe error path.
+- Rule: form behavior is a cross-artifact contract spanning UI, route/action,
+  validation, ownership, and the configured backend decision; client-only
+  success is not an implementation proof.
+- Regression: contract-audit and generated-runtime route/form tests must prove
+  the production-reachable boundary and its failure behavior.
+
+## NO_BACKEND_MUST_BE_EXPLICIT
+
+- Symptom: a static or no-backend project silently receives persistence,
+  authentication, storage, or API obligations that were not approved.
+- Rule: backend capability is an explicit Planning and TaskGraph decision;
+  `NONE` remains static/no-persistence and downstream reviews must not invent
+  infrastructure.
+- Regression: planning admission, contract-audit, and generated-runtime tests
+  reject undeclared backend behavior.
+
+## PROFESSIONAL_DESIGN_ENRICHMENT_IS_HOST_OWNED
+
+- Symptom: Design output treats optional professional capabilities as selected,
+  sends host-only enrichment through the provider, or conflates availability
+  with user selection.
+- Rule: the host owns capability availability, `professionalDesign` enrichment,
+  checksums, and currentness; the provider proposes exactly three directions and
+  the user selects one explicitly.
+- Regression: Design contract and production-path tests prove host enrichment,
+  exactly-three distinct directions, atomic failure, and no auto-selection.

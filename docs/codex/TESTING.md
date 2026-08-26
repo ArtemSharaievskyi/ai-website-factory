@@ -38,6 +38,8 @@ repository gates required by `CONTRIBUTING.md` for a handoff.
 - Planner dependency admission: `npm run test --
   src/dependencies/authority.test.ts src/agents/planner/planner.test.ts
   src/agents/planner/admission.test.ts`.
+- Codex task envelope: `npm run test --
+  src/runtime/codex/task-envelope.test.ts`.
 
 ## Provider structured-output rule
 
@@ -155,3 +157,9 @@ The JSON registries contain IDs and path metadata only. Executable names and
 arguments are code-owned in `scripts/codex/checks.ts`; config cannot inject
 arbitrary shell commands. Missing production-path evidence is reported as
 `PRODUCTION PATH: MISSING` and does not count as coverage.
+
+The task envelope schema is `config/codex/task-envelope.schema.json`, with a
+synthetic example at `config/codex/task-envelope.example.json`. The
+`codex:task` preflight is read-only: it validates the envelope, compares Git
+HEAD, checks the working tree and protected session, and never invokes a
+provider or canonical lifecycle service.

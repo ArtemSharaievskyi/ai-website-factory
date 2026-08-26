@@ -1,0 +1,16 @@
+{
+  "mode": "REAL_LIFECYCLE",
+  "expectedHead": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "protectedProjectId": "00000000-0000-4000-8000-000000000000",
+  "operation": "PLANNING_REFRESH",
+  "providerBudget": {
+    "planner": 1,
+    "architectureReview": 0,
+    "design": 0
+  },
+  "allowedSourceMutation": false,
+  "allowedCanonicalMutation": true,
+  "targetState": "PLANNING_REFRESH_PENDING_APPROVAL",
+  "stopAt": ["USER_APPROVAL", "SOURCE_DEFECT", "PROVIDER_FAILURE"],
+  "subagents": 0
+}

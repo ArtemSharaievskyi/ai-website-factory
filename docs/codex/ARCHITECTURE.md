@@ -4,6 +4,11 @@ The Factory is a local-first Next.js application with typed domain contracts,
 server-side application services, injected provider adapters, transactional
 persistence, and bounded generated-project execution.
 
+Codex execution policy is indexed by `FAST_PILOT.md`,
+`LIFECYCLE_AUTHORITY.md`, and `TASK_PROTOCOL.md`. Those documents describe
+stable procedure and authority boundaries; they never replace canonical source
+contracts, services, persistence, or current project state.
+
 ## Authority boundaries
 
 | Boundary | Owns | Does not own |

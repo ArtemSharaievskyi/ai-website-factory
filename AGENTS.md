@@ -10,6 +10,21 @@ This repository contains the Factory application and its typed workflow runtime.
 Keep Factory infrastructure separate from generated customer projects and from
 transient local artifacts.
 
+## Codex execution invariants
+
+- Use one Codex agent only; never spawn subagents.
+- `CanonicalBriefV3.current` is the current V3 requirements authority. Legacy
+  requirements are compatibility-only, and canonical requirements stay lossless.
+- Never manually mutate canonical persistence. Preserve semantic versus document
+  checksum domains, CAS/currentness, immutable history, and idempotency.
+- Never self-approve an artifact requiring explicit user approval or selection.
+- Provider calls have no automatic retry, correction, or fallback unless the task
+  envelope explicitly authorizes it; failed calls cannot partially persist.
+- Project Memory is a derived projection, never canonical authority.
+- Source repair and real-lifecycle mutation are separate modes by default.
+- Deterministic guards and canonical services take precedence over prose or
+  browser assumptions.
+
 ## Working agreement
 
 - The stable application stack is Next.js App Router, React, TypeScript, npm,
