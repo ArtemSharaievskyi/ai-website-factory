@@ -35,6 +35,7 @@ import { type RequirementSpecification } from "@/domain/requirements/schema";
 import { BriefV3DocumentSchema, type BriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
 import { taskExecutionCapability } from "@/orchestration/execution/capabilities";
 import { canonicalBriefToPlannerBrief } from "@/agents/planner/brief-context";
+import { admitPlanningRefresh, PlanningAdmissionError } from "@/agents/planner/refresh-admission";
 
 const list = (values: string[] | undefined, limit = 12) => (values ?? []).slice(0, limit).map((value) => value.slice(0, 500));
 const statements = (values: unknown, limit = 16): string[] => {
@@ -192,11 +193,34 @@ export class WorkbenchApplication {
     const requirements = await this.documents.get(projectId, version, "requirements");
     const briefV3Document = await this.documents.get(projectId, version, "brief-v3");
     const briefV3 = briefV3Document?.documentType === "brief-v3" ? briefV3Document : undefined;
-    const planning = await this.documents.get(projectId, version, "planning-package");
-    const phase7c = await this.documents.get(projectId, version, "phase-7c-contract-package");
+    let planning = await this.documents.get(projectId, version, "planning-package");
+    if (planning?.documentType === "planning-package" && briefV3) {
+      try {
+        const admission = admitPlanningRefresh({
+          candidate: planning,
+          current: planning,
+          canonicalBrief: briefV3.brief,
+          projectId,
+          projectVersion: version,
+          approvedBriefChecksum: briefV3.briefChecksum,
+          timestamp: planning.updatedAt,
+        });
+        if (
+          !briefV3.approval?.approved ||
+          briefV3.approval.approvedCanonicalChecksum !== briefV3.briefChecksum ||
+          admission.blockers.length > 0
+        )
+          planning = null;
+      } catch (error) {
+        if (error instanceof PlanningAdmissionError) planning = null;
+        else throw error;
+      }
+    }
+    const phase7cDocument = await this.documents.get(projectId, version, "phase-7c-contract-package");
+    const phase7c = planning?.documentType === "planning-package" ? phase7cDocument : null;
     const directions = await this.documents.get(projectId, version, "design-directions");
     const selected = await this.documents.get(projectId, version, "selected-design");
-    const contractPackage = await this.documents.get(projectId, version, "phase-7c-contract-package");
+    const contractPackage = phase7c;
     const contractAudit = await this.documents.get(projectId, version, "contract-audit");
     const taskGraph = await this.documents.get(projectId, version, "task-graph");
     const hasBlockingQuestions = status.clarification?.blockingUnresolvedQuestionIds.length ? true : false;

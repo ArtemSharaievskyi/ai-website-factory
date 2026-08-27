@@ -71,7 +71,6 @@ import {
 } from "@/domain/review/schema";
 import { z } from "zod";
 import {
-  IsoDateTimeSchema,
   NonEmptyStringSchema,
   UserValueSchema,
 } from "@/domain/shared/schemas";
@@ -115,6 +114,11 @@ const withoutProjectIdentity = <T extends Record<string, z.ZodTypeAny>>(shape: T
   const result = { ...shape };
   delete result.projectId;
   delete result.projectVersion;
+  return result;
+};
+const withoutProjectIdentityAndAcceptance = <T extends Record<string, z.ZodTypeAny>>(shape: T) => {
+  const result = withoutProjectIdentity(shape);
+  delete result.acceptance;
   return result;
 };
 function bindProjectIdentity<T>(value: T, host: { projectId: string; projectVersion: number }): T {
@@ -451,7 +455,7 @@ function normalizeBriefDraft(
   }
 }
 
-const StrictTraceabilitySchema = TraceabilitySchema.extend({
+const StrictTraceabilitySchema = TraceabilitySchema.omit({ decisionId: true }).extend({
   unresolvedDependency: z.string().nullable(),
 });
 const StrictRouteSchema = z
@@ -512,7 +516,7 @@ const StrictFlowSchema = z
   .strict();
 const StrictArchitectureSchema = z
   .object({
-    ...withoutProjectIdentity(TechnicalArchitectureSchema.shape),
+    ...withoutProjectIdentityAndAcceptance(TechnicalArchitectureSchema.shape),
     backendPriority: z
       .array(z.enum(["server-actions", "route-handlers", "supabase-services"]))
       .max(3),
@@ -521,23 +525,6 @@ const StrictArchitectureSchema = z
         .object({ name: NonEmptyStringSchema, command: NonEmptyStringSchema })
         .strict(),
     ),
-    acceptance: z
-      .object({
-        accepted: z.boolean(),
-        acceptedAt: IsoDateTimeSchema.nullable(),
-        acceptedBy: NonEmptyStringSchema.nullable(),
-      })
-      .strict(),
-  })
-  .strict();
-const StrictPlanningAcceptanceSchema = z
-  .object({
-    acceptedAt: IsoDateTimeSchema.nullable(),
-    acceptedBy: NonEmptyStringSchema.nullable(),
-    checksum: z
-      .string()
-      .regex(/^[a-f0-9]{64}$/)
-      .nullable(),
   })
   .strict();
 const StrictAssetManifestSchema = z
@@ -564,7 +551,7 @@ const StrictFormPlanSchema = z
   })
   .strict();
 export const PlanningPackageStructuredOutputSchema =
-  PlanningPackageSchema.omit({ projectId: true, projectVersion: true }).extend({
+  PlanningPackageSchema.omit({ projectId: true, projectVersion: true, approvedBriefChecksum: true, accepted: true, acceptance: true }).extend({
     databaseRecommendation: z.object({ recommendation: z.enum(["REQUIRED", "NOT_REQUIRED", "UNCERTAIN"]), rationale: z.string().min(1), requirementReferences: z.array(z.string().min(1)).min(1), userDecisionRequired: z.literal(true), selectedMode: z.enum(["NONE", "SUPABASE_NEW", "SUPABASE_EXISTING"]).nullable() }).strict().nullable(),
     productScope: z.object({
       ...withoutProjectIdentity(PlanningPackageSchema.shape.productScope.shape),
@@ -631,11 +618,24 @@ export const PlanningPackageStructuredOutputSchema =
       ...withoutProjectIdentity(PlanningPackageSchema.shape.security.shape),
     }).strict(),
     traceability: z.array(StrictTraceabilitySchema),
-    acceptance: StrictPlanningAcceptanceSchema,
   });
 function omitNull<T extends Record<string, unknown>>(value: T, keys: string[]) {
   const result = { ...value };
   for (const key of keys) if (result[key] === null) delete result[key];
+  return result;
+}
+const plannerTraceabilityDecisionId = (entry: Record<string, unknown>) => {
+  const digest = createHash("sha256").update(`planner-trace:${String(entry.category)}:${JSON.stringify(entry.requirementReferences)}:${String(entry.rationale)}`).digest("hex");
+  const bytes = Buffer.from(digest.slice(0, 32), "hex");
+  bytes[6] = (bytes[6]! & 15) | 64;
+  bytes[8] = (bytes[8]! & 63) | 128;
+  return `${bytes.toString("hex").slice(0, 8)}-${bytes.toString("hex").slice(8, 12)}-${bytes.toString("hex").slice(12, 16)}-${bytes.toString("hex").slice(16, 20)}-${bytes.toString("hex").slice(20)}`;
+};
+function stampPlannerTraceability(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stampPlannerTraceability);
+  if (!value || typeof value !== "object") return value;
+  const result = Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, child]) => [key, stampPlannerTraceability(child)]));
+  if (typeof result.category === "string" && typeof result.rationale === "string" && Array.isArray(result.requirementReferences)) result.decisionId = plannerTraceabilityDecisionId(result);
   return result;
 }
 export const isPlaceholderImageApprovalBlocker = (text: string) =>
@@ -770,7 +770,7 @@ function normalizePlanningPackage(
     },
     storage: {
       ...value.storage,
-      traceability: value.traceability.map((entry) =>
+      traceability: value.storage.traceability.map((entry) =>
         omitNull(entry, ["unresolvedDependency"]),
       ),
     },
@@ -782,16 +782,8 @@ function normalizePlanningPackage(
     },
     architecture: {
       ...value.architecture,
-      acceptance: omitNull(value.architecture.acceptance, [
-        "acceptedAt",
-        "acceptedBy",
-      ]),
+      acceptance: { accepted: false },
     },
-    acceptance: omitNull(value.acceptance, [
-      "acceptedAt",
-      "acceptedBy",
-      "checksum",
-    ]),
     assets: {
       ...value.assets,
       entries: value.assets.entries.map((entry) =>
@@ -861,6 +853,8 @@ function normalizePlanningPackage(
   (
     normalized as unknown as { approvedBriefChecksum: string }
   ).approvedBriefChecksum = host.approvedBriefChecksum;
+  (normalized as unknown as { accepted: boolean }).accepted = false;
+  (normalized as unknown as { acceptance: Record<string, never> }).acceptance = {};
   const noBackend = approvedBrief ? isNoBackendBrief(approvedBrief) : false;
   (
     normalized as unknown as {
@@ -874,11 +868,6 @@ function normalizePlanningPackage(
     "supabase-services",
   ];
   (
-    normalized as unknown as { storage: { traceability: unknown[] } }
-  ).storage.traceability = value.storage.traceability.map((entry) =>
-    omitNull(entry, ["unresolvedDependency"]),
-  );
-  (
     normalized as unknown as {
       architecture: { npmScripts: Record<string, string> };
     }
@@ -888,7 +877,7 @@ function normalizePlanningPackage(
       script.command,
     ]),
   );
-  return PlanningPackageSchema.parse(normalized);
+  return PlanningPackageSchema.parse(stampPlannerTraceability(normalized));
 }
 const DESIGN_OPTIONAL_KEYS = [
   "shortName",

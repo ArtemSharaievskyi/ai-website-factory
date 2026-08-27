@@ -10,7 +10,6 @@ import {
   saveDocumentCASInTransaction,
   saveDocumentInTransaction,
   transitionWorkflowInTransaction,
-  WorkflowPersistenceService,
 } from "@/persistence/database/repositories";
 import { mapRowToDocument } from "@/persistence/database/mapping";
 import type { PersistenceDatabase, PersistenceTransaction } from "@/persistence/database/types";
@@ -53,6 +52,7 @@ import { buildPhase7CContractPackage } from "@/domain/contracts/phase7c";
 import { BriefV3DocumentSchema } from "@/persistence/database/brief-revision-v3-contracts";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { canonicalBriefToPlannerBrief, effectivePlannerBrief } from "./brief-context";
+import { admitPlanningRefresh, PlanningAdmissionError, type PlanningRefreshDomain } from "./refresh-admission";
 
 const now = () => new Date().toISOString();
 export type PlannerServiceDependencies = {
@@ -69,7 +69,6 @@ export class PlannerArchitectService {
   private readonly projects;
   private readonly documents;
   private readonly decisions;
-  private readonly workflow;
   private readonly provider: PlannerArchitectureProvider;
   private readonly skills: PlannerSkillSelectionPort;
   private readonly resolveSkills?: PlannerServiceDependencies["resolveSkills"];
@@ -82,7 +81,6 @@ export class PlannerArchitectService {
     this.projects = new ProjectRepository(dependencies.database);
     this.documents = new DocumentRepository(dependencies.database);
     this.decisions = new DecisionRepository(dependencies.database);
-    this.workflow = new WorkflowPersistenceService(dependencies.database);
     this.provider = dependencies.provider ?? {
       plan: async (input) => buildPlanningPackage(input),
     };
@@ -173,6 +171,42 @@ export class PlannerArchitectService {
       );
     return document;
   }
+  private admitPlanningCandidate(input: {
+    plannerInput: PlannerAgentInput;
+    canonicalBrief?: z.infer<typeof BriefV3DocumentSchema>["brief"];
+    candidate: PlanningPackage;
+    current?: PlanningPackage;
+    authorizedDomains?: readonly PlanningRefreshDomain[];
+  }) {
+    let admission;
+    try {
+      admission = admitPlanningRefresh({
+        candidate: input.candidate,
+        current: input.current,
+        canonicalBrief: input.canonicalBrief,
+        authorizedDomains: input.authorizedDomains,
+        projectId: input.plannerInput.projectId,
+        projectVersion: input.plannerInput.projectVersion,
+        approvedBriefChecksum: input.plannerInput.approvedBriefChecksum,
+        timestamp: now(),
+      });
+    } catch (error) {
+      if (error instanceof PlanningAdmissionError)
+        throw new PlannerError(
+          "PLANNING_PACKAGE_INVALID",
+          `Planner output failed deterministic refresh admission: ${error.message}.`,
+          error,
+        );
+      throw error;
+    }
+    if (admission.blockers.length > 0)
+      throw new PlannerError(
+        "PLANNING_PACKAGE_INVALID",
+        `Planner output failed deterministic refresh admission: ${admission.blockers.slice(0, 8).join(", ")}.`,
+        admission,
+      );
+    return admission.candidate;
+  }
   async planApprovedProject(rawInput: PlannerAgentInput) {
     const input = this.parseInput(rawInput);
     if (input.currentWorkflowState !== "AWAITING_DESIGN_SELECTION")
@@ -198,6 +232,37 @@ export class PlannerArchitectService {
         "PLANNING_STALE",
         "The project row version is stale.",
       );
+    const existingPlanning = await this.documents.getWithMetadata(
+      input.projectId,
+      input.projectVersion,
+      "planning-package",
+    );
+    const persistedPlanningPackage =
+      existingPlanning?.document.documentType === "planning-package"
+        ? PlanningPackageSchema.parse(existingPlanning.document)
+        : undefined;
+    // A previously persisted invalid V3 proposal is historical evidence, not
+    // a trusted refresh baseline. A later explicitly authorized refresh may
+    // replace it through the existing CAS row, but it must prove the current
+    // Brief from scratch.
+    const currentPlanningPackage = (() => {
+      if (!persistedPlanningPackage || !currentCanonical) return persistedPlanningPackage;
+      try {
+        const baseline = admitPlanningRefresh({
+          candidate: persistedPlanningPackage,
+          current: persistedPlanningPackage,
+          canonicalBrief: currentCanonical.brief,
+          projectId: input.projectId,
+          projectVersion: input.projectVersion,
+          approvedBriefChecksum: currentCanonical.briefChecksum,
+          timestamp: persistedPlanningPackage.updatedAt,
+        });
+        return baseline.blockers.length === 0 ? persistedPlanningPackage : undefined;
+      } catch (error) {
+        if (error instanceof PlanningAdmissionError) return undefined;
+        throw error;
+      }
+    })();
     await this.validateCurrentCanonicalBrief(input);
     const skillSelection = this.resolveSkills
       ? await this.resolveSkills(currentCanonical ? { ...input, canonicalBrief: currentCanonical.brief } : input)
@@ -263,15 +328,25 @@ export class PlannerArchitectService {
         error,
       );
     }
-    if (
-      planningPackage.approvedBriefChecksum !== input.approvedBriefChecksum &&
-      planningPackage.approvedBriefChecksum !==
-        brief.approval.approvedRequirementsChecksum
-    )
-      throw new PlannerError(
-        "BRIEF_CHECKSUM_MISMATCH",
-        "Planner output references a different Brief.",
-      );
+    const currentAfterProvider = await this.validateCurrentCanonicalBrief(input);
+    const projectAfterProvider = await this.projects.getWithVersion(input.projectId);
+    if (!projectAfterProvider || projectAfterProvider.rowVersion !== input.expectedRowVersion || projectAfterProvider.project.workflowState !== "AWAITING_DESIGN_SELECTION")
+      throw new PlannerError("PLANNING_STALE", "The project changed while the Planner was running.");
+    if (currentAfterProvider?.briefChecksum !== currentCanonical?.briefChecksum)
+      throw new PlannerError("PLANNING_STALE", "The approved CanonicalBriefV3 changed while the Planner was running.");
+    const planningAfterProvider = await this.documents.getWithMetadata(
+      input.projectId,
+      input.projectVersion,
+      "planning-package",
+    );
+    if (planningAfterProvider?.rowVersion !== existingPlanning?.rowVersion || planningAfterProvider?.checksum !== existingPlanning?.checksum)
+      throw new PlannerError("PLANNING_STALE", "The current PlanningPackage changed while the Planner was running.");
+    planningPackage = this.admitPlanningCandidate({
+      plannerInput: input,
+      canonicalBrief: currentAfterProvider?.brief,
+      candidate: planningPackage,
+      current: currentPlanningPackage,
+    });
     if (!validatePlanningAdmission(planningPackage).ready)
       throw new PlannerError(
         "PLANNING_PACKAGE_INVALID",
@@ -283,6 +358,10 @@ export class PlannerArchitectService {
         "PLANNING_PACKAGE_INVALID",
         `Planner output violated approved form behavior: ${contractIssues.join(", ")}.`,
       );
+    await this.persistPackage(planningPackage, input.idempotencyKey, existingPlanning, {
+      rowVersion: input.expectedRowVersion,
+      workflowState: "AWAITING_DESIGN_SELECTION",
+    });
     this.inputKeys.set(input.idempotencyKey, requestHash);
     if (skillSelection)
       this.skillSelections.set(
@@ -293,22 +372,46 @@ export class PlannerArchitectService {
       this.packageKey(input.projectId, input.projectVersion),
       planningPackage,
     );
-    await this.persistPackage(planningPackage, input.idempotencyKey);
     return planningPackage;
   }
   async getPlanningStatus(projectId: string, projectVersion: number) {
-    const packageValue =
-      this.packages.get(this.packageKey(projectId, projectVersion)) ??
-      (await this.documents.get(projectId, projectVersion, "planning-package"));
+    // Project Memory and the in-process cache are projections. Always rebuild
+    // status from the persisted current document before exposing it.
+    const packageValue = await this.documents.get(
+      projectId,
+      projectVersion,
+      "planning-package",
+    );
     if (!packageValue || packageValue.documentType !== "planning-package")
       throw new PlannerError(
         "PLANNING_NOT_ACCEPTED",
         "No planning package is available.",
       );
+    const admissionBlockers: string[] = [];
+    const briefV3 = await this.documents.get(projectId, projectVersion, "brief-v3");
+    if (briefV3?.documentType === "brief-v3") {
+      try {
+        const canonical = BriefV3DocumentSchema.parse(briefV3);
+        const admission = admitPlanningRefresh({
+          candidate: packageValue,
+          current: packageValue,
+          canonicalBrief: canonical.brief,
+          projectId,
+          projectVersion,
+          approvedBriefChecksum: canonical.briefChecksum,
+          timestamp: packageValue.updatedAt,
+        });
+        admissionBlockers.push(...admission.blockers);
+      } catch (error) {
+        if (error instanceof PlanningAdmissionError)
+          admissionBlockers.push(error.message);
+        else throw error;
+      }
+    }
     return {
       package: packageValue,
       checksum: planningDocumentChecksum(packageValue),
-      blockers: packageValue.blockers,
+      blockers: [...new Set([...packageValue.blockers, ...admissionBlockers])],
       accepted: packageValue.accepted,
     };
   }
@@ -317,12 +420,18 @@ export class PlannerArchitectService {
     projectVersion: number,
     idempotencyKey: string,
   ) {
-    const brief = await this.documents.get(
-      projectId,
-      projectVersion,
-      "requirements",
-    );
-    const status = await this.getPlanningStatus(projectId, projectVersion);
+    const brief = await this.documents.get(projectId, projectVersion, "requirements");
+    const briefV3 = await this.documents.get(projectId, projectVersion, "brief-v3");
+    const storedPlanning = await this.documents.getWithMetadata(projectId, projectVersion, "planning-package");
+    if (!storedPlanning || storedPlanning.document.documentType !== "planning-package")
+      throw new PlannerError("PLANNING_NOT_ACCEPTED", "No planning package is available.");
+    const persistedPackage = PlanningPackageSchema.parse(storedPlanning.document);
+    const status = {
+      package: persistedPackage,
+      checksum: planningDocumentChecksum(persistedPackage),
+      blockers: persistedPackage.blockers,
+      accepted: persistedPackage.accepted,
+    };
     if (!brief || brief.documentType !== "requirements")
       throw new PlannerError(
         "PLANNING_NOT_ACCEPTED",
@@ -333,6 +442,28 @@ export class PlannerArchitectService {
         "BRIEF_NOT_APPROVED",
         "Only an approved Project Brief can be reconciled.",
       );
+    const canonical = briefV3?.documentType === "brief-v3" ? BriefV3DocumentSchema.parse(briefV3) : undefined;
+    const effectiveBrief = canonical ? canonicalBriefToPlannerBrief(canonical.brief, brief, canonical.approval) : brief;
+    const admitted = this.admitPlanningCandidate({
+      plannerInput: {
+        projectId,
+        projectVersion,
+        approvedBrief: effectiveBrief,
+        ...(canonical ? { canonicalBrief: canonical.brief } : {}),
+        approvedBriefChecksum: canonical?.briefChecksum ?? checksumPersistedDocument(effectiveBrief),
+        originalPromptReference: "reconcile-persisted-planning",
+        clarificationEvidenceReferences: [],
+        currentWorkflowState: "AWAITING_DESIGN_SELECTION",
+        existingDecisions: [],
+        suppliedFiles: [],
+        allowedSkills: [],
+        idempotencyKey,
+        expectedRowVersion: 1,
+      },
+      canonicalBrief: canonical?.brief,
+      candidate: status.package,
+      current: status.package,
+    });
     const blockers = status.package.blockers.filter(
       (blocker) =>
         !(
@@ -343,7 +474,7 @@ export class PlannerArchitectService {
     if (blockers.length === status.package.blockers.length)
       return status.package;
     const corrected = PlanningPackageSchema.parse({
-      ...status.package,
+      ...admitted,
       blockers,
       updatedAt: now(),
     });
@@ -352,7 +483,10 @@ export class PlannerArchitectService {
         "PLANNING_PACKAGE_INVALID",
         "Reconciled planning package failed deterministic admission.",
       );
-    await this.persistPackage(corrected, idempotencyKey);
+    await this.persistPackage(corrected, idempotencyKey, {
+      rowVersion: storedPlanning.rowVersion,
+      checksum: storedPlanning.checksum,
+    });
     this.packages.set(this.packageKey(projectId, projectVersion), corrected);
     return corrected;
   }
@@ -361,9 +495,31 @@ export class PlannerArchitectService {
     const packageValue = PlanningPackageSchema.parse(status.package);
     const context = await this.planningAcceptanceContext(projectId, projectVersion);
     const readiness = evaluatePlanningAcceptanceReadiness({ planningPackage: packageValue, context });
+    const admissionBlockers: string[] = [];
+    const briefV3 = await this.documents.get(projectId, projectVersion, "brief-v3");
+    if (briefV3?.documentType === "brief-v3") {
+      try {
+        const canonical = BriefV3DocumentSchema.parse(briefV3);
+        admissionBlockers.push(
+          ...admitPlanningRefresh({
+            candidate: packageValue,
+            current: packageValue,
+            canonicalBrief: canonical.brief,
+            projectId,
+            projectVersion,
+            approvedBriefChecksum: canonical.briefChecksum,
+            timestamp: packageValue.updatedAt,
+          }).blockers,
+        );
+      } catch (error) {
+        if (error instanceof PlanningAdmissionError)
+          admissionBlockers.push(error.message);
+        else throw error;
+      }
+    }
     return {
-      ready: readiness.readyForAcceptance,
-      blockers: readiness.blockingItems.map((item) => item.reason),
+      ready: readiness.readyForAcceptance && admissionBlockers.length === 0,
+      blockers: [...new Set([...admissionBlockers, ...readiness.blockingItems.map((item) => item.reason)])],
       deferredItems: readiness.deferredItems,
       readiness,
       checksum: planningDocumentChecksum(packageValue),
@@ -438,6 +594,33 @@ export class PlannerArchitectService {
           ? Boolean(brief.approval.approved && brief.briefStatus === "approved" && (packageValue.approvedBriefChecksum === checksumPersistedDocument(brief) || packageValue.approvedBriefChecksum === brief.approval.approvedRequirementsChecksum))
           : false;
       if (!briefCurrent) throw new PlannerError("BRIEF_CHECKSUM_MISMATCH", "The approved Brief checksum is stale.");
+      if (brief.documentType === "brief-v3") {
+        try {
+          const canonical = BriefV3DocumentSchema.parse(brief);
+          const admission = admitPlanningRefresh({
+            candidate: packageValue,
+            current: packageValue,
+            canonicalBrief: canonical.brief,
+            projectId: input.projectId,
+            projectVersion: input.projectVersion,
+            approvedBriefChecksum: canonical.briefChecksum,
+            timestamp: packageValue.updatedAt,
+          });
+          if (admission.blockers.length > 0)
+            throw new PlannerError(
+              "ARCHITECTURE_BLOCKED",
+              `Planning refresh admission failed: ${admission.blockers.slice(0, 10).join(", ")}.`,
+            );
+        } catch (error) {
+          if (error instanceof PlanningAdmissionError)
+            throw new PlannerError(
+              "ARCHITECTURE_BLOCKED",
+              `Planning refresh admission failed: ${error.message}.`,
+              error,
+            );
+          throw error;
+        }
+      }
       const context = await this.planningAcceptanceContextInTransaction(tx, input.projectId, input.projectVersion);
       const readiness = evaluatePlanningAcceptanceReadiness({ planningPackage: packageValue, context });
       if (!readiness.readyForAcceptance)
@@ -541,7 +724,7 @@ export class PlannerArchitectService {
   ) {
     const {
       architectureReview,
-      currentPlanningPackage,
+      currentPlanningPackage: suppliedCurrentPlanningPackage,
       currentPlanningChecksum,
       ...plannerInput
     } = input;
@@ -562,17 +745,33 @@ export class PlannerArchitectService {
       ...plannerInput,
       currentWorkflowState: "AWAITING_DESIGN_SELECTION",
     });
-    const brief = this.validateBrief(parsed);
+    const currentCanonical = await this.validateCurrentCanonicalBrief(parsed);
+    const brief = this.validateBrief(parsed, currentCanonical);
     const current = await this.projects.getWithVersion(input.projectId);
     if (!current || current.project.workflowState !== "ARCHITECTURE_REVIEW")
       throw new PlannerError(
         "PLANNER_WORKFLOW_STATE_INVALID",
         "Planner correction is only available during architecture review.",
       );
+    const persistedCurrent = await this.documents.getWithMetadata(
+      input.projectId,
+      input.projectVersion,
+      "planning-package",
+    );
+    if (!persistedCurrent || persistedCurrent.document.documentType !== "planning-package")
+      throw new PlannerError(
+        "PLANNING_NOT_ACCEPTED",
+        "Planner correction requires the current persisted PlanningPackage.",
+      );
+    const currentPlanningPackage = PlanningPackageSchema.parse(persistedCurrent.document);
+    if (planningDocumentChecksum(currentPlanningPackage) !== planningDocumentChecksum(suppliedCurrentPlanningPackage))
+      throw new PlannerError(
+        "PLANNING_STALE",
+        "The supplied correction PlanningPackage is not the persisted current package.",
+      );
     if (
       currentPlanningChecksum &&
-      currentPlanningChecksum !==
-        checksumPersistedDocument(currentPlanningPackage)
+      ![planningDocumentChecksum(currentPlanningPackage), planningSemanticChecksum(currentPlanningPackage)].includes(currentPlanningChecksum)
     )
       throw new PlannerError(
         "PLANNING_STALE",
@@ -634,6 +833,7 @@ export class PlannerArchitectService {
           await this.provider.plan({
             ...parsed,
             approvedBrief: brief,
+            ...(currentCanonical ? { canonicalBrief: currentCanonical.brief } : {}),
             architectureReview: review,
             currentPlanningPackage,
             correctionOnly: true,
@@ -666,35 +866,60 @@ export class PlannerArchitectService {
       acceptance: {},
       updatedAt: now(),
     });
-    if (!validatePlanningAdmission(next).ready)
+    const admitted = this.admitPlanningCandidate({
+      plannerInput: parsed,
+      canonicalBrief: currentCanonical?.brief,
+      candidate: next,
+      current: currentPlanningPackage,
+      authorizedDomains: (() => {
+        const domains = new Set<PlanningRefreshDomain>(["traceability"]);
+        for (const finding of review.findings) {
+          if (["REQUIREMENT_TRACEABILITY", "SOURCE_OF_TRUTH"].includes(finding.category)) domains.add("traceability");
+          if (["DOMAIN_MODEL", "IDENTITY_MODEL", "DATA_ARCHITECTURE"].includes(finding.category)) { domains.add("data-model"); domains.add("backend"); domains.add("database-decision"); }
+          if (finding.category === "AUTH_ARCHITECTURE") { domains.add("authentication"); domains.add("security"); }
+          if (finding.category === "STORAGE_ARCHITECTURE") { domains.add("storage"); domains.add("security"); }
+          if (["API_BOUNDARY", "SERVER_CLIENT_BOUNDARY"].includes(finding.category)) { domains.add("architecture"); domains.add("backend"); domains.add("forms"); }
+          if (finding.category === "DEPENDENCY_ARCHITECTURE") { domains.add("dependencies"); domains.add("architecture"); }
+          if (finding.category === "SECURITY_ARCHITECTURE") { domains.add("security"); domains.add("authentication"); domains.add("backend"); domains.add("storage"); }
+          if (["IMPLEMENTABILITY", "UNNECESSARY_COMPLEXITY", "MISSING_DECISION", "CONTRADICTORY_DECISION"].includes(finding.category)) domains.add("architecture");
+        }
+        return [...domains];
+      })(),
+    });
+    const admittedNext = PlanningPackageSchema.parse({
+      ...admitted,
+      updatedAt: next.updatedAt,
+    });
+    if (!validatePlanningAdmission(admittedNext).ready)
       throw new PlannerError(
         "PLANNING_PACKAGE_INVALID",
         "Planner correction failed deterministic admission.",
       );
-    const correctionIssues = validatePlanningPackageAgainstBrief(brief, next);
+    const correctionIssues = validatePlanningPackageAgainstBrief(brief, admittedNext);
     if (correctionIssues.length > 0)
       throw new PlannerError(
         "PLANNING_PACKAGE_INVALID",
         `Planner correction violated approved form behavior: ${correctionIssues.join(", ")}.`,
       );
-    await this.persistPackage(next, input.idempotencyKey);
-    this.packages.set(key, next);
-    this.architectureCorrectionCycles.set(key, cycle + 1);
-    const transition = await this.workflow.transition({
-      projectId: input.projectId,
-      projectVersion: input.projectVersion,
-      expectedState: "ARCHITECTURE_REVIEW",
-      expectedRowVersion: current.rowVersion,
+    const transition = await this.persistPackage(admittedNext, input.idempotencyKey, {
+      rowVersion: persistedCurrent.rowVersion,
+      checksum: persistedCurrent.checksum,
+    }, {
+      rowVersion: current.rowVersion,
+      workflowState: "ARCHITECTURE_REVIEW",
+    }, {
       targetState: "AWAITING_DESIGN_SELECTION",
       actor: "planner-architect",
       reason: `Architecture findings corrected in bounded cycle ${cycle + 1}. Planning Acceptance must run again.`,
       idempotencyKey: `${input.idempotencyKey}:planning-correction`,
     });
+    this.packages.set(key, admittedNext);
+    this.architectureCorrectionCycles.set(key, cycle + 1);
     return {
-      package: next,
-      planningChecksum: planningDocumentChecksum(next),
+      package: admittedNext,
+      planningChecksum: planningDocumentChecksum(admittedNext),
       projectState: "AWAITING_DESIGN_SELECTION" as const,
-      rowVersion: transition.rowVersion,
+      rowVersion: transition!.rowVersion,
       correctionCycle: cycle + 1,
       approvedBrief: brief,
     };
@@ -708,35 +933,69 @@ export class PlannerArchitectService {
   private async persistPackage(
     packageValue: PlanningPackage,
     idempotencyKey: string,
+    currentPlanning?: { rowVersion: number; checksum: string } | null,
+    currentProject?: { rowVersion: number; workflowState: "AWAITING_DESIGN_SELECTION" | "ARCHITECTURE_REVIEW" },
+    workflowTransition?: { targetState: "AWAITING_DESIGN_SELECTION"; actor: string; reason: string; idempotencyKey: string },
   ) {
-    const save = async (
-      document:
-        | PlanningPackage
-        | PlanningPackage["architecture"]
-        | PlanningPackage["content"]
-        | PlanningPackage["assets"],
-      documentType: string,
-    ) => {
-      try {
-        await this.documents.save(
-          document,
-          `planning-${documentType}-${packageValue.projectId}-${packageValue.projectVersion}-${idempotencyKey}`,
-        );
-      } catch (error) {
-        if (error instanceof PersistenceError)
-          throw new PersistenceError(
-            error.code,
-            `Planner persistence failed while saving ${documentType}.`,
-            { documentType },
-            error,
-          );
-        throw error;
+    const transition = await this.dependencies.database.transaction(async (tx) => {
+      if (currentProject) {
+        const project = await tx.getProject(packageValue.projectId);
+        if (!project || project.current_version !== packageValue.projectVersion || project.row_version !== currentProject.rowVersion || project.workflow_state !== currentProject.workflowState)
+          throw new PersistenceError("PERSISTENCE_CONFLICT", "The Planning currentness token is stale.");
       }
-    };
-    await save(packageValue, "package");
-    await save(packageValue.architecture, "architecture");
-    await save(packageValue.content, "content");
-    await save(packageValue.assets, "assets");
+      const documents: Array<{
+        document:
+          | PlanningPackage
+          | PlanningPackage["architecture"]
+          | PlanningPackage["content"]
+          | PlanningPackage["assets"];
+        documentType: string;
+      }> = [
+        { document: packageValue, documentType: "package" },
+        { document: packageValue.architecture, documentType: "architecture" },
+        { document: packageValue.content, documentType: "content" },
+        { document: packageValue.assets, documentType: "assets" },
+      ];
+      for (const item of documents) {
+        try {
+          const itemKey = `planning-${item.documentType}-${packageValue.projectId}-${packageValue.projectVersion}-${idempotencyKey}`;
+          if (item.documentType === "package") {
+            await saveDocumentCASInTransaction(
+              tx,
+              item.document,
+              currentPlanning?.rowVersion ?? null,
+              currentPlanning?.checksum ?? null,
+            );
+          } else {
+            await saveDocumentInTransaction(tx, item.document, itemKey);
+          }
+        } catch (error) {
+          if (error instanceof PersistenceError)
+            throw new PersistenceError(
+              error.code,
+              `Planner persistence failed while saving ${item.documentType}.`,
+              { documentType: item.documentType },
+              error,
+            );
+          throw error;
+        }
+      }
+      if (workflowTransition) {
+        if (!currentProject)
+          throw new PersistenceError("PERSISTENCE_CONFLICT", "A workflow transition requires a project currentness token.");
+        return transitionWorkflowInTransaction(tx, {
+          projectId: packageValue.projectId,
+          projectVersion: packageValue.projectVersion,
+          expectedState: currentProject.workflowState,
+          expectedRowVersion: currentProject.rowVersion,
+          targetState: workflowTransition.targetState,
+          actor: workflowTransition.actor,
+          reason: workflowTransition.reason,
+          idempotencyKey: workflowTransition.idempotencyKey,
+        });
+      }
+      return undefined;
+    });
     await this.dependencies.memory.writeSnapshot(
       packageValue.projectId,
       packageValue.projectVersion,
@@ -747,6 +1006,7 @@ export class PlannerArchitectService {
         "asset-manifest.json": packageValue.assets,
       },
     );
+    return transition;
   }
 
   async reconcileAcceptedPlanningProjection(projectId: string, projectVersion: number) {
@@ -759,6 +1019,31 @@ export class PlannerArchitectService {
       const decision = decisions.filter((candidate) => candidate.category === "planning-acceptance").at(-1);
       if (!packageValue.accepted || !packageValue.acceptance.acceptedAt || !decision)
         throw new PlannerError("PLANNING_NOT_ACCEPTED", "Planning Acceptance has not been committed.");
+      const briefRow = await tx.getDocument(projectId, projectVersion, "brief-v3");
+      if (briefRow) {
+        try {
+          const brief = BriefV3DocumentSchema.parse(mapRowToDocument(briefRow));
+          const admission = admitPlanningRefresh({
+            candidate: packageValue,
+            current: packageValue,
+            canonicalBrief: brief.brief,
+            projectId,
+            projectVersion,
+            approvedBriefChecksum: brief.briefChecksum,
+            timestamp: packageValue.updatedAt,
+          });
+          if (admission.blockers.length > 0)
+            throw new PlannerError(
+              "PLANNING_NOT_ACCEPTED",
+              `Planning Acceptance is not current: ${admission.blockers.slice(0, 8).join(", ")}.`,
+            );
+        } catch (error) {
+          if (error instanceof PlannerError) throw error;
+          if (error instanceof PlanningAdmissionError)
+            throw new PlannerError("PLANNING_NOT_ACCEPTED", `Planning Acceptance is not current: ${error.message}.`, error);
+          throw error;
+        }
+      }
       const phase7c = phase7cRow ? mapRowToDocument(phase7cRow) : null;
       return {
         package: packageValue,

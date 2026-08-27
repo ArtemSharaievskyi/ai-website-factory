@@ -21,7 +21,7 @@ const hostOwnedPaths = (value: unknown, path = "root"): string[] => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return [];
   const node = value as { properties?: Record<string, unknown>; items?: unknown; anyOf?: unknown[]; oneOf?: unknown[] };
   const paths = Object.entries(node.properties ?? []).flatMap(([name, child]) => [
-    ...(new Set(["projectId", "projectVersion", "briefChecksum", "approval", "approvedAt", "approvedBy", "currentness", "history", "trace"]).has(name) ? [path + "." + name] : []),
+    ...(new Set(["projectId", "projectVersion", "briefChecksum", "decisionId", "approval", "approvedAt", "approvedBy", "currentness", "history", "trace"]).has(name) ? [path + "." + name] : []),
     ...hostOwnedPaths(child, path + "." + name),
   ]);
   if (node.items) paths.push(...hostOwnedPaths(node.items, path + "[]"));
@@ -41,14 +41,12 @@ const noBackendPlannerTransport = () => {
   });
   const input = { projectId, projectVersion: 1, approvedBrief: brief, approvedBriefChecksum: checksumPersistedDocument(brief), originalPromptReference: "original-prompt.md", clarificationEvidenceReferences: [], currentWorkflowState: "AWAITING_DESIGN_SELECTION" as const, existingDecisions: [], suppliedFiles: [], allowedSkills: [], idempotencyKey: "provider-no-backend", expectedRowVersion: 1 };
   const canonical = buildPlanningPackage(input);
-  const stripIdentity = (value: unknown): unknown => Array.isArray(value) ? value.map(stripIdentity) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value as Record<string, unknown>).filter(([key, nested]) => key !== "projectId" && key !== "projectVersion" && nested !== undefined).map(([key, nested]) => [key, stripIdentity(nested)])) : value;
+  const stripIdentity = (value: unknown): unknown => Array.isArray(value) ? value.map(stripIdentity) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value as Record<string, unknown>).filter(([key, nested]) => key !== "projectId" && key !== "projectVersion" && key !== "approvedBriefChecksum" && key !== "accepted" && key !== "acceptance" && key !== "decisionId" && nested !== undefined).map(([key, nested]) => [key, stripIdentity(nested)])) : value;
   const transport = JSON.parse(JSON.stringify(stripIdentity(canonical))) as Record<string, unknown>;
   transport.databaseRecommendation = null;
   const architecture = transport.architecture as Record<string, unknown>;
   architecture.backendPriority = ["server-actions", "route-handlers", "supabase-services"];
   architecture.npmScripts = Object.entries(canonical.architecture.npmScripts).map(([name, command]) => ({ name, command }));
-  architecture.acceptance = { accepted: false, acceptedAt: null, acceptedBy: null };
-  transport.acceptance = { acceptedAt: null, acceptedBy: null, checksum: null };
   for (const key of ["productScope", "sitemap", "navigation", "pages", "userFlows", "forms", "dataModel", "authentication", "supabase", "email", "storage", "administration", "traceability"]) {
     const node = transport[key];
     if (Array.isArray(node)) transport[key] = node.map((entry) => ({ ...(entry as Record<string, unknown>), unresolvedDependency: null }));
@@ -127,6 +125,12 @@ describe("production AI provider boundary", () => {
   });
   it("uses a strict Planner transport schema without weakening the canonical package", () => {
     expect(() => zodResponseFormat(PlanningPackageStructuredOutputSchema, "planning-package")).not.toThrow();
+    const schema = (zodResponseFormat(PlanningPackageStructuredOutputSchema, "planning-package") as unknown as { json_schema: { schema: { properties: Record<string, { properties?: Record<string, unknown>; items?: { properties?: Record<string, unknown> } }> } } }).json_schema.schema;
+    expect(schema.properties).not.toHaveProperty("approvedBriefChecksum");
+    expect(schema.properties).not.toHaveProperty("accepted");
+    expect(schema.properties).not.toHaveProperty("acceptance");
+    expect(schema.properties.architecture?.properties).not.toHaveProperty("acceptance");
+    expect(schema.properties.traceability.items?.properties).not.toHaveProperty("decisionId");
   });
   it("normalizes a provider backend priority to no-backend when the approved Brief requires frontend-only behavior", async () => {
     const fixture = noBackendPlannerTransport();
