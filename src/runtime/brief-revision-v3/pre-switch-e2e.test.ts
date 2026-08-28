@@ -137,6 +137,17 @@ describe("Brief Revision V3 pre-switch end-to-end certification", () => {
     const v3 = await new DocumentRepository(fixture.database).get(projectId, 1, "brief-v3");
     expect(v3?.documentType).toBe("brief-v3");
     expect(BriefV3DocumentSchema.parse(v3).briefChecksum).toBe(result.currentBriefChecksum);
+    expect(fixture.database.requirementIdentityLineage.size).toBeGreaterThan(0);
+  });
+
+  it("completes legacy-to-V3 identity repair even when the provider proposes no semantic change", async () => {
+    const fixture = await createLegacyFixture();
+    const provider = new FixtureProvider({ contractVersion: 1, changes: [], unresolved: [] });
+    const result = await new BriefV3TransactionService({ database: fixture.database, provider }).execute({ ...request(fixture.currentness), revisionInstruction: "Perform the synthetic identity repair without changing Brief semantics." });
+    expect(result).toMatchObject({ outcome: "COMMITTED", changed: true });
+    expect((await new DocumentRepository(fixture.database).get(projectId, 1, "requirements"))?.documentType).toBe("requirements");
+    expect((await new DocumentRepository(fixture.database).get(projectId, 1, "brief-v3"))?.documentType).toBe("brief-v3");
+    expect(fixture.database.requirementIdentityLineage.size).toBeGreaterThan(0);
   });
 
   it("rejects an ambiguous legacy Brief before provider execution and without V3 mutation", async () => {

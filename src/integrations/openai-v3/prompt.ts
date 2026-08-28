@@ -7,7 +7,7 @@ import { providerTargetContract } from "./changeset";
 import type { CanonicalBriefV3 } from "@/domain/requirements/v3/schema";
 
 export const BRIEF_V3_PROVIDER_SCHEMA_NAME = "brief-revision-v3";
-export const BRIEF_V3_PROVIDER_PROMPT_VERSION = "brief-revision-v3.v1";
+export const BRIEF_V3_PROVIDER_PROMPT_VERSION = "brief-revision-v3.v2";
 
 export type BriefV3SupportingContext = {
   sourceRef: string;
@@ -20,6 +20,7 @@ export type BriefV3RevisionProviderInput = {
   revisionInstruction: string;
   currentCanonicalV3: CanonicalBriefV3;
   supportingContext?: readonly BriefV3SupportingContext[];
+  newRequirementHandles?: readonly string[];
 };
 
 export type BriefV3RevisionPrompt = {
@@ -38,6 +39,7 @@ const BRIEF_V3_PROVIDER_POLICY = [
   "Use only the semantic target contract supplied below and the strict output schema.",
   "Do not resolve contradictions by choosing a winner. Emit the requested operations and let deterministic host normalization reject conflicts.",
   "Semantic target IDs are the only mutation authority; never use prose as a target.",
+  "For a new requirement, use only a host-issued REQUIREMENT:NEW:<handle> target from the supplied handle list; never invent a canonical requirement ID.",
 ].join(" ");
 
 const digest = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
@@ -46,6 +48,7 @@ function canonicalContextContent(input: BriefV3RevisionProviderInput) {
   return JSON.stringify({
     revisionInstruction: input.revisionInstruction,
     currentCanonicalV3: validateCanonicalBriefV3(input.currentCanonicalV3),
+    newRequirementHandles: input.newRequirementHandles ?? [],
   });
 }
 
@@ -92,7 +95,7 @@ export function buildBriefV3RevisionPrompt(input: BriefV3RevisionProviderInput):
     budget: CONTEXT_BUDGET_PROFILES.default,
   });
   if (result.status === "BLOCKED") throw new Error(`CONTEXT_ASSEMBLY_BLOCKED:${result.blocker.code}`);
-  const system = `${BRIEF_V3_PROVIDER_POLICY} The provider output schema is ${BRIEF_V3_PROVIDER_SCHEMA_NAME}; its contractVersion is 1 and its changes array is the complete provider authority. The target descriptions are supporting guidance only; the host schema and mapper remain authoritative.`;
+  const system = `${BRIEF_V3_PROVIDER_POLICY} The provider output schema is ${BRIEF_V3_PROVIDER_SCHEMA_NAME}; its contractVersion is 1 and its changes array is the complete provider authority. The target descriptions are supporting guidance only; the host schema and mapper remain authoritative. Host-issued new requirement handles are included in the canonical context; they are single-use proposal slots, not canonical identities.`;
   return {
     promptVersion: BRIEF_V3_PROVIDER_PROMPT_VERSION,
     system,

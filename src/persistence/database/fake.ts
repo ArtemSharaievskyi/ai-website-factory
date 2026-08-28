@@ -2,10 +2,12 @@ import { randomUUID } from "node:crypto";
 import { PersistenceError } from "./errors";
 import { appendBriefRevisionFailureDiagnostic } from "./brief-revision-failure-diagnostics";
 import { checksumPersistedDocument } from "./serialization";
-import type { BriefRevisionAtomicCommitResult, BriefRevisionAttemptClaim, BriefRevisionAttemptRow, BriefRevisionAttemptStatus, BriefRevisionAttemptTransition, BriefRevisionProjectionRow, PersistenceDatabase, PersistenceTransaction, ProjectRow, ProjectAssetRow, ProjectVersionRow, WorkflowEvent, CostRecord, IdempotencyRecord } from "./types";
+import type { BriefRevisionAtomicCommitResult, BriefRevisionAttemptClaim, BriefRevisionAttemptRow, BriefRevisionAttemptStatus, BriefRevisionAttemptTransition, BriefRevisionProjectionRow, PersistenceDatabase, PersistenceTransaction, ProjectRow, ProjectAssetRow, ProjectVersionRow, WorkflowEvent, CostRecord, IdempotencyRecord, RequirementIdentityLineageRow, RequirementIdentityMigrationRow } from "./types";
 import { mapRowToDocument, type DocumentRow } from "./mapping";
 import { canonicalBriefChecksumForDocument } from "./brief-revision-v3-contracts";
 import type { DecisionRecord } from "@/domain/workflow/decision";
+import { RequirementIdentityLineageRecordSchema, RequirementIdentityMigrationRecordSchema } from "@/domain/requirements/v3/identity";
+import { stableSerialize } from "@/domain/requirements/v3/serialization";
 
 const copy = <T>(value: T): T => structuredClone(value);
 
@@ -20,6 +22,8 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
   readonly briefRevisionAttempts = new Map<string, BriefRevisionAttemptRow>();
   readonly briefRevisionHistory = new Map<string, import("./types").BriefRevisionHistoryRow>();
   readonly briefRevisionProjectionSync = new Map<string, BriefRevisionProjectionRow>();
+  readonly requirementIdentityLineage = new Map<string, RequirementIdentityLineageRow>();
+  readonly requirementIdentityMigrations = new Map<string, RequirementIdentityMigrationRow>();
   private readonly idempotency = new Map<string, IdempotencyRecord>();
   private transactionTail: Promise<void> = Promise.resolve();
 
@@ -28,7 +32,7 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
     const previous = this.transactionTail;
     this.transactionTail = new Promise<void>((resolve) => { release = resolve; });
     await previous;
-    const projects = new Map(this.projects); const assets = new Map(this.assets); const versions = new Map(this.versions); const documents = new Map(this.documents); const decisions = new Map([...this.decisions].map(([key, value]) => [key, copy(value)])); const events = [...this.events]; const costs = [...this.costs]; const idempotency = new Map(this.idempotency); const briefRevisionAttempts = new Map([...this.briefRevisionAttempts].map(([key, value]) => [key, copy(value)])); const briefRevisionHistory = new Map([...this.briefRevisionHistory].map(([key, value]) => [key, copy(value)])); const briefRevisionProjectionSync = new Map([...this.briefRevisionProjectionSync].map(([key, value]) => [key, copy(value)]));
+    const projects = new Map(this.projects); const assets = new Map(this.assets); const versions = new Map(this.versions); const documents = new Map(this.documents); const decisions = new Map([...this.decisions].map(([key, value]) => [key, copy(value)])); const events = [...this.events]; const costs = [...this.costs]; const idempotency = new Map(this.idempotency); const briefRevisionAttempts = new Map([...this.briefRevisionAttempts].map(([key, value]) => [key, copy(value)])); const briefRevisionHistory = new Map([...this.briefRevisionHistory].map(([key, value]) => [key, copy(value)])); const briefRevisionProjectionSync = new Map([...this.briefRevisionProjectionSync].map(([key, value]) => [key, copy(value)])); const requirementIdentityLineage = new Map([...this.requirementIdentityLineage].map(([key, value]) => [key, copy(value)])); const requirementIdentityMigrations = new Map([...this.requirementIdentityMigrations].map(([key, value]) => [key, copy(value)]));
     const transaction: PersistenceTransaction = {
       getProject: async (id) => copy(this.projects.get(id) ?? null),
       listProjects: async () => copy([...this.projects.values()].sort((left, right) => right.updated_at.localeCompare(left.updated_at))),
@@ -53,6 +57,7 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
       },
       updateVersionImmutable: async (projectId, version, releasedAt) => { const key = versionKey(projectId, version); const row = this.versions.get(key); if (!row) throw new PersistenceError("PERSISTENCE_NOT_FOUND", "Project version was not found."); if (row.immutable) throw new PersistenceError("PERSISTENCE_IMMUTABLE", "Released project versions are immutable."); const next = { ...row, state: "PROJECT_READY" as const, releasedAt, immutable: true, updatedAt: releasedAt, rowVersion: row.rowVersion + 1 }; this.versions.set(key, next); return copy(next); },
       updateVersionRequirementsChecksum: async (input) => { const key = versionKey(input.projectId, input.version); const row = this.versions.get(key); if (!row || row.rowVersion !== input.expectedRowVersion || row.immutable) throw new PersistenceError("PERSISTENCE_CONFLICT", "The project version checksum is stale or immutable."); const next = { ...row, requirementsChecksum: input.checksum, updatedAt: input.updatedAt, rowVersion: row.rowVersion + 1 }; this.versions.set(key, next); return copy(next); },
+      updateVersionArtifactChecksums: async (input) => { const key = versionKey(input.projectId, input.version); const row = this.versions.get(key); if (!row || row.rowVersion !== input.expectedRowVersion || row.immutable) throw new PersistenceError("PERSISTENCE_CONFLICT", "The project version artifact checksums are stale or immutable."); const next = { ...row, requirementsChecksum: input.requirementsChecksum, selectedDesignChecksum: input.selectedDesignChecksum, architectureChecksum: input.architectureChecksum, updatedAt: input.updatedAt, rowVersion: row.rowVersion + 1 }; this.versions.set(key, next); return copy(next); },
       saveDocument: async (row, token) => { const key = documentKey(row.projectId, row.projectVersion, row.documentType); const existing = this.documents.get(key); const result = this.idempotent(`document:${key}`, token, row); if (result) return copy(result as DocumentRow); if (existing && existing.checksum === row.checksum) return copy(existing); if (existing) row = { ...row, createdAt: existing.createdAt, rowVersion: existing.rowVersion + 1 }; this.documents.set(key, copy(row)); return copy(row); },
       saveDocumentCAS: async (input) => { const key = documentKey(input.row.projectId, input.row.projectVersion, input.row.documentType); const existing = this.documents.get(key); if (input.expectedRowVersion === null) { if (existing) throw new PersistenceError("PERSISTENCE_CONFLICT", "The V3 current document was created concurrently."); this.documents.set(key, copy(input.row)); return copy(input.row); } if (!existing || existing.rowVersion !== input.expectedRowVersion || existing.checksum !== input.expectedChecksum) throw new PersistenceError("PERSISTENCE_CONFLICT", "The current document is stale."); const next = { ...input.row, createdAt: existing.createdAt, rowVersion: existing.rowVersion + 1 }; this.documents.set(key, copy(next)); return copy(next); },
       getDocument: async (projectId, version, documentType) => copy(this.documents.get(documentKey(projectId, version, documentType)) ?? null),
@@ -152,6 +157,7 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
         await input.fault?.hit("after-brief-write");
         await transaction.updateVersionRequirementsChecksum({ projectId: input.projectId, version: input.projectVersion, expectedRowVersion: input.expected.projectVersionRowVersion, checksum: input.nextBriefChecksum, updatedAt: input.now });
         if (input.history) this.briefRevisionHistory.set(input.history.id, copy(input.history));
+        if (input.identityLineage) for (const lineage of input.identityLineage) await transaction.appendRequirementIdentityLineage({ ...lineage, createdAt: input.now });
         await input.fault?.hit("after-history-write");
         if (input.workflow.event) this.events.push(copy(input.workflow.event));
         if (input.decision) { const records = this.decisions.get(versionKey(input.projectId, input.projectVersion)) ?? []; records.push(copy(input.decision.record)); this.decisions.set(versionKey(input.projectId, input.projectVersion), records); }
@@ -165,6 +171,11 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
       },
       listBriefRevisionProjectionSync: async (limit) => copy([...this.briefRevisionProjectionSync.values()].filter((row) => (row.status === "PENDING" || row.status === "FAILED_RETRYABLE") && (!row.nextAttemptAt || Date.parse(row.nextAttemptAt) <= Date.now())).sort((left, right) => left.createdAt.localeCompare(right.createdAt)).slice(0, Math.max(1, Math.min(limit, 100)))),
       updateBriefRevisionProjectionSync: async (input) => { const row = this.briefRevisionProjectionSync.get(input.id); if (!row || row.status !== input.expectedStatus) throw new PersistenceError("PERSISTENCE_CONFLICT", "The projection sync status is stale."); const next = { ...row, status: input.status, attemptCount: input.attemptCount ?? row.attemptCount, lastFailureCode: input.failureCode ?? null, nextAttemptAt: input.nextAttemptAt ?? null, updatedAt: input.updatedAt }; this.briefRevisionProjectionSync.set(row.id, next); return copy(next); },
+      listRequirementIdentityLineage: async (projectId, projectVersion) => copy([...this.requirementIdentityLineage.values()].filter((row) => row.projectId === projectId && row.projectVersion === projectVersion).sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.lineageId.localeCompare(right.lineageId))),
+      appendRequirementIdentityLineage: async (input) => { const row = RequirementIdentityLineageRecordSchema.parse(input); const sourceKey = `${row.projectId}:${row.projectVersion}:${row.fromRequirementId}`; const existing = this.requirementIdentityLineage.get(sourceKey); if (existing) { if (stableSerialize(existing) !== stableSerialize(row)) throw new PersistenceError("PERSISTENCE_CONFLICT", "Requirement identity lineage conflicts with immutable history."); return copy(existing); } const targetConflict = [...this.requirementIdentityLineage.values()].find((candidate) => candidate.projectId === row.projectId && candidate.projectVersion === row.projectVersion && candidate.toRequirementId === row.toRequirementId); if (targetConflict) throw new PersistenceError("PERSISTENCE_CONFLICT", "Requirement identity lineage target is already assigned."); this.requirementIdentityLineage.set(sourceKey, copy(row)); return copy(row); },
+      getRequirementIdentityMigration: async (projectId, projectVersion, migrationId) => copy(this.requirementIdentityMigrations.get(`${projectId}:${projectVersion}:${migrationId}`) ?? null),
+      listRequirementIdentityMigrations: async (projectId, projectVersion) => copy([...this.requirementIdentityMigrations.values()].filter((row) => row.projectId === projectId && row.projectVersion === projectVersion).sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.migrationId.localeCompare(right.migrationId))),
+      appendRequirementIdentityMigration: async (input) => { const row = RequirementIdentityMigrationRecordSchema.parse(input); const key = `${row.projectId}:${row.projectVersion}:${row.migrationId}`; const existing = this.requirementIdentityMigrations.get(key); if (existing) { if (stableSerialize(existing) !== stableSerialize(row)) throw new PersistenceError("PERSISTENCE_CONFLICT", "Requirement identity migration conflicts with immutable history."); return copy(existing); } this.requirementIdentityMigrations.set(key, copy(row)); return copy(row); },
     };
     try { return await work(transaction); } catch (error) {
       this.projects.clear(); for (const [key, value] of projects) this.projects.set(key, value);
@@ -177,6 +188,8 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
       this.briefRevisionAttempts.clear(); for (const [key, value] of briefRevisionAttempts) this.briefRevisionAttempts.set(key, value);
       this.briefRevisionHistory.clear(); for (const [key, value] of briefRevisionHistory) this.briefRevisionHistory.set(key, value);
       this.briefRevisionProjectionSync.clear(); for (const [key, value] of briefRevisionProjectionSync) this.briefRevisionProjectionSync.set(key, value);
+      this.requirementIdentityLineage.clear(); for (const [key, value] of requirementIdentityLineage) this.requirementIdentityLineage.set(key, value);
+      this.requirementIdentityMigrations.clear(); for (const [key, value] of requirementIdentityMigrations) this.requirementIdentityMigrations.set(key, value);
       throw error;
     } finally { release(); }
   }

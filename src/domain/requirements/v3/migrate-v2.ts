@@ -6,6 +6,7 @@ import { migrateV1RecordToCanonicalBriefV3 } from "./migrate-v1";
 import { normalizeCanonicalBrief } from "./normalize";
 import { type CanonicalBriefV3, type FormBehaviorState } from "./schema";
 import { AnalyticsModeSchema, AuthModeSchema, DatabaseModeSchema, RoutePolicySchema } from "./schema";
+import { canonicalizeLegacyBriefV3WithLineage, type CanonicalizedLegacyBriefV3 } from "./identity";
 
 const typedEntry = (field: string, index: number, entry: { id: string; statement: string; sourceRefs: string[] }, category: Parameters<typeof legacyRequirement>[4]) => legacyEntryRequirement(2, field, index, entry, category);
 
@@ -123,9 +124,9 @@ function rejectConflictingV2Collections(brief: ProjectBriefV2): void {
   }
 }
 
-function finalizeV2Migration(canonical: CanonicalBriefV3): CanonicalBriefV3 {
+function finalizeV2Migration(canonical: CanonicalBriefV3, scope: { projectId: string; projectVersion: number }): CanonicalizedLegacyBriefV3 {
   try {
-    return validateCanonicalBriefV3(normalizeCanonicalBrief(canonical));
+    return canonicalizeLegacyBriefV3WithLineage(validateCanonicalBriefV3(normalizeCanonicalBrief(canonical)), scope);
   } catch (error) {
     if (error instanceof BriefV3MigrationAmbiguityError) throw error;
     if (error instanceof BriefV3Error) throw new BriefV3MigrationAmbiguityError("canonical-state", error.code);
@@ -133,7 +134,7 @@ function finalizeV2Migration(canonical: CanonicalBriefV3): CanonicalBriefV3 {
   }
 }
 
-export function migrateV2RecordToCanonicalBriefV3(brief: ProjectBriefV2): CanonicalBriefV3 {
+export function migrateV2RecordToCanonicalBriefV3WithLineage(brief: ProjectBriefV2): CanonicalizedLegacyBriefV3 {
   rejectConflictingV2Collections(brief);
   if (brief.storageDecision === "not-needed" && brief.supabaseRequirements.length) throw new BriefV3MigrationAmbiguityError("storageDecision/supabaseRequirements", "storage is marked not-needed while legacy database requirements are present");
   const baseInput = { ...brief, prohibitedRequirements: undefined };
@@ -207,7 +208,11 @@ export function migrateV2RecordToCanonicalBriefV3(brief: ProjectBriefV2): Canoni
       inventedFactsPolicy: brief.legalComplianceConstraints.inventedFactsForbidden ? "FORBIDDEN" : "UNRESOLVED",
     },
   };
-  return finalizeV2Migration(canonical);
+  return finalizeV2Migration(canonical, { projectId: brief.projectId, projectVersion: brief.projectVersion });
+}
+
+export function migrateV2RecordToCanonicalBriefV3(brief: ProjectBriefV2): CanonicalBriefV3 {
+  return migrateV2RecordToCanonicalBriefV3WithLineage(brief).brief;
 }
 
 export function migrateV2ToCanonicalBriefV3(input: unknown): CanonicalBriefV3 {

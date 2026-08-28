@@ -1,6 +1,7 @@
 export * from "./changeset";
 export * from "./errors";
 export * from "./history";
+export * from "./identity";
 export * from "./invariants";
 export * from "./legacy-history";
 export * from "./migrate";

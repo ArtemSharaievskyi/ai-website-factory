@@ -42,7 +42,7 @@ export class OpenAiBriefV3RevisionProvider {
       promptVersion: BRIEF_V3_PROVIDER_PROMPT_VERSION,
       schema: ProviderBriefChangeSetSchema,
       schemaName: BRIEF_V3_PROVIDER_SCHEMA_NAME,
-      idempotencyKey: `lead-brief-v3-revision:${digest(input.revisionInstruction)}:${canonicalBriefChecksum(input.currentCanonicalV3)}`,
+      idempotencyKey: `lead-brief-v3-revision:${digest(JSON.stringify({ instruction: input.revisionInstruction, briefChecksum: canonicalBriefChecksum(input.currentCanonicalV3), newRequirementHandles: input.newRequirementHandles ?? [] }))}`,
     });
   }
 }

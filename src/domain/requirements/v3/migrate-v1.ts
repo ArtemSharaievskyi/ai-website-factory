@@ -5,6 +5,7 @@ import { legacyEntryRequirement, legacyRequirement, legacySourceRef, valueText }
 import { emptyFormBehaviorState, type CanonicalBriefV3, unresolvedFormBehaviorState } from "./schema";
 import { normalizeCanonicalBrief } from "./normalize";
 import { pageTargetForSlug } from "./targets";
+import { canonicalizeLegacyBriefV3WithLineage, type CanonicalizedLegacyBriefV3 } from "./identity";
 
 const strings = (brief: RequirementSpecification, field: keyof RequirementSpecification): string[] => {
   const value = brief[field];
@@ -175,9 +176,9 @@ function rejectConflictingLegacyCollections(brief: RequirementSpecification): vo
   }
 }
 
-function finalizeV1Migration(canonical: CanonicalBriefV3): CanonicalBriefV3 {
+function finalizeV1Migration(canonical: CanonicalBriefV3, scope: { projectId: string; projectVersion: number }): CanonicalizedLegacyBriefV3 {
   try {
-    return validateCanonicalBriefV3(normalizeCanonicalBrief(canonical));
+    return canonicalizeLegacyBriefV3WithLineage(validateCanonicalBriefV3(normalizeCanonicalBrief(canonical)), scope);
   } catch (error) {
     if (error instanceof BriefV3MigrationAmbiguityError) throw error;
     if (error instanceof BriefV3Error) throw new BriefV3MigrationAmbiguityError("canonical-state", error.code);
@@ -185,7 +186,7 @@ function finalizeV1Migration(canonical: CanonicalBriefV3): CanonicalBriefV3 {
   }
 }
 
-export function migrateV1RecordToCanonicalBriefV3(brief: RequirementSpecification): CanonicalBriefV3 {
+export function migrateV1RecordToCanonicalBriefV3WithLineage(brief: RequirementSpecification): CanonicalizedLegacyBriefV3 {
   rejectConflictingLegacyCollections(brief);
   if (brief.storageDecision === "not-needed" && brief.supabaseRequirements.length) throw new BriefV3MigrationAmbiguityError("storageDecision/supabaseRequirements", "storage is marked not-needed while legacy database requirements are present");
   if ((brief.pages.length > 1 && hasSinglePageConstraint(brief.technicalConstraints)) || (brief.pages.length <= 1 && hasMultiPageConstraint(brief.technicalConstraints))) {
@@ -225,7 +226,11 @@ export function migrateV1RecordToCanonicalBriefV3(brief: RequirementSpecificatio
     evidence: brief.evidence.map((item, index) => ({ ...item, sourceRefs: [legacySourceRef(1, "evidence", index, `${item.field}:${item.source}:${item.excerpt}`)] })),
     unresolved: unresolvedFromV1(brief),
   };
-  return finalizeV1Migration(canonical);
+  return finalizeV1Migration(canonical, { projectId: brief.projectId, projectVersion: brief.projectVersion });
+}
+
+export function migrateV1RecordToCanonicalBriefV3(brief: RequirementSpecification): CanonicalBriefV3 {
+  return migrateV1RecordToCanonicalBriefV3WithLineage(brief).brief;
 }
 
 export function migrateV1ToCanonicalBriefV3(input: unknown): CanonicalBriefV3 {

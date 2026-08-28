@@ -5,7 +5,7 @@ import { reduceBriefChangeSet } from "@/domain/requirements/v3/reducer";
 import { deriveBriefProvenance } from "@/domain/requirements/v3/history";
 import { normalizeBriefChangeSet } from "@/domain/requirements/v3/normalize";
 import { parseBriefChangeSet, type BriefChangeSet } from "@/domain/requirements/v3/changeset";
-import { migrateLegacyBriefToCanonicalBriefV3 } from "@/domain/requirements/v3/migrate";
+import { migrateLegacyBriefToCanonicalBriefV3WithLineage } from "@/domain/requirements/v3/migrate";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { transitionWorkflow } from "@/domain/workflow/engine";
 import { BriefV3DocumentSchema, BRIEF_V3_DOCUMENT_TYPE, createBriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
@@ -17,6 +17,8 @@ import { ProviderFailureDiagnosticSchema, type ProviderFailureDiagnostic } from 
 import { newWorkflowEvent } from "@/persistence/database/workflow-events";
 import { BriefV3ProviderError } from "@/integrations/openai-v3/errors";
 import type { CanonicalBriefV3 } from "@/domain/requirements/v3/schema";
+import type { RequirementIdentityLineage } from "@/domain/requirements/v3/identity";
+import { assertCurrentV3RequirementNamespace, bindProviderRequirementIdentities, canonicalRequirementEntries, createRequirementProposalHandles, isV3RequirementId } from "@/domain/requirements/v3/identity";
 import type { DecisionRecord } from "@/domain/workflow/decision";
 import { BriefV3ProjectionService } from "./projection";
 import { BriefV3TransactionError, type BriefV3TransactionErrorCode } from "./errors";
@@ -26,7 +28,7 @@ import type { BriefV3ProjectionPort, BriefV3RevisionProvider, BriefV3SupportingC
 export type BriefV3CommittedResult = { outcome: "COMMITTED" | "COMMITTED_REPLAY"; projectId: string; projectVersion: number; attemptId: string; changed: boolean; currentBriefChecksum: string; workflowState: ProjectRow["workflow_state"]; historyId: string | null; projectionStatus: "PENDING" | "SYNCED" | "FAILED_RETRYABLE" | "NONE" };
 export type BriefV3TransactionInput = { projectId: string; projectVersion: number; revisionInstruction: string; expectedCurrentness: RevisionCurrentnessToken; targetHints?: readonly string[]; targetWorkflowState?: ProjectRow["workflow_state"]; actor?: string; decision?: DecisionRecord; supportingContext?: readonly BriefV3SupportingContext[]; leaseMs?: number; ownerId?: string; clock?: () => string; faults?: BriefRevisionFaultInjector };
 
-type CurrentSnapshot = { project: ProjectRow; version: ProjectVersionRow; documentRow: import("@/persistence/database/mapping").DocumentRow; canonical: CanonicalBriefV3; currentness: RevisionCurrentnessToken };
+type CurrentSnapshot = { project: ProjectRow; version: ProjectVersionRow; documentRow: import("@/persistence/database/mapping").DocumentRow; canonical: CanonicalBriefV3; identityLineage: readonly RequirementIdentityLineage[]; currentness: RevisionCurrentnessToken };
 
 function now(input: BriefV3TransactionInput) { return input.clock?.() ?? new Date().toISOString(); }
 function classifyProviderFailure(error: unknown): BriefV3TransactionErrorCode {
@@ -108,7 +110,8 @@ export class BriefV3TransactionService {
       await input.faults?.hit("before-provider");
       let providerChanges: BriefChangeSet;
       try {
-        providerChanges = await this.options.provider.proposeChanges({ revisionInstruction: input.revisionInstruction, currentCanonicalV3: beforeProvider.canonical, supportingContext: input.supportingContext });
+        const newRequirementHandles = createRequirementProposalHandles({ projectId: input.projectId, projectVersion: input.projectVersion, operationKey: identity.operationKey });
+        providerChanges = await this.options.provider.proposeChanges({ revisionInstruction: input.revisionInstruction, currentCanonicalV3: beforeProvider.canonical, supportingContext: input.supportingContext, newRequirementHandles });
         await input.faults?.hit("after-provider");
       } catch (error) {
         const code = classifyProviderFailure(error);
@@ -118,7 +121,8 @@ export class BriefV3TransactionService {
       let changeSet: BriefChangeSet;
       let reduction: ReturnType<typeof reduceBriefChangeSet>;
       try {
-        changeSet = normalizeBriefChangeSet(parseBriefChangeSet(providerChanges));
+        const allowProviderProposalLabels = beforeProvider.documentRow.documentType === "requirements" || canonicalRequirementEntries(beforeProvider.canonical).some((entry) => !isV3RequirementId(entry.id));
+        changeSet = normalizeBriefChangeSet(parseBriefChangeSet(bindProviderRequirementIdentities({ changeSet: providerChanges, current: beforeProvider.canonical, projectId: input.projectId, projectVersion: input.projectVersion, proposalHandles: createRequirementProposalHandles({ projectId: input.projectId, projectVersion: input.projectVersion, operationKey: identity.operationKey }), allowProviderProposalLabels })));
         reduction = reduceBriefChangeSet(beforeProvider.canonical, changeSet);
         if (canonicalBriefChecksum(reduction.before) !== beforeProvider.currentness.briefChecksum) throw new BriefV3Error("BRIEF_V3_REDUCTION_INVALID", { invariant: "currentness-checksum" });
       } catch (error) {
@@ -127,7 +131,7 @@ export class BriefV3TransactionService {
         throw new BriefV3TransactionError(code, { attemptId: claim.row.id });
       }
       const next = reduction.after;
-      const changed = reduction.changed;
+      const changed = reduction.changed || beforeProvider.identityLineage.length > 0;
       const nextChecksum = changed ? canonicalBriefChecksum(next) : beforeProvider.currentness.briefChecksum;
       const targetState = changed ? input.targetWorkflowState ?? beforeProvider.project.workflow_state : beforeProvider.project.workflow_state;
       if (changed && targetState !== beforeProvider.project.workflow_state) {
@@ -148,7 +152,7 @@ export class BriefV3TransactionService {
       const historyId = history ? randomUUID() : null;
       const result: BriefV3CommittedResult = { outcome: "COMMITTED", projectId: input.projectId, projectVersion: input.projectVersion, attemptId: claim.row.id, changed, currentBriefChecksum: nextChecksum, workflowState: targetState, historyId, projectionStatus: projection ? "PENDING" : "NONE" };
       await input.faults?.hit("before-final-transaction");
-      const commitInput: BriefRevisionAtomicCommitInput = { attemptId: claim.row.id, operationKind: identity.operationKind, operationKey: identity.operationKey, payloadHash: identity.payloadHash, leaseOwner: owner, leaseGeneration: claim.row.attemptGeneration, projectId: input.projectId, projectVersion: input.projectVersion, expected: { projectRowVersion: beforeProvider.currentness.projectRowVersion, workflowState: beforeProvider.project.workflow_state, projectVersionRowVersion: beforeProvider.currentness.projectVersionRowVersion, documentType: beforeProvider.currentness.documentType, documentChecksum: beforeProvider.currentness.documentChecksum, documentRowVersion: beforeProvider.currentness.documentRowVersion, briefChecksum: beforeProvider.currentness.briefChecksum }, document: documentRow, history: history && historyId ? { id: historyId, attemptId: claim.row.id, projectId: input.projectId, projectVersion: input.projectVersion, revisionReference: claim.row.id, previousCurrentChecksum: history.previousCurrentChecksum, nextCurrentChecksum: history.nextCurrentChecksum, changeSetChecksum: history.changeSetChecksum, entries: [...history.entries], createdAt: timestamp } : null, workflow: { targetState, event: workflowEvent }, decision: input.decision ? { record: input.decision, revisionAttemptId: claim.row.id } : null, nextBriefChecksum: nextChecksum, changed, result, projection, now: timestamp, fault: input.faults };
+      const commitInput: BriefRevisionAtomicCommitInput = { attemptId: claim.row.id, operationKind: identity.operationKind, operationKey: identity.operationKey, payloadHash: identity.payloadHash, leaseOwner: owner, leaseGeneration: claim.row.attemptGeneration, projectId: input.projectId, projectVersion: input.projectVersion, expected: { projectRowVersion: beforeProvider.currentness.projectRowVersion, workflowState: beforeProvider.project.workflow_state, projectVersionRowVersion: beforeProvider.currentness.projectVersionRowVersion, documentType: beforeProvider.currentness.documentType, documentChecksum: beforeProvider.currentness.documentChecksum, documentRowVersion: beforeProvider.currentness.documentRowVersion, briefChecksum: beforeProvider.currentness.briefChecksum }, document: documentRow, history: history && historyId ? { id: historyId, attemptId: claim.row.id, projectId: input.projectId, projectVersion: input.projectVersion, revisionReference: claim.row.id, previousCurrentChecksum: history.previousCurrentChecksum, nextCurrentChecksum: history.nextCurrentChecksum, changeSetChecksum: history.changeSetChecksum, entries: [...history.entries], createdAt: timestamp } : null, workflow: { targetState, event: workflowEvent }, decision: input.decision ? { record: input.decision, revisionAttemptId: claim.row.id } : null, nextBriefChecksum: nextChecksum, changed, result, projection, identityLineage: beforeProvider.identityLineage, now: timestamp, fault: input.faults };
       await this.options.database.transaction((tx) => tx.commitBriefRevision(commitInput));
       committed = true;
       await input.faults?.hit("after-db-commit");
@@ -185,9 +189,12 @@ export class BriefV3TransactionService {
       const documentRow = v3Row ?? await tx.getDocument(projectId, projectVersion, "requirements");
       if (!documentRow) throw new PersistenceError("PERSISTENCE_NOT_FOUND", "A current Brief document was not found.");
       const stored = mapRowToDocument(documentRow);
-      const canonical = stored.documentType === BRIEF_V3_DOCUMENT_TYPE ? BriefV3DocumentSchema.parse(stored).brief : migrateLegacyBriefToCanonicalBriefV3(stored);
+      const migrated = stored.documentType === BRIEF_V3_DOCUMENT_TYPE ? null : migrateLegacyBriefToCanonicalBriefV3WithLineage(stored);
+      const canonical = stored.documentType === BRIEF_V3_DOCUMENT_TYPE ? BriefV3DocumentSchema.parse(stored).brief : migrated!.brief;
+      if (stored.documentType === BRIEF_V3_DOCUMENT_TYPE) assertCurrentV3RequirementNamespace(canonical);
+      const identityLineage = migrated?.lineage ?? [];
       const currentness = createRevisionCurrentnessToken({ projectId, projectVersion, projectRowVersion: Number(project.row_version), projectVersionRowVersion: version.rowVersion, workflowState: project.workflow_state, documentType: documentRow.documentType, briefChecksum: canonicalBriefChecksum(canonical), documentChecksum: documentRow.checksum, documentRowVersion: documentRow.rowVersion });
-      return { project, version, documentRow, canonical, currentness };
+      return { project, version, documentRow, canonical, identityLineage, currentness };
     });
   }
 }

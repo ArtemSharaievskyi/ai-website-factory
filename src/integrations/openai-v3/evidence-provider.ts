@@ -11,7 +11,7 @@ export class BriefV3EvidenceProvider {
   async proposeChanges(input: Parameters<OpenAiBriefV3RevisionProvider["proposeChanges"]>[0]): Promise<BriefChangeSet> {
     this.calls += 1;
     if (this.calls !== 1) throw new Error("LIVE_PROVIDER_CALL_COUNT_EXCEEDED");
-    const providerInput = { revisionInstruction: input.revisionInstruction, currentCanonicalV3: input.currentCanonicalV3, supportingContext: input.supportingContext };
+    const providerInput = { revisionInstruction: input.revisionInstruction, currentCanonicalV3: input.currentCanonicalV3, supportingContext: input.supportingContext, newRequirementHandles: input.newRequirementHandles };
     const result = await this.provider.proposeChangesWithEvidence(providerInput);
     this.evidence = result;
     return result.changeSet;

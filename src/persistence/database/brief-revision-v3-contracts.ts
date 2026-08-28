@@ -3,6 +3,7 @@ import { UuidSchema, ProjectVersionSchema, IsoDateTimeSchema, NonEmptyStringSche
 import { CanonicalBriefV3Schema, type CanonicalBriefV3 } from "@/domain/requirements/v3/schema";
 import { canonicalBriefChecksum, normalizeCanonicalBrief } from "@/domain/requirements/v3/normalize";
 import { migrateLegacyBriefToCanonicalBriefV3 } from "@/domain/requirements/v3/migrate";
+import { assertCurrentV3RequirementNamespace } from "@/domain/requirements/v3/identity";
 
 export const BRIEF_V3_DOCUMENT_TYPE = "brief-v3" as const;
 export const BRIEF_V3_DOCUMENT_SCHEMA_VERSION = 3 as const;
@@ -42,7 +43,7 @@ export function canonicalBriefChecksumForDocument(document: unknown): string {
 }
 
 export function createBriefV3Document(input: { projectId: string; projectVersion: number; brief: CanonicalBriefV3; createdAt: string; updatedAt: string }): BriefV3Document {
-  const brief = normalizeCanonicalBrief(input.brief);
+  const brief = assertCurrentV3RequirementNamespace(normalizeCanonicalBrief(input.brief));
   return BriefV3DocumentSchema.parse({
     schemaVersion: BRIEF_V3_DOCUMENT_SCHEMA_VERSION,
     documentType: BRIEF_V3_DOCUMENT_TYPE,

@@ -5,6 +5,8 @@ import type { PersistedDocument, DocumentRow } from "./mapping";
 import type { ProjectAsset } from "@/domain/assets/project";
 import type { ProviderFailureDiagnostic } from "@/domain/shared/provider-failure";
 import type { BriefRevisionFailureDiagnosticEntry } from "./brief-revision-failure-diagnostics";
+import type { RequirementIdentityLineageRecord, RequirementIdentityMigrationRecord } from "@/domain/requirements/v3/identity";
+import type { RequirementIdentityLineage } from "@/domain/requirements/v3/identity";
 
 export type ProjectRow = ReturnType<typeof import("./mapping").mapProjectToRow>;
 export type ProjectAssetRow = ProjectAsset;
@@ -45,10 +47,13 @@ export type BriefRevisionAtomicCommitInput = {
   changed: boolean;
   result: unknown;
   projection: BriefRevisionProjectionRow | null;
+  identityLineage?: readonly RequirementIdentityLineage[];
   now: string;
   fault?: BriefRevisionFaultInjector;
 };
 export type BriefRevisionAtomicCommitResult = { attempt: BriefRevisionAttemptRow; project: ProjectRow; document: DocumentRow | null; projection: BriefRevisionProjectionRow | null };
+export type RequirementIdentityLineageRow = RequirementIdentityLineageRecord;
+export type RequirementIdentityMigrationRow = RequirementIdentityMigrationRecord;
 
 export interface PersistenceTransaction {
   getProject(id: string): Promise<ProjectRow | null>;
@@ -67,6 +72,7 @@ export interface PersistenceTransaction {
   reserveNextVersion(projectId: string, idempotency?: { key: string; payloadHash: string }): Promise<ProjectVersionRow>;
   updateVersionImmutable(projectId: string, version: number, releasedAt: string): Promise<ProjectVersionRow>;
   updateVersionRequirementsChecksum(input: { projectId: string; version: number; expectedRowVersion: number; checksum: string; updatedAt: string }): Promise<ProjectVersionRow>;
+  updateVersionArtifactChecksums(input: { projectId: string; version: number; expectedRowVersion: number; requirementsChecksum: string | null; selectedDesignChecksum: string | null; architectureChecksum: string | null; updatedAt: string }): Promise<ProjectVersionRow>;
   saveDocument(row: DocumentRow, idempotency?: { key: string; payloadHash: string }): Promise<DocumentRow>;
   saveDocumentCAS(input: { row: DocumentRow; expectedRowVersion: number | null; expectedChecksum: string | null }): Promise<DocumentRow>;
   deleteDocument(projectId: string, version: number, documentType: string): Promise<void>;
@@ -90,6 +96,11 @@ export interface PersistenceTransaction {
   commitBriefRevision(input: BriefRevisionAtomicCommitInput): Promise<BriefRevisionAtomicCommitResult>;
   listBriefRevisionProjectionSync(limit: number): Promise<BriefRevisionProjectionRow[]>;
   updateBriefRevisionProjectionSync(input: { id: string; expectedStatus: BriefRevisionProjectionStatus; status: BriefRevisionProjectionStatus; attemptCount?: number; failureCode?: string | null; nextAttemptAt?: string | null; updatedAt: string }): Promise<BriefRevisionProjectionRow>;
+  listRequirementIdentityLineage(projectId: string, projectVersion: number): Promise<RequirementIdentityLineageRow[]>;
+  appendRequirementIdentityLineage(row: RequirementIdentityLineageRow): Promise<RequirementIdentityLineageRow>;
+  getRequirementIdentityMigration(projectId: string, projectVersion: number, migrationId: string): Promise<RequirementIdentityMigrationRow | null>;
+  listRequirementIdentityMigrations(projectId: string, projectVersion: number): Promise<RequirementIdentityMigrationRow[]>;
+  appendRequirementIdentityMigration(row: RequirementIdentityMigrationRow): Promise<RequirementIdentityMigrationRow>;
 }
 
 export interface PersistenceDatabase { transaction<T>(work: (transaction: PersistenceTransaction) => Promise<T>): Promise<T>; }

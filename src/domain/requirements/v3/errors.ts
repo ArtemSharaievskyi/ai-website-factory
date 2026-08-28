@@ -9,7 +9,9 @@ export type BriefV3ErrorCode =
   | "BRIEF_V3_DUPLICATE_TARGET"
   | "BRIEF_V3_REDUCTION_INVALID"
   | "BRIEF_V3_MIGRATION_INVALID"
-  | "BRIEF_V3_MIGRATION_AMBIGUOUS";
+  | "BRIEF_V3_MIGRATION_AMBIGUOUS"
+  | "BRIEF_V3_IDENTITY_INVALID"
+  | "BRIEF_V3_IDENTITY_AMBIGUOUS";
 
 /** Typed, safe domain failure for the V3 core. Details must not contain raw provider payloads. */
 export class BriefV3Error extends Error {

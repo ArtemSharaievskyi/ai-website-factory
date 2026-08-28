@@ -3,7 +3,9 @@ import { z } from "zod";
 import { evaluateBriefReadiness } from "@/domain/requirements/v3/readiness";
 import { transitionWorkflow } from "@/domain/workflow/engine";
 import { WorkflowStateSchema } from "@/domain/project/schema";
-import { migrateLegacyBriefToCanonicalBriefV3 } from "@/domain/requirements/v3/migrate";
+import { migrateLegacyBriefToCanonicalBriefV3, migrateLegacyBriefToCanonicalBriefV3WithLineage } from "@/domain/requirements/v3/migrate";
+import { canonicalRequirementEntries, isLegacyRequirementId } from "@/domain/requirements/v3/identity";
+import type { RequirementIdentityLineage } from "@/domain/requirements/v3/identity";
 import { DecisionRecordSchema } from "@/domain/workflow/decision";
 import { BriefV3DocumentSchema, canonicalBriefChecksumForDocument, createBriefV3Document, type BriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
 import { mapDocumentToRow, mapRowToDocument } from "@/persistence/database/mapping";
@@ -68,6 +70,11 @@ export class BriefApprovalError extends Error {
 
 const sameCurrentness = (left: BriefApprovalCurrentness, right: BriefApprovalCurrentness) => JSON.stringify(left) === JSON.stringify(right);
 
+function requireCurrentIdentity(document: BriefV3Document): BriefV3Document {
+  if (canonicalRequirementEntries(document.brief).some((entry) => isLegacyRequirementId(entry.id))) throw new BriefApprovalError("BRIEF_NOT_READY", "The current Brief requires explicit requirement identity migration before approval.");
+  return document;
+}
+
 function currentness(project: ProjectRow, version: ProjectVersionRow, row: import("@/persistence/database/mapping").DocumentRow, document: BriefV3Document): BriefApprovalCurrentness {
   return BriefApprovalCurrentnessSchema.parse({
     projectId: project.id,
@@ -105,9 +112,14 @@ export class BriefApprovalService {
       const row = (await tx.getDocument(request.projectId, request.projectVersion, "brief-v3")) ?? (await tx.getDocument(request.projectId, request.projectVersion, "requirements"));
       if (!project || !version || !row) throw new BriefApprovalError("BRIEF_NOT_FOUND", "The current Project Brief was not found.");
       const stored = mapRowToDocument(row);
+      let migrationLineage: readonly RequirementIdentityLineage[] = [];
       const document = stored.documentType === "brief-v3"
-        ? BriefV3DocumentSchema.parse(stored)
-        : createBriefV3Document({ projectId: request.projectId, projectVersion: request.projectVersion, brief: migrateLegacyBriefToCanonicalBriefV3(stored), createdAt: stored.createdAt, updatedAt: stored.updatedAt });
+        ? requireCurrentIdentity(BriefV3DocumentSchema.parse(stored))
+        : (() => {
+            const migrated = migrateLegacyBriefToCanonicalBriefV3WithLineage(stored);
+            migrationLineage = migrated.lineage;
+            return createBriefV3Document({ projectId: request.projectId, projectVersion: request.projectVersion, brief: migrated.brief, createdAt: stored.createdAt, updatedAt: stored.updatedAt });
+          })();
       const token = currentness(project, version, row, document);
       if (project.current_version !== request.projectVersion || project.row_version !== request.expectedRowVersion || request.projectId !== token.projectId || request.projectVersion !== token.projectVersion) throw new BriefApprovalError("BRIEF_APPROVAL_STALE", "The Project Brief currentness is stale.");
       if (request.expectedCurrentness && !sameCurrentness(request.expectedCurrentness, token)) throw new BriefApprovalError("BRIEF_APPROVAL_STALE", "The Project Brief currentness is stale.");
@@ -138,6 +150,7 @@ export class BriefApprovalService {
       transitionWorkflow(project.workflow_state, "AWAITING_DESIGN_SELECTION", { briefApproval: { approved: true, canonicalChecksum: token.briefChecksum } });
       const updatedProject = await tx.updateProjectState({ id: project.id, expectedState: project.workflow_state, expectedRowVersion: project.row_version, state: "AWAITING_DESIGN_SELECTION", updatedAt: approvedAt });
       const saved = await tx.saveDocumentCAS({ row: mapDocumentToRow(approvedDocument), expectedRowVersion: row.documentType === "brief-v3" ? row.rowVersion : null, expectedChecksum: row.documentType === "brief-v3" ? row.checksum : null });
+      for (const lineage of migrationLineage) await tx.appendRequirementIdentityLineage({ ...lineage, createdAt: approvedAt });
       const decision = DecisionRecordSchema.parse({
         id: randomUUID(),
         timestamp: approvedAt,
@@ -176,7 +189,7 @@ export class BriefApprovalService {
       if (!project || !version || !row) throw new BriefApprovalError("BRIEF_NOT_FOUND", "The current V3 Project Brief was not found.");
       const stored = mapRowToDocument(row);
       const document = stored.documentType === "brief-v3"
-        ? BriefV3DocumentSchema.parse(stored)
+        ? requireCurrentIdentity(BriefV3DocumentSchema.parse(stored))
         : createBriefV3Document({ projectId, projectVersion, brief: migrateLegacyBriefToCanonicalBriefV3(stored), createdAt: stored.createdAt, updatedAt: stored.updatedAt });
       return currentness(project, version, row, document);
     });
