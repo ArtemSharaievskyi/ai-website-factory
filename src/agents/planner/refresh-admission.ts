@@ -79,6 +79,7 @@ const REF_ALIASES: Record<string, readonly RequirementCategory[]> = {
   "contactfacts": ["CONTACT_FACT"],
   "legalfacts": ["LEGAL_FACT"],
   "brandfacts": ["BRAND_FACT"],
+  "brandvisualrequirements": ["BRAND_VISUAL"],
 };
 
 const REF_DECISIONS: Record<string, string> = {
@@ -342,6 +343,13 @@ function changedDomains(current: PlanningPackage, candidate: PlanningPackage): P
   return Object.keys(domainForTopLevel).filter((key) => checksumPersistedDocument(stableSemanticValue(current[key as keyof PlanningPackage])) !== checksumPersistedDocument(stableSemanticValue(candidate[key as keyof PlanningPackage]))).map((key) => domainForTopLevel[key]!);
 }
 
+function differsOnlyByHostRefreshTrace(current: PlanningPackage, candidate: PlanningPackage): boolean {
+  const isHostRefreshTrace = (value: PlanningPackage["traceability"][number]) => value.category === "planning-refresh" && value.systemConstraintReferences.includes("PLANNING_CHANGESET_HOST_APPLY");
+  const currentNonHost = current.traceability.filter((value) => !isHostRefreshTrace(value));
+  const candidateNonHost = candidate.traceability.filter((value) => !isHostRefreshTrace(value));
+  return candidate.traceability.length > current.traceability.length && checksumPersistedDocument(currentNonHost) === checksumPersistedDocument(candidateNonHost);
+}
+
 function requirementCategorySet(brief: CanonicalBriefV3, ids: readonly string[]): Set<RequirementCategory | "PAGE" | "ASSET"> {
   const byId = new Map<string, RequirementCategory | "PAGE" | "ASSET">([
     ...canonicalRequirementEntries(brief).map((entry) => [entry.id, entry.category] as const),
@@ -444,7 +452,7 @@ export function admitPlanningRefresh(input: {
       ]);
       const unexplained = domains.filter((domain) => !allowed.has(domain) && domain !== "traceability");
       if (unexplained.length) blockers.push(`PLANNING_REFRESH_UNAUTHORIZED_DRIFT:${unexplained.join(",")}`);
-      if (domains.includes("traceability") && !introducedRequirementIds.length && !removedRequirementIds.length) blockers.push("PLANNING_REFRESH_TRACEABILITY_DRIFT");
+      if (domains.includes("traceability") && !introducedRequirementIds.length && !removedRequirementIds.length && !differsOnlyByHostRefreshTrace(normalizedCurrent, candidate)) blockers.push("PLANNING_REFRESH_TRACEABILITY_DRIFT");
     }
   }
   return { candidate, blockers: [...new Set(blockers)], changedDomains: domains, introducedRequirementIds, removedRequirementIds, coverage };

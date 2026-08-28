@@ -14,6 +14,7 @@ import {
 } from "@/agents/lead/contracts";
 import type { PlannerArchitectureProvider } from "@/agents/planner/ports";
 import { isClientOnlyFormBrief, isNoBackendBrief } from "@/agents/planner/deterministic";
+import { PlanningChangeSetProviderOutputSchema, type PlannerRefreshProviderInput, type PlanningChangeSetProviderOutput } from "@/agents/planner/changeset";
 import {
   FormFieldSchema,
   FormPlanSchema,
@@ -1062,6 +1063,35 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
       { projectId: input.projectId, projectVersion: input.projectVersion, approvedBriefChecksum: input.approvedBriefChecksum },
       input.approvedBrief,
     );
+  }
+  async proposeChangeSet(
+    input: PlannerRefreshProviderInput,
+    approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
+    skillContextIdentity = "none",
+  ): Promise<PlanningChangeSetProviderOutput> {
+    const prompt = rolePrompt("planner", {
+      ...input,
+      task: "planning-refresh-changeset",
+      currentPlanningPackage: input.currentPlanningPackage,
+      briefDelta: input.briefDelta,
+      authorizationScopeChecksum: input.authorizationScopeChecksum,
+    }, false, approvedSkills);
+    const instruction = [
+      "This is a Planning refresh, not initial planning.",
+      "Return only the bounded typed changes array required by the planning-change-set schema.",
+      "Do not return a PlanningPackage or any project identity, version, checksum, approval, timestamp, decisionId, or persistence metadata.",
+      "Preserve every current requirement and unrelated Planning domain. Propose only changes causally supported by the supplied BriefDelta and authorization scope.",
+      "Do not use legacy-v1 references, invented requirement IDs, or raw provider-specific references.",
+    ].join(" ");
+    const result = await this.ai.request<z.infer<typeof PlanningChangeSetProviderOutputSchema>>({
+      ...prompt,
+      system: `${prompt.system}\n${instruction}`,
+      role: "planner",
+      schema: PlanningChangeSetProviderOutputSchema,
+      schemaName: "planning-change-set",
+      idempotencyKey: `${input.idempotencyKey}:${skillContextIdentity}`,
+    });
+    return PlanningChangeSetProviderOutputSchema.parse(result.value);
   }
 }
 export class OpenAiDesignProvider implements DesignDirectionProvider {

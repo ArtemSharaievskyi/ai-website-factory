@@ -14,6 +14,7 @@ import { documentPayloadHash } from "./fake";
 import { newWorkflowEvent } from "./workflow-events";
 import type { BriefRevisionAttemptClaim, BriefRevisionAttemptTransition, BriefRevisionProjectionRow, BriefRevisionProjectionStatus, PersistenceDatabase, PersistenceTransaction, ProjectVersionRow, StoredDocument, WorkflowEvent, CostRecord } from "./types";
 import { ProjectAssetSchema, type ProjectAsset } from "@/domain/assets/project";
+import { PlanningRefreshDiagnosticsSchema, appendPlanningRefreshDiagnostic, type PlanningRefreshDiagnosticAttempt } from "@/agents/planner/refresh-diagnostics";
 
 const parse = <T>(schema: z.ZodType<T>, value: unknown, message: string): T => { const result = schema.safeParse(value); if (!result.success) throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", message, undefined, result.error); return result.data; };
 const token = (key: string | undefined, payload: unknown) => key ? { key, payloadHash: documentPayloadHash(payload) } : undefined;
@@ -127,6 +128,20 @@ export class DecisionRepository {
   constructor(private readonly db: PersistenceDatabase) {}
   async append(projectId: string, version: number, record: DecisionRecord) { return this.db.transaction((tx) => appendDecisionInTransaction(tx, projectId, version, record)); }
   async list(projectId: string, version: number) { return this.db.transaction((tx) => tx.listDecisions(projectId, version)); }
+}
+
+/** Durable forensic evidence kept outside Planning currentness and Project Memory. */
+export class PlanningRefreshDiagnosticsRepository {
+  constructor(private readonly db: PersistenceDatabase) {}
+  async append(input: { projectId: string; projectVersion: number; timestamp: string; attempt: PlanningRefreshDiagnosticAttempt }) {
+    return this.db.transaction(async (tx) => {
+      const existingRow = await tx.getDocument(input.projectId, input.projectVersion, "planning-refresh-diagnostics");
+      const existing = existingRow ? PlanningRefreshDiagnosticsSchema.parse(mapRowToDocument(existingRow)) : null;
+      const next = appendPlanningRefreshDiagnostic(existing, input);
+      await saveDocumentCASInTransaction(tx, next, existingRow?.rowVersion ?? null, existingRow?.checksum ?? null);
+      return next;
+    });
+  }
 }
 
 export class WorkflowPersistenceService {

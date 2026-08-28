@@ -9,6 +9,7 @@ import {
   PlanningPackageStructuredOutputSchema,
 } from "@/integrations/openai/adapters";
 import { ProviderBriefChangeSetSchema } from "@/integrations/openai-v3/changeset";
+import { PlanningChangeSetProviderOutputSchema } from "@/agents/planner/changeset";
 import { ClarificationPlanProviderOutputSchema, LeadAnalysisProviderOutputSchema } from "@/agents/lead/contracts";
 import { ArchitectureReviewProviderOutputSchema, CodeIntegrationReviewProviderOutputSchema, ContractAuditProviderOutputSchema, SecurityReviewProviderOutputSchema, TestQualityReviewProviderOutputSchema } from "@/domain/review/schema";
 import { fingerprintFailure } from "./baseline-failures";
@@ -26,6 +27,7 @@ const builders: Record<string, Builder> = {
   "project-brief": () => buildProductionResponseFormat(BriefDraftStructuredOutputSchema, "brief-draft"),
   "brief-revision-v3": () => buildProductionResponseFormat(ProviderBriefChangeSetSchema, "brief-revision-v3"),
   "planning-package": () => buildProductionResponseFormat(PlanningPackageStructuredOutputSchema, "planning-package"),
+  "planning-change-set": () => buildProductionResponseFormat(PlanningChangeSetProviderOutputSchema, "planning-change-set"),
   "design-direction-set": () => buildProductionResponseFormat(DesignDirectionStructuredOutputSchema, "design-direction-set"),
   "implementation-change-proposal": () => buildProductionResponseFormat(ImplementationChangeProposalStructuredOutputSchema, "implementation-change-proposal"),
   "orchestration-plan": () => buildProductionResponseFormat(OrchestrationPlanSchema, "orchestration-plan"),
@@ -36,7 +38,7 @@ const builders: Record<string, Builder> = {
   "test-quality-review-result": () => buildProductionResponseFormat(TestQualityReviewProviderOutputSchema, "test-quality-review-result"),
 };
 
-const hostOwnedNames = new Set(["projectId", "projectVersion", "briefChecksum", "approval", "approvedAt", "approvedBy", "currentness", "history", "trace"]);
+const hostOwnedNames = new Set(["projectId", "projectVersion", "briefChecksum", "basePlanningSemanticChecksum", "baseBriefChecksum", "targetBriefChecksum", "authorizationScopeChecksum", "semanticChecksum", "documentChecksum", "approval", "approvedAt", "approvedBy", "currentness", "history", "trace"]);
 
 function responseSchema(value: unknown) {
   const format = value as { type?: unknown; json_schema?: { name?: unknown; strict?: unknown; schema?: ProviderSchema } };

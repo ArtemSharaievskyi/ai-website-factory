@@ -7,6 +7,7 @@ import {
   DecisionRepository,
   DocumentRepository,
   ProjectRepository,
+  PlanningRefreshDiagnosticsRepository,
   saveDocumentCASInTransaction,
   saveDocumentInTransaction,
   transitionWorkflowInTransaction,
@@ -53,8 +54,55 @@ import { BriefV3DocumentSchema } from "@/persistence/database/brief-revision-v3-
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { canonicalBriefToPlannerBrief, effectivePlannerBrief } from "./brief-context";
 import { admitPlanningRefresh, PlanningAdmissionError, type PlanningRefreshDomain } from "./refresh-admission";
+import {
+  applyPlanningChangeSet,
+  createPlanningAuthorizationDelta,
+  computePlanningBriefDeltaFromHistory,
+  PlanningChangeSetProviderOutputSchema,
+  providerChangeSetToHostChangeSet,
+  type PlanningBriefDelta,
+} from "./changeset";
+import { type PlanningRefreshDiagnosticAttempt } from "./refresh-diagnostics";
 
 const now = () => new Date().toISOString();
+
+function architectureReviewDomains(review: ArchitectureReviewResult): PlanningRefreshDomain[] {
+  const domains = new Set<PlanningRefreshDomain>(["traceability"]);
+  for (const finding of review.findings) {
+    if (["REQUIREMENT_TRACEABILITY", "SOURCE_OF_TRUTH"].includes(finding.category)) domains.add("traceability");
+    if (["DOMAIN_MODEL", "IDENTITY_MODEL", "DATA_ARCHITECTURE"].includes(finding.category)) { domains.add("data-model"); domains.add("backend"); domains.add("database-decision"); }
+    if (finding.category === "AUTH_ARCHITECTURE") { domains.add("authentication"); domains.add("security"); }
+    if (finding.category === "STORAGE_ARCHITECTURE") { domains.add("storage"); domains.add("security"); }
+    if (["API_BOUNDARY", "SERVER_CLIENT_BOUNDARY"].includes(finding.category)) { domains.add("architecture"); domains.add("backend"); domains.add("forms"); }
+    if (finding.category === "DEPENDENCY_ARCHITECTURE") { domains.add("dependencies"); domains.add("architecture"); }
+    if (finding.category === "SECURITY_ARCHITECTURE") { domains.add("security"); domains.add("authentication"); domains.add("backend"); domains.add("storage"); }
+    if (["IMPLEMENTABILITY", "UNNECESSARY_COMPLEXITY", "MISSING_DECISION", "CONTRADICTORY_DECISION"].includes(finding.category)) domains.add("architecture");
+  }
+  return [...domains].sort();
+}
+
+function boundedFailureCode(value: unknown): string | undefined {
+  const text = value instanceof Error ? value.message : typeof value === "string" ? value : undefined;
+  if (!text) return undefined;
+  const code = text.split(":", 1)[0];
+  return /^(?:BRIEF|PLANNING|PLANNER|PROJECT|PERSISTENCE)_[A-Z0-9_]+$/.test(code) ? code : undefined;
+}
+
+function refreshFailureCode(error: unknown): string {
+  if (error instanceof PlanningAdmissionError) return error.code;
+  if (error instanceof PersistenceError) return error.code;
+  if (error instanceof PlannerError) {
+    if (error.cause instanceof PlanningAdmissionError) return error.cause.code;
+    if (error.cause && typeof error.cause === "object" && "blockers" in error.cause && Array.isArray(error.cause.blockers)) {
+      const blockerCode = error.cause.blockers.map(boundedFailureCode).find(Boolean);
+      if (blockerCode) return blockerCode;
+    }
+    const nestedCode = boundedFailureCode(error.cause);
+    return nestedCode ?? error.code;
+  }
+  return boundedFailureCode(error) ?? "PLANNING_REFRESH_FAILED";
+}
+
 export type PlannerServiceDependencies = {
   database: PersistenceDatabase;
   memory: PlannerMemoryPort;
@@ -69,6 +117,7 @@ export class PlannerArchitectService {
   private readonly projects;
   private readonly documents;
   private readonly decisions;
+  private readonly refreshDiagnostics;
   private readonly provider: PlannerArchitectureProvider;
   private readonly skills: PlannerSkillSelectionPort;
   private readonly resolveSkills?: PlannerServiceDependencies["resolveSkills"];
@@ -81,6 +130,7 @@ export class PlannerArchitectService {
     this.projects = new ProjectRepository(dependencies.database);
     this.documents = new DocumentRepository(dependencies.database);
     this.decisions = new DecisionRepository(dependencies.database);
+    this.refreshDiagnostics = new PlanningRefreshDiagnosticsRepository(dependencies.database);
     this.provider = dependencies.provider ?? {
       plan: async (input) => buildPlanningPackage(input),
     };
@@ -93,6 +143,44 @@ export class PlannerArchitectService {
   }
   private packageKey(projectId: string, version: number) {
     return `${projectId}:${version}`;
+  }
+  private async recordRefreshFailure(input: {
+    projectId: string;
+    projectVersion: number;
+    operationKey: string;
+    stage: PlanningRefreshDiagnosticAttempt["stage"];
+    error: unknown;
+    basePlanningSemanticChecksum?: string;
+    baseBriefChecksum?: string;
+    targetBriefChecksum?: string;
+    changedDomains?: readonly string[];
+    operationKinds?: readonly string[];
+  }) {
+    const failureCode = refreshFailureCode(input.error);
+    const status: PlanningRefreshDiagnosticAttempt["status"] = ["PLANNING_STALE", "PERSISTENCE_CONFLICT"].includes(failureCode) ? "REJECTED_STALE" : failureCode === "PLANNER_PROVIDER_FAILED" ? "FAILED" : "REJECTED_INVALID";
+    try {
+      await this.refreshDiagnostics.append({
+        projectId: input.projectId,
+        projectVersion: input.projectVersion,
+        timestamp: now(),
+        attempt: {
+          id: randomUUID(),
+          operationKey: input.operationKey,
+          stage: input.stage,
+          status,
+          failureCode,
+          ...(input.basePlanningSemanticChecksum ? { basePlanningSemanticChecksum: input.basePlanningSemanticChecksum } : {}),
+          ...(input.baseBriefChecksum ? { baseBriefChecksum: input.baseBriefChecksum } : {}),
+          ...(input.targetBriefChecksum ? { targetBriefChecksum: input.targetBriefChecksum } : {}),
+          changedDomains: [...new Set(input.changedDomains ?? [])].slice(0, 32),
+          operationKinds: [...new Set(input.operationKinds ?? [])].slice(0, 64),
+          recordedAt: now(),
+        },
+      });
+    } catch {
+      // Forensic evidence is best effort and must never turn a safe rejection
+      // into an unsafe retry or expose persistence details to the caller.
+    }
   }
   private parseInput(input: PlannerAgentInput) {
     try {
@@ -242,27 +330,40 @@ export class PlannerArchitectService {
         ? PlanningPackageSchema.parse(existingPlanning.document)
         : undefined;
     // A previously persisted invalid V3 proposal is historical evidence, not
-    // a trusted refresh baseline. A later explicitly authorized refresh may
-    // replace it through the existing CAS row, but it must prove the current
-    // Brief from scratch.
-    const currentPlanningPackage = (() => {
-      if (!persistedPlanningPackage || !currentCanonical) return persistedPlanningPackage;
+    // a trusted refresh baseline. It must never be silently reinterpreted as
+    // an initial generation request or used as a refresh base.
+    const currentPlanningPackage = persistedPlanningPackage;
+    if (persistedPlanningPackage && currentCanonical) {
       try {
-        const baseline = admitPlanningRefresh({
-          candidate: persistedPlanningPackage,
-          current: persistedPlanningPackage,
-          canonicalBrief: currentCanonical.brief,
+        if (/legacy(?:[-_ ]?v?1)/i.test(JSON.stringify(persistedPlanningPackage)))
+          throw new PlanningAdmissionError("PLANNING_TRACEABILITY_LEGACY_REFERENCE", "persisted-planning-package");
+        // The current Brief may legitimately contain additions that are the
+        // reason for the refresh. Base validation therefore checks only the
+        // persisted package shape and hostile legacy provenance here; target
+        // Brief coverage and causal scope are checked after ChangeSet apply.
+        const baseline = validatePlanningAdmission(persistedPlanningPackage);
+        if (!baseline.ready) throw new PlanningAdmissionError("PLANNING_REFRESH_BASE_INVALID", baseline.blockers[0]);
+      } catch (error) {
+        const failure = error instanceof PlanningAdmissionError
+          ? new PlannerError(
+              "PLANNING_REFRESH_BASE_INVALID",
+              "The persisted Planning package is not a safe refresh baseline.",
+              error,
+            )
+          : error;
+        await this.recordRefreshFailure({
           projectId: input.projectId,
           projectVersion: input.projectVersion,
-          approvedBriefChecksum: currentCanonical.briefChecksum,
-          timestamp: persistedPlanningPackage.updatedAt,
+          operationKey: input.idempotencyKey,
+          stage: "BASE_VALIDATION",
+          error: failure,
+          basePlanningSemanticChecksum: planningSemanticChecksum(persistedPlanningPackage),
+          baseBriefChecksum: persistedPlanningPackage.approvedBriefChecksum,
+          targetBriefChecksum: input.approvedBriefChecksum,
         });
-        return baseline.blockers.length === 0 ? persistedPlanningPackage : undefined;
-      } catch (error) {
-        if (error instanceof PlanningAdmissionError) return undefined;
-        throw error;
+        throw failure;
       }
-    })();
+    }
     await this.validateCurrentCanonicalBrief(input);
     const skillSelection = this.resolveSkills
       ? await this.resolveSkills(currentCanonical ? { ...input, canonicalBrief: currentCanonical.brief } : input)
@@ -283,6 +384,29 @@ export class PlannerArchitectService {
       return this.packages.get(
         this.packageKey(input.projectId, input.projectVersion),
       )!;
+    if (persistedPlanningPackage && existingPlanning && currentCanonical && currentPlanningPackage && persistedPlanningPackage.approvedBriefChecksum !== currentCanonical.briefChecksum)
+      return this.refreshPlanningPackageInternal({ input, brief, currentCanonical: currentCanonical.brief, existingPlanning, currentPlanningPackage, skillSelection });
+    if (persistedPlanningPackage && existingPlanning && currentCanonical && currentPlanningPackage && persistedPlanningPackage.approvedBriefChecksum === currentCanonical.briefChecksum) {
+      try {
+        const currentAdmission = admitPlanningRefresh({
+          candidate: currentPlanningPackage,
+          current: currentPlanningPackage,
+          canonicalBrief: currentCanonical.brief,
+          projectId: input.projectId,
+          projectVersion: input.projectVersion,
+          approvedBriefChecksum: currentCanonical.briefChecksum,
+          timestamp: currentPlanningPackage.updatedAt,
+        });
+        if (currentAdmission.blockers.length > 0) throw new PlanningAdmissionError("PLANNING_REFRESH_BASE_INVALID", currentAdmission.blockers[0]);
+      } catch (error) {
+        if (error instanceof PlanningAdmissionError)
+          throw new PlannerError("PLANNING_REFRESH_BASE_INVALID", "The persisted Planning package is not current against the approved Brief.", error);
+        throw error;
+      }
+      this.inputKeys.set(input.idempotencyKey, requestHash);
+      this.packages.set(this.packageKey(input.projectId, input.projectVersion), currentPlanningPackage);
+      return currentPlanningPackage;
+    }
     await this.skills.select({
       role: "planner-architect",
       taskType: "product-scope",
@@ -373,6 +497,189 @@ export class PlannerArchitectService {
       planningPackage,
     );
     return planningPackage;
+  }
+  private async refreshPlanningPackageInternal(input: {
+    input: PlannerAgentInput;
+    brief: z.infer<typeof RequirementSpecificationSchema>;
+    currentCanonical: z.infer<typeof BriefV3DocumentSchema>["brief"];
+    existingPlanning: { rowVersion: number; checksum: string };
+    currentPlanningPackage: PlanningPackage;
+    skillSelection?: AgentSkillSelection;
+  }) {
+    if (!this.provider.proposeChangeSet) {
+      const error = new PlannerError(
+        "PLANNING_REFRESH_PROVIDER_UNAVAILABLE",
+        "The configured Planner provider does not support bounded Planning refreshes.",
+      );
+      await this.recordRefreshFailure({ projectId: input.input.projectId, projectVersion: input.input.projectVersion, operationKey: input.input.idempotencyKey, stage: "PROVIDER", error, baseBriefChecksum: input.currentPlanningPackage.approvedBriefChecksum, targetBriefChecksum: input.input.approvedBriefChecksum });
+      throw error;
+    }
+    let briefDelta: PlanningBriefDelta;
+    try {
+      const history = await this.dependencies.database.transaction((tx) => tx.listBriefRevisionHistory(input.input.projectId, input.input.projectVersion));
+      briefDelta = computePlanningBriefDeltaFromHistory({
+        baseBriefChecksum: input.currentPlanningPackage.approvedBriefChecksum,
+        targetBrief: input.currentCanonical,
+        history,
+      });
+    } catch (error) {
+      const failure = new PlannerError(
+        "PLANNING_REFRESH_BASE_BRIEF_UNAVAILABLE",
+        "The approved Brief delta cannot be reconstructed from canonical provenance.",
+        error,
+      );
+      await this.recordRefreshFailure({ projectId: input.input.projectId, projectVersion: input.input.projectVersion, operationKey: input.input.idempotencyKey, stage: "BASE_VALIDATION", error: failure, baseBriefChecksum: input.currentPlanningPackage.approvedBriefChecksum, targetBriefChecksum: input.input.approvedBriefChecksum });
+      throw failure;
+    }
+    try {
+      await this.validateCurrentCanonicalBrief(input.input);
+    } catch (error) {
+      await this.recordRefreshFailure({
+        projectId: input.input.projectId,
+        projectVersion: input.input.projectVersion,
+        operationKey: input.input.idempotencyKey,
+        stage: "CURRENTNESS",
+        error,
+        basePlanningSemanticChecksum: planningSemanticChecksum(input.currentPlanningPackage),
+        baseBriefChecksum: input.currentPlanningPackage.approvedBriefChecksum,
+        targetBriefChecksum: input.input.approvedBriefChecksum,
+        changedDomains: briefDelta.authorizedDomains,
+      });
+      throw error;
+    }
+    let providerOutput: z.infer<typeof PlanningChangeSetProviderOutputSchema>;
+    try {
+      providerOutput = PlanningChangeSetProviderOutputSchema.parse(
+        await this.provider.proposeChangeSet(
+          {
+            projectId: input.input.projectId,
+            projectVersion: input.input.projectVersion,
+            idempotencyKey: input.input.idempotencyKey,
+            approvedBriefChecksum: input.input.approvedBriefChecksum,
+            canonicalBrief: input.currentCanonical,
+            currentPlanningPackage: input.currentPlanningPackage,
+            briefDelta,
+            authorizationScopeChecksum: briefDelta.authorizationScopeChecksum,
+          },
+          input.skillSelection?.contexts,
+          input.skillSelection?.identityChecksum,
+        ),
+      );
+    } catch (error) {
+      if (error instanceof PlannerError) {
+        await this.recordRefreshFailure({ projectId: input.input.projectId, projectVersion: input.input.projectVersion, operationKey: input.input.idempotencyKey, stage: "PROVIDER", error, baseBriefChecksum: input.currentPlanningPackage.approvedBriefChecksum, targetBriefChecksum: input.input.approvedBriefChecksum });
+        throw error;
+      }
+      if (error instanceof z.ZodError)
+        {
+          const failure = new PlannerError(
+            "PLANNING_PACKAGE_INVALID",
+            "The Planning refresh provider returned an invalid ChangeSet.",
+          error,
+          );
+          await this.recordRefreshFailure({ projectId: input.input.projectId, projectVersion: input.input.projectVersion, operationKey: input.input.idempotencyKey, stage: "PROVIDER", error: failure, baseBriefChecksum: input.currentPlanningPackage.approvedBriefChecksum, targetBriefChecksum: input.input.approvedBriefChecksum });
+          throw failure;
+        }
+      const failure = new PlannerError("PLANNER_PROVIDER_FAILED", "The Planning refresh provider failed.", error);
+      await this.recordRefreshFailure({ projectId: input.input.projectId, projectVersion: input.input.projectVersion, operationKey: input.input.idempotencyKey, stage: "PROVIDER", error: failure, baseBriefChecksum: input.currentPlanningPackage.approvedBriefChecksum, targetBriefChecksum: input.input.approvedBriefChecksum });
+      throw failure;
+    }
+    let currentAfterProvider: z.infer<typeof BriefV3DocumentSchema> | undefined;
+    try {
+      currentAfterProvider = await this.validateCurrentCanonicalBrief(input.input);
+      const projectAfterProvider = await this.projects.getWithVersion(input.input.projectId);
+      if (!projectAfterProvider || projectAfterProvider.project.currentVersion !== input.input.projectVersion || projectAfterProvider.rowVersion !== input.input.expectedRowVersion || projectAfterProvider.project.workflowState !== "AWAITING_DESIGN_SELECTION")
+        throw new PlannerError("PLANNING_STALE", "The project changed while the Planning refresh was running.");
+      if (currentAfterProvider?.briefChecksum !== input.input.approvedBriefChecksum)
+        throw new PlannerError("PLANNING_STALE", "The approved CanonicalBriefV3 changed while the Planning refresh was running.");
+      const planningAfterProvider = await this.documents.getWithMetadata(input.input.projectId, input.input.projectVersion, "planning-package");
+      if (planningAfterProvider?.rowVersion !== input.existingPlanning.rowVersion || planningAfterProvider?.checksum !== input.existingPlanning.checksum)
+        throw new PlannerError("PLANNING_STALE", "The current PlanningPackage changed while the Planning refresh was running.");
+    } catch (error) {
+      await this.recordRefreshFailure({
+        projectId: input.input.projectId,
+        projectVersion: input.input.projectVersion,
+        operationKey: input.input.idempotencyKey,
+        stage: "CURRENTNESS",
+        error,
+        basePlanningSemanticChecksum: planningSemanticChecksum(input.currentPlanningPackage),
+        baseBriefChecksum: input.currentPlanningPackage.approvedBriefChecksum,
+        targetBriefChecksum: input.input.approvedBriefChecksum,
+        changedDomains: [],
+        operationKinds: providerOutput.changes.map((change) => change.kind),
+      });
+      throw error;
+    }
+    let candidate: PlanningPackage;
+    try {
+      const hostChangeSet = providerChangeSetToHostChangeSet({
+        providerOutput,
+        projectId: input.input.projectId,
+        projectVersion: input.input.projectVersion,
+        basePlanningSemanticChecksum: planningSemanticChecksum(input.currentPlanningPackage),
+        baseBriefChecksum: input.currentPlanningPackage.approvedBriefChecksum,
+        targetBriefChecksum: input.input.approvedBriefChecksum,
+        authorizationScopeChecksum: briefDelta.authorizationScopeChecksum,
+      });
+      candidate = applyPlanningChangeSet({
+        current: input.currentPlanningPackage,
+        changeSet: hostChangeSet,
+        briefDelta,
+        canonicalBrief: input.currentCanonical,
+        projectId: input.input.projectId,
+        projectVersion: input.input.projectVersion,
+        timestamp: now(),
+      });
+    } catch (error) {
+      const failure = new PlannerError("PLANNING_PACKAGE_INVALID", "The Planning ChangeSet failed host validation or application.", error);
+      await this.recordRefreshFailure({ projectId: input.input.projectId, projectVersion: input.input.projectVersion, operationKey: input.input.idempotencyKey, stage: "ADMISSION", error: failure, basePlanningSemanticChecksum: planningSemanticChecksum(input.currentPlanningPackage), baseBriefChecksum: input.currentPlanningPackage.approvedBriefChecksum, targetBriefChecksum: input.input.approvedBriefChecksum, changedDomains: briefDelta.authorizedDomains, operationKinds: providerOutput.changes.map((change) => change.kind) });
+      throw failure;
+    }
+    try {
+      candidate = this.admitPlanningCandidate({
+        plannerInput: input.input,
+        canonicalBrief: input.currentCanonical,
+        candidate,
+        current: input.currentPlanningPackage,
+        authorizedDomains: briefDelta.authorizedDomains as PlanningRefreshDomain[],
+      });
+      if (!validatePlanningAdmission(candidate).ready)
+        throw new PlannerError("PLANNING_PACKAGE_INVALID", "The applied Planning ChangeSet failed deterministic admission.");
+      const contractIssues = validatePlanningPackageAgainstBrief(input.brief, candidate);
+      if (contractIssues.length > 0)
+        throw new PlannerError("PLANNING_PACKAGE_INVALID", `The applied Planning ChangeSet violated approved form behavior: ${contractIssues.join(", ")}.`);
+    } catch (error) {
+      await this.recordRefreshFailure({ projectId: input.input.projectId, projectVersion: input.input.projectVersion, operationKey: input.input.idempotencyKey, stage: "ADMISSION", error, basePlanningSemanticChecksum: planningSemanticChecksum(input.currentPlanningPackage), baseBriefChecksum: input.currentPlanningPackage.approvedBriefChecksum, targetBriefChecksum: input.input.approvedBriefChecksum, changedDomains: briefDelta.authorizedDomains, operationKinds: providerOutput.changes.map((change) => change.kind) });
+      throw error;
+    }
+    try {
+      await this.persistPackage(candidate, input.input.idempotencyKey, input.existingPlanning, {
+        rowVersion: input.input.expectedRowVersion,
+        workflowState: "AWAITING_DESIGN_SELECTION",
+      });
+    } catch (error) {
+      await this.recordRefreshFailure({
+        projectId: input.input.projectId,
+        projectVersion: input.input.projectVersion,
+        operationKey: input.input.idempotencyKey,
+        stage: "PERSISTENCE",
+        error,
+        basePlanningSemanticChecksum: planningSemanticChecksum(input.currentPlanningPackage),
+        baseBriefChecksum: input.currentPlanningPackage.approvedBriefChecksum,
+        targetBriefChecksum: input.input.approvedBriefChecksum,
+        changedDomains: briefDelta.authorizedDomains,
+        operationKinds: providerOutput.changes.map((change) => change.kind),
+      });
+      throw error;
+    }
+    this.inputKeys.set(input.input.idempotencyKey, checksumPersistedDocument({
+      projectId: input.input.projectId,
+      projectVersion: input.input.projectVersion,
+      approvedBriefChecksum: input.input.approvedBriefChecksum,
+      skillContextChecksum: input.skillSelection?.identityChecksum ?? "none",
+    }));
+    this.packages.set(this.packageKey(input.input.projectId, input.input.projectVersion), candidate);
+    return candidate;
   }
   async getPlanningStatus(projectId: string, projectVersion: number) {
     // Project Memory and the in-process cache are projections. Always rebuild
@@ -764,6 +1071,12 @@ export class PlannerArchitectService {
         "Planner correction requires the current persisted PlanningPackage.",
       );
     const currentPlanningPackage = PlanningPackageSchema.parse(persistedCurrent.document);
+    const correctionCanonicalBrief = currentCanonical?.brief ?? parsed.canonicalBrief;
+    if (!correctionCanonicalBrief)
+      throw new PlannerError(
+        "BRIEF_CHECKSUM_MISMATCH",
+        "Planner correction requires the current approved CanonicalBriefV3.",
+      );
     if (planningDocumentChecksum(currentPlanningPackage) !== planningDocumentChecksum(suppliedCurrentPlanningPackage))
       throw new PlannerError(
         "PLANNING_STALE",
@@ -811,50 +1124,126 @@ export class PlannerArchitectService {
       && currentPlanningPackage.storage.decision === "not-required"
       && currentPlanningPackage.email.decision === "not-required"
       && currentPlanningPackage.administration.decision === "no-admin";
+    const correctionBriefDelta = createPlanningAuthorizationDelta({
+      canonicalBrief: correctionCanonicalBrief,
+      authorizedDomains: architectureReviewDomains(review),
+    });
+    const applyDeterministicCorrection = (change: z.input<typeof PlanningChangeSetProviderOutputSchema>["changes"][number]) => applyPlanningChangeSet({
+      current: currentPlanningPackage,
+      changeSet: providerChangeSetToHostChangeSet({
+        providerOutput: PlanningChangeSetProviderOutputSchema.parse({ contractVersion: 1, changes: [change] }),
+        projectId: input.projectId,
+        projectVersion: input.projectVersion,
+        basePlanningSemanticChecksum: planningSemanticChecksum(currentPlanningPackage),
+        baseBriefChecksum: correctionBriefDelta.baseBriefChecksum,
+        targetBriefChecksum: correctionBriefDelta.targetBriefChecksum,
+        authorizationScopeChecksum: correctionBriefDelta.authorizationScopeChecksum,
+      }),
+      briefDelta: correctionBriefDelta,
+      canonicalBrief: correctionCanonicalBrief,
+      projectId: input.projectId,
+      projectVersion: input.projectVersion,
+      timestamp: now(),
+    });
     if (canResolveNoBackendDeterministically) {
-      corrected = PlanningPackageSchema.parse({
-        ...currentPlanningPackage,
-        architecture: { ...currentPlanningPackage.architecture, backendPriority: [] },
-      });
+      corrected = applyDeterministicCorrection({ kind: "set-architecture-field", field: "backendPriority", value: [], requirementReferences: ["PLANNING:DECISION:database"] });
     } else if (canResolveClientOnlyDeterministically) {
-      corrected = PlanningPackageSchema.parse({
-        ...currentPlanningPackage,
-        forms: {
-          ...currentPlanningPackage.forms,
-          forms: currentPlanningPackage.forms.forms.map((form) => form.submissionMechanism === "pending-decision" ? { ...form, submissionMechanism: "client-only" } : form),
-        },
-      });
+      const correctedForm = currentPlanningPackage.forms.forms.find((form) => form.submissionMechanism === "pending-decision");
+      if (!correctedForm) throw new PlannerError("PLANNING_PACKAGE_INVALID", "The deterministic client-only correction has no pending form to correct.");
+      corrected = applyDeterministicCorrection({ kind: "upsert-form", value: { ...correctedForm, submissionMechanism: "client-only", requirementReferences: ["PLANNING:DECISION:form-behavior"] } });
     } else {
+      if (!this.provider.proposeChangeSet) {
+        const error = new PlannerError(
+          "PLANNING_REFRESH_PROVIDER_UNAVAILABLE",
+          "The configured Planner provider does not support bounded Planning corrections.",
+        );
+        await this.recordRefreshFailure({
+          projectId: input.projectId,
+          projectVersion: input.projectVersion,
+          operationKey: input.idempotencyKey,
+          stage: "PROVIDER",
+          error,
+          basePlanningSemanticChecksum: planningSemanticChecksum(currentPlanningPackage),
+          baseBriefChecksum: correctionBriefDelta.baseBriefChecksum,
+          targetBriefChecksum: correctionBriefDelta.targetBriefChecksum,
+          changedDomains: correctionBriefDelta.authorizedDomains,
+        });
+        throw error;
+      }
       const skillSelection = this.resolveSkills
         ? await this.resolveSkills(parsed)
         : undefined;
+      let providerOutput: z.infer<typeof PlanningChangeSetProviderOutputSchema>;
       try {
-        corrected = PlanningPackageSchema.parse(
-          await this.provider.plan({
-            ...parsed,
-            approvedBrief: brief,
-            ...(currentCanonical ? { canonicalBrief: currentCanonical.brief } : {}),
-            architectureReview: review,
-            currentPlanningPackage,
-            correctionOnly: true,
-          } as PlannerAgentInput & {
-            architectureReview: ArchitectureReviewResult;
-            currentPlanningPackage: PlanningPackage;
-            correctionOnly: boolean;
-          }, skillSelection?.contexts, skillSelection?.identityChecksum),
+        providerOutput = PlanningChangeSetProviderOutputSchema.parse(
+          await this.provider.proposeChangeSet(
+            {
+              projectId: parsed.projectId,
+              projectVersion: parsed.projectVersion,
+              idempotencyKey: parsed.idempotencyKey,
+              approvedBriefChecksum: correctionBriefDelta.targetBriefChecksum,
+              canonicalBrief: correctionCanonicalBrief,
+              currentPlanningPackage,
+              briefDelta: correctionBriefDelta,
+              authorizationScopeChecksum: correctionBriefDelta.authorizationScopeChecksum,
+              architectureReview: review,
+              correctionOnly: true,
+            },
+            skillSelection?.contexts,
+            skillSelection?.identityChecksum,
+          ),
         );
       } catch (error) {
         if (error instanceof z.ZodError)
-          throw new PlannerError(
+        {
+          const failure = new PlannerError(
             "PLANNING_PACKAGE_INVALID",
-            "Planner correction did not match the strict contract.",
+            "Planner correction ChangeSet did not match the strict contract.",
             error,
           );
-        throw new PlannerError(
-          "PLANNER_PROVIDER_FAILED",
-          "Planner correction failed.",
-          error,
-        );
+            await this.recordRefreshFailure({ projectId: input.projectId, projectVersion: input.projectVersion, operationKey: input.idempotencyKey, stage: "PROVIDER", error: failure, basePlanningSemanticChecksum: planningSemanticChecksum(currentPlanningPackage), baseBriefChecksum: correctionBriefDelta.baseBriefChecksum, targetBriefChecksum: correctionBriefDelta.targetBriefChecksum, changedDomains: correctionBriefDelta.authorizedDomains });
+            throw failure;
+          }
+        const failure = new PlannerError("PLANNER_PROVIDER_FAILED", "Planner correction ChangeSet failed.", error);
+        await this.recordRefreshFailure({ projectId: input.projectId, projectVersion: input.projectVersion, operationKey: input.idempotencyKey, stage: "PROVIDER", error: failure, basePlanningSemanticChecksum: planningSemanticChecksum(currentPlanningPackage), baseBriefChecksum: correctionBriefDelta.baseBriefChecksum, targetBriefChecksum: correctionBriefDelta.targetBriefChecksum, changedDomains: correctionBriefDelta.authorizedDomains });
+        throw failure;
+      }
+      try {
+        const currentAfterProvider = await this.validateCurrentCanonicalBrief(parsed);
+        const projectAfterProvider = await this.projects.getWithVersion(input.projectId);
+        if (!projectAfterProvider || projectAfterProvider.project.currentVersion !== input.projectVersion || projectAfterProvider.rowVersion !== current.rowVersion || projectAfterProvider.project.workflowState !== "ARCHITECTURE_REVIEW")
+          throw new PlannerError("PLANNING_STALE", "The project changed while the Planning correction was running.");
+        if (currentAfterProvider?.briefChecksum !== correctionBriefDelta.targetBriefChecksum)
+          throw new PlannerError("PLANNING_STALE", "The approved CanonicalBriefV3 changed while the Planning correction was running.");
+        const planningAfterProvider = await this.documents.getWithMetadata(input.projectId, input.projectVersion, "planning-package");
+        if (planningAfterProvider?.rowVersion !== persistedCurrent.rowVersion || planningAfterProvider?.checksum !== persistedCurrent.checksum)
+          throw new PlannerError("PLANNING_STALE", "The current PlanningPackage changed while the Planning correction was running.");
+      } catch (error) {
+        await this.recordRefreshFailure({ projectId: input.projectId, projectVersion: input.projectVersion, operationKey: input.idempotencyKey, stage: "CURRENTNESS", error, basePlanningSemanticChecksum: planningSemanticChecksum(currentPlanningPackage), baseBriefChecksum: correctionBriefDelta.baseBriefChecksum, targetBriefChecksum: correctionBriefDelta.targetBriefChecksum, changedDomains: correctionBriefDelta.authorizedDomains, operationKinds: providerOutput.changes.map((change) => change.kind) });
+        throw error;
+      }
+      try {
+        corrected = applyPlanningChangeSet({
+          current: currentPlanningPackage,
+          changeSet: providerChangeSetToHostChangeSet({
+            providerOutput,
+            projectId: input.projectId,
+            projectVersion: input.projectVersion,
+            basePlanningSemanticChecksum: planningSemanticChecksum(currentPlanningPackage),
+            baseBriefChecksum: correctionBriefDelta.baseBriefChecksum,
+            targetBriefChecksum: correctionBriefDelta.targetBriefChecksum,
+            authorizationScopeChecksum: correctionBriefDelta.authorizationScopeChecksum,
+          }),
+          briefDelta: correctionBriefDelta,
+          canonicalBrief: correctionCanonicalBrief,
+          projectId: input.projectId,
+          projectVersion: input.projectVersion,
+          timestamp: now(),
+        });
+      } catch (error) {
+        const failure = new PlannerError("PLANNING_PACKAGE_INVALID", "The Planning correction ChangeSet failed host validation or application.", error);
+        await this.recordRefreshFailure({ projectId: input.projectId, projectVersion: input.projectVersion, operationKey: input.idempotencyKey, stage: "ADMISSION", error: failure, basePlanningSemanticChecksum: planningSemanticChecksum(currentPlanningPackage), baseBriefChecksum: correctionBriefDelta.baseBriefChecksum, targetBriefChecksum: correctionBriefDelta.targetBriefChecksum, changedDomains: correctionBriefDelta.authorizedDomains, operationKinds: providerOutput.changes.map((change) => change.kind) });
+        throw failure;
       }
     }
     const next = PlanningPackageSchema.parse({
@@ -871,20 +1260,7 @@ export class PlannerArchitectService {
       canonicalBrief: currentCanonical?.brief,
       candidate: next,
       current: currentPlanningPackage,
-      authorizedDomains: (() => {
-        const domains = new Set<PlanningRefreshDomain>(["traceability"]);
-        for (const finding of review.findings) {
-          if (["REQUIREMENT_TRACEABILITY", "SOURCE_OF_TRUTH"].includes(finding.category)) domains.add("traceability");
-          if (["DOMAIN_MODEL", "IDENTITY_MODEL", "DATA_ARCHITECTURE"].includes(finding.category)) { domains.add("data-model"); domains.add("backend"); domains.add("database-decision"); }
-          if (finding.category === "AUTH_ARCHITECTURE") { domains.add("authentication"); domains.add("security"); }
-          if (finding.category === "STORAGE_ARCHITECTURE") { domains.add("storage"); domains.add("security"); }
-          if (["API_BOUNDARY", "SERVER_CLIENT_BOUNDARY"].includes(finding.category)) { domains.add("architecture"); domains.add("backend"); domains.add("forms"); }
-          if (finding.category === "DEPENDENCY_ARCHITECTURE") { domains.add("dependencies"); domains.add("architecture"); }
-          if (finding.category === "SECURITY_ARCHITECTURE") { domains.add("security"); domains.add("authentication"); domains.add("backend"); domains.add("storage"); }
-          if (["IMPLEMENTABILITY", "UNNECESSARY_COMPLEXITY", "MISSING_DECISION", "CONTRADICTORY_DECISION"].includes(finding.category)) domains.add("architecture");
-        }
-        return [...domains];
-      })(),
+      authorizedDomains: correctionBriefDelta.authorizedDomains as PlanningRefreshDomain[],
     });
     const admittedNext = PlanningPackageSchema.parse({
       ...admitted,
@@ -901,18 +1277,34 @@ export class PlannerArchitectService {
         "PLANNING_PACKAGE_INVALID",
         `Planner correction violated approved form behavior: ${correctionIssues.join(", ")}.`,
       );
-    const transition = await this.persistPackage(admittedNext, input.idempotencyKey, {
-      rowVersion: persistedCurrent.rowVersion,
-      checksum: persistedCurrent.checksum,
-    }, {
-      rowVersion: current.rowVersion,
-      workflowState: "ARCHITECTURE_REVIEW",
-    }, {
-      targetState: "AWAITING_DESIGN_SELECTION",
-      actor: "planner-architect",
-      reason: `Architecture findings corrected in bounded cycle ${cycle + 1}. Planning Acceptance must run again.`,
-      idempotencyKey: `${input.idempotencyKey}:planning-correction`,
-    });
+    let transition;
+    try {
+      transition = await this.persistPackage(admittedNext, input.idempotencyKey, {
+        rowVersion: persistedCurrent.rowVersion,
+        checksum: persistedCurrent.checksum,
+      }, {
+        rowVersion: current.rowVersion,
+        workflowState: "ARCHITECTURE_REVIEW",
+      }, {
+        targetState: "AWAITING_DESIGN_SELECTION",
+        actor: "planner-architect",
+        reason: `Architecture findings corrected in bounded cycle ${cycle + 1}. Planning Acceptance must run again.`,
+        idempotencyKey: `${input.idempotencyKey}:planning-correction`,
+      });
+    } catch (error) {
+      await this.recordRefreshFailure({
+        projectId: input.projectId,
+        projectVersion: input.projectVersion,
+        operationKey: input.idempotencyKey,
+        stage: "PERSISTENCE",
+        error,
+        basePlanningSemanticChecksum: planningSemanticChecksum(currentPlanningPackage),
+        baseBriefChecksum: correctionBriefDelta.baseBriefChecksum,
+        targetBriefChecksum: correctionBriefDelta.targetBriefChecksum,
+        changedDomains: correctionBriefDelta.authorizedDomains,
+      });
+      throw error;
+    }
     this.packages.set(key, admittedNext);
     this.architectureCorrectionCycles.set(key, cycle + 1);
     return {
