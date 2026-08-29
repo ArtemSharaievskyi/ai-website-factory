@@ -39,6 +39,17 @@ export type PlanningRequirementCoverage = {
   reason: "MISSING_REFERENCE" | "MISSING_SEMANTIC_EVIDENCE";
 };
 
+export type PlanningCoverageEvidence = {
+  requirementId: string;
+  category: RequirementCategory;
+  statement: string;
+  referencePresent: boolean;
+  semanticEvidence: "FULL" | "PARTIAL" | "NONE";
+  semanticEvidenceScore: number;
+  ambiguity: "NONE" | "AMBIGUOUS";
+  validatorFinding?: "MISSING_REFERENCE" | "MISSING_SEMANTIC_EVIDENCE";
+};
+
 export type PlanningRefreshAdmission = {
   candidate: PlanningPackage;
   blockers: string[];
@@ -178,14 +189,17 @@ function semanticEvidenceCorpus(value: unknown, output: string[] = []): string[]
 }
 
 function hasSemanticEvidence(candidate: PlanningPackage, requirement: CanonicalRequirement): boolean {
+  return semanticEvidenceScore(candidate, requirement) >= 0.75;
+}
+
+function semanticEvidenceScore(candidate: PlanningPackage, requirement: CanonicalRequirement): number {
   const statement = normalizeSearchText(requirement.statement);
   const corpus = semanticEvidenceCorpus(stableSemanticValue(candidate)).map(normalizeSearchText);
-  if (corpus.some((value) => value.includes(statement))) return true;
+  if (corpus.some((value) => value.includes(statement))) return 1;
   const tokens = semanticTokens(requirement.statement);
-  if (tokens.length < 6) return false;
+  if (tokens.length < 6) return 0;
   const joined = corpus.join(" ");
-  const matched = tokens.filter((token) => joined.includes(token));
-  return matched.length / tokens.length >= 0.75;
+  return tokens.filter((token) => joined.includes(token)).length / tokens.length;
 }
 
 function canonicalRequirementEntries(brief: CanonicalBriefV3) {
@@ -336,6 +350,28 @@ export function validatePlanningRequirementCoverage(input: { candidate: Planning
     if (!refs.has(entry.id)) return [{ requirementId: entry.id, category: entry.category, statement: entry.statement, reason: "MISSING_REFERENCE" as const }];
     if (!hasSemanticEvidence(input.candidate, entry)) return [{ requirementId: entry.id, category: entry.category, statement: entry.statement, reason: "MISSING_SEMANTIC_EVIDENCE" as const }];
     return [];
+  });
+}
+
+/**
+ * Current-state evidence is intentionally separate from PlanningBriefDelta.
+ * It measures the current package directly and never claims that a historical
+ * Brief transition can be reconstructed.
+ */
+export function analyzePlanningRequirementCoverage(input: { candidate: PlanningPackage; canonicalBrief: CanonicalBriefV3 }): PlanningCoverageEvidence[] {
+  const brief = CanonicalBriefV3Schema.parse(input.canonicalBrief);
+  const refs = referencesOf(input.candidate);
+  return canonicalRequirementEntries(brief).map((entry): PlanningCoverageEvidence => {
+    const score = semanticEvidenceScore(input.candidate, entry);
+    return {
+      requirementId: entry.id,
+      category: entry.category,
+      statement: entry.statement,
+      referencePresent: refs.has(entry.id),
+      semanticEvidence: score >= 0.75 ? "FULL" : score > 0 ? "PARTIAL" : "NONE",
+      semanticEvidenceScore: Number(score.toFixed(6)),
+      ambiguity: "NONE",
+    };
   });
 }
 

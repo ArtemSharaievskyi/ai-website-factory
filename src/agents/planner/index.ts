@@ -3,4 +3,5 @@ export * from "./deterministic";
 export * from "./errors";
 export * from "./memory";
 export * from "./ports";
+export * from "./reconciliation";
 export * from "./service";
