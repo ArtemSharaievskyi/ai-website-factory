@@ -41,7 +41,7 @@ const noBackendPlannerTransport = () => {
   });
   const input = { projectId, projectVersion: 1, approvedBrief: brief, approvedBriefChecksum: checksumPersistedDocument(brief), originalPromptReference: "original-prompt.md", clarificationEvidenceReferences: [], currentWorkflowState: "AWAITING_DESIGN_SELECTION" as const, existingDecisions: [], suppliedFiles: [], allowedSkills: [], idempotencyKey: "provider-no-backend", expectedRowVersion: 1 };
   const canonical = buildPlanningPackage(input);
-  const stripIdentity = (value: unknown): unknown => Array.isArray(value) ? value.map(stripIdentity) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value as Record<string, unknown>).filter(([key, nested]) => key !== "projectId" && key !== "projectVersion" && key !== "approvedBriefChecksum" && key !== "accepted" && key !== "acceptance" && key !== "decisionId" && nested !== undefined).map(([key, nested]) => [key, stripIdentity(nested)])) : value;
+  const stripIdentity = (value: unknown): unknown => Array.isArray(value) ? value.map(stripIdentity) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value as Record<string, unknown>).filter(([key, nested]) => key !== "projectId" && key !== "projectVersion" && key !== "semanticChecksumPolicyVersion" && key !== "approvedBriefChecksum" && key !== "accepted" && key !== "acceptance" && key !== "decisionId" && nested !== undefined).map(([key, nested]) => [key, stripIdentity(nested)])) : value;
   const transport = JSON.parse(JSON.stringify(stripIdentity(canonical))) as Record<string, unknown>;
   transport.databaseRecommendation = null;
   const architecture = transport.architecture as Record<string, unknown>;

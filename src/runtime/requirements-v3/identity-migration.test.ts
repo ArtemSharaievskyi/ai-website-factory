@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { PlannerAgentInputSchema } from "@/agents/planner/contracts";
+import { PlannerAgentInputSchema, PlanningPackageSchema } from "@/agents/planner/contracts";
 import { buildPlanningPackage, planningDocumentChecksum, planningSemanticChecksum } from "@/agents/planner/deterministic";
 import { representativeV1Brief, cleanBriefV3 } from "@/domain/requirements/v3/fixtures";
 import { CanonicalBriefV3Schema } from "@/domain/requirements/v3/schema";
@@ -11,6 +11,8 @@ import { FactoryProjectSchema } from "@/domain/project/schema";
 import { BriefV3DocumentSchema, createBriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
 import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
 import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
+import { mapDocumentToRow, mapRowToDocument } from "@/persistence/database/mapping";
+import type { PersistenceDatabase, PersistenceTransaction } from "@/persistence/database/types";
 import { RequirementIdentityMigrationService, prepareRequirementIdentityMigration } from "./identity-migration";
 
 const projectId = "77777777-7777-4777-8777-777777777777";
@@ -33,6 +35,55 @@ function planningPackage(brief: ReturnType<typeof historicalBrief>) {
   const generated = buildPlanningPackage(input);
   const legacyId = brief.requirements[0]!.id;
   return { ...generated, traceability: generated.traceability.map((entry, index) => index === 0 ? { ...entry, requirementReferences: [legacyId] } : entry) };
+}
+
+class ReadbackMutatingDatabase implements PersistenceDatabase {
+  constructor(private readonly inner: InMemoryPersistenceDatabase, private readonly documentType: "brief-v3" | "planning-package") {}
+
+  async transaction<T>(work: (transaction: PersistenceTransaction) => Promise<T>): Promise<T> {
+    return this.inner.transaction(async (transaction) => {
+      let saved = false;
+      const mutatedDocumentType = this.documentType;
+      const originalSaveDocumentCAS = transaction.saveDocumentCAS;
+      const originalGetDocument = transaction.getDocument;
+      transaction.saveDocumentCAS = async (input) => {
+        const result = await originalSaveDocumentCAS(input);
+        if (result.documentType === mutatedDocumentType) saved = true;
+        return result;
+      };
+      transaction.getDocument = async (projectId, version, requestedType) => {
+        const row = await originalGetDocument(projectId, version, requestedType);
+        if (!row || !saved || requestedType !== mutatedDocumentType) return row;
+        if (mutatedDocumentType === "brief-v3") {
+          const document = BriefV3DocumentSchema.parse(mapRowToDocument(row));
+          const brief = { ...document.brief, requirements: document.brief.requirements.map((entry, index) => index === 0 ? { ...entry, statement: `${entry.statement} readback mismatch` } : entry) };
+          const changed = BriefV3DocumentSchema.parse({ ...document, brief, briefChecksum: canonicalBriefChecksum(brief) });
+          const mapped = mapDocumentToRow(changed);
+          return { ...row, payload: mapped.payload, checksum: mapped.checksum };
+        }
+        const document = PlanningPackageSchema.parse(mapRowToDocument(row));
+        const changed = PlanningPackageSchema.parse({ ...document, productScope: { ...document.productScope, purpose: `${document.productScope.purpose} readback mismatch` } });
+        const mapped = mapDocumentToRow(changed);
+        return { ...row, payload: mapped.payload, checksum: mapped.checksum };
+      };
+      return work(transaction);
+    });
+  }
+}
+
+async function seededIdentityMigration(database: PersistenceDatabase) {
+  const brief = historicalBrief();
+  const planning = planningPackage(brief);
+  const project = FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: projectId, slug: "synthetic-identity-migration", origin: "SYNTHETIC", originalPrompt: "Synthetic identity migration.", currentVersion: 1, workflowState: "AWAITING_DESIGN_SELECTION" });
+  await new ProjectRepository(database).create(project);
+  await new ProjectVersionRepository(database).create({ id: randomUUID(), projectId, versionNumber: 1, state: "AWAITING_DESIGN_SELECTION", memoryRootPath: null, requirementsChecksum: canonicalBriefChecksum(brief), selectedDesignChecksum: "a".repeat(64), architectureChecksum: "b".repeat(64), releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
+  const historicalDocument = BriefV3DocumentSchema.parse({ schemaVersion: 3, documentType: "brief-v3", projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, brief, briefChecksum: canonicalBriefChecksum(brief) });
+  const documents = new DocumentRepository(database);
+  await documents.save(historicalDocument);
+  await documents.save(planning);
+  const service = new RequirementIdentityMigrationService(database);
+  const prepared = await service.prepare({ projectId, projectVersion: 1, lineageCandidates: candidates(brief), downstreamArtifactsInvalidated: ["planning-package"], briefApprovalInvalidated: true, planningAcceptanceInvalidated: true });
+  return { brief, planning, prepared, service };
 }
 
 describe("CanonicalBriefV3 requirement identity migration", () => {
@@ -102,6 +153,7 @@ describe("CanonicalBriefV3 requirement identity migration", () => {
     expect(result.nextPlanningPackage?.approvedBriefChecksum).toBe(result.plan.nextBriefChecksum);
     expect(result.nextPlanningPackage?.accepted).toBe(false);
     expect(result.nextPlanningPackage?.architecture.acceptance.accepted).toBe(false);
+    expect(result.nextPlanningPackage?.semanticChecksumPolicyVersion).toBe("planning-semantic-v2-semantic-only");
     expect(result.nextBrief.requirements.some((entry) => entry.statement.includes("synthetic"))).toBe(true);
     expect(planningDocumentChecksum(planning)).toBe(result.plan.previousPlanningDocumentChecksum);
     expect(planningSemanticChecksum(planning)).toBe(result.plan.previousPlanningSemanticChecksum);
@@ -142,5 +194,21 @@ describe("CanonicalBriefV3 requirement identity migration", () => {
     expect(replay.outcome).toBe("COMMITTED_REPLAY");
     expect(database.requirementIdentityMigrations.size).toBe(1);
     expect(database.events).toHaveLength(1);
+  });
+
+  it.each(["brief-v3", "planning-package"] as const)("rolls back all canonical writes when %s readback differs after APPLY", async (documentType) => {
+    const database = new InMemoryPersistenceDatabase();
+    const seeded = await seededIdentityMigration(database);
+    const beforeBrief = database.documents.get(`${projectId}:1:brief-v3`)?.checksum;
+    const beforePlanning = database.documents.get(`${projectId}:1:planning-package`)?.checksum;
+    await expect(new RequirementIdentityMigrationService(new ReadbackMutatingDatabase(database, documentType)).apply({ plan: seeded.prepared.plan, expectedBriefRowVersion: 1, expectedPlanningRowVersion: 1, expectedProjectRowVersion: 1, expectedProjectVersionRowVersion: 1, actor: "synthetic-test", now: "2026-01-01T00:01:00.000Z" })).rejects.toMatchObject({ code: "IDENTITY_MIGRATION_READBACK_MISMATCH" });
+    expect(database.documents.get(`${projectId}:1:brief-v3`)?.checksum).toBe(beforeBrief);
+    expect(database.documents.get(`${projectId}:1:planning-package`)?.checksum).toBe(beforePlanning);
+    expect(database.requirementIdentityLineage).toHaveLength(0);
+    expect(database.requirementIdentityMigrations).toHaveLength(0);
+    expect(database.events).toHaveLength(0);
+    expect(database.projects.get(projectId)?.row_version).toBe(1);
+    expect(database.versions.get(`${projectId}:1`)?.rowVersion).toBe(1);
+    expect(database.decisions).toHaveLength(0);
   });
 });

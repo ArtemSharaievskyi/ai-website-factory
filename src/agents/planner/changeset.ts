@@ -13,6 +13,7 @@ import {
   type PlanningPackage,
 } from "./contracts";
 import { planningSemanticChecksum } from "./deterministic";
+import { CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY } from "./semantic-checksum";
 import type { PlanningRefreshDomain } from "./refresh-admission";
 
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
@@ -449,6 +450,7 @@ export function applyPlanningChangeSet(input: {
   }
   return PlanningPackageSchema.parse({
     ...next,
+    semanticChecksumPolicyVersion: CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY,
     projectId: input.projectId,
     projectVersion: input.projectVersion,
     approvedBriefChecksum: input.briefDelta.targetBriefChecksum,

@@ -6,6 +6,7 @@ import type { PersistenceDatabase, PersistenceTransaction, ProjectRow, ProjectVe
 import { PersistenceError } from "@/persistence/database/errors";
 import { PlanningPackageSchema, type PlanningPackage } from "@/agents/planner/contracts";
 import { planningDocumentChecksum, planningSemanticChecksum } from "@/agents/planner/deterministic";
+import { CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY } from "@/agents/planner/semantic-checksum";
 import { CanonicalBriefV3Schema, type CanonicalBriefV3 } from "@/domain/requirements/v3/schema";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import {
@@ -164,6 +165,7 @@ export function prepareRequirementIdentityMigration(input: RequirementIdentityMi
   const nextPlanningPackage = planning
     ? PlanningPackageSchema.parse({
         ...mapRequirementIdentitiesDeep(planning, mappings),
+        semanticChecksumPolicyVersion: CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY,
         approvedBriefChecksum: nextBriefChecksum,
         accepted: false,
         acceptance: {},
@@ -206,7 +208,7 @@ export type RequirementIdentityMigrationApplyResult = {
 };
 
 export class RequirementIdentityMigrationError extends Error {
-  constructor(readonly code: "IDENTITY_MIGRATION_UNSAFE" | "IDENTITY_MIGRATION_STALE" | "IDENTITY_MIGRATION_WORKFLOW_INVALID", message: string) {
+  constructor(readonly code: "IDENTITY_MIGRATION_UNSAFE" | "IDENTITY_MIGRATION_STALE" | "IDENTITY_MIGRATION_WORKFLOW_INVALID" | "IDENTITY_MIGRATION_READBACK_MISMATCH", message: string) {
     super(message);
     this.name = "RequirementIdentityMigrationError";
   }
@@ -220,6 +222,60 @@ function currentBriefFromRows(briefRow: DocumentRow): CanonicalBriefV3 {
 
 function migrationId(plan: RequirementIdentityMigrationPlan): string {
   return `requirement-identity-migration:${plan.projectId}:${plan.projectVersion}:${plan.planChecksum}`;
+}
+
+async function assertIdentityMigrationReadback(input: {
+  tx: PersistenceTransaction;
+  id: string;
+  plan: RequirementIdentityMigrationPlan;
+  migration: RequirementIdentityMigrationRow;
+  expectedBriefDocument: ReturnType<typeof createBriefV3Document>;
+  expectedPlanningPackage: PlanningPackage | null;
+  briefRow: DocumentRow;
+  planningRow: DocumentRow | null;
+  nextBriefRow: DocumentRow;
+  nextPlanningRow: DocumentRow | null;
+  updatedProject: ProjectRow;
+  project: ProjectRow;
+  version: ProjectVersionRow;
+  updatedVersion: ProjectVersionRow;
+}) {
+  const fail = (message: string): never => {
+    throw new RequirementIdentityMigrationError("IDENTITY_MIGRATION_READBACK_MISMATCH", message);
+  };
+  const persistedBrief = BriefV3DocumentSchema.parse(mapRowToDocument(input.nextBriefRow));
+  if (canonicalBriefChecksum(persistedBrief.brief) !== input.plan.nextBriefChecksum) fail("The committed Brief semantic checksum does not match PREPARE.");
+  if (stableSerialize(persistedBrief) !== stableSerialize(input.expectedBriefDocument)) fail("The committed Brief payload does not match the prepared target.");
+  if (input.nextBriefRow.rowVersion !== input.briefRow.rowVersion + 1) fail("The committed Brief row version is inconsistent.");
+
+  if (input.expectedPlanningPackage === null || input.nextPlanningRow === null || input.planningRow === null) {
+    if (input.expectedPlanningPackage !== null || input.nextPlanningRow !== null || input.planningRow !== null) fail("The committed Planning presence does not match PREPARE.");
+  } else {
+    const persistedPlanning = PlanningPackageSchema.parse(mapRowToDocument(input.nextPlanningRow));
+    if (stableSerialize(persistedPlanning) !== stableSerialize(input.expectedPlanningPackage)) fail("The committed Planning payload does not match the prepared target.");
+    if (planningDocumentChecksum(persistedPlanning) !== input.nextPlanningRow.checksum) fail("The committed Planning document checksum is inconsistent.");
+    if (planningSemanticChecksum(persistedPlanning) !== input.plan.nextPlanningSemanticChecksum) fail("The committed Planning semantic checksum does not match PREPARE.");
+    if (input.nextPlanningRow.rowVersion !== input.planningRow.rowVersion + 1) fail("The committed Planning row version is inconsistent.");
+    const currentBriefIds = new Set(canonicalRequirementEntries(persistedBrief.brief).map((entry) => entry.id));
+    const references = planningRequirementReferences(persistedPlanning);
+    if (references.some(isLegacyRequirementId)) fail("The committed Planning package still contains a legacy requirement reference.");
+    if (references.some((reference) => isV3RequirementId(reference) && !currentBriefIds.has(reference))) fail("The committed Planning package contains an unresolved V3 requirement reference.");
+  }
+
+  if (input.updatedVersion.rowVersion !== input.version.rowVersion + 1 || input.updatedVersion.requirementsChecksum !== input.plan.nextBriefChecksum) fail("The committed Project Version binding is inconsistent.");
+  const expectedProjectRowVersion = input.project.workflow_state === "AWAITING_DESIGN_SELECTION" ? input.project.row_version + 1 : input.project.row_version;
+  if (input.updatedProject.row_version !== expectedProjectRowVersion) fail("The committed project currentness row version is inconsistent.");
+
+  const storedLineage = await input.tx.listRequirementIdentityLineage(input.plan.projectId, input.plan.projectVersion);
+  const storedLineageById = new Map(storedLineage.map((row) => [row.lineageId, row]));
+  if (storedLineage.length !== input.plan.lineage.length || input.plan.lineage.some((expected) => {
+    const stored = storedLineageById.get(expected.lineageId);
+    if (!stored) return true;
+    const storedWithoutMetadata = Object.fromEntries(Object.entries(stored).filter(([key]) => key !== "createdAt"));
+    return stableSerialize(storedWithoutMetadata) !== stableSerialize(expected);
+  })) fail("The committed identity lineage is incomplete or inconsistent.");
+  const storedMigration = await input.tx.getRequirementIdentityMigration(input.plan.projectId, input.plan.projectVersion, input.id);
+  if (!storedMigration || stableSerialize(storedMigration) !== stableSerialize(input.migration)) fail("The committed migration record is incomplete or inconsistent.");
 }
 
 export class RequirementIdentityMigrationService {
@@ -265,22 +321,30 @@ export class RequirementIdentityMigrationService {
     if (!plan.safeToApply) throw new RequirementIdentityMigrationError("IDENTITY_MIGRATION_UNSAFE", "The identity migration contains ambiguous, unmapped, invalid, or colliding lineage.");
     const now = input.now ?? new Date().toISOString();
     const nextBriefDocument = createBriefV3Document({ projectId: plan.projectId, projectVersion: plan.projectVersion, brief: prepared.nextBrief, createdAt: briefRow.createdAt, updatedAt: now });
-    const nextBriefRow = await tx.saveDocumentCAS({ row: mapDocumentToRow(nextBriefDocument), expectedRowVersion: briefRow.rowVersion, expectedChecksum: briefRow.checksum });
-    const nextPlanningRow = prepared.nextPlanningPackage && planningRow
-      ? await tx.saveDocumentCAS({ row: mapDocumentToRow({ ...prepared.nextPlanningPackage, createdAt: planningRow.createdAt, updatedAt: now }), expectedRowVersion: planningRow.rowVersion, expectedChecksum: planningRow.checksum })
+    await tx.saveDocumentCAS({ row: mapDocumentToRow(nextBriefDocument), expectedRowVersion: briefRow.rowVersion, expectedChecksum: briefRow.checksum });
+    if (prepared.nextPlanningPackage && planningRow) {
+      await tx.saveDocumentCAS({ row: mapDocumentToRow({ ...prepared.nextPlanningPackage, createdAt: planningRow.createdAt, updatedAt: now }), expectedRowVersion: planningRow.rowVersion, expectedChecksum: planningRow.checksum });
+    }
+    const expectedPlanningPackage = prepared.nextPlanningPackage && planningRow
+      ? PlanningPackageSchema.parse({ ...prepared.nextPlanningPackage, createdAt: planningRow.createdAt, updatedAt: now })
       : null;
-    const updatedVersion = await tx.updateVersionArtifactChecksums({ projectId: plan.projectId, version: plan.projectVersion, expectedRowVersion: version.rowVersion, requirementsChecksum: plan.nextBriefChecksum, selectedDesignChecksum: null, architectureChecksum: null, updatedAt: now });
-    let updatedProject = project;
+    await tx.updateVersionArtifactChecksums({ projectId: plan.projectId, version: plan.projectVersion, expectedRowVersion: version.rowVersion, requirementsChecksum: plan.nextBriefChecksum, selectedDesignChecksum: null, architectureChecksum: null, updatedAt: now });
     if (project.workflow_state === "AWAITING_DESIGN_SELECTION") {
       transitionWorkflow(project.workflow_state, "AWAITING_BRIEF_APPROVAL");
-      updatedProject = await tx.updateProjectState({ id: project.id, expectedState: project.workflow_state, expectedRowVersion: project.row_version, state: "AWAITING_BRIEF_APPROVAL", updatedAt: now });
+      await tx.updateProjectState({ id: project.id, expectedState: project.workflow_state, expectedRowVersion: project.row_version, state: "AWAITING_BRIEF_APPROVAL", updatedAt: now });
       await tx.appendWorkflowEvent({ id: randomUUID(), projectId: project.id, projectVersion: plan.projectVersion, fromState: project.workflow_state, toState: "AWAITING_BRIEF_APPROVAL", actor: input.actor ?? "requirement-identity-migration", reason: "Canonical requirement identities changed; downstream approvals require explicit re-approval.", createdAt: now, idempotencyKey: id });
     }
     const createdAt = now;
     const migration: RequirementIdentityMigrationRow = { migrationId: id, projectId: plan.projectId, projectVersion: plan.projectVersion, planChecksum: plan.planChecksum, previousBriefChecksum: plan.previousBriefChecksum, nextBriefChecksum: plan.nextBriefChecksum, previousPlanningSemanticChecksum: plan.previousPlanningSemanticChecksum, nextPlanningSemanticChecksum: plan.nextPlanningSemanticChecksum, migrationPolicyVersion: REQUIREMENT_IDENTITY_POLICY_VERSION, createdAt };
     for (const lineage of plan.lineage) await tx.appendRequirementIdentityLineage({ ...lineage, createdAt });
     await tx.appendRequirementIdentityMigration(migration);
-    return { outcome: "APPLIED", migration, brief: nextBriefRow, planning: nextPlanningRow, project: updatedProject, version: updatedVersion };
+    const persistedBriefRow = await tx.getDocument(plan.projectId, plan.projectVersion, "brief-v3");
+    const persistedPlanningRow = await tx.getDocument(plan.projectId, plan.projectVersion, "planning-package");
+    const persistedProject = await tx.getProject(plan.projectId);
+    const persistedVersion = await tx.getVersion(plan.projectId, plan.projectVersion);
+    if (!persistedBriefRow || !persistedProject || !persistedVersion) throw new RequirementIdentityMigrationError("IDENTITY_MIGRATION_READBACK_MISMATCH", "The committed identity migration state could not be read back before commit.");
+    await assertIdentityMigrationReadback({ tx, id, plan, migration, expectedBriefDocument: nextBriefDocument, expectedPlanningPackage, briefRow, planningRow, nextBriefRow: persistedBriefRow, nextPlanningRow: persistedPlanningRow, updatedProject: persistedProject, project, version, updatedVersion: persistedVersion });
+    return { outcome: "APPLIED", migration, brief: persistedBriefRow, planning: persistedPlanningRow, project: persistedProject, version: persistedVersion };
   }
 }
 

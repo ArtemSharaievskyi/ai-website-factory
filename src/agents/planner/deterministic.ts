@@ -5,10 +5,10 @@ import { ContentPlanSchema } from "@/domain/content/schema";
 import { type RequirementSpecification } from "@/domain/requirements/schema";
 import { resolveLogoPolicy } from "@/domain/requirements/logo-policy";
 import { SCHEMA_VERSION } from "@/domain/shared/schemas";
-import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { getDependencyCatalogEntry, validateDependencyPlan, validateDependencyReferences } from "@/dependencies/authority";
 import { AdministrationPlanSchema, AuthenticationPlanSchema, DataModelPlanSchema, DependencyPlanSchema, EmailPlanSchema, EnvironmentVariablePlanSchema, FormPlanSchema, NavigationPlanSchema, PageResponsibilityPlanSchema, PlanningPackageSchema, ProductScopePlanSchema, ProfileSelectionSchema, SecurityPlanSchema, SitemapPlanSchema, StoragePlanSchema, SupabasePlanSchema, TestStrategyPlanSchema, UserFlowPlanSchema, formFieldId, isLegacyFormField, type PlannerAgentInput, type PlanningPackage, type Traceability } from "./contracts";
 import { effectivePlannerBrief } from "./brief-context";
+import { CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY } from "./semantic-checksum";
 
 const createdAt = new Date().toISOString();
 const id = (key: string) => { const bytes = Buffer.from(createHash("sha256").update(key).digest("hex").slice(0, 32), "hex"); bytes[6] = (bytes[6] & 15) | 80; bytes[8] = (bytes[8] & 63) | 128; return `${bytes.toString("hex").slice(0, 8)}-${bytes.toString("hex").slice(8, 12)}-${bytes.toString("hex").slice(12, 16)}-${bytes.toString("hex").slice(16, 20)}-${bytes.toString("hex").slice(20)}`; };
@@ -221,21 +221,11 @@ export function buildPlanningPackage(input: PlannerAgentInput): PlanningPackage 
     trace("seo", ["brief:seoRequirements"], "Canonical SEO requirements remain traceable to Planning without changing approved wording."),
   );
   const databaseRecommendation = { recommendation: entities.length || brief.supabaseRequirements.length ? "REQUIRED" as const : "NOT_REQUIRED" as const, rationale: entities.length || brief.supabaseRequirements.length ? "Approved requirements contain persistent data or explicit Supabase database requirements; the user must select and approve the database mode." : "No approved requirement currently requires database persistence; the user must still explicitly approve NONE.", requirementReferences: entities.length || brief.supabaseRequirements.length ? [ref("backendRequirements"), ref("supabaseRequirements")] : [ref("features")], userDecisionRequired: true as const };
-  const packageValue = { ...base("planning-package", input), approvedBriefChecksum: input.approvedBriefChecksum, profile, productScope, sitemap, navigation, pages: pagePlans, userFlows, forms, dataModel, authentication, supabase, email, storage, administration, content, assets, architecture, environment, dependencies, testStrategy, security, traceability, blockers, accepted: false, acceptance: {}, databaseRecommendation };
+  const packageValue = { ...base("planning-package", input), semanticChecksumPolicyVersion: CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY, approvedBriefChecksum: input.approvedBriefChecksum, profile, productScope, sitemap, navigation, pages: pagePlans, userFlows, forms, dataModel, authentication, supabase, email, storage, administration, content, assets, architecture, environment, dependencies, testStrategy, security, traceability, blockers, accepted: false, acceptance: {}, databaseRecommendation };
   return PlanningPackageSchema.parse(packageValue);
 }
 
-/** Checksum for the exact persisted PlanningPackage document/envelope. */
-export const planningDocumentChecksum = (planningPackage: PlanningPackage) => checksumPersistedDocument(planningPackage);
-
-/** Checksum for PlanningPackage meaning, excluding the host-owned acceptance envelope. */
-export const planningSemanticChecksum = (planningPackage: PlanningPackage) => checksumPersistedDocument({
-  ...planningPackage,
-  accepted: false,
-  acceptance: {},
-  updatedAt: planningPackage.createdAt,
-  architecture: { ...planningPackage.architecture, acceptance: { accepted: false } },
-});
+export { planningDocumentChecksum, planningSemanticChecksum, planningSemanticChecksumForPolicy, planningSemanticProjectionForPolicy } from "./semantic-checksum";
 
 export function validatePlanningStructure(planningPackage: PlanningPackage) {
   const blockers: string[] = []; const paths = planningPackage.sitemap.routes.map((route) => route.path); if (new Set(paths).size !== paths.length) blockers.push("DUPLICATE_ROUTE"); if (paths.some((path) => /\/:[^/]+\/[^/]+/.test(path))) blockers.push("DYNAMIC_ROUTE_CONFLICT"); const routeIds = new Set(planningPackage.sitemap.routes.map((route) => route.id)); if (planningPackage.navigation.routeReferences.some((routeId) => !routeIds.has(routeId))) blockers.push("NAVIGATION_ROUTE_MISSING"); if (planningPackage.sitemap.routes.some((route) => route.authRequired) && planningPackage.authentication.decision === "none") blockers.push("AUTH_ARCHITECTURE_PENDING"); for (const form of planningPackage.forms.forms) { const ids = form.fields.map(formFieldId); if (form.fields.some(isLegacyFormField)) blockers.push("LEGACY_FORM_FIELD_CONTRACT"); if (ids.some((id) => !id) || new Set(ids).size !== ids.length) blockers.push("FORM_FIELD_ID_INVALID"); } return blockers;

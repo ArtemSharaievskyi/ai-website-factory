@@ -26,6 +26,7 @@ import {
   validatePlanningAdmission,
   validatePlanningPackageAgainstBrief,
 } from "./deterministic";
+import { CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY } from "./semantic-checksum";
 import {
   PlannerAgentInputSchema,
   PlanningPackageSchema,
@@ -431,13 +432,16 @@ export class PlannerArchitectService {
       // Re-check the host-owned currentness token immediately before provider
       // spend; skill/context preparation may have overlapped a Brief update.
       await this.validateCurrentCanonicalBrief(input);
-      planningPackage = PlanningPackageSchema.parse(
-        await this.provider.plan(
+      planningPackage = PlanningPackageSchema.parse({
+        ...PlanningPackageSchema.parse(await this.provider.plan(
           { ...input, approvedBrief: brief, ...(currentCanonical ? { canonicalBrief: currentCanonical.brief } : {}), documentationExcerpts },
           skillSelection?.contexts,
           skillSelection?.identityChecksum,
-        ),
-      );
+        )),
+        // The checksum policy is host-owned metadata; provider output cannot
+        // select or downgrade the semantic checksum authority.
+        semanticChecksumPolicyVersion: CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY,
+      });
     } catch (error) {
       if (error instanceof PlannerError) throw error;
       if (error instanceof z.ZodError)

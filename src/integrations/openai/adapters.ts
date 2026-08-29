@@ -552,7 +552,7 @@ const StrictFormPlanSchema = z
   })
   .strict();
 export const PlanningPackageStructuredOutputSchema =
-  PlanningPackageSchema.omit({ projectId: true, projectVersion: true, approvedBriefChecksum: true, accepted: true, acceptance: true }).extend({
+  PlanningPackageSchema.omit({ projectId: true, projectVersion: true, semanticChecksumPolicyVersion: true, approvedBriefChecksum: true, accepted: true, acceptance: true }).extend({
     databaseRecommendation: z.object({ recommendation: z.enum(["REQUIRED", "NOT_REQUIRED", "UNCERTAIN"]), rationale: z.string().min(1), requirementReferences: z.array(z.string().min(1)).min(1), userDecisionRequired: z.literal(true), selectedMode: z.enum(["NONE", "SUPABASE_NEW", "SUPABASE_EXISTING"]).nullable() }).strict().nullable(),
     productScope: z.object({
       ...withoutProjectIdentity(PlanningPackageSchema.shape.productScope.shape),
