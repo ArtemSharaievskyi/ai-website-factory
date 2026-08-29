@@ -135,8 +135,12 @@ describe("CanonicalBriefV3 requirement identity migration", () => {
     expect(currentPlanning?.documentType === "planning-package" && currentPlanning.accepted).toBe(false);
     expect(database.requirementIdentityLineage.size).toBe(brief.requirements.length);
     expect(database.requirementIdentityMigrations.size).toBe(1);
+    expect(database.events).toHaveLength(1);
+    expect(database.events[0]?.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    expect(database.events[0]?.idempotencyKey).toContain("requirement-identity-migration:");
     const replay = await service.apply({ plan: prepared.plan, expectedBriefRowVersion: 1, expectedPlanningRowVersion: 1, expectedProjectRowVersion: 1, expectedProjectVersionRowVersion: 1, actor: "synthetic-test", now: "2026-01-01T00:02:00.000Z" });
     expect(replay.outcome).toBe("COMMITTED_REPLAY");
     expect(database.requirementIdentityMigrations.size).toBe(1);
+    expect(database.events).toHaveLength(1);
   });
 });

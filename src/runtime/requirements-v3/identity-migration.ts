@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { BriefV3DocumentSchema, createBriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
 import { mapDocumentToRow, mapRowToDocument, type DocumentRow } from "@/persistence/database/mapping";
@@ -274,7 +274,7 @@ export class RequirementIdentityMigrationService {
     if (project.workflow_state === "AWAITING_DESIGN_SELECTION") {
       transitionWorkflow(project.workflow_state, "AWAITING_BRIEF_APPROVAL");
       updatedProject = await tx.updateProjectState({ id: project.id, expectedState: project.workflow_state, expectedRowVersion: project.row_version, state: "AWAITING_BRIEF_APPROVAL", updatedAt: now });
-      await tx.appendWorkflowEvent({ id: `${id}:workflow`, projectId: project.id, projectVersion: plan.projectVersion, fromState: project.workflow_state, toState: "AWAITING_BRIEF_APPROVAL", actor: input.actor ?? "requirement-identity-migration", reason: "Canonical requirement identities changed; downstream approvals require explicit re-approval.", createdAt: now, idempotencyKey: id });
+      await tx.appendWorkflowEvent({ id: randomUUID(), projectId: project.id, projectVersion: plan.projectVersion, fromState: project.workflow_state, toState: "AWAITING_BRIEF_APPROVAL", actor: input.actor ?? "requirement-identity-migration", reason: "Canonical requirement identities changed; downstream approvals require explicit re-approval.", createdAt: now, idempotencyKey: id });
     }
     const createdAt = now;
     const migration: RequirementIdentityMigrationRow = { migrationId: id, projectId: plan.projectId, projectVersion: plan.projectVersion, planChecksum: plan.planChecksum, previousBriefChecksum: plan.previousBriefChecksum, nextBriefChecksum: plan.nextBriefChecksum, previousPlanningSemanticChecksum: plan.previousPlanningSemanticChecksum, nextPlanningSemanticChecksum: plan.nextPlanningSemanticChecksum, migrationPolicyVersion: REQUIREMENT_IDENTITY_POLICY_VERSION, createdAt };

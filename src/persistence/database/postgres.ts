@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
 import { DomainError } from "@/domain/shared/errors";
 import { readServerEnvironment, requireDatabaseSsl } from "./env";
-import { PersistenceError } from "./errors";
+import { PersistenceError, type PersistenceDiagnostic } from "./errors";
 import { mapRowToDocument, type DocumentRow } from "./mapping";
 import { canonicalBriefChecksumForDocument } from "./brief-revision-v3-contracts";
 import { appendBriefRevisionFailureDiagnostic, normalizeBriefRevisionFailureDiagnostics } from "./brief-revision-failure-diagnostics";
@@ -11,7 +11,25 @@ import { DecisionRecordSchema, type DecisionRecord } from "@/domain/workflow/dec
 import { RequirementIdentityLineageRecordSchema, RequirementIdentityMigrationRecordSchema } from "@/domain/requirements/v3/identity";
 import { stableSerialize } from "@/domain/requirements/v3/serialization";
 
-const safeProviderError = (error: unknown): never => { const providerCode = typeof error === "object" && error && "code" in error && typeof error.code === "string" ? error.code : "unknown"; throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "The database operation failed.", { providerCode }, error); };
+type PersistenceQueryContext = Pick<PersistenceDiagnostic, "stage" | "operation"> & Partial<Pick<PersistenceDiagnostic, "table" | "constraint">>;
+const safeDiagnosticToken = (input: unknown) => { const token = typeof input === "string" ? input.slice(0, 160) : ""; return /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(token) ? token : "unknown"; };
+const queryContext = (text: string): PersistenceQueryContext => {
+  const operation = text.trim().match(/^[A-Za-z]+/)?.[0]?.toLowerCase() ?? "query";
+  const table = text.match(/\b(?:from|into|update|table)\s+([a-z_][a-z0-9_]*)/i)?.[1];
+  return { stage: "database.query", operation, ...(table ? { table } : {}) };
+};
+const safeProviderError = (error: unknown, context: PersistenceQueryContext = { stage: "database", operation: "query" }): never => {
+  const shape = (typeof error === "object" && error !== null ? error : {}) as { code?: unknown; table?: unknown; constraint?: unknown; name?: unknown; constructor?: { name?: unknown } };
+  const diagnostic: PersistenceDiagnostic = {
+    stage: safeDiagnosticToken(context.stage),
+    operation: safeDiagnosticToken(context.operation),
+    sqlState: safeDiagnosticToken(shape.code),
+    table: safeDiagnosticToken(context.table ?? shape.table),
+    constraint: safeDiagnosticToken(context.constraint ?? shape.constraint),
+    errorClass: safeDiagnosticToken(shape.name ?? shape.constructor?.name),
+  };
+  throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "The database operation failed.", { providerCode: diagnostic.sqlState, ...diagnostic }, error, diagnostic);
+};
 const value = <T>(result: { rows: QueryResultRow[] }) => result.rows[0] as T | undefined;
 const isoTimestamp = (value: unknown): string | null => value == null ? null : value instanceof Date ? value.toISOString() : String(value);
 const normalizeProjectRow = (row: ProjectRow) => ({ ...row, row_version: Number(row.row_version) });
@@ -108,7 +126,7 @@ export class PostgresPersistenceDatabase implements PersistenceDatabase {
 
 class PostgresTransaction implements PersistenceTransaction {
   constructor(private readonly db: PoolClient) {}
-  private async query<T extends QueryResultRow = QueryResultRow>(text: string, values: unknown[] = []) { try { return await this.db.query<T>(text, values); } catch (error) { return safeProviderError(error); } }
+  private async query<T extends QueryResultRow = QueryResultRow>(text: string, values: unknown[] = [], context?: PersistenceQueryContext) { try { return await this.db.query<T>(text, values); } catch (error) { return safeProviderError(error, context ?? queryContext(text)); } }
   private async idempotent(operation: string, token: { key: string; payloadHash: string } | undefined, result: unknown) {
     if (!token) return undefined;
     const existing = value<{ payload_hash: string; result: unknown }>(await this.query("SELECT payload_hash, result FROM idempotency_records WHERE operation = $1 AND idempotency_key = $2 FOR UPDATE", [operation, token.key]));
@@ -165,7 +183,7 @@ class PostgresTransaction implements PersistenceTransaction {
   async appendRequirementIdentityMigration(input: RequirementIdentityMigrationRow) { const row = RequirementIdentityMigrationRecordSchema.parse(input); await this.query("INSERT INTO requirement_identity_migrations (migration_id, project_id, project_version, plan_checksum, previous_brief_checksum, next_brief_checksum, previous_planning_semantic_checksum, next_planning_semantic_checksum, migration_policy_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (project_id, project_version, migration_id) DO NOTHING", [row.migrationId, row.projectId, row.projectVersion, row.planChecksum, row.previousBriefChecksum, row.nextBriefChecksum, row.previousPlanningSemanticChecksum, row.nextPlanningSemanticChecksum, row.migrationPolicyVersion, row.createdAt]); const stored = await this.getRequirementIdentityMigration(row.projectId, row.projectVersion, row.migrationId); if (!stored) throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "Requirement identity migration insert returned no row."); if (stableSerialize(stored) !== stableSerialize(row)) throw new PersistenceError("PERSISTENCE_CONFLICT", "Requirement identity migration conflicts with immutable history."); return stored; }
   async appendDecision(projectId: string, version: number, record: DecisionRecord, revisionAttemptId?: string) { const result = value<Record<string, unknown>>(await this.query("INSERT INTO decision_records (id, project_id, project_version, timestamp, actor_type, actor_identifier, category, decision, rationale, affected_documents, requirement_change, user_approval_required, user_approval_status, supersedes_decision_id, revision_attempt_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id, timestamp, actor_type AS \"actorType\", actor_identifier AS \"actorIdentifier\", category, decision, rationale, affected_documents AS \"affectedDocuments\", requirement_change AS \"requirementChange\", user_approval_required AS \"userApprovalRequired\", user_approval_status AS \"userApprovalStatus\", supersedes_decision_id AS \"supersedesDecisionId\"", [record.id, projectId, version, record.timestamp, record.actorType, record.actorIdentifier, record.category, record.decision, record.rationale, JSON.stringify(record.affectedDocuments), record.requirementChange, record.userApprovalRequired, record.userApprovalStatus, record.supersedesDecisionId ?? null, revisionAttemptId ?? null])); if (!result) throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "Decision insert returned no row."); return normalizeDecisionRecord(result); }
   async listDecisions(projectId: string, version: number) { const result = await this.query<Record<string, unknown>>("SELECT id, timestamp, actor_type AS \"actorType\", actor_identifier AS \"actorIdentifier\", category, decision, rationale, affected_documents AS \"affectedDocuments\", requirement_change AS \"requirementChange\", user_approval_required AS \"userApprovalRequired\", user_approval_status AS \"userApprovalStatus\", supersedes_decision_id AS \"supersedesDecisionId\" FROM decision_records WHERE project_id=$1 AND project_version=$2 ORDER BY timestamp, id", [projectId, version]); return result.rows.map(normalizeDecisionRecord); }
-  async appendWorkflowEvent(event: WorkflowEvent) { await this.query("INSERT INTO workflow_events (id, project_id, project_version, from_state, to_state, actor, reason, created_at, idempotency_key, revision_attempt_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)", [event.id, event.projectId, event.projectVersion, event.fromState, event.toState, event.actor, event.reason, event.createdAt, event.idempotencyKey ?? null, event.revisionAttemptId ?? null]); return event; }
+  async appendWorkflowEvent(event: WorkflowEvent) { await this.query("INSERT INTO workflow_events (id, project_id, project_version, from_state, to_state, actor, reason, created_at, idempotency_key, revision_attempt_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)", [event.id, event.projectId, event.projectVersion, event.fromState, event.toState, event.actor, event.reason, event.createdAt, event.idempotencyKey ?? null, event.revisionAttemptId ?? null], { stage: "workflow-event-write", operation: "appendWorkflowEvent", table: "workflow_events" }); return event; }
   async saveCost(record: CostRecord) { await this.query("INSERT INTO cost_records (id, project_id, project_version, role, task_id, provider, model, input_tokens, cached_input_tokens, output_tokens, estimated_cost, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)", [record.id, record.projectId, record.projectVersion, record.role, record.taskId ?? null, record.provider, record.model, record.inputTokens, record.cachedInputTokens, record.outputTokens, record.estimatedCost, record.createdAt]); return record; }
   async reserveOperation(input: { operation: string; key: string; payloadHash: string }): Promise<OperationReservation> {
     const inserted = await this.query("INSERT INTO idempotency_records (operation, idempotency_key, payload_hash, result) VALUES ($1, $2, $3, $4) ON CONFLICT (operation, idempotency_key) DO NOTHING RETURNING operation", [input.operation, input.key, input.payloadHash, { status: "IN_PROGRESS" }]);

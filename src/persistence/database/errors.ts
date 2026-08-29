@@ -8,17 +8,28 @@ export type PersistenceErrorCode =
   | "PERSISTENCE_IMMUTABLE"
   | "PERSISTENCE_UNSUPPORTED";
 
+export type PersistenceDiagnostic = {
+  stage: string;
+  operation: string;
+  sqlState: string;
+  table: string;
+  constraint: string;
+  errorClass: string;
+};
+
 export class PersistenceError extends Error {
   readonly code: PersistenceErrorCode;
   readonly details?: Record<string, string | number | boolean>;
   readonly cause?: unknown;
+  readonly diagnostic?: PersistenceDiagnostic;
 
-  constructor(code: PersistenceErrorCode, message: string, details?: Record<string, string | number | boolean>, cause?: unknown) {
+  constructor(code: PersistenceErrorCode, message: string, details?: Record<string, string | number | boolean>, cause?: unknown, diagnostic?: PersistenceDiagnostic) {
     super(message);
     this.name = "PersistenceError";
     this.code = code;
     this.details = details;
     this.cause = cause;
+    this.diagnostic = diagnostic;
   }
 }
 

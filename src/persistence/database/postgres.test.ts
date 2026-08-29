@@ -199,6 +199,14 @@ describePostgres("Postgres approval persistence round-trip", () => {
     expect(state.events).toHaveLength(0);
   });
 
+  it("reports bounded diagnostics for a database constraint/type failure", async () => {
+    const fixture = await createApprovalFixture(database);
+    await expect(database.transaction((tx) => tx.appendWorkflowEvent({ id: "not-a-uuid", projectId: fixture.projectId, projectVersion: 1, fromState: "CLARIFYING", toState: "AWAITING_DESIGN_SELECTION", actor: "synthetic", reason: "synthetic diagnostic", createdAt: new Date().toISOString() }))).rejects.toMatchObject({
+      code: "PERSISTENCE_PROVIDER_ERROR",
+      diagnostic: { stage: "workflow-event-write", operation: "appendWorkflowEvent", sqlState: "22P02", table: "workflow_events", constraint: "unknown", errorClass: expect.any(String) },
+    });
+  });
+
   it("keeps rationale required at the domain and database contract boundary", () => {
     expect(() => DecisionRecordSchema.parse({ id: randomUUID(), timestamp: new Date().toISOString(), actorType: "user", actorIdentifier: "synthetic", category: "brief-approval", decision: "decision", rationale: "", affectedDocuments: ["brief-v3.json"], requirementChange: false, userApprovalRequired: false, userApprovalStatus: "not-required" })).toThrow();
   });
