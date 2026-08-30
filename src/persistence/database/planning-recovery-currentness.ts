@@ -37,7 +37,7 @@ export function assertPlanningRecoveryProviderAttemptStartCurrentness(input: {
     && project.workflow_state === currentness.workflowState
     && version.projectId === currentness.projectId
     && version.versionNumber === currentness.projectVersion
-    && version.state === currentness.workflowState
+    // Project workflow transitions and project-version lifecycle state are independent.
     && version.rowVersion === currentness.projectVersionRowVersion
     && briefRow.rowVersion === currentness.briefRowVersion
     && briefRow.checksum === currentness.briefDocumentChecksum

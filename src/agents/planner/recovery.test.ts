@@ -7,13 +7,16 @@ import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
 import { FactoryProjectSchema } from "@/domain/project/schema";
 import { createBriefV3Document, BriefV3DocumentSchema } from "@/persistence/database/brief-revision-v3-contracts";
+import { mapRowToDocument } from "@/persistence/database/mapping";
 import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
 import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { buildPlanningPackage } from "./deterministic";
+import { PlanningPackageSchema } from "./contracts";
 import { admitPlanningRefresh, normalizePlanningPackageForHost, validatePlanningRequirementCoverage } from "./refresh-admission";
 import { FakePlannerMemoryPort } from "./memory";
 import { PlanningRecoveryCrash, PlanningRecoveryService, type PlanningRecoveryProvider } from "./recovery";
+import type { PlanningRecoveryProviderAttemptStartCurrentness } from "./recovery-runs";
 import { CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY, planningSemanticChecksumForPolicy } from "./semantic-checksum";
 import { buildPhase7CContractPackage } from "@/domain/contracts/phase7c";
 import { createStaticSourceCurrentnessPort } from "@/runtime/source-head";
@@ -102,12 +105,12 @@ function privacyRequiredBrief() {
   });
 }
 
-async function seeded(input: { currentBrief: CanonicalBriefV3; packageBrief?: CanonicalBriefV3; historyFrom?: CanonicalBriefV3; seedDownstream?: boolean }) {
+async function seeded(input: { currentBrief: CanonicalBriefV3; packageBrief?: CanonicalBriefV3; historyFrom?: CanonicalBriefV3; seedDownstream?: boolean; versionState?: "DRAFT" | "AWAITING_DESIGN_SELECTION" }) {
   const database = new InMemoryPersistenceDatabase();
   const projectId = randomUUID();
   const project = FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: projectId, slug: "synthetic-recovery", originalPrompt: "Synthetic recovery fixture.", currentVersion: 1, workflowState: "AWAITING_DESIGN_SELECTION" });
   await new ProjectRepository(database).create(project);
-  await new ProjectVersionRepository(database).create({ id: randomUUID(), projectId, versionNumber: 1, state: "AWAITING_DESIGN_SELECTION", memoryRootPath: null, requirementsChecksum: canonicalBriefChecksum(input.currentBrief), selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
+  await new ProjectVersionRepository(database).create({ id: randomUUID(), projectId, versionNumber: 1, state: input.versionState ?? "AWAITING_DESIGN_SELECTION", memoryRootPath: null, requirementsChecksum: canonicalBriefChecksum(input.currentBrief), selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
   const briefDocument = createBriefV3Document({ projectId, projectVersion: 1, brief: input.currentBrief, createdAt: timestamp, updatedAt: timestamp });
   await new DocumentRepository(database).save(BriefV3DocumentSchema.parse({ ...briefDocument, approval: { approved: true, approvedAt: timestamp, approvedBy: "synthetic-user", approvedCanonicalChecksum: briefDocument.briefChecksum } }));
   const packageBrief = input.packageBrief ?? input.currentBrief;
@@ -311,6 +314,74 @@ describe("host-owned full Planning recovery", () => {
     const prepared = await service(fixture).prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: "policy" });
     expect(prepared.plan?.currentness.planningSemanticChecksumPolicy).toBe(CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY);
     expect(prepared.providerInput?.contextPolicy).toMatchObject({ lossless: true, omittedSemanticFields: [] });
+  });
+
+  it("allows a DRAFT project version while the project workflow awaits design selection", async () => {
+    const base = brief();
+    const next = brief({ requirements: [...base.requirements, { id: "REQUIREMENT:draft-version-currentness", category: "FEATURE", statement: "Provide the production-shaped currentness fixture.", sourceRefs: ["fixture:draft-version-currentness"] }] });
+    const fixture = await seeded({ currentBrief: next, packageBrief: base, versionState: "DRAFT" });
+    let calls = 0;
+    const recovery = service(fixture, { provider: { planRecovery: async (input) => { calls += 1; return completeRecoveryCandidate(input.plannerInput); } } });
+
+    const result = await recovery.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "draft-version-currentness" });
+
+    expect(result.status).toBe("COMMITTED");
+    expect(calls).toBe(1);
+    const state = await fixture.database.transaction(async (tx) => ({ project: await tx.getProject(fixture.projectId), version: await tx.getVersion(fixture.projectId, 1), run: await tx.getPlanningRecoveryRun(fixture.projectId, 1, "draft-version-currentness") }));
+    expect(state.project?.workflow_state).toBe("AWAITING_DESIGN_SELECTION");
+    expect(state.version?.state).toBe("DRAFT");
+    expect(state.run).toMatchObject({ state: "COMMITTED", providerAttemptCount: 1, terminalOutcome: "COMMITTED" });
+  });
+
+  it("preserves provider-start rejection for every stale certified binding", async () => {
+    type Fixture = Awaited<ReturnType<typeof seeded>>;
+    type DriftCase = {
+      name: string;
+      mutate: (fixture: Fixture, runId: string) => void;
+      currentness?: Partial<PlanningRecoveryProviderAttemptStartCurrentness>;
+      recoveryPlanChecksum?: string;
+    };
+    const cases: DriftCase[] = [
+      { name: "project-row-version", mutate: (fixture) => { const row = fixture.database.projects.get(fixture.projectId)!; fixture.database.projects.set(fixture.projectId, { ...row, row_version: row.row_version + 1 }); } },
+      { name: "version-row-version", mutate: (fixture) => { const key = `${fixture.projectId}:1`; const row = fixture.database.versions.get(key)!; fixture.database.versions.set(key, { ...row, rowVersion: row.rowVersion + 1 }); } },
+      { name: "brief-row-version", mutate: (fixture) => { const key = `${fixture.projectId}:1:brief-v3`; const row = fixture.database.documents.get(key)!; fixture.database.documents.set(key, { ...row, rowVersion: row.rowVersion + 1 }); } },
+      { name: "brief-semantic-checksum", mutate: (fixture) => { const key = `${fixture.projectId}:1:brief-v3`; const row = fixture.database.documents.get(key)!; const brief = BriefV3DocumentSchema.parse(mapRowToDocument(row)); const changedBrief = { ...brief.brief, summary: `${brief.brief.summary} drift` }; const changedChecksum = canonicalBriefChecksum(changedBrief); const changed = BriefV3DocumentSchema.parse({ ...brief, brief: changedBrief, briefChecksum: changedChecksum, approval: { ...brief.approval!, approvedCanonicalChecksum: changedChecksum } }); fixture.database.documents.set(key, { ...row, checksum: checksumPersistedDocument(changed), payload: changed }); } },
+      { name: "brief-document-checksum", mutate: (fixture) => { const key = `${fixture.projectId}:1:brief-v3`; const row = fixture.database.documents.get(key)!; const brief = BriefV3DocumentSchema.parse(mapRowToDocument(row)); const changed = BriefV3DocumentSchema.parse({ ...brief, updatedAt: "2026-08-30T10:00:01.000Z" }); fixture.database.documents.set(key, { ...row, checksum: checksumPersistedDocument(changed), payload: changed }); } },
+      { name: "planning-row-version", mutate: (fixture) => { const key = `${fixture.projectId}:1:planning-package`; const row = fixture.database.documents.get(key)!; fixture.database.documents.set(key, { ...row, rowVersion: row.rowVersion + 1 }); } },
+      { name: "planning-semantic-checksum", mutate: (fixture) => { const key = `${fixture.projectId}:1:planning-package`; const row = fixture.database.documents.get(key)!; const planning = PlanningPackageSchema.parse(mapRowToDocument(row)); const changed = PlanningPackageSchema.parse({ ...planning, productScope: { ...planning.productScope, purpose: `${planning.productScope.purpose} drift` } }); fixture.database.documents.set(key, { ...row, checksum: checksumPersistedDocument(changed), payload: changed }); } },
+      { name: "planning-document-checksum", mutate: (fixture) => { const key = `${fixture.projectId}:1:planning-package`; const row = fixture.database.documents.get(key)!; const planning = PlanningPackageSchema.parse(mapRowToDocument(row)); const changed = PlanningPackageSchema.parse({ ...planning, updatedAt: "2026-08-30T10:00:01.000Z" }); fixture.database.documents.set(key, { ...row, checksum: checksumPersistedDocument(changed), payload: changed }); } },
+      { name: "workflow-state", mutate: (fixture) => { const row = fixture.database.projects.get(fixture.projectId)!; fixture.database.projects.set(fixture.projectId, { ...row, workflow_state: "AWAITING_BRIEF_APPROVAL" }); } },
+      { name: "wrong-project-binding", mutate: () => {}, currentness: { projectId: randomUUID() } },
+      { name: "wrong-version-binding", mutate: () => {}, currentness: { projectVersion: 2 } },
+      { name: "planning-accepted", mutate: (fixture) => { const key = `${fixture.projectId}:1:planning-package`; const row = fixture.database.documents.get(key)!; const planning = PlanningPackageSchema.parse(mapRowToDocument(row)); const changed = PlanningPackageSchema.parse({ ...planning, accepted: true }); fixture.database.documents.set(key, { ...row, checksum: checksumPersistedDocument(changed), payload: changed }); } },
+      { name: "recovery-plan-checksum", mutate: () => {}, recoveryPlanChecksum: "b".repeat(64) },
+      { name: "provider-budget", mutate: (fixture, runId) => { const row = fixture.database.planningRecoveryRuns.get(runId)!; fixture.database.planningRecoveryRuns.set(runId, { ...row, providerBudget: 0 }); } },
+    ];
+
+    for (const [index, drift] of cases.entries()) {
+      const base = brief();
+      const next = brief({ requirements: [...base.requirements, { id: `REQUIREMENT:provider-start-${drift.name}`, category: "FEATURE", statement: `Provide the ${drift.name} currentness fixture.`, sourceRefs: [`fixture:provider-start:${drift.name}`] }] });
+      const fixture = await seeded({ currentBrief: next, packageBrief: base, versionState: "DRAFT" });
+      const operationKey = `provider-start-drift-${index}-${drift.name}`;
+      const recovery = service(fixture, { fault: { hit: (point) => { if (point === "after-claim") throw new PlanningRecoveryCrash(point); } } });
+      const prepared = await recovery.prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey });
+      await expect(recovery.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey })).rejects.toBeInstanceOf(PlanningRecoveryCrash);
+      const claimed = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, operationKey));
+      expect(claimed).toMatchObject({ state: "CLAIMED", providerAttemptCount: 0 });
+      drift.mutate(fixture, claimed!.runId);
+      await expect(fixture.database.transaction((tx) => tx.startPlanningRecoveryProviderAttempt({
+        runId: claimed!.runId,
+        operationKey,
+        owner: claimed!.leaseOwner!,
+        now: timestamp,
+        leaseExpiresAt: claimed!.leaseExpiresAt!,
+        expectedSourceHead: prepared.plan!.sourceHead,
+        recoveryPlanChecksum: drift.recoveryPlanChecksum ?? prepared.plan!.planChecksum,
+        currentness: { ...prepared.plan!.currentness, ...drift.currentness },
+      }))).rejects.toMatchObject({ code: "PERSISTENCE_CONFLICT" });
+      const unchanged = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, operationKey));
+      expect(unchanged).toMatchObject({ state: "CLAIMED", providerAttemptCount: 0 });
+    }
   });
 
   it("durably consumes the sole provider attempt before the call and classifies a lost outcome", async () => {

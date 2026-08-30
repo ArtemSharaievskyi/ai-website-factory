@@ -69,7 +69,7 @@ function completeRecoveryCandidate(input: Parameters<typeof buildPlanningPackage
   };
 }
 
-async function fixture(database: PostgresPersistenceDatabase) {
+async function fixture(database: PostgresPersistenceDatabase, versionState: "DRAFT" | "AWAITING_DESIGN_SELECTION" = "AWAITING_DESIGN_SELECTION") {
   const projectId = randomUUID();
   projectIds.push(projectId);
   const currentBrief = briefFor(projectId, true);
@@ -77,7 +77,7 @@ async function fixture(database: PostgresPersistenceDatabase) {
   const checksum = canonicalBriefChecksum(currentBrief);
   const project = FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: projectId, slug: `postgres-recovery-${projectId.slice(0, 8)}`, origin: "SYNTHETIC", originalPrompt: "Synthetic PostgreSQL Planning recovery fixture.", currentVersion: 1, workflowState: "AWAITING_DESIGN_SELECTION" });
   await new ProjectRepository(database).create(project);
-  await new ProjectVersionRepository(database).create({ id: randomUUID(), projectId, versionNumber: 1, state: "AWAITING_DESIGN_SELECTION", memoryRootPath: null, requirementsChecksum: checksum, selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
+  await new ProjectVersionRepository(database).create({ id: randomUUID(), projectId, versionNumber: 1, state: versionState, memoryRootPath: null, requirementsChecksum: checksum, selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
   const briefDocument = createBriefV3Document({ projectId, projectVersion: 1, brief: currentBrief, createdAt: timestamp, updatedAt: timestamp });
   await new DocumentRepository(database).save(BriefV3DocumentSchema.parse({ ...briefDocument, approval: { approved: true, approvedAt: timestamp, approvedBy: "synthetic-postgres-user", approvedCanonicalChecksum: checksum } }));
   const baseline = normalizePlanningPackageForHost({ candidate: buildPlanningPackage(plannerInput(projectId, baseBrief)), projectId, projectVersion: 1, approvedBriefChecksum: checksum, canonicalBrief: currentBrief, timestamp });
@@ -150,6 +150,21 @@ describePostgres("Planning recovery real PostgreSQL certification", () => {
     expect(state.architecture).toBeNull();
     expect(state.phase7c).toBeNull();
     expect(memory.documents.get(`${value.projectId}:1`)).toEqual(expect.objectContaining({ "planning-package.json": result.package }));
+  });
+
+  it("allows a DRAFT project version while the project workflow awaits design selection", async () => {
+    const value = await fixture(database, "DRAFT");
+    let calls = 0;
+    const service = new PlanningRecoveryService({ database, memory: new FakePlannerMemoryPort(), provider: { planRecovery: async (input) => { calls += 1; return completeRecoveryCandidate(input.plannerInput); } }, source: createStaticSourceCurrentnessPort(TEST_SOURCE_HEAD), hostRecoveryEnabled: true, now: () => timestamp });
+
+    const result = await service.recover({ projectId: value.projectId, projectVersion: 1, operationKey: "postgres-draft-version" });
+
+    expect(result.status).toBe("COMMITTED");
+    expect(calls).toBe(1);
+    const state = await database.transaction(async (tx) => ({ project: await tx.getProject(value.projectId), version: await tx.getVersion(value.projectId, 1), run: await tx.getPlanningRecoveryRun(value.projectId, 1, "postgres-draft-version") }));
+    expect(state.project).toMatchObject({ row_version: 1, workflow_state: "AWAITING_DESIGN_SELECTION" });
+    expect(state.version).toMatchObject({ rowVersion: 1, state: "DRAFT" });
+    expect(state.run).toMatchObject({ state: "COMMITTED", providerAttemptCount: 1, terminalOutcome: "COMMITTED" });
   });
 
   it("rolls back the real PostgreSQL package and evidence writes after injected failure", async () => {
