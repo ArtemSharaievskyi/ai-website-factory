@@ -64,6 +64,7 @@ import {
 } from "@/persistence/database/repositories";
 import type {
   PersistenceDatabase,
+  PersistenceTransaction,
   ProjectRow,
   ProjectVersionRow,
 } from "@/persistence/database/types";
@@ -263,7 +264,7 @@ export type PlanningRecoveryResult = {
   evidence: PlanningRecoveryEvidence;
 };
 
-export type PlanningRecoveryFaultPoint = "before-run-creation" | "after-run-creation" | "after-provider-call-started" | "after-provider-return-before-result" | "after-provider-result" | "after-admission-started" | "after-admission-passed" | "after-persistence-started" | "after-package-write" | "after-evidence-write" | "before-db-commit" | "after-canonical-commit-before-run-terminal";
+export type PlanningRecoveryFaultPoint = "before-run-creation" | "after-run-creation" | "after-claim" | "after-source-before-attempt" | "after-provider-call-started" | "before-provider-call" | "after-provider-return-before-result" | "after-provider-result" | "after-admission-started" | "after-admission-passed" | "after-persistence-started" | "after-package-write" | "after-evidence-write" | "before-db-commit" | "after-canonical-commit-before-run-terminal";
 export type PlanningRecoveryFaultInjector = { hit(point: PlanningRecoveryFaultPoint): void | Promise<void> };
 
 export class PlanningRecoveryError extends Error {
@@ -725,6 +726,14 @@ export class PlanningRecoveryService {
     });
   }
 
+  private async assertProviderInvocationReady(run: PlanningRecoveryRunRow, plan: PlanningRecoveryPlan, owner: string) {
+    await this.dependencies.database.transaction(async (tx) => {
+      const current = await tx.getPlanningRecoveryRun(plan.projectId, plan.projectVersion, run.operationKey);
+      if (!current || current.state !== "PROVIDER_CALL_STARTED" || current.leaseOwner !== owner || !isLeaseActive(current, this.now()) || current.providerAttemptCount !== 1) throw new PlanningRecoveryError("RECOVERY_RUN_LEASE_STALE");
+      assertRecoveryRunSourceBinding(current, plan);
+    });
+  }
+
   private async persistRun(input: { run: PlanningRecoveryRunRow; from: PlanningRecoveryRunRow["state"]; to: PlanningRecoveryRunRow["state"]; owner?: string; patch?: PlanningRecoveryRunTransition["patch"] }) {
     return this.dependencies.database.transaction((tx) => tx.transitionPlanningRecoveryRun({ runId: input.run.runId, operationKey: input.run.operationKey, from: input.from, to: input.to, now: this.now(), ...(input.owner ? { owner: input.owner } : {}), ...(input.patch ? { patch: input.patch } : {}) }));
   }
@@ -914,10 +923,45 @@ export class PlanningRecoveryService {
       const reconciled = await this.reconcileCommitted(run, owner);
       if (reconciled) return reconciled;
     }
-    let candidate: PlanningPackage;
-    if (claim.outcome === "PROVIDER_STARTED") {
-      if (!providerInput) throw new PlanningRecoveryError("RECOVERY_PROVIDER_INPUT_MISSING");
+    let providerStarted = false;
+    const claimedForProvider = claim.outcome === "CLAIMED" || (claim.outcome === "RESUMED" && run.state === "CLAIMED");
+    if (claimedForProvider) {
+      await this.dependencies.fault?.hit("after-claim");
+      let current: Awaited<ReturnType<PlanningRecoveryService["readCanonicalState"]>>;
+      try {
+        await this.currentSource(plan.sourceHead);
+        current = await this.readCanonicalState(plan);
+        providerInput ??= buildProviderInput({ plan, brief: current.brief, compatibility: current.compatibility, project: current.project, version: current.version, planning: current.planning, planningRow: current.planningRow, operationKey: input.operationKey });
+      } catch (error) {
+        const currentnessError = error instanceof PlanningRecoveryError ? error : new PlanningRecoveryError("RECOVERY_CURRENTNESS_STALE");
+        await this.markRunTerminal(run, "CURRENTNESS_FAILED", owner, currentnessError, "currentness");
+        throw currentnessError;
+      }
+      await this.dependencies.fault?.hit("after-source-before-attempt");
+      let started: Awaited<ReturnType<PersistenceTransaction["startPlanningRecoveryProviderAttempt"]>>;
+      try {
+        started = await this.dependencies.database.transaction((tx) => tx.startPlanningRecoveryProviderAttempt({ runId: run!.runId, operationKey: input.operationKey, owner, now: this.now(), leaseExpiresAt: run!.leaseExpiresAt!, expectedSourceHead: plan.sourceHead, recoveryPlanChecksum: plan.planChecksum, currentness: plan.currentness }));
+      } catch (error) {
+        const currentnessError = error instanceof PlanningRecoveryError ? error : new PlanningRecoveryError("RECOVERY_CURRENTNESS_STALE");
+        await this.markRunTerminal(run, "CURRENTNESS_FAILED", owner, currentnessError, "currentness");
+        throw currentnessError;
+      }
+      run = started.row;
+      providerStarted = true;
       await this.dependencies.fault?.hit("after-provider-call-started");
+      try {
+        await this.assertProviderInvocationReady(run, plan, owner);
+        await this.currentSource(plan.sourceHead);
+      } catch (error) {
+        const currentnessError = error instanceof PlanningRecoveryError ? error : new PlanningRecoveryError("SOURCE_CURRENTNESS_FAILED");
+        await this.markRunTerminal(run, "CURRENTNESS_FAILED", owner, currentnessError, "currentness");
+        throw currentnessError;
+      }
+      await this.dependencies.fault?.hit("before-provider-call");
+    }
+    let candidate: PlanningPackage;
+    if (providerStarted) {
+      if (!providerInput) throw new PlanningRecoveryError("RECOVERY_PROVIDER_INPUT_MISSING");
       let returned: unknown;
       try {
         if (!this.dependencies.provider.planRecovery) throw new PlanningRecoveryError("PROVIDER_RECOVERY_CAPABILITY_UNAVAILABLE");

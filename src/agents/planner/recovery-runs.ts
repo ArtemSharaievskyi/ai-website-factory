@@ -31,6 +31,7 @@ export const PLANNING_RECOVERY_RUN_RESULT_MAX_BYTES = 512_000;
 
 export const PlanningRecoveryRunStateSchema = z.enum([
   "CREATED",
+  "CLAIMED",
   "PROVIDER_CALL_STARTED",
   "PROVIDER_RETURNED",
   "ADMISSION_STARTED",
@@ -139,8 +140,9 @@ export const PLANNING_RECOVERY_RUN_TERMINAL_STATES = new Set<PlanningRecoveryRun
 ]);
 
 const ALLOWED_TRANSITIONS: Record<PlanningRecoveryRunState, readonly PlanningRecoveryRunState[]> = {
-  CREATED: ["PROVIDER_CALL_STARTED", "CURRENTNESS_FAILED", "CANCELLED", "ABANDONED"],
-  PROVIDER_CALL_STARTED: ["PROVIDER_RETURNED", "PROVIDER_FAILED", "PROVIDER_SEMANTIC_FAILED", "OUTCOME_INDETERMINATE"],
+  CREATED: ["CLAIMED", "CURRENTNESS_FAILED", "CANCELLED", "ABANDONED"],
+  CLAIMED: ["PROVIDER_CALL_STARTED", "CURRENTNESS_FAILED", "CANCELLED", "ABANDONED"],
+  PROVIDER_CALL_STARTED: ["PROVIDER_RETURNED", "PROVIDER_FAILED", "PROVIDER_SEMANTIC_FAILED", "CURRENTNESS_FAILED", "OUTCOME_INDETERMINATE"],
   PROVIDER_RETURNED: ["ADMISSION_STARTED", "ADMISSION_FAILED", "CURRENTNESS_FAILED"],
   ADMISSION_STARTED: ["ADMISSION_PASSED", "ADMISSION_FAILED", "CURRENTNESS_FAILED"],
   ADMISSION_PASSED: ["PERSISTENCE_STARTED", "CURRENTNESS_FAILED", "PERSISTENCE_FAILED"],
@@ -166,7 +168,7 @@ export function assertPlanningRecoveryRunTransition(from: PlanningRecoveryRunSta
 }
 
 export type PlanningRecoveryRunClaimOutcome =
-  | "PROVIDER_STARTED"
+  | "CLAIMED"
   | "RESUMED"
   | "RUN_ALREADY_ACTIVE"
   | "PROVIDER_ATTEMPT_ALREADY_CONSUMED"
@@ -175,6 +177,38 @@ export type PlanningRecoveryRunClaimOutcome =
 
 export type PlanningRecoveryRunClaim = {
   outcome: PlanningRecoveryRunClaimOutcome;
+  row: PlanningRecoveryRunRow;
+};
+
+export type PlanningRecoveryProviderAttemptStartCurrentness = {
+  projectId: string;
+  projectVersion: number;
+  projectRowVersion: number;
+  projectVersionRowVersion: number;
+  workflowState: "AWAITING_DESIGN_SELECTION";
+  briefRowVersion: number;
+  briefSemanticChecksum: string;
+  briefDocumentChecksum: string;
+  planningRowVersion: number;
+  planningSemanticChecksum: string;
+  planningDocumentChecksum: string;
+  planningApprovedBriefChecksum: string;
+  planningAccepted: false;
+};
+
+export type PlanningRecoveryProviderAttemptStartInput = {
+  runId: string;
+  operationKey: string;
+  owner: string;
+  now: string;
+  leaseExpiresAt: string;
+  expectedSourceHead: string;
+  recoveryPlanChecksum: string;
+  currentness: PlanningRecoveryProviderAttemptStartCurrentness;
+};
+
+export type PlanningRecoveryProviderAttemptStart = {
+  outcome: "PROVIDER_STARTED";
   row: PlanningRecoveryRunRow;
 };
 

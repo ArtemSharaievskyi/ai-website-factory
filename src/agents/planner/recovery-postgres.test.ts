@@ -13,7 +13,7 @@ import { createPostgresPool, PostgresPersistenceDatabase } from "@/persistence/d
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { FakePlannerMemoryPort } from "./memory";
 import { buildPlanningPackage } from "./deterministic";
-import { PlanningRecoveryService, type PlanningRecoveryProvider } from "./recovery";
+import { PlanningRecoveryCrash, PlanningRecoveryService, type PlanningRecoveryProvider } from "./recovery";
 import { normalizePlanningPackageForHost } from "./refresh-admission";
 import { createStaticSourceCurrentnessPort } from "@/runtime/source-head";
 
@@ -203,6 +203,32 @@ describePostgres("Planning recovery real PostgreSQL certification", () => {
     expect(calls).toBe(1);
     const run = await database.transaction((tx) => tx.getPlanningRecoveryRun(value.projectId, 1, "postgres-durable-result"));
     expect(run).toMatchObject({ state: "COMMITTED", providerAttemptCount: 1, projectMemoryStatus: "SYNCED" });
+  });
+
+  it("keeps PostgreSQL claim and provider-attempt start as separate durable operations", async () => {
+    const value = await fixture(database);
+    let calls = 0;
+    const service = new PlanningRecoveryService({
+      database,
+      memory: new FakePlannerMemoryPort(),
+      provider: { planRecovery: async (input) => { calls += 1; return completeRecoveryCandidate(input.plannerInput); } },
+      source: createStaticSourceCurrentnessPort(TEST_SOURCE_HEAD),
+      hostRecoveryEnabled: true,
+      now: () => timestamp,
+      fault: { hit: (point) => { if (point === "after-claim") throw new PlanningRecoveryCrash(point); } },
+    });
+    const prepared = await service.prepare({ projectId: value.projectId, projectVersion: 1, operationKey: "postgres-claim-start" });
+    await expect(service.recover({ projectId: value.projectId, projectVersion: 1, operationKey: "postgres-claim-start" })).rejects.toBeInstanceOf(PlanningRecoveryCrash);
+    expect(calls).toBe(0);
+    const claimed = await database.transaction((tx) => tx.getPlanningRecoveryRun(value.projectId, 1, "postgres-claim-start"));
+    expect(claimed).toMatchObject({ state: "CLAIMED", providerAttemptCount: 0, terminalOutcome: null, leaseOwner: expect.any(String), leaseExpiresAt: expect.any(String) });
+    const startInput = { runId: claimed!.runId, operationKey: claimed!.operationKey, owner: claimed!.leaseOwner!, now: timestamp, leaseExpiresAt: claimed!.leaseExpiresAt!, expectedSourceHead: prepared.plan!.sourceHead, recoveryPlanChecksum: prepared.plan!.planChecksum, currentness: prepared.plan!.currentness };
+    const started = await database.transaction((tx) => tx.startPlanningRecoveryProviderAttempt(startInput));
+    expect(started.row).toMatchObject({ state: "PROVIDER_CALL_STARTED", providerAttemptCount: 1 });
+    await expect(database.transaction((tx) => tx.startPlanningRecoveryProviderAttempt(startInput))).rejects.toMatchObject({ code: "PERSISTENCE_CONFLICT" });
+    const stillStarted = await database.transaction((tx) => tx.getPlanningRecoveryRun(value.projectId, 1, "postgres-claim-start"));
+    expect(stillStarted).toMatchObject({ state: "PROVIDER_CALL_STARTED", providerAttemptCount: 1 });
+    expect(calls).toBe(0);
   });
 });
 

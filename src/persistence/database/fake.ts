@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { PersistenceError } from "./errors";
 import { appendBriefRevisionFailureDiagnostic } from "./brief-revision-failure-diagnostics";
-import { PlanningRecoveryRunSchema, assertPlanningRecoveryRunTransition, hasPlanningRecoveryRunImmutablePatch, hasValidNewPlanningRecoveryRunSourceBinding, isLeaseActive, isPlanningRecoveryRunTerminal, terminalOutcomeFor, type PlanningRecoveryRunClaim, type PlanningRecoveryRunRow, type PlanningRecoveryRunTransition } from "@/agents/planner/recovery-runs";
+import { PlanningRecoveryRunSchema, assertPlanningRecoveryRunTransition, hasPlanningRecoveryRunImmutablePatch, hasValidNewPlanningRecoveryRunSourceBinding, isLeaseActive, isPlanningRecoveryRunTerminal, terminalOutcomeFor, type PlanningRecoveryProviderAttemptStart, type PlanningRecoveryProviderAttemptStartInput, type PlanningRecoveryRunClaim, type PlanningRecoveryRunRow, type PlanningRecoveryRunTransition } from "@/agents/planner/recovery-runs";
 import { checksumPersistedDocument } from "./serialization";
 import type { BriefRevisionAtomicCommitResult, BriefRevisionAttemptClaim, BriefRevisionAttemptRow, BriefRevisionAttemptStatus, BriefRevisionAttemptTransition, BriefRevisionProjectionRow, PersistenceDatabase, PersistenceTransaction, ProjectRow, ProjectAssetRow, ProjectVersionRow, WorkflowEvent, CostRecord, IdempotencyRecord, PlanningRecoveryEvidenceRow, RequirementIdentityLineageRow, RequirementIdentityMigrationRow } from "./types";
 import { mapRowToDocument, type DocumentRow } from "./mapping";
 import { canonicalBriefChecksumForDocument } from "./brief-revision-v3-contracts";
+import { assertPlanningRecoveryProviderAttemptStartCurrentness } from "./planning-recovery-currentness";
 import type { DecisionRecord } from "@/domain/workflow/decision";
 import { RequirementIdentityLineageRecordSchema, RequirementIdentityMigrationRecordSchema } from "@/domain/requirements/v3/identity";
 import { stableSerialize } from "@/domain/requirements/v3/serialization";
@@ -201,8 +202,13 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
         if (isPlanningRecoveryRunTerminal(row.state)) return { outcome: "TERMINAL_FAILURE_REPLAY", row: copy(row) };
         if (row.state === "CREATED") {
           if (row.providerAttemptCount >= row.providerBudget) return { outcome: "PROVIDER_ATTEMPT_ALREADY_CONSUMED", row: copy(row) };
-          const next = PlanningRecoveryRunSchema.parse({ ...row, state: "PROVIDER_CALL_STARTED", providerAttemptCount: row.providerAttemptCount + 1, leaseOwner: input.owner, leaseExpiresAt: input.leaseExpiresAt, updatedAt: input.now });
-          return { outcome: "PROVIDER_STARTED", row: savePlanningRecoveryRun(next, row.state) };
+          const next = PlanningRecoveryRunSchema.parse({ ...row, state: "CLAIMED", leaseOwner: input.owner, leaseExpiresAt: input.leaseExpiresAt, updatedAt: input.now });
+          return { outcome: "CLAIMED", row: savePlanningRecoveryRun(next, row.state) };
+        }
+        if (row.state === "CLAIMED") {
+          if (isLeaseActive(row, input.now)) return { outcome: "RUN_ALREADY_ACTIVE", row: copy(row) };
+          const next = PlanningRecoveryRunSchema.parse({ ...row, leaseOwner: input.owner, leaseExpiresAt: input.leaseExpiresAt, updatedAt: input.now });
+          return { outcome: "RESUMED", row: savePlanningRecoveryRun(next, row.state) };
         }
         if (row.state === "PROVIDER_CALL_STARTED") {
           if (isLeaseActive(row, input.now)) return { outcome: "RUN_ALREADY_ACTIVE", row: copy(row) };
@@ -213,6 +219,27 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
         if (isLeaseActive(row, input.now)) return { outcome: "RUN_ALREADY_ACTIVE", row: copy(row) };
         const next = PlanningRecoveryRunSchema.parse({ ...row, leaseOwner: input.owner, leaseExpiresAt: input.leaseExpiresAt, updatedAt: input.now });
         return { outcome: "RESUMED", row: savePlanningRecoveryRun(next, row.state) };
+      },
+      startPlanningRecoveryProviderAttempt: async (input: PlanningRecoveryProviderAttemptStartInput): Promise<PlanningRecoveryProviderAttemptStart> => {
+        const row = this.planningRecoveryRuns.get(input.runId);
+        if (!row || row.operationKey !== input.operationKey) throw new PersistenceError("PERSISTENCE_NOT_FOUND", "Planning recovery run was not found.");
+        if (row.state !== "CLAIMED" || row.leaseOwner !== input.owner || row.leaseExpiresAt !== input.leaseExpiresAt || !isLeaseActive(row, input.now) || row.providerAttemptCount !== 0 || row.providerBudget < 1) {
+          throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery provider attempt cannot start from the claimed run state.");
+        }
+        const project = this.projects.get(input.currentness.projectId);
+        const version = this.versions.get(`${input.currentness.projectId}:${input.currentness.projectVersion}`);
+        const briefRow = this.documents.get(`${input.currentness.projectId}:${input.currentness.projectVersion}:brief-v3`);
+        const planningRow = this.documents.get(`${input.currentness.projectId}:${input.currentness.projectVersion}:planning-package`);
+        if (!project || !version || !briefRow || !planningRow) throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery canonical currentness is unavailable.");
+        try {
+          assertPlanningRecoveryProviderAttemptStartCurrentness({ run: row, currentness: input.currentness, expectedSourceHead: input.expectedSourceHead, recoveryPlanChecksum: input.recoveryPlanChecksum, project, version, briefRow, planningRow });
+        } catch (error) {
+          if (error instanceof PersistenceError) throw error;
+          throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery canonical currentness is stale.");
+        }
+        assertPlanningRecoveryRunTransition(row.state, "PROVIDER_CALL_STARTED");
+        const next = PlanningRecoveryRunSchema.parse({ ...row, state: "PROVIDER_CALL_STARTED", providerAttemptCount: 1, updatedAt: input.now });
+        return { outcome: "PROVIDER_STARTED", row: savePlanningRecoveryRun(next, row.state) };
       },
       transitionPlanningRecoveryRun: async (input: PlanningRecoveryRunTransition) => {
         const current = this.planningRecoveryRuns.get(input.runId);

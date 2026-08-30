@@ -493,6 +493,115 @@ describe("host-owned full Planning recovery", () => {
     expect(failed?.diagnosticSummary?.totalBlockers).toBeGreaterThan(64);
   });
 
+  it("A claims a run without consuming provider budget and resumes after lease expiry", async () => {
+    const base = brief();
+    const next = brief({ requirements: [...base.requirements, { id: "REQUIREMENT:claim-a", category: "FEATURE", statement: "Provide the claim-only recovery fixture.", sourceRefs: ["fixture:claim-a"] }] });
+    const fixture = await seeded({ currentBrief: next, packageBrief: base });
+    const first = service(fixture, { fault: { hit: (point) => { if (point === "after-claim") throw new PlanningRecoveryCrash(point); } } });
+    await expect(first.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "claim-a" })).rejects.toBeInstanceOf(PlanningRecoveryCrash);
+    const claimed = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "claim-a"));
+    expect(claimed).toMatchObject({ state: "CLAIMED", providerAttemptCount: 0, providerResult: null, terminalOutcome: null, leaseOwner: expect.any(String), leaseExpiresAt: expect.any(String) });
+
+    let calls = 0;
+    const resumed = service(fixture, { now: () => "2026-08-30T10:16:00.000Z", provider: { planRecovery: async (input) => { calls += 1; return completeRecoveryCandidate(input.plannerInput); } } });
+    await expect(resumed.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "claim-a" })).resolves.toMatchObject({ status: "COMMITTED" });
+    expect(calls).toBe(1);
+    const committed = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "claim-a"));
+    expect(committed).toMatchObject({ state: "COMMITTED", providerAttemptCount: 1, terminalOutcome: "COMMITTED" });
+  });
+
+  it("B terminalizes a source race after claim without consuming provider budget", async () => {
+    const base = brief();
+    const next = brief({ requirements: [...base.requirements, { id: "REQUIREMENT:claim-b", category: "FEATURE", statement: "Provide the pre-attempt race fixture.", sourceRefs: ["fixture:claim-b"] }] });
+    const fixture = await seeded({ currentBrief: next, packageBrief: base });
+    const heads = [TEST_SOURCE_HEAD, TEST_SOURCE_HEAD, TEST_SOURCE_HEAD, "b".repeat(40)];
+    let calls = 0;
+    const recovery = service(fixture, { source: { read: async () => ({ head: heads.shift() ?? "b".repeat(40), trackedWorktreeClean: true }) }, provider: { planRecovery: async (input) => { calls += 1; return completeRecoveryCandidate(input.plannerInput); } } });
+    await expect(recovery.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "claim-b" })).rejects.toMatchObject({ code: "SOURCE_HEAD_MISMATCH" });
+    expect(calls).toBe(0);
+    const run = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "claim-b"));
+    expect(run).toMatchObject({ state: "CURRENTNESS_FAILED", providerAttemptCount: 0, terminalOutcome: "CURRENTNESS_FAILED" });
+  });
+
+  it("C terminalizes a source race after atomic provider-attempt start without calling the provider", async () => {
+    const base = brief();
+    const next = brief({ requirements: [...base.requirements, { id: "REQUIREMENT:claim-c", category: "FEATURE", statement: "Provide the post-attempt race fixture.", sourceRefs: ["fixture:claim-c"] }] });
+    const fixture = await seeded({ currentBrief: next, packageBrief: base });
+    const heads = [TEST_SOURCE_HEAD, TEST_SOURCE_HEAD, TEST_SOURCE_HEAD, TEST_SOURCE_HEAD, "b".repeat(40)];
+    let calls = 0;
+    const recovery = service(fixture, { source: { read: async () => ({ head: heads.shift() ?? "b".repeat(40), trackedWorktreeClean: true }) }, provider: { planRecovery: async (input) => { calls += 1; return completeRecoveryCandidate(input.plannerInput); } } });
+    await expect(recovery.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "claim-c" })).rejects.toMatchObject({ code: "SOURCE_HEAD_MISMATCH" });
+    expect(calls).toBe(0);
+    const run = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "claim-c"));
+    expect(run).toMatchObject({ state: "CURRENTNESS_FAILED", providerAttemptCount: 1, terminalOutcome: "CURRENTNESS_FAILED" });
+  });
+
+  it.each([
+    ["after-source-before-attempt", "CLAIMED", 0],
+    ["after-provider-call-started", "PROVIDER_CALL_STARTED", 1],
+    ["before-provider-call", "PROVIDER_CALL_STARTED", 1],
+  ] as const)("crash %s leaves the durable provider boundary with no duplicate call", async (point, expectedState, expectedAttemptCount) => {
+    const base = brief();
+    const next = brief({ requirements: [...base.requirements, { id: `REQUIREMENT:crash-${point}`, category: "FEATURE", statement: `Provide the ${point} fixture.`, sourceRefs: [`fixture:${point}`] }] });
+    const fixture = await seeded({ currentBrief: next, packageBrief: base });
+    let calls = 0;
+    const recovery = service(fixture, { provider: { planRecovery: async (input) => { calls += 1; return completeRecoveryCandidate(input.plannerInput); } }, fault: { hit: (candidatePoint) => { if (candidatePoint === point) throw new PlanningRecoveryCrash(candidatePoint); } } });
+    await expect(recovery.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: `crash-${point}` })).rejects.toBeInstanceOf(PlanningRecoveryCrash);
+    expect(calls).toBe(0);
+    const run = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, `crash-${point}`));
+    expect(run).toMatchObject({ state: expectedState, providerAttemptCount: expectedAttemptCount, terminalOutcome: null });
+  });
+
+  it("E preserves the conservative consumed-attempt outcome after provider invocation", async () => {
+    const base = brief();
+    const next = brief({ requirements: [...base.requirements, { id: "REQUIREMENT:crash-e", category: "FEATURE", statement: "Provide the post-provider crash fixture.", sourceRefs: ["fixture:crash-e"] }] });
+    const fixture = await seeded({ currentBrief: next, packageBrief: base });
+    let now = timestamp;
+    let calls = 0;
+    const first = service(fixture, { provider: { planRecovery: async (input) => { calls += 1; return completeRecoveryCandidate(input.plannerInput); } }, fault: { hit: (point) => { if (point === "after-provider-return-before-result") throw new PlanningRecoveryCrash(point); } } });
+    await expect(first.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "crash-e" })).rejects.toBeInstanceOf(PlanningRecoveryCrash);
+    expect(calls).toBe(1);
+    const interrupted = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "crash-e"));
+    expect(interrupted).toMatchObject({ state: "PROVIDER_CALL_STARTED", providerAttemptCount: 1, providerResult: null });
+    now = "2026-08-30T10:16:00.000Z";
+    const resumed = service(fixture, { now: () => now, provider: { planRecovery: async () => { calls += 1; throw new Error("provider-retry-forbidden"); } } });
+    await expect(resumed.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "crash-e" })).rejects.toMatchObject({ code: "PROVIDER_ATTEMPT_ALREADY_CONSUMED" });
+    expect(calls).toBe(1);
+    const terminal = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "crash-e"));
+    expect(terminal).toMatchObject({ state: "OUTCOME_INDETERMINATE", terminalOutcome: "OUTCOME_INDETERMINATE", providerAttemptCount: 1 });
+  });
+
+  it("does not increment or replay an already-started provider attempt", async () => {
+    const base = brief();
+    const next = brief({ requirements: [...base.requirements, { id: "REQUIREMENT:start-idempotency", category: "FEATURE", statement: "Provide the provider-start idempotency fixture.", sourceRefs: ["fixture:start-idempotency"] }] });
+    const fixture = await seeded({ currentBrief: next, packageBrief: base });
+    const recovery = service(fixture, { fault: { hit: (point) => { if (point === "after-claim") throw new PlanningRecoveryCrash(point); } } });
+    const prepared = await recovery.prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: "start-idempotency" });
+    await expect(recovery.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "start-idempotency" })).rejects.toBeInstanceOf(PlanningRecoveryCrash);
+    const claimed = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "start-idempotency"));
+    const startInput = { runId: claimed!.runId, operationKey: claimed!.operationKey, owner: claimed!.leaseOwner!, now: timestamp, leaseExpiresAt: claimed!.leaseExpiresAt!, expectedSourceHead: prepared.plan!.sourceHead, recoveryPlanChecksum: prepared.plan!.planChecksum, currentness: prepared.plan!.currentness };
+    const started = await fixture.database.transaction((tx) => tx.startPlanningRecoveryProviderAttempt(startInput));
+    expect(started.row).toMatchObject({ state: "PROVIDER_CALL_STARTED", providerAttemptCount: 1 });
+    await expect(fixture.database.transaction((tx) => tx.startPlanningRecoveryProviderAttempt(startInput))).rejects.toMatchObject({ code: "PERSISTENCE_CONFLICT" });
+    const stillStarted = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "start-idempotency"));
+    expect(stillStarted).toMatchObject({ state: "PROVIDER_CALL_STARTED", providerAttemptCount: 1 });
+  });
+
+  it("rejects canonical currentness drift inside the atomic provider-attempt start", async () => {
+    const base = brief();
+    const next = brief({ requirements: [...base.requirements, { id: "REQUIREMENT:start-currentness", category: "FEATURE", statement: "Provide the provider-start currentness fixture.", sourceRefs: ["fixture:start-currentness"] }] });
+    const fixture = await seeded({ currentBrief: next, packageBrief: base });
+    const recovery = service(fixture, { fault: { hit: (point) => { if (point === "after-claim") throw new PlanningRecoveryCrash(point); } } });
+    const prepared = await recovery.prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: "start-currentness" });
+    await expect(recovery.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "start-currentness" })).rejects.toBeInstanceOf(PlanningRecoveryCrash);
+    const claimed = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "start-currentness"));
+    const changed = normalizePlanningPackageForHost({ candidate: completeRecoveryCandidate(plannerInput(fixture.projectId, next)), projectId: fixture.projectId, projectVersion: 1, approvedBriefChecksum: canonicalBriefChecksum(next), canonicalBrief: next, timestamp: "2026-08-30T10:00:01.000Z" });
+    await new DocumentRepository(fixture.database).save(changed);
+    await expect(fixture.database.transaction((tx) => tx.startPlanningRecoveryProviderAttempt({ runId: claimed!.runId, operationKey: claimed!.operationKey, owner: claimed!.leaseOwner!, now: timestamp, leaseExpiresAt: claimed!.leaseExpiresAt!, expectedSourceHead: prepared.plan!.sourceHead, recoveryPlanChecksum: prepared.plan!.planChecksum, currentness: prepared.plan!.currentness }))).rejects.toMatchObject({ code: "PERSISTENCE_CONFLICT" });
+    const stillClaimed = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "start-currentness"));
+    expect(stillClaimed).toMatchObject({ state: "CLAIMED", providerAttemptCount: 0, terminalOutcome: null });
+  });
+
   it("S1 binds PREPARE and execution to the same source HEAD and changes the plan checksum for another HEAD", async () => {
     const base = brief();
     const next = brief({ requirements: [...base.requirements, { id: "REQUIREMENT:source-s1", category: "FEATURE", statement: "Provide the source binding fixture.", sourceRefs: ["fixture:source-s1"] }] });

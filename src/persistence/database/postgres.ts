@@ -10,7 +10,8 @@ import type { BriefRevisionAtomicCommitInput, BriefRevisionAtomicCommitResult, B
 import { DecisionRecordSchema, type DecisionRecord } from "@/domain/workflow/decision";
 import { RequirementIdentityLineageRecordSchema, RequirementIdentityMigrationRecordSchema } from "@/domain/requirements/v3/identity";
 import { stableSerialize } from "@/domain/requirements/v3/serialization";
-import { PlanningRecoveryRunSchema, assertPlanningRecoveryRunTransition, hasPlanningRecoveryRunImmutablePatch, hasValidNewPlanningRecoveryRunSourceBinding, isLeaseActive, isPlanningRecoveryRunTerminal, terminalOutcomeFor, type PlanningRecoveryRunClaim, type PlanningRecoveryRunRow, type PlanningRecoveryRunTransition } from "@/agents/planner/recovery-runs";
+import { PlanningRecoveryRunSchema, assertPlanningRecoveryRunTransition, hasPlanningRecoveryRunImmutablePatch, hasValidNewPlanningRecoveryRunSourceBinding, isLeaseActive, isPlanningRecoveryRunTerminal, terminalOutcomeFor, type PlanningRecoveryProviderAttemptStart, type PlanningRecoveryProviderAttemptStartInput, type PlanningRecoveryRunClaim, type PlanningRecoveryRunRow, type PlanningRecoveryRunTransition } from "@/agents/planner/recovery-runs";
+import { assertPlanningRecoveryProviderAttemptStartCurrentness } from "./planning-recovery-currentness";
 
 type PersistenceQueryContext = Pick<PersistenceDiagnostic, "stage" | "operation"> & Partial<Pick<PersistenceDiagnostic, "table" | "constraint">>;
 const safeDiagnosticToken = (input: unknown) => { const token = typeof input === "string" ? input.slice(0, 160) : ""; return /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(token) ? token : "unknown"; };
@@ -393,8 +394,13 @@ class PostgresTransaction implements PersistenceTransaction {
     if (isPlanningRecoveryRunTerminal(row.state)) return { outcome: "TERMINAL_FAILURE_REPLAY", row };
     if (row.state === "CREATED") {
       if (row.providerAttemptCount >= row.providerBudget) return { outcome: "PROVIDER_ATTEMPT_ALREADY_CONSUMED", row };
-      const next = PlanningRecoveryRunSchema.parse({ ...row, state: "PROVIDER_CALL_STARTED", providerAttemptCount: row.providerAttemptCount + 1, leaseOwner: input.owner, leaseExpiresAt: input.leaseExpiresAt, updatedAt: input.now });
-      return { outcome: "PROVIDER_STARTED", row: await this.savePlanningRecoveryRun(next, row.state) };
+      const next = PlanningRecoveryRunSchema.parse({ ...row, state: "CLAIMED", leaseOwner: input.owner, leaseExpiresAt: input.leaseExpiresAt, updatedAt: input.now });
+      return { outcome: "CLAIMED", row: await this.savePlanningRecoveryRun(next, row.state) };
+    }
+    if (row.state === "CLAIMED") {
+      if (isLeaseActive(row, input.now)) return { outcome: "RUN_ALREADY_ACTIVE", row };
+      const next = PlanningRecoveryRunSchema.parse({ ...row, leaseOwner: input.owner, leaseExpiresAt: input.leaseExpiresAt, updatedAt: input.now });
+      return { outcome: "RESUMED", row: await this.savePlanningRecoveryRun(next, row.state) };
     }
     if (row.state === "PROVIDER_CALL_STARTED") {
       if (isLeaseActive(row, input.now)) return { outcome: "RUN_ALREADY_ACTIVE", row };
@@ -405,6 +411,32 @@ class PostgresTransaction implements PersistenceTransaction {
     if (isLeaseActive(row, input.now)) return { outcome: "RUN_ALREADY_ACTIVE", row };
     const resumed = PlanningRecoveryRunSchema.parse({ ...row, leaseOwner: input.owner, leaseExpiresAt: input.leaseExpiresAt, updatedAt: input.now });
     return { outcome: "RESUMED", row: await this.savePlanningRecoveryRun(resumed, row.state) };
+  }
+  async startPlanningRecoveryProviderAttempt(input: PlanningRecoveryProviderAttemptStartInput): Promise<PlanningRecoveryProviderAttemptStart> {
+    const raw = value<Record<string, unknown>>(await this.query(`${planningRecoveryRunSelect} WHERE run_id=$1 AND operation_key=$2 FOR UPDATE`, [input.runId, input.operationKey]));
+    if (!raw) throw new PersistenceError("PERSISTENCE_NOT_FOUND", "Planning recovery run was not found.");
+    const run = normalizePlanningRecoveryRun(raw);
+    if (run.state !== "CLAIMED" || run.leaseOwner !== input.owner || run.leaseExpiresAt !== input.leaseExpiresAt || !isLeaseActive(run, input.now) || run.providerAttemptCount !== 0 || run.providerBudget < 1) {
+      throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery provider attempt cannot start from the claimed run state.");
+    }
+    const projectRaw = value<ProjectRow>(await this.query("SELECT * FROM factory_projects WHERE id=$1 FOR UPDATE", [input.currentness.projectId]));
+    const project = projectRaw ? normalizeProjectRow(projectRaw) : null;
+    const versionRaw = value<ProjectVersionRow>(await this.query("SELECT id, project_id AS \"projectId\", version_number AS \"versionNumber\", state, memory_root_path AS \"memoryRootPath\", requirements_checksum AS \"requirementsChecksum\", selected_design_checksum AS \"selectedDesignChecksum\", architecture_checksum AS \"architectureChecksum\", released_at AS \"releasedAt\", immutable, created_at AS \"createdAt\", updated_at AS \"updatedAt\", row_version AS \"rowVersion\" FROM project_versions WHERE project_id=$1 AND version_number=$2 FOR UPDATE", [input.currentness.projectId, input.currentness.projectVersion]));
+    const version = versionRaw ? normalizeVersionRow(versionRaw) : null;
+    const briefRaw = value<DocumentRow>(await this.query("SELECT project_id AS \"projectId\", project_version AS \"projectVersion\", document_type AS \"documentType\", schema_version AS \"schemaVersion\", checksum, payload, created_at AS \"createdAt\", updated_at AS \"updatedAt\", row_version AS \"rowVersion\" FROM workflow_documents WHERE project_id=$1 AND project_version=$2 AND document_type='brief-v3' FOR UPDATE", [input.currentness.projectId, input.currentness.projectVersion]));
+    const planningRaw = value<DocumentRow>(await this.query("SELECT project_id AS \"projectId\", project_version AS \"projectVersion\", document_type AS \"documentType\", schema_version AS \"schemaVersion\", checksum, payload, created_at AS \"createdAt\", updated_at AS \"updatedAt\", row_version AS \"rowVersion\" FROM workflow_documents WHERE project_id=$1 AND project_version=$2 AND document_type='planning-package' FOR UPDATE", [input.currentness.projectId, input.currentness.projectVersion]));
+    const briefRow = briefRaw ? normalizeDocumentRow(briefRaw) : null;
+    const planningRow = planningRaw ? normalizeDocumentRow(planningRaw) : null;
+    if (!project || !version || !briefRow || !planningRow) throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery canonical currentness is unavailable.");
+    try {
+      assertPlanningRecoveryProviderAttemptStartCurrentness({ run, currentness: input.currentness, expectedSourceHead: input.expectedSourceHead, recoveryPlanChecksum: input.recoveryPlanChecksum, project, version, briefRow, planningRow });
+    } catch (error) {
+      if (error instanceof PersistenceError) throw error;
+      throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery canonical currentness is stale.");
+    }
+    assertPlanningRecoveryRunTransition(run.state, "PROVIDER_CALL_STARTED");
+    const next = PlanningRecoveryRunSchema.parse({ ...run, state: "PROVIDER_CALL_STARTED", providerAttemptCount: 1, updatedAt: input.now });
+    return { outcome: "PROVIDER_STARTED", row: await this.savePlanningRecoveryRun(next, run.state) };
   }
   async transitionPlanningRecoveryRun(input: PlanningRecoveryRunTransition) {
     const raw = value<Record<string, unknown>>(await this.query(`${planningRecoveryRunSelect} WHERE run_id=$1 AND operation_key=$2 FOR UPDATE`, [input.runId, input.operationKey]));
