@@ -14,6 +14,9 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
 import { emptyBriefV2Fields } from "@/domain/requirements/brief";
 import { buildPlanningPackage } from "@/agents/planner/deterministic";
+import { cleanBriefV3 } from "@/domain/requirements/v3/fixtures";
+import { CanonicalBriefV3Schema } from "@/domain/requirements/v3/schema";
+import { createCanonicalPlanningRouteManifest, createPlanningOwnedRequirementManifest } from "@/agents/planner/recovery-manifests";
 
 const config = { apiKey: "test", model: "test-model", modelLabel: "GPT-5.6 Luna", maxRetries: 1, maxConcurrentRequests: 1 };
 const schema = z.object({ ok: z.boolean(), summary: z.string() }).strict();
@@ -59,6 +62,85 @@ const noBackendPlannerTransport = () => {
   PlanningPackageStructuredOutputSchema.parse(transport);
   return { brief, input, transport };
 };
+
+function recoveryNormalizationFixture() {
+  const base = noBackendPlannerTransport();
+  const canonicalBrief = CanonicalBriefV3Schema.parse({
+    ...cleanBriefV3,
+    pages: [...cleanBriefV3.pages, { id: "PAGE:contact", slug: "contact", purpose: "Provide the synthetic contact interaction.", sourceRefs: ["fixture:contact"] }],
+    decisions: { ...cleanBriefV3.decisions, routePolicy: { mode: "MULTI_PAGE" } },
+  });
+  const routeManifest = createCanonicalPlanningRouteManifest(canonicalBrief);
+  const requirementManifest = createPlanningOwnedRequirementManifest(canonicalBrief);
+  const firstRequirementHandle = requirementManifest.requirements[0]!.requirementHandle;
+  type JsonObject = Record<string, unknown>;
+  const handleizeReferences = (value: unknown, key = ""): unknown => {
+    if (key === "requirementReferences" && Array.isArray(value)) return value.map(() => firstRequirementHandle);
+    if (Array.isArray(value)) return value.map((child) => handleizeReferences(child));
+    if (!value || typeof value !== "object") return value;
+    return Object.fromEntries(Object.entries(value as JsonObject).map(([childKey, child]) => [childKey, handleizeReferences(child, childKey)]));
+  };
+  const transport = handleizeReferences(JSON.parse(JSON.stringify(base.transport))) as JsonObject;
+  const sitemap = transport.sitemap as JsonObject;
+  const routeRows = sitemap.routes as JsonObject[];
+  const legacyRouteIds = new Map(routeRows.map((route, index) => [String(route.id), routeManifest.routes[index]! ]));
+  const routeForValue = (value: unknown) => routeManifest.routes.find((route) => route.path === value) ?? legacyRouteIds.get(String(value)) ?? routeManifest.routes[0]!;
+  sitemap.routes = routeRows.map((route, index) => {
+    const manifestRoute = routeManifest.routes[index]!;
+    const fields = Object.fromEntries(Object.entries(route).filter(([key]) => key !== "id" && key !== "parentId"));
+    return { ...fields, routeHandle: manifestRoute.routeHandle, pageHandle: manifestRoute.pageHandle, parentPageHandle: null };
+  });
+  const pages = transport.pages as JsonObject;
+  pages.pages = (pages.pages as JsonObject[]).map((page, index) => {
+    const manifestRoute = routeManifest.routes[index]!;
+    const fields = Object.fromEntries(Object.entries(page).filter(([key]) => key !== "id" && key !== "routeId"));
+    return { ...fields, pageHandle: manifestRoute.pageHandle, routeHandle: manifestRoute.routeHandle };
+  });
+  const navigation = transport.navigation as JsonObject;
+  for (const key of ["primary", "secondary", "footer", "contextual", "protected", "routeReferences"]) {
+    navigation[key] = (navigation[key] as unknown[]).map((value) => routeForValue(value).routeHandle);
+  }
+  const userFlows = transport.userFlows as JsonObject;
+  userFlows.flows = (userFlows.flows as JsonObject[]).map((flow) => {
+    const { startRoute, ...fields } = flow;
+    return {
+      ...fields,
+      startRouteHandle: routeForValue(startRoute).routeHandle,
+      steps: (flow.steps as JsonObject[]).map((step) => {
+        const { routeId, ...stepFields } = step;
+        return { ...stepFields, routeHandle: routeId === null ? null : routeForValue(routeId).routeHandle };
+      }),
+    };
+  });
+  const forms = transport.forms as JsonObject;
+  forms.forms = (forms.forms as JsonObject[]).map((form) => {
+    const { route, ...fields } = form;
+    return { ...fields, routeHandle: routeForValue(route).routeHandle };
+  });
+  const architecture = transport.architecture as JsonObject;
+  architecture.routes = (architecture.routes as JsonObject[]).map((route) => ({ routeHandle: routeForValue(route.path).routeHandle, responsibility: route.responsibility }));
+  transport.requirementAccounting = requirementManifest.requirements.map(() => ({
+    disposition: "OTHER_PLANNING_RESPONSIBILITY",
+    planningTargetRefs: [{ kind: "section", routeHandle: null, pageHandle: null, section: "traceability" }],
+    semanticEvidence: "The current Planning package records the approved responsibility in its traceability section.",
+  }));
+  PlanningRecoveryPackageStructuredOutputSchema.parse(transport);
+  return {
+    transport,
+    input: {
+      authority: "PLANNING_RECOVERY",
+      mode: "FULL_PLANNING_REBUILD",
+      plan: { recoveryReason: "UNRECOVERABLE_CURRENT_PLANNING_STATE", routePolicy: "MULTI_PAGE" },
+      canonicalBrief,
+      canonicalRouteManifest: routeManifest,
+      planningRequirementManifest: requirementManifest,
+      planningOwnedRequirements: requirementManifest.requirements.map(({ requirementId, category, statement, sourceRefs }) => ({ id: requirementId, category, statement, sourceRefs })),
+      plannerInput: { ...base.input, canonicalBrief },
+      currentPlanningEvidence: { structuralSummary: { routeCount: 2, pageCount: 2, formCount: 1, assetCount: 0, dependencyCount: 1, structuralChecksum: "a".repeat(64) } },
+      outputPolicy: { schemaVersion: 1, maxBytes: 512_000, maxEstimatedTokens: 64_000, complete: true, truncation: "REJECT" },
+    },
+  };
+}
 
 describe("production AI provider boundary", () => {
   it("constructs every reviewer strict transport schema with required nullable metadata", () => {
@@ -140,11 +222,24 @@ describe("production AI provider boundary", () => {
     expect(schema.properties).not.toHaveProperty("accepted");
     expect(schema.properties).not.toHaveProperty("sourceHead");
     expect(schema.properties).not.toHaveProperty("routePolicy");
-    expect(schema.properties.requirementAccounting?.items?.properties).toHaveProperty("requirementId");
+    expect(schema.properties.requirementAccounting?.items?.properties).not.toHaveProperty("requirementId");
+    expect(schema.properties.requirementAccounting?.items?.properties).not.toHaveProperty("requirementDomain");
+    expect(schema.properties.requirementAccounting?.items?.properties).toHaveProperty("planningTargetRefs");
     expect(schema.properties.requirementAccounting?.items?.properties).toHaveProperty("semanticEvidence");
+    const targetProperties = (schema.properties.requirementAccounting?.items?.properties?.planningTargetRefs as { items?: { properties?: Record<string, unknown> } } | undefined)?.items?.properties;
+    expect(targetProperties).toEqual(expect.objectContaining({ kind: expect.anything(), routeHandle: expect.anything(), pageHandle: expect.anything(), section: expect.anything() }));
     expect(routeProperties).toHaveProperty("routeHandle");
     expect(routeProperties).toHaveProperty("pageHandle");
     expect(routeProperties).not.toHaveProperty("id");
+  });
+  it("normalizes a complete recovery response from opaque handles before canonical package validation", async () => {
+    const fixture = recoveryNormalizationFixture();
+    const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: fixture.transport as T, requestId: "req_recovery_handle_binding" }) });
+    const result = await new OpenAiPlannerProvider(client).planRecovery(fixture.input as never);
+    expect(result.planningPackage.sitemap.routes.map((route) => route.path)).toEqual(["/", "/contact"]);
+    expect(result.requirementAccounting).toHaveLength(fixture.input.planningRequirementManifest.requirements.length);
+    expect(result.requirementAccounting.every((entry) => !("requirementId" in entry))).toBe(true);
+    expect(result.planningPackage.traceability.some((entry) => entry.requirementReferences.includes(fixture.input.planningRequirementManifest.requirements[0]!.requirementId))).toBe(true);
   });
   it("normalizes a provider backend priority to no-backend when the approved Brief requires frontend-only behavior", async () => {
     const fixture = noBackendPlannerTransport();

@@ -86,22 +86,18 @@ function completeRecoveryResult(input: Parameters<typeof buildPlanningPackage>[0
   return {
     planningPackage: candidate,
     requirementAccounting: manifest.requirements.map((entry) => ({
-      requirementId: entry.requirementId,
-      requirementDomain: entry.category,
       disposition: recoveryRequirementDisposition(entry.category),
-      coveredBy: [entry.requirementHandle],
-      semanticEvidence: `Synthetic fixture records the explicit Planning treatment for ${entry.requirementId}.`,
+      planningTargetRefs: [{ kind: "section" as const, routeHandle: null, pageHandle: null, section: "traceability" as const }],
+      semanticEvidence: "Synthetic fixture records the explicit Planning treatment.",
     })),
   };
 }
 
 function recoveryAccountingForPlan(plan: NonNullable<Awaited<ReturnType<PlanningRecoveryService["prepare"]>>["plan"]>) {
   return plan.planningRequirementManifest!.requirements.map((entry) => ({
-    requirementId: entry.requirementId,
-    requirementDomain: entry.category,
     disposition: recoveryRequirementDisposition(entry.category),
-    coveredBy: [entry.requirementHandle],
-    semanticEvidence: `Synthetic apply fixture records the explicit Planning treatment for ${entry.requirementId}.`,
+    planningTargetRefs: [{ kind: "section" as const, routeHandle: null, pageHandle: null, section: "traceability" as const }],
+    semanticEvidence: "Synthetic apply fixture records the explicit Planning treatment.",
   }));
 }
 

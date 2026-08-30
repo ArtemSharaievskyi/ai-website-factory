@@ -21,6 +21,7 @@ import { createCanonicalPlanningRouteManifest, createPlanningOwnedRequirementMan
 import { CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY, planningSemanticChecksumForPolicy } from "./semantic-checksum";
 import { buildPhase7CContractPackage } from "@/domain/contracts/phase7c";
 import { createStaticSourceCurrentnessPort } from "@/runtime/source-head";
+import { createPlanningRecoveryPromptContext } from "@/integrations/openai/adapters";
 
 const timestamp = "2026-08-30T10:00:00.000Z";
 const TEST_SOURCE_HEAD = "a".repeat(40);
@@ -94,22 +95,18 @@ function completeRecoveryResult(input: Parameters<typeof buildPlanningPackage>[0
   return {
     planningPackage: candidate,
     requirementAccounting: manifest.requirements.map((entry) => ({
-      requirementId: entry.requirementId,
-      requirementDomain: entry.category,
       disposition: recoveryRequirementDisposition(entry.category),
-      coveredBy: [entry.requirementHandle],
-      semanticEvidence: `Synthetic fixture records the explicit Planning treatment for ${entry.requirementId}.`,
+      planningTargetRefs: [{ kind: "section" as const, routeHandle: null, pageHandle: null, section: "traceability" as const }],
+      semanticEvidence: "Synthetic fixture records the explicit Planning treatment.",
     })),
   };
 }
 
 function recoveryAccountingForPlan(plan: NonNullable<Awaited<ReturnType<PlanningRecoveryService["prepare"]>>["plan"]>) {
   return plan.planningRequirementManifest!.requirements.map((entry) => ({
-    requirementId: entry.requirementId,
-    requirementDomain: entry.category,
     disposition: recoveryRequirementDisposition(entry.category),
-    coveredBy: [entry.requirementHandle],
-    semanticEvidence: `Synthetic apply fixture records the explicit Planning treatment for ${entry.requirementId}.`,
+    planningTargetRefs: [{ kind: "section" as const, routeHandle: null, pageHandle: null, section: "traceability" as const }],
+    semanticEvidence: "Synthetic apply fixture records the explicit Planning treatment.",
   }));
 }
 
@@ -196,6 +193,29 @@ describe("host-owned full Planning recovery", () => {
     expect(prepared.eligibility.currentCoverage).toEqual(expect.arrayContaining([expect.objectContaining({ requirementId: next.requirements.at(-1)!.id })]));
   });
 
+  it("builds a smaller recovery prompt while preserving each Planning requirement exactly once", async () => {
+    const base = brief();
+    const next = brief({
+      requirements: [...base.requirements, ...Array.from({ length: 12 }, (_, index) => ({ id: `REQUIREMENT:context-${index}`, category: "FEATURE" as const, statement: `Preserve the context measurement requirement ${index + 1}.`, sourceRefs: [`fixture:context:${index}`] }))],
+      decisions: { ...base.decisions, form: { ...base.decisions.form, interactionStates: [...base.decisions.form.interactionStates, { id: "REQUIREMENT:preserved-form-state", category: "LEGAL_FACT" as const, statement: "Retain the approved form consent wording for later lifecycle handling.", sourceRefs: ["fixture:preserved-form"] }] } },
+      seo: { ...base.seo, locationTargeting: [...base.seo.locationTargeting, { id: "REQUIREMENT:preserved-seo", category: "LEGAL_FACT" as const, statement: "Retain the approved SEO location wording for later lifecycle handling.", sourceRefs: ["fixture:preserved-seo"] }] },
+    });
+    const fixture = await seeded({ currentBrief: next, packageBrief: base });
+    const prepared = await service(fixture).prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: "context-size" });
+    const full = JSON.stringify(prepared.providerInput);
+    const compact = createPlanningRecoveryPromptContext(prepared.providerInput!);
+    const compactText = JSON.stringify(compact);
+    expect(compactText.length).toBeLessThan(full.length);
+    expect(compactText.length).toBeLessThan(full.length * 0.75);
+    expect(compact.canonicalBrief.requirements).toEqual([]);
+    expect("pages" in compact.canonicalBrief).toBe(false);
+    expect(compact.canonicalBrief.decisions.form.interactionStates.map((entry) => entry.id)).toContain(next.decisions.form.interactionStates.at(-1)!.id);
+    expect(compact.canonicalBrief.seo.locationTargeting.map((entry) => entry.id)).toContain(next.seo.locationTargeting.at(-1)!.id);
+    expect(compact.planningRequirementManifest.requirements).toHaveLength(prepared.providerInput!.planningRequirementManifest.requirements.length);
+    expect(compact.planningRequirementManifest.requirements.map((entry) => entry.statement)).toEqual(prepared.providerInput!.planningRequirementManifest.requirements.map((entry) => entry.statement));
+    for (const entry of prepared.providerInput!.planningRequirementManifest.requirements) expect(compactText).not.toContain(entry.requirementId);
+  });
+
   it("preserves both current Möbeltransport requirement handles in the recovery scope", async () => {
     const currentBrief = brief({ requirements: [...cleanBriefV3.requirements, ...MOEBELTRANSPORT_REQUIREMENT_IDS.map((id, index) => ({ id, category: "FEATURE" as const, statement: `Möbeltransport scope requirement ${index + 1} remains represented in Planning.`, sourceRefs: [`fixture:moebeltransport:${index + 1}`] }))] });
     const fixture = await seeded({ currentBrief, packageBrief: brief() });
@@ -233,15 +253,26 @@ describe("host-owned full Planning recovery", () => {
     expect(() => admitPlanningRefresh({ candidate, canonicalBrief: currentBrief, projectId, projectVersion: 1, approvedBriefChecksum: canonicalBriefChecksum(currentBrief), timestamp })).toThrow("PLANNING_ROUTE_POLICY_PROVIDER_MISMATCH");
   });
 
-  it("CASE F rejects incomplete full-package coverage without writing evidence", async () => {
+  it("CASE F accepts host-bound semantic accounting without duplicate package coverage", async () => {
     const base = brief();
     const next = brief({ requirements: [...base.requirements, { id: "REQUIREMENT:recovery-incomplete", category: "FEATURE", statement: "Provide the incomplete recovery capability.", sourceRefs: ["fixture:incomplete"] }] });
     const fixture = await seeded({ currentBrief: next, packageBrief: base });
     const recovery = service(fixture);
     const prepared = await recovery.prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: "case-f" });
-    const candidate = fixture.currentPackage;
-    await expect(recovery.apply({ projectId: fixture.projectId, projectVersion: 1, operationKey: "case-f", plan: prepared.plan!, candidate, requirementAccounting: recoveryAccountingForPlan(prepared.plan!) })).rejects.toMatchObject({ code: "RECOVERY_CANDIDATE_INVALID" });
-    expect(fixture.database.planningRecoveryEvidence.size).toBe(0);
+    const candidate = {
+      ...fixture.currentPackage,
+      traceability: [...fixture.currentPackage.traceability, {
+        decisionId: randomUUID(),
+        category: "synthetic-recovery-target",
+        requirementReferences: createPlanningOwnedRequirementManifest(next).requirements.map((entry) => entry.requirementId),
+        systemConstraintReferences: ["synthetic-recovery-target"],
+        rationale: "The new requirement has a concrete Planning traceability target.",
+        confidence: "high" as const,
+        userConfirmationRequired: false,
+      }],
+    };
+    await expect(recovery.apply({ projectId: fixture.projectId, projectVersion: 1, operationKey: "case-f", plan: prepared.plan!, candidate, requirementAccounting: recoveryAccountingForPlan(prepared.plan!) })).resolves.toMatchObject({ status: "COMMITTED" });
+    expect(fixture.database.planningRecoveryEvidence.size).toBe(1);
   });
 
   it("strictly rejects malformed accounting at the direct apply boundary", async () => {
@@ -604,7 +635,7 @@ describe("host-owned full Planning recovery", () => {
     const base = brief();
     const next = brief({ requirements: [...base.requirements, ...Array.from({ length: 72 }, (_, index) => ({ id: `REQUIREMENT:diagnostic-${index}`, category: "LEGAL_CONSTRAINT" as const, statement: `Synthetic admission diagnostic constraint ${index} requires explicit traceability coverage.`, sourceRefs: [`fixture:diagnostic:${index}`] }))] });
     const fixture = await seeded({ currentBrief: next, packageBrief: base });
-    const recovery = service(fixture, { provider: { planRecovery: async (input) => ({ planningPackage: buildPlanningPackage(input.plannerInput), requirementAccounting: completeRecoveryResult(input.plannerInput).requirementAccounting }) } });
+    const recovery = service(fixture, { provider: { planRecovery: async (input) => ({ planningPackage: buildPlanningPackage(input.plannerInput), requirementAccounting: [] }) } });
     await expect(recovery.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "diagnostic-summary" })).rejects.toMatchObject({ code: "RECOVERY_CANDIDATE_INVALID" });
     const failed = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "diagnostic-summary"));
     expect(failed?.diagnosticSummary).toMatchObject({ truncated: true, returnedBlockers: 64, blockerCategoryCounts: expect.objectContaining({ coverage: expect.any(Number) }) });
@@ -733,7 +764,18 @@ describe("host-owned full Planning recovery", () => {
     expect(calls).toBe(1);
     const interrupted = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "legacy-envelope"));
     const wrapper = interrupted!.providerResult as { planningPackage: PlanningPackage };
-    fixture.database.planningRecoveryRuns.set(interrupted!.runId, { ...interrupted!, providerResult: wrapper.planningPackage, providerResultChecksum: checksumPersistedDocument(wrapper.planningPackage) });
+    fixture.database.planningRecoveryRuns.set(interrupted!.runId, {
+      ...interrupted!,
+      providerResult: wrapper.planningPackage,
+      providerResultChecksum: checksumPersistedDocument(wrapper.planningPackage),
+      diagnosticSummary: {
+        totalBlockers: 1,
+        returnedBlockers: 1,
+        truncated: false,
+        blockerCategoryCounts: { route: 0, coverage: 0, decision: 0, identity: 0, unsupportedFact: 0, schema: 1, other: 0 },
+        blockers: ["RECOVERY_PROVIDER_RESULT_INVALID"],
+      },
+    });
     const resumed = service(fixture, { now: () => "2026-08-30T10:16:00.000Z", provider: { planRecovery: async () => { calls += 1; throw new Error("legacy-envelope-provider-retry-forbidden"); } } });
     await expect(resumed.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "legacy-envelope" })).rejects.toMatchObject({ code: "RECOVERY_LEGACY_PROVIDER_RESULT_UNRESUMABLE" });
     expect(calls).toBe(1);

@@ -7,8 +7,11 @@ import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
 import { buildPlanningPackage } from "./deterministic";
 import {
+  bindPlanningRecoverySemanticAccounting,
   createCanonicalPlanningRouteManifest,
   createPlanningOwnedRequirementManifest,
+  PlanningRequirementHandleSchema,
+  PlanningRecoverySemanticAccountingSchema,
   validatePlanningRecoveryRequirementAccounting,
 } from "./recovery-manifests";
 import {
@@ -24,8 +27,16 @@ function accountingFor(manifest: ReturnType<typeof createPlanningOwnedRequiremen
     requirementId: entry.requirementId,
     requirementDomain: entry.category,
     disposition: entry.category === "EXCLUSION" || entry.category === "PROHIBITED" ? "EXPLICIT_EXCLUSION" as const : "OTHER_PLANNING_RESPONSIBILITY" as const,
-    coveredBy: [entry.requirementHandle],
+    planningTargetRefs: [{ kind: "section" as const, section: "traceability" as const }],
     semanticEvidence: `Synthetic semantic treatment for ${entry.requirementId}.`,
+  }));
+}
+
+function semanticAccountingFor(manifest: ReturnType<typeof createPlanningOwnedRequirementManifest>) {
+  return manifest.requirements.map((entry) => ({
+    disposition: entry.category === "EXCLUSION" || entry.category === "PROHIBITED" ? "EXPLICIT_EXCLUSION" as const : "OTHER_PLANNING_RESPONSIBILITY" as const,
+    planningTargetRefs: [{ kind: "section" as const, routeHandle: null, pageHandle: null, section: "traceability" as const }],
+    semanticEvidence: `The Planning package records the approved responsibility for ${entry.category.toLocaleLowerCase("en")} requirements.`,
   }));
 }
 
@@ -119,7 +130,8 @@ describe("host-issued Planning Recovery manifests", () => {
     const expected = canonicalRequirementEntries(brief).filter((entry) => !["LEGAL_FACT", "LOGO_METADATA", "IMAGE_NOTE", "RECOMMENDATION"].includes(entry.category));
     expect(manifest.requirements).toHaveLength(expected.length);
     expect(manifest.requirements.map((entry) => entry.requirementId)).toEqual(expected.map((entry) => entry.id));
-    expect(manifest.requirements.every((entry) => entry.requirementHandle === `planning-requirement:${entry.requirementId}`)).toBe(true);
+    expect(manifest.requirements.map((entry) => entry.requirementHandle)).toEqual(manifest.requirements.map((_, index) => `planning-requirement:R${String(index).padStart(3, "0")}`));
+    expect(PlanningRequirementHandleSchema.safeParse(`planning-requirement:${manifest.requirements[0]!.requirementId}`).success).toBe(true);
     expect(manifest.manifestChecksum).toMatch(/^[a-f0-9]{64}$/);
   });
 
@@ -239,17 +251,90 @@ describe("host-issued Planning Recovery manifests", () => {
     expect(validatePlanningRecoveryRequirementAccounting({ accounting: missingDisposition, manifest }).issues).toContainEqual(expect.objectContaining({ code: "MISSING_DISPOSITION", requirementId: valid[0]!.requirementId }));
     const missingEvidence = valid.map((entry) => entry.requirementId === valid[0]!.requirementId ? { ...entry, semanticEvidence: "   " } : entry);
     expect(validatePlanningRecoveryRequirementAccounting({ accounting: missingEvidence, manifest }).issues).toContainEqual(expect.objectContaining({ code: "MISSING_SEMANTIC_EVIDENCE", requirementId: valid[0]!.requirementId }));
-    const compound = [{ ...valid[0]!, requirementId: "REQUIREMENT:legacy-v1-compound", disposition: undefined, semanticEvidence: " ", coveredBy: ["provider-invented-artifact"] }];
+    const compound = [{ ...valid[0]!, requirementId: "REQUIREMENT:legacy-v1-compound", disposition: undefined, semanticEvidence: " ", planningTargetRefs: ["provider-invented-artifact"] }];
     const compoundIssues = validatePlanningRecoveryRequirementAccounting({ accounting: compound, manifest }).issues;
     expect(compoundIssues).toEqual(expect.arrayContaining([
       { code: "LEGACY_REQUIREMENT_ID", requirementId: "REQUIREMENT:legacy-v1-compound" },
       { code: "MISSING_DISPOSITION", requirementId: "REQUIREMENT:legacy-v1-compound" },
       { code: "MISSING_SEMANTIC_EVIDENCE", requirementId: "REQUIREMENT:legacy-v1-compound" },
-      { code: "INVALID_COVERAGE_REFERENCE", requirementId: "REQUIREMENT:legacy-v1-compound" },
+      { code: "INVALID_PLANNING_TARGET_REF", requirementId: "REQUIREMENT:legacy-v1-compound" },
     ]));
 
     const exclusion = valid.find((entry) => entry.requirementId === "REQUIREMENT:synthetic-exclusion-accounting")!;
     expect(exclusion.disposition).toBe("EXPLICIT_EXCLUSION");
     expect(valid.some((entry) => entry.requirementId === "REQUIREMENT:synthetic-nonvisual-accounting")).toBe(true);
+  });
+
+  it("binds positional semantic accounting to host identity and rejects provider identity fields", () => {
+    const brief = syntheticBrief();
+    const manifest = createPlanningOwnedRequirementManifest(brief);
+    const semanticAccounting = semanticAccountingFor(manifest);
+    expect(PlanningRecoverySemanticAccountingSchema.safeParse(semanticAccounting).success).toBe(true);
+    expect(PlanningRecoverySemanticAccountingSchema.safeParse(semanticAccounting.map((entry) => ({ ...entry, requirementId: manifest.requirements[0]!.requirementId }))).success).toBe(false);
+
+    const binding = bindPlanningRecoverySemanticAccounting({ semanticAccounting, manifest });
+    expect(binding.validation).toMatchObject({ expectedRequirementCount: manifest.requirements.length, accountedRequirementCount: manifest.requirements.length, missingRequirementIds: [], issues: [] });
+    expect(binding.accounting.map((entry) => entry.requirementId)).toEqual(manifest.requirements.map((entry) => entry.requirementId));
+    expect(binding.accounting.map((entry) => entry.requirementDomain)).toEqual(manifest.requirements.map((entry) => entry.category));
+  });
+
+  it("requires exact accounting cardinality for the production-shaped 118-entry manifest", () => {
+    const base = createPlanningOwnedRequirementManifest(cleanBriefV3);
+    const extraCount = 118 - base.requirements.length;
+    expect(extraCount).toBeGreaterThan(0);
+    const brief = CanonicalBriefV3Schema.parse({
+      ...cleanBriefV3,
+      requirements: [
+        ...cleanBriefV3.requirements,
+        ...Array.from({ length: extraCount }, (_, index) => ({
+          id: `REQUIREMENT:production-accounting-${String(index).padStart(3, "0")}`,
+          category: "FEATURE" as const,
+          statement: `Preserve production-shaped Planning responsibility ${index + 1}.`,
+          sourceRefs: [`fixture:production-accounting:${index}`],
+        })),
+      ],
+    });
+    const manifest = createPlanningOwnedRequirementManifest(brief);
+    expect(manifest.requirements).toHaveLength(118);
+    const valid = semanticAccountingFor(manifest);
+    const complete = bindPlanningRecoverySemanticAccounting({ semanticAccounting: valid, manifest });
+    expect(complete.validation.issues).toEqual([]);
+    for (const [count, expectedMissing] of [[117, 1], [119, 0]] as const) {
+      const result = bindPlanningRecoverySemanticAccounting({ semanticAccounting: count === 117 ? valid.slice(0, 117) : [...valid, valid[0]!] , manifest });
+      expect(result.validation.issues).toContainEqual({ code: "ACCOUNTING_CARDINALITY_MISMATCH" });
+      expect(result.validation.missingRequirementIds).toHaveLength(expectedMissing);
+    }
+  });
+
+  it("validates typed target ownership and evidence without keyword-overlap admission", () => {
+    const brief = syntheticBrief();
+    const manifest = createPlanningOwnedRequirementManifest(brief);
+    const routeManifest = createCanonicalPlanningRouteManifest(brief);
+    const base = candidateFor(brief);
+    const valid = semanticAccountingFor(manifest);
+    const paraphrase = valid.map((entry, index) => index === 0 ? { ...entry, semanticEvidence: "Die freigegebene fachliche Verantwortung wird im Inhaltsbereich des Plans berücksichtigt." } : entry);
+    expect(bindPlanningRecoverySemanticAccounting({ semanticAccounting: paraphrase, manifest, candidate: base.candidate, routeManifest }).validation.issues).toEqual([]);
+
+    const unrelatedTarget = valid.map((entry, index) => index === 0 ? { ...entry, planningTargetRefs: [{ kind: "section" as const, routeHandle: null, pageHandle: null, section: "traceability" as const }] } : entry);
+    const candidateWithoutRelationship = {
+      ...base.candidate,
+      traceability: base.candidate.traceability.map((item) => ({ ...item, requirementReferences: item.requirementReferences.filter((reference) => reference !== manifest.requirements[0]!.requirementId) })).filter((item) => item.requirementReferences.length > 0),
+    };
+    expect(bindPlanningRecoverySemanticAccounting({ semanticAccounting: unrelatedTarget, manifest, candidate: candidateWithoutRelationship, routeManifest }).validation.issues).toContainEqual(expect.objectContaining({ code: "TARGET_RELATIONSHIP_INVALID", requirementId: manifest.requirements[0]!.requirementId }));
+
+    const placeholder = valid.map((entry, index) => index === 0 ? { ...entry, semanticEvidence: "handled" } : entry);
+    expect(bindPlanningRecoverySemanticAccounting({ semanticAccounting: placeholder, manifest, candidate: base.candidate, routeManifest }).validation.issues).toContainEqual(expect.objectContaining({ code: "PLACEHOLDER_SEMANTIC_EVIDENCE", requirementId: manifest.requirements[0]!.requirementId }));
+
+    const foreignTarget = valid.map((entry, index) => index === 0 ? {
+      ...entry,
+      planningTargetRefs: [{ kind: "route" as const, routeHandle: "planning-route:provider-invented", pageHandle: null, section: null }],
+    } : entry);
+    expect(bindPlanningRecoverySemanticAccounting({ semanticAccounting: foreignTarget, manifest, candidate: base.candidate, routeManifest }).validation.issues).toContainEqual(expect.objectContaining({ code: "TARGET_NOT_IN_CANDIDATE", requirementId: manifest.requirements[0]!.requirementId }));
+
+    const invalidShape = valid.map((entry, index) => index === 0 ? {
+      ...entry,
+      planningTargetRefs: [{ kind: "route" as const, routeHandle: null, pageHandle: null, section: "traceability" as const }],
+    } : entry);
+    expect(bindPlanningRecoverySemanticAccounting({ semanticAccounting: invalidShape, manifest, candidate: base.candidate, routeManifest }).validation.issues).toContainEqual(expect.objectContaining({ code: "INVALID_PLANNING_TARGET_REF", requirementId: manifest.requirements[0]!.requirementId }));
   });
 });

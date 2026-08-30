@@ -386,8 +386,13 @@ export function validatePlanningRequirementCoverage(input: { candidate: Planning
 export function validatePlanningRecoveryRequirementCoverage(input: { candidate: PlanningPackage; manifest: { requirements: readonly { requirementId: string; category: RequirementCategory; statement: string }[] }; accounting?: PlanningRecoveryRequirementAccounting }): PlanningRecoveryRequirementCoverage[] {
   const refs = referencesOf(input.candidate);
   const traceabilityRefs = traceabilityReferencesOf(input.candidate);
+  const accountingIds = input.accounting ? new Set(input.accounting.map((entry) => entry.requirementId)) : undefined;
   const blockers: PlanningRecoveryRequirementCoverage[] = [];
   for (const entry of input.manifest.requirements) {
+    if (accountingIds) {
+      if (!accountingIds.has(entry.requirementId)) blockers.push({ requirementId: entry.requirementId, category: entry.category, statement: entry.statement, reason: "MISSING_TRACEABILITY" });
+      continue;
+    }
     if (!refs.has(entry.requirementId)) blockers.push({ requirementId: entry.requirementId, category: entry.category, statement: entry.statement, reason: "MISSING_REFERENCE" });
     else if (!input.accounting && !hasSemanticEvidence(input.candidate, { id: entry.requirementId, category: entry.category, statement: entry.statement, sourceRefs: ["host:planning-recovery-manifest"] })) blockers.push({ requirementId: entry.requirementId, category: entry.category, statement: entry.statement, reason: "MISSING_SEMANTIC_EVIDENCE" });
     else if (!traceabilityRefs.has(entry.requirementId)) blockers.push({ requirementId: entry.requirementId, category: entry.category, statement: entry.statement, reason: "MISSING_TRACEABILITY" });

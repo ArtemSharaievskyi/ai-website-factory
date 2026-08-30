@@ -90,9 +90,10 @@ import {
   createCanonicalPlanningRouteManifest,
   createPlanningOwnedRequirementManifest,
   requirementManifestAsCanonicalRequirements,
-  PlanningRecoveryRequirementAccountingSchema,
+  PlanningRecoverySemanticAccountingSchema,
+  bindPlanningRecoverySemanticAccounting,
   validatePlanningRecoveryRequirementAccounting,
-  type PlanningRecoveryRequirementAccounting,
+  type PlanningRecoverySemanticAccounting,
   type PlanningRecoveryRequirementAccountingIssue,
   type CanonicalPlanningRouteManifest,
 } from "./recovery-manifests";
@@ -205,7 +206,7 @@ export type PlanningRecoveryProviderInput = z.infer<typeof PlanningRecoveryProvi
 /** Durable provider result: the package and its explicit per-requirement semantic accounting travel together. */
 export const PlanningRecoveryProviderResultSchema = z.object({
   planningPackage: PlanningPackageSchema,
-  requirementAccounting: PlanningRecoveryRequirementAccountingSchema,
+  requirementAccounting: PlanningRecoverySemanticAccountingSchema,
 }).strict();
 export type PlanningRecoveryProviderResult = z.infer<typeof PlanningRecoveryProviderResultSchema>;
 
@@ -510,13 +511,8 @@ export function createRecoveryAdmissionDiagnosticSummary(input: RecoveryAdmissio
   });
 }
 
-function admitRecoveryCandidate(input: { candidate: PlanningPackage; requirementAccounting: unknown; projectId: string; projectVersion: number; plan: PlanningRecoveryPlan; brief: BriefV3Document; planning: PlanningPackage; compatibility: RequirementSpecification; now: string }) {
+function admitRecoveryCandidate(input: { candidate: PlanningPackage; semanticAccounting: unknown; projectId: string; projectVersion: number; plan: PlanningRecoveryPlan; brief: BriefV3Document; planning: PlanningPackage; compatibility: RequirementSpecification; now: string }) {
   const rawCandidate = PlanningPackageSchema.parse(input.candidate);
-  const parsedAccounting = PlanningRecoveryRequirementAccountingSchema.safeParse(input.requirementAccounting);
-  if (!parsedAccounting.success) {
-    throw new PlanningRecoveryError("RECOVERY_CANDIDATE_INVALID", "Full Planning recovery candidate failed deterministic admission.", { diagnosticInput: { blockers: ["RECOVERY_REQUIREMENT_ACCOUNTING_SCHEMA_INVALID"], candidate: rawCandidate, routeManifest: input.plan.canonicalRouteManifest, requirementManifest: input.plan.planningRequirementManifest } });
-  }
-  const requirementAccounting = parsedAccounting.data;
   const providerFieldBlockers = [
     rawCandidate.projectId !== input.projectId && rawCandidate.projectId !== undefined ? "RECOVERY_PROVIDER_PROJECT_ID" : undefined,
     rawCandidate.projectVersion !== input.projectVersion && rawCandidate.projectVersion !== undefined ? "RECOVERY_PROVIDER_PROJECT_VERSION" : undefined,
@@ -533,7 +529,10 @@ function admitRecoveryCandidate(input: { candidate: PlanningPackage; requirement
     throw new PlanningRecoveryError("RECOVERY_CANDIDATE_INVALID", "Full Planning recovery candidate failed deterministic admission.", { diagnosticInput: { blockers: [finding], candidate: rawCandidate, routeManifest: input.plan.canonicalRouteManifest, requirementManifest: input.plan.planningRequirementManifest } });
   }
   const candidate = normalizePlanningPackageForHost({ candidate: admission.candidate, projectId: input.projectId, projectVersion: input.projectVersion, approvedBriefChecksum: input.brief.briefChecksum, canonicalBrief: input.brief.brief, timestamp: input.now });
-  const accountingValidation = validatePlanningRecoveryRequirementAccounting({ accounting: requirementAccounting, manifest: input.plan.planningRequirementManifest!, allowedCoverageRefs: input.plan.canonicalRouteManifest?.routes.flatMap((route) => [route.routeHandle, route.pageHandle]) });
+  const accountingBinding = bindPlanningRecoverySemanticAccounting({ semanticAccounting: input.semanticAccounting, manifest: input.plan.planningRequirementManifest!, candidate, routeManifest: input.plan.canonicalRouteManifest });
+  const requirementAccounting = accountingBinding.accounting;
+  const accountingValidation = validatePlanningRecoveryRequirementAccounting({ accounting: requirementAccounting, manifest: input.plan.planningRequirementManifest!, candidate, routeManifest: input.plan.canonicalRouteManifest });
+  accountingValidation.issues.push(...accountingBinding.validation.issues.filter((issue) => issue.code === "ACCOUNTING_CARDINALITY_MISMATCH" || issue.code === "INVALID_ACCOUNTING_ENTRY"));
   const accountingBlockers = admissionIssueDetails(accountingValidation.issues);
   const blockers = [
     ...admission.blockers,
@@ -552,7 +551,7 @@ function admitRecoveryCandidate(input: { candidate: PlanningPackage; requirement
   blockers.push(...providerFieldBlockers);
   if (candidate.projectId !== input.plan.projectId || candidate.projectVersion !== input.plan.projectVersion || candidate.approvedBriefChecksum !== input.plan.briefChecksum || candidate.semanticChecksumPolicyVersion !== CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY || candidate.accepted || candidate.acceptance.acceptedAt) blockers.push("RECOVERY_HOST_OWNED_FIELD_MUTATION");
   if (blockers.length) throw new PlanningRecoveryError("RECOVERY_CANDIDATE_INVALID", "Full Planning recovery candidate failed deterministic admission.", { diagnosticInput: { blockers, candidate, routeManifest: input.plan.canonicalRouteManifest, requirementManifest: input.plan.planningRequirementManifest, accountingValidation, coverage } });
-  return candidate;
+  return { candidate, requirementAccounting };
 }
 
 function recoveryPlan(input: {
@@ -692,6 +691,7 @@ function parseDurableCandidate(run: PlanningRecoveryRunRow) {
   const parsed = PlanningRecoveryProviderResultSchema.safeParse(run.providerResult);
   if (!parsed.success) {
     if (PlanningPackageSchema.safeParse(run.providerResult).success) throw new PlanningRecoveryError("RECOVERY_LEGACY_PROVIDER_RESULT_UNRESUMABLE", "A pre-hardening recovery result has no semantic accounting envelope.");
+    if (run.providerResult && typeof run.providerResult === "object" && !Array.isArray(run.providerResult) && "planningPackage" in run.providerResult && PlanningPackageSchema.safeParse(run.providerResult.planningPackage).success) throw new PlanningRecoveryError("RECOVERY_LEGACY_PROVIDER_RESULT_UNRESUMABLE", "A pre-positional recovery result allowed provider-authored requirement identities.");
     throw new PlanningRecoveryError("RECOVERY_PROVIDER_RESULT_INVALID");
   }
   const result = parsed.data;
@@ -1058,7 +1058,7 @@ export class PlanningRecoveryService {
       await this.dependencies.fault?.hit("before-provider-call");
     }
     let candidate: PlanningPackage;
-    let requirementAccounting: PlanningRecoveryRequirementAccounting;
+    let requirementAccounting: PlanningRecoverySemanticAccounting;
     if (providerStarted) {
       if (!providerInput) throw new PlanningRecoveryError("RECOVERY_PROVIDER_INPUT_MISSING");
       let returned: unknown;
@@ -1107,14 +1107,13 @@ export class PlanningRecoveryService {
       try {
         await this.currentSource(plan.sourceHead);
         const current = await this.readCanonicalState(plan);
-        candidate = admitRecoveryCandidate({ candidate, requirementAccounting, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief: current.brief, planning: current.planning, compatibility: current.compatibility, now: this.now() });
+        candidate = admitRecoveryCandidate({ candidate, semanticAccounting: requirementAccounting, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief: current.brief, planning: current.planning, compatibility: current.compatibility, now: this.now() }).candidate;
       } catch (error) {
         const target = error instanceof PlanningRecoveryError && error.code === "RECOVERY_CURRENTNESS_STALE" ? "CURRENTNESS_FAILED" : "ADMISSION_FAILED";
         await this.markRunTerminal(run, target, owner, error, target === "CURRENTNESS_FAILED" ? "currentness" : "admission");
         throw error instanceof PlanningRecoveryError ? error : new PlanningRecoveryError("RECOVERY_CANDIDATE_INVALID", "Planning recovery candidate failed deterministic admission.");
       }
-      const admittedResult = { planningPackage: candidate, requirementAccounting } satisfies PlanningRecoveryProviderResult;
-      run = await this.persistRun({ run, from: "ADMISSION_STARTED", to: "ADMISSION_PASSED", owner, patch: { providerResultChecksum: checksumPersistedDocument(admittedResult), providerResult: admittedResult } });
+      run = await this.persistRun({ run, from: "ADMISSION_STARTED", to: "ADMISSION_PASSED", owner });
       await this.dependencies.fault?.hit("after-admission-passed");
     } else if (run.state === "ADMISSION_PASSED" || run.state === "PERSISTENCE_STARTED") {
       try {
@@ -1155,22 +1154,21 @@ export class PlanningRecoveryService {
         const legacyRow = await tx.getDocument(input.projectId, input.projectVersion, "requirements");
         const legacy = legacyRow && mapRowToDocument(legacyRow).documentType === "requirements" ? RequirementSpecificationSchema.parse(mapRowToDocument(legacyRow)) : null;
         const compatibility = compatibilityBrief(project, version, brief, legacy);
-        const admitted = admitRecoveryCandidate({ candidate, requirementAccounting, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief, planning, compatibility, now: this.now() });
+        candidate = admitRecoveryCandidate({ candidate, semanticAccounting: requirementAccounting, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief, planning, compatibility, now: this.now() }).candidate;
         const existingEvidence = await tx.getPlanningRecoveryEvidence(input.projectId, input.projectVersion, input.operationKey);
         if (existingEvidence) {
-          if (existingEvidence.nextPlanningDocumentChecksum !== planningDocumentChecksum(admitted)) throw new PlanningRecoveryError("IDEMPOTENCY_CONFLICT");
+          if (existingEvidence.nextPlanningDocumentChecksum !== planningDocumentChecksum(candidate)) throw new PlanningRecoveryError("IDEMPOTENCY_CONFLICT");
           const existingPackage = PlanningPackageSchema.parse(mapRowToDocument(planningRow));
           return { run: currentRun, package: existingPackage, evidence: PlanningRecoveryEvidenceSchema.parse(existingEvidence) };
         }
-        await saveDocumentCASInTransaction(tx, admitted, planningRow.rowVersion, planningRow.checksum);
+        await saveDocumentCASInTransaction(tx, candidate, planningRow.rowVersion, planningRow.checksum);
         await this.dependencies.fault?.hit("after-package-write");
-        const evidence = PlanningRecoveryEvidenceSchema.parse({ id: deterministicUuid(`${input.projectId}:${input.projectVersion}:${input.operationKey}`), operationKey: input.operationKey, projectId: input.projectId, projectVersion: input.projectVersion, recoveryPlanChecksum: plan.planChecksum, briefRowVersion: briefRow.rowVersion, briefSemanticChecksum: brief.briefChecksum, briefDocumentChecksum: briefRow.checksum, priorPlanningRowVersion: planningRow.rowVersion, priorPlanningSemanticChecksum: planningSemanticChecksumForPolicy(planning, CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY), priorPlanningDocumentChecksum: planningDocumentChecksum(planning), priorPlanningPackage: planning, nextPlanningRowVersion: planningRow.rowVersion + 1, nextPlanningSemanticChecksum: planningSemanticChecksumForPolicy(admitted, CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY), nextPlanningDocumentChecksum: planningDocumentChecksum(admitted), createdAt: this.now() });
+        const evidence = PlanningRecoveryEvidenceSchema.parse({ id: deterministicUuid(`${input.projectId}:${input.projectVersion}:${input.operationKey}`), operationKey: input.operationKey, projectId: input.projectId, projectVersion: input.projectVersion, recoveryPlanChecksum: plan.planChecksum, briefRowVersion: briefRow.rowVersion, briefSemanticChecksum: brief.briefChecksum, briefDocumentChecksum: briefRow.checksum, priorPlanningRowVersion: planningRow.rowVersion, priorPlanningSemanticChecksum: planningSemanticChecksumForPolicy(planning, CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY), priorPlanningDocumentChecksum: planningDocumentChecksum(planning), priorPlanningPackage: planning, nextPlanningRowVersion: planningRow.rowVersion + 1, nextPlanningSemanticChecksum: planningSemanticChecksumForPolicy(candidate, CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY), nextPlanningDocumentChecksum: planningDocumentChecksum(candidate), createdAt: this.now() });
         await tx.appendPlanningRecoveryEvidence(evidence);
         await this.dependencies.fault?.hit("after-evidence-write");
         await this.dependencies.fault?.hit("before-db-commit");
-        const admittedResult = { planningPackage: admitted, requirementAccounting } satisfies PlanningRecoveryProviderResult;
-        const finalRun = await tx.transitionPlanningRecoveryRun({ runId: currentRun.runId, operationKey: currentRun.operationKey, from: "PERSISTENCE_STARTED", to: "COMMITTED", owner, now: this.now(), patch: { committedEvidenceId: evidence.id, providerResultChecksum: checksumPersistedDocument(admittedResult), providerResult: admittedResult, projectMemoryStatus: "PENDING" } });
-        return { run: finalRun, package: admitted, evidence };
+        const finalRun = await tx.transitionPlanningRecoveryRun({ runId: currentRun.runId, operationKey: currentRun.operationKey, from: "PERSISTENCE_STARTED", to: "COMMITTED", owner, now: this.now(), patch: { committedEvidenceId: evidence.id, projectMemoryStatus: "PENDING" } });
+        return { run: finalRun, package: candidate, evidence };
       });
     } catch (error) {
       if (error instanceof PlanningRecoveryCrash) throw error;
@@ -1185,7 +1183,7 @@ export class PlanningRecoveryService {
     return { status: "COMMITTED", package: committed.package, evidence: committed.evidence };
   }
 
-  async apply(input: { projectId: string; projectVersion: number; operationKey: string; plan: PlanningRecoveryPlan; providerInput?: PlanningRecoveryProviderInput; candidate: PlanningPackage; requirementAccounting: PlanningRecoveryRequirementAccounting }): Promise<PlanningRecoveryResult> {
+  async apply(input: { projectId: string; projectVersion: number; operationKey: string; plan: PlanningRecoveryPlan; providerInput?: PlanningRecoveryProviderInput; candidate: PlanningPackage; requirementAccounting: PlanningRecoverySemanticAccounting }): Promise<PlanningRecoveryResult> {
     if (!this.dependencies.hostRecoveryEnabled) throw new PlanningRecoveryError("HOST_RECOVERY_NOT_AUTHORIZED");
     const plan = PlanningRecoveryPlanSchema.parse(input.plan);
     if (checksumPersistedDocument(Object.fromEntries(Object.entries(plan).filter(([key]) => key !== "planChecksum"))) !== plan.planChecksum) throw new PlanningRecoveryError("RECOVERY_PLAN_CHECKSUM_INVALID");
@@ -1204,7 +1202,7 @@ export class PlanningRecoveryService {
       const legacy = legacyRow && mapRowToDocument(legacyRow).documentType === "requirements" ? RequirementSpecificationSchema.parse(mapRowToDocument(legacyRow)) : null;
       if (brief.briefChecksum !== plan.briefChecksum || planning.approvedBriefChecksum !== plan.currentness.planningApprovedBriefChecksum || planning.accepted) throw new PlanningRecoveryError("RECOVERY_CURRENTNESS_STALE");
       try {
-        const candidate = admitRecoveryCandidate({ candidate: input.candidate, requirementAccounting: input.requirementAccounting, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief, planning, compatibility: compatibilityBrief(project, version, brief, legacy), now: this.now() });
+        const candidate = admitRecoveryCandidate({ candidate: input.candidate, semanticAccounting: input.requirementAccounting, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief, planning, compatibility: compatibilityBrief(project, version, brief, legacy), now: this.now() }).candidate;
         const existingEvidence = await tx.getPlanningRecoveryEvidence(input.projectId, input.projectVersion, input.operationKey);
         if (existingEvidence) {
           if (existingEvidence.nextPlanningDocumentChecksum !== planningDocumentChecksum(candidate)) throw new PlanningRecoveryError("IDEMPOTENCY_CONFLICT");

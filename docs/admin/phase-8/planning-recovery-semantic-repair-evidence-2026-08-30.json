@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "kind": "LATER_PHASE_DRIFT_SNAPSHOT",
+  "sourceEvidence": "docs/admin/phase-7d/phase-7d-controlled-ast-aware-patching-result-2026-08-12.json",
+  "reason": "The Planning Recovery semantic-accounting repair changes the OpenAI provider boundary after the frozen Phase 7D snapshot. The changed file is verified here against this separately governed later-phase snapshot; all other Phase 7D files remain byte-frozen.",
+  "files": [
+    {
+      "relativePath": "src/integrations/openai/adapters.ts",
+      "sha256": "7e57eb48a3e07cb455fa2d5e556432e2eeb55aee58bf9ef056bea3141cb62067"
+    }
+  ],
+  "snapshotChecksum": "b78f41c9d815e0f2d4349d20ca18e722349476aa55c30b0cf6296cf7f96a17b7"
+}

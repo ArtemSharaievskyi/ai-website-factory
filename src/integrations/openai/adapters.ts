@@ -15,7 +15,7 @@ import {
 import type { PlannerArchitectureProvider } from "@/agents/planner/ports";
 import type { PlanningRecoveryProviderInput, PlanningRecoveryProviderResult } from "@/agents/planner/recovery";
 import {
-  PlanningRecoveryRequirementAccountingSchema,
+  PlanningRecoverySemanticAccountingSchema,
   type CanonicalPlanningRouteManifest,
   type PlanningOwnedRequirementManifest,
 } from "@/agents/planner/recovery-manifests";
@@ -82,7 +82,6 @@ import {
   UserValueSchema,
 } from "@/domain/shared/schemas";
 import { ProjectBriefV2Schema, type RequirementSpecification } from "@/domain/requirements/schema";
-import { SemanticRequirementIdSchema } from "@/domain/requirements/v3/schema";
 import {
   BriefAssetRequirementsSchema,
   BriefBrandVisualRequirementsSchema,
@@ -628,7 +627,11 @@ export const PlanningPackageStructuredOutputSchema =
     traceability: z.array(StrictTraceabilitySchema),
   });
 
-const RecoveryRequirementReferencesSchema = z.array(SemanticRequirementIdSchema).min(1);
+// Recovery references are transport handles, never canonical identities. The
+// host binds these exact opaque handles before the internal package contract
+// validates canonical V3 requirement references.
+const RecoveryRequirementHandleOutputSchema = z.string().regex(/^planning-requirement:R\d{3}$/);
+const RecoveryRequirementReferencesSchema = z.array(RecoveryRequirementHandleOutputSchema).min(1);
 const RecoveryRouteHandleOutputSchema = z.string().regex(/^planning-route:[A-Za-z0-9_.:-]{1,180}$/);
 const RecoveryPageHandleOutputSchema = z.string().regex(/^planning-page:[A-Za-z0-9_.:-]{1,180}$/);
 const StrictRecoveryTraceabilitySchema = StrictTraceabilitySchema.extend({
@@ -717,9 +720,9 @@ const StrictRecoveryFormsSchema = PlanningPackageStructuredOutputSchema.shape.fo
   traceability: z.array(StrictRecoveryTraceabilitySchema),
 }).strict();
 
-/** Recovery-only provider DTO. Route/page identities are handles, and requirement references are V3 identities. */
+/** Recovery-only provider DTO. Route/page identities are handles; accounting is positional and identity-free. */
 export const PlanningRecoveryPackageStructuredOutputSchema = PlanningPackageStructuredOutputSchema.extend({
-  requirementAccounting: PlanningRecoveryRequirementAccountingSchema,
+  requirementAccounting: PlanningRecoverySemanticAccountingSchema,
   profile: StrictRecoveryProfileSchema,
   databaseRecommendation: StrictRecoveryDatabaseRecommendationSchema,
   productScope: StrictRecoveryProductScopeSchema,
@@ -772,6 +775,21 @@ function bindRecoveryRouteHandle(
   return route;
 }
 
+function bindRecoveryRequirementReferences(value: unknown, requirementsByHandle: ReadonlyMap<string, string>, planningRequirementIds: ReadonlySet<string>, fieldPath = "$"): unknown {
+  if (Array.isArray(value)) return value.map((child, index) => bindRecoveryRequirementReferences(child, requirementsByHandle, planningRequirementIds, `${fieldPath}[${index}]`));
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, child]) => {
+    if (key !== "requirementReferences" || !Array.isArray(child)) return [key, bindRecoveryRequirementReferences(child, requirementsByHandle, planningRequirementIds, `${fieldPath}.${key}`)];
+    return [key, child.map((reference, index) => {
+      if (typeof reference !== "string") recoveryBindingFailure("INVALID_RECOVERY_REQUIREMENT_REFERENCE", `${fieldPath}.${key}[${index}]`);
+      const boundId = requirementsByHandle.get(reference);
+      if (boundId) return boundId;
+      if (planningRequirementIds.has(reference)) recoveryBindingFailure("RECOVERY_PROVIDER_REQUIREMENT_ID_FORBIDDEN", `${fieldPath}.${key}[${index}]`);
+      return reference;
+    })];
+  }));
+}
+
 function normalizeRecoveryPlanningPackage(
   value: PlanningRecoveryProviderPackage,
   host: { projectId: string; projectVersion: number; approvedBriefChecksum: string },
@@ -783,8 +801,10 @@ function normalizeRecoveryPlanningPackage(
   const routesByHandle = new Map(requiredRoutes.map((route) => [route.routeHandle, route]));
   const routesByPageHandle = new Map(requiredRoutes.map((route) => [route.pageHandle, route]));
   const requirementIds = new Set(requirementManifest.requirements.map((entry) => entry.requirementId));
+  const requirementsByHandle = new Map(requirementManifest.requirements.map((entry) => [entry.requirementHandle, entry.requirementId]));
   const routePaths = new Set(requiredRoutes.map((route) => route.path));
-  if (value.sitemap.routes.length !== requiredRoutes.length) recoveryBindingFailure("RECOVERY_ROUTE_CARDINALITY", "sitemap.routes");
+  const boundValue = bindRecoveryRequirementReferences(value, requirementsByHandle, requirementIds) as PlanningRecoveryProviderPackage;
+  if (boundValue.sitemap.routes.length !== requiredRoutes.length) recoveryBindingFailure("RECOVERY_ROUTE_CARDINALITY", "sitemap.routes");
 
   const validateRequirementReferences = (input: unknown, fieldPath = "$") => {
     if (Array.isArray(input)) return input.forEach((child, index) => validateRequirementReferences(child, `${fieldPath}[${index}]`));
@@ -796,9 +816,9 @@ function normalizeRecoveryPlanningPackage(
       validateRequirementReferences(child, `${fieldPath}.${key}`);
     }
   };
-  validateRequirementReferences(value);
+  validateRequirementReferences(boundValue);
 
-  const normalizedRoutes = value.sitemap.routes.map((route, index) => {
+  const normalizedRoutes = boundValue.sitemap.routes.map((route, index) => {
     const manifestRoute = bindRecoveryRouteHandle(route.routeHandle, routesByHandle, `sitemap.routes[${index}].routeHandle`);
     if (route.pageHandle !== manifestRoute.pageHandle) recoveryBindingFailure("RECOVERY_ROUTE_PAGE_HANDLE_MISMATCH", `sitemap.routes[${index}].pageHandle`);
     if (route.path !== manifestRoute.path) recoveryBindingFailure("RECOVERY_ROUTE_PATH_MISMATCH", `sitemap.routes[${index}].path`);
@@ -810,8 +830,8 @@ function normalizeRecoveryPlanningPackage(
   const expectedPaths = [...routePaths].sort();
   if (normalizedPaths.some((path, index) => path !== expectedPaths[index])) recoveryBindingFailure("RECOVERY_ROUTE_SET_MISMATCH", "sitemap.routes");
 
-  if (value.pages.pages.length !== requiredRoutes.length) recoveryBindingFailure("RECOVERY_PAGE_CARDINALITY", "pages.pages");
-  const normalizedPages = value.pages.pages.map((page, index) => {
+  if (boundValue.pages.pages.length !== requiredRoutes.length) recoveryBindingFailure("RECOVERY_PAGE_CARDINALITY", "pages.pages");
+  const normalizedPages = boundValue.pages.pages.map((page, index) => {
     const manifestRoute = bindRecoveryRouteHandle(page.routeHandle, routesByHandle, `pages.pages[${index}].routeHandle`);
     const manifestPage = routesByPageHandle.get(page.pageHandle);
     if (!manifestPage) recoveryBindingFailure("UNKNOWN_RECOVERY_PAGE_HANDLE", `pages.pages[${index}].pageHandle`);
@@ -822,15 +842,15 @@ function normalizeRecoveryPlanningPackage(
 
   const normalizeRouteHandles = (handles: readonly string[], fieldPath: string) => handles.map((handle, index) => bindRecoveryRouteHandle(handle, routesByHandle, `${fieldPath}[${index}]`).routeId);
   const normalizedNavigation = {
-    ...value.navigation,
-    primary: normalizeRouteHandles(value.navigation.primary, "navigation.primary"),
-    secondary: normalizeRouteHandles(value.navigation.secondary, "navigation.secondary"),
-    footer: normalizeRouteHandles(value.navigation.footer, "navigation.footer"),
-    contextual: normalizeRouteHandles(value.navigation.contextual, "navigation.contextual"),
-    protected: normalizeRouteHandles(value.navigation.protected, "navigation.protected"),
-    routeReferences: normalizeRouteHandles(value.navigation.routeReferences, "navigation.routeReferences"),
+    ...boundValue.navigation,
+    primary: normalizeRouteHandles(boundValue.navigation.primary, "navigation.primary"),
+    secondary: normalizeRouteHandles(boundValue.navigation.secondary, "navigation.secondary"),
+    footer: normalizeRouteHandles(boundValue.navigation.footer, "navigation.footer"),
+    contextual: normalizeRouteHandles(boundValue.navigation.contextual, "navigation.contextual"),
+    protected: normalizeRouteHandles(boundValue.navigation.protected, "navigation.protected"),
+    routeReferences: normalizeRouteHandles(boundValue.navigation.routeReferences, "navigation.routeReferences"),
   };
-  const normalizedFlows = value.userFlows.flows.map((flow, index) => {
+  const normalizedFlows = boundValue.userFlows.flows.map((flow, index) => {
     const startRoute = bindRecoveryRouteHandle(flow.startRouteHandle, routesByHandle, `userFlows.flows[${index}].startRouteHandle`);
     const flowFields = omitRecoveryFields(flow, ["startRouteHandle"]);
     return {
@@ -842,14 +862,14 @@ function normalizeRecoveryPlanningPackage(
       }),
     };
   });
-  const normalizedForms = value.forms.forms.map((form, index) => {
+  const normalizedForms = boundValue.forms.forms.map((form, index) => {
     const route = bindRecoveryRouteHandle(form.routeHandle, routesByHandle, `forms.forms[${index}].routeHandle`);
     const formFields = omitRecoveryFields(form, ["routeHandle"]);
     return { ...formFields, route: route.path };
   });
   const normalizedArchitecture = {
-    ...value.architecture,
-    routes: value.architecture.routes.map((route, index) => ({
+    ...boundValue.architecture,
+    routes: boundValue.architecture.routes.map((route, index) => ({
       responsibility: route.responsibility,
       path: bindRecoveryRouteHandle(route.routeHandle, routesByHandle, `architecture.routes[${index}].routeHandle`).path,
     })),
@@ -857,16 +877,16 @@ function normalizeRecoveryPlanningPackage(
   if (normalizedArchitecture.routes.length !== requiredRoutes.length || normalizedArchitecture.routes.map((route) => route.path).sort().some((path, index) => path !== expectedPaths[index])) recoveryBindingFailure("RECOVERY_ARCHITECTURE_ROUTE_SET_MISMATCH", "architecture.routes");
   for (const form of normalizedForms) if (!routePaths.has(form.route)) recoveryBindingFailure("RECOVERY_FORM_ROUTE_MISMATCH", "forms.forms.route");
 
-  const { requirementAccounting, ...planningPackageValue } = value;
+  const { requirementAccounting, ...planningPackageValue } = boundValue;
   const normalized = {
     ...planningPackageValue,
-    profile: value.profile,
-    productScope: value.productScope,
-    sitemap: { ...value.sitemap, routes: normalizedRoutes },
+    profile: boundValue.profile,
+    productScope: boundValue.productScope,
+    sitemap: { ...boundValue.sitemap, routes: normalizedRoutes },
     navigation: normalizedNavigation,
-    pages: { ...value.pages, pages: normalizedPages },
-    userFlows: { ...value.userFlows, flows: normalizedFlows },
-    forms: { ...value.forms, forms: normalizedForms },
+    pages: { ...boundValue.pages, pages: normalizedPages },
+    userFlows: { ...boundValue.userFlows, flows: normalizedFlows },
+    forms: { ...boundValue.forms, forms: normalizedForms },
     architecture: normalizedArchitecture,
   } as z.infer<typeof PlanningPackageStructuredOutputSchema>;
   return { planningPackage: normalizePlanningPackage(normalized, host, approvedBrief), requirementAccounting };
@@ -1288,6 +1308,73 @@ export class OpenAiLeadProvider implements LeadAnalysisProvider {
     ).value;
   }
 }
+/**
+ * Build the smallest lossless recovery prompt context. Planning-owned
+ * requirement prose is carried once in the ordered host manifest; pages and
+ * route handles are carried once in the route manifest. Persistence checksums,
+ * the legacy planner projection, and duplicate full manifests stay host-side.
+ */
+export function createPlanningRecoveryPromptContext(input: PlanningRecoveryProviderInput) {
+  const planningRequirementIds = new Set(input.planningRequirementManifest.requirements.map((entry) => entry.requirementId));
+  const requirements = input.canonicalBrief.requirements;
+  const decisions = input.canonicalBrief.decisions;
+  const seo = input.canonicalBrief.seo;
+  const briefWithoutDuplicatePlanningData = Object.fromEntries(Object.entries(input.canonicalBrief).filter(([key]) => !["pages", "requirements", "decisions", "seo"].includes(key)));
+  const compactBrief = {
+    ...briefWithoutDuplicatePlanningData,
+    requirements: requirements.filter((entry) => !planningRequirementIds.has(entry.id)),
+    decisions: { ...decisions, form: { ...decisions.form, interactionStates: decisions.form.interactionStates.filter((entry) => !planningRequirementIds.has(entry.id)) } },
+    seo: { ...seo, locationTargeting: seo.locationTargeting.filter((entry) => !planningRequirementIds.has(entry.id)) },
+  };
+  return {
+    task: "planning-recovery-full-package",
+    authority: input.authority,
+    mode: input.mode,
+    recoveryPlan: { recoveryReason: input.plan.recoveryReason, routePolicy: input.plan.routePolicy },
+    projectVersion: input.plannerInput.projectVersion,
+    currentWorkflowState: input.plannerInput.currentWorkflowState,
+    operatorLanguage: input.plannerInput.approvedBrief.operatorLanguage ?? "en",
+    siteLanguage: input.canonicalBrief.localization.defaultLocale,
+    canonicalBrief: compactBrief,
+    canonicalRouteManifest: {
+      schemaVersion: input.canonicalRouteManifest.schemaVersion,
+      routePolicy: input.canonicalRouteManifest.routePolicy,
+      routes: input.canonicalRouteManifest.routes.map((route) => ({
+        routeHandle: route.routeHandle,
+        pageHandle: route.pageHandle,
+        pageId: route.pageId,
+        path: route.path,
+        pagePurpose: route.pagePurpose,
+        pageRole: route.pageRole,
+        legal: route.legal,
+        required: route.required,
+        parentPageId: route.parentPageId,
+        navigation: route.navigation,
+        seo: route.seo,
+        pageSourceRefs: input.canonicalBrief.pages.find((page) => page.id === route.pageId)?.sourceRefs ?? [],
+      })),
+    },
+    planningRequirementManifest: {
+      schemaVersion: input.planningRequirementManifest.schemaVersion,
+      requirements: input.planningRequirementManifest.requirements.map((entry, position) => ({
+        position,
+        requirementHandle: entry.requirementHandle,
+        category: entry.category,
+        statement: entry.statement,
+        sourceRefs: entry.sourceRefs,
+        origin: entry.origin,
+      })),
+    },
+    currentPlanningEvidence: input.currentPlanningEvidence.structuralSummary,
+    outputPolicy: {
+      schemaVersion: input.outputPolicy.schemaVersion,
+      maxEstimatedTokens: input.outputPolicy.maxEstimatedTokens,
+      complete: input.outputPolicy.complete,
+      truncation: input.outputPolicy.truncation,
+    },
+  };
+}
+
 export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
   constructor(private readonly ai: OpenAiStructuredClient) {}
   async plan(
@@ -1315,36 +1402,26 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
       input.approvedBrief,
     );
   }
+
   async planRecovery(
     input: PlanningRecoveryProviderInput,
     approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
     skillContextIdentity = "none",
   ): Promise<PlanningRecoveryProviderResult> {
-    const prompt = rolePrompt("planner", {
-      ...input.plannerInput,
-      task: "planning-recovery-full-package",
-      recoveryAuthority: input.authority,
-      recoveryMode: input.mode,
-      recoveryPlan: input.plan,
-      canonicalBrief: input.canonicalBrief,
-      canonicalRouteManifest: input.canonicalRouteManifest,
-      planningRequirementManifest: input.planningRequirementManifest,
-      planningOwnedRequirements: input.planningOwnedRequirements,
-      currentPlanningEvidence: input.currentPlanningEvidence,
-      outputPolicy: input.outputPolicy,
-    }, false, approvedSkills);
+    const promptInput = createPlanningRecoveryPromptContext(input);
+    const prompt = rolePrompt("planner", promptInput, false, approvedSkills);
     const instruction = [
       "This is an explicitly authorized host Planning recovery.",
       "Return exactly one complete PlanningPackage using the full canonical Brief as the sole semantic authority.",
       "Preserve every canonical Planning-owned requirement and do not summarize, omit, or reinterpret canonical requirements.",
       "Emit every required route manifest entry exactly once using its exact routeHandle, pageHandle, and canonical path; emit every required page exactly once using its exact handles.",
-      "Use only exact host-issued V3 requirement IDs from planningRequirementManifest in every requirementReferences and traceability entry; do not use route names, legacy IDs, or invented references.",
+      "Use only exact host-issued planning requirement handles from planningRequirementManifest for PlanningPackage requirementReferences and traceability entries; the host maps those handles to canonical V3 IDs. Preserve page and asset references only when present in the supplied host manifests; do not use legacy IDs, canonical Planning IDs, or invented references.",
       "Return all required routes in sitemap and architecture, use route handles for navigation, flow starts/steps, and forms, and include complete semantic and traceability coverage for every manifest requirement.",
-      "For every entry in planningRequirementManifest, emit exactly one requirementAccounting entry with the same requirementId, the exact canonical category as requirementDomain, one explicit disposition, one or more coveredBy references using only the host-issued planning-requirement/route/page handles, and non-empty semanticEvidence.",
+      "For every ordered entry in planningRequirementManifest, emit exactly one requirementAccounting entry in the same order. Each accounting entry must contain only one explicit disposition, one or more planningTargetRefs, and concise non-empty semanticEvidence; each target ref is {kind,routeHandle,pageHandle,section} with exactly one kind-specific value and the other two values null. Use only host-issued route/page handles or an existing Planning section; do not include requirementId or requirementDomain because the host binds those from position.",
       "Do not use keyword matching as a substitute for semantic reasoning; semanticEvidence must explain the actual Planning treatment of the canonical requirement.",
       "The output policy is complete=true with truncation=REJECT; never truncate or return a partial package.",
       "Do not mutate persistence, the project, workflow state, approvals, checksums, timestamps, or decision identities.",
-      "Do not invent requirement IDs, pages, assets, business facts, providers, backend capabilities, or user decisions.",
+      "Do not invent requirement IDs, target handles, pages, assets, business facts, providers, backend capabilities, or user decisions.",
       "The host will bind identity, route policy, timestamps, decision IDs, acceptance, and checksum policy and will reject unsupported facts or incomplete coverage.",
     ].join(" ");
     const result = await this.ai.request<z.infer<typeof PlanningRecoveryPackageStructuredOutputSchema>>({

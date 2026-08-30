@@ -2,6 +2,7 @@ import { CanonicalBriefV3Schema, CanonicalRequirementSchema, RequirementCategory
 import { canonicalRequirementEntries, isLegacyRequirementId, isV3RequirementId } from "@/domain/requirements/v3/identity";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { NonEmptyStringSchema } from "@/domain/shared/schemas";
+import type { PlanningPackage } from "./contracts";
 import { z } from "zod";
 
 const RoutePathSchema = z.string().regex(/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/);
@@ -10,6 +11,8 @@ const SourceRefListSchema = z.array(NonEmptyStringSchema.max(200)).min(1);
 
 export const PlanningRouteHandleSchema = HandleSchema.regex(/^planning-route:/);
 export const PlanningPageHandleSchema = HandleSchema.regex(/^planning-page:/);
+// Read compatibility: historical persisted manifests used the canonical ID
+// after this prefix. New manifests are generated with opaque R### handles.
 export const PlanningRequirementHandleSchema = HandleSchema.regex(/^planning-requirement:/);
 
 const RouteSeoMetadataSchema = z.object({
@@ -107,11 +110,75 @@ export const PlanningRequirementDispositionSchema = z.enum([
 ]);
 export type PlanningRequirementDisposition = z.infer<typeof PlanningRequirementDispositionSchema>;
 
+export const PlanningTargetSectionSchema = z.enum([
+  "profile",
+  "productScope",
+  "sitemap",
+  "navigation",
+  "pages",
+  "userFlows",
+  "forms",
+  "dataModel",
+  "authentication",
+  "supabase",
+  "email",
+  "storage",
+  "administration",
+  "content",
+  "assets",
+  "architecture",
+  "environment",
+  "dependencies",
+  "testStrategy",
+  "security",
+  "traceability",
+]);
+export type PlanningTargetSection = z.infer<typeof PlanningTargetSectionSchema>;
+
+/**
+ * Planning targets are host-issued references into the candidate package. A
+ * requirement handle is deliberately not a target: it identifies the input
+ * requirement, not the Planning responsibility that represents it.
+ */
+export const PlanningTargetRefSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("route"), routeHandle: PlanningRouteHandleSchema }).strict(),
+  z.object({ kind: z.literal("page"), pageHandle: PlanningPageHandleSchema }).strict(),
+  z.object({ kind: z.literal("section"), section: PlanningTargetSectionSchema }).strict(),
+]);
+export type PlanningTargetRef = z.infer<typeof PlanningTargetRefSchema>;
+
+/**
+ * OpenAI strict Structured Outputs does not support the `anyOf`/`allOf`
+ * combination produced for a discriminated union containing refined handle
+ * strings. The transport keeps the same typed discriminator and makes the
+ * inactive fields explicit nulls; the host converts it to PlanningTargetRef
+ * before admission.
+ */
+export const PlanningTargetRefTransportSchema = z.object({
+  kind: z.enum(["route", "page", "section"]),
+  routeHandle: z.string().max(320).nullable(),
+  pageHandle: z.string().max(320).nullable(),
+  section: PlanningTargetSectionSchema.nullable(),
+}).strict();
+export type PlanningTargetRefTransport = z.infer<typeof PlanningTargetRefTransportSchema>;
+
+/** Provider payload: one entry per host manifest position, with no identity. */
+export const PlanningRecoverySemanticAccountingEntrySchema = z.object({
+  disposition: PlanningRequirementDispositionSchema,
+  planningTargetRefs: z.array(PlanningTargetRefTransportSchema).min(1).max(16),
+  semanticEvidence: NonEmptyStringSchema.max(2000),
+}).strict();
+export type PlanningRecoverySemanticAccountingEntry = z.infer<typeof PlanningRecoverySemanticAccountingEntrySchema>;
+
+export const PlanningRecoverySemanticAccountingSchema = z.array(PlanningRecoverySemanticAccountingEntrySchema).max(512);
+export type PlanningRecoverySemanticAccounting = z.infer<typeof PlanningRecoverySemanticAccountingSchema>;
+
+/** Host-bound accounting. `requirementId` is added only after positional binding. */
 export const PlanningRecoveryRequirementAccountingEntrySchema = z.object({
   requirementId: SemanticRequirementIdSchema,
   requirementDomain: RequirementCategorySchema,
   disposition: PlanningRequirementDispositionSchema,
-  coveredBy: z.array(NonEmptyStringSchema.max(240)).min(1).max(16),
+  planningTargetRefs: z.array(PlanningTargetRefSchema).min(1).max(16),
   semanticEvidence: NonEmptyStringSchema.max(2000),
 }).strict();
 export type PlanningRecoveryRequirementAccountingEntry = z.infer<typeof PlanningRecoveryRequirementAccountingEntrySchema>;
@@ -131,7 +198,12 @@ export type PlanningRecoveryRequirementAccountingIssueCode =
   | "MISSING_DISPOSITION"
   | "INVALID_DISPOSITION"
   | "MISSING_SEMANTIC_EVIDENCE"
-  | "INVALID_COVERAGE_REFERENCE";
+  | "INVALID_COVERAGE_REFERENCE"
+  | "ACCOUNTING_CARDINALITY_MISMATCH"
+  | "INVALID_PLANNING_TARGET_REF"
+  | "TARGET_NOT_IN_CANDIDATE"
+  | "TARGET_RELATIONSHIP_INVALID"
+  | "PLACEHOLDER_SEMANTIC_EVIDENCE";
 
 export type PlanningRecoveryRequirementAccountingIssue = {
   code: PlanningRecoveryRequirementAccountingIssueCode;
@@ -148,6 +220,117 @@ export type PlanningRecoveryRequirementAccountingValidation = {
   issues: PlanningRecoveryRequirementAccountingIssue[];
 };
 
+export type PlanningRecoverySemanticAccountingBinding = {
+  accounting: PlanningRecoveryRequirementAccounting;
+  validation: PlanningRecoveryRequirementAccountingValidation;
+};
+
+const PLACEHOLDER_SEMANTIC_EVIDENCE = new Set(["covered", "implemented", "handled", "see plan", "same as requirement"]);
+
+function normalizedEvidence(value: string) {
+  return value.trim().toLocaleLowerCase("en").replace(/[.!?,;:]+$/g, "").replace(/\s+/g, " ");
+}
+
+function targetRefExistsInCandidate(input: {
+  ref: PlanningTargetRef;
+  candidate?: PlanningPackage;
+  routeManifest?: Pick<CanonicalPlanningRouteManifest, "routes">;
+}) {
+  const ref = input.ref;
+  if (ref.kind === "section") return !input.candidate || input.candidate[ref.section] !== undefined;
+  const manifestRoute = ref.kind === "route"
+    ? input.routeManifest?.routes.find((route) => route.routeHandle === ref.routeHandle)
+    : ref.kind === "page"
+      ? input.routeManifest?.routes.find((route) => route.pageHandle === ref.pageHandle)
+      : undefined;
+  if (!manifestRoute) return false;
+  if (!input.candidate) return true;
+  return ref.kind === "route"
+    ? input.candidate.sitemap.routes.some((route) => route.path === manifestRoute.path)
+    : input.candidate.pages.pages.some((page) => page.routeId === manifestRoute.routeId);
+}
+
+function containsRequirementReference(value: unknown, requirementId: string): boolean {
+  if (Array.isArray(value)) return value.some((child) => containsRequirementReference(child, requirementId));
+  if (!value || typeof value !== "object") return false;
+  return Object.entries(value as Record<string, unknown>).some(([key, child]) =>
+    key === "requirementReferences" && Array.isArray(child)
+      ? child.includes(requirementId)
+      : containsRequirementReference(child, requirementId),
+  );
+}
+
+function targetRefRelationshipIsValid(input: {
+  ref: PlanningTargetRef;
+  requirementId: string;
+  candidate?: PlanningPackage;
+  routeManifest?: Pick<CanonicalPlanningRouteManifest, "routes">;
+}) {
+  if (!input.candidate) return true;
+  if (input.ref.kind === "section") return containsRequirementReference(input.candidate[input.ref.section], input.requirementId);
+  let manifestRoute: CanonicalPlanningRouteManifest["routes"][number] | undefined;
+  if (input.ref.kind === "route") manifestRoute = input.routeManifest?.routes.find((route) => route.routeHandle === (input.ref as { kind: "route"; routeHandle: string }).routeHandle);
+  else if (input.ref.kind === "page") manifestRoute = input.routeManifest?.routes.find((route) => route.pageHandle === (input.ref as { kind: "page"; pageHandle: string }).pageHandle);
+  if (!manifestRoute) return false;
+  const target = input.ref.kind === "route"
+    ? input.candidate.sitemap.routes.find((route) => route.path === manifestRoute.path)
+    : input.candidate.pages.pages.find((page) => page.routeId === manifestRoute.routeId);
+  return containsRequirementReference(target, input.requirementId);
+}
+
+function bindPlanningTargetRef(value: PlanningTargetRefTransport): unknown {
+  if (value.kind === "route" && value.routeHandle !== null && value.pageHandle === null && value.section === null) return { kind: "route", routeHandle: value.routeHandle };
+  if (value.kind === "page" && value.routeHandle === null && value.pageHandle !== null && value.section === null) return { kind: "page", pageHandle: value.pageHandle };
+  if (value.kind === "section" && value.routeHandle === null && value.pageHandle === null && value.section !== null) return { kind: "section", section: value.section };
+  return value;
+}
+
+/**
+ * Bind an ordered provider payload to the immutable host manifest. The
+ * provider cannot supply, replace, omit, or append a canonical identity.
+ */
+export function bindPlanningRecoverySemanticAccounting(input: {
+  semanticAccounting: unknown;
+  manifest: Pick<PlanningOwnedRequirementManifest, "requirements">;
+  candidate?: PlanningPackage;
+  routeManifest?: Pick<CanonicalPlanningRouteManifest, "routes">;
+}): PlanningRecoverySemanticAccountingBinding {
+  const expected = input.manifest.requirements;
+  const parsed = PlanningRecoverySemanticAccountingSchema.safeParse(input.semanticAccounting);
+  if (!parsed.success) {
+    return {
+      accounting: [],
+      validation: {
+        expectedRequirementCount: expected.length,
+        accountedRequirementCount: 0,
+        missingRequirementIds: expected.map((entry) => entry.requirementId),
+        duplicateIdCount: 0,
+        legacyIdCount: 0,
+        orphanIdCount: 0,
+        issues: [{ code: "INVALID_ACCOUNTING_ENTRY" }],
+      },
+    };
+  }
+  const accounting = parsed.data.slice(0, expected.length).map((entry, index) => {
+    const boundTargets = PlanningTargetRefSchema.array().safeParse(entry.planningTargetRefs.map(bindPlanningTargetRef));
+    return {
+      requirementId: expected[index]!.requirementId,
+      requirementDomain: expected[index]!.category,
+      disposition: entry.disposition,
+      planningTargetRefs: boundTargets.success ? boundTargets.data : [],
+      semanticEvidence: entry.semanticEvidence,
+    };
+  });
+  const validation = validatePlanningRecoveryRequirementAccounting({
+    accounting,
+    manifest: input.manifest,
+    candidate: input.candidate,
+    routeManifest: input.routeManifest,
+  });
+  if (parsed.data.length !== expected.length) validation.issues.push({ code: "ACCOUNTING_CARDINALITY_MISMATCH" });
+  return { accounting, validation };
+}
+
 /**
  * Validate the runtime identity binding that a static provider schema cannot
  * encode.  Semantic evidence is intentionally checked only for presence;
@@ -156,13 +339,10 @@ export type PlanningRecoveryRequirementAccountingValidation = {
 export function validatePlanningRecoveryRequirementAccounting(input: {
   accounting: unknown;
   manifest: Pick<PlanningOwnedRequirementManifest, "requirements">;
-  allowedCoverageRefs?: readonly string[];
+  candidate?: PlanningPackage;
+  routeManifest?: Pick<CanonicalPlanningRouteManifest, "routes">;
 }): PlanningRecoveryRequirementAccountingValidation {
   const expected = new Map(input.manifest.requirements.map((entry) => [entry.requirementId, entry]));
-  const allowedCoverageRefs = new Set([
-    ...input.manifest.requirements.map((entry) => entry.requirementHandle),
-    ...(input.allowedCoverageRefs ?? []),
-  ]);
   const issues: PlanningRecoveryRequirementAccountingIssue[] = [];
   const seen = new Map<string, number>();
   const entries = Array.isArray(input.accounting) ? input.accounting : [];
@@ -184,8 +364,15 @@ export function validatePlanningRecoveryRequirementAccounting(input: {
     if (typeof disposition !== "string" || !disposition.trim()) issues.push({ code: "MISSING_DISPOSITION", requirementId });
     else if (!PlanningRequirementDispositionSchema.safeParse(disposition).success) issues.push({ code: "INVALID_DISPOSITION", requirementId });
     if (typeof value.semanticEvidence !== "string" || !value.semanticEvidence.trim()) issues.push({ code: "MISSING_SEMANTIC_EVIDENCE", requirementId });
-    const coveredBy = value.coveredBy;
-    if (!Array.isArray(coveredBy) || coveredBy.length === 0 || coveredBy.some((reference) => typeof reference !== "string" || !reference.trim() || !allowedCoverageRefs.has(reference))) issues.push({ code: "INVALID_COVERAGE_REFERENCE", requirementId });
+    const targetRefs = value.planningTargetRefs;
+    const parsedTargets = PlanningTargetRefSchema.array().safeParse(targetRefs);
+    if (!parsedTargets.success || parsedTargets.data.length === 0) issues.push({ code: "INVALID_PLANNING_TARGET_REF", requirementId });
+    else {
+      const missingTarget = parsedTargets.data.some((ref) => !targetRefExistsInCandidate({ ref, candidate: input.candidate, routeManifest: input.routeManifest }));
+      if (missingTarget) issues.push({ code: "TARGET_NOT_IN_CANDIDATE", requirementId });
+      else if (requirementId && parsedTargets.data.some((ref) => !targetRefRelationshipIsValid({ ref, requirementId, candidate: input.candidate, routeManifest: input.routeManifest }))) issues.push({ code: "TARGET_RELATIONSHIP_INVALID", requirementId });
+    }
+    if (typeof value.semanticEvidence === "string" && PLACEHOLDER_SEMANTIC_EVIDENCE.has(normalizedEvidence(value.semanticEvidence))) issues.push({ code: "PLACEHOLDER_SEMANTIC_EVIDENCE", requirementId });
   }
 
   let duplicateIdCount = 0;
@@ -282,8 +469,8 @@ function requirementOrigin(brief: CanonicalBriefV3, id: string): "brief.requirem
 
 export function createPlanningOwnedRequirementManifest(input: CanonicalBriefV3): PlanningOwnedRequirementManifest {
   const brief = CanonicalBriefV3Schema.parse(input);
-  const entries = canonicalRequirementEntries(brief).filter((entry) => !PLANNING_NON_OWNED_CATEGORIES.has(entry.category)).map((entry) => ({
-    requirementHandle: `planning-requirement:${entry.id}`,
+  const entries = canonicalRequirementEntries(brief).filter((entry) => !PLANNING_NON_OWNED_CATEGORIES.has(entry.category)).map((entry, position) => ({
+    requirementHandle: `planning-requirement:R${String(position).padStart(3, "0")}`,
     requirementId: entry.id,
     category: entry.category,
     statement: entry.statement,
