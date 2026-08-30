@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { PersistenceError } from "./errors";
 import { appendBriefRevisionFailureDiagnostic } from "./brief-revision-failure-diagnostics";
-import { PlanningRecoveryRunSchema, assertPlanningRecoveryRunTransition, isLeaseActive, isPlanningRecoveryRunTerminal, terminalOutcomeFor, type PlanningRecoveryRunClaim, type PlanningRecoveryRunRow, type PlanningRecoveryRunTransition } from "@/agents/planner/recovery-runs";
+import { PlanningRecoveryRunSchema, assertPlanningRecoveryRunTransition, hasPlanningRecoveryRunImmutablePatch, hasValidNewPlanningRecoveryRunSourceBinding, isLeaseActive, isPlanningRecoveryRunTerminal, terminalOutcomeFor, type PlanningRecoveryRunClaim, type PlanningRecoveryRunRow, type PlanningRecoveryRunTransition } from "@/agents/planner/recovery-runs";
 import { checksumPersistedDocument } from "./serialization";
 import type { BriefRevisionAtomicCommitResult, BriefRevisionAttemptClaim, BriefRevisionAttemptRow, BriefRevisionAttemptStatus, BriefRevisionAttemptTransition, BriefRevisionProjectionRow, PersistenceDatabase, PersistenceTransaction, ProjectRow, ProjectAssetRow, ProjectVersionRow, WorkflowEvent, CostRecord, IdempotencyRecord, PlanningRecoveryEvidenceRow, RequirementIdentityLineageRow, RequirementIdentityMigrationRow } from "./types";
 import { mapRowToDocument, type DocumentRow } from "./mapping";
@@ -184,6 +184,7 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
       listPlanningRecoveryRuns: async (projectId, projectVersion) => copy([...this.planningRecoveryRuns.values()].filter((row) => row.projectId === projectId && row.projectVersion === projectVersion).sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.runId.localeCompare(right.runId))),
       createPlanningRecoveryRun: async (input) => {
         const row = PlanningRecoveryRunSchema.parse(input);
+        if (!hasValidNewPlanningRecoveryRunSourceBinding(row)) throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", "New Planning recovery runs require an immutable source-head binding.");
         const existing = [...this.planningRecoveryRuns.values()].find((candidate) => candidate.projectId === row.projectId && candidate.projectVersion === row.projectVersion && candidate.operationKey === row.operationKey);
         if (existing) {
           const identity = (candidate: PlanningRecoveryRunRow) => ({ runId: candidate.runId, projectId: candidate.projectId, projectVersion: candidate.projectVersion, versionId: candidate.versionId, expectedSourceHead: candidate.expectedSourceHead, recoveryPlanChecksum: candidate.recoveryPlanChecksum, recoveryPlan: candidate.recoveryPlan, projectRowVersion: candidate.projectRowVersion, projectVersionRowVersion: candidate.projectVersionRowVersion, briefRowVersion: candidate.briefRowVersion, briefSemanticChecksum: candidate.briefSemanticChecksum, briefDocumentChecksum: candidate.briefDocumentChecksum, planningRowVersion: candidate.planningRowVersion, planningSemanticChecksum: candidate.planningSemanticChecksum, planningDocumentChecksum: candidate.planningDocumentChecksum, providerBudget: candidate.providerBudget });
@@ -216,6 +217,7 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
       transitionPlanningRecoveryRun: async (input: PlanningRecoveryRunTransition) => {
         const current = this.planningRecoveryRuns.get(input.runId);
         if (!current || current.operationKey !== input.operationKey || current.state !== input.from) throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery run transition is stale.");
+        if (hasPlanningRecoveryRunImmutablePatch(input.patch)) throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", "Planning recovery run identity is immutable.");
         if (input.owner && (current.leaseOwner !== input.owner || !isLeaseActive(current, input.now))) throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery run lease is stale.");
         assertPlanningRecoveryRunTransition(input.from, input.to);
         const terminal = isPlanningRecoveryRunTerminal(input.to);

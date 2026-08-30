@@ -15,6 +15,7 @@ import { FakePlannerMemoryPort } from "./memory";
 import { buildPlanningPackage } from "./deterministic";
 import { PlanningRecoveryService, type PlanningRecoveryProvider } from "./recovery";
 import { normalizePlanningPackageForHost } from "./refresh-admission";
+import { createStaticSourceCurrentnessPort } from "@/runtime/source-head";
 
 function configuredDatabaseUrl() {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
@@ -31,6 +32,7 @@ const databaseUrl = configuredDatabaseUrl();
 const describePostgres = describe.skipIf(!databaseUrl);
 const projectIds: string[] = [];
 const timestamp = "2026-08-30T12:00:00.000Z";
+const TEST_SOURCE_HEAD = "b".repeat(40);
 
 function briefFor(projectId: string, includeRecoveryRequirement: boolean) {
   const value = CanonicalBriefV3Schema.parse({
@@ -121,7 +123,7 @@ describePostgres("Planning recovery real PostgreSQL certification", () => {
   it("commits one complete recovery with exact evidence, CAS advancement, and no downstream promotion", async () => {
     const value = await fixture(database);
     const memory = new FakePlannerMemoryPort();
-    const service = new PlanningRecoveryService({ database, memory, provider: provider(), hostRecoveryEnabled: true, now: () => timestamp });
+    const service = new PlanningRecoveryService({ database, memory, provider: provider(), source: createStaticSourceCurrentnessPort(TEST_SOURCE_HEAD), hostRecoveryEnabled: true, now: () => timestamp });
     const prepared = await service.prepare({ projectId: value.projectId, projectVersion: 1, operationKey: "postgres-commit" });
     expect(prepared.eligibility).toMatchObject({ eligible: true, reason: "RECOVERY_REQUIRED" });
     const result = await service.recover({ projectId: value.projectId, projectVersion: 1, operationKey: "postgres-commit" });
@@ -152,7 +154,7 @@ describePostgres("Planning recovery real PostgreSQL certification", () => {
 
   it("rolls back the real PostgreSQL package and evidence writes after injected failure", async () => {
     const value = await fixture(database);
-    const service = new PlanningRecoveryService({ database, memory: new FakePlannerMemoryPort(), provider: provider(), hostRecoveryEnabled: true, now: () => timestamp, fault: { hit: (point) => { if (point === "after-evidence-write") throw new Error("synthetic-postgres-recovery-fault"); } } });
+    const service = new PlanningRecoveryService({ database, memory: new FakePlannerMemoryPort(), provider: provider(), source: createStaticSourceCurrentnessPort(TEST_SOURCE_HEAD), hostRecoveryEnabled: true, now: () => timestamp, fault: { hit: (point) => { if (point === "after-evidence-write") throw new Error("synthetic-postgres-recovery-fault"); } } });
     const prepared = await service.prepare({ projectId: value.projectId, projectVersion: 1, operationKey: "postgres-rollback" });
     const candidate = completeRecoveryCandidate(plannerInput(value.projectId, value.currentBrief));
     await expect(service.apply({ projectId: value.projectId, projectVersion: 1, operationKey: "postgres-rollback", plan: prepared.plan!, candidate })).rejects.toMatchObject({ code: "PERSISTENCE_PROVIDER_ERROR" });
@@ -164,7 +166,7 @@ describePostgres("Planning recovery real PostgreSQL certification", () => {
 
   it("rejects a stale prepared CAS token before any recovery evidence is written", async () => {
     const value = await fixture(database);
-    const service = new PlanningRecoveryService({ database, memory: new FakePlannerMemoryPort(), provider: provider(), hostRecoveryEnabled: true, now: () => timestamp });
+    const service = new PlanningRecoveryService({ database, memory: new FakePlannerMemoryPort(), provider: provider(), source: createStaticSourceCurrentnessPort(TEST_SOURCE_HEAD), hostRecoveryEnabled: true, now: () => timestamp });
     const prepared = await service.prepare({ projectId: value.projectId, projectVersion: 1, operationKey: "postgres-stale" });
     await new DocumentRepository(database).save({ ...value.baseline, updatedAt: "2026-08-30T12:00:01.000Z" });
     const candidate = completeRecoveryCandidate(plannerInput(value.projectId, value.currentBrief));
@@ -181,6 +183,7 @@ describePostgres("Planning recovery real PostgreSQL certification", () => {
     const first = new PlanningRecoveryService({
       database,
       memory: new FakePlannerMemoryPort(),
+      source: createStaticSourceCurrentnessPort(TEST_SOURCE_HEAD),
       provider: { planRecovery: async (input) => { calls += 1; return completeRecoveryCandidate(input.plannerInput); } },
       hostRecoveryEnabled: true,
       now: () => now,
@@ -190,8 +193,11 @@ describePostgres("Planning recovery real PostgreSQL certification", () => {
     expect(calls).toBe(1);
     const stored = await database.transaction((tx) => tx.getPlanningRecoveryRun(value.projectId, 1, "postgres-durable-result"));
     expect(stored).toMatchObject({ state: "PROVIDER_RETURNED", providerAttemptCount: 1, providerResultChecksum: expect.stringMatching(/^[a-f0-9]{64}$/) });
+    await expect(database.transaction((tx) => tx.transitionPlanningRecoveryRun({ runId: stored!.runId, operationKey: "postgres-durable-result", from: "PROVIDER_RETURNED", to: "ADMISSION_STARTED", now: timestamp, patch: { expectedSourceHead: "c".repeat(40) } as never }))).rejects.toMatchObject({ code: "PERSISTENCE_VALIDATION_FAILED" });
+    const stillBound = await database.transaction((tx) => tx.getPlanningRecoveryRun(value.projectId, 1, "postgres-durable-result"));
+    expect(stillBound?.expectedSourceHead).toBe(TEST_SOURCE_HEAD);
     now = "2026-08-30T12:16:00.000Z";
-    const second = new PlanningRecoveryService({ database, memory: new FakePlannerMemoryPort(), provider: { planRecovery: async () => { calls += 1; throw new Error("provider-retry-forbidden"); } }, hostRecoveryEnabled: true, now: () => now });
+    const second = new PlanningRecoveryService({ database, memory: new FakePlannerMemoryPort(), provider: { planRecovery: async () => { calls += 1; throw new Error("provider-retry-forbidden"); } }, source: createStaticSourceCurrentnessPort(TEST_SOURCE_HEAD), hostRecoveryEnabled: true, now: () => now });
     const result = await second.recover({ projectId: value.projectId, projectVersion: 1, operationKey: "postgres-durable-result" });
     expect(result.status).toBe("COMMITTED");
     expect(calls).toBe(1);

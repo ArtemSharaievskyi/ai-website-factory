@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseSourceHead } from "@/domain/shared/source-head";
 
 const HashSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const SafeTokenSchema = z.string().min(1).max(160).regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/);
@@ -106,6 +107,23 @@ export const PlanningRecoveryRunSchema = z.object({
   updatedAt: z.string().datetime({ offset: true }),
 }).strict();
 export type PlanningRecoveryRunRow = z.infer<typeof PlanningRecoveryRunSchema>;
+
+const PLANNING_RECOVERY_RUN_IMMUTABLE_FIELDS = new Set([
+  "runId", "operationKey", "projectId", "projectVersion", "versionId", "expectedSourceHead", "recoveryPlanChecksum", "recoveryPlan",
+  "projectRowVersion", "projectVersionRowVersion", "briefRowVersion", "briefSemanticChecksum", "briefDocumentChecksum", "planningRowVersion", "planningSemanticChecksum", "planningDocumentChecksum", "providerBudget",
+]);
+
+export function hasPlanningRecoveryRunImmutablePatch(input: unknown) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return false;
+  return Object.keys(input).some((key) => PLANNING_RECOVERY_RUN_IMMUTABLE_FIELDS.has(key));
+}
+
+export function hasValidNewPlanningRecoveryRunSourceBinding(input: Pick<PlanningRecoveryRunRow, "expectedSourceHead" | "recoveryPlan">) {
+  if (!input.expectedSourceHead) return false;
+  const plan = input.recoveryPlan as { sourceHead?: unknown };
+  try { return parseSourceHead(input.expectedSourceHead) === parseSourceHead(plan.sourceHead); }
+  catch { return false; }
+}
 
 export const PLANNING_RECOVERY_RUN_TERMINAL_STATES = new Set<PlanningRecoveryRunState>([
   "COMMITTED",

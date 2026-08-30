@@ -10,7 +10,7 @@ import type { BriefRevisionAtomicCommitInput, BriefRevisionAtomicCommitResult, B
 import { DecisionRecordSchema, type DecisionRecord } from "@/domain/workflow/decision";
 import { RequirementIdentityLineageRecordSchema, RequirementIdentityMigrationRecordSchema } from "@/domain/requirements/v3/identity";
 import { stableSerialize } from "@/domain/requirements/v3/serialization";
-import { PlanningRecoveryRunSchema, assertPlanningRecoveryRunTransition, isLeaseActive, isPlanningRecoveryRunTerminal, terminalOutcomeFor, type PlanningRecoveryRunClaim, type PlanningRecoveryRunRow, type PlanningRecoveryRunTransition } from "@/agents/planner/recovery-runs";
+import { PlanningRecoveryRunSchema, assertPlanningRecoveryRunTransition, hasPlanningRecoveryRunImmutablePatch, hasValidNewPlanningRecoveryRunSourceBinding, isLeaseActive, isPlanningRecoveryRunTerminal, terminalOutcomeFor, type PlanningRecoveryRunClaim, type PlanningRecoveryRunRow, type PlanningRecoveryRunTransition } from "@/agents/planner/recovery-runs";
 
 type PersistenceQueryContext = Pick<PersistenceDiagnostic, "stage" | "operation"> & Partial<Pick<PersistenceDiagnostic, "table" | "constraint">>;
 const safeDiagnosticToken = (input: unknown) => { const token = typeof input === "string" ? input.slice(0, 160) : ""; return /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(token) ? token : "unknown"; };
@@ -370,6 +370,7 @@ class PostgresTransaction implements PersistenceTransaction {
   }
   async createPlanningRecoveryRun(input: PlanningRecoveryRunRow) {
     const row = PlanningRecoveryRunSchema.parse(input);
+    if (!hasValidNewPlanningRecoveryRunSourceBinding(row)) throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", "New Planning recovery runs require an immutable source-head binding.");
     await this.query("INSERT INTO planning_recovery_runs (run_id, operation_key, project_id, project_version, version_id, expected_source_head, recovery_plan_checksum, recovery_plan, project_row_version, project_version_row_version, brief_row_version, brief_semantic_checksum, brief_document_checksum, planning_row_version, planning_semantic_checksum, planning_document_checksum, provider_budget, provider_attempt_count, state, provider_result_checksum, provider_result, provider_request_id, provider_model, provider_error_class, provider_error_code, diagnostic_stage, diagnostic_code, diagnostic_message, diagnostic_summary, lease_owner, lease_expires_at, terminal_outcome, committed_evidence_id, project_memory_status, project_memory_failure_code, project_memory_failure_message, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38) ON CONFLICT (project_id, project_version, operation_key) DO NOTHING", [row.runId, row.operationKey, row.projectId, row.projectVersion, row.versionId, row.expectedSourceHead, row.recoveryPlanChecksum, row.recoveryPlan, row.projectRowVersion, row.projectVersionRowVersion, row.briefRowVersion, row.briefSemanticChecksum, row.briefDocumentChecksum, row.planningRowVersion, row.planningSemanticChecksum, row.planningDocumentChecksum, row.providerBudget, row.providerAttemptCount, row.state, row.providerResultChecksum, row.providerResult, row.providerRequestId, row.providerModel, row.providerErrorClass, row.providerErrorCode, row.diagnosticStage, row.diagnosticCode, row.diagnosticMessage, row.diagnosticSummary, row.leaseOwner, row.leaseExpiresAt, row.terminalOutcome, row.committedEvidenceId, row.projectMemoryStatus, row.projectMemoryFailureCode, row.projectMemoryFailureMessage, row.createdAt, row.updatedAt]);
     const stored = await this.getPlanningRecoveryRun(row.projectId, row.projectVersion, row.operationKey);
     if (!stored) throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "Planning recovery run insert returned no row.");
@@ -410,6 +411,7 @@ class PostgresTransaction implements PersistenceTransaction {
     if (!raw) throw new PersistenceError("PERSISTENCE_NOT_FOUND", "Planning recovery run was not found.");
     const current = normalizePlanningRecoveryRun(raw);
     if (current.state !== input.from) throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery run transition is stale.");
+    if (hasPlanningRecoveryRunImmutablePatch(input.patch)) throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", "Planning recovery run identity is immutable.");
     if (input.owner && (current.leaseOwner !== input.owner || !isLeaseActive(current, input.now))) throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery run lease is stale.");
     assertPlanningRecoveryRunTransition(input.from, input.to);
     const terminal = isPlanningRecoveryRunTerminal(input.to);

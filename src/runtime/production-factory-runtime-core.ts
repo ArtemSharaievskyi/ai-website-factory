@@ -86,6 +86,7 @@ import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
 import { OpenAiBriefV3RevisionProvider } from "@/integrations/openai-v3/provider";
 import { effectivePlannerBrief } from "@/agents/planner/brief-context";
 import { PlanningRecoveryService } from "@/agents/planner/recovery";
+import { createGitSourceCurrentnessPort } from "@/runtime/source-head";
 export const RUNTIME_MODES = ["DETERMINISTIC_TEST", "REAL_E2E"] as const;
 export type FactoryRuntimeMode = (typeof RUNTIME_MODES)[number];
 export type ProductionAdapterIdentity = {
@@ -418,6 +419,7 @@ export function createProductionFactoryRuntime(
         database,
         provider: ai.planner,
         memory: new PlannerMemoryAdapter(sync, decisions),
+        source: createGitSourceCurrentnessPort(),
         hostRecoveryEnabled: true,
       });
       const design = createDesignAgentService({

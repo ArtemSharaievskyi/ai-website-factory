@@ -138,6 +138,7 @@ describe("production AI provider boundary", () => {
     const schema = (zodResponseFormat(PlanningRecoveryPackageStructuredOutputSchema, "planning-recovery-package") as unknown as { json_schema: { schema: { properties: Record<string, { properties?: Record<string, unknown>; items?: { properties?: Record<string, unknown> } }> } } }).json_schema.schema;
     const routeProperties = ((schema.properties.sitemap?.properties?.routes as { items?: { properties?: Record<string, unknown> } } | undefined)?.items?.properties);
     expect(schema.properties).not.toHaveProperty("accepted");
+    expect(schema.properties).not.toHaveProperty("sourceHead");
     expect(schema.properties).not.toHaveProperty("routePolicy");
     expect(routeProperties).toHaveProperty("routeHandle");
     expect(routeProperties).toHaveProperty("pageHandle");
