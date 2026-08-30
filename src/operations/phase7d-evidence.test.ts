@@ -14,26 +14,6 @@ type Phase7DResult = {
 };
 
 const root = process.cwd();
-// Phase 7D is a historical frozen snapshot. Later bounded phases legitimately
-// changed these authority files; the snapshot checksum and references remain
-// immutable, while unchanged files continue to be checked against their freeze.
-const laterPhaseDrift = new Set([
-  "src/agents/catalog.test.ts",
-  "src/agents/catalog.ts",
-  "src/domain/tooling/schema.ts",
-  "src/integrations/openai/adapters.ts",
-  "src/orchestration/orchestrator/tools.ts",
-  "src/orchestration/tooling/adapters.ts",
-  "src/orchestration/tooling/executor-ids.ts",
-  "src/orchestration/tooling/registry.ts",
-  "src/orchestration/tooling/tooling.test.ts",
-  "src/skills/curation/portfolio.ts",
-  "src/integrations/openai/client.ts",
-  "src/integrations/openai/prompts.ts",
-  "src/integrations/openai/usage.ts",
-  "src/runtime/production-factory-runtime-core.ts",
-  "src/agents/implementation/service.ts",
-]);
 const fileChecksum = (content: Buffer) => createHash("sha256").update(content).digest("hex");
 const manifestChecksum = (files: readonly CandidateFile[]) =>
   fileChecksum(Buffer.from(JSON.stringify(files.map(({ relativePath, sha256 }) => ({ relativePath, checksum: sha256 }))), "utf8"));
@@ -55,7 +35,7 @@ describe("Phase 7D evidence closure", () => {
     expect(result.acceptance.map((item) => item.id)).toEqual(Array.from({ length: 40 }, (_, index) => `D${index + 1}`));
     expect(result.acceptance.every((item) => item.status === "PASS")).toBe(true);
 
-    for (const file of result.candidate.files.filter((candidate) => !laterPhaseDrift.has(candidate.relativePath))) {
+    for (const file of result.candidate.files) {
       const content = await readFile(resolve(root, file.relativePath));
       expect(fileChecksum(content), file.relativePath).toBe(file.sha256);
     }

@@ -140,6 +140,8 @@ describe("production AI provider boundary", () => {
     expect(schema.properties).not.toHaveProperty("accepted");
     expect(schema.properties).not.toHaveProperty("sourceHead");
     expect(schema.properties).not.toHaveProperty("routePolicy");
+    expect(schema.properties.requirementAccounting?.items?.properties).toHaveProperty("requirementId");
+    expect(schema.properties.requirementAccounting?.items?.properties).toHaveProperty("semanticEvidence");
     expect(routeProperties).toHaveProperty("routeHandle");
     expect(routeProperties).toHaveProperty("pageHandle");
     expect(routeProperties).not.toHaveProperty("id");

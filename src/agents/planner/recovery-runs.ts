@@ -4,8 +4,33 @@ import { parseSourceHead } from "@/domain/shared/source-head";
 const HashSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const SafeTokenSchema = z.string().min(1).max(160).regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/);
 const SafeMessageSchema = z.string().max(500);
+const RoutePathSchema = z.string().regex(/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/);
+const SafeDiagnosticDetailSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,319}$/);
 
 export const PlanningRecoveryDiagnosticSummarySchema = z.object({
+  totalFindingCount: z.number().int().nonnegative(),
+  findingCountsByCode: z.record(SafeTokenSchema, z.number().int().positive()),
+  expectedRouteCount: z.number().int().nonnegative(),
+  actualRouteCount: z.number().int().nonnegative(),
+  missingCanonicalRoutes: z.array(RoutePathSchema).max(64),
+  extraRoutes: z.array(RoutePathSchema).max(64),
+  invalidRouteBindings: z.array(SafeDiagnosticDetailSchema).max(64),
+  expectedRequirementCount: z.number().int().nonnegative(),
+  accountedRequirementCount: z.number().int().nonnegative(),
+  missingRequirementCount: z.number().int().nonnegative(),
+  missingRequirementIds: z.array(SafeTokenSchema).max(64),
+  semanticEvidenceFailureCount: z.number().int().nonnegative(),
+  semanticEvidenceFailureIds: z.array(SafeTokenSchema).max(64),
+  legacyIdCount: z.number().int().nonnegative(),
+  orphanIdCount: z.number().int().nonnegative(),
+  duplicateIdCount: z.number().int().nonnegative(),
+  sanitizedFindingCount: z.number().int().nonnegative(),
+  detailsTruncated: z.boolean(),
+  completeDiagnosticsChecksum: HashSchema,
+  navigationBindingFailures: z.array(SafeDiagnosticDetailSchema).max(64),
+  architectureRouteFailures: z.array(SafeDiagnosticDetailSchema).max(64),
+  formRouteFailures: z.array(SafeDiagnosticDetailSchema).max(64),
+  /** Backwards-compatible compact projection retained for existing operators. */
   totalBlockers: z.number().int().nonnegative(),
   returnedBlockers: z.number().int().nonnegative().max(64),
   truncated: z.boolean(),
@@ -18,11 +43,16 @@ export const PlanningRecoveryDiagnosticSummarySchema = z.object({
     schema: z.number().int().nonnegative(),
     other: z.number().int().nonnegative(),
   }).strict(),
-  blockers: z.array(SafeTokenSchema).max(64),
+  blockers: z.array(SafeDiagnosticDetailSchema).max(64),
 }).strict().superRefine((value, context) => {
+  if (value.totalFindingCount !== value.totalBlockers) context.addIssue({ code: "custom", path: ["totalBlockers"], message: "Legacy blocker count must equal total finding count." });
+  if (value.detailsTruncated !== value.truncated) context.addIssue({ code: "custom", path: ["truncated"], message: "Legacy truncation must equal detailsTruncated." });
   if (value.returnedBlockers !== value.blockers.length) context.addIssue({ code: "custom", path: ["returnedBlockers"], message: "Returned blocker count must match the bounded blocker list." });
-  if (!value.truncated && value.returnedBlockers !== value.totalBlockers) context.addIssue({ code: "custom", path: ["truncated"], message: "A non-truncated diagnostic must return every blocker." });
-  if (value.truncated && value.returnedBlockers >= value.totalBlockers) context.addIssue({ code: "custom", path: ["truncated"], message: "A truncated diagnostic must omit at least one blocker." });
+  if (!value.detailsTruncated && value.returnedBlockers !== value.totalFindingCount) context.addIssue({ code: "custom", path: ["detailsTruncated"], message: "A non-truncated diagnostic must return every finding." });
+  if (value.detailsTruncated && value.returnedBlockers >= value.totalFindingCount) context.addIssue({ code: "custom", path: ["detailsTruncated"], message: "A truncated diagnostic must omit at least one finding." });
+  if (value.missingRequirementCount < value.missingRequirementIds.length) context.addIssue({ code: "custom", path: ["missingRequirementCount"], message: "Missing requirement count cannot be lower than the bounded detail list." });
+  if (value.semanticEvidenceFailureCount < value.semanticEvidenceFailureIds.length) context.addIssue({ code: "custom", path: ["semanticEvidenceFailureCount"], message: "Semantic evidence count cannot be lower than the bounded detail list." });
+  if (value.sanitizedFindingCount > value.totalFindingCount) context.addIssue({ code: "custom", path: ["sanitizedFindingCount"], message: "Sanitized finding count cannot exceed total finding count." });
 }).readonly();
 export type PlanningRecoveryDiagnosticSummary = z.infer<typeof PlanningRecoveryDiagnosticSummarySchema>;
 

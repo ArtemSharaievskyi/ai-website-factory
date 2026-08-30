@@ -9,6 +9,7 @@ import { buildPlanningPackage } from "./deterministic";
 import {
   createCanonicalPlanningRouteManifest,
   createPlanningOwnedRequirementManifest,
+  validatePlanningRecoveryRequirementAccounting,
 } from "./recovery-manifests";
 import {
   normalizePlanningPackageForHost,
@@ -17,6 +18,16 @@ import {
 } from "./refresh-admission";
 
 const timestamp = "2026-08-30T10:00:00.000Z";
+
+function accountingFor(manifest: ReturnType<typeof createPlanningOwnedRequirementManifest>) {
+  return manifest.requirements.map((entry) => ({
+    requirementId: entry.requirementId,
+    requirementDomain: entry.category,
+    disposition: entry.category === "EXCLUSION" || entry.category === "PROHIBITED" ? "EXPLICIT_EXCLUSION" as const : "OTHER_PLANNING_RESPONSIBILITY" as const,
+    coveredBy: [entry.requirementHandle],
+    semanticEvidence: `Synthetic semantic treatment for ${entry.requirementId}.`,
+  }));
+}
 
 function syntheticBrief(): CanonicalBriefV3 {
   return CanonicalBriefV3Schema.parse({
@@ -191,5 +202,54 @@ describe("host-issued Planning Recovery manifests", () => {
     const manifest = createPlanningOwnedRequirementManifest(brief);
     expect(manifest.requirements).toHaveLength(canonicalRequirementEntries(brief).length);
     expect(manifest.requirements.some((entry) => entry.requirementId === extra.at(-1)!.id)).toBe(true); // C8
+  });
+
+  it("requires an explicit one-to-one semantic accounting entry for every Planning-owned identity", () => {
+    const brief = CanonicalBriefV3Schema.parse({
+      ...syntheticBrief(),
+      requirements: [
+        ...syntheticBrief().requirements,
+        { id: "REQUIREMENT:synthetic-exclusion-accounting", category: "EXCLUSION", statement: "Do not add unrelated synthetic capabilities.", sourceRefs: ["fixture:exclusion-accounting"] },
+        { id: "REQUIREMENT:synthetic-nonvisual-accounting", category: "DEFERRED_INTEGRATION", statement: "Retain this nonvisual integration constraint for later lifecycle handling.", sourceRefs: ["fixture:nonvisual-accounting"] },
+      ],
+    });
+    const manifest = createPlanningOwnedRequirementManifest(brief);
+    const valid = accountingFor(manifest);
+    expect(validatePlanningRecoveryRequirementAccounting({ accounting: valid, manifest })).toMatchObject({ expectedRequirementCount: manifest.requirements.length, accountedRequirementCount: manifest.requirements.length, missingRequirementIds: [], issues: [] });
+
+    const missing = valid.slice(0, -1);
+    expect(validatePlanningRecoveryRequirementAccounting({ accounting: missing, manifest }).issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MISSING_REQUIREMENT_ID_ACCOUNTING", requirementId: valid.at(-1)!.requirementId })]));
+
+    const duplicateSubstitution = [...valid.slice(0, -1), valid[0]];
+    expect(validatePlanningRecoveryRequirementAccounting({ accounting: duplicateSubstitution, manifest }).issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "DUPLICATE_REQUIREMENT_ID", requirementId: valid[0]!.requirementId }),
+      expect.objectContaining({ code: "MISSING_REQUIREMENT_ID_ACCOUNTING", requirementId: valid.at(-1)!.requirementId }),
+    ]));
+
+    const orphan = [...valid, { ...valid[0]!, requirementId: "REQUIREMENT:orphan-accounting" }];
+    expect(validatePlanningRecoveryRequirementAccounting({ accounting: orphan, manifest }).issues).toContainEqual({ code: "ORPHAN_REQUIREMENT_ID", requirementId: "REQUIREMENT:orphan-accounting" });
+    const legacy = [...valid, { ...valid[0]!, requirementId: "REQUIREMENT:legacy-v1-accounting" }];
+    expect(validatePlanningRecoveryRequirementAccounting({ accounting: legacy, manifest }).issues).toContainEqual({ code: "LEGACY_REQUIREMENT_ID", requirementId: "REQUIREMENT:legacy-v1-accounting" });
+    const invented = [...valid, { ...valid[0]!, requirementId: `REQUIREMENT:v3-${"f".repeat(64)}` }];
+    expect(validatePlanningRecoveryRequirementAccounting({ accounting: invented, manifest }).issues).toContainEqual({ code: "INVENTED_REQUIREMENT_ID", requirementId: `REQUIREMENT:v3-${"f".repeat(64)}` });
+
+    const wrongDomain = valid.map((entry) => entry.requirementId === valid[0]!.requirementId ? { ...entry, requirementDomain: "CONTENT" as const } : entry);
+    expect(validatePlanningRecoveryRequirementAccounting({ accounting: wrongDomain, manifest }).issues).toContainEqual(expect.objectContaining({ code: "INVALID_REQUIREMENT_DOMAIN", requirementId: valid[0]!.requirementId }));
+    const missingDisposition = valid.map((entry) => entry.requirementId === valid[0]!.requirementId ? { ...entry, disposition: undefined } : entry);
+    expect(validatePlanningRecoveryRequirementAccounting({ accounting: missingDisposition, manifest }).issues).toContainEqual(expect.objectContaining({ code: "MISSING_DISPOSITION", requirementId: valid[0]!.requirementId }));
+    const missingEvidence = valid.map((entry) => entry.requirementId === valid[0]!.requirementId ? { ...entry, semanticEvidence: "   " } : entry);
+    expect(validatePlanningRecoveryRequirementAccounting({ accounting: missingEvidence, manifest }).issues).toContainEqual(expect.objectContaining({ code: "MISSING_SEMANTIC_EVIDENCE", requirementId: valid[0]!.requirementId }));
+    const compound = [{ ...valid[0]!, requirementId: "REQUIREMENT:legacy-v1-compound", disposition: undefined, semanticEvidence: " ", coveredBy: ["provider-invented-artifact"] }];
+    const compoundIssues = validatePlanningRecoveryRequirementAccounting({ accounting: compound, manifest }).issues;
+    expect(compoundIssues).toEqual(expect.arrayContaining([
+      { code: "LEGACY_REQUIREMENT_ID", requirementId: "REQUIREMENT:legacy-v1-compound" },
+      { code: "MISSING_DISPOSITION", requirementId: "REQUIREMENT:legacy-v1-compound" },
+      { code: "MISSING_SEMANTIC_EVIDENCE", requirementId: "REQUIREMENT:legacy-v1-compound" },
+      { code: "INVALID_COVERAGE_REFERENCE", requirementId: "REQUIREMENT:legacy-v1-compound" },
+    ]));
+
+    const exclusion = valid.find((entry) => entry.requirementId === "REQUIREMENT:synthetic-exclusion-accounting")!;
+    expect(exclusion.disposition).toBe("EXPLICIT_EXCLUSION");
+    expect(valid.some((entry) => entry.requirementId === "REQUIREMENT:synthetic-nonvisual-accounting")).toBe(true);
   });
 });

@@ -3,7 +3,7 @@ import { CanonicalBriefV3Schema, type CanonicalBriefV3, type CanonicalRequiremen
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { PlanningPackageSchema, type PlanningPackage } from "./contracts";
 import { CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY } from "./semantic-checksum";
-import { canonicalPagePath, type CanonicalPlanningRouteManifest } from "./recovery-manifests";
+import { canonicalPagePath, type CanonicalPlanningRouteManifest, type PlanningRecoveryRequirementAccounting } from "./recovery-manifests";
 
 /**
  * These are the semantic areas owned by Planning. The list is deliberately
@@ -383,13 +383,13 @@ export function validatePlanningRequirementCoverage(input: { candidate: Planning
   });
 }
 
-export function validatePlanningRecoveryRequirementCoverage(input: { candidate: PlanningPackage; manifest: { requirements: readonly { requirementId: string; category: RequirementCategory; statement: string }[] } }): PlanningRecoveryRequirementCoverage[] {
+export function validatePlanningRecoveryRequirementCoverage(input: { candidate: PlanningPackage; manifest: { requirements: readonly { requirementId: string; category: RequirementCategory; statement: string }[] }; accounting?: PlanningRecoveryRequirementAccounting }): PlanningRecoveryRequirementCoverage[] {
   const refs = referencesOf(input.candidate);
   const traceabilityRefs = traceabilityReferencesOf(input.candidate);
   const blockers: PlanningRecoveryRequirementCoverage[] = [];
   for (const entry of input.manifest.requirements) {
     if (!refs.has(entry.requirementId)) blockers.push({ requirementId: entry.requirementId, category: entry.category, statement: entry.statement, reason: "MISSING_REFERENCE" });
-    else if (!hasSemanticEvidence(input.candidate, { id: entry.requirementId, category: entry.category, statement: entry.statement, sourceRefs: ["host:planning-recovery-manifest"] })) blockers.push({ requirementId: entry.requirementId, category: entry.category, statement: entry.statement, reason: "MISSING_SEMANTIC_EVIDENCE" });
+    else if (!input.accounting && !hasSemanticEvidence(input.candidate, { id: entry.requirementId, category: entry.category, statement: entry.statement, sourceRefs: ["host:planning-recovery-manifest"] })) blockers.push({ requirementId: entry.requirementId, category: entry.category, statement: entry.statement, reason: "MISSING_SEMANTIC_EVIDENCE" });
     else if (!traceabilityRefs.has(entry.requirementId)) blockers.push({ requirementId: entry.requirementId, category: entry.category, statement: entry.statement, reason: "MISSING_TRACEABILITY" });
   }
   return blockers;
@@ -556,6 +556,7 @@ export function admitPlanningRefresh(input: {
   projectVersion: number;
   approvedBriefChecksum: string;
   timestamp?: string;
+  validateRequirementCoverage?: boolean;
 }): PlanningRefreshAdmission {
   const candidate = normalizePlanningPackageForHost(input);
   const blockers: string[] = [];
@@ -565,8 +566,10 @@ export function admitPlanningRefresh(input: {
   let domains: PlanningRefreshDomain[] = [];
   if (input.canonicalBrief) {
     blockers.push(...validateCanonicalRouteAndFormShape(candidate, input.canonicalBrief));
-    coverage = validatePlanningRequirementCoverage({ candidate, canonicalBrief: input.canonicalBrief });
-    blockers.push(...coverage.map((item) => `PLANNING_REQUIREMENT_COVERAGE_MISSING:${item.requirementId}:${item.reason}`));
+    if (input.validateRequirementCoverage !== false) {
+      coverage = validatePlanningRequirementCoverage({ candidate, canonicalBrief: input.canonicalBrief });
+      blockers.push(...coverage.map((item) => `PLANNING_REQUIREMENT_COVERAGE_MISSING:${item.requirementId}:${item.reason}`));
+    }
     if (input.current) {
       const normalizedCurrent = normalizePlanningPackageForHost({ ...input, candidate: input.current, current: undefined, timestamp: input.current.updatedAt, validateRoutePolicy: false });
       ({ introduced: introducedRequirementIds, removed: removedRequirementIds } = introducedAndRemovedRequirements(normalizedCurrent, candidate, input.canonicalBrief));

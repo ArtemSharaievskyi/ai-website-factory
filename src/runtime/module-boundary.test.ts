@@ -99,6 +99,6 @@ describe("runtime module boundaries", () => {
     }));
     expect(actual).toEqual(unchangedManifest);
     expect(createHash("sha256").update(JSON.stringify(manifest)).digest("hex")).toBe(document.candidate.candidateChecksum);
-    expect(document.candidate.candidateChecksum).toBe("758b623b29bf8d61a2f224571869e3522453fb6eff3b7de16ef618059c41b3c6");
+    expect(document.candidate.candidateChecksum).toBe("304f6abaabe0d653f3c5859d5b5b393c5fca1cc46bca855ba0f080c67fca10c3");
   });
 });

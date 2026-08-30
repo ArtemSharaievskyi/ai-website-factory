@@ -34,6 +34,7 @@ import {
   validatePlanningRecoveryRequirementCoverage,
   validatePlanningRecoveryRouteManifest,
   validatePlanningRequirementCoverage,
+  PlanningAdmissionError,
 } from "./refresh-admission";
 import {
   derivePlanningReconciliationScope,
@@ -83,11 +84,17 @@ import {
 import {
   CanonicalPlanningRouteManifestSchema,
   PlanningOwnedRequirementManifestSchema,
+  type PlanningOwnedRequirementManifest,
   PLANNING_RECOVERY_OUTPUT_POLICY,
   PlanningRecoveryOutputPolicySchema,
   createCanonicalPlanningRouteManifest,
   createPlanningOwnedRequirementManifest,
   requirementManifestAsCanonicalRequirements,
+  PlanningRecoveryRequirementAccountingSchema,
+  validatePlanningRecoveryRequirementAccounting,
+  type PlanningRecoveryRequirementAccounting,
+  type PlanningRecoveryRequirementAccountingIssue,
+  type CanonicalPlanningRouteManifest,
 } from "./recovery-manifests";
 
 export const PLANNING_RECOVERY_AUTHORITY = "PLANNING_RECOVERY" as const;
@@ -195,6 +202,13 @@ export const PlanningRecoveryProviderInputSchema = z.object({
 });
 export type PlanningRecoveryProviderInput = z.infer<typeof PlanningRecoveryProviderInputSchema>;
 
+/** Durable provider result: the package and its explicit per-requirement semantic accounting travel together. */
+export const PlanningRecoveryProviderResultSchema = z.object({
+  planningPackage: PlanningPackageSchema,
+  requirementAccounting: PlanningRecoveryRequirementAccountingSchema,
+}).strict();
+export type PlanningRecoveryProviderResult = z.infer<typeof PlanningRecoveryProviderResultSchema>;
+
 export const PlanningRecoveryEvidenceSchema = z.object({
   id: z.string().uuid(),
   operationKey: z.string().min(1).max(180),
@@ -255,7 +269,7 @@ export type PlanningRecoveryPreparation = {
 };
 
 export type PlanningRecoveryProvider = {
-  planRecovery(input: PlanningRecoveryProviderInput, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string): Promise<PlanningPackage>;
+  planRecovery(input: PlanningRecoveryProviderInput, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string): Promise<PlanningRecoveryProviderResult>;
 };
 
 export type PlanningRecoveryResult = {
@@ -411,8 +425,98 @@ function referenceBlockers(brief: CanonicalBriefV3, planning: PlanningPackage): 
   return [...new Set(blockers)];
 }
 
-function admitRecoveryCandidate(input: { candidate: PlanningPackage; projectId: string; projectVersion: number; plan: PlanningRecoveryPlan; brief: BriefV3Document; planning: PlanningPackage; compatibility: RequirementSpecification; now: string }) {
+function admissionIssueDetails(issues: readonly PlanningRecoveryRequirementAccountingIssue[]) {
+  return issues.map((issue) => issue.requirementId ? `${issue.code}:${issue.requirementId}` : issue.code);
+}
+
+export type RecoveryAdmissionDiagnosticInput = {
+  blockers: readonly string[];
+  candidate: PlanningPackage | null;
+  routeManifest?: CanonicalPlanningRouteManifest;
+  requirementManifest?: Pick<PlanningOwnedRequirementManifest, "requirements">;
+  accountingValidation?: ReturnType<typeof validatePlanningRecoveryRequirementAccounting>;
+  coverage?: readonly { requirementId: string; reason: string }[];
+};
+
+const compareDeterministic = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
+const SAFE_DIAGNOSTIC_FINDING = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,319}$/;
+const UNSAFE_DIAGNOSTIC_FINDING = "UNSAFE_DIAGNOSTIC_FINDING";
+
+export function createRecoveryAdmissionDiagnosticSummary(input: RecoveryAdmissionDiagnosticInput) {
+  const sanitizedFindingCount = input.blockers.filter((finding) => typeof finding !== "string" || !SAFE_DIAGNOSTIC_FINDING.test(finding)).length;
+  const findings = [...input.blockers].map((finding) => typeof finding === "string" && SAFE_DIAGNOSTIC_FINDING.test(finding) ? finding : UNSAFE_DIAGNOSTIC_FINDING);
+  const sortedFindings = [...findings].sort(compareDeterministic);
+  const findingCounts = new Map<string, number>();
+  for (const finding of findings) {
+    const code = finding.split(":", 1)[0]!;
+    findingCounts.set(code, (findingCounts.get(code) ?? 0) + 1);
+  }
+  const candidateRoutes = input.candidate?.sitemap.routes.map((route) => route.path) ?? [];
+  const expectedRoutes = input.routeManifest?.routes.filter((route) => route.required).map((route) => route.path) ?? [];
+  const actualRouteSet = new Set(candidateRoutes);
+  const expectedRouteSet = new Set(expectedRoutes);
+  const missingCanonicalRoutes = [...expectedRouteSet].filter((path) => !actualRouteSet.has(path)).sort();
+  const extraRoutes = [...new Set(candidateRoutes)].filter((path) => !expectedRouteSet.has(path)).sort();
+  const coverageMissing = new Set((input.coverage ?? []).map((item) => item.requirementId));
+  const missingRequirementIds = [...new Set([...(input.accountingValidation?.missingRequirementIds ?? []), ...coverageMissing])].sort();
+  const semanticEvidenceFailureIds = [...new Set([
+    ...(input.accountingValidation?.issues.filter((issue) => issue.code === "MISSING_SEMANTIC_EVIDENCE").map((issue) => issue.requirementId).filter((id): id is string => Boolean(id)) ?? []),
+    ...(input.coverage ?? []).filter((item) => item.reason === "MISSING_SEMANTIC_EVIDENCE").map((item) => item.requirementId),
+  ])].sort();
+  const routeFindings = findings.filter((finding) => /ROUTE|PAGE|NAVIGATION|FORM_ROUTE|ARCHITECTURE_ROUTE/.test(finding));
+  const navigationBindingFailures = routeFindings.filter((finding) => /NAVIGATION/.test(finding));
+  const architectureRouteFailures = routeFindings.filter((finding) => /ARCHITECTURE_ROUTE/.test(finding));
+  const formRouteFailures = routeFindings.filter((finding) => /FORM_ROUTE/.test(finding));
+  const categoryCounts = { route: 0, coverage: 0, decision: 0, identity: 0, unsupportedFact: 0, schema: 0, other: 0 };
+  for (const finding of findings) {
+    if (/ROUTE|PAGE_MANIFEST|NAVIGATION/.test(finding)) categoryCounts.route++;
+    else if (/COVERAGE|REQUIREMENT_ID_ACCOUNTING|SEMANTIC_EVIDENCE/.test(finding)) categoryCounts.coverage++;
+    else if (/DECISION|FORM_|BACKEND/.test(finding)) categoryCounts.decision++;
+    else if (/REFERENCE|IDENTITY|HOST_OWNED|LEGACY|ORPHAN|INVENTED|DUPLICATE/.test(finding)) categoryCounts.identity++;
+    else if (/UNSUPPORTED/.test(finding)) categoryCounts.unsupportedFact++;
+    else if (/SCHEMA|CANDIDATE_INVALID|PROVIDER_|ACCOUNTING/.test(finding)) categoryCounts.schema++;
+    else categoryCounts.other++;
+  }
+  const totalFindingCount = sortedFindings.length;
+  const returnedBlockers = Math.min(totalFindingCount, 64);
+  return PlanningRecoveryDiagnosticSummarySchema.parse({
+    totalFindingCount,
+    findingCountsByCode: Object.fromEntries([...findingCounts.entries()].sort(([left], [right]) => compareDeterministic(left, right))),
+    expectedRouteCount: expectedRoutes.length,
+    actualRouteCount: candidateRoutes.length,
+    missingCanonicalRoutes: missingCanonicalRoutes.slice(0, 64),
+    extraRoutes: extraRoutes.slice(0, 64),
+    invalidRouteBindings: routeFindings.slice(0, 64),
+    expectedRequirementCount: input.requirementManifest?.requirements.length ?? input.accountingValidation?.expectedRequirementCount ?? 0,
+    accountedRequirementCount: input.accountingValidation?.accountedRequirementCount ?? 0,
+    missingRequirementCount: missingRequirementIds.length,
+    missingRequirementIds: missingRequirementIds.slice(0, 64),
+    semanticEvidenceFailureCount: semanticEvidenceFailureIds.length,
+    semanticEvidenceFailureIds: semanticEvidenceFailureIds.slice(0, 64),
+    legacyIdCount: input.accountingValidation?.legacyIdCount ?? 0,
+    orphanIdCount: input.accountingValidation?.orphanIdCount ?? 0,
+    duplicateIdCount: input.accountingValidation?.duplicateIdCount ?? 0,
+    sanitizedFindingCount,
+    detailsTruncated: totalFindingCount > 64,
+    completeDiagnosticsChecksum: checksumPersistedDocument({ findings: sortedFindings }),
+    navigationBindingFailures: navigationBindingFailures.slice(0, 64),
+    architectureRouteFailures: architectureRouteFailures.slice(0, 64),
+    formRouteFailures: formRouteFailures.slice(0, 64),
+    totalBlockers: totalFindingCount,
+    returnedBlockers,
+    truncated: totalFindingCount > 64,
+    blockerCategoryCounts: categoryCounts,
+    blockers: sortedFindings.slice(0, 64),
+  });
+}
+
+function admitRecoveryCandidate(input: { candidate: PlanningPackage; requirementAccounting: unknown; projectId: string; projectVersion: number; plan: PlanningRecoveryPlan; brief: BriefV3Document; planning: PlanningPackage; compatibility: RequirementSpecification; now: string }) {
   const rawCandidate = PlanningPackageSchema.parse(input.candidate);
+  const parsedAccounting = PlanningRecoveryRequirementAccountingSchema.safeParse(input.requirementAccounting);
+  if (!parsedAccounting.success) {
+    throw new PlanningRecoveryError("RECOVERY_CANDIDATE_INVALID", "Full Planning recovery candidate failed deterministic admission.", { diagnosticInput: { blockers: ["RECOVERY_REQUIREMENT_ACCOUNTING_SCHEMA_INVALID"], candidate: rawCandidate, routeManifest: input.plan.canonicalRouteManifest, requirementManifest: input.plan.planningRequirementManifest } });
+  }
+  const requirementAccounting = parsedAccounting.data;
   const providerFieldBlockers = [
     rawCandidate.projectId !== input.projectId && rawCandidate.projectId !== undefined ? "RECOVERY_PROVIDER_PROJECT_ID" : undefined,
     rawCandidate.projectVersion !== input.projectVersion && rawCandidate.projectVersion !== undefined ? "RECOVERY_PROVIDER_PROJECT_VERSION" : undefined,
@@ -423,13 +527,17 @@ function admitRecoveryCandidate(input: { candidate: PlanningPackage; projectId: 
   ].filter((value): value is string => Boolean(value));
   let admission;
   try {
-    admission = admitPlanningRefresh({ candidate: rawCandidate, canonicalBrief: input.brief.brief, projectId: input.projectId, projectVersion: input.projectVersion, approvedBriefChecksum: input.brief.briefChecksum, timestamp: input.now });
+    admission = admitPlanningRefresh({ candidate: rawCandidate, canonicalBrief: input.brief.brief, projectId: input.projectId, projectVersion: input.projectVersion, approvedBriefChecksum: input.brief.briefChecksum, timestamp: input.now, validateRequirementCoverage: false });
   } catch (error) {
-    throw new PlanningRecoveryError("RECOVERY_CANDIDATE_INVALID", "Full Planning recovery candidate failed deterministic admission.", [error instanceof Error ? error.message : "PLANNING_ADMISSION_FAILED"]);
+    const finding = error instanceof PlanningAdmissionError ? error.code : "PLANNING_ADMISSION_FAILED";
+    throw new PlanningRecoveryError("RECOVERY_CANDIDATE_INVALID", "Full Planning recovery candidate failed deterministic admission.", { diagnosticInput: { blockers: [finding], candidate: rawCandidate, routeManifest: input.plan.canonicalRouteManifest, requirementManifest: input.plan.planningRequirementManifest } });
   }
   const candidate = normalizePlanningPackageForHost({ candidate: admission.candidate, projectId: input.projectId, projectVersion: input.projectVersion, approvedBriefChecksum: input.brief.briefChecksum, canonicalBrief: input.brief.brief, timestamp: input.now });
+  const accountingValidation = validatePlanningRecoveryRequirementAccounting({ accounting: requirementAccounting, manifest: input.plan.planningRequirementManifest!, allowedCoverageRefs: input.plan.canonicalRouteManifest?.routes.flatMap((route) => [route.routeHandle, route.pageHandle]) });
+  const accountingBlockers = admissionIssueDetails(accountingValidation.issues);
   const blockers = [
     ...admission.blockers,
+    ...accountingBlockers,
     ...validatePlanningAdmission(candidate).blockers,
     ...validatePlanningPackageAgainstBrief(input.compatibility, candidate),
     ...canonicalDecisionBlockers(input.brief.brief, input.compatibility, candidate),
@@ -438,12 +546,12 @@ function admitRecoveryCandidate(input: { candidate: PlanningPackage; projectId: 
     ...(input.plan.canonicalRouteManifest ? validatePlanningRecoveryRouteManifest({ candidate, manifest: input.plan.canonicalRouteManifest }) : []),
   ];
   const coverage = input.plan.planningRequirementManifest
-    ? validatePlanningRecoveryRequirementCoverage({ candidate, manifest: input.plan.planningRequirementManifest })
+    ? validatePlanningRecoveryRequirementCoverage({ candidate, manifest: input.plan.planningRequirementManifest, accounting: requirementAccounting })
     : validatePlanningRequirementCoverage({ candidate, canonicalBrief: input.brief.brief }).filter((entry) => !PLANNING_NON_OWNED_REQUIREMENT_CATEGORIES.has(entry.category));
   blockers.push(...coverage.map((entry) => `RECOVERY_COVERAGE_INCOMPLETE:${entry.requirementId}:${entry.reason}`));
   blockers.push(...providerFieldBlockers);
   if (candidate.projectId !== input.plan.projectId || candidate.projectVersion !== input.plan.projectVersion || candidate.approvedBriefChecksum !== input.plan.briefChecksum || candidate.semanticChecksumPolicyVersion !== CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY || candidate.accepted || candidate.acceptance.acceptedAt) blockers.push("RECOVERY_HOST_OWNED_FIELD_MUTATION");
-  if (blockers.length) throw new PlanningRecoveryError("RECOVERY_CANDIDATE_INVALID", "Full Planning recovery candidate failed deterministic admission.", [...new Set(blockers)]);
+  if (blockers.length) throw new PlanningRecoveryError("RECOVERY_CANDIDATE_INVALID", "Full Planning recovery candidate failed deterministic admission.", { diagnosticInput: { blockers, candidate, routeManifest: input.plan.canonicalRouteManifest, requirementManifest: input.plan.planningRequirementManifest, accountingValidation, coverage } });
   return candidate;
 }
 
@@ -536,26 +644,11 @@ function recoveryRunFromPreparation(input: { plan: PlanningRecoveryPlan; operati
 function safeRunDiagnostic(error: unknown, stage: string) {
   const raw = error instanceof PlanningRecoveryError ? error.code : error instanceof Error ? error.constructor.name : "UnknownError";
   const code = /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(raw) ? raw.slice(0, 160) : "RECOVERY_STAGE_FAILED";
-  const summary = stage === "admission" && error instanceof PlanningRecoveryError && Array.isArray(error.details)
-    ? diagnosticSummary(error.details)
-    : null;
+  const diagnosticInput = stage === "admission" && error instanceof PlanningRecoveryError && error.details && typeof error.details === "object" && "diagnosticInput" in error.details
+    ? (error.details as { diagnosticInput?: RecoveryAdmissionDiagnosticInput }).diagnosticInput
+    : undefined;
+  const summary = diagnosticInput ? createRecoveryAdmissionDiagnosticSummary(diagnosticInput) : null;
   return { diagnosticStage: stage, diagnosticCode: code, diagnosticMessage: `Planning recovery ${stage} failed safely.`, diagnosticSummary: summary, providerErrorClass: stage === "provider" ? code : null, providerErrorCode: stage === "provider" ? code : null } as const;
-}
-
-function diagnosticSummary(details: readonly unknown[]) {
-  const blockers = details.filter((detail): detail is string => typeof detail === "string" && /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$/.test(detail));
-  if (!blockers.length) return null;
-  const categoryCounts = { route: 0, coverage: 0, decision: 0, identity: 0, unsupportedFact: 0, schema: 0, other: 0 };
-  for (const blocker of blockers) {
-    if (/ROUTE|PAGE_MANIFEST|NAVIGATION/.test(blocker)) categoryCounts.route++;
-    else if (/COVERAGE/.test(blocker)) categoryCounts.coverage++;
-    else if (/DECISION|FORM_|BACKEND/.test(blocker)) categoryCounts.decision++;
-    else if (/REFERENCE|IDENTITY|HOST_OWNED/.test(blocker)) categoryCounts.identity++;
-    else if (/UNSUPPORTED/.test(blocker)) categoryCounts.unsupportedFact++;
-    else if (/SCHEMA|CANDIDATE_INVALID|PROVIDER_/.test(blocker)) categoryCounts.schema++;
-    else categoryCounts.other++;
-  }
-  return PlanningRecoveryDiagnosticSummarySchema.parse({ totalBlockers: blockers.length, returnedBlockers: Math.min(blockers.length, 64), truncated: blockers.length > 64, blockerCategoryCounts: categoryCounts, blockers: blockers.slice(0, 64) });
 }
 
 function recoveryProjectionDocuments(candidate: PlanningPackage) {
@@ -596,9 +689,14 @@ function parseRecoveryPlan(run: PlanningRecoveryRunRow) {
 
 function parseDurableCandidate(run: PlanningRecoveryRunRow) {
   if (!run.providerResult || !run.providerResultChecksum) throw new PlanningRecoveryError("RECOVERY_PROVIDER_RESULT_MISSING");
-  const candidate = PlanningPackageSchema.parse(run.providerResult);
-  if (checksumPersistedDocument(candidate) !== run.providerResultChecksum) throw new PlanningRecoveryError("RECOVERY_PROVIDER_RESULT_CHECKSUM_INVALID");
-  return candidate;
+  const parsed = PlanningRecoveryProviderResultSchema.safeParse(run.providerResult);
+  if (!parsed.success) {
+    if (PlanningPackageSchema.safeParse(run.providerResult).success) throw new PlanningRecoveryError("RECOVERY_LEGACY_PROVIDER_RESULT_UNRESUMABLE", "A pre-hardening recovery result has no semantic accounting envelope.");
+    throw new PlanningRecoveryError("RECOVERY_PROVIDER_RESULT_INVALID");
+  }
+  const result = parsed.data;
+  if (checksumPersistedDocument(result) !== run.providerResultChecksum) throw new PlanningRecoveryError("RECOVERY_PROVIDER_RESULT_CHECKSUM_INVALID");
+  return result;
 }
 
 function downstreamBlockers(rows: readonly DocumentRow[], planning: PlanningPackage): string[] {
@@ -960,6 +1058,7 @@ export class PlanningRecoveryService {
       await this.dependencies.fault?.hit("before-provider-call");
     }
     let candidate: PlanningPackage;
+    let requirementAccounting: PlanningRecoveryRequirementAccounting;
     if (providerStarted) {
       if (!providerInput) throw new PlanningRecoveryError("RECOVERY_PROVIDER_INPUT_MISSING");
       let returned: unknown;
@@ -971,17 +1070,28 @@ export class PlanningRecoveryService {
         throw new PlanningRecoveryError("RECOVERY_PROVIDER_FAILED", "Planning recovery provider failed.");
       }
       await this.dependencies.fault?.hit("after-provider-return-before-result");
+      let providerResult: PlanningRecoveryProviderResult;
       try {
-        candidate = PlanningPackageSchema.parse(returned);
-        if (Buffer.byteLength(JSON.stringify(candidate), "utf8") > PLANNING_RECOVERY_RUN_RESULT_MAX_BYTES) throw new PlanningRecoveryError("RECOVERY_PROVIDER_RESULT_TOO_LARGE");
+        providerResult = PlanningRecoveryProviderResultSchema.parse(returned);
+        if (Buffer.byteLength(JSON.stringify(providerResult), "utf8") > PLANNING_RECOVERY_RUN_RESULT_MAX_BYTES) throw new PlanningRecoveryError("RECOVERY_PROVIDER_RESULT_TOO_LARGE");
       } catch (error) {
         await this.markRunTerminal(run, "PROVIDER_SEMANTIC_FAILED", owner, error, "provider");
         throw new PlanningRecoveryError("RECOVERY_PROVIDER_SEMANTIC_FAILED", "Planning recovery provider returned an invalid typed candidate.");
       }
-      run = await this.persistRun({ run, from: "PROVIDER_CALL_STARTED", to: "PROVIDER_RETURNED", owner, patch: { providerResultChecksum: checksumPersistedDocument(candidate), providerResult: candidate, diagnosticStage: null, diagnosticCode: null, diagnosticMessage: null, providerErrorClass: null, providerErrorCode: null } });
+      candidate = providerResult.planningPackage;
+      requirementAccounting = providerResult.requirementAccounting;
+      run = await this.persistRun({ run, from: "PROVIDER_CALL_STARTED", to: "PROVIDER_RETURNED", owner, patch: { providerResultChecksum: checksumPersistedDocument(providerResult), providerResult, diagnosticStage: null, diagnosticCode: null, diagnosticMessage: null, providerErrorClass: null, providerErrorCode: null } });
       await this.dependencies.fault?.hit("after-provider-result");
     } else {
-      candidate = parseDurableCandidate(run);
+      try {
+        const providerResult = parseDurableCandidate(run);
+        candidate = providerResult.planningPackage;
+        requirementAccounting = providerResult.requirementAccounting;
+      } catch (error) {
+        const terminalState = run.state === "PROVIDER_RETURNED" || run.state === "ADMISSION_STARTED" ? "ADMISSION_FAILED" : run.state === "ADMISSION_PASSED" || run.state === "PERSISTENCE_STARTED" ? "PERSISTENCE_FAILED" : undefined;
+        if (terminalState) await this.markRunTerminal(run, terminalState, owner, error, terminalState === "ADMISSION_FAILED" ? "admission" : "persistence");
+        throw error;
+      }
     }
     if (run.state === "PROVIDER_RETURNED") {
       try { await this.currentSource(plan.sourceHead); }
@@ -997,16 +1107,24 @@ export class PlanningRecoveryService {
       try {
         await this.currentSource(plan.sourceHead);
         const current = await this.readCanonicalState(plan);
-        candidate = admitRecoveryCandidate({ candidate, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief: current.brief, planning: current.planning, compatibility: current.compatibility, now: this.now() });
+        candidate = admitRecoveryCandidate({ candidate, requirementAccounting, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief: current.brief, planning: current.planning, compatibility: current.compatibility, now: this.now() });
       } catch (error) {
         const target = error instanceof PlanningRecoveryError && error.code === "RECOVERY_CURRENTNESS_STALE" ? "CURRENTNESS_FAILED" : "ADMISSION_FAILED";
         await this.markRunTerminal(run, target, owner, error, target === "CURRENTNESS_FAILED" ? "currentness" : "admission");
         throw error instanceof PlanningRecoveryError ? error : new PlanningRecoveryError("RECOVERY_CANDIDATE_INVALID", "Planning recovery candidate failed deterministic admission.");
       }
-      run = await this.persistRun({ run, from: "ADMISSION_STARTED", to: "ADMISSION_PASSED", owner, patch: { providerResultChecksum: checksumPersistedDocument(candidate), providerResult: candidate } });
+      const admittedResult = { planningPackage: candidate, requirementAccounting } satisfies PlanningRecoveryProviderResult;
+      run = await this.persistRun({ run, from: "ADMISSION_STARTED", to: "ADMISSION_PASSED", owner, patch: { providerResultChecksum: checksumPersistedDocument(admittedResult), providerResult: admittedResult } });
       await this.dependencies.fault?.hit("after-admission-passed");
     } else if (run.state === "ADMISSION_PASSED" || run.state === "PERSISTENCE_STARTED") {
-      candidate = parseDurableCandidate(run);
+      try {
+        const providerResult = parseDurableCandidate(run);
+        candidate = providerResult.planningPackage;
+        requirementAccounting = providerResult.requirementAccounting;
+      } catch (error) {
+        await this.markRunTerminal(run, "PERSISTENCE_FAILED", owner, error, "persistence");
+        throw error;
+      }
     }
     if (run.state === "ADMISSION_PASSED") {
       try { await this.currentSource(plan.sourceHead); }
@@ -1037,7 +1155,7 @@ export class PlanningRecoveryService {
         const legacyRow = await tx.getDocument(input.projectId, input.projectVersion, "requirements");
         const legacy = legacyRow && mapRowToDocument(legacyRow).documentType === "requirements" ? RequirementSpecificationSchema.parse(mapRowToDocument(legacyRow)) : null;
         const compatibility = compatibilityBrief(project, version, brief, legacy);
-        const admitted = admitRecoveryCandidate({ candidate, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief, planning, compatibility, now: this.now() });
+        const admitted = admitRecoveryCandidate({ candidate, requirementAccounting, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief, planning, compatibility, now: this.now() });
         const existingEvidence = await tx.getPlanningRecoveryEvidence(input.projectId, input.projectVersion, input.operationKey);
         if (existingEvidence) {
           if (existingEvidence.nextPlanningDocumentChecksum !== planningDocumentChecksum(admitted)) throw new PlanningRecoveryError("IDEMPOTENCY_CONFLICT");
@@ -1050,7 +1168,8 @@ export class PlanningRecoveryService {
         await tx.appendPlanningRecoveryEvidence(evidence);
         await this.dependencies.fault?.hit("after-evidence-write");
         await this.dependencies.fault?.hit("before-db-commit");
-        const finalRun = await tx.transitionPlanningRecoveryRun({ runId: currentRun.runId, operationKey: currentRun.operationKey, from: "PERSISTENCE_STARTED", to: "COMMITTED", owner, now: this.now(), patch: { committedEvidenceId: evidence.id, providerResultChecksum: checksumPersistedDocument(admitted), providerResult: admitted, projectMemoryStatus: "PENDING" } });
+        const admittedResult = { planningPackage: admitted, requirementAccounting } satisfies PlanningRecoveryProviderResult;
+        const finalRun = await tx.transitionPlanningRecoveryRun({ runId: currentRun.runId, operationKey: currentRun.operationKey, from: "PERSISTENCE_STARTED", to: "COMMITTED", owner, now: this.now(), patch: { committedEvidenceId: evidence.id, providerResultChecksum: checksumPersistedDocument(admittedResult), providerResult: admittedResult, projectMemoryStatus: "PENDING" } });
         return { run: finalRun, package: admitted, evidence };
       });
     } catch (error) {
@@ -1066,7 +1185,7 @@ export class PlanningRecoveryService {
     return { status: "COMMITTED", package: committed.package, evidence: committed.evidence };
   }
 
-  async apply(input: { projectId: string; projectVersion: number; operationKey: string; plan: PlanningRecoveryPlan; providerInput?: PlanningRecoveryProviderInput; candidate: PlanningPackage }): Promise<PlanningRecoveryResult> {
+  async apply(input: { projectId: string; projectVersion: number; operationKey: string; plan: PlanningRecoveryPlan; providerInput?: PlanningRecoveryProviderInput; candidate: PlanningPackage; requirementAccounting: PlanningRecoveryRequirementAccounting }): Promise<PlanningRecoveryResult> {
     if (!this.dependencies.hostRecoveryEnabled) throw new PlanningRecoveryError("HOST_RECOVERY_NOT_AUTHORIZED");
     const plan = PlanningRecoveryPlanSchema.parse(input.plan);
     if (checksumPersistedDocument(Object.fromEntries(Object.entries(plan).filter(([key]) => key !== "planChecksum"))) !== plan.planChecksum) throw new PlanningRecoveryError("RECOVERY_PLAN_CHECKSUM_INVALID");
@@ -1085,7 +1204,7 @@ export class PlanningRecoveryService {
       const legacy = legacyRow && mapRowToDocument(legacyRow).documentType === "requirements" ? RequirementSpecificationSchema.parse(mapRowToDocument(legacyRow)) : null;
       if (brief.briefChecksum !== plan.briefChecksum || planning.approvedBriefChecksum !== plan.currentness.planningApprovedBriefChecksum || planning.accepted) throw new PlanningRecoveryError("RECOVERY_CURRENTNESS_STALE");
       try {
-        const candidate = admitRecoveryCandidate({ candidate: input.candidate, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief, planning, compatibility: compatibilityBrief(project, version, brief, legacy), now: this.now() });
+        const candidate = admitRecoveryCandidate({ candidate: input.candidate, requirementAccounting: input.requirementAccounting, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief, planning, compatibility: compatibilityBrief(project, version, brief, legacy), now: this.now() });
         const existingEvidence = await tx.getPlanningRecoveryEvidence(input.projectId, input.projectVersion, input.operationKey);
         if (existingEvidence) {
           if (existingEvidence.nextPlanningDocumentChecksum !== planningDocumentChecksum(candidate)) throw new PlanningRecoveryError("IDEMPOTENCY_CONFLICT");

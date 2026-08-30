@@ -13,8 +13,9 @@ import {
   type LeadAnalysisProviderOutput,
 } from "@/agents/lead/contracts";
 import type { PlannerArchitectureProvider } from "@/agents/planner/ports";
-import type { PlanningRecoveryProviderInput } from "@/agents/planner/recovery";
+import type { PlanningRecoveryProviderInput, PlanningRecoveryProviderResult } from "@/agents/planner/recovery";
 import {
+  PlanningRecoveryRequirementAccountingSchema,
   type CanonicalPlanningRouteManifest,
   type PlanningOwnedRequirementManifest,
 } from "@/agents/planner/recovery-manifests";
@@ -718,6 +719,7 @@ const StrictRecoveryFormsSchema = PlanningPackageStructuredOutputSchema.shape.fo
 
 /** Recovery-only provider DTO. Route/page identities are handles, and requirement references are V3 identities. */
 export const PlanningRecoveryPackageStructuredOutputSchema = PlanningPackageStructuredOutputSchema.extend({
+  requirementAccounting: PlanningRecoveryRequirementAccountingSchema,
   profile: StrictRecoveryProfileSchema,
   databaseRecommendation: StrictRecoveryDatabaseRecommendationSchema,
   productScope: StrictRecoveryProductScopeSchema,
@@ -776,7 +778,7 @@ function normalizeRecoveryPlanningPackage(
   approvedBrief: PlannerBriefNormalizationInput,
   routeManifest: CanonicalPlanningRouteManifest,
   requirementManifest: PlanningOwnedRequirementManifest,
-): PlanningPackage {
+): PlanningRecoveryProviderResult {
   const requiredRoutes = routeManifest.routes.filter((route) => route.required);
   const routesByHandle = new Map(requiredRoutes.map((route) => [route.routeHandle, route]));
   const routesByPageHandle = new Map(requiredRoutes.map((route) => [route.pageHandle, route]));
@@ -855,8 +857,9 @@ function normalizeRecoveryPlanningPackage(
   if (normalizedArchitecture.routes.length !== requiredRoutes.length || normalizedArchitecture.routes.map((route) => route.path).sort().some((path, index) => path !== expectedPaths[index])) recoveryBindingFailure("RECOVERY_ARCHITECTURE_ROUTE_SET_MISMATCH", "architecture.routes");
   for (const form of normalizedForms) if (!routePaths.has(form.route)) recoveryBindingFailure("RECOVERY_FORM_ROUTE_MISMATCH", "forms.forms.route");
 
+  const { requirementAccounting, ...planningPackageValue } = value;
   const normalized = {
-    ...value,
+    ...planningPackageValue,
     profile: value.profile,
     productScope: value.productScope,
     sitemap: { ...value.sitemap, routes: normalizedRoutes },
@@ -866,7 +869,7 @@ function normalizeRecoveryPlanningPackage(
     forms: { ...value.forms, forms: normalizedForms },
     architecture: normalizedArchitecture,
   } as z.infer<typeof PlanningPackageStructuredOutputSchema>;
-  return normalizePlanningPackage(normalized, host, approvedBrief);
+  return { planningPackage: normalizePlanningPackage(normalized, host, approvedBrief), requirementAccounting };
 }
 function omitNull<T extends Record<string, unknown>>(value: T, keys: string[]) {
   const result = { ...value };
@@ -1316,7 +1319,7 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
     input: PlanningRecoveryProviderInput,
     approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
     skillContextIdentity = "none",
-  ): Promise<PlanningPackage> {
+  ): Promise<PlanningRecoveryProviderResult> {
     const prompt = rolePrompt("planner", {
       ...input.plannerInput,
       task: "planning-recovery-full-package",
@@ -1337,6 +1340,8 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
       "Emit every required route manifest entry exactly once using its exact routeHandle, pageHandle, and canonical path; emit every required page exactly once using its exact handles.",
       "Use only exact host-issued V3 requirement IDs from planningRequirementManifest in every requirementReferences and traceability entry; do not use route names, legacy IDs, or invented references.",
       "Return all required routes in sitemap and architecture, use route handles for navigation, flow starts/steps, and forms, and include complete semantic and traceability coverage for every manifest requirement.",
+      "For every entry in planningRequirementManifest, emit exactly one requirementAccounting entry with the same requirementId, the exact canonical category as requirementDomain, one explicit disposition, one or more coveredBy references using only the host-issued planning-requirement/route/page handles, and non-empty semanticEvidence.",
+      "Do not use keyword matching as a substitute for semantic reasoning; semanticEvidence must explain the actual Planning treatment of the canonical requirement.",
       "The output policy is complete=true with truncation=REJECT; never truncate or return a partial package.",
       "Do not mutate persistence, the project, workflow state, approvals, checksums, timestamps, or decision identities.",
       "Do not invent requirement IDs, pages, assets, business facts, providers, backend capabilities, or user decisions.",

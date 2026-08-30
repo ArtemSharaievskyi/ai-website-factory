@@ -33,9 +33,9 @@
       { "relativePath": "src/runtime/workbench/application.ts", "checksum": "ee4fe4868336f6451beb60fd574d3302c408345470e0629ae038ed024cb78d78", "byteLength": 24702, "lineCount": 323 },
       { "relativePath": "src/runtime/workbench/contracts.ts", "checksum": "1f75877de270806319d15bd496f49c30d0d3310ab5d9fb06d7028e0ae1d8abd7", "byteLength": 9121, "lineCount": 212 },
       { "relativePath": "src/runtime/workbench/production.ts", "checksum": "5746760db37336f1ba292a61221b9469626108725c45048341bf33ce5ba6e09a", "byteLength": 1446, "lineCount": 35 },
-      { "relativePath": "src/runtime/workbench/workbench.test.ts", "checksum": "7b24a28f262a8ba9b373b7d3ad72ff37c7866e557d2adb45f9b934cb602a6b4e", "byteLength": 14448, "lineCount": 152 }
+      { "relativePath": "src/runtime/workbench/workbench.test.ts", "checksum": "8109f6061653663c5dc1ae39d8f239e0a0b7b338cc5c79436f3a95e034e88907", "byteLength": 18976, "lineCount": 185 }
     ],
-    "candidateChecksum": "758b623b29bf8d61a2f224571869e3522453fb6eff3b7de16ef618059c41b3c6",
+    "candidateChecksum": "304f6abaabe0d653f3c5859d5b5b393c5fca1cc46bca855ba0f080c67fca10c3",
     "fileCount": 19,
     "frozenAt": "2026-08-12T20:38:30+02:00"
   },
