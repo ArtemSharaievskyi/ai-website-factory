@@ -54,6 +54,24 @@ function plannerInput(projectId: string, currentBrief: CanonicalBriefV3) {
   };
 }
 
+function completeRecoveryCandidate(input: Parameters<typeof buildPlanningPackage>[0]) {
+  const candidate = buildPlanningPackage(input);
+  const canonical = input.canonicalBrief;
+  if (!canonical) return candidate;
+  return {
+    ...candidate,
+    traceability: [...candidate.traceability, {
+      decisionId: randomUUID(),
+      category: "synthetic-recovery-coverage",
+      requirementReferences: canonicalRequirementEntries(canonical).map((entry) => entry.id),
+      systemConstraintReferences: ["synthetic-recovery-fixture"],
+      rationale: "Synthetic recovery fixture explicitly traces every current V3 requirement.",
+      confidence: "high" as const,
+      userConfirmationRequired: false,
+    }],
+  };
+}
+
 function multiPageBrief() {
   return brief({
     pages: [...cleanBriefV3.pages, { id: "PAGE:services", slug: "services", purpose: "Explain the synthetic service options.", sourceRefs: ["fixture:services"] }],
@@ -105,7 +123,7 @@ async function seeded(input: { currentBrief: CanonicalBriefV3; packageBrief?: Ca
 }
 
 function provider(): PlanningRecoveryProvider {
-  return { planRecovery: async (input) => buildPlanningPackage(input.plannerInput) };
+  return { planRecovery: async (input) => completeRecoveryCandidate(input.plannerInput) };
 }
 
 function service(fixture: Awaited<ReturnType<typeof seeded>>, options: Partial<ConstructorParameters<typeof PlanningRecoveryService>[0]> = {}) {
@@ -151,7 +169,7 @@ describe("host-owned full Planning recovery", () => {
   it("CASE D derives route authority from a valid multi-page Brief", () => {
     const currentBrief = multiPageBrief();
     const projectId = randomUUID();
-    const candidate = buildPlanningPackage(plannerInput(projectId, currentBrief));
+    const candidate = completeRecoveryCandidate(plannerInput(projectId, currentBrief));
     const admission = admitPlanningRefresh({ candidate, canonicalBrief: currentBrief, projectId, projectVersion: 1, approvedBriefChecksum: canonicalBriefChecksum(currentBrief), timestamp });
     expect(admission.blockers).not.toContain("PLANNING_ROUTE_POLICY_MISMATCH");
     expect(admission.candidate.sitemap.routes.map((route) => route.path)).toEqual(["/", "/services"]);
@@ -170,7 +188,7 @@ describe("host-owned full Planning recovery", () => {
   it("CASE E rejects a provider-authored route mode that conflicts with the current Brief", () => {
     const currentBrief = multiPageBrief();
     const projectId = randomUUID();
-    const candidate = { ...buildPlanningPackage(plannerInput(projectId, currentBrief)), routePolicy: "SINGLE_PAGE" as const };
+    const candidate = { ...completeRecoveryCandidate(plannerInput(projectId, currentBrief)), routePolicy: "SINGLE_PAGE" as const };
     expect(() => admitPlanningRefresh({ candidate, canonicalBrief: currentBrief, projectId, projectVersion: 1, approvedBriefChecksum: canonicalBriefChecksum(currentBrief), timestamp })).toThrow("PLANNING_ROUTE_POLICY_PROVIDER_MISMATCH");
   });
 
@@ -191,7 +209,7 @@ describe("host-owned full Planning recovery", () => {
     const fixture = await seeded({ currentBrief: next, packageBrief: base });
     const recovery = service(fixture);
     const prepared = await recovery.prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: "case-g" });
-    const complete = buildPlanningPackage(plannerInput(fixture.projectId, next));
+    const complete = completeRecoveryCandidate(plannerInput(fixture.projectId, next));
     const candidate = { ...complete, traceability: complete.traceability.map((entry, index) => index === 0 ? { ...entry, requirementReferences: [...entry.requirementReferences, "REQUIREMENT:v3-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"] } : entry) };
     await expect(recovery.apply({ projectId: fixture.projectId, projectVersion: 1, operationKey: "case-g", plan: prepared.plan!, candidate })).rejects.toThrow(/PLANNING_TRACEABILITY_UNKNOWN_REFERENCE|RECOVERY_CANDIDATE_INVALID/);
     expect(fixture.database.planningRecoveryEvidence.size).toBe(0);
@@ -203,7 +221,7 @@ describe("host-owned full Planning recovery", () => {
     const fixture = await seeded({ currentBrief: next, packageBrief: base });
     const recovery = service(fixture);
     const prepared = await recovery.prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: "case-h" });
-    const complete = buildPlanningPackage(plannerInput(fixture.projectId, next));
+    const complete = completeRecoveryCandidate(plannerInput(fixture.projectId, next));
     const candidate = { ...complete, architecture: { ...complete.architecture, backendPriority: ["server-actions"] as ["server-actions"] } };
     await expect(recovery.apply({ projectId: fixture.projectId, projectVersion: 1, operationKey: "case-h", plan: prepared.plan!, candidate })).rejects.toMatchObject({ code: "RECOVERY_CANDIDATE_INVALID" });
     expect(fixture.database.planningRecoveryEvidence.size).toBe(0);
@@ -215,7 +233,7 @@ describe("host-owned full Planning recovery", () => {
     const fixture = await seeded({ currentBrief: next, packageBrief: base });
     const recovery = service(fixture);
     const prepared = await recovery.prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: "unsupported-fact" });
-    const complete = buildPlanningPackage(plannerInput(fixture.projectId, next));
+    const complete = completeRecoveryCandidate(plannerInput(fixture.projectId, next));
     const candidate = { ...complete, productScope: { ...complete.productScope, inScopeCapabilities: [...complete.productScope.inScopeCapabilities, "Guaranteed nationwide insurance coverage"] } };
     await expect(recovery.apply({ projectId: fixture.projectId, projectVersion: 1, operationKey: "unsupported-fact", plan: prepared.plan!, candidate })).rejects.toMatchObject({ code: "RECOVERY_CANDIDATE_INVALID" });
     expect(fixture.database.planningRecoveryEvidence.size).toBe(0);
@@ -238,7 +256,7 @@ describe("host-owned full Planning recovery", () => {
     const memory = new FakePlannerMemoryPort();
     const recovery = new PlanningRecoveryService({ database: fixture.database, memory, provider: provider(), hostRecoveryEnabled: true, now: () => timestamp });
     const prepared = await recovery.prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: "case-i" });
-    const candidate = buildPlanningPackage(plannerInput(fixture.projectId, next));
+    const candidate = completeRecoveryCandidate(plannerInput(fixture.projectId, next));
     const result = await recovery.apply({ projectId: fixture.projectId, projectVersion: 1, operationKey: "case-i", plan: prepared.plan!, candidate });
     expect(result.status).toBe("COMMITTED");
     expect(result.package.accepted).toBe(false);
@@ -261,7 +279,7 @@ describe("host-owned full Planning recovery", () => {
     const before = checksumPersistedDocument(fixture.currentPackage);
     const recovery = service(fixture, { fault: { hit: (point) => { if (point === "after-package-write") throw new Error("synthetic-recovery-fault"); } } });
     const prepared = await recovery.prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: "case-j" });
-    const candidate = buildPlanningPackage(plannerInput(fixture.projectId, next));
+    const candidate = completeRecoveryCandidate(plannerInput(fixture.projectId, next));
     await expect(recovery.apply({ projectId: fixture.projectId, projectVersion: 1, operationKey: "case-j", plan: prepared.plan!, candidate })).rejects.toThrow("synthetic-recovery-fault");
     const current = await new DocumentRepository(fixture.database).get(fixture.projectId, 1, "planning-package");
     expect(current && checksumPersistedDocument(current)).toBe(before);
@@ -301,7 +319,7 @@ describe("host-owned full Planning recovery", () => {
     let calls = 0;
     const first = service(fixture, {
       now: () => now,
-      provider: { planRecovery: async (input) => { calls += 1; return buildPlanningPackage(input.plannerInput); } },
+      provider: { planRecovery: async (input) => { calls += 1; return completeRecoveryCandidate(input.plannerInput); } },
       fault: { hit: (point) => { if (point === "after-provider-call-started") throw new Error("detached-before-provider-call"); } },
     });
     await expect(first.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "durable-provider-attempt" })).rejects.toThrow("detached-before-provider-call");
@@ -325,7 +343,7 @@ describe("host-owned full Planning recovery", () => {
     let now = timestamp;
     const first = service(fixture, {
       now: () => now,
-      provider: { planRecovery: async (input) => { calls += 1; return buildPlanningPackage(input.plannerInput); } },
+      provider: { planRecovery: async (input) => { calls += 1; return completeRecoveryCandidate(input.plannerInput); } },
       fault: { hit: (point) => { if (point === "after-provider-result") throw new Error("detached-after-provider-result"); } },
     });
     await expect(first.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "durable-provider-result" })).rejects.toThrow("detached-after-provider-result");
@@ -350,7 +368,7 @@ describe("host-owned full Planning recovery", () => {
       let now = timestamp;
       const first = service(fixture, {
         now: () => now,
-        provider: { planRecovery: async (input) => { calls += 1; return buildPlanningPackage(input.plannerInput); } },
+        provider: { planRecovery: async (input) => { calls += 1; return completeRecoveryCandidate(input.plannerInput); } },
         fault: { hit: (candidatePoint) => { if (candidatePoint === point) throw new PlanningRecoveryCrash(point); } },
       });
       await expect(first.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: `durable-boundary-${point}` })).rejects.toBeInstanceOf(PlanningRecoveryCrash);
@@ -371,7 +389,7 @@ describe("host-owned full Planning recovery", () => {
     const fixture = await seeded({ currentBrief: next, packageBrief: base });
     let calls = 0;
     const memory = new FakePlannerMemoryPort();
-    const first = new PlanningRecoveryService({ database: fixture.database, memory, hostRecoveryEnabled: true, now: () => timestamp, provider: { planRecovery: async (input) => { calls += 1; return buildPlanningPackage(input.plannerInput); } } });
+    const first = new PlanningRecoveryService({ database: fixture.database, memory, hostRecoveryEnabled: true, now: () => timestamp, provider: { planRecovery: async (input) => { calls += 1; return completeRecoveryCandidate(input.plannerInput); } } });
     const firstResult = await first.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "durable-replay" });
     const second = new PlanningRecoveryService({ database: fixture.database, memory, hostRecoveryEnabled: true, now: () => timestamp, provider: { planRecovery: async () => { calls += 1; throw new Error("provider-retry-forbidden"); } } });
     const secondResult = await second.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "durable-replay" });
@@ -391,7 +409,7 @@ describe("host-owned full Planning recovery", () => {
     let calls = 0;
     const first = service(fixture, {
       now: () => now,
-      provider: { planRecovery: async (input) => { calls += 1; return buildPlanningPackage(input.plannerInput); } },
+      provider: { planRecovery: async (input) => { calls += 1; return completeRecoveryCandidate(input.plannerInput); } },
       fault: { hit: (point) => { if (point === "after-persistence-started") now = "2026-08-30T10:16:00.000Z"; } },
     });
     await expect(first.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "late-lease" })).rejects.toMatchObject({ code: "RECOVERY_RUN_LEASE_STALE" });
@@ -412,7 +430,7 @@ describe("host-owned full Planning recovery", () => {
     }
     const memory = new FailingMemory();
     let calls = 0;
-    const first = new PlanningRecoveryService({ database: fixture.database, memory, hostRecoveryEnabled: true, now: () => timestamp, provider: { planRecovery: async (input) => { calls += 1; return buildPlanningPackage(input.plannerInput); } } });
+    const first = new PlanningRecoveryService({ database: fixture.database, memory, hostRecoveryEnabled: true, now: () => timestamp, provider: { planRecovery: async (input) => { calls += 1; return completeRecoveryCandidate(input.plannerInput); } } });
     await expect(first.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "memory-failure" })).rejects.toMatchObject({ code: "RECOVERY_PROJECTION_FAILED" });
     const failed = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "memory-failure"));
     expect(failed).toMatchObject({ state: "COMMITTED", projectMemoryStatus: "FAILED", projectMemoryFailureCode: "Error" });
@@ -430,14 +448,14 @@ describe("host-owned full Planning recovery", () => {
     let calls = 0;
     const first = service(fixture, {
       now: () => now,
-      provider: { planRecovery: async (input) => { calls += 1; return buildPlanningPackage(input.plannerInput); } },
+      provider: { planRecovery: async (input) => { calls += 1; return completeRecoveryCandidate(input.plannerInput); } },
       fault: { hit: (point) => { if (point === "after-persistence-started") throw new PlanningRecoveryCrash(point); } },
     });
     const prepared = await first.prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: "run-reconciliation" });
     await expect(first.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "run-reconciliation" })).rejects.toBeInstanceOf(PlanningRecoveryCrash);
     const interrupted = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "run-reconciliation"));
     expect(interrupted?.state).toBe("PERSISTENCE_STARTED");
-    const candidate = buildPlanningPackage(plannerInput(fixture.projectId, next));
+    const candidate = completeRecoveryCandidate(plannerInput(fixture.projectId, next));
     await first.apply({ projectId: fixture.projectId, projectVersion: 1, operationKey: "run-reconciliation", plan: prepared.plan!, candidate });
     now = "2026-08-30T10:16:00.000Z";
     const second = service(fixture, { now: () => now, provider: { planRecovery: async () => { calls += 1; throw new Error("provider-retry-forbidden"); } } });
@@ -460,5 +478,16 @@ describe("host-owned full Planning recovery", () => {
     const retry = service(fixture, { provider: { planRecovery: async () => { calls += 1; throw new Error("retry-forbidden"); } } });
     await expect(retry.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "provider-failure" })).rejects.toMatchObject({ code: "TERMINAL_FAILURE_REPLAY" });
     expect(calls).toBe(1);
+  });
+
+  it("persists bounded complete blocker diagnostics for a failed admission", async () => {
+    const base = brief();
+    const next = brief({ requirements: [...base.requirements, ...Array.from({ length: 72 }, (_, index) => ({ id: `REQUIREMENT:diagnostic-${index}`, category: "LEGAL_CONSTRAINT" as const, statement: `Synthetic admission diagnostic constraint ${index} requires explicit traceability coverage.`, sourceRefs: [`fixture:diagnostic:${index}`] }))] });
+    const fixture = await seeded({ currentBrief: next, packageBrief: base });
+    const recovery = service(fixture, { provider: { planRecovery: async (input) => buildPlanningPackage(input.plannerInput) } });
+    await expect(recovery.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "diagnostic-summary" })).rejects.toMatchObject({ code: "RECOVERY_CANDIDATE_INVALID" });
+    const failed = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "diagnostic-summary"));
+    expect(failed?.diagnosticSummary).toMatchObject({ truncated: true, returnedBlockers: 64, blockerCategoryCounts: expect.objectContaining({ coverage: expect.any(Number) }) });
+    expect(failed?.diagnosticSummary?.totalBlockers).toBeGreaterThan(64);
   });
 });

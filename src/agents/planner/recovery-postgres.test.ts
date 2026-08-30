@@ -49,6 +49,24 @@ function plannerInput(projectId: string, canonicalBrief: CanonicalBriefV3) {
   return { projectId, projectVersion: 1, approvedBrief, canonicalBrief, approvedBriefChecksum: checksum, originalPromptReference: "synthetic-postgres-recovery", clarificationEvidenceReferences: [], currentWorkflowState: "AWAITING_DESIGN_SELECTION" as const, existingDecisions: [], suppliedFiles: [], allowedSkills: [], idempotencyKey: `postgres-recovery:${projectId}`, expectedRowVersion: 1 };
 }
 
+function completeRecoveryCandidate(input: Parameters<typeof buildPlanningPackage>[0]) {
+  const candidate = buildPlanningPackage(input);
+  const canonical = input.canonicalBrief;
+  if (!canonical) return candidate;
+  return {
+    ...candidate,
+    traceability: [...candidate.traceability, {
+      decisionId: randomUUID(),
+      category: "synthetic-recovery-coverage",
+      requirementReferences: canonicalRequirementEntries(canonical).map((entry) => entry.id),
+      systemConstraintReferences: ["synthetic-recovery-fixture"],
+      rationale: "Synthetic recovery fixture explicitly traces every current V3 requirement.",
+      confidence: "high" as const,
+      userConfirmationRequired: false,
+    }],
+  };
+}
+
 async function fixture(database: PostgresPersistenceDatabase) {
   const projectId = randomUUID();
   projectIds.push(projectId);
@@ -66,7 +84,7 @@ async function fixture(database: PostgresPersistenceDatabase) {
 }
 
 function provider(): PlanningRecoveryProvider {
-  return { planRecovery: async (input) => buildPlanningPackage(input.plannerInput) };
+  return { planRecovery: async (input) => completeRecoveryCandidate(input.plannerInput) };
 }
 
 async function cleanup(pool: ReturnType<typeof createPostgresPool>) {
@@ -136,7 +154,7 @@ describePostgres("Planning recovery real PostgreSQL certification", () => {
     const value = await fixture(database);
     const service = new PlanningRecoveryService({ database, memory: new FakePlannerMemoryPort(), provider: provider(), hostRecoveryEnabled: true, now: () => timestamp, fault: { hit: (point) => { if (point === "after-evidence-write") throw new Error("synthetic-postgres-recovery-fault"); } } });
     const prepared = await service.prepare({ projectId: value.projectId, projectVersion: 1, operationKey: "postgres-rollback" });
-    const candidate = buildPlanningPackage(plannerInput(value.projectId, value.currentBrief));
+    const candidate = completeRecoveryCandidate(plannerInput(value.projectId, value.currentBrief));
     await expect(service.apply({ projectId: value.projectId, projectVersion: 1, operationKey: "postgres-rollback", plan: prepared.plan!, candidate })).rejects.toMatchObject({ code: "PERSISTENCE_PROVIDER_ERROR" });
     const state = await database.transaction(async (tx) => ({ planning: await tx.getDocument(value.projectId, 1, "planning-package"), evidence: await tx.listPlanningRecoveryEvidence(value.projectId, 1) }));
     expect(state.planning?.checksum).toBe(checksumPersistedDocument(value.baseline));
@@ -149,7 +167,7 @@ describePostgres("Planning recovery real PostgreSQL certification", () => {
     const service = new PlanningRecoveryService({ database, memory: new FakePlannerMemoryPort(), provider: provider(), hostRecoveryEnabled: true, now: () => timestamp });
     const prepared = await service.prepare({ projectId: value.projectId, projectVersion: 1, operationKey: "postgres-stale" });
     await new DocumentRepository(database).save({ ...value.baseline, updatedAt: "2026-08-30T12:00:01.000Z" });
-    const candidate = buildPlanningPackage(plannerInput(value.projectId, value.currentBrief));
+    const candidate = completeRecoveryCandidate(plannerInput(value.projectId, value.currentBrief));
     await expect(service.apply({ projectId: value.projectId, projectVersion: 1, operationKey: "postgres-stale", plan: prepared.plan!, candidate })).rejects.toMatchObject({ code: "PERSISTENCE_PROVIDER_ERROR" });
     const state = await database.transaction(async (tx) => ({ planning: await tx.getDocument(value.projectId, 1, "planning-package"), evidence: await tx.listPlanningRecoveryEvidence(value.projectId, 1) }));
     expect(state.planning?.rowVersion).toBe(2);
@@ -163,7 +181,7 @@ describePostgres("Planning recovery real PostgreSQL certification", () => {
     const first = new PlanningRecoveryService({
       database,
       memory: new FakePlannerMemoryPort(),
-      provider: { planRecovery: async (input) => { calls += 1; return buildPlanningPackage(input.plannerInput); } },
+      provider: { planRecovery: async (input) => { calls += 1; return completeRecoveryCandidate(input.plannerInput); } },
       hostRecoveryEnabled: true,
       now: () => now,
       fault: { hit: (point) => { if (point === "after-provider-result") throw new Error("synthetic-process-replacement"); } },

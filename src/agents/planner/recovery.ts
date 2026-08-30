@@ -29,6 +29,8 @@ import {
   normalizePlanningPackageForHost,
   planningRoutePolicyMatchesCanonicalBrief,
   PLANNING_NON_OWNED_REQUIREMENT_CATEGORIES,
+  validatePlanningRecoveryRequirementCoverage,
+  validatePlanningRecoveryRouteManifest,
   validatePlanningRequirementCoverage,
 } from "./refresh-admission";
 import {
@@ -67,6 +69,7 @@ import type { PlannerMemoryPort } from "./ports";
 import type { ApprovedProceduralSkillContext } from "@/skills/runtime/resolver";
 import {
   PlanningRecoveryRunSchema,
+  PlanningRecoveryDiagnosticSummarySchema,
   isLeaseActive,
   isPlanningRecoveryRunTerminal,
   PLANNING_RECOVERY_RUN_LEASE_MS,
@@ -74,6 +77,15 @@ import {
   type PlanningRecoveryRunRow,
   type PlanningRecoveryRunTransition,
 } from "./recovery-runs";
+import {
+  CanonicalPlanningRouteManifestSchema,
+  PlanningOwnedRequirementManifestSchema,
+  PLANNING_RECOVERY_OUTPUT_POLICY,
+  PlanningRecoveryOutputPolicySchema,
+  createCanonicalPlanningRouteManifest,
+  createPlanningOwnedRequirementManifest,
+  requirementManifestAsCanonicalRequirements,
+} from "./recovery-manifests";
 
 export const PLANNING_RECOVERY_AUTHORITY = "PLANNING_RECOVERY" as const;
 export const PLANNING_RECOVERY_MODE = "FULL_PLANNING_REBUILD" as const;
@@ -115,9 +127,11 @@ const PlanningRecoveryPlanPayloadSchema = z.object({
   routePolicy: RoutePolicySchema,
   decisions: CanonicalBriefV3Schema.shape.decisions,
   planningOwnedRequirementIds: z.array(z.string().min(1)).max(512),
+  canonicalRouteManifest: CanonicalPlanningRouteManifestSchema.optional(),
+  planningRequirementManifest: PlanningOwnedRequirementManifestSchema.optional(),
   reconciliationScopeChecksum: Sha256Schema,
   providerCapability: z.object({
-    contractVersion: z.literal(1),
+    contractVersion: z.union([z.literal(1), z.literal(2)]),
     outputMode: z.literal("FULL_PLANNING_PACKAGE"),
     canonicalBriefIsSoleSemanticAuthority: z.literal(true),
     hostOwnedFields: z.array(z.enum(["projectId", "projectVersion", "approvedBriefChecksum", "semanticChecksumPolicyVersion", "accepted", "acceptance", "routePolicy", "timestamps", "decisionIds"])),
@@ -154,6 +168,8 @@ export const PlanningRecoveryProviderInputSchema = z.object({
   mode: RecoveryModeSchema,
   plan: PlanningRecoveryPlanSchema,
   canonicalBrief: CanonicalBriefV3Schema,
+  canonicalRouteManifest: CanonicalPlanningRouteManifestSchema,
+  planningRequirementManifest: PlanningOwnedRequirementManifestSchema,
   planningOwnedRequirements: z.array(CanonicalRequirementSchema).max(512),
   plannerInput: PlannerAgentInputSchema,
   currentPlanningEvidence: CurrentPlanningEvidenceSchema,
@@ -162,7 +178,17 @@ export const PlanningRecoveryProviderInputSchema = z.object({
     lossless: z.literal(true),
     omittedSemanticFields: z.array(z.string()).length(0),
   }).strict(),
-}).strict();
+  outputPolicy: PlanningRecoveryOutputPolicySchema,
+}).strict().superRefine((value, context) => {
+  if (value.plan.canonicalRouteManifest?.manifestChecksum !== value.canonicalRouteManifest.manifestChecksum) context.addIssue({ code: "custom", path: ["canonicalRouteManifest"], message: "Provider route manifest does not match the recovery plan." });
+  if (value.plan.planningRequirementManifest?.manifestChecksum !== value.planningRequirementManifest.manifestChecksum) context.addIssue({ code: "custom", path: ["planningRequirementManifest"], message: "Provider requirement manifest does not match the recovery plan." });
+  if (value.canonicalRouteManifest.routePolicy !== value.plan.routePolicy) context.addIssue({ code: "custom", path: ["canonicalRouteManifest", "routePolicy"], message: "Provider route manifest policy does not match the recovery plan." });
+  const manifestIds = value.planningRequirementManifest.requirements.map((entry) => entry.requirementId);
+  const planIds = [...value.plan.planningOwnedRequirementIds].sort();
+  if (JSON.stringify([...manifestIds].sort()) !== JSON.stringify(planIds)) context.addIssue({ code: "custom", path: ["planningRequirementManifest", "requirements"], message: "Provider requirement manifest identities do not match the recovery plan." });
+  const inputIds = value.planningOwnedRequirements.map((entry) => entry.id);
+  if (JSON.stringify([...inputIds].sort()) !== JSON.stringify([...manifestIds].sort())) context.addIssue({ code: "custom", path: ["planningOwnedRequirements"], message: "Provider requirement input does not match the host-owned manifest." });
+});
 export type PlanningRecoveryProviderInput = z.infer<typeof PlanningRecoveryProviderInputSchema>;
 
 export const PlanningRecoveryEvidenceSchema = z.object({
@@ -238,7 +264,7 @@ export type PlanningRecoveryFaultInjector = { hit(point: PlanningRecoveryFaultPo
 
 export class PlanningRecoveryError extends Error {
   constructor(readonly code: string, message = code, readonly details?: unknown) {
-    super(Array.isArray(details) ? `${message} [${details.slice(0, 8).join(",")}]` : message);
+    super(Array.isArray(details) ? `${message} [${details.slice(0, 8).join(",")}${details.length > 8 ? ",..." : ""}]` : message);
     this.name = "PlanningRecoveryError";
   }
 }
@@ -256,14 +282,6 @@ function deterministicUuid(seed: string): string {
   bytes[6] = (bytes[6]! & 15) | 64;
   bytes[8] = (bytes[8]! & 63) | 128;
   return `${bytes.toString("hex").slice(0, 8)}-${bytes.toString("hex").slice(8, 12)}-${bytes.toString("hex").slice(12, 16)}-${bytes.toString("hex").slice(16, 20)}-${bytes.toString("hex").slice(20)}`;
-}
-
-function planningRequirements(brief: CanonicalBriefV3) {
-  return [
-    ...brief.requirements,
-    ...brief.decisions.form.interactionStates,
-    ...brief.seo.locationTargeting,
-  ].filter((entry) => !PLANNING_NON_OWNED_REQUIREMENT_CATEGORIES.has(entry.category));
 }
 
 function allCanonicalEntries(brief: CanonicalBriefV3) {
@@ -405,9 +423,19 @@ function admitRecoveryCandidate(input: { candidate: PlanningPackage; projectId: 
     throw new PlanningRecoveryError("RECOVERY_CANDIDATE_INVALID", "Full Planning recovery candidate failed deterministic admission.", [error instanceof Error ? error.message : "PLANNING_ADMISSION_FAILED"]);
   }
   const candidate = normalizePlanningPackageForHost({ candidate: admission.candidate, projectId: input.projectId, projectVersion: input.projectVersion, approvedBriefChecksum: input.brief.briefChecksum, canonicalBrief: input.brief.brief, timestamp: input.now });
-  const blockers = [...admission.blockers, ...validatePlanningAdmission(candidate).blockers, ...validatePlanningPackageAgainstBrief(input.compatibility, candidate), ...canonicalDecisionBlockers(input.brief.brief, input.compatibility, candidate), ...unsupportedBusinessFacts(input.brief.brief, candidate), ...referenceBlockers(input.brief.brief, candidate)];
-  const coverage = validatePlanningRequirementCoverage({ candidate, canonicalBrief: input.brief.brief }).filter((entry) => !PLANNING_NON_OWNED_REQUIREMENT_CATEGORIES.has(entry.category));
-  if (coverage.length) blockers.push(`RECOVERY_COVERAGE_INCOMPLETE:${coverage.map((entry) => entry.requirementId).slice(0, 8).join(",")}`);
+  const blockers = [
+    ...admission.blockers,
+    ...validatePlanningAdmission(candidate).blockers,
+    ...validatePlanningPackageAgainstBrief(input.compatibility, candidate),
+    ...canonicalDecisionBlockers(input.brief.brief, input.compatibility, candidate),
+    ...unsupportedBusinessFacts(input.brief.brief, candidate),
+    ...referenceBlockers(input.brief.brief, candidate),
+    ...(input.plan.canonicalRouteManifest ? validatePlanningRecoveryRouteManifest({ candidate, manifest: input.plan.canonicalRouteManifest }) : []),
+  ];
+  const coverage = input.plan.planningRequirementManifest
+    ? validatePlanningRecoveryRequirementCoverage({ candidate, manifest: input.plan.planningRequirementManifest })
+    : validatePlanningRequirementCoverage({ candidate, canonicalBrief: input.brief.brief }).filter((entry) => !PLANNING_NON_OWNED_REQUIREMENT_CATEGORIES.has(entry.category));
+  blockers.push(...coverage.map((entry) => `RECOVERY_COVERAGE_INCOMPLETE:${entry.requirementId}:${entry.reason}`));
   blockers.push(...providerFieldBlockers);
   if (candidate.projectId !== input.plan.projectId || candidate.projectVersion !== input.plan.projectVersion || candidate.approvedBriefChecksum !== input.plan.briefChecksum || candidate.semanticChecksumPolicyVersion !== CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY || candidate.accepted || candidate.acceptance.acceptedAt) blockers.push("RECOVERY_HOST_OWNED_FIELD_MUTATION");
   if (blockers.length) throw new PlanningRecoveryError("RECOVERY_CANDIDATE_INVALID", "Full Planning recovery candidate failed deterministic admission.", [...new Set(blockers)]);
@@ -424,6 +452,8 @@ function recoveryPlan(input: {
   scope: PlanningReconciliationScope;
 }): PlanningRecoveryPlan {
   const currentness = currentnessFor({ project: input.project, version: input.version, briefRow: input.briefRow, brief: input.brief, planningRow: input.planningRow, planning: input.planning });
+  const canonicalRouteManifest = createCanonicalPlanningRouteManifest(input.brief.brief);
+  const planningRequirementManifest = createPlanningOwnedRequirementManifest(input.brief.brief);
   const payload = PlanningRecoveryPlanPayloadSchema.parse({
     schemaVersion: 1,
     authority: PLANNING_RECOVERY_AUTHORITY,
@@ -437,10 +467,12 @@ function recoveryPlan(input: {
     briefChecksum: input.brief.briefChecksum,
     routePolicy: input.brief.brief.decisions.routePolicy.mode,
     decisions: input.brief.brief.decisions,
-    planningOwnedRequirementIds: planningRequirements(input.brief.brief).map((entry) => entry.id).sort(),
+    planningOwnedRequirementIds: planningRequirementManifest.requirements.map((entry) => entry.requirementId).sort(),
+    canonicalRouteManifest,
+    planningRequirementManifest,
     reconciliationScopeChecksum: input.scope.scopeChecksum,
     providerCapability: {
-      contractVersion: 1,
+      contractVersion: 2,
       outputMode: "FULL_PLANNING_PACKAGE",
       canonicalBriefIsSoleSemanticAuthority: true,
       hostOwnedFields: ["projectId", "projectVersion", "approvedBriefChecksum", "semanticChecksumPolicyVersion", "accepted", "acceptance", "routePolicy", "timestamps", "decisionIds"],
@@ -481,6 +513,7 @@ function recoveryRunFromPreparation(input: { plan: PlanningRecoveryPlan; operati
     diagnosticStage: null,
     diagnosticCode: null,
     diagnosticMessage: null,
+    diagnosticSummary: null,
     leaseOwner: null,
     leaseExpiresAt: null,
     terminalOutcome: null,
@@ -496,7 +529,26 @@ function recoveryRunFromPreparation(input: { plan: PlanningRecoveryPlan; operati
 function safeRunDiagnostic(error: unknown, stage: string) {
   const raw = error instanceof PlanningRecoveryError ? error.code : error instanceof Error ? error.constructor.name : "UnknownError";
   const code = /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(raw) ? raw.slice(0, 160) : "RECOVERY_STAGE_FAILED";
-  return { diagnosticStage: stage, diagnosticCode: code, diagnosticMessage: `Planning recovery ${stage} failed safely.`, providerErrorClass: stage === "provider" ? code : null, providerErrorCode: stage === "provider" ? code : null } as const;
+  const summary = stage === "admission" && error instanceof PlanningRecoveryError && Array.isArray(error.details)
+    ? diagnosticSummary(error.details)
+    : null;
+  return { diagnosticStage: stage, diagnosticCode: code, diagnosticMessage: `Planning recovery ${stage} failed safely.`, diagnosticSummary: summary, providerErrorClass: stage === "provider" ? code : null, providerErrorCode: stage === "provider" ? code : null } as const;
+}
+
+function diagnosticSummary(details: readonly unknown[]) {
+  const blockers = details.filter((detail): detail is string => typeof detail === "string" && /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$/.test(detail));
+  if (!blockers.length) return null;
+  const categoryCounts = { route: 0, coverage: 0, decision: 0, identity: 0, unsupportedFact: 0, schema: 0, other: 0 };
+  for (const blocker of blockers) {
+    if (/ROUTE|PAGE_MANIFEST|NAVIGATION/.test(blocker)) categoryCounts.route++;
+    else if (/COVERAGE/.test(blocker)) categoryCounts.coverage++;
+    else if (/DECISION|FORM_|BACKEND/.test(blocker)) categoryCounts.decision++;
+    else if (/REFERENCE|IDENTITY|HOST_OWNED/.test(blocker)) categoryCounts.identity++;
+    else if (/UNSUPPORTED/.test(blocker)) categoryCounts.unsupportedFact++;
+    else if (/SCHEMA|CANDIDATE_INVALID|PROVIDER_/.test(blocker)) categoryCounts.schema++;
+    else categoryCounts.other++;
+  }
+  return PlanningRecoveryDiagnosticSummarySchema.parse({ totalBlockers: blockers.length, returnedBlockers: Math.min(blockers.length, 64), truncated: blockers.length > 64, blockerCategoryCounts: categoryCounts, blockers: blockers.slice(0, 64) });
 }
 
 function recoveryProjectionDocuments(candidate: PlanningPackage) {
@@ -539,6 +591,7 @@ function downstreamBlockers(rows: readonly DocumentRow[], planning: PlanningPack
 }
 
 function buildProviderInput(input: { plan: PlanningRecoveryPlan; brief: BriefV3Document; compatibility: RequirementSpecification; project: ProjectRow; version: ProjectVersionRow; planning: PlanningPackage; planningRow: DocumentRow; operationKey: string }): PlanningRecoveryProviderInput {
+  if (!input.plan.canonicalRouteManifest || !input.plan.planningRequirementManifest) throw new PlanningRecoveryError("RECOVERY_PLAN_INVALID");
   const plannerInput: PlannerAgentInput = PlannerAgentInputSchema.parse({
     projectId: input.project.id,
     projectVersion: input.version.versionNumber,
@@ -577,10 +630,13 @@ function buildProviderInput(input: { plan: PlanningRecoveryPlan; brief: BriefV3D
     mode: PLANNING_RECOVERY_MODE,
     plan: input.plan,
     canonicalBrief: input.brief.brief,
-    planningOwnedRequirements: planningRequirements(input.brief.brief),
+    canonicalRouteManifest: input.plan.canonicalRouteManifest,
+    planningRequirementManifest: input.plan.planningRequirementManifest,
+    planningOwnedRequirements: requirementManifestAsCanonicalRequirements(input.plan.planningRequirementManifest),
     plannerInput,
     currentPlanningEvidence: planningEvidence,
     contextPolicy: { maxBytes: 512_000, lossless: true, omittedSemanticFields: [] },
+    outputPolicy: PLANNING_RECOVERY_OUTPUT_POLICY,
   });
   if (Buffer.byteLength(JSON.stringify(providerInput), "utf8") > providerInput.contextPolicy.maxBytes) throw new PlanningRecoveryError("CONTEXT_BOUND_EXCEEDED");
   return providerInput;
@@ -716,7 +772,7 @@ export class PlanningRecoveryService {
     } catch (error) {
       return fail("CURRENTNESS_TOKEN_INVALID", ["RECOVERY_DOCUMENT_CONTRACT_INVALID", error instanceof Error ? error.message : "RECOVERY_DOCUMENT_CONTRACT_INVALID"]);
     }
-    const count = planningRequirements(brief.brief).length;
+    const count = createPlanningOwnedRequirementManifest(brief.brief).requirements.length;
     if (!brief.approval?.approved || brief.approval.approvedCanonicalChecksum !== brief.briefChecksum) return fail("BRIEF_NOT_CURRENT_APPROVED", ["RECOVERY_BRIEF_NOT_APPROVED"], count);
     if (planning.accepted || planning.semanticChecksumPolicyVersion !== CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY) return fail("PLANNING_NOT_CURRENT", ["RECOVERY_PLANNING_CURRENTNESS_INVALID"], count);
     const readiness = evaluateBriefReadiness({ brief: brief.brief });

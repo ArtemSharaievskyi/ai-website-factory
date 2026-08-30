@@ -5,7 +5,7 @@ import { buildProductionResponseFormat, OpenAiStructuredClient, type StructuredR
 import { AiProviderError } from "./errors";
 import { FifoConcurrencyLimiter } from "./limiter";
 import { zodResponseFormat } from "openai/helpers/zod";
-import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, OpenAiLeadProvider, OpenAiPlannerProvider, PlanningPackageStructuredOutputSchema, isWorkflowApprovalBlocker } from "./adapters";
+import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, OpenAiLeadProvider, OpenAiPlannerProvider, PlanningPackageStructuredOutputSchema, PlanningRecoveryPackageStructuredOutputSchema, isWorkflowApprovalBlocker } from "./adapters";
 import { readAiProviderConfig } from "./config";
 import { ArchitectureReviewProviderOutputSchema, CodeIntegrationReviewProviderOutputSchema, ContractAuditProviderOutputSchema, SecurityReviewProviderOutputSchema, TestQualityReviewProviderOutputSchema } from "@/domain/review/schema";
 import { analyzePromptDeterministically } from "@/agents/lead/deterministic";
@@ -131,6 +131,17 @@ describe("production AI provider boundary", () => {
     expect(schema.properties).not.toHaveProperty("acceptance");
     expect(schema.properties.architecture?.properties).not.toHaveProperty("acceptance");
     expect(schema.properties.traceability.items?.properties).not.toHaveProperty("decisionId");
+  });
+  it("uses a separate strict recovery transport with host-free identity and exact handle fields", () => {
+    expect(() => zodResponseFormat(PlanningRecoveryPackageStructuredOutputSchema, "planning-recovery-package")).not.toThrow();
+    expect(PlanningRecoveryPackageStructuredOutputSchema.safeParse({ projectId: randomUUID() }).success).toBe(false);
+    const schema = (zodResponseFormat(PlanningRecoveryPackageStructuredOutputSchema, "planning-recovery-package") as unknown as { json_schema: { schema: { properties: Record<string, { properties?: Record<string, unknown>; items?: { properties?: Record<string, unknown> } }> } } }).json_schema.schema;
+    const routeProperties = ((schema.properties.sitemap?.properties?.routes as { items?: { properties?: Record<string, unknown> } } | undefined)?.items?.properties);
+    expect(schema.properties).not.toHaveProperty("accepted");
+    expect(schema.properties).not.toHaveProperty("routePolicy");
+    expect(routeProperties).toHaveProperty("routeHandle");
+    expect(routeProperties).toHaveProperty("pageHandle");
+    expect(routeProperties).not.toHaveProperty("id");
   });
   it("normalizes a provider backend priority to no-backend when the approved Brief requires frontend-only behavior", async () => {
     const fixture = noBackendPlannerTransport();
@@ -272,6 +283,20 @@ describe("production AI provider boundary", () => {
 
   it("accepts only injected, schema-valid structured output and records safe usage", async () => { const usage = vi.fn(); const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: { ok: true, summary: "bounded" } as T, requestId: "req_1", inputTokens: 4, cachedInputTokens: 1, outputTokens: 3 }), usageSink: usage }); const result = await client.request(request); expect(result.value).toEqual({ ok: true, summary: "bounded" }); expect(usage).toHaveBeenCalledWith(expect.objectContaining({ inputTokens: 4, cachedInputTokens: 1, outputTokens: 3, promptVersion: "test.v1" })); });
   it("retries one transient failure and does not expose raw provider data", async () => { let calls = 0; const client = new OpenAiStructuredClient(config, { executor: async <T>() => { calls++; if (calls === 1) throw Object.assign(new Error("temporary"), { status: 503 }); return { value: { ok: true, summary: "recovered" } as T, requestId: "req_2" }; } }); await expect(client.request({ ...request, idempotencyKey: "retry" })).resolves.toMatchObject({ value: { ok: true } }); expect(calls).toBe(2); });
+  it("honors the recovery request boundary with zero retries and zero corrections", async () => {
+    let calls = 0;
+    const corrections: boolean[] = [];
+    const client = new OpenAiStructuredClient({ ...config, maxRetries: 3 }, { executor: async <T>(_request: StructuredRequest<T>, _client: unknown, _config: unknown, correction: boolean) => { calls += 1; corrections.push(correction); throw new AiProviderError("AI_OUTPUT_SCHEMA_MISMATCH", "synthetic schema mismatch"); } });
+    await expect(client.request({ ...request, idempotencyKey: "recovery-no-retry", retryPolicy: { maxRetries: 0, corrections: 0 } })).rejects.toMatchObject({ code: "AI_OUTPUT_SCHEMA_MISMATCH" });
+    expect(calls).toBe(1);
+    expect(corrections).toEqual([false]);
+  });
+  it("passes the recovery output capacity to the single provider request", async () => {
+    let completionTokens: number | undefined;
+    const client = new OpenAiStructuredClient(config, { client: { chat: { completions: { parse: async (value: Record<string, unknown>) => { completionTokens = value.max_completion_tokens as number; return { id: "req_recovery_capacity", choices: [{ message: { parsed: { ok: true, summary: "bounded" } }, finish_reason: "stop" }], usage: {} }; } } } } as never });
+    await client.request({ ...request, schemaName: "planning-recovery-package", maxCompletionTokens: 64_000, retryPolicy: { maxRetries: 0, corrections: 0 } });
+    expect(completionTokens).toBe(64_000);
+  });
   it("does not abort a slow Planner response at the former Factory timeout", async () => { const started = Date.now(); const client = new OpenAiStructuredClient(config, { executor: async <T>() => { await new Promise((resolve) => setTimeout(resolve, 30)); return { value: { ok: true, summary: "slow-but-valid" } as T, requestId: "req_planner" }; } }); await expect(client.request({ ...request, role: "planner", idempotencyKey: "planner-no-timeout" })).resolves.toMatchObject({ value: { ok: true } }); expect(Date.now() - started).toBeGreaterThanOrEqual(25); });
   it("preserves explicit cancellation and records safe timing metadata", async () => { const events: Array<Record<string, unknown>> = []; const controller = new AbortController(); const client = new OpenAiStructuredClient(config, { eventSink: (event) => events.push(event), executor: async (value: { signal?: AbortSignal }) => await new Promise((_, reject) => { const cancel = () => reject(new AiProviderError("AI_REQUEST_CANCELLED", "AI request was cancelled.")); if (value.signal?.aborted) cancel(); else value.signal?.addEventListener("abort", cancel, { once: true }); }) }); const pending = client.request({ ...request, signal: controller.signal, idempotencyKey: "explicit-cancel" }); await new Promise((resolve) => setTimeout(resolve, 0)); controller.abort(); await expect(pending).rejects.toMatchObject({ code: "AI_REQUEST_CANCELLED" }); expect(events.at(-1)).toMatchObject({ type: "request.failed", code: "AI_REQUEST_CANCELLED", elapsedMs: expect.any(Number), startedAt: expect.any(String), completedAt: expect.any(String) }); });
   it("ignores obsolete AI timeout environment values", () => { const parsed = readAiProviderConfig({ OPENAI_API_KEY: "test-key", OPENAI_MODEL: "test-model", OPENAI_REQUEST_TIMEOUT_MS: "not-a-number", OPENAI_PLANNER_REQUEST_TIMEOUT_MS: "invalid", OPENAI_DESIGN_REQUEST_TIMEOUT_MS: "invalid" }); expect(parsed).not.toHaveProperty("timeoutMs"); expect(parsed).not.toHaveProperty("roleTimeoutMs"); });

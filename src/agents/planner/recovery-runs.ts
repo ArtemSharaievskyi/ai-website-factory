@@ -4,6 +4,27 @@ const HashSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const SafeTokenSchema = z.string().min(1).max(160).regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/);
 const SafeMessageSchema = z.string().max(500);
 
+export const PlanningRecoveryDiagnosticSummarySchema = z.object({
+  totalBlockers: z.number().int().nonnegative(),
+  returnedBlockers: z.number().int().nonnegative().max(64),
+  truncated: z.boolean(),
+  blockerCategoryCounts: z.object({
+    route: z.number().int().nonnegative(),
+    coverage: z.number().int().nonnegative(),
+    decision: z.number().int().nonnegative(),
+    identity: z.number().int().nonnegative(),
+    unsupportedFact: z.number().int().nonnegative(),
+    schema: z.number().int().nonnegative(),
+    other: z.number().int().nonnegative(),
+  }).strict(),
+  blockers: z.array(SafeTokenSchema).max(64),
+}).strict().superRefine((value, context) => {
+  if (value.returnedBlockers !== value.blockers.length) context.addIssue({ code: "custom", path: ["returnedBlockers"], message: "Returned blocker count must match the bounded blocker list." });
+  if (!value.truncated && value.returnedBlockers !== value.totalBlockers) context.addIssue({ code: "custom", path: ["truncated"], message: "A non-truncated diagnostic must return every blocker." });
+  if (value.truncated && value.returnedBlockers >= value.totalBlockers) context.addIssue({ code: "custom", path: ["truncated"], message: "A truncated diagnostic must omit at least one blocker." });
+}).readonly();
+export type PlanningRecoveryDiagnosticSummary = z.infer<typeof PlanningRecoveryDiagnosticSummarySchema>;
+
 export const PLANNING_RECOVERY_RUN_LEASE_MS = 15 * 60 * 1000;
 export const PLANNING_RECOVERY_RUN_RESULT_MAX_BYTES = 512_000;
 
@@ -73,6 +94,7 @@ export const PlanningRecoveryRunSchema = z.object({
   diagnosticStage: SafeTokenSchema.nullable(),
   diagnosticCode: SafeTokenSchema.nullable(),
   diagnosticMessage: SafeMessageSchema.nullable(),
+  diagnosticSummary: PlanningRecoveryDiagnosticSummarySchema.nullable(),
   leaseOwner: SafeTokenSchema.nullable(),
   leaseExpiresAt: z.string().datetime({ offset: true }).nullable(),
   terminalOutcome: PlanningRecoveryRunTerminalOutcomeSchema.nullable(),
@@ -155,6 +177,7 @@ export type PlanningRecoveryRunTransition = {
     | "diagnosticStage"
     | "diagnosticCode"
     | "diagnosticMessage"
+    | "diagnosticSummary"
     | "leaseOwner"
     | "leaseExpiresAt"
     | "terminalOutcome"

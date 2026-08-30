@@ -10,7 +10,7 @@ import type { ContextBundle } from "@/runtime/context";
 import { createInvocationFingerprint, createInvocationUsageRecord } from "@/runtime/context/telemetry";
 import { createHash, randomUUID } from "node:crypto";
 
-export type StructuredRequest<T> = { role: string; promptVersion: string; system: string; user: string; schemaName: string; schema: ZodType<T>; signal?: AbortSignal; idempotencyKey?: string; contextBundle?: ContextBundle; promptPrefixChecksum?: string; promptPrefixBytes?: number };
+export type StructuredRequest<T> = { role: string; promptVersion: string; system: string; user: string; schemaName: string; schema: ZodType<T>; signal?: AbortSignal; idempotencyKey?: string; contextBundle?: ContextBundle; promptPrefixChecksum?: string; promptPrefixBytes?: number; maxCompletionTokens?: number; retryPolicy?: { maxRetries: number; corrections: number } };
 export type StructuredResponse<T> = { value: T; usage: ProviderUsage; requestId: string; diagnostic?: ProviderDiagnostic };
 export type StructuredExecutor = <T>(request: StructuredRequest<T>, client: OpenAI, config: AiProviderConfig, correction: boolean) => Promise<{ value: T; requestId: string; inputTokens?: number; cachedInputTokens?: number; outputTokens?: number; diagnostic?: ProviderDiagnostic }>;
 
@@ -116,6 +116,8 @@ export class OpenAiStructuredClient {
   private async execute<T>(request: StructuredRequest<T>): Promise<StructuredResponse<T>> {
     let retries = 0;
     let correction = false;
+    const maxRetries = request.retryPolicy?.maxRetries ?? this.config.maxRetries;
+    const maxCorrections = request.retryPolicy?.corrections ?? 1;
     const startedAt = new Date().toISOString();
     const started = Date.now();
     this.eventSink?.({ type: "request.started", provider: "openai", model: this.config.model, role: request.role, promptVersion: request.promptVersion, startedAt });
@@ -132,11 +134,11 @@ export class OpenAiStructuredClient {
           return { value: result.value, usage, requestId: result.requestId, diagnostic: result.diagnostic };
         } catch (error) {
           const mapped = mapError(error, request.schemaName, true, this.config.model);
-          if (mapped.code === "AI_OUTPUT_SCHEMA_MISMATCH" && !correction) {
+          if (mapped.code === "AI_OUTPUT_SCHEMA_MISMATCH" && !correction && maxCorrections > 0) {
             correction = true;
             continue;
           }
-          if (isRetryable(mapped) && retries < this.config.maxRetries) {
+          if (isRetryable(mapped) && retries < maxRetries) {
             retries++;
             continue;
           }
@@ -193,7 +195,7 @@ async function defaultExecutor<T>(request: StructuredRequest<T>, client: OpenAI,
   const correctionInstruction = request.role === "design" ? "\nReturn exactly 3 directions. Repair only the structural deficiency; do not omit, clone, or add a fourth direction." : "\nCorrect the previous structured-output formatting.";
   let completion: Awaited<ReturnType<OpenAI["chat"]["completions"]["parse"]>>;
   try {
-    completion = await client.chat.completions.parse({ model: config.model, max_completion_tokens: config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, messages: [{ role: "system", content: `${request.system}${correction ? correctionInstruction : ""}` }, { role: "user", content: request.user }], response_format: responseSchema }, request.signal ? { signal: request.signal } : undefined);
+  completion = await client.chat.completions.parse({ model: config.model, max_completion_tokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, messages: [{ role: "system", content: `${request.system}${correction ? correctionInstruction : ""}` }, { role: "user", content: request.user }], response_format: responseSchema }, request.signal ? { signal: request.signal } : undefined);
   } catch (error) {
     throw mapError(error, request.schemaName, true, config.model);
   }
@@ -201,7 +203,7 @@ async function defaultExecutor<T>(request: StructuredRequest<T>, client: OpenAI,
   const message = choice?.message;
   const inputTokens = completion.usage?.prompt_tokens;
   const outputTokens = completion.usage?.completion_tokens;
-  const maxCompletionTokens = config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS;
+  const maxCompletionTokens = request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS;
   const responseReceived = true;
   const outputComplete = choice?.finish_reason === "stop" && Boolean(message?.parsed);
   const responseDiagnostic: ProviderDiagnostic = { stage: "api_response", requestAttempted: true, apiResponseReceived: true, responseReceived, outputComplete, tokenExhaustion: choice?.finish_reason === "length" || (outputTokens !== undefined && outputTokens >= maxCompletionTokens), requestId: completion.id, choicesCount: completion.choices.length, finishReason: choice?.finish_reason ?? null, refusalPresent: Boolean(message?.refusal), parsedPresent: message?.parsed != null, contentPresent: typeof message?.content === "string", contentLength: typeof message?.content === "string" ? message.content.length : undefined, schemaName: request.schemaName, inputTokens, outputTokens, ...(inputTokens !== undefined && outputTokens !== undefined ? { totalTokens: inputTokens + outputTokens } : {}), maxCompletionTokens };

@@ -7,6 +7,7 @@ import {
   ImplementationChangeProposalStructuredOutputSchema,
   OrchestrationPlanSchema,
   PlanningPackageStructuredOutputSchema,
+  PlanningRecoveryPackageStructuredOutputSchema,
 } from "@/integrations/openai/adapters";
 import { ProviderBriefChangeSetSchema } from "@/integrations/openai-v3/changeset";
 import { PlanningChangeSetProviderOutputSchema } from "@/agents/planner/changeset";
@@ -27,6 +28,7 @@ const builders: Record<string, Builder> = {
   "project-brief": () => buildProductionResponseFormat(BriefDraftStructuredOutputSchema, "brief-draft"),
   "brief-revision-v3": () => buildProductionResponseFormat(ProviderBriefChangeSetSchema, "brief-revision-v3"),
   "planning-package": () => buildProductionResponseFormat(PlanningPackageStructuredOutputSchema, "planning-package"),
+  "planning-recovery-package": () => buildProductionResponseFormat(PlanningRecoveryPackageStructuredOutputSchema, "planning-recovery-package"),
   "planning-change-set": () => buildProductionResponseFormat(PlanningChangeSetProviderOutputSchema, "planning-change-set"),
   "design-direction-set": () => buildProductionResponseFormat(DesignDirectionStructuredOutputSchema, "design-direction-set"),
   "implementation-change-proposal": () => buildProductionResponseFormat(ImplementationChangeProposalStructuredOutputSchema, "implementation-change-proposal"),

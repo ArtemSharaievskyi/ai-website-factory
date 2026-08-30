@@ -3,6 +3,7 @@ import { CanonicalBriefV3Schema, type CanonicalBriefV3, type CanonicalRequiremen
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { PlanningPackageSchema, type PlanningPackage } from "./contracts";
 import { CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY } from "./semantic-checksum";
+import { canonicalPagePath, type CanonicalPlanningRouteManifest } from "./recovery-manifests";
 
 /**
  * These are the semantic areas owned by Planning. The list is deliberately
@@ -38,6 +39,13 @@ export type PlanningRequirementCoverage = {
   category: RequirementCategory;
   statement: string;
   reason: "MISSING_REFERENCE" | "MISSING_SEMANTIC_EVIDENCE";
+};
+
+export type PlanningRecoveryRequirementCoverage = PlanningRequirementCoverage | {
+  requirementId: string;
+  category: RequirementCategory;
+  statement: string;
+  reason: "MISSING_TRACEABILITY";
 };
 
 export type PlanningCoverageEvidence = {
@@ -344,6 +352,22 @@ function referencesOf(value: unknown): Set<string> {
   return result;
 }
 
+function traceabilityReferencesOf(value: unknown, result = new Set<string>()): Set<string> {
+  if (Array.isArray(value)) value.forEach((item) => traceabilityReferencesOf(item, result));
+  else if (value && typeof value === "object") {
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      if (key === "traceability" && Array.isArray(child)) {
+        for (const entry of child) {
+          if (!entry || typeof entry !== "object") continue;
+          const references = (entry as { requirementReferences?: unknown }).requirementReferences;
+          if (Array.isArray(references)) for (const reference of references) if (typeof reference === "string") result.add(reference);
+        }
+      } else traceabilityReferencesOf(child, result);
+    }
+  }
+  return result;
+}
+
 function representedRequirementIds(candidate: PlanningPackage, brief: CanonicalBriefV3): Set<string> {
   const refs = referencesOf(candidate);
   return new Set(canonicalRequirementEntries(brief).filter((entry) => refs.has(entry.id) && hasSemanticEvidence(candidate, entry)).map((entry) => entry.id));
@@ -357,6 +381,18 @@ export function validatePlanningRequirementCoverage(input: { candidate: Planning
     if (!hasSemanticEvidence(input.candidate, entry)) return [{ requirementId: entry.id, category: entry.category, statement: entry.statement, reason: "MISSING_SEMANTIC_EVIDENCE" as const }];
     return [];
   });
+}
+
+export function validatePlanningRecoveryRequirementCoverage(input: { candidate: PlanningPackage; manifest: { requirements: readonly { requirementId: string; category: RequirementCategory; statement: string }[] } }): PlanningRecoveryRequirementCoverage[] {
+  const refs = referencesOf(input.candidate);
+  const traceabilityRefs = traceabilityReferencesOf(input.candidate);
+  const blockers: PlanningRecoveryRequirementCoverage[] = [];
+  for (const entry of input.manifest.requirements) {
+    if (!refs.has(entry.requirementId)) blockers.push({ requirementId: entry.requirementId, category: entry.category, statement: entry.statement, reason: "MISSING_REFERENCE" });
+    else if (!hasSemanticEvidence(input.candidate, { id: entry.requirementId, category: entry.category, statement: entry.statement, sourceRefs: ["host:planning-recovery-manifest"] })) blockers.push({ requirementId: entry.requirementId, category: entry.category, statement: entry.statement, reason: "MISSING_SEMANTIC_EVIDENCE" });
+    else if (!traceabilityRefs.has(entry.requirementId)) blockers.push({ requirementId: entry.requirementId, category: entry.category, statement: entry.statement, reason: "MISSING_TRACEABILITY" });
+  }
+  return blockers;
 }
 
 /**
@@ -436,10 +472,6 @@ function decisionCausedDomains(brief: CanonicalBriefV3, current: PlanningPackage
   return [...allowed];
 }
 
-function safePagePath(slug: string): string {
-  return slug === "home" || slug === "index" ? "/" : `/${slug.replace(/^\//, "").replace(/[^a-z0-9-]/gi, "-").toLocaleLowerCase("en")}`;
-}
-
 /**
  * Route shape is an authority of the current CanonicalBriefV3.  Callers must
  * not encode a particular route mode as a universal reconciliation guard.
@@ -447,7 +479,7 @@ function safePagePath(slug: string): string {
 export function planningRoutePolicyMatchesCanonicalBrief(candidate: PlanningPackage, brief: CanonicalBriefV3): boolean {
   const mode = brief.decisions.routePolicy.mode;
   if (mode === "UNRESOLVED") return false;
-  const expectedPaths = brief.pages.map((page) => safePagePath(page.slug)).sort();
+  const expectedPaths = brief.pages.map((page) => canonicalPagePath(page.slug)).sort();
   const actualPaths = candidate.sitemap.routes.map((route) => route.path).sort();
   const expectedMode = expectedPaths.length <= 1 ? "SINGLE_PAGE" : "MULTI_PAGE";
   return mode === expectedMode
@@ -458,7 +490,7 @@ export function planningRoutePolicyMatchesCanonicalBrief(candidate: PlanningPack
 function validateCanonicalRouteAndFormShape(candidate: PlanningPackage, brief: CanonicalBriefV3): string[] {
   const blockers: string[] = [];
   if (!planningRoutePolicyMatchesCanonicalBrief(candidate, brief)) blockers.push("PLANNING_ROUTE_POLICY_MISMATCH");
-  const expectedPaths = brief.pages.map((page) => safePagePath(page.slug));
+  const expectedPaths = brief.pages.map((page) => canonicalPagePath(page.slug));
   const actualPaths = candidate.sitemap.routes.map((route) => route.path);
   for (const path of actualPaths) if (!expectedPaths.includes(path)) blockers.push(`PLANNING_ROUTE_OUTSIDE_CANONICAL_PAGES:${path}`);
   for (const path of expectedPaths) if (!actualPaths.includes(path)) blockers.push(`PLANNING_ROUTE_MISSING_CANONICAL_PAGE:${path}`);
@@ -472,6 +504,42 @@ function validateCanonicalRouteAndFormShape(candidate: PlanningPackage, brief: C
   if (formMode === "NONE" && candidate.forms.forms.length > 0) blockers.push("PLANNING_FORM_OUTSIDE_CANONICAL_DECISION");
   if (formMode !== "NONE" && candidate.forms.forms.length === 0) blockers.push("PLANNING_FORM_MISSING_CANONICAL_DECISION");
   return blockers;
+}
+
+/** Validate the provider-normalized package against the host-issued recovery route handles. */
+export function validatePlanningRecoveryRouteManifest(input: { candidate: PlanningPackage; manifest: CanonicalPlanningRouteManifest }): string[] {
+  const required = input.manifest.routes.filter((route) => route.required);
+  const blockers: string[] = [];
+  const expectedPaths = required.map((route) => route.path).sort();
+  const actualPaths = input.candidate.sitemap.routes.map((route) => route.path).sort();
+  if (expectedPaths.length !== actualPaths.length || expectedPaths.some((path, index) => path !== actualPaths[index])) blockers.push("PLANNING_RECOVERY_ROUTE_MANIFEST_CARDINALITY");
+  const routeByPath = new Map(input.candidate.sitemap.routes.map((route) => [route.path, route]));
+  const pageByRouteId = new Map(input.candidate.pages.pages.map((page) => [page.routeId, page]));
+  const routeIds = new Set(required.map((route) => route.routeId));
+  const expectedRouteIds = required.map((route) => route.routeId).sort();
+  const actualRouteIds = input.candidate.sitemap.routes.map((route) => route.id).sort();
+  if (expectedRouteIds.length !== actualRouteIds.length || expectedRouteIds.some((id, index) => id !== actualRouteIds[index])) blockers.push("PLANNING_RECOVERY_ROUTE_IDENTITY_SET_MISMATCH");
+  const expectedPageIds = required.map((route) => route.planningPageId).sort();
+  const actualPageIds = input.candidate.pages.pages.map((page) => page.id).sort();
+  if (expectedPageIds.length !== actualPageIds.length || expectedPageIds.some((id, index) => id !== actualPageIds[index])) blockers.push("PLANNING_RECOVERY_PAGE_MANIFEST_CARDINALITY");
+  for (const route of required) {
+    const actual = routeByPath.get(route.path);
+    if (!actual) {
+      blockers.push(`PLANNING_RECOVERY_ROUTE_MANIFEST_MISSING:${route.path}`);
+      continue;
+    }
+    if (actual.id !== route.routeId) blockers.push(`PLANNING_RECOVERY_ROUTE_IDENTITY_MISMATCH:${route.path}`);
+    const page = pageByRouteId.get(route.routeId);
+    if (!page) blockers.push(`PLANNING_RECOVERY_PAGE_MANIFEST_MISSING:${route.path}`);
+    else if (page.id !== route.planningPageId) blockers.push(`PLANNING_RECOVERY_PAGE_IDENTITY_MISMATCH:${route.path}`);
+    if (route.legal && actual.path !== route.path) blockers.push(`PLANNING_RECOVERY_LEGAL_ROUTE_MISMATCH:${route.path}`);
+  }
+  for (const reference of input.candidate.navigation.routeReferences) if (!routeIds.has(reference)) blockers.push(`PLANNING_RECOVERY_NAVIGATION_ROUTE_UNKNOWN:${reference}`);
+  for (const route of required.filter((entry) => entry.navigation.participation === "REQUIRED")) if (!input.candidate.navigation.routeReferences.includes(route.routeId)) blockers.push(`PLANNING_RECOVERY_NAVIGATION_ROUTE_MISSING:${route.path}`);
+  const architecturePaths = input.candidate.architecture.routes.map((route) => route.path).sort();
+  if (expectedPaths.length !== architecturePaths.length || expectedPaths.some((path, index) => path !== architecturePaths[index])) blockers.push("PLANNING_RECOVERY_ARCHITECTURE_ROUTE_MANIFEST_MISMATCH");
+  for (const form of input.candidate.forms.forms) if (!expectedPaths.includes(form.route)) blockers.push(`PLANNING_RECOVERY_FORM_ROUTE_NOT_CANONICAL:${form.route}`);
+  return [...new Set(blockers)];
 }
 
 /**

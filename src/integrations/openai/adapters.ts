@@ -14,6 +14,10 @@ import {
 } from "@/agents/lead/contracts";
 import type { PlannerArchitectureProvider } from "@/agents/planner/ports";
 import type { PlanningRecoveryProviderInput } from "@/agents/planner/recovery";
+import {
+  type CanonicalPlanningRouteManifest,
+  type PlanningOwnedRequirementManifest,
+} from "@/agents/planner/recovery-manifests";
 import { isClientOnlyFormBrief, isNoBackendBrief } from "@/agents/planner/deterministic";
 import { PlanningChangeSetProviderOutputSchema, type PlannerRefreshProviderInput, type PlanningChangeSetProviderOutput } from "@/agents/planner/changeset";
 import {
@@ -77,6 +81,7 @@ import {
   UserValueSchema,
 } from "@/domain/shared/schemas";
 import { ProjectBriefV2Schema, type RequirementSpecification } from "@/domain/requirements/schema";
+import { SemanticRequirementIdSchema } from "@/domain/requirements/v3/schema";
 import {
   BriefAssetRequirementsSchema,
   BriefBrandVisualRequirementsSchema,
@@ -621,6 +626,248 @@ export const PlanningPackageStructuredOutputSchema =
     }).strict(),
     traceability: z.array(StrictTraceabilitySchema),
   });
+
+const RecoveryRequirementReferencesSchema = z.array(SemanticRequirementIdSchema).min(1);
+const RecoveryRouteHandleOutputSchema = z.string().regex(/^planning-route:[A-Za-z0-9_.:-]{1,180}$/);
+const RecoveryPageHandleOutputSchema = z.string().regex(/^planning-page:[A-Za-z0-9_.:-]{1,180}$/);
+const StrictRecoveryTraceabilitySchema = StrictTraceabilitySchema.extend({
+  requirementReferences: RecoveryRequirementReferencesSchema,
+});
+const StrictRecoveryRouteSchema = StrictRouteSchema.omit({ id: true, requirementReferences: true, parentId: true }).extend({
+  routeHandle: RecoveryRouteHandleOutputSchema,
+  pageHandle: RecoveryPageHandleOutputSchema,
+  parentPageHandle: RecoveryPageHandleOutputSchema.nullable(),
+  requirementReferences: RecoveryRequirementReferencesSchema,
+}).strict();
+const StrictRecoveryPageSchema = PlanningPackageStructuredOutputSchema.shape.pages.shape.pages.element
+  .omit({ id: true, routeId: true, requirementReferences: true })
+  .extend({
+    pageHandle: RecoveryPageHandleOutputSchema,
+    routeHandle: RecoveryRouteHandleOutputSchema,
+    requirementReferences: RecoveryRequirementReferencesSchema,
+  }).strict();
+const StrictRecoveryStepSchema = StrictStepSchema.omit({ routeId: true }).extend({
+  routeHandle: RecoveryRouteHandleOutputSchema.nullable(),
+}).strict();
+const StrictRecoveryFlowSchema = StrictFlowSchema.omit({ startRoute: true, requirementReferences: true }).extend({
+  startRouteHandle: RecoveryRouteHandleOutputSchema,
+  steps: z.array(StrictRecoveryStepSchema),
+  requirementReferences: RecoveryRequirementReferencesSchema,
+}).strict();
+const recoveryFormShape = Object.fromEntries(Object.entries(FormSchema.shape).filter(([key]) => key !== "route" && key !== "requirementReferences")) as Omit<typeof FormSchema.shape, "route" | "requirementReferences">;
+const StrictRecoveryFormSchema = z.object({
+  ...recoveryFormShape,
+  routeHandle: RecoveryRouteHandleOutputSchema,
+  requirementReferences: RecoveryRequirementReferencesSchema,
+}).strict();
+const StrictRecoveryArchitectureSchema = StrictArchitectureSchema.extend({
+  routes: z.array(z.object({ routeHandle: RecoveryRouteHandleOutputSchema, responsibility: NonEmptyStringSchema }).strict()),
+}).strict();
+const StrictRecoveryProfileSchema = PlanningPackageStructuredOutputSchema.shape.profile.extend({
+  requirementReferences: RecoveryRequirementReferencesSchema,
+}).strict();
+const StrictRecoveryProductScopeSchema = PlanningPackageStructuredOutputSchema.shape.productScope.extend({
+  acceptanceMapping: z.array(PlanningPackageStructuredOutputSchema.shape.productScope.shape.acceptanceMapping.element.extend({ requirementReferences: RecoveryRequirementReferencesSchema }).strict()),
+  traceability: z.array(StrictRecoveryTraceabilitySchema),
+}).strict();
+const StrictRecoveryDataModelSchema = PlanningPackageStructuredOutputSchema.shape.dataModel.extend({
+  entities: z.array(PlanningPackageStructuredOutputSchema.shape.dataModel.shape.entities.element.extend({ requirementReferences: RecoveryRequirementReferencesSchema }).strict()),
+  traceability: z.array(StrictRecoveryTraceabilitySchema),
+}).strict();
+const StrictRecoveryEnvironmentSchema = PlanningPackageStructuredOutputSchema.shape.environment.extend({
+  variables: z.array(PlanningPackageStructuredOutputSchema.shape.environment.shape.variables.element.extend({ requirementReferences: RecoveryRequirementReferencesSchema }).strict()),
+}).strict();
+const StrictRecoveryDependencySchema = PlanningPackageStructuredOutputSchema.shape.dependencies.extend({
+  dependencies: z.array(PlanningPackageStructuredOutputSchema.shape.dependencies.shape.dependencies.element.extend({ requirementReferences: RecoveryRequirementReferencesSchema }).strict()),
+}).strict();
+const StrictRecoverySecuritySchema = PlanningPackageStructuredOutputSchema.shape.security.extend({
+  controls: z.array(PlanningPackageStructuredOutputSchema.shape.security.shape.controls.element.extend({ requirementReferences: RecoveryRequirementReferencesSchema }).strict()),
+}).strict();
+const StrictRecoveryDatabaseRecommendationSchema = z.object({
+  recommendation: z.enum(["REQUIRED", "NOT_REQUIRED", "UNCERTAIN"]),
+  rationale: z.string().min(1),
+  requirementReferences: RecoveryRequirementReferencesSchema,
+  userDecisionRequired: z.literal(true),
+  selectedMode: z.enum(["NONE", "SUPABASE_NEW", "SUPABASE_EXISTING"]).nullable(),
+}).strict().nullable();
+const StrictRecoverySitemapSchema = PlanningPackageStructuredOutputSchema.shape.sitemap.extend({
+  routes: z.array(StrictRecoveryRouteSchema),
+  traceability: z.array(StrictRecoveryTraceabilitySchema),
+}).strict();
+const StrictRecoveryNavigationSchema = PlanningPackageStructuredOutputSchema.shape.navigation.extend({
+  primary: z.array(RecoveryRouteHandleOutputSchema),
+  secondary: z.array(RecoveryRouteHandleOutputSchema),
+  footer: z.array(RecoveryRouteHandleOutputSchema),
+  contextual: z.array(RecoveryRouteHandleOutputSchema),
+  protected: z.array(RecoveryRouteHandleOutputSchema),
+  routeReferences: z.array(RecoveryRouteHandleOutputSchema).min(1),
+  traceability: z.array(StrictRecoveryTraceabilitySchema),
+}).strict();
+const StrictRecoveryPagesSchema = PlanningPackageStructuredOutputSchema.shape.pages.extend({
+  pages: z.array(StrictRecoveryPageSchema),
+  traceability: z.array(StrictRecoveryTraceabilitySchema),
+}).strict();
+const StrictRecoveryUserFlowsSchema = PlanningPackageStructuredOutputSchema.shape.userFlows.extend({
+  flows: z.array(StrictRecoveryFlowSchema),
+  traceability: z.array(StrictRecoveryTraceabilitySchema),
+}).strict();
+const StrictRecoveryFormsSchema = PlanningPackageStructuredOutputSchema.shape.forms.extend({
+  forms: z.array(StrictRecoveryFormSchema),
+  traceability: z.array(StrictRecoveryTraceabilitySchema),
+}).strict();
+
+/** Recovery-only provider DTO. Route/page identities are handles, and requirement references are V3 identities. */
+export const PlanningRecoveryPackageStructuredOutputSchema = PlanningPackageStructuredOutputSchema.extend({
+  profile: StrictRecoveryProfileSchema,
+  databaseRecommendation: StrictRecoveryDatabaseRecommendationSchema,
+  productScope: StrictRecoveryProductScopeSchema,
+  sitemap: StrictRecoverySitemapSchema,
+  navigation: StrictRecoveryNavigationSchema,
+  pages: StrictRecoveryPagesSchema,
+  userFlows: StrictRecoveryUserFlowsSchema,
+  forms: StrictRecoveryFormsSchema,
+  dataModel: StrictRecoveryDataModelSchema,
+  environment: StrictRecoveryEnvironmentSchema,
+  dependencies: StrictRecoveryDependencySchema,
+  security: StrictRecoverySecuritySchema,
+  architecture: StrictRecoveryArchitectureSchema,
+  traceability: z.array(StrictRecoveryTraceabilitySchema),
+}).strict();
+
+type PlanningRecoveryProviderPackage = z.infer<typeof PlanningRecoveryPackageStructuredOutputSchema>;
+
+function omitRecoveryFields(value: Record<string, unknown>, fields: readonly string[]) {
+  return Object.fromEntries(Object.entries(value).filter(([key]) => !fields.includes(key)));
+}
+
+function recoveryBindingFailure(issueCode: string, fieldPath: string): never {
+  throw new AiProviderError(
+    "AI_OUTPUT_INVALID",
+    "Provider recovery output could not be bound to the host-issued Planning manifests.",
+    undefined,
+    {
+      stage: "provider_normalization",
+      outputStage: "HOST_MAPPING_FAILED",
+      requestAttempted: true,
+      apiResponseReceived: true,
+      responseReceived: true,
+      outputComplete: true,
+      schemaName: "planning-recovery-package",
+      issueCode,
+      fieldPath,
+      issueCount: 1,
+    },
+  );
+}
+
+function bindRecoveryRouteHandle(
+  handle: string,
+  routesByHandle: ReadonlyMap<string, CanonicalPlanningRouteManifest["routes"][number]>,
+  fieldPath: string,
+) {
+  const route = routesByHandle.get(handle);
+  if (!route) recoveryBindingFailure("UNKNOWN_RECOVERY_ROUTE_HANDLE", fieldPath);
+  return route;
+}
+
+function normalizeRecoveryPlanningPackage(
+  value: PlanningRecoveryProviderPackage,
+  host: { projectId: string; projectVersion: number; approvedBriefChecksum: string },
+  approvedBrief: PlannerBriefNormalizationInput,
+  routeManifest: CanonicalPlanningRouteManifest,
+  requirementManifest: PlanningOwnedRequirementManifest,
+): PlanningPackage {
+  const requiredRoutes = routeManifest.routes.filter((route) => route.required);
+  const routesByHandle = new Map(requiredRoutes.map((route) => [route.routeHandle, route]));
+  const routesByPageHandle = new Map(requiredRoutes.map((route) => [route.pageHandle, route]));
+  const requirementIds = new Set(requirementManifest.requirements.map((entry) => entry.requirementId));
+  const routePaths = new Set(requiredRoutes.map((route) => route.path));
+  if (value.sitemap.routes.length !== requiredRoutes.length) recoveryBindingFailure("RECOVERY_ROUTE_CARDINALITY", "sitemap.routes");
+
+  const validateRequirementReferences = (input: unknown, fieldPath = "$") => {
+    if (Array.isArray(input)) return input.forEach((child, index) => validateRequirementReferences(child, `${fieldPath}[${index}]`));
+    if (!input || typeof input !== "object") return;
+    for (const [key, child] of Object.entries(input as Record<string, unknown>)) {
+      if (key === "requirementReferences" && Array.isArray(child)) {
+        for (const [index, reference] of child.entries()) if (typeof reference !== "string" || !requirementIds.has(reference)) recoveryBindingFailure("UNKNOWN_V3_REQUIREMENT_ID", `${fieldPath}.${key}[${index}]`);
+      }
+      validateRequirementReferences(child, `${fieldPath}.${key}`);
+    }
+  };
+  validateRequirementReferences(value);
+
+  const normalizedRoutes = value.sitemap.routes.map((route, index) => {
+    const manifestRoute = bindRecoveryRouteHandle(route.routeHandle, routesByHandle, `sitemap.routes[${index}].routeHandle`);
+    if (route.pageHandle !== manifestRoute.pageHandle) recoveryBindingFailure("RECOVERY_ROUTE_PAGE_HANDLE_MISMATCH", `sitemap.routes[${index}].pageHandle`);
+    if (route.path !== manifestRoute.path) recoveryBindingFailure("RECOVERY_ROUTE_PATH_MISMATCH", `sitemap.routes[${index}].path`);
+    const routeFields = omitRecoveryFields(route, ["routeHandle", "pageHandle", "parentPageHandle"]);
+    const parent = route.parentPageHandle === null ? undefined : bindRecoveryRouteHandle(route.parentPageHandle, routesByPageHandle, `sitemap.routes[${index}].parentPageHandle`);
+    return { ...routeFields, id: manifestRoute.routeId, path: route.path, parentId: parent?.routeId };
+  });
+  const normalizedPaths = normalizedRoutes.map((route) => route.path).sort();
+  const expectedPaths = [...routePaths].sort();
+  if (normalizedPaths.some((path, index) => path !== expectedPaths[index])) recoveryBindingFailure("RECOVERY_ROUTE_SET_MISMATCH", "sitemap.routes");
+
+  if (value.pages.pages.length !== requiredRoutes.length) recoveryBindingFailure("RECOVERY_PAGE_CARDINALITY", "pages.pages");
+  const normalizedPages = value.pages.pages.map((page, index) => {
+    const manifestRoute = bindRecoveryRouteHandle(page.routeHandle, routesByHandle, `pages.pages[${index}].routeHandle`);
+    const manifestPage = routesByPageHandle.get(page.pageHandle);
+    if (!manifestPage) recoveryBindingFailure("UNKNOWN_RECOVERY_PAGE_HANDLE", `pages.pages[${index}].pageHandle`);
+    if (manifestPage.routeHandle !== manifestRoute.routeHandle) recoveryBindingFailure("RECOVERY_PAGE_ROUTE_HANDLE_MISMATCH", `pages.pages[${index}].routeHandle`);
+    const pageFields = omitRecoveryFields(page, ["pageHandle", "routeHandle"]);
+    return { ...pageFields, id: manifestPage.planningPageId, routeId: manifestRoute.routeId };
+  });
+
+  const normalizeRouteHandles = (handles: readonly string[], fieldPath: string) => handles.map((handle, index) => bindRecoveryRouteHandle(handle, routesByHandle, `${fieldPath}[${index}]`).routeId);
+  const normalizedNavigation = {
+    ...value.navigation,
+    primary: normalizeRouteHandles(value.navigation.primary, "navigation.primary"),
+    secondary: normalizeRouteHandles(value.navigation.secondary, "navigation.secondary"),
+    footer: normalizeRouteHandles(value.navigation.footer, "navigation.footer"),
+    contextual: normalizeRouteHandles(value.navigation.contextual, "navigation.contextual"),
+    protected: normalizeRouteHandles(value.navigation.protected, "navigation.protected"),
+    routeReferences: normalizeRouteHandles(value.navigation.routeReferences, "navigation.routeReferences"),
+  };
+  const normalizedFlows = value.userFlows.flows.map((flow, index) => {
+    const startRoute = bindRecoveryRouteHandle(flow.startRouteHandle, routesByHandle, `userFlows.flows[${index}].startRouteHandle`);
+    const flowFields = omitRecoveryFields(flow, ["startRouteHandle"]);
+    return {
+      ...flowFields,
+      startRoute: startRoute.path,
+      steps: flow.steps.map((step, stepIndex) => {
+        const stepFields = omitRecoveryFields(step, ["routeHandle"]);
+        return { ...stepFields, routeId: step.routeHandle === null ? null : bindRecoveryRouteHandle(step.routeHandle, routesByHandle, `userFlows.flows[${index}].steps[${stepIndex}].routeHandle`).routeId };
+      }),
+    };
+  });
+  const normalizedForms = value.forms.forms.map((form, index) => {
+    const route = bindRecoveryRouteHandle(form.routeHandle, routesByHandle, `forms.forms[${index}].routeHandle`);
+    const formFields = omitRecoveryFields(form, ["routeHandle"]);
+    return { ...formFields, route: route.path };
+  });
+  const normalizedArchitecture = {
+    ...value.architecture,
+    routes: value.architecture.routes.map((route, index) => ({
+      responsibility: route.responsibility,
+      path: bindRecoveryRouteHandle(route.routeHandle, routesByHandle, `architecture.routes[${index}].routeHandle`).path,
+    })),
+  };
+  if (normalizedArchitecture.routes.length !== requiredRoutes.length || normalizedArchitecture.routes.map((route) => route.path).sort().some((path, index) => path !== expectedPaths[index])) recoveryBindingFailure("RECOVERY_ARCHITECTURE_ROUTE_SET_MISMATCH", "architecture.routes");
+  for (const form of normalizedForms) if (!routePaths.has(form.route)) recoveryBindingFailure("RECOVERY_FORM_ROUTE_MISMATCH", "forms.forms.route");
+
+  const normalized = {
+    ...value,
+    profile: value.profile,
+    productScope: value.productScope,
+    sitemap: { ...value.sitemap, routes: normalizedRoutes },
+    navigation: normalizedNavigation,
+    pages: { ...value.pages, pages: normalizedPages },
+    userFlows: { ...value.userFlows, flows: normalizedFlows },
+    forms: { ...value.forms, forms: normalizedForms },
+    architecture: normalizedArchitecture,
+  } as z.infer<typeof PlanningPackageStructuredOutputSchema>;
+  return normalizePlanningPackage(normalized, host, approvedBrief);
+}
 function omitNull<T extends Record<string, unknown>>(value: T, keys: string[]) {
   const result = { ...value };
   for (const key of keys) if (result[key] === null) delete result[key];
@@ -1077,29 +1324,40 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
       recoveryMode: input.mode,
       recoveryPlan: input.plan,
       canonicalBrief: input.canonicalBrief,
+      canonicalRouteManifest: input.canonicalRouteManifest,
+      planningRequirementManifest: input.planningRequirementManifest,
       planningOwnedRequirements: input.planningOwnedRequirements,
       currentPlanningEvidence: input.currentPlanningEvidence,
+      outputPolicy: input.outputPolicy,
     }, false, approvedSkills);
     const instruction = [
       "This is an explicitly authorized host Planning recovery.",
       "Return exactly one complete PlanningPackage using the full canonical Brief as the sole semantic authority.",
       "Preserve every canonical Planning-owned requirement and do not summarize, omit, or reinterpret canonical requirements.",
+      "Emit every required route manifest entry exactly once using its exact routeHandle, pageHandle, and canonical path; emit every required page exactly once using its exact handles.",
+      "Use only exact host-issued V3 requirement IDs from planningRequirementManifest in every requirementReferences and traceability entry; do not use route names, legacy IDs, or invented references.",
+      "Return all required routes in sitemap and architecture, use route handles for navigation, flow starts/steps, and forms, and include complete semantic and traceability coverage for every manifest requirement.",
+      "The output policy is complete=true with truncation=REJECT; never truncate or return a partial package.",
       "Do not mutate persistence, the project, workflow state, approvals, checksums, timestamps, or decision identities.",
       "Do not invent requirement IDs, pages, assets, business facts, providers, backend capabilities, or user decisions.",
       "The host will bind identity, route policy, timestamps, decision IDs, acceptance, and checksum policy and will reject unsupported facts or incomplete coverage.",
     ].join(" ");
-    const result = await this.ai.request<z.infer<typeof PlanningPackageStructuredOutputSchema>>({
+    const result = await this.ai.request<z.infer<typeof PlanningRecoveryPackageStructuredOutputSchema>>({
       ...prompt,
       system: `${prompt.system}\n${instruction}`,
       role: "planner",
-      schema: PlanningPackageStructuredOutputSchema,
+      schema: PlanningRecoveryPackageStructuredOutputSchema,
       schemaName: "planning-recovery-package",
       idempotencyKey: `${input.plannerInput.idempotencyKey}:${skillContextIdentity}`,
+      maxCompletionTokens: input.outputPolicy.maxEstimatedTokens,
+      retryPolicy: { maxRetries: 0, corrections: 0 },
     });
-    return normalizePlanningPackage(
+    return normalizeRecoveryPlanningPackage(
       result.value,
       { projectId: input.plannerInput.projectId, projectVersion: input.plannerInput.projectVersion, approvedBriefChecksum: input.plannerInput.approvedBriefChecksum },
       input.plannerInput.approvedBrief,
+      input.canonicalRouteManifest,
+      input.planningRequirementManifest,
     );
   }
   async proposeChangeSet(
