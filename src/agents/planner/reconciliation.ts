@@ -18,6 +18,7 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import {
   analyzePlanningRequirementCoverage,
   PLANNING_NON_OWNED_REQUIREMENT_CATEGORIES,
+  planningRoutePolicyMatchesCanonicalBrief,
   type PlanningCoverageEvidence,
   type PlanningRefreshDomain,
 } from "./refresh-admission";
@@ -100,7 +101,7 @@ const CoreContractSchema = z.object({
   authNone: z.boolean(),
   databaseNone: z.boolean(),
   analyticsNone: z.boolean(),
-  singlePage: z.boolean(),
+  routePolicyMatchesBrief: z.boolean(),
   simulatedForm: z.boolean(),
   noTransmission: z.boolean(),
   noPersistence: z.boolean(),
@@ -435,7 +436,7 @@ function planningCoreContract(brief: CanonicalBriefV3, planning: PlanningPackage
   const authNone = planning.authentication.decision === "none" && !planning.authentication.required;
   const databaseNone = !planning.dataModel.entities.length && !planning.supabase.postgres;
   const analyticsNone = true;
-  const singlePage = brief.decisions.routePolicy.mode === "SINGLE_PAGE" && brief.pages.length <= 1 && planning.sitemap.routes.length <= 1;
+  const routePolicyMatchesBrief = planningRoutePolicyMatchesCanonicalBrief(planning, brief);
   const simulatedForm = planning.forms.forms.length > 0 && planning.forms.forms.every((form) => form.submissionMechanism === "client-only");
   const noTransmission = planning.email.decision === "not-required" && !planning.supabase.edgeFunctions && planning.forms.forms.every((form) => form.submissionMechanism === "client-only");
   const noPersistence = planning.dataModel.entities.length === 0 && !planning.supabase.postgres && !planning.supabase.storage && planning.forms.forms.every((form) => form.submissionMechanism === "client-only");
@@ -456,7 +457,7 @@ function planningCoreContract(brief: CanonicalBriefV3, planning: PlanningPackage
     && !planning.supabase.edgeFunctions
     && planning.storage.decision === "not-required"
     && planning.administration.decision === "no-admin";
-  return CoreContractSchema.parse({ protectedBrief, authNone, databaseNone, analyticsNone, singlePage, simulatedForm, noTransmission, noPersistence, noServerProcessing, noExternalProvider, requiredPrivacyConsent, noBackend, clientOnlyForms: simulatedForm });
+  return CoreContractSchema.parse({ protectedBrief, authNone, databaseNone, analyticsNone, routePolicyMatchesBrief, simulatedForm, noTransmission, noPersistence, noServerProcessing, noExternalProvider, requiredPrivacyConsent, noBackend, clientOnlyForms: simulatedForm });
 }
 
 function allCoreContractChecksPass(contract: PlanningReconciliationCoreContract): boolean {

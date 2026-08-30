@@ -25,6 +25,25 @@ export type BriefRevisionProjectionStatus = "PENDING" | "SYNCED" | "FAILED_RETRY
 export type BriefRevisionAttemptRow = { id: string; operationKind: string; operationKey: string; payloadHash: string; projectId: string; projectVersion: number; currentnessToken: Record<string, unknown>; status: BriefRevisionAttemptStatus; leaseOwner: string | null; leaseExpiresAt: string | null; attemptGeneration: number; claimedAt: string | null; committedResult: unknown | null; failureCode: string | null; failureDiagnostics: readonly BriefRevisionFailureDiagnosticEntry[] | null; createdAt: string; updatedAt: string };
 export type BriefRevisionHistoryRow = { id: string; attemptId: string; projectId: string; projectVersion: number; revisionReference: string; previousCurrentChecksum: string; nextCurrentChecksum: string; changeSetChecksum: string; entries: unknown[]; createdAt: string };
 export type BriefRevisionProjectionRow = { id: string; attemptId: string; projectId: string; projectVersion: number; documentChecksum: string; status: BriefRevisionProjectionStatus; attemptCount: number; lastFailureCode: string | null; nextAttemptAt: string | null; createdAt: string; updatedAt: string };
+/** Immutable forensic record for a host-authorized full Planning recovery. */
+export type PlanningRecoveryEvidenceRow = {
+  id: string;
+  operationKey: string;
+  projectId: string;
+  projectVersion: number;
+  recoveryPlanChecksum: string;
+  briefRowVersion: number;
+  briefSemanticChecksum: string;
+  briefDocumentChecksum: string;
+  priorPlanningRowVersion: number;
+  priorPlanningSemanticChecksum: string;
+  priorPlanningDocumentChecksum: string;
+  priorPlanningPackage: unknown;
+  nextPlanningRowVersion: number;
+  nextPlanningSemanticChecksum: string;
+  nextPlanningDocumentChecksum: string;
+  createdAt: string;
+};
 export type BriefRevisionAttemptClaim = { outcome: "CLAIMED" | "IN_PROGRESS_DUPLICATE" | "COMMITTED_REPLAY" | "TERMINAL_REPLAY"; row: BriefRevisionAttemptRow };
 export type BriefRevisionAttemptTransition = { attemptId: string; operationKind: string; operationKey: string; payloadHash: string; from: BriefRevisionAttemptStatus; to: BriefRevisionAttemptStatus; attemptGeneration: number; owner?: string; now: string; leaseExpiresAt?: string | null; failureCode?: string | null; failureDiagnostic?: ProviderFailureDiagnostic | null; committedResult?: unknown };
 export type BriefRevisionFaultPoint = "before-provider" | "after-provider" | "before-final-transaction" | "after-cas" | "after-brief-write" | "after-history-write" | "after-workflow-write" | "after-attempt-committed-write" | "before-db-commit" | "after-db-commit" | "during-memory-sync" | "before-response";
@@ -96,6 +115,9 @@ export interface PersistenceTransaction {
   commitBriefRevision(input: BriefRevisionAtomicCommitInput): Promise<BriefRevisionAtomicCommitResult>;
   listBriefRevisionProjectionSync(limit: number): Promise<BriefRevisionProjectionRow[]>;
   updateBriefRevisionProjectionSync(input: { id: string; expectedStatus: BriefRevisionProjectionStatus; status: BriefRevisionProjectionStatus; attemptCount?: number; failureCode?: string | null; nextAttemptAt?: string | null; updatedAt: string }): Promise<BriefRevisionProjectionRow>;
+  getPlanningRecoveryEvidence(projectId: string, projectVersion: number, operationKey: string): Promise<PlanningRecoveryEvidenceRow | null>;
+  listPlanningRecoveryEvidence(projectId: string, projectVersion: number): Promise<PlanningRecoveryEvidenceRow[]>;
+  appendPlanningRecoveryEvidence(row: PlanningRecoveryEvidenceRow): Promise<PlanningRecoveryEvidenceRow>;
   listRequirementIdentityLineage(projectId: string, projectVersion: number): Promise<RequirementIdentityLineageRow[]>;
   appendRequirementIdentityLineage(row: RequirementIdentityLineageRow): Promise<RequirementIdentityLineageRow>;
   getRequirementIdentityMigration(projectId: string, projectVersion: number, migrationId: string): Promise<RequirementIdentityMigrationRow | null>;

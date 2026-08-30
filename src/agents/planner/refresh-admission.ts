@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { CanonicalBriefV3Schema, type CanonicalBriefV3, type CanonicalRequirement, type RequirementCategory } from "@/domain/requirements/v3/schema";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { PlanningPackageSchema, type PlanningPackage } from "./contracts";
+import { CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY } from "./semantic-checksum";
 
 /**
  * These are the semantic areas owned by Planning. The list is deliberately
@@ -308,11 +309,14 @@ export function normalizePlanningPackageForHost(input: {
   canonicalBrief?: CanonicalBriefV3;
   current?: PlanningPackage;
   timestamp?: string;
+  validateRoutePolicy?: boolean;
 }): PlanningPackage {
   const canonical = input.canonicalBrief ? CanonicalBriefV3Schema.parse(input.canonicalBrief) : undefined;
   const identityBound = bindPlanningIdentity(input.candidate, input.projectId, input.projectVersion);
   const referenceBound = canonical ? normalizeHostReferences(identityBound, canonical) : identityBound;
   const normalized = normalizeHostDecisionIds(referenceBound) as PlanningPackage;
+  if (canonical && input.validateRoutePolicy !== false && normalized.routePolicy !== undefined && normalized.routePolicy !== canonical.decisions.routePolicy.mode)
+    throw new PlanningAdmissionError("PLANNING_ROUTE_POLICY_PROVIDER_MISMATCH", normalized.routePolicy);
   const createdAt = input.current?.createdAt ?? input.timestamp ?? normalized.createdAt;
   const updatedAt = input.timestamp ?? normalized.updatedAt;
   return PlanningPackageSchema.parse({
@@ -322,6 +326,8 @@ export function normalizePlanningPackageForHost(input: {
     createdAt,
     updatedAt,
     approvedBriefChecksum: input.approvedBriefChecksum,
+    semanticChecksumPolicyVersion: CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY,
+    ...(canonical ? { routePolicy: canonical.decisions.routePolicy.mode } : normalized.routePolicy === undefined ? {} : { routePolicy: normalized.routePolicy }),
     accepted: false,
     acceptance: {},
     architecture: { ...normalized.architecture, acceptance: { accepted: false } },
@@ -434,8 +440,24 @@ function safePagePath(slug: string): string {
   return slug === "home" || slug === "index" ? "/" : `/${slug.replace(/^\//, "").replace(/[^a-z0-9-]/gi, "-").toLocaleLowerCase("en")}`;
 }
 
+/**
+ * Route shape is an authority of the current CanonicalBriefV3.  Callers must
+ * not encode a particular route mode as a universal reconciliation guard.
+ */
+export function planningRoutePolicyMatchesCanonicalBrief(candidate: PlanningPackage, brief: CanonicalBriefV3): boolean {
+  const mode = brief.decisions.routePolicy.mode;
+  if (mode === "UNRESOLVED") return false;
+  const expectedPaths = brief.pages.map((page) => safePagePath(page.slug)).sort();
+  const actualPaths = candidate.sitemap.routes.map((route) => route.path).sort();
+  const expectedMode = expectedPaths.length <= 1 ? "SINGLE_PAGE" : "MULTI_PAGE";
+  return mode === expectedMode
+    && expectedPaths.length === actualPaths.length
+    && expectedPaths.every((path, index) => path === actualPaths[index]);
+}
+
 function validateCanonicalRouteAndFormShape(candidate: PlanningPackage, brief: CanonicalBriefV3): string[] {
   const blockers: string[] = [];
+  if (!planningRoutePolicyMatchesCanonicalBrief(candidate, brief)) blockers.push("PLANNING_ROUTE_POLICY_MISMATCH");
   const expectedPaths = brief.pages.map((page) => safePagePath(page.slug));
   const actualPaths = candidate.sitemap.routes.map((route) => route.path);
   for (const path of actualPaths) if (!expectedPaths.includes(path)) blockers.push(`PLANNING_ROUTE_OUTSIDE_CANONICAL_PAGES:${path}`);
@@ -478,7 +500,7 @@ export function admitPlanningRefresh(input: {
     coverage = validatePlanningRequirementCoverage({ candidate, canonicalBrief: input.canonicalBrief });
     blockers.push(...coverage.map((item) => `PLANNING_REQUIREMENT_COVERAGE_MISSING:${item.requirementId}:${item.reason}`));
     if (input.current) {
-      const normalizedCurrent = normalizePlanningPackageForHost({ ...input, candidate: input.current, current: undefined, timestamp: input.current.updatedAt });
+      const normalizedCurrent = normalizePlanningPackageForHost({ ...input, candidate: input.current, current: undefined, timestamp: input.current.updatedAt, validateRoutePolicy: false });
       ({ introduced: introducedRequirementIds, removed: removedRequirementIds } = introducedAndRemovedRequirements(normalizedCurrent, candidate, input.canonicalBrief));
       domains = changedDomains(normalizedCurrent, candidate);
       const allowed = new Set([

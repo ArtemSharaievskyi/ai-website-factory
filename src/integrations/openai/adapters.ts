@@ -13,6 +13,7 @@ import {
   type LeadAnalysisProviderOutput,
 } from "@/agents/lead/contracts";
 import type { PlannerArchitectureProvider } from "@/agents/planner/ports";
+import type { PlanningRecoveryProviderInput } from "@/agents/planner/recovery";
 import { isClientOnlyFormBrief, isNoBackendBrief } from "@/agents/planner/deterministic";
 import { PlanningChangeSetProviderOutputSchema, type PlannerRefreshProviderInput, type PlanningChangeSetProviderOutput } from "@/agents/planner/changeset";
 import {
@@ -552,7 +553,7 @@ const StrictFormPlanSchema = z
   })
   .strict();
 export const PlanningPackageStructuredOutputSchema =
-  PlanningPackageSchema.omit({ projectId: true, projectVersion: true, semanticChecksumPolicyVersion: true, approvedBriefChecksum: true, accepted: true, acceptance: true }).extend({
+  PlanningPackageSchema.omit({ projectId: true, projectVersion: true, semanticChecksumPolicyVersion: true, approvedBriefChecksum: true, routePolicy: true, accepted: true, acceptance: true }).extend({
     databaseRecommendation: z.object({ recommendation: z.enum(["REQUIRED", "NOT_REQUIRED", "UNCERTAIN"]), rationale: z.string().min(1), requirementReferences: z.array(z.string().min(1)).min(1), userDecisionRequired: z.literal(true), selectedMode: z.enum(["NONE", "SUPABASE_NEW", "SUPABASE_EXISTING"]).nullable() }).strict().nullable(),
     productScope: z.object({
       ...withoutProjectIdentity(PlanningPackageSchema.shape.productScope.shape),
@@ -1062,6 +1063,43 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
       result.value,
       { projectId: input.projectId, projectVersion: input.projectVersion, approvedBriefChecksum: input.approvedBriefChecksum },
       input.approvedBrief,
+    );
+  }
+  async planRecovery(
+    input: PlanningRecoveryProviderInput,
+    approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
+    skillContextIdentity = "none",
+  ): Promise<PlanningPackage> {
+    const prompt = rolePrompt("planner", {
+      ...input.plannerInput,
+      task: "planning-recovery-full-package",
+      recoveryAuthority: input.authority,
+      recoveryMode: input.mode,
+      recoveryPlan: input.plan,
+      canonicalBrief: input.canonicalBrief,
+      planningOwnedRequirements: input.planningOwnedRequirements,
+      currentPlanningEvidence: input.currentPlanningEvidence,
+    }, false, approvedSkills);
+    const instruction = [
+      "This is an explicitly authorized host Planning recovery.",
+      "Return exactly one complete PlanningPackage using the full canonical Brief as the sole semantic authority.",
+      "Preserve every canonical Planning-owned requirement and do not summarize, omit, or reinterpret canonical requirements.",
+      "Do not mutate persistence, the project, workflow state, approvals, checksums, timestamps, or decision identities.",
+      "Do not invent requirement IDs, pages, assets, business facts, providers, backend capabilities, or user decisions.",
+      "The host will bind identity, route policy, timestamps, decision IDs, acceptance, and checksum policy and will reject unsupported facts or incomplete coverage.",
+    ].join(" ");
+    const result = await this.ai.request<z.infer<typeof PlanningPackageStructuredOutputSchema>>({
+      ...prompt,
+      system: `${prompt.system}\n${instruction}`,
+      role: "planner",
+      schema: PlanningPackageStructuredOutputSchema,
+      schemaName: "planning-recovery-package",
+      idempotencyKey: `${input.plannerInput.idempotencyKey}:${skillContextIdentity}`,
+    });
+    return normalizePlanningPackage(
+      result.value,
+      { projectId: input.plannerInput.projectId, projectVersion: input.plannerInput.projectVersion, approvedBriefChecksum: input.plannerInput.approvedBriefChecksum },
+      input.plannerInput.approvedBrief,
     );
   }
   async proposeChangeSet(

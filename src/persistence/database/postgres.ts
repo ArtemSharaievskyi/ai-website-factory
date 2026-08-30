@@ -6,7 +6,7 @@ import { PersistenceError, type PersistenceDiagnostic } from "./errors";
 import { mapRowToDocument, type DocumentRow } from "./mapping";
 import { canonicalBriefChecksumForDocument } from "./brief-revision-v3-contracts";
 import { appendBriefRevisionFailureDiagnostic, normalizeBriefRevisionFailureDiagnostics } from "./brief-revision-failure-diagnostics";
-import type { BriefRevisionAtomicCommitInput, BriefRevisionAtomicCommitResult, BriefRevisionAttemptClaim, BriefRevisionAttemptRow, BriefRevisionAttemptStatus, BriefRevisionAttemptTransition, BriefRevisionProjectionRow, BriefRevisionProjectionStatus, OperationReservation, PersistenceDatabase, PersistenceTransaction, ProjectAssetRow, ProjectRow, ProjectVersionRow, WorkflowEvent, CostRecord, RequirementIdentityLineageRow, RequirementIdentityMigrationRow } from "./types";
+import type { BriefRevisionAtomicCommitInput, BriefRevisionAtomicCommitResult, BriefRevisionAttemptClaim, BriefRevisionAttemptRow, BriefRevisionAttemptStatus, BriefRevisionAttemptTransition, BriefRevisionProjectionRow, BriefRevisionProjectionStatus, OperationReservation, PersistenceDatabase, PersistenceTransaction, ProjectAssetRow, ProjectRow, ProjectVersionRow, WorkflowEvent, CostRecord, PlanningRecoveryEvidenceRow, RequirementIdentityLineageRow, RequirementIdentityMigrationRow } from "./types";
 import { DecisionRecordSchema, type DecisionRecord } from "@/domain/workflow/decision";
 import { RequirementIdentityLineageRecordSchema, RequirementIdentityMigrationRecordSchema } from "@/domain/requirements/v3/identity";
 import { stableSerialize } from "@/domain/requirements/v3/serialization";
@@ -75,6 +75,24 @@ const normalizeBriefRevisionProjection = (row: Record<string, unknown>): BriefRe
   id: String(row.id), attemptId: String(row.attemptId), projectId: String(row.projectId), projectVersion: Number(row.projectVersion), documentChecksum: String(row.documentChecksum),
   status: String(row.status) as BriefRevisionProjectionStatus, attemptCount: Number(row.attemptCount), lastFailureCode: row.lastFailureCode == null ? null : String(row.lastFailureCode),
   nextAttemptAt: isoTimestamp(row.nextAttemptAt), createdAt: isoTimestamp(row.createdAt) as string, updatedAt: isoTimestamp(row.updatedAt) as string,
+});
+const normalizePlanningRecoveryEvidence = (row: Record<string, unknown>): PlanningRecoveryEvidenceRow => ({
+  id: String(row.id),
+  operationKey: String(row.operationKey),
+  projectId: String(row.projectId),
+  projectVersion: Number(row.projectVersion),
+  recoveryPlanChecksum: String(row.recoveryPlanChecksum),
+  briefRowVersion: Number(row.briefRowVersion),
+  briefSemanticChecksum: String(row.briefSemanticChecksum),
+  briefDocumentChecksum: String(row.briefDocumentChecksum),
+  priorPlanningRowVersion: Number(row.priorPlanningRowVersion),
+  priorPlanningSemanticChecksum: String(row.priorPlanningSemanticChecksum),
+  priorPlanningDocumentChecksum: String(row.priorPlanningDocumentChecksum),
+  priorPlanningPackage: row.priorPlanningPackage,
+  nextPlanningRowVersion: Number(row.nextPlanningRowVersion),
+  nextPlanningSemanticChecksum: String(row.nextPlanningSemanticChecksum),
+  nextPlanningDocumentChecksum: String(row.nextPlanningDocumentChecksum),
+  createdAt: isoTimestamp(row.createdAt) as string,
 });
 const normalizeDecisionRecord = (row: Record<string, unknown>): DecisionRecord => DecisionRecordSchema.parse({
   id: row.id,
@@ -331,5 +349,20 @@ class PostgresTransaction implements PersistenceTransaction {
     const result = value<Record<string, unknown>>(await this.query("UPDATE brief_revision_projection_sync SET status=$1, attempt_count=COALESCE($2, attempt_count), last_failure_code=$3, next_attempt_at=$4, updated_at=$5 WHERE id=$6 AND status=$7 RETURNING id, attempt_id AS \"attemptId\", project_id AS \"projectId\", project_version AS \"projectVersion\", document_checksum AS \"documentChecksum\", status, attempt_count AS \"attemptCount\", last_failure_code AS \"lastFailureCode\", next_attempt_at AS \"nextAttemptAt\", created_at AS \"createdAt\", updated_at AS \"updatedAt\"", [input.status, input.attemptCount ?? null, input.failureCode ?? null, input.nextAttemptAt ?? null, input.updatedAt, input.id, input.expectedStatus]));
     if (!result) throw new PersistenceError("PERSISTENCE_CONFLICT", "The projection sync status is stale.");
     return normalizeBriefRevisionProjection(result);
+  }
+  async getPlanningRecoveryEvidence(projectId: string, projectVersion: number, operationKey: string) {
+    const row = value<Record<string, unknown>>(await this.query("SELECT id, operation_key AS \"operationKey\", project_id AS \"projectId\", project_version AS \"projectVersion\", recovery_plan_checksum AS \"recoveryPlanChecksum\", brief_row_version AS \"briefRowVersion\", brief_semantic_checksum AS \"briefSemanticChecksum\", brief_document_checksum AS \"briefDocumentChecksum\", prior_planning_row_version AS \"priorPlanningRowVersion\", prior_planning_semantic_checksum AS \"priorPlanningSemanticChecksum\", prior_planning_document_checksum AS \"priorPlanningDocumentChecksum\", prior_planning_package AS \"priorPlanningPackage\", next_planning_row_version AS \"nextPlanningRowVersion\", next_planning_semantic_checksum AS \"nextPlanningSemanticChecksum\", next_planning_document_checksum AS \"nextPlanningDocumentChecksum\", created_at AS \"createdAt\" FROM planning_recovery_evidence WHERE project_id=$1 AND project_version=$2 AND operation_key=$3", [projectId, projectVersion, operationKey]));
+    return row ? normalizePlanningRecoveryEvidence(row) : null;
+  }
+  async listPlanningRecoveryEvidence(projectId: string, projectVersion: number) {
+    const result = await this.query<Record<string, unknown>>("SELECT id, operation_key AS \"operationKey\", project_id AS \"projectId\", project_version AS \"projectVersion\", recovery_plan_checksum AS \"recoveryPlanChecksum\", brief_row_version AS \"briefRowVersion\", brief_semantic_checksum AS \"briefSemanticChecksum\", brief_document_checksum AS \"briefDocumentChecksum\", prior_planning_row_version AS \"priorPlanningRowVersion\", prior_planning_semantic_checksum AS \"priorPlanningSemanticChecksum\", prior_planning_document_checksum AS \"priorPlanningDocumentChecksum\", prior_planning_package AS \"priorPlanningPackage\", next_planning_row_version AS \"nextPlanningRowVersion\", next_planning_semantic_checksum AS \"nextPlanningSemanticChecksum\", next_planning_document_checksum AS \"nextPlanningDocumentChecksum\", created_at AS \"createdAt\" FROM planning_recovery_evidence WHERE project_id=$1 AND project_version=$2 ORDER BY created_at, id", [projectId, projectVersion]);
+    return result.rows.map(normalizePlanningRecoveryEvidence);
+  }
+  async appendPlanningRecoveryEvidence(input: PlanningRecoveryEvidenceRow) {
+    await this.query("INSERT INTO planning_recovery_evidence (id, operation_key, project_id, project_version, recovery_plan_checksum, brief_row_version, brief_semantic_checksum, brief_document_checksum, prior_planning_row_version, prior_planning_semantic_checksum, prior_planning_document_checksum, prior_planning_package, next_planning_row_version, next_planning_semantic_checksum, next_planning_document_checksum, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ON CONFLICT (project_id, project_version, operation_key) DO NOTHING", [input.id, input.operationKey, input.projectId, input.projectVersion, input.recoveryPlanChecksum, input.briefRowVersion, input.briefSemanticChecksum, input.briefDocumentChecksum, input.priorPlanningRowVersion, input.priorPlanningSemanticChecksum, input.priorPlanningDocumentChecksum, input.priorPlanningPackage, input.nextPlanningRowVersion, input.nextPlanningSemanticChecksum, input.nextPlanningDocumentChecksum, input.createdAt]);
+    const stored = await this.getPlanningRecoveryEvidence(input.projectId, input.projectVersion, input.operationKey);
+    if (!stored) throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "Planning recovery evidence insert returned no row.");
+    if (stableSerialize(stored) !== stableSerialize(input)) throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery evidence conflicts with immutable history.");
+    return stored;
   }
 }

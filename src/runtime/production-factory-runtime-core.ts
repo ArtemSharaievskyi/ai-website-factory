@@ -85,6 +85,7 @@ import { classifySecuritySurface } from "@/agents/reviewers/security/determinist
 import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
 import { OpenAiBriefV3RevisionProvider } from "@/integrations/openai-v3/provider";
 import { effectivePlannerBrief } from "@/agents/planner/brief-context";
+import { PlanningRecoveryService } from "@/agents/planner/recovery";
 export const RUNTIME_MODES = ["DETERMINISTIC_TEST", "REAL_E2E"] as const;
 export type FactoryRuntimeMode = (typeof RUNTIME_MODES)[number];
 export type ProductionAdapterIdentity = {
@@ -109,6 +110,7 @@ export type ProductionFactoryProjectScope = {
   briefApproval: BriefApprovalService;
   briefRevisionV3: BriefV3TransactionService;
   planner: PlannerArchitectService;
+  planningRecovery: PlanningRecoveryService;
   design: DesignAgentService;
   architectureReviewer: ArchitectureReviewOrchestrationService;
   contractAuditor: ContractAuditOrchestrationService;
@@ -412,6 +414,12 @@ export function createProductionFactoryRuntime(
         memory: new PlannerMemoryAdapter(sync, decisions),
         resolveSkills: resolvePlannerSkills,
       });
+      const planningRecovery = new PlanningRecoveryService({
+        database,
+        provider: ai.planner,
+        memory: new PlannerMemoryAdapter(sync, decisions),
+        hostRecoveryEnabled: true,
+      });
       const design = createDesignAgentService({
         database,
         provider: ai.design,
@@ -523,6 +531,7 @@ export function createProductionFactoryRuntime(
         briefApproval,
         briefRevisionV3,
         planner,
+        planningRecovery,
         design,
         architectureReviewer,
         contractAuditor,

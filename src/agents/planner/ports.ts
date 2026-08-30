@@ -3,9 +3,11 @@ import type { PlannerAgentInput, PlanningPackage } from "./contracts";
 import type { PlannerRefreshProviderInput, PlanningChangeSetProviderOutput } from "./changeset";
 import type { Context7DocumentationPort, DocumentationExcerpt } from "../../integrations/context7/contracts";
 import type { ApprovedProceduralSkillContext } from "@/skills/runtime/resolver";
+import type { PlanningRecoveryProviderInput } from "./recovery";
 
 export interface PlannerArchitectureProvider {
   plan(input: PlannerAgentInput & { documentationExcerpts?: DocumentationExcerpt[] }, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string): Promise<PlanningPackage>;
+  planRecovery?(input: PlanningRecoveryProviderInput, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string): Promise<PlanningPackage>;
   proposeChangeSet?(input: PlannerRefreshProviderInput, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string): Promise<PlanningChangeSetProviderOutput>;
 }
 export type PlannerDocumentationPort = Context7DocumentationPort;

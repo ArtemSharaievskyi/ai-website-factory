@@ -79,6 +79,7 @@ describe("runtime module boundaries", () => {
       "src/persistence/database/fake.ts",
       "src/persistence/database/repositories.ts",
       "src/persistence/database/types.ts",
+      "src/runtime/production-factory-runtime-core.ts",
       "src/runtime/trial-entry/service.ts",
       "src/runtime/trial-entry/production.ts",
       "src/runtime/workbench/application.ts",
