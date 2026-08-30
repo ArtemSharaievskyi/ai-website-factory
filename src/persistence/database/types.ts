@@ -7,6 +7,7 @@ import type { ProviderFailureDiagnostic } from "@/domain/shared/provider-failure
 import type { BriefRevisionFailureDiagnosticEntry } from "./brief-revision-failure-diagnostics";
 import type { RequirementIdentityLineageRecord, RequirementIdentityMigrationRecord } from "@/domain/requirements/v3/identity";
 import type { RequirementIdentityLineage } from "@/domain/requirements/v3/identity";
+import type { PlanningRecoveryRunClaim, PlanningRecoveryRunRow, PlanningRecoveryRunTransition } from "@/agents/planner/recovery-runs";
 
 export type ProjectRow = ReturnType<typeof import("./mapping").mapProjectToRow>;
 export type ProjectAssetRow = ProjectAsset;
@@ -118,6 +119,12 @@ export interface PersistenceTransaction {
   getPlanningRecoveryEvidence(projectId: string, projectVersion: number, operationKey: string): Promise<PlanningRecoveryEvidenceRow | null>;
   listPlanningRecoveryEvidence(projectId: string, projectVersion: number): Promise<PlanningRecoveryEvidenceRow[]>;
   appendPlanningRecoveryEvidence(row: PlanningRecoveryEvidenceRow): Promise<PlanningRecoveryEvidenceRow>;
+  getPlanningRecoveryRun(projectId: string, projectVersion: number, operationKey: string): Promise<PlanningRecoveryRunRow | null>;
+  listPlanningRecoveryRuns(projectId: string, projectVersion: number): Promise<PlanningRecoveryRunRow[]>;
+  createPlanningRecoveryRun(row: PlanningRecoveryRunRow): Promise<PlanningRecoveryRunRow>;
+  claimPlanningRecoveryRun(input: { runId: string; operationKey: string; owner: string; now: string; leaseExpiresAt: string }): Promise<PlanningRecoveryRunClaim>;
+  transitionPlanningRecoveryRun(input: PlanningRecoveryRunTransition): Promise<PlanningRecoveryRunRow>;
+  updatePlanningRecoveryRunProjection(input: { runId: string; operationKey: string; now: string; status: "PENDING" | "SYNCED" | "FAILED"; failureCode?: string | null; failureMessage?: string | null }): Promise<PlanningRecoveryRunRow>;
   listRequirementIdentityLineage(projectId: string, projectVersion: number): Promise<RequirementIdentityLineageRow[]>;
   appendRequirementIdentityLineage(row: RequirementIdentityLineageRow): Promise<RequirementIdentityLineageRow>;
   getRequirementIdentityMigration(projectId: string, projectVersion: number, migrationId: string): Promise<RequirementIdentityMigrationRow | null>;

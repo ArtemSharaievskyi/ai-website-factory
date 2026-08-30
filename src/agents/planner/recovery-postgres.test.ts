@@ -75,6 +75,7 @@ async function cleanup(pool: ReturnType<typeof createPostgresPool>) {
     try {
       await client.query("BEGIN");
       await client.query("ALTER TABLE planning_recovery_evidence DISABLE TRIGGER planning_recovery_evidence_immutable");
+      await client.query("DELETE FROM planning_recovery_runs WHERE project_id=$1", [projectId]);
       await client.query("DELETE FROM planning_recovery_evidence WHERE project_id=$1", [projectId]);
       await client.query("DELETE FROM workflow_documents WHERE project_id=$1", [projectId]);
       await client.query("DELETE FROM project_versions WHERE project_id=$1", [projectId]);
@@ -115,6 +116,7 @@ describePostgres("Planning recovery real PostgreSQL certification", () => {
       brief: await tx.getDocument(value.projectId, 1, "brief-v3"),
       planning: await tx.getDocument(value.projectId, 1, "planning-package"),
       evidence: await tx.listPlanningRecoveryEvidence(value.projectId, 1),
+      runs: await tx.listPlanningRecoveryRuns(value.projectId, 1),
       architecture: await tx.getDocument(value.projectId, 1, "architecture"),
       phase7c: await tx.getDocument(value.projectId, 1, "phase-7c-contract-package"),
     }));
@@ -123,6 +125,8 @@ describePostgres("Planning recovery real PostgreSQL certification", () => {
     expect(state.brief?.rowVersion).toBe(1);
     expect(state.planning).toMatchObject({ rowVersion: 2, checksum: checksumPersistedDocument(result.package) });
     expect(state.evidence).toHaveLength(1);
+    expect(state.runs).toHaveLength(1);
+    expect(state.runs[0]).toMatchObject({ state: "COMMITTED", providerAttemptCount: 1, projectMemoryStatus: "SYNCED", terminalOutcome: "COMMITTED" });
     expect(state.architecture).toBeNull();
     expect(state.phase7c).toBeNull();
     expect(memory.documents.get(`${value.projectId}:1`)).toEqual(expect.objectContaining({ "planning-package.json": result.package }));
@@ -150,6 +154,31 @@ describePostgres("Planning recovery real PostgreSQL certification", () => {
     const state = await database.transaction(async (tx) => ({ planning: await tx.getDocument(value.projectId, 1, "planning-package"), evidence: await tx.listPlanningRecoveryEvidence(value.projectId, 1) }));
     expect(state.planning?.rowVersion).toBe(2);
     expect(state.evidence).toHaveLength(0);
+  });
+
+  it("persists a provider result across process replacement and never calls the provider twice", async () => {
+    const value = await fixture(database);
+    let now = timestamp;
+    let calls = 0;
+    const first = new PlanningRecoveryService({
+      database,
+      memory: new FakePlannerMemoryPort(),
+      provider: { planRecovery: async (input) => { calls += 1; return buildPlanningPackage(input.plannerInput); } },
+      hostRecoveryEnabled: true,
+      now: () => now,
+      fault: { hit: (point) => { if (point === "after-provider-result") throw new Error("synthetic-process-replacement"); } },
+    });
+    await expect(first.recover({ projectId: value.projectId, projectVersion: 1, operationKey: "postgres-durable-result" })).rejects.toThrow("synthetic-process-replacement");
+    expect(calls).toBe(1);
+    const stored = await database.transaction((tx) => tx.getPlanningRecoveryRun(value.projectId, 1, "postgres-durable-result"));
+    expect(stored).toMatchObject({ state: "PROVIDER_RETURNED", providerAttemptCount: 1, providerResultChecksum: expect.stringMatching(/^[a-f0-9]{64}$/) });
+    now = "2026-08-30T12:16:00.000Z";
+    const second = new PlanningRecoveryService({ database, memory: new FakePlannerMemoryPort(), provider: { planRecovery: async () => { calls += 1; throw new Error("provider-retry-forbidden"); } }, hostRecoveryEnabled: true, now: () => now });
+    const result = await second.recover({ projectId: value.projectId, projectVersion: 1, operationKey: "postgres-durable-result" });
+    expect(result.status).toBe("COMMITTED");
+    expect(calls).toBe(1);
+    const run = await database.transaction((tx) => tx.getPlanningRecoveryRun(value.projectId, 1, "postgres-durable-result"));
+    expect(run).toMatchObject({ state: "COMMITTED", providerAttemptCount: 1, projectMemoryStatus: "SYNCED" });
   });
 });
 

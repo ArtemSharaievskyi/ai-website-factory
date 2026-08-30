@@ -10,6 +10,7 @@ import type { BriefRevisionAtomicCommitInput, BriefRevisionAtomicCommitResult, B
 import { DecisionRecordSchema, type DecisionRecord } from "@/domain/workflow/decision";
 import { RequirementIdentityLineageRecordSchema, RequirementIdentityMigrationRecordSchema } from "@/domain/requirements/v3/identity";
 import { stableSerialize } from "@/domain/requirements/v3/serialization";
+import { PlanningRecoveryRunSchema, assertPlanningRecoveryRunTransition, isLeaseActive, isPlanningRecoveryRunTerminal, terminalOutcomeFor, type PlanningRecoveryRunClaim, type PlanningRecoveryRunRow, type PlanningRecoveryRunTransition } from "@/agents/planner/recovery-runs";
 
 type PersistenceQueryContext = Pick<PersistenceDiagnostic, "stage" | "operation"> & Partial<Pick<PersistenceDiagnostic, "table" | "constraint">>;
 const safeDiagnosticToken = (input: unknown) => { const token = typeof input === "string" ? input.slice(0, 160) : ""; return /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(token) ? token : "unknown"; };
@@ -94,6 +95,15 @@ const normalizePlanningRecoveryEvidence = (row: Record<string, unknown>): Planni
   nextPlanningDocumentChecksum: String(row.nextPlanningDocumentChecksum),
   createdAt: isoTimestamp(row.createdAt) as string,
 });
+const normalizePlanningRecoveryRun = (row: Record<string, unknown>): PlanningRecoveryRunRow => PlanningRecoveryRunSchema.parse({
+  runId: String(row.runId), operationKey: String(row.operationKey), projectId: String(row.projectId), projectVersion: Number(row.projectVersion), versionId: String(row.versionId),
+  expectedSourceHead: row.expectedSourceHead == null ? null : String(row.expectedSourceHead), recoveryPlanChecksum: String(row.recoveryPlanChecksum), recoveryPlan: row.recoveryPlan,
+  projectRowVersion: Number(row.projectRowVersion), projectVersionRowVersion: Number(row.projectVersionRowVersion), briefRowVersion: Number(row.briefRowVersion), briefSemanticChecksum: String(row.briefSemanticChecksum), briefDocumentChecksum: String(row.briefDocumentChecksum), planningRowVersion: Number(row.planningRowVersion), planningSemanticChecksum: String(row.planningSemanticChecksum), planningDocumentChecksum: String(row.planningDocumentChecksum),
+  providerBudget: Number(row.providerBudget), providerAttemptCount: Number(row.providerAttemptCount), state: String(row.state), providerResultChecksum: row.providerResultChecksum == null ? null : String(row.providerResultChecksum), providerResult: row.providerResult ?? null,
+  providerRequestId: row.providerRequestId == null ? null : String(row.providerRequestId), providerModel: row.providerModel == null ? null : String(row.providerModel), providerErrorClass: row.providerErrorClass == null ? null : String(row.providerErrorClass), providerErrorCode: row.providerErrorCode == null ? null : String(row.providerErrorCode), diagnosticStage: row.diagnosticStage == null ? null : String(row.diagnosticStage), diagnosticCode: row.diagnosticCode == null ? null : String(row.diagnosticCode), diagnosticMessage: row.diagnosticMessage == null ? null : String(row.diagnosticMessage),
+  leaseOwner: row.leaseOwner == null ? null : String(row.leaseOwner), leaseExpiresAt: isoTimestamp(row.leaseExpiresAt), terminalOutcome: row.terminalOutcome == null ? null : String(row.terminalOutcome), committedEvidenceId: row.committedEvidenceId == null ? null : String(row.committedEvidenceId), projectMemoryStatus: String(row.projectMemoryStatus), projectMemoryFailureCode: row.projectMemoryFailureCode == null ? null : String(row.projectMemoryFailureCode), projectMemoryFailureMessage: row.projectMemoryFailureMessage == null ? null : String(row.projectMemoryFailureMessage), createdAt: isoTimestamp(row.createdAt), updatedAt: isoTimestamp(row.updatedAt),
+});
+const planningRecoveryRunSelect = `SELECT run_id AS "runId", operation_key AS "operationKey", project_id AS "projectId", project_version AS "projectVersion", version_id AS "versionId", expected_source_head AS "expectedSourceHead", recovery_plan_checksum AS "recoveryPlanChecksum", recovery_plan AS "recoveryPlan", project_row_version AS "projectRowVersion", project_version_row_version AS "projectVersionRowVersion", brief_row_version AS "briefRowVersion", brief_semantic_checksum AS "briefSemanticChecksum", brief_document_checksum AS "briefDocumentChecksum", planning_row_version AS "planningRowVersion", planning_semantic_checksum AS "planningSemanticChecksum", planning_document_checksum AS "planningDocumentChecksum", provider_budget AS "providerBudget", provider_attempt_count AS "providerAttemptCount", state, provider_result_checksum AS "providerResultChecksum", provider_result AS "providerResult", provider_request_id AS "providerRequestId", provider_model AS "providerModel", provider_error_class AS "providerErrorClass", provider_error_code AS "providerErrorCode", diagnostic_stage AS "diagnosticStage", diagnostic_code AS "diagnosticCode", diagnostic_message AS "diagnosticMessage", lease_owner AS "leaseOwner", lease_expires_at AS "leaseExpiresAt", terminal_outcome AS "terminalOutcome", committed_evidence_id AS "committedEvidenceId", project_memory_status AS "projectMemoryStatus", project_memory_failure_code AS "projectMemoryFailureCode", project_memory_failure_message AS "projectMemoryFailureMessage", created_at AS "createdAt", updated_at AS "updatedAt" FROM planning_recovery_runs`;
 const normalizeDecisionRecord = (row: Record<string, unknown>): DecisionRecord => DecisionRecordSchema.parse({
   id: row.id,
   timestamp: isoTimestamp(row.timestamp),
@@ -349,6 +359,69 @@ class PostgresTransaction implements PersistenceTransaction {
     const result = value<Record<string, unknown>>(await this.query("UPDATE brief_revision_projection_sync SET status=$1, attempt_count=COALESCE($2, attempt_count), last_failure_code=$3, next_attempt_at=$4, updated_at=$5 WHERE id=$6 AND status=$7 RETURNING id, attempt_id AS \"attemptId\", project_id AS \"projectId\", project_version AS \"projectVersion\", document_checksum AS \"documentChecksum\", status, attempt_count AS \"attemptCount\", last_failure_code AS \"lastFailureCode\", next_attempt_at AS \"nextAttemptAt\", created_at AS \"createdAt\", updated_at AS \"updatedAt\"", [input.status, input.attemptCount ?? null, input.failureCode ?? null, input.nextAttemptAt ?? null, input.updatedAt, input.id, input.expectedStatus]));
     if (!result) throw new PersistenceError("PERSISTENCE_CONFLICT", "The projection sync status is stale.");
     return normalizeBriefRevisionProjection(result);
+  }
+  async getPlanningRecoveryRun(projectId: string, projectVersion: number, operationKey: string) {
+    const row = value<Record<string, unknown>>(await this.query(`${planningRecoveryRunSelect} WHERE project_id=$1 AND project_version=$2 AND operation_key=$3`, [projectId, projectVersion, operationKey]));
+    return row ? normalizePlanningRecoveryRun(row) : null;
+  }
+  async listPlanningRecoveryRuns(projectId: string, projectVersion: number) {
+    const result = await this.query<Record<string, unknown>>(`${planningRecoveryRunSelect} WHERE project_id=$1 AND project_version=$2 ORDER BY created_at, run_id`, [projectId, projectVersion]);
+    return result.rows.map(normalizePlanningRecoveryRun);
+  }
+  async createPlanningRecoveryRun(input: PlanningRecoveryRunRow) {
+    const row = PlanningRecoveryRunSchema.parse(input);
+    await this.query("INSERT INTO planning_recovery_runs (run_id, operation_key, project_id, project_version, version_id, expected_source_head, recovery_plan_checksum, recovery_plan, project_row_version, project_version_row_version, brief_row_version, brief_semantic_checksum, brief_document_checksum, planning_row_version, planning_semantic_checksum, planning_document_checksum, provider_budget, provider_attempt_count, state, provider_result_checksum, provider_result, provider_request_id, provider_model, provider_error_class, provider_error_code, diagnostic_stage, diagnostic_code, diagnostic_message, lease_owner, lease_expires_at, terminal_outcome, committed_evidence_id, project_memory_status, project_memory_failure_code, project_memory_failure_message, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37) ON CONFLICT (project_id, project_version, operation_key) DO NOTHING", [row.runId, row.operationKey, row.projectId, row.projectVersion, row.versionId, row.expectedSourceHead, row.recoveryPlanChecksum, row.recoveryPlan, row.projectRowVersion, row.projectVersionRowVersion, row.briefRowVersion, row.briefSemanticChecksum, row.briefDocumentChecksum, row.planningRowVersion, row.planningSemanticChecksum, row.planningDocumentChecksum, row.providerBudget, row.providerAttemptCount, row.state, row.providerResultChecksum, row.providerResult, row.providerRequestId, row.providerModel, row.providerErrorClass, row.providerErrorCode, row.diagnosticStage, row.diagnosticCode, row.diagnosticMessage, row.leaseOwner, row.leaseExpiresAt, row.terminalOutcome, row.committedEvidenceId, row.projectMemoryStatus, row.projectMemoryFailureCode, row.projectMemoryFailureMessage, row.createdAt, row.updatedAt]);
+    const stored = await this.getPlanningRecoveryRun(row.projectId, row.projectVersion, row.operationKey);
+    if (!stored) throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "Planning recovery run insert returned no row.");
+    const identity = (candidate: PlanningRecoveryRunRow) => ({ runId: candidate.runId, projectId: candidate.projectId, projectVersion: candidate.projectVersion, versionId: candidate.versionId, expectedSourceHead: candidate.expectedSourceHead, recoveryPlanChecksum: candidate.recoveryPlanChecksum, recoveryPlan: candidate.recoveryPlan, projectRowVersion: candidate.projectRowVersion, projectVersionRowVersion: candidate.projectVersionRowVersion, briefRowVersion: candidate.briefRowVersion, briefSemanticChecksum: candidate.briefSemanticChecksum, briefDocumentChecksum: candidate.briefDocumentChecksum, planningRowVersion: candidate.planningRowVersion, planningSemanticChecksum: candidate.planningSemanticChecksum, planningDocumentChecksum: candidate.planningDocumentChecksum, providerBudget: candidate.providerBudget });
+    if (stableSerialize(identity(stored)) !== stableSerialize(identity(row))) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The Planning recovery operation key is bound to different execution inputs.");
+    return stored;
+  }
+  private async savePlanningRecoveryRun(row: PlanningRecoveryRunRow, expectedState: PlanningRecoveryRunRow["state"]) {
+    const result = await this.query("UPDATE planning_recovery_runs SET provider_attempt_count=$1, state=$2, provider_result_checksum=$3, provider_result=$4, provider_request_id=$5, provider_model=$6, provider_error_class=$7, provider_error_code=$8, diagnostic_stage=$9, diagnostic_code=$10, diagnostic_message=$11, lease_owner=$12, lease_expires_at=$13, terminal_outcome=$14, committed_evidence_id=$15, project_memory_status=$16, project_memory_failure_code=$17, project_memory_failure_message=$18, updated_at=$19 WHERE run_id=$20 AND operation_key=$21 AND state=$22", [row.providerAttemptCount, row.state, row.providerResultChecksum, row.providerResult, row.providerRequestId, row.providerModel, row.providerErrorClass, row.providerErrorCode, row.diagnosticStage, row.diagnosticCode, row.diagnosticMessage, row.leaseOwner, row.leaseExpiresAt, row.terminalOutcome, row.committedEvidenceId, row.projectMemoryStatus, row.projectMemoryFailureCode, row.projectMemoryFailureMessage, row.updatedAt, row.runId, row.operationKey, expectedState]);
+    if (!result.rowCount) throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery run state is stale.");
+    const saved = value<Record<string, unknown>>(await this.query(`${planningRecoveryRunSelect} WHERE run_id=$1 AND operation_key=$2`, [row.runId, row.operationKey]));
+    if (!saved) throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "Planning recovery run transition returned no row.");
+    return normalizePlanningRecoveryRun(saved);
+  }
+  async claimPlanningRecoveryRun(input: { runId: string; operationKey: string; owner: string; now: string; leaseExpiresAt: string }): Promise<PlanningRecoveryRunClaim> {
+    const raw = value<Record<string, unknown>>(await this.query(`${planningRecoveryRunSelect} WHERE run_id=$1 AND operation_key=$2 FOR UPDATE`, [input.runId, input.operationKey]));
+    if (!raw) throw new PersistenceError("PERSISTENCE_NOT_FOUND", "Planning recovery run was not found.");
+    const row = normalizePlanningRecoveryRun(raw);
+    if (row.state === "COMMITTED" || row.state === "COMMITTED_RECONCILED") return { outcome: "COMMITTED_REPLAY", row };
+    if (isPlanningRecoveryRunTerminal(row.state)) return { outcome: "TERMINAL_FAILURE_REPLAY", row };
+    if (row.state === "CREATED") {
+      if (row.providerAttemptCount >= row.providerBudget) return { outcome: "PROVIDER_ATTEMPT_ALREADY_CONSUMED", row };
+      const next = PlanningRecoveryRunSchema.parse({ ...row, state: "PROVIDER_CALL_STARTED", providerAttemptCount: row.providerAttemptCount + 1, leaseOwner: input.owner, leaseExpiresAt: input.leaseExpiresAt, updatedAt: input.now });
+      return { outcome: "PROVIDER_STARTED", row: await this.savePlanningRecoveryRun(next, row.state) };
+    }
+    if (row.state === "PROVIDER_CALL_STARTED") {
+      if (isLeaseActive(row, input.now)) return { outcome: "RUN_ALREADY_ACTIVE", row };
+      assertPlanningRecoveryRunTransition(row.state, "OUTCOME_INDETERMINATE");
+      const next = PlanningRecoveryRunSchema.parse({ ...row, state: "OUTCOME_INDETERMINATE", terminalOutcome: "OUTCOME_INDETERMINATE", leaseOwner: null, leaseExpiresAt: null, diagnosticStage: "provider", diagnosticCode: "PROVIDER_RESULT_MISSING", diagnosticMessage: "The provider attempt was durably consumed but its result was not recorded.", updatedAt: input.now });
+      return { outcome: "PROVIDER_ATTEMPT_ALREADY_CONSUMED", row: await this.savePlanningRecoveryRun(next, row.state) };
+    }
+    if (isLeaseActive(row, input.now)) return { outcome: "RUN_ALREADY_ACTIVE", row };
+    const resumed = PlanningRecoveryRunSchema.parse({ ...row, leaseOwner: input.owner, leaseExpiresAt: input.leaseExpiresAt, updatedAt: input.now });
+    return { outcome: "RESUMED", row: await this.savePlanningRecoveryRun(resumed, row.state) };
+  }
+  async transitionPlanningRecoveryRun(input: PlanningRecoveryRunTransition) {
+    const raw = value<Record<string, unknown>>(await this.query(`${planningRecoveryRunSelect} WHERE run_id=$1 AND operation_key=$2 FOR UPDATE`, [input.runId, input.operationKey]));
+    if (!raw) throw new PersistenceError("PERSISTENCE_NOT_FOUND", "Planning recovery run was not found.");
+    const current = normalizePlanningRecoveryRun(raw);
+    if (current.state !== input.from) throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery run transition is stale.");
+    if (input.owner && (current.leaseOwner !== input.owner || !isLeaseActive(current, input.now))) throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery run lease is stale.");
+    assertPlanningRecoveryRunTransition(input.from, input.to);
+    const terminal = isPlanningRecoveryRunTerminal(input.to);
+    const next = PlanningRecoveryRunSchema.parse({ ...current, ...(input.patch ?? {}), state: input.to, terminalOutcome: terminalOutcomeFor(input.to), ...(terminal ? { leaseOwner: null, leaseExpiresAt: null } : {}), updatedAt: input.now });
+    return this.savePlanningRecoveryRun(next, input.from);
+  }
+  async updatePlanningRecoveryRunProjection(input: { runId: string; operationKey: string; now: string; status: "PENDING" | "SYNCED" | "FAILED"; failureCode?: string | null; failureMessage?: string | null }) {
+    const result = value<Record<string, unknown>>(await this.query(`UPDATE planning_recovery_runs SET project_memory_status=$1, project_memory_failure_code=$2, project_memory_failure_message=$3, updated_at=$4 WHERE run_id=$5 AND operation_key=$6 AND state IN ('COMMITTED','COMMITTED_RECONCILED') RETURNING run_id AS "runId"`, [input.status, input.failureCode ?? null, input.failureMessage ?? null, input.now, input.runId, input.operationKey]));
+    if (!result) throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery run projection state is stale.");
+    const saved = value<Record<string, unknown>>(await this.query(`${planningRecoveryRunSelect} WHERE run_id=$1 AND operation_key=$2`, [input.runId, input.operationKey]));
+    if (!saved) throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "Planning recovery run projection update returned no row.");
+    return normalizePlanningRecoveryRun(saved);
   }
   async getPlanningRecoveryEvidence(projectId: string, projectVersion: number, operationKey: string) {
     const row = value<Record<string, unknown>>(await this.query("SELECT id, operation_key AS \"operationKey\", project_id AS \"projectId\", project_version AS \"projectVersion\", recovery_plan_checksum AS \"recoveryPlanChecksum\", brief_row_version AS \"briefRowVersion\", brief_semantic_checksum AS \"briefSemanticChecksum\", brief_document_checksum AS \"briefDocumentChecksum\", prior_planning_row_version AS \"priorPlanningRowVersion\", prior_planning_semantic_checksum AS \"priorPlanningSemanticChecksum\", prior_planning_document_checksum AS \"priorPlanningDocumentChecksum\", prior_planning_package AS \"priorPlanningPackage\", next_planning_row_version AS \"nextPlanningRowVersion\", next_planning_semantic_checksum AS \"nextPlanningSemanticChecksum\", next_planning_document_checksum AS \"nextPlanningDocumentChecksum\", created_at AS \"createdAt\" FROM planning_recovery_evidence WHERE project_id=$1 AND project_version=$2 AND operation_key=$3", [projectId, projectVersion, operationKey]));

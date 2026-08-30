@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { PersistenceError } from "./errors";
 import { appendBriefRevisionFailureDiagnostic } from "./brief-revision-failure-diagnostics";
+import { PlanningRecoveryRunSchema, assertPlanningRecoveryRunTransition, isLeaseActive, isPlanningRecoveryRunTerminal, terminalOutcomeFor, type PlanningRecoveryRunClaim, type PlanningRecoveryRunRow, type PlanningRecoveryRunTransition } from "@/agents/planner/recovery-runs";
 import { checksumPersistedDocument } from "./serialization";
 import type { BriefRevisionAtomicCommitResult, BriefRevisionAttemptClaim, BriefRevisionAttemptRow, BriefRevisionAttemptStatus, BriefRevisionAttemptTransition, BriefRevisionProjectionRow, PersistenceDatabase, PersistenceTransaction, ProjectRow, ProjectAssetRow, ProjectVersionRow, WorkflowEvent, CostRecord, IdempotencyRecord, PlanningRecoveryEvidenceRow, RequirementIdentityLineageRow, RequirementIdentityMigrationRow } from "./types";
 import { mapRowToDocument, type DocumentRow } from "./mapping";
@@ -23,6 +24,7 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
   readonly briefRevisionHistory = new Map<string, import("./types").BriefRevisionHistoryRow>();
   readonly briefRevisionProjectionSync = new Map<string, BriefRevisionProjectionRow>();
   readonly planningRecoveryEvidence = new Map<string, PlanningRecoveryEvidenceRow>();
+  readonly planningRecoveryRuns = new Map<string, PlanningRecoveryRunRow>();
   readonly requirementIdentityLineage = new Map<string, RequirementIdentityLineageRow>();
   readonly requirementIdentityMigrations = new Map<string, RequirementIdentityMigrationRow>();
   private readonly idempotency = new Map<string, IdempotencyRecord>();
@@ -33,7 +35,13 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
     const previous = this.transactionTail;
     this.transactionTail = new Promise<void>((resolve) => { release = resolve; });
     await previous;
-    const projects = new Map(this.projects); const assets = new Map(this.assets); const versions = new Map(this.versions); const documents = new Map(this.documents); const decisions = new Map([...this.decisions].map(([key, value]) => [key, copy(value)])); const events = [...this.events]; const costs = [...this.costs]; const idempotency = new Map(this.idempotency); const briefRevisionAttempts = new Map([...this.briefRevisionAttempts].map(([key, value]) => [key, copy(value)])); const briefRevisionHistory = new Map([...this.briefRevisionHistory].map(([key, value]) => [key, copy(value)])); const briefRevisionProjectionSync = new Map([...this.briefRevisionProjectionSync].map(([key, value]) => [key, copy(value)])); const planningRecoveryEvidence = new Map([...this.planningRecoveryEvidence].map(([key, value]) => [key, copy(value)])); const requirementIdentityLineage = new Map([...this.requirementIdentityLineage].map(([key, value]) => [key, copy(value)])); const requirementIdentityMigrations = new Map([...this.requirementIdentityMigrations].map(([key, value]) => [key, copy(value)]));
+    const projects = new Map(this.projects); const assets = new Map(this.assets); const versions = new Map(this.versions); const documents = new Map(this.documents); const decisions = new Map([...this.decisions].map(([key, value]) => [key, copy(value)])); const events = [...this.events]; const costs = [...this.costs]; const idempotency = new Map(this.idempotency); const briefRevisionAttempts = new Map([...this.briefRevisionAttempts].map(([key, value]) => [key, copy(value)])); const briefRevisionHistory = new Map([...this.briefRevisionHistory].map(([key, value]) => [key, copy(value)])); const briefRevisionProjectionSync = new Map([...this.briefRevisionProjectionSync].map(([key, value]) => [key, copy(value)])); const planningRecoveryEvidence = new Map([...this.planningRecoveryEvidence].map(([key, value]) => [key, copy(value)])); const planningRecoveryRuns = new Map([...this.planningRecoveryRuns].map(([key, value]) => [key, copy(value)])); const requirementIdentityLineage = new Map([...this.requirementIdentityLineage].map(([key, value]) => [key, copy(value)])); const requirementIdentityMigrations = new Map([...this.requirementIdentityMigrations].map(([key, value]) => [key, copy(value)]));
+    const savePlanningRecoveryRun = (row: PlanningRecoveryRunRow, expectedState: PlanningRecoveryRunRow["state"]) => {
+      const current = this.planningRecoveryRuns.get(row.runId);
+      if (!current || current.operationKey !== row.operationKey || current.state !== expectedState) throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery run state is stale.");
+      this.planningRecoveryRuns.set(row.runId, copy(row));
+      return copy(row);
+    };
     const transaction: PersistenceTransaction = {
       getProject: async (id) => copy(this.projects.get(id) ?? null),
       listProjects: async () => copy([...this.projects.values()].sort((left, right) => right.updated_at.localeCompare(left.updated_at))),
@@ -172,6 +180,55 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
       },
       listBriefRevisionProjectionSync: async (limit) => copy([...this.briefRevisionProjectionSync.values()].filter((row) => (row.status === "PENDING" || row.status === "FAILED_RETRYABLE") && (!row.nextAttemptAt || Date.parse(row.nextAttemptAt) <= Date.now())).sort((left, right) => left.createdAt.localeCompare(right.createdAt)).slice(0, Math.max(1, Math.min(limit, 100)))),
       updateBriefRevisionProjectionSync: async (input) => { const row = this.briefRevisionProjectionSync.get(input.id); if (!row || row.status !== input.expectedStatus) throw new PersistenceError("PERSISTENCE_CONFLICT", "The projection sync status is stale."); const next = { ...row, status: input.status, attemptCount: input.attemptCount ?? row.attemptCount, lastFailureCode: input.failureCode ?? null, nextAttemptAt: input.nextAttemptAt ?? null, updatedAt: input.updatedAt }; this.briefRevisionProjectionSync.set(row.id, next); return copy(next); },
+      getPlanningRecoveryRun: async (projectId, projectVersion, operationKey) => copy([...this.planningRecoveryRuns.values()].find((row) => row.projectId === projectId && row.projectVersion === projectVersion && row.operationKey === operationKey) ?? null),
+      listPlanningRecoveryRuns: async (projectId, projectVersion) => copy([...this.planningRecoveryRuns.values()].filter((row) => row.projectId === projectId && row.projectVersion === projectVersion).sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.runId.localeCompare(right.runId))),
+      createPlanningRecoveryRun: async (input) => {
+        const row = PlanningRecoveryRunSchema.parse(input);
+        const existing = [...this.planningRecoveryRuns.values()].find((candidate) => candidate.projectId === row.projectId && candidate.projectVersion === row.projectVersion && candidate.operationKey === row.operationKey);
+        if (existing) {
+          const identity = (candidate: PlanningRecoveryRunRow) => ({ runId: candidate.runId, projectId: candidate.projectId, projectVersion: candidate.projectVersion, versionId: candidate.versionId, expectedSourceHead: candidate.expectedSourceHead, recoveryPlanChecksum: candidate.recoveryPlanChecksum, recoveryPlan: candidate.recoveryPlan, projectRowVersion: candidate.projectRowVersion, projectVersionRowVersion: candidate.projectVersionRowVersion, briefRowVersion: candidate.briefRowVersion, briefSemanticChecksum: candidate.briefSemanticChecksum, briefDocumentChecksum: candidate.briefDocumentChecksum, planningRowVersion: candidate.planningRowVersion, planningSemanticChecksum: candidate.planningSemanticChecksum, planningDocumentChecksum: candidate.planningDocumentChecksum, providerBudget: candidate.providerBudget });
+          if (stableSerialize(identity(existing)) !== stableSerialize(identity(row))) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The Planning recovery operation key is bound to different execution inputs.");
+          return copy(existing);
+        }
+        this.planningRecoveryRuns.set(row.runId, copy(row));
+        return copy(row);
+      },
+      claimPlanningRecoveryRun: async (input): Promise<PlanningRecoveryRunClaim> => {
+        const row = this.planningRecoveryRuns.get(input.runId);
+        if (!row || row.operationKey !== input.operationKey) throw new PersistenceError("PERSISTENCE_NOT_FOUND", "Planning recovery run was not found.");
+        if (row.state === "COMMITTED" || row.state === "COMMITTED_RECONCILED") return { outcome: "COMMITTED_REPLAY", row: copy(row) };
+        if (isPlanningRecoveryRunTerminal(row.state)) return { outcome: "TERMINAL_FAILURE_REPLAY", row: copy(row) };
+        if (row.state === "CREATED") {
+          if (row.providerAttemptCount >= row.providerBudget) return { outcome: "PROVIDER_ATTEMPT_ALREADY_CONSUMED", row: copy(row) };
+          const next = PlanningRecoveryRunSchema.parse({ ...row, state: "PROVIDER_CALL_STARTED", providerAttemptCount: row.providerAttemptCount + 1, leaseOwner: input.owner, leaseExpiresAt: input.leaseExpiresAt, updatedAt: input.now });
+          return { outcome: "PROVIDER_STARTED", row: savePlanningRecoveryRun(next, row.state) };
+        }
+        if (row.state === "PROVIDER_CALL_STARTED") {
+          if (isLeaseActive(row, input.now)) return { outcome: "RUN_ALREADY_ACTIVE", row: copy(row) };
+          assertPlanningRecoveryRunTransition(row.state, "OUTCOME_INDETERMINATE");
+          const next = PlanningRecoveryRunSchema.parse({ ...row, state: "OUTCOME_INDETERMINATE", terminalOutcome: "OUTCOME_INDETERMINATE", leaseOwner: null, leaseExpiresAt: null, diagnosticStage: "provider", diagnosticCode: "PROVIDER_RESULT_MISSING", diagnosticMessage: "The provider attempt was durably consumed but its result was not recorded.", updatedAt: input.now });
+          return { outcome: "PROVIDER_ATTEMPT_ALREADY_CONSUMED", row: savePlanningRecoveryRun(next, row.state) };
+        }
+        if (isLeaseActive(row, input.now)) return { outcome: "RUN_ALREADY_ACTIVE", row: copy(row) };
+        const next = PlanningRecoveryRunSchema.parse({ ...row, leaseOwner: input.owner, leaseExpiresAt: input.leaseExpiresAt, updatedAt: input.now });
+        return { outcome: "RESUMED", row: savePlanningRecoveryRun(next, row.state) };
+      },
+      transitionPlanningRecoveryRun: async (input: PlanningRecoveryRunTransition) => {
+        const current = this.planningRecoveryRuns.get(input.runId);
+        if (!current || current.operationKey !== input.operationKey || current.state !== input.from) throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery run transition is stale.");
+        if (input.owner && (current.leaseOwner !== input.owner || !isLeaseActive(current, input.now))) throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery run lease is stale.");
+        assertPlanningRecoveryRunTransition(input.from, input.to);
+        const terminal = isPlanningRecoveryRunTerminal(input.to);
+        const next = PlanningRecoveryRunSchema.parse({ ...current, ...(input.patch ?? {}), state: input.to, terminalOutcome: terminalOutcomeFor(input.to), ...(terminal ? { leaseOwner: null, leaseExpiresAt: null } : {}), updatedAt: input.now });
+        return savePlanningRecoveryRun(next, input.from);
+      },
+      updatePlanningRecoveryRunProjection: async (input) => {
+        const current = this.planningRecoveryRuns.get(input.runId);
+        if (!current || current.operationKey !== input.operationKey || !["COMMITTED", "COMMITTED_RECONCILED"].includes(current.state)) throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery run projection state is stale.");
+        const next = PlanningRecoveryRunSchema.parse({ ...current, projectMemoryStatus: input.status, projectMemoryFailureCode: input.failureCode ?? null, projectMemoryFailureMessage: input.failureMessage ?? null, updatedAt: input.now });
+        this.planningRecoveryRuns.set(input.runId, copy(next));
+        return copy(next);
+      },
       getPlanningRecoveryEvidence: async (projectId, projectVersion, operationKey) => copy([...this.planningRecoveryEvidence.values()].find((row) => row.projectId === projectId && row.projectVersion === projectVersion && row.operationKey === operationKey) ?? null),
       listPlanningRecoveryEvidence: async (projectId, projectVersion) => copy([...this.planningRecoveryEvidence.values()].filter((row) => row.projectId === projectId && row.projectVersion === projectVersion).sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))),
       appendPlanningRecoveryEvidence: async (input) => { const existing = this.planningRecoveryEvidence.get(`${input.projectId}:${input.projectVersion}:${input.operationKey}`); if (existing) { if (stableSerialize(existing) !== stableSerialize(input)) throw new PersistenceError("PERSISTENCE_CONFLICT", "Planning recovery evidence conflicts with immutable history."); return copy(existing); } const row = copy(input); this.planningRecoveryEvidence.set(`${row.projectId}:${row.projectVersion}:${row.operationKey}`, row); return copy(row); },
@@ -193,6 +250,7 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
       this.briefRevisionHistory.clear(); for (const [key, value] of briefRevisionHistory) this.briefRevisionHistory.set(key, value);
       this.briefRevisionProjectionSync.clear(); for (const [key, value] of briefRevisionProjectionSync) this.briefRevisionProjectionSync.set(key, value);
       this.planningRecoveryEvidence.clear(); for (const [key, value] of planningRecoveryEvidence) this.planningRecoveryEvidence.set(key, value);
+      this.planningRecoveryRuns.clear(); for (const [key, value] of planningRecoveryRuns) this.planningRecoveryRuns.set(key, value);
       this.requirementIdentityLineage.clear(); for (const [key, value] of requirementIdentityLineage) this.requirementIdentityLineage.set(key, value);
       this.requirementIdentityMigrations.clear(); for (const [key, value] of requirementIdentityMigrations) this.requirementIdentityMigrations.set(key, value);
       throw error;
