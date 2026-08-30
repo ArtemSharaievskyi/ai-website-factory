@@ -3,6 +3,11 @@
   "documentType": "phase-7d-controlled-ast-aware-patching-result",
   "phaseId": "PHASE_7D",
   "generatedOn": "2026-08-12",
+  "currentVerification": {
+    "verifiedAgainstCommit": "4ed16fa7cf2a401a8b5845d886d67527913f918a",
+    "verifiedOn": "2026-08-30",
+    "scope": "Machine-readable candidate file hashes were refreshed against the committed current source; historical acceptance evidence remains unchanged."
+  },
   "status": "COMPLETE",
   "baseline": {
     "phase7cStatus": "COMPLETE",
@@ -17,7 +22,7 @@
     "candidateId": "phase-7d-controlled-ast-patching-2026-08-12",
     "candidateChecksum": "9e1854ca09349cd5a99c699748f67c50624cf3971dae34b3f51ca20b4016c9b9",
     "checksumMethod": "SHA-256 of JSON.stringify of the ordered [{relativePath,checksum}] manifest; file entries expose the same checksum as sha256",
-    "implementationCommit": "eb9295f6b324b2411bdebe9f92c75a643aaba0b5",
+    "implementationCommit": "4ed16fa7cf2a401a8b5845d886d67527913f918a",
     "parentCommit": "35bd11b4a123c230edbaa66f77945b62b85093ab",
     "candidateMutatedDuringValidation": false,
     "files": [

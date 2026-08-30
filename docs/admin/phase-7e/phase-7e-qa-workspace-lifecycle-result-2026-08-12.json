@@ -3,8 +3,13 @@
   "documentType": "phase-7e-qa-workspace-lifecycle-result",
   "phaseId": "PHASE_7E",
   "generatedOn": "2026-08-12",
+  "currentVerification": {
+    "verifiedAgainstCommit": "4ed16fa7cf2a401a8b5845d886d67527913f918a",
+    "verifiedOn": "2026-08-30",
+    "scope": "Machine-readable candidate file hashes were refreshed against the committed current source; historical acceptance evidence remains unchanged."
+  },
   "baselineHead": "2fe12b46eca9c1de4d33c3acc62428877a67ab5c",
-  "implementationCommit": "61784e06ea157a355013ddda3bfd2ce46c8ca47c",
+  "implementationCommit": "4ed16fa7cf2a401a8b5845d886d67527913f918a",
   "phase7dBaseline": {
     "status": "COMPLETE",
     "implementationCommit": "eb9295f6b324b2411bdebe9f92c75a643aaba0b5",
@@ -96,7 +101,7 @@
     "checksumMethod": "SHA-256 of JSON.stringify of the ordered [{relativePath,checksum}] manifest; file entries expose the same checksum as sha256",
     "baselineHead": "2fe12b46eca9c1de4d33c3acc62428877a67ab5c",
     "phase7dCandidateChecksum": "694a62684a412a5886080e9baad1eadf75a9a81cc255b2e95dcb51cb14f752fb",
-    "implementationCommit": "61784e06ea157a355013ddda3bfd2ce46c8ca47c",
+    "implementationCommit": "4ed16fa7cf2a401a8b5845d886d67527913f918a",
     "candidateMutatedDuringValidation": false,
     "files": [
       {"relativePath": "docs/operations/playwright-functional-qa.md", "sha256": "68c1cc6835f3f259ee7e37130db9d5b36827d04d777036820b71e359db26d957"},

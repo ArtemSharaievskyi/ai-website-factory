@@ -6,6 +6,11 @@
   "implementationCommit": "b86027a7f0ef8e1b6dd3caec8b29e70a640c8b34",
   "documentationCommit": "1624b3c35a6efb89f8f700dce20db785e3dd586e",
   "finalHeadBeforeClosure": "1624b3c35a6efb89f8f700dce20db785e3dd586e",
+  "currentVerification": {
+    "verifiedAgainstCommit": "4ed16fa7cf2a401a8b5845d886d67527913f918a",
+    "verifiedOn": "2026-08-30",
+    "scope": "The non-allowlisted Workbench test entry was refreshed against the committed current source; historical candidate scope and closure metadata remain unchanged."
+  },
   "candidate": {
     "candidateId": "web-workbench-2026-08-12",
     "baselineIdentity": {
