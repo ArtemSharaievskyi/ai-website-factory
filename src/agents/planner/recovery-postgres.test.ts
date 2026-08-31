@@ -14,7 +14,7 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import { FakePlannerMemoryPort } from "./memory";
 import { buildPlanningPackage } from "./deterministic";
 import { PlanningRecoveryCrash, PlanningRecoveryService, type PlanningRecoveryProvider, type PlanningRecoveryProviderResult } from "./recovery";
-import { createPlanningOwnedRequirementManifest } from "./recovery-manifests";
+import { createCanonicalPlanningRouteManifest, createPlanningOwnedRequirementManifest, createPlanningTargetCatalog } from "./recovery-manifests";
 import { normalizePlanningPackageForHost } from "./refresh-admission";
 import { createStaticSourceCurrentnessPort } from "@/runtime/source-head";
 
@@ -83,22 +83,24 @@ function recoveryRequirementDisposition(category: string) {
 
 function completeRecoveryResult(input: Parameters<typeof buildPlanningPackage>[0], candidate = completeRecoveryCandidate(input)): PlanningRecoveryProviderResult {
   const manifest = createPlanningOwnedRequirementManifest(input.canonicalBrief!);
+  const target = createPlanningTargetCatalog(createCanonicalPlanningRouteManifest(input.canonicalBrief!)).targets.find((entry) => entry.kind === "section" && entry.section === "traceability")!;
   return {
     planningPackage: candidate,
-    requirementAccounting: manifest.requirements.map((entry) => ({
+    requirementAccounting: Object.fromEntries(manifest.requirements.map((entry) => [entry.requirementHandle, {
       disposition: recoveryRequirementDisposition(entry.category),
-      planningTargetRefs: [{ kind: "section" as const, routeHandle: null, pageHandle: null, section: "traceability" as const }],
+      planningTargetRefs: [{ targetHandle: target.targetHandle }],
       semanticEvidence: "Synthetic fixture records the explicit Planning treatment.",
-    })),
+    }])) ,
   };
 }
 
 function recoveryAccountingForPlan(plan: NonNullable<Awaited<ReturnType<PlanningRecoveryService["prepare"]>>["plan"]>) {
-  return plan.planningRequirementManifest!.requirements.map((entry) => ({
+  const target = plan.planningTargetCatalog!.targets.find((entry) => entry.kind === "section" && entry.section === "traceability")!;
+  return Object.fromEntries(plan.planningRequirementManifest!.requirements.map((entry) => [entry.requirementHandle, {
     disposition: recoveryRequirementDisposition(entry.category),
-    planningTargetRefs: [{ kind: "section" as const, routeHandle: null, pageHandle: null, section: "traceability" as const }],
+    planningTargetRefs: [{ targetHandle: target.targetHandle }],
     semanticEvidence: "Synthetic apply fixture records the explicit Planning treatment.",
-  }));
+  }])) ;
 }
 
 async function fixture(database: PostgresPersistenceDatabase, versionState: "DRAFT" | "AWAITING_DESIGN_SELECTION" = "AWAITING_DESIGN_SELECTION") {

@@ -13,6 +13,7 @@ const MAX_IDEMPOTENCY_ENTRIES = 10000;
 const MAX_CACHE_ENTRIES = 10000;
 const sha = (v: string | Buffer) => createHash("sha256").update(v).digest("hex");
 const escapeRegex = (v: string) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const upstreamProjectName = (scope: Pick<WorkspaceScope, "projectId" | "projectVersion">) => `${scope.projectId}-v${scope.projectVersion}`;
 function truncateUtf8(text: string, maxBytes: number) {
   if (Buffer.byteLength(text, "utf8") <= maxBytes) return text;
   let bytes = 0;
@@ -38,6 +39,30 @@ function parseUpstreamResult(raw: string): unknown {
   } catch (error) {
     throw new CodebaseMemoryError("CODEBASE_MEMORY_UNAVAILABLE", "Codebase Memory result was not valid JSON.", error);
   }
+}
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+function upstreamRows(raw: unknown): unknown[] {
+  const envelope = record(raw);
+  const value = record(envelope?.structuredContent) ?? envelope ?? {};
+  if (Array.isArray(value.results)) return value.results;
+  if (!Array.isArray(value.rows)) return [];
+  const columns = Array.isArray(value.cols) ? value.cols.filter((column): column is string => typeof column === "string") : [];
+  return value.rows.map((row) => {
+    if (!Array.isArray(row)) return row;
+    const mapped = Object.fromEntries(columns.map((column, index) => [column, row[index]]));
+    const qn = typeof mapped.qn === "string" ? mapped.qn : undefined;
+    const lines = typeof mapped.lines === "string" ? mapped.lines.match(/^(\d+)(?:-(\d+))?$/) : undefined;
+    return {
+      ...mapped,
+      name: typeof mapped.name === "string" ? mapped.name : qn?.split(".").at(-1),
+      lineStart: lines ? Number(lines[1]) : undefined,
+      lineEnd: lines ? Number(lines[2] ?? lines[1]) : undefined,
+    };
+  });
 }
 
 export class CodebaseMemoryService implements CodebaseMemoryPort {
@@ -76,13 +101,13 @@ export class CodebaseMemoryService implements CodebaseMemoryPort {
     return stored.index;
   }
 
-  findSymbol(plan: CodebaseMemoryQueryPlan, signal?: AbortSignal) { return this.query(plan, "findSymbol", "search_graph", { label: "Function|Method|Class|Interface|Type|Enum", name_pattern: `.*${escapeRegex(plan.symbol ?? plan.topic ?? "")}.*` }, signal); }
-  findFile(plan: CodebaseMemoryQueryPlan, signal?: AbortSignal) { return this.query(plan, "findFile", "search_graph", { label: "File", file_pattern: plan.file ?? plan.topic, name_pattern: ".*" }, signal); }
+  findSymbol(plan: CodebaseMemoryQueryPlan, signal?: AbortSignal) { return this.query(plan, "findSymbol", "search_graph", { query: plan.symbol ?? plan.topic, format: "json" }, signal); }
+  findFile(plan: CodebaseMemoryQueryPlan, signal?: AbortSignal) { return this.query(plan, "findFile", "search_graph", { label: "File", file_pattern: plan.file ?? plan.topic, name_pattern: ".*", format: "json" }, signal); }
   findReferences(plan: CodebaseMemoryQueryPlan, signal?: AbortSignal) { return this.graph(plan, "findReferences", "CALL_REFERENCE", signal); }
   findImports(plan: CodebaseMemoryQueryPlan, signal?: AbortSignal) { return this.graph(plan, "findImports", "IMPORTS", signal); }
   findCallers(plan: CodebaseMemoryQueryPlan, signal?: AbortSignal) { return this.trace(plan, "findCallers", "inbound", signal); }
   findCallees(plan: CodebaseMemoryQueryPlan, signal?: AbortSignal) { return this.trace(plan, "findCallees", "outbound", signal); }
-  findRoutes(plan: CodebaseMemoryQueryPlan, signal?: AbortSignal) { return this.query(plan, "findRoutes", "search_graph", { label: "Route", name_pattern: `.*${escapeRegex(plan.topic ?? plan.symbol ?? ".*")}.*` }, signal); }
+  findRoutes(plan: CodebaseMemoryQueryPlan, signal?: AbortSignal) { return this.query(plan, "findRoutes", "search_graph", { label: "Route", name_pattern: `.*${escapeRegex(plan.topic ?? plan.symbol ?? ".*")}.*`, format: "json" }, signal); }
   getRelevantSource(plan: CodebaseMemoryQueryPlan, signal?: AbortSignal) { return this.query(plan, "getRelevantSource", "get_code_snippet", { qualified_name: plan.symbol ?? plan.topic }, signal); }
 
   async analyzeImpact(plan: CodebaseMemoryQueryPlan & { changeTarget: string; authorizedFileScope: string[]; maximumDepth: number }, signal?: AbortSignal): Promise<ImpactAnalysis> {
@@ -118,7 +143,7 @@ export class CodebaseMemoryService implements CodebaseMemoryPort {
     void this.event({ type: "index.requested", ...this.meta(safe), taskId, indexChecksum: manifest.checksum });
     let serviceBoundaryRejected = false;
     try {
-      const raw = await this.limited((requestSignal) => this.transport("index_repository", { repo_path: safe.workspacePath, project: `${safe.projectId}-v${safe.projectVersion}` }, requestSignal));
+      const raw = await this.limited((requestSignal) => this.transport("index_repository", { repo_path: safe.workspacePath, name: upstreamProjectName(safe) }, requestSignal));
       try {
         parseUpstreamResult(raw);
       } catch (error) {
@@ -141,17 +166,17 @@ export class CodebaseMemoryService implements CodebaseMemoryPort {
   }
 
   private async query(plan: CodebaseMemoryQueryPlan, operation: CodebaseMemoryQueryPlan["operation"] | string, tool: UpstreamTool, args: Record<string, unknown>, signal?: AbortSignal) {
-    return this.runQuery(plan, operation as CodebaseMemoryQueryPlan["operation"], (requestSignal) => this.transport(tool, { project: `${plan.projectId}-v${plan.projectVersion}`, ...args }, requestSignal), signal);
+    return this.runQuery(plan, operation as CodebaseMemoryQueryPlan["operation"], (requestSignal) => this.transport(tool, { project: upstreamProjectName(plan), ...args }, requestSignal), signal);
   }
 
   private async graph(plan: CodebaseMemoryQueryPlan, operation: string, type: string, signal?: AbortSignal) {
     const target = plan.symbol ?? plan.file ?? plan.topic ?? "";
     isSafeQueryText(target);
-    return this.runQuery(plan, operation as CodebaseMemoryQueryPlan["operation"], (requestSignal) => this.transport("query_graph", { project: `${plan.projectId}-v${plan.projectVersion}`, query: `MATCH (s)-[r:${type}]->(t) WHERE s.name CONTAINS '${target.replaceAll("'", "")}' RETURN s,r,t LIMIT ${plan.maxResults}` }, requestSignal), signal);
+    return this.runQuery(plan, operation as CodebaseMemoryQueryPlan["operation"], (requestSignal) => this.transport("query_graph", { project: upstreamProjectName(plan), query: `MATCH (s)-[r:${type}]->(t) WHERE s.name CONTAINS '${target.replaceAll("'", "")}' RETURN s,r,t LIMIT ${plan.maxResults}` }, requestSignal), signal);
   }
 
   private async trace(plan: CodebaseMemoryQueryPlan, operation: string, direction: "inbound" | "outbound", signal?: AbortSignal) {
-    return this.runQuery(plan, operation as CodebaseMemoryQueryPlan["operation"], (requestSignal) => this.transport("trace_path", { project: `${plan.projectId}-v${plan.projectVersion}`, function_name: plan.symbol ?? plan.topic, direction, depth: 3, limit: plan.maxResults }, requestSignal), signal);
+    return this.runQuery(plan, operation as CodebaseMemoryQueryPlan["operation"], (requestSignal) => this.transport("trace_path", { project: upstreamProjectName(plan), function_name: plan.symbol ?? plan.topic, direction, depth: 3, limit: plan.maxResults }, requestSignal), signal);
   }
 
   private async runQuery(plan: CodebaseMemoryQueryPlan, operation: CodebaseMemoryQueryPlan["operation"], work: (signal: AbortSignal) => Promise<string>, signal?: AbortSignal): Promise<CodebaseMemoryResult> {
@@ -182,17 +207,17 @@ export class CodebaseMemoryService implements CodebaseMemoryPort {
   }
 
   private normalize(raw: unknown, plan: CodebaseMemoryQueryPlan, operation: CodebaseMemoryQueryPlan["operation"], index: CodebaseMemoryIndex): CodebaseMemoryResult {
-    const value = raw as { results?: unknown[]; content?: Array<{ text?: string }> };
-    const rows = Array.isArray(value?.results) ? value.results : Array.isArray(value?.content) ? value.content : [];
+    const value = raw as { content?: Array<{ text?: string }> };
+    const rows = upstreamRows(raw);
     const symbols = [];
     const relationships: CodeRelationship[] = [];
     for (const row of rows.slice(0, plan.maxResults)) {
       const item = row as Record<string, unknown>;
-      if (typeof item.name === "string" && typeof item.file === "string") symbols.push(CodeSymbolReferenceSchema.parse({ symbol: item.name, kind: typeof item.label === "string" ? item.label : "symbol", file: item.file, exported: undefined, signatureSummary: typeof item.signature === "string" ? item.signature : undefined }));
+      if (typeof item.name === "string" && typeof item.file === "string") symbols.push(CodeSymbolReferenceSchema.parse({ symbol: item.name, kind: typeof item.label === "string" ? item.label : "symbol", file: item.file, lineStart: typeof item.lineStart === "number" ? item.lineStart : undefined, lineEnd: typeof item.lineEnd === "number" ? item.lineEnd : undefined, exported: undefined, signatureSummary: typeof item.signature === "string" ? item.signature : undefined }));
       if (typeof item.source === "string" && typeof item.target === "string") relationships.push(CodeRelationshipSchema.parse({ sourceSymbol: item.source, targetSymbol: item.target, relationshipType: this.relationshipType(operation), provenance: "Codebase Memory MCP" }));
     }
     const excerpts: SourceExcerpt[] = [];
-    const rawText = rows.map((row) => typeof row === "string" ? row : typeof (row as { text?: unknown })?.text === "string" ? (row as { text: string }).text : "").filter(Boolean).join("\n");
+    const rawText = (Array.isArray(value?.content) ? value.content : rows).map((row) => typeof row === "string" ? row : typeof (row as { text?: unknown })?.text === "string" ? (row as { text: string }).text : "").filter(Boolean).join("\n");
     const text = truncateUtf8(rawText, plan.maxBytes);
     if (text) excerpts.push(SourceExcerptSchema.parse({ file: plan.file ?? plan.symbol ?? "result", text, lineStart: 1, lineEnd: text.split(/\r?\n/).length, bytes: Buffer.byteLength(text, "utf8"), checksum: sha(text) }));
     return { queryId: plan.queryId, operation, index, symbols, relationships, excerpts, totalBytes: Buffer.byteLength(text, "utf8"), cache: "miss" };

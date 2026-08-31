@@ -5,7 +5,7 @@ import { buildProductionResponseFormat, OpenAiStructuredClient, parseProviderWir
 import { AiProviderError } from "./errors";
 import { FifoConcurrencyLimiter } from "./limiter";
 import { zodResponseFormat } from "openai/helpers/zod";
-import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, OpenAiLeadProvider, OpenAiPlannerProvider, PlanningPackageStructuredOutputSchema, PlanningRecoveryPackageStructuredOutputSchema, PlanningRecoveryProviderWireSchema, isWorkflowApprovalBlocker } from "./adapters";
+import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, OpenAiLeadProvider, OpenAiPlannerProvider, PlanningPackageStructuredOutputSchema, createPlanningRecoveryProviderWireSchema, isWorkflowApprovalBlocker } from "./adapters";
 import { readAiProviderConfig } from "./config";
 import { ArchitectureReviewProviderOutputSchema, CodeIntegrationReviewProviderOutputSchema, ContractAuditProviderOutputSchema, SecurityReviewProviderOutputSchema, TestQualityReviewProviderOutputSchema } from "@/domain/review/schema";
 import { analyzePromptDeterministically } from "@/agents/lead/deterministic";
@@ -16,7 +16,7 @@ import { emptyBriefV2Fields } from "@/domain/requirements/brief";
 import { buildPlanningPackage } from "@/agents/planner/deterministic";
 import { cleanBriefV3 } from "@/domain/requirements/v3/fixtures";
 import { CanonicalBriefV3Schema } from "@/domain/requirements/v3/schema";
-import { createCanonicalPlanningRouteManifest, createPlanningOwnedRequirementManifest } from "@/agents/planner/recovery-manifests";
+import { createCanonicalPlanningRouteManifest, createPlanningOwnedRequirementManifest, createPlanningTargetCatalog } from "@/agents/planner/recovery-manifests";
 
 const config = { apiKey: "test", model: "test-model", modelLabel: "GPT-5.6 Luna", maxRetries: 1, maxConcurrentRequests: 1 };
 const schema = z.object({ ok: z.boolean(), summary: z.string() }).strict();
@@ -72,6 +72,8 @@ function recoveryNormalizationFixture() {
   });
   const routeManifest = createCanonicalPlanningRouteManifest(canonicalBrief);
   const requirementManifest = createPlanningOwnedRequirementManifest(canonicalBrief);
+  const targetCatalog = createPlanningTargetCatalog(routeManifest);
+  const traceabilityTarget = targetCatalog.targets.find((entry) => entry.kind === "section" && entry.section === "traceability")!;
   const firstRequirementHandle = requirementManifest.requirements[0]!.requirementHandle;
   type JsonObject = Record<string, unknown>;
   const handleizeReferences = (value: unknown, key = ""): unknown => {
@@ -124,12 +126,12 @@ function recoveryNormalizationFixture() {
   });
   const architecture = transport.architecture as JsonObject;
   architecture.routes = (architecture.routes as JsonObject[]).map((route) => ({ routeHandle: routeForValue(route.path).routeHandle, responsibility: route.responsibility }));
-  transport.requirementAccounting = requirementManifest.requirements.map(() => ({
+  transport.requirementAccounting = Object.fromEntries(requirementManifest.requirements.map((entry) => [entry.requirementHandle, {
     disposition: "OTHER_PLANNING_RESPONSIBILITY",
-    planningTargetRefs: [{ kind: "section", routeHandle: null, pageHandle: null, section: "traceability" }],
+    planningTargetRefs: [{ targetHandle: traceabilityTarget.targetHandle }],
     semanticEvidence: "The current Planning package records the approved responsibility in its traceability section.",
-  }));
-  PlanningRecoveryPackageStructuredOutputSchema.parse(transport);
+  }])) as Record<string, unknown>;
+  createPlanningRecoveryProviderWireSchema(requirementManifest).parse(transport);
   return {
     transport,
     input: {
@@ -139,6 +141,7 @@ function recoveryNormalizationFixture() {
       canonicalBrief,
       canonicalRouteManifest: routeManifest,
       planningRequirementManifest: requirementManifest,
+      planningTargetCatalog: targetCatalog,
       planningOwnedRequirements: requirementManifest.requirements.map(({ requirementId, category, statement, sourceRefs }) => ({ id: requirementId, category, statement, sourceRefs })),
       plannerInput: { ...base.input, canonicalBrief },
       currentPlanningEvidence: { structuralSummary: { routeCount: 2, pageCount: 2, formCount: 1, assetCount: 0, dependencyCount: 1, structuralChecksum: "a".repeat(64) } },
@@ -220,38 +223,46 @@ describe("production AI provider boundary", () => {
     expect(schema.properties.traceability.items?.properties).not.toHaveProperty("decisionId");
   });
   it("uses a separate strict recovery transport with host-free identity and exact handle fields", () => {
-    expect(() => zodResponseFormat(PlanningRecoveryPackageStructuredOutputSchema, "planning-recovery-package")).not.toThrow();
-    expect(PlanningRecoveryPackageStructuredOutputSchema.safeParse({ projectId: randomUUID() }).success).toBe(false);
-    const schema = (zodResponseFormat(PlanningRecoveryPackageStructuredOutputSchema, "planning-recovery-package") as unknown as { json_schema: { schema: { properties: Record<string, { properties?: Record<string, unknown>; items?: { properties?: Record<string, unknown> } }> } } }).json_schema.schema;
+    const fixture = recoveryNormalizationFixture();
+    const recoverySchema = createPlanningRecoveryProviderWireSchema(fixture.input.planningRequirementManifest);
+    expect(() => zodResponseFormat(recoverySchema, "planning-recovery-package")).not.toThrow();
+    expect(recoverySchema.safeParse({ projectId: randomUUID() }).success).toBe(false);
+    const schema = (zodResponseFormat(recoverySchema, "planning-recovery-package") as unknown as { json_schema: { schema: { properties: Record<string, { properties?: Record<string, unknown>; items?: { properties?: Record<string, unknown> } }> } } }).json_schema.schema;
     const routeProperties = ((schema.properties.sitemap?.properties?.routes as { items?: { properties?: Record<string, unknown> } } | undefined)?.items?.properties);
     expect(schema.properties).not.toHaveProperty("accepted");
     expect(schema.properties).not.toHaveProperty("sourceHead");
     expect(schema.properties).not.toHaveProperty("routePolicy");
-    expect(schema.properties.requirementAccounting?.items?.properties).not.toHaveProperty("requirementId");
-    expect(schema.properties.requirementAccounting?.items?.properties).not.toHaveProperty("requirementDomain");
-    expect(schema.properties.requirementAccounting?.items?.properties).toHaveProperty("planningTargetRefs");
-    expect(schema.properties.requirementAccounting?.items?.properties).toHaveProperty("semanticEvidence");
-    const targetProperties = (schema.properties.requirementAccounting?.items?.properties?.planningTargetRefs as { items?: { properties?: Record<string, unknown> } } | undefined)?.items?.properties;
-    expect(targetProperties).toEqual(expect.objectContaining({ kind: expect.anything(), routeHandle: expect.anything(), pageHandle: expect.anything(), section: expect.anything() }));
+    const accountingProperties = schema.properties.requirementAccounting?.properties as Record<string, { properties?: Record<string, unknown>; items?: unknown }> | undefined;
+    expect(accountingProperties).toBeDefined();
+    const firstAccounting = accountingProperties?.[fixture.input.planningRequirementManifest.requirements[0]!.requirementHandle];
+    expect(firstAccounting?.properties).not.toHaveProperty("requirementId");
+    expect(firstAccounting?.properties).not.toHaveProperty("requirementDomain");
+    expect(firstAccounting?.properties).toHaveProperty("planningTargetRefs");
+    expect(firstAccounting?.properties).toHaveProperty("semanticEvidence");
+    const targetProperties = (firstAccounting?.properties?.planningTargetRefs as { items?: { properties?: Record<string, unknown> } } | undefined)?.items?.properties;
+    expect(targetProperties).toEqual({ targetHandle: expect.anything() });
+    const accounting = fixture.transport.requirementAccounting as Record<string, unknown>;
+    expect(recoverySchema.safeParse({ ...fixture.transport, requirementAccounting: Object.fromEntries(Object.entries(accounting).slice(0, -1)) }).success).toBe(false);
+    expect(recoverySchema.safeParse({ ...fixture.transport, requirementAccounting: { ...accounting, "planning-requirement:R999": accounting[fixture.input.planningRequirementManifest.requirements[0]!.requirementHandle] } }).success).toBe(false);
     expect(routeProperties).toHaveProperty("routeHandle");
     expect(routeProperties).toHaveProperty("pageHandle");
     expect(routeProperties).not.toHaveProperty("id");
-    expect(hostOwnedPaths((zodResponseFormat(PlanningRecoveryProviderWireSchema, "planning-recovery-package") as { json_schema: { schema: unknown } }).json_schema.schema, "root", true)).toEqual([]);
-    expect(JSON.stringify((zodResponseFormat(PlanningRecoveryProviderWireSchema, "planning-recovery-package") as { json_schema: { schema: unknown } }).json_schema.schema)).not.toMatch(/"(?:createdAt|updatedAt)"|date-time/);
+    expect(hostOwnedPaths((zodResponseFormat(recoverySchema, "planning-recovery-package") as { json_schema: { schema: unknown } }).json_schema.schema, "root", true)).toEqual([]);
+    expect(JSON.stringify((zodResponseFormat(recoverySchema, "planning-recovery-package") as { json_schema: { schema: unknown } }).json_schema.schema)).not.toMatch(/"(?:createdAt|updatedAt)"|date-time/);
   });
   it("normalizes a complete recovery response from opaque handles before canonical package validation", async () => {
     const fixture = recoveryNormalizationFixture();
     const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: fixture.transport as T, requestId: "req_recovery_handle_binding" }) });
     const result = await new OpenAiPlannerProvider(client).planRecovery(fixture.input as never, [], "none", "2026-08-31T00:00:00.000Z");
     expect(result.planningPackage.sitemap.routes.map((route) => route.path)).toEqual(["/", "/contact"]);
-    expect(result.requirementAccounting).toHaveLength(fixture.input.planningRequirementManifest.requirements.length);
-    expect(result.requirementAccounting.every((entry) => !("requirementId" in entry))).toBe(true);
+    expect(Object.keys(result.requirementAccounting)).toHaveLength(fixture.input.planningRequirementManifest.requirements.length);
+    expect(Object.values(result.requirementAccounting as Record<string, unknown>).every((entry) => !entry || typeof entry !== "object" || !("requirementId" in entry))).toBe(true);
     expect(result.planningPackage.traceability.some((entry) => entry.requirementReferences.includes(fixture.input.planningRequirementManifest.requirements[0]!.requirementId))).toBe(true);
     expect(result.planningPackage.createdAt).toBe("2026-08-31T00:00:00.000Z");
     expect(result.planningPackage.updatedAt).toBe("2026-08-31T00:00:00.000Z");
     expect(result.planningPackage.sitemap.createdAt).toBe("2026-08-31T00:00:00.000Z");
     expect(result.planningPackage.architecture.updatedAt).toBe("2026-08-31T00:00:00.000Z");
-    expect(PlanningRecoveryProviderWireSchema.safeParse({ ...fixture.transport, createdAt: "2026-08-30T00:00:00.000Z" }).success).toBe(false);
+    expect(createPlanningRecoveryProviderWireSchema(fixture.input.planningRequirementManifest).safeParse({ ...fixture.transport, createdAt: "2026-08-30T00:00:00.000Z" }).success).toBe(false);
   });
   it("replays the exact 11-route and 118-requirement recovery wire shape without network access", () => {
     const fixture = recoveryNormalizationFixture();
@@ -265,13 +276,17 @@ describe("production AI provider boundary", () => {
     const architecture = replay.architecture as Record<string, unknown>;
     const baseArchitectureRoute = (architecture.routes as Array<Record<string, unknown>>)[0]!;
     architecture.routes = Array.from({ length: 11 }, (_, index) => ({ ...baseArchitectureRoute, routeHandle: `planning-route:replay-${String(index + 1).padStart(3, "0")}` }));
-    const accounting = replay.requirementAccounting as Array<Record<string, unknown>>;
-    replay.requirementAccounting = Array.from({ length: 118 }, (_, index) => ({ ...accounting[index % Math.max(accounting.length, 1)]!, semanticEvidence: `Synthetic replay evidence position ${index}.` }));
-    PlanningRecoveryPackageStructuredOutputSchema.parse(replay);
-    const responseFormat = buildProductionResponseFormat(PlanningRecoveryPackageStructuredOutputSchema, "planning-recovery-package") as unknown as { type: string; json_schema: { name: string; strict: boolean; schema: unknown } };
+    const accounting = replay.requirementAccounting as Record<string, Record<string, unknown>>;
+    const contractManifestRequirements = Array.from({ length: 118 }, (_, index) => ({ requirementHandle: `planning-requirement:R${String(index).padStart(3, "0")}` }));
+    const contractManifest = { requirements: contractManifestRequirements };
+    const baseAccounting = Object.values(accounting)[0]!;
+    replay.requirementAccounting = Object.fromEntries(contractManifestRequirements.map((entry, index) => [entry.requirementHandle, { ...baseAccounting, semanticEvidence: `Synthetic replay evidence position ${index}.` }]));
+    const recoverySchema = createPlanningRecoveryProviderWireSchema(contractManifest as never);
+    recoverySchema.parse(replay);
+    const responseFormat = buildProductionResponseFormat(recoverySchema, "planning-recovery-package") as unknown as { type: string; json_schema: { name: string; strict: boolean; schema: unknown } };
     const parsed = parseProviderWireContent({
       content: JSON.stringify(replay),
-      schema: PlanningRecoveryPackageStructuredOutputSchema,
+      schema: recoverySchema,
       response: {
         requestId: "req_manual_replay",
         inputTokens: 11,
@@ -282,7 +297,7 @@ describe("production AI provider boundary", () => {
     expect(responseFormat).toMatchObject({ type: "json_schema", json_schema: { name: "planning-recovery-package", strict: true } });
     expect(JSON.stringify(responseFormat.json_schema)).not.toContain("$parseRaw");
     expect(parsed.value.sitemap.routes).toHaveLength(11);
-    expect(parsed.value.requirementAccounting).toHaveLength(118);
+    expect(Object.keys(parsed.value.requirementAccounting)).toHaveLength(118);
     expect(parsed.diagnostic).toMatchObject({ jsonParseSucceeded: true, rawContentBytes: expect.any(Number), rawContentChecksum: expect.stringMatching(/^[a-f0-9]{64}$/), outputComplete: true });
   });
   it("normalizes a provider backend priority to no-backend when the approved Brief requires frontend-only behavior", async () => {

@@ -17,7 +17,7 @@ import { admitPlanningRefresh, normalizePlanningPackageForHost, validatePlanning
 import { FakePlannerMemoryPort } from "./memory";
 import { createRecoveryAdmissionDiagnosticSummary, PlanningRecoveryCrash, PlanningRecoveryService, type PlanningRecoveryProvider, type PlanningRecoveryProviderResult } from "./recovery";
 import type { PlanningRecoveryProviderAttemptStartCurrentness } from "./recovery-runs";
-import { createCanonicalPlanningRouteManifest, createPlanningOwnedRequirementManifest, validatePlanningRecoveryRequirementAccounting } from "./recovery-manifests";
+import { createCanonicalPlanningRouteManifest, createPlanningOwnedRequirementManifest, createPlanningTargetCatalog, validatePlanningRecoveryRequirementAccounting } from "./recovery-manifests";
 import { CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY, planningSemanticChecksumForPolicy } from "./semantic-checksum";
 import { buildPhase7CContractPackage } from "@/domain/contracts/phase7c";
 import { createStaticSourceCurrentnessPort } from "@/runtime/source-head";
@@ -93,22 +93,24 @@ function recoveryRequirementDisposition(category: string) {
 
 function completeRecoveryResult(input: Parameters<typeof buildPlanningPackage>[0], candidate = completeRecoveryCandidate(input)): PlanningRecoveryProviderResult {
   const manifest = createPlanningOwnedRequirementManifest(input.canonicalBrief!);
+  const target = createPlanningTargetCatalog(createCanonicalPlanningRouteManifest(input.canonicalBrief!)).targets.find((entry) => entry.kind === "section" && entry.section === "traceability")!;
   return {
     planningPackage: candidate,
-    requirementAccounting: manifest.requirements.map((entry) => ({
+    requirementAccounting: Object.fromEntries(manifest.requirements.map((entry) => [entry.requirementHandle, {
       disposition: recoveryRequirementDisposition(entry.category),
-      planningTargetRefs: [{ kind: "section" as const, routeHandle: null, pageHandle: null, section: "traceability" as const }],
+      planningTargetRefs: [{ targetHandle: target.targetHandle }],
       semanticEvidence: "Synthetic fixture records the explicit Planning treatment.",
-    })),
+    }])) ,
   };
 }
 
 function recoveryAccountingForPlan(plan: NonNullable<Awaited<ReturnType<PlanningRecoveryService["prepare"]>>["plan"]>) {
-  return plan.planningRequirementManifest!.requirements.map((entry) => ({
+  const target = plan.planningTargetCatalog!.targets.find((entry) => entry.kind === "section" && entry.section === "traceability")!;
+  return Object.fromEntries(plan.planningRequirementManifest!.requirements.map((entry) => [entry.requirementHandle, {
     disposition: recoveryRequirementDisposition(entry.category),
-    planningTargetRefs: [{ kind: "section" as const, routeHandle: null, pageHandle: null, section: "traceability" as const }],
+    planningTargetRefs: [{ targetHandle: target.targetHandle }],
     semanticEvidence: "Synthetic apply fixture records the explicit Planning treatment.",
-  }));
+  }])) ;
 }
 
 function multiPageBrief() {
@@ -282,7 +284,9 @@ describe("host-owned full Planning recovery", () => {
     const fixture = await seeded({ currentBrief: next, packageBrief: base });
     const recovery = service(fixture);
     const prepared = await recovery.prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: "accounting-shape" });
-    const malformed = [...recoveryAccountingForPlan(prepared.plan!), { ...recoveryAccountingForPlan(prepared.plan!)[0]!, unexpected: "must-be-rejected" }];
+    const validAccounting = recoveryAccountingForPlan(prepared.plan!);
+    const firstAccounting = Object.values(validAccounting)[0]!;
+    const malformed = { ...validAccounting, "planning-requirement:R999": { ...firstAccounting, unexpected: "must-be-rejected" } };
     await expect(recovery.apply({ projectId: fixture.projectId, projectVersion: 1, operationKey: "accounting-shape", plan: prepared.plan!, candidate: fixture.currentPackage, requirementAccounting: malformed as unknown as PlanningRecoveryProviderResult["requirementAccounting"] })).rejects.toMatchObject({ code: "RECOVERY_CANDIDATE_INVALID" });
     expect(fixture.database.planningRecoveryEvidence.size).toBe(0);
   });

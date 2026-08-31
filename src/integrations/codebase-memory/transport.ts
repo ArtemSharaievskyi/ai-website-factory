@@ -25,6 +25,8 @@ export class CodebaseMemoryProcessTransport {
   private terminations = new Set<Promise<void>>();
   private nextId = 1;
   private stderrBytes = 0;
+  private initialized = false;
+  private initializationPromise?: Promise<void>;
 
   constructor(private readonly executable: string, private readonly cwd: string, private readonly timeoutMs: number, private readonly environment: NodeJS.ProcessEnv = buildCodebaseMemoryChildEnvironment()) {}
 
@@ -32,9 +34,37 @@ export class CodebaseMemoryProcessTransport {
     if (!UPSTREAM_READ_ONLY_ALLOWLIST.has(tool)) throw new CodebaseMemoryError("CODEBASE_MEMORY_OPERATION_NOT_ALLOWED", "The upstream operation is not on the read-only allowlist.");
     if (signal?.aborted) throw new CodebaseMemoryError("CODEBASE_MEMORY_CANCELLED", "Codebase Memory request was cancelled.");
     this.start();
+    await this.ensureInitialized(signal);
+    return this.request("tools/call", { name: tool, arguments: args }, signal);
+  }
+
+  private ensureInitialized(signal?: AbortSignal) {
+    if (this.initialized) return Promise.resolve();
+    if (!this.initializationPromise) {
+      this.initializationPromise = this.request("initialize", {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "ai-website-factory", version: "0.1.0" },
+      }).then(() => {
+        this.initialized = true;
+        this.process?.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized", params: {} })}\n`);
+      }).catch((error) => {
+        this.initializationPromise = undefined;
+        throw error;
+      });
+    }
+    return this.awaitWithSignal(this.initializationPromise, signal);
+  }
+
+  private async request(method: string, params: Record<string, unknown>, signal?: AbortSignal) {
     const id = this.nextId++;
     const promise = new Promise<string>((resolve, reject) => this.pending.set(id, { resolve, reject }));
-    this.process!.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params: { name: tool, arguments: args } })}\n`);
+    try {
+      this.process!.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
+    } catch (error) {
+      this.pending.delete(id);
+      throw new CodebaseMemoryError("CODEBASE_MEMORY_UNAVAILABLE", "Codebase Memory request could not be written.", error);
+    }
     const timer = setTimeout(() => {
       this.cancelPending(id, new CodebaseMemoryError("CODEBASE_MEMORY_TIMEOUT", "Codebase Memory request timed out."));
     }, this.timeoutMs);
@@ -51,6 +81,17 @@ export class CodebaseMemoryProcessTransport {
     }
   }
 
+  private awaitWithSignal<T>(work: Promise<T>, signal?: AbortSignal): Promise<T> {
+    if (!signal) return work;
+    if (signal.aborted) return Promise.reject(new CodebaseMemoryError("CODEBASE_MEMORY_CANCELLED", "Codebase Memory request was cancelled."));
+    return new Promise<T>((resolve, reject) => {
+      const onAbort = () => { cleanup(); reject(new CodebaseMemoryError("CODEBASE_MEMORY_CANCELLED", "Codebase Memory request was cancelled.")); };
+      const cleanup = () => signal.removeEventListener("abort", onAbort);
+      signal.addEventListener("abort", onAbort, { once: true });
+      work.then((value) => { cleanup(); resolve(value); }, (error) => { cleanup(); reject(error); });
+    });
+  }
+
   private start() {
     if (this.process) return;
     const child = spawn(this.executable, [], { cwd: this.cwd, env: { ...this.environment }, shell: false, stdio: ["pipe", "pipe", "pipe"] });
@@ -61,6 +102,8 @@ export class CodebaseMemoryProcessTransport {
     child.on("exit", () => {
       if (this.process !== child) return;
       this.process = undefined;
+      this.initialized = false;
+      this.initializationPromise = undefined;
       this.buffer = Buffer.alloc(0);
       this.stderrBytes = 0;
       const pending = [...this.pending.values()];
@@ -115,6 +158,8 @@ export class CodebaseMemoryProcessTransport {
   private failOverflow(child: ChildProcessWithoutNullStreams) {
     if (this.process !== child) return;
     this.process = undefined;
+    this.initialized = false;
+    this.initializationPromise = undefined;
     this.buffer = Buffer.alloc(0);
     this.stderrBytes = 0;
     const error = new CodebaseMemoryError("CODEBASE_MEMORY_UNAVAILABLE", "Upstream Codebase Memory response exceeded the bounded transport limit.");
@@ -127,6 +172,8 @@ export class CodebaseMemoryProcessTransport {
   async close() {
     const child = this.process;
     this.process = undefined;
+    this.initialized = false;
+    this.initializationPromise = undefined;
     this.buffer = Buffer.alloc(0);
     this.stderrBytes = 0;
     const pending = [...this.pending.values()];
@@ -144,6 +191,8 @@ export class CodebaseMemoryProcessTransport {
     const child = this.process;
     if (child && this.pending.size === 0) {
       this.process = undefined;
+      this.initialized = false;
+      this.initializationPromise = undefined;
       this.buffer = Buffer.alloc(0);
       this.stderrBytes = 0;
       void this.terminate(child);

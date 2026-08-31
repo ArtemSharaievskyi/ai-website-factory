@@ -15,7 +15,7 @@ import {
 import type { PlannerArchitectureProvider } from "@/agents/planner/ports";
 import type { PlanningRecoveryProviderInput, PlanningRecoveryProviderResult } from "@/agents/planner/recovery";
 import {
-  PlanningRecoverySemanticAccountingSchema,
+  createPlanningRecoverySemanticAccountingSchema,
   type CanonicalPlanningRouteManifest,
   type PlanningOwnedRequirementManifest,
 } from "@/agents/planner/recovery-manifests";
@@ -786,36 +786,39 @@ const StrictRecoveryTestStrategySchema = z.object({
   ...withoutProviderDocumentMetadata(PlanningPackageStructuredOutputSchema.shape.testStrategy.shape),
 }).strict();
 
-/** Recovery-only provider DTO. Route/page identities are handles; accounting is positional and identity-free. */
-export const PlanningRecoveryProviderWireSchema = PlanningPackageStructuredOutputSchema.omit({ createdAt: true, updatedAt: true }).extend({
-  requirementAccounting: PlanningRecoverySemanticAccountingSchema,
-  profile: StrictRecoveryProfileSchema,
-  databaseRecommendation: StrictRecoveryDatabaseRecommendationSchema,
-  productScope: StrictRecoveryProductScopeSchema,
-  sitemap: StrictRecoverySitemapSchema,
-  navigation: StrictRecoveryNavigationSchema,
-  pages: StrictRecoveryPagesSchema,
-  userFlows: StrictRecoveryUserFlowsSchema,
-  forms: StrictRecoveryFormsSchema,
-  dataModel: StrictRecoveryDataModelSchema,
-  authentication: StrictRecoveryAuthenticationSchema,
-  supabase: StrictRecoverySupabaseSchema,
-  email: StrictRecoveryEmailSchema,
-  storage: StrictRecoveryStorageSchema,
-  administration: StrictRecoveryAdministrationSchema,
-  content: StrictRecoveryContentSchema,
-  assets: StrictRecoveryAssetManifestSchema,
-  environment: StrictRecoveryEnvironmentSchema,
-  dependencies: StrictRecoveryDependencySchema,
-  testStrategy: StrictRecoveryTestStrategySchema,
-  security: StrictRecoverySecuritySchema,
-  architecture: StrictRecoveryArchitectureSchema,
-  traceability: z.array(StrictRecoveryTraceabilitySchema),
-}).strict();
+/** Recovery-only provider DTO. The keyed accounting shape is generated from the host manifest. */
+export function createPlanningRecoveryProviderWireSchema(manifest: Pick<PlanningOwnedRequirementManifest, "requirements">) {
+  return PlanningPackageStructuredOutputSchema.omit({ createdAt: true, updatedAt: true }).extend({
+    requirementAccounting: createPlanningRecoverySemanticAccountingSchema(manifest),
+    profile: StrictRecoveryProfileSchema,
+    databaseRecommendation: StrictRecoveryDatabaseRecommendationSchema,
+    productScope: StrictRecoveryProductScopeSchema,
+    sitemap: StrictRecoverySitemapSchema,
+    navigation: StrictRecoveryNavigationSchema,
+    pages: StrictRecoveryPagesSchema,
+    userFlows: StrictRecoveryUserFlowsSchema,
+    forms: StrictRecoveryFormsSchema,
+    dataModel: StrictRecoveryDataModelSchema,
+    authentication: StrictRecoveryAuthenticationSchema,
+    supabase: StrictRecoverySupabaseSchema,
+    email: StrictRecoveryEmailSchema,
+    storage: StrictRecoveryStorageSchema,
+    administration: StrictRecoveryAdministrationSchema,
+    content: StrictRecoveryContentSchema,
+    assets: StrictRecoveryAssetManifestSchema,
+    environment: StrictRecoveryEnvironmentSchema,
+    dependencies: StrictRecoveryDependencySchema,
+    testStrategy: StrictRecoveryTestStrategySchema,
+    security: StrictRecoverySecuritySchema,
+    architecture: StrictRecoveryArchitectureSchema,
+    traceability: z.array(StrictRecoveryTraceabilitySchema),
+  }).strict();
+}
 
-/** Compatibility export for the registered planning-recovery contract name. */
-export const PlanningRecoveryPackageStructuredOutputSchema = PlanningRecoveryProviderWireSchema;
-export type PlanningRecoveryProviderWire = z.infer<typeof PlanningRecoveryProviderWireSchema>;
+/** Named factory exports retain the registered contract vocabulary without a static cardinality. */
+export const PlanningRecoveryProviderWireSchema = createPlanningRecoveryProviderWireSchema;
+export const PlanningRecoveryPackageStructuredOutputSchema = createPlanningRecoveryProviderWireSchema;
+export type PlanningRecoveryProviderWire = z.infer<ReturnType<typeof createPlanningRecoveryProviderWireSchema>>;
 type PlanningRecoveryProviderPackage = PlanningRecoveryProviderWire;
 
 function omitRecoveryFields(value: Record<string, unknown>, fields: readonly string[]) {
@@ -1442,6 +1445,10 @@ export function createPlanningRecoveryPromptContext(input: PlanningRecoveryProvi
         pageSourceRefs: input.canonicalBrief.pages.find((page) => page.id === route.pageId)?.sourceRefs ?? [],
       })),
     },
+    planningTargetCatalog: {
+      schemaVersion: input.planningTargetCatalog.schemaVersion,
+      targets: input.planningTargetCatalog.targets,
+    },
     planningRequirementManifest: {
       schemaVersion: input.planningRequirementManifest.schemaVersion,
       requirements: input.planningRequirementManifest.requirements.map((entry, position) => ({
@@ -1506,18 +1513,19 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
       "Emit every required route manifest entry exactly once using its exact routeHandle, pageHandle, and canonical path; emit every required page exactly once using its exact handles.",
       "Use only exact host-issued planning requirement handles from planningRequirementManifest for PlanningPackage requirementReferences and traceability entries; the host maps those handles to canonical V3 IDs. Preserve page and asset references only when present in the supplied host manifests; do not use legacy IDs, canonical Planning IDs, or invented references.",
       "Return all required routes in sitemap and architecture, use route handles for navigation, flow starts/steps, and forms, and include complete semantic and traceability coverage for every manifest requirement.",
-      "For every ordered entry in planningRequirementManifest, emit exactly one requirementAccounting entry in the same order. Each accounting entry must contain only one explicit disposition, one or more planningTargetRefs, and concise non-empty semanticEvidence; each target ref is {kind,routeHandle,pageHandle,section} with exactly one kind-specific value and the other two values null. Use only host-issued route/page handles or an existing Planning section; do not include requirementId or requirementDomain because the host binds those from position.",
+      "For every exact requirementHandle key in planningRequirementManifest, emit exactly one requirementAccounting object property with that same key; do not add, omit, rename, or reorder keys. Each accounting value contains one explicit disposition, zero or more additional planningTargetRefs, and concise non-empty semanticEvidence. Each target ref is only {targetHandle}, selected from the host-issued planningTargetCatalog; do not emit routeHandle, pageHandle, section, requirementId, requirementDomain, or any other identity field. Host-prebound target relationships, when supplied by the host manifest, are added by the host and need not be rediscovered.",
       "Do not use keyword matching as a substitute for semantic reasoning; semanticEvidence must explain the actual Planning treatment of the canonical requirement.",
       "The output policy is complete=true with truncation=REJECT; never truncate or return a partial package.",
       "Do not mutate persistence, the project, workflow state, approvals, checksums, timestamps, or decision identities.",
       "Do not invent requirement IDs, target handles, pages, assets, business facts, providers, backend capabilities, or user decisions.",
       "The host will bind identity, route policy, timestamps, decision IDs, acceptance, and checksum policy and will reject unsupported facts or incomplete coverage.",
     ].join(" ");
-    const result = await this.ai.request<z.infer<typeof PlanningRecoveryProviderWireSchema>>({
+    const wireSchema = createPlanningRecoveryProviderWireSchema(input.planningRequirementManifest);
+    const result = await this.ai.request<z.infer<typeof wireSchema>>({
       ...prompt,
       system: `${prompt.system}\n${instruction}`,
       role: "planner",
-      schema: PlanningRecoveryProviderWireSchema,
+      schema: wireSchema,
       schemaName: "planning-recovery-package",
       idempotencyKey: `${input.plannerInput.idempotencyKey}:${skillContextIdentity}`,
       maxCompletionTokens: input.outputPolicy.maxEstimatedTokens,

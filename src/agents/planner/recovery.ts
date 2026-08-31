@@ -90,13 +90,15 @@ import {
   PlanningRecoveryOutputPolicySchema,
   createCanonicalPlanningRouteManifest,
   createPlanningOwnedRequirementManifest,
+  createPlanningTargetCatalog,
   requirementManifestAsCanonicalRequirements,
   PlanningRecoverySemanticAccountingSchema,
+  PlanningRecoveryLegacySemanticAccountingSchema,
   bindPlanningRecoverySemanticAccounting,
   validatePlanningRecoveryRequirementAccounting,
-  type PlanningRecoverySemanticAccounting,
   type PlanningRecoveryRequirementAccountingIssue,
   type CanonicalPlanningRouteManifest,
+  PlanningTargetCatalogSchema,
 } from "./recovery-manifests";
 
 export const PLANNING_RECOVERY_AUTHORITY = "PLANNING_RECOVERY" as const;
@@ -142,6 +144,7 @@ const PlanningRecoveryPlanPayloadSchema = z.object({
   planningOwnedRequirementIds: z.array(z.string().min(1)).max(512),
   canonicalRouteManifest: CanonicalPlanningRouteManifestSchema.optional(),
   planningRequirementManifest: PlanningOwnedRequirementManifestSchema.optional(),
+  planningTargetCatalog: PlanningTargetCatalogSchema.optional(),
   reconciliationScopeChecksum: Sha256Schema,
   providerCapability: z.object({
     contractVersion: z.union([z.literal(1), z.literal(2)]),
@@ -183,6 +186,7 @@ export const PlanningRecoveryProviderInputSchema = z.object({
   canonicalBrief: CanonicalBriefV3Schema,
   canonicalRouteManifest: CanonicalPlanningRouteManifestSchema,
   planningRequirementManifest: PlanningOwnedRequirementManifestSchema,
+  planningTargetCatalog: PlanningTargetCatalogSchema,
   planningOwnedRequirements: z.array(CanonicalRequirementSchema).max(512),
   plannerInput: PlannerAgentInputSchema,
   currentPlanningEvidence: CurrentPlanningEvidenceSchema,
@@ -195,6 +199,7 @@ export const PlanningRecoveryProviderInputSchema = z.object({
 }).strict().superRefine((value, context) => {
   if (value.plan.canonicalRouteManifest?.manifestChecksum !== value.canonicalRouteManifest.manifestChecksum) context.addIssue({ code: "custom", path: ["canonicalRouteManifest"], message: "Provider route manifest does not match the recovery plan." });
   if (value.plan.planningRequirementManifest?.manifestChecksum !== value.planningRequirementManifest.manifestChecksum) context.addIssue({ code: "custom", path: ["planningRequirementManifest"], message: "Provider requirement manifest does not match the recovery plan." });
+  if (value.plan.planningTargetCatalog?.catalogChecksum !== value.planningTargetCatalog.catalogChecksum) context.addIssue({ code: "custom", path: ["planningTargetCatalog"], message: "Provider target catalog does not match the recovery plan." });
   if (value.canonicalRouteManifest.routePolicy !== value.plan.routePolicy) context.addIssue({ code: "custom", path: ["canonicalRouteManifest", "routePolicy"], message: "Provider route manifest policy does not match the recovery plan." });
   const manifestIds = value.planningRequirementManifest.requirements.map((entry) => entry.requirementId);
   const planIds = [...value.plan.planningOwnedRequirementIds].sort();
@@ -207,7 +212,7 @@ export type PlanningRecoveryProviderInput = z.infer<typeof PlanningRecoveryProvi
 /** Durable provider result: the package and its explicit per-requirement semantic accounting travel together. */
 export const PlanningRecoveryProviderResultSchema = z.object({
   planningPackage: PlanningPackageSchema,
-  requirementAccounting: PlanningRecoverySemanticAccountingSchema,
+  requirementAccounting: z.union([PlanningRecoverySemanticAccountingSchema, PlanningRecoveryLegacySemanticAccountingSchema]),
 }).strict();
 export type PlanningRecoveryProviderResult = z.infer<typeof PlanningRecoveryProviderResultSchema>;
 
@@ -530,7 +535,7 @@ function admitRecoveryCandidate(input: { candidate: PlanningPackage; semanticAcc
     throw new PlanningRecoveryError("RECOVERY_CANDIDATE_INVALID", "Full Planning recovery candidate failed deterministic admission.", { diagnosticInput: { blockers: [finding], candidate: rawCandidate, routeManifest: input.plan.canonicalRouteManifest, requirementManifest: input.plan.planningRequirementManifest } });
   }
   const candidate = normalizePlanningPackageForHost({ candidate: admission.candidate, projectId: input.projectId, projectVersion: input.projectVersion, approvedBriefChecksum: input.brief.briefChecksum, canonicalBrief: input.brief.brief, timestamp: input.now });
-  const accountingBinding = bindPlanningRecoverySemanticAccounting({ semanticAccounting: input.semanticAccounting, manifest: input.plan.planningRequirementManifest!, candidate, routeManifest: input.plan.canonicalRouteManifest });
+  const accountingBinding = bindPlanningRecoverySemanticAccounting({ semanticAccounting: input.semanticAccounting, manifest: input.plan.planningRequirementManifest!, candidate, routeManifest: input.plan.canonicalRouteManifest, targetCatalog: input.plan.planningTargetCatalog });
   const requirementAccounting = accountingBinding.accounting;
   const accountingValidation = validatePlanningRecoveryRequirementAccounting({ accounting: requirementAccounting, manifest: input.plan.planningRequirementManifest!, candidate, routeManifest: input.plan.canonicalRouteManifest });
   accountingValidation.issues.push(...accountingBinding.validation.issues.filter((issue) => issue.code === "ACCOUNTING_CARDINALITY_MISMATCH" || issue.code === "INVALID_ACCOUNTING_ENTRY"));
@@ -568,6 +573,7 @@ function recoveryPlan(input: {
   const currentness = currentnessFor({ project: input.project, version: input.version, briefRow: input.briefRow, brief: input.brief, planningRow: input.planningRow, planning: input.planning });
   const canonicalRouteManifest = createCanonicalPlanningRouteManifest(input.brief.brief);
   const planningRequirementManifest = createPlanningOwnedRequirementManifest(input.brief.brief);
+  const planningTargetCatalog = createPlanningTargetCatalog(canonicalRouteManifest);
   const payload = PlanningRecoveryPlanPayloadSchema.parse({
     schemaVersion: 1,
     authority: PLANNING_RECOVERY_AUTHORITY,
@@ -585,6 +591,7 @@ function recoveryPlan(input: {
     planningOwnedRequirementIds: planningRequirementManifest.requirements.map((entry) => entry.requirementId).sort(),
     canonicalRouteManifest,
     planningRequirementManifest,
+    planningTargetCatalog,
     reconciliationScopeChecksum: input.scope.scopeChecksum,
     providerCapability: {
       contractVersion: 2,
@@ -770,6 +777,7 @@ function buildProviderInput(input: { plan: PlanningRecoveryPlan; brief: BriefV3D
     canonicalBrief: input.brief.brief,
     canonicalRouteManifest: input.plan.canonicalRouteManifest,
     planningRequirementManifest: input.plan.planningRequirementManifest,
+    planningTargetCatalog: input.plan.planningTargetCatalog ?? createPlanningTargetCatalog(input.plan.canonicalRouteManifest),
     planningOwnedRequirements: requirementManifestAsCanonicalRequirements(input.plan.planningRequirementManifest),
     plannerInput,
     currentPlanningEvidence: planningEvidence,
@@ -1075,7 +1083,7 @@ export class PlanningRecoveryService {
       await this.dependencies.fault?.hit("before-provider-call");
     }
     let candidate: PlanningPackage;
-    let requirementAccounting: PlanningRecoverySemanticAccounting;
+    let requirementAccounting: PlanningRecoveryProviderResult["requirementAccounting"];
     if (providerStarted) {
       if (!providerInput) throw new PlanningRecoveryError("RECOVERY_PROVIDER_INPUT_MISSING");
       let returned: unknown;
@@ -1200,7 +1208,7 @@ export class PlanningRecoveryService {
     return { status: "COMMITTED", package: committed.package, evidence: committed.evidence };
   }
 
-  async apply(input: { projectId: string; projectVersion: number; operationKey: string; plan: PlanningRecoveryPlan; providerInput?: PlanningRecoveryProviderInput; candidate: PlanningPackage; requirementAccounting: PlanningRecoverySemanticAccounting }): Promise<PlanningRecoveryResult> {
+  async apply(input: { projectId: string; projectVersion: number; operationKey: string; plan: PlanningRecoveryPlan; providerInput?: PlanningRecoveryProviderInput; candidate: PlanningPackage; requirementAccounting: PlanningRecoveryProviderResult["requirementAccounting"] }): Promise<PlanningRecoveryResult> {
     if (!this.dependencies.hostRecoveryEnabled) throw new PlanningRecoveryError("HOST_RECOVERY_NOT_AUTHORIZED");
     const plan = PlanningRecoveryPlanSchema.parse(input.plan);
     if (checksumPersistedDocument(Object.fromEntries(Object.entries(plan).filter(([key]) => key !== "planChecksum"))) !== plan.planChecksum) throw new PlanningRecoveryError("RECOVERY_PLAN_CHECKSUM_INVALID");

@@ -14,6 +14,7 @@ export const PlanningPageHandleSchema = HandleSchema.regex(/^planning-page:/);
 // Read compatibility: historical persisted manifests used the canonical ID
 // after this prefix. New manifests are generated with opaque R### handles.
 export const PlanningRequirementHandleSchema = HandleSchema.regex(/^planning-requirement:/);
+export const PlanningTargetHandleSchema = NonEmptyStringSchema.max(320).regex(/^planning-target:T\d{3,}$/);
 
 const RouteSeoMetadataSchema = z.object({
   route: NonEmptyStringSchema.max(160),
@@ -162,18 +163,59 @@ export const PlanningTargetRefTransportSchema = z.object({
 }).strict();
 export type PlanningTargetRefTransport = z.infer<typeof PlanningTargetRefTransportSchema>;
 
-/** Provider payload: one entry per host manifest position, with no identity. */
+/** Host-issued target catalog. Providers return only targetHandle values. */
+export const PlanningTargetCatalogEntrySchema = z.object({
+  targetHandle: PlanningTargetHandleSchema,
+  kind: z.enum(["route", "page", "section"]),
+  label: NonEmptyStringSchema.max(300),
+  path: RoutePathSchema.nullable(),
+  routeHandle: PlanningRouteHandleSchema.nullable(),
+  pageHandle: PlanningPageHandleSchema.nullable(),
+  section: PlanningTargetSectionSchema.nullable(),
+}).strict();
+export type PlanningTargetCatalogEntry = z.infer<typeof PlanningTargetCatalogEntrySchema>;
+
+export const PlanningTargetCatalogSchema = z.object({
+  schemaVersion: z.literal(1),
+  targets: z.array(PlanningTargetCatalogEntrySchema).max(2048),
+  catalogChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict().superRefine((value, context) => {
+  const handles = value.targets.map((target) => target.targetHandle);
+  if (new Set(handles).size !== handles.length) context.addIssue({ code: "custom", path: ["targets"], message: "Planning target catalog contains duplicate handles." });
+});
+export type PlanningTargetCatalog = z.infer<typeof PlanningTargetCatalogSchema>;
+
+export const PlanningTargetHandleRefSchema = z.object({ targetHandle: PlanningTargetHandleSchema }).strict();
+export type PlanningTargetHandleRef = z.infer<typeof PlanningTargetHandleRefSchema>;
+
+/** Provider payload: one keyed entry per host manifest handle, with no canonical identity. */
 export const PlanningRecoverySemanticAccountingEntrySchema = z.object({
   disposition: PlanningRequirementDispositionSchema,
-  planningTargetRefs: z.array(PlanningTargetRefTransportSchema).min(1).max(16),
+  planningTargetRefs: z.array(PlanningTargetHandleRefSchema).max(16),
   semanticEvidence: NonEmptyStringSchema.max(2000),
 }).strict();
 export type PlanningRecoverySemanticAccountingEntry = z.infer<typeof PlanningRecoverySemanticAccountingEntrySchema>;
 
-export const PlanningRecoverySemanticAccountingSchema = z.array(PlanningRecoverySemanticAccountingEntrySchema).max(512);
+/** Generic persistence/type boundary; production provider calls use the exact factory below. */
+export const PlanningRecoverySemanticAccountingSchema = z.record(PlanningRequirementHandleSchema, PlanningRecoverySemanticAccountingEntrySchema);
 export type PlanningRecoverySemanticAccounting = z.infer<typeof PlanningRecoverySemanticAccountingSchema>;
 
-/** Host-bound accounting. `requirementId` is added only after positional binding. */
+/** Read-only compatibility for the pre-keyed historical recovery envelope. */
+export const PlanningRecoveryLegacySemanticAccountingEntrySchema = z.object({
+  disposition: PlanningRequirementDispositionSchema,
+  planningTargetRefs: z.array(PlanningTargetRefTransportSchema).min(1).max(16),
+  semanticEvidence: NonEmptyStringSchema.max(2000),
+}).strict();
+export const PlanningRecoveryLegacySemanticAccountingSchema = z.array(PlanningRecoveryLegacySemanticAccountingEntrySchema).max(512);
+export type PlanningRecoveryLegacySemanticAccounting = z.infer<typeof PlanningRecoveryLegacySemanticAccountingSchema>;
+
+export function createPlanningRecoverySemanticAccountingSchema(manifest: Pick<PlanningOwnedRequirementManifest, "requirements">) {
+  const shape: Record<string, typeof PlanningRecoverySemanticAccountingEntrySchema> = {};
+  for (const entry of manifest.requirements) shape[entry.requirementHandle] = PlanningRecoverySemanticAccountingEntrySchema;
+  return z.object(shape).strict();
+}
+
+/** Host-bound accounting. `requirementId` is added only after manifest binding. */
 export const PlanningRecoveryRequirementAccountingEntrySchema = z.object({
   requirementId: SemanticRequirementIdSchema,
   requirementDomain: RequirementCategorySchema,
@@ -202,6 +244,7 @@ export type PlanningRecoveryRequirementAccountingIssueCode =
   | "ACCOUNTING_CARDINALITY_MISMATCH"
   | "INVALID_PLANNING_TARGET_REF"
   | "TARGET_NOT_IN_CANDIDATE"
+  | "TARGET_TYPE_INCOMPATIBLE"
   | "TARGET_RELATIONSHIP_INVALID"
   | "PLACEHOLDER_SEMANTIC_EVIDENCE";
 
@@ -250,34 +293,6 @@ function targetRefExistsInCandidate(input: {
     : input.candidate.pages.pages.some((page) => page.routeId === manifestRoute.routeId);
 }
 
-function containsRequirementReference(value: unknown, requirementId: string): boolean {
-  if (Array.isArray(value)) return value.some((child) => containsRequirementReference(child, requirementId));
-  if (!value || typeof value !== "object") return false;
-  return Object.entries(value as Record<string, unknown>).some(([key, child]) =>
-    key === "requirementReferences" && Array.isArray(child)
-      ? child.includes(requirementId)
-      : containsRequirementReference(child, requirementId),
-  );
-}
-
-function targetRefRelationshipIsValid(input: {
-  ref: PlanningTargetRef;
-  requirementId: string;
-  candidate?: PlanningPackage;
-  routeManifest?: Pick<CanonicalPlanningRouteManifest, "routes">;
-}) {
-  if (!input.candidate) return true;
-  if (input.ref.kind === "section") return containsRequirementReference(input.candidate[input.ref.section], input.requirementId);
-  let manifestRoute: CanonicalPlanningRouteManifest["routes"][number] | undefined;
-  if (input.ref.kind === "route") manifestRoute = input.routeManifest?.routes.find((route) => route.routeHandle === (input.ref as { kind: "route"; routeHandle: string }).routeHandle);
-  else if (input.ref.kind === "page") manifestRoute = input.routeManifest?.routes.find((route) => route.pageHandle === (input.ref as { kind: "page"; pageHandle: string }).pageHandle);
-  if (!manifestRoute) return false;
-  const target = input.ref.kind === "route"
-    ? input.candidate.sitemap.routes.find((route) => route.path === manifestRoute.path)
-    : input.candidate.pages.pages.find((page) => page.routeId === manifestRoute.routeId);
-  return containsRequirementReference(target, input.requirementId);
-}
-
 function bindPlanningTargetRef(value: PlanningTargetRefTransport): unknown {
   if (value.kind === "route" && value.routeHandle !== null && value.pageHandle === null && value.section === null) return { kind: "route", routeHandle: value.routeHandle };
   if (value.kind === "page" && value.routeHandle === null && value.pageHandle !== null && value.section === null) return { kind: "page", pageHandle: value.pageHandle };
@@ -285,40 +300,108 @@ function bindPlanningTargetRef(value: PlanningTargetRefTransport): unknown {
   return value;
 }
 
+function targetRefKey(ref: PlanningTargetRef): string {
+  return ref.kind === "route" ? `route:${ref.routeHandle}` : ref.kind === "page" ? `page:${ref.pageHandle}` : `section:${ref.section}`;
+}
+
+const TARGET_KINDS_BY_DISPOSITION: Record<PlanningRequirementDisposition, readonly PlanningTargetRef["kind"][]> = {
+  PAGE_RESPONSIBILITY: ["page", "section"],
+  ROUTE_RESPONSIBILITY: ["route", "page"],
+  ARCHITECTURE_CONSTRAINT: ["section"],
+  FORM_CONSTRAINT: ["page", "section"],
+  CONTENT_REQUIREMENT: ["page", "section"],
+  SEO_REQUIREMENT: ["route", "page", "section"],
+  ASSET_REQUIREMENT: ["page", "section"],
+  INTERACTION_REQUIREMENT: ["page", "section"],
+  NON_FUNCTIONAL_CONSTRAINT: ["section", "page"],
+  EXPLICIT_EXCLUSION: ["section", "page"],
+  OTHER_PLANNING_RESPONSIBILITY: ["route", "page", "section"],
+};
+
+function hostPreboundTargetRefs(requirementId: string, routeManifest?: Pick<CanonicalPlanningRouteManifest, "routes">): PlanningTargetRef[] {
+  return (routeManifest?.routes ?? [])
+    .filter((route) => [route.requirementIds, route.navigation.requirementIds, route.seo.requirementIds].some((requirements) => requirements.includes(requirementId)))
+    .map((route) => ({ kind: "route" as const, routeHandle: route.routeHandle }));
+}
+
+export function createPlanningTargetCatalog(routeManifest: Pick<CanonicalPlanningRouteManifest, "routes">): PlanningTargetCatalog {
+  const targets: PlanningTargetCatalogEntry[] = [];
+  const add = (entry: Omit<PlanningTargetCatalogEntry, "targetHandle">) => {
+    const targetHandle = `planning-target:T${String(targets.length).padStart(3, "0")}`;
+    targets.push(PlanningTargetCatalogEntrySchema.parse({ targetHandle, ...entry }));
+  };
+  for (const route of routeManifest.routes.filter((entry) => entry.required)) {
+    add({ kind: "page", label: `Page ${route.path}`, path: route.path, routeHandle: null, pageHandle: route.pageHandle, section: null });
+    add({ kind: "route", label: `Route ${route.path}`, path: route.path, routeHandle: route.routeHandle, pageHandle: null, section: null });
+  }
+  for (const section of PlanningTargetSectionSchema.options) {
+    add({ kind: "section", label: `Planning section ${section}`, path: null, routeHandle: null, pageHandle: null, section });
+  }
+  const payload = { schemaVersion: 1 as const, targets };
+  return PlanningTargetCatalogSchema.parse({ ...payload, catalogChecksum: checksumPersistedDocument(payload) });
+}
+
+function targetRefFromCatalogHandle(handle: string, catalog: PlanningTargetCatalog): PlanningTargetRef | undefined {
+  const target = catalog.targets.find((entry) => entry.targetHandle === handle);
+  if (!target) return undefined;
+  return PlanningTargetRefSchema.safeParse(
+    target.kind === "route" ? { kind: "route", routeHandle: target.routeHandle } : target.kind === "page" ? { kind: "page", pageHandle: target.pageHandle } : { kind: "section", section: target.section },
+  ).data;
+}
+
 /**
- * Bind an ordered provider payload to the immutable host manifest. The
- * provider cannot supply, replace, omit, or append a canonical identity.
+ * Bind a keyed provider payload to the immutable host manifest. The provider
+ * cannot supply, replace, omit, or append a canonical identity. Historical
+ * positional payloads remain readable only for offline compatibility.
  */
 export function bindPlanningRecoverySemanticAccounting(input: {
   semanticAccounting: unknown;
   manifest: Pick<PlanningOwnedRequirementManifest, "requirements">;
   candidate?: PlanningPackage;
   routeManifest?: Pick<CanonicalPlanningRouteManifest, "routes">;
+  targetCatalog?: PlanningTargetCatalog;
 }): PlanningRecoverySemanticAccountingBinding {
   const expected = input.manifest.requirements;
-  const parsed = PlanningRecoverySemanticAccountingSchema.safeParse(input.semanticAccounting);
-  if (!parsed.success) {
+  const targetCatalog = input.targetCatalog ?? createPlanningTargetCatalog(input.routeManifest ?? { routes: [] });
+  const keyed = createPlanningRecoverySemanticAccountingSchema(input.manifest).safeParse(input.semanticAccounting);
+  const legacy = PlanningRecoveryLegacySemanticAccountingSchema.safeParse(input.semanticAccounting);
+  if (!keyed.success && !legacy.success) {
+    const raw = input.semanticAccounting && typeof input.semanticAccounting === "object" && !Array.isArray(input.semanticAccounting) ? input.semanticAccounting as Record<string, unknown> : {};
+    const present = expected.filter((entry) => Object.prototype.hasOwnProperty.call(raw, entry.requirementHandle));
+    const missingRequirementIds = expected.filter((entry) => !Object.prototype.hasOwnProperty.call(raw, entry.requirementHandle)).map((entry) => entry.requirementId);
     return {
       accounting: [],
       validation: {
         expectedRequirementCount: expected.length,
-        accountedRequirementCount: 0,
-        missingRequirementIds: expected.map((entry) => entry.requirementId),
+        accountedRequirementCount: present.length,
+        missingRequirementIds,
         duplicateIdCount: 0,
         legacyIdCount: 0,
         orphanIdCount: 0,
-        issues: [{ code: "INVALID_ACCOUNTING_ENTRY" }],
+        issues: [
+          { code: "INVALID_ACCOUNTING_ENTRY" },
+          ...missingRequirementIds.map((requirementId) => ({ code: "MISSING_REQUIREMENT_ID_ACCOUNTING" as const, requirementId })),
+          ...((Object.keys(raw).length !== expected.length) ? [{ code: "ACCOUNTING_CARDINALITY_MISMATCH" as const }] : []),
+        ],
       },
     };
   }
-  const accounting = parsed.data.slice(0, expected.length).map((entry, index) => {
-    const boundTargets = PlanningTargetRefSchema.array().safeParse(entry.planningTargetRefs.map(bindPlanningTargetRef));
+  const legacyEntries = legacy.success ? legacy.data : [];
+  const accounting = expected.map((manifestEntry, index) => {
+    const providerEntry = keyed.success ? keyed.data[manifestEntry.requirementHandle] : legacyEntries[index];
+    const providerTargets = providerEntry?.planningTargetRefs ?? [];
+    const boundTargets = PlanningTargetRefSchema.array().safeParse(providerTargets.map((target) => {
+      if ("targetHandle" in target) return targetRefFromCatalogHandle(target.targetHandle, targetCatalog) ?? { kind: "route", routeHandle: "planning-route:unbound-target" };
+      return bindPlanningTargetRef(target);
+    }).filter((target): target is PlanningTargetRef => Boolean(target)));
+    const prebound = hostPreboundTargetRefs(manifestEntry.requirementId, input.routeManifest);
+    const targets = [...prebound, ...(boundTargets.success ? boundTargets.data : [])].filter((ref, targetIndex, refs) => refs.findIndex((candidate) => targetRefKey(candidate) === targetRefKey(ref)) === targetIndex);
     return {
-      requirementId: expected[index]!.requirementId,
-      requirementDomain: expected[index]!.category,
-      disposition: entry.disposition,
-      planningTargetRefs: boundTargets.success ? boundTargets.data : [],
-      semanticEvidence: entry.semanticEvidence,
+      requirementId: manifestEntry.requirementId,
+      requirementDomain: manifestEntry.category,
+      disposition: providerEntry?.disposition,
+      planningTargetRefs: targets,
+      semanticEvidence: providerEntry?.semanticEvidence,
     };
   });
   const validation = validatePlanningRecoveryRequirementAccounting({
@@ -327,7 +410,7 @@ export function bindPlanningRecoverySemanticAccounting(input: {
     candidate: input.candidate,
     routeManifest: input.routeManifest,
   });
-  if (parsed.data.length !== expected.length) validation.issues.push({ code: "ACCOUNTING_CARDINALITY_MISMATCH" });
+  if (legacy.success && legacy.data.length !== expected.length) validation.issues.push({ code: "ACCOUNTING_CARDINALITY_MISMATCH" });
   return { accounting, validation };
 }
 
@@ -370,7 +453,16 @@ export function validatePlanningRecoveryRequirementAccounting(input: {
     else {
       const missingTarget = parsedTargets.data.some((ref) => !targetRefExistsInCandidate({ ref, candidate: input.candidate, routeManifest: input.routeManifest }));
       if (missingTarget) issues.push({ code: "TARGET_NOT_IN_CANDIDATE", requirementId });
-      else if (requirementId && parsedTargets.data.some((ref) => !targetRefRelationshipIsValid({ ref, requirementId, candidate: input.candidate, routeManifest: input.routeManifest }))) issues.push({ code: "TARGET_RELATIONSHIP_INVALID", requirementId });
+      const expectedEntry = requirementId ? expected.get(requirementId) : undefined;
+      if (expectedEntry && typeof disposition === "string" && PlanningRequirementDispositionSchema.safeParse(disposition).success) {
+        const allowedKinds = TARGET_KINDS_BY_DISPOSITION[disposition as PlanningRequirementDisposition];
+        if (parsedTargets.data.some((ref) => !allowedKinds.includes(ref.kind))) issues.push({ code: "TARGET_TYPE_INCOMPATIBLE", requirementId });
+      }
+      if (requirementId) {
+        const selected = new Set(parsedTargets.data.map(targetRefKey));
+        const missingPrebinding = hostPreboundTargetRefs(requirementId, input.routeManifest).some((ref) => !selected.has(targetRefKey(ref)));
+        if (missingPrebinding) issues.push({ code: "TARGET_RELATIONSHIP_INVALID", requirementId });
+      }
     }
     if (typeof value.semanticEvidence === "string" && PLACEHOLDER_SEMANTIC_EVIDENCE.has(normalizedEvidence(value.semanticEvidence))) issues.push({ code: "PLACEHOLDER_SEMANTIC_EVIDENCE", requirementId });
   }
