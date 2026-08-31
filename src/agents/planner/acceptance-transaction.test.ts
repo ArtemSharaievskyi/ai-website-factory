@@ -218,6 +218,21 @@ describe("Planning Acceptance canonical transaction", () => {
     expect(state.brief?.rowVersion).toBe(beforeBrief.rowVersion);
   });
 
+  it("reconciles a stale architecture projection from the current Planning package", async () => {
+    const fixture = await createFixture();
+    await new DocumentRepository(fixture.database).save({
+      ...fixture.planning.architecture,
+      updatedAt: "2026-08-22T12:00:00.000Z",
+    });
+    const service = new PlannerArchitectService({ database: fixture.database, memory: fixture.memory });
+    const result = await service.acceptPlanningPackage(acceptanceInput(fixture));
+    const state = await stateOf(fixture.database, fixture.projectId);
+    const accepted = PlanningPackageSchema.parse(mapRowToDocument(state.planning!));
+    expect(result.projectState).toBe("ARCHITECTURE_REVIEW");
+    expect(state.architecture?.rowVersion).toBe(3);
+    expect(state.architecture?.checksum).toBe(checksumPersistedDocument(accepted.architecture));
+  });
+
   it.each(["after-acceptance-write", "after-decision-write", "before-workflow-transition"] as const)("rolls back every canonical write at fault point %s", async (point) => {
     const fixture = await createFixture();
     const service = new PlannerArchitectService({ database: fixture.database, memory: fixture.memory, acceptanceFaultInjector: { hit: async (current) => { if (current === point) throw new Error(`synthetic-${point}`); } } });

@@ -1006,8 +1006,6 @@ export class PlannerArchitectService {
       });
       await saveDocumentCASInTransaction(tx, acceptedPackage, packageRow.rowVersion, packageRow.checksum);
       const architectureRow = await tx.getDocument(input.projectId, input.projectVersion, "architecture");
-      const architectureChecksum = checksumPersistedDocument(packageValue.architecture);
-      if (architectureRow && architectureRow.checksum !== architectureChecksum) throw new PlannerError("PLANNING_STALE", "The planning architecture is stale.");
       await saveDocumentCASInTransaction(tx, acceptedArchitecture, architectureRow?.rowVersion ?? null, architectureRow?.checksum ?? null);
       await saveDocumentInTransaction(tx, phase7cContractPackage, `planning-phase-7c-${input.projectId}-${input.projectVersion}-${input.idempotencyKey}`);
       await this.acceptanceFaultInjector?.hit("after-acceptance-write");
