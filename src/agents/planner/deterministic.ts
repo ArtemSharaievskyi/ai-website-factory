@@ -9,6 +9,9 @@ import { getDependencyCatalogEntry, validateDependencyPlan, validateDependencyRe
 import { AdministrationPlanSchema, AuthenticationPlanSchema, DataModelPlanSchema, DependencyPlanSchema, EmailPlanSchema, EnvironmentVariablePlanSchema, FormPlanSchema, NavigationPlanSchema, PageResponsibilityPlanSchema, PlanningPackageSchema, ProductScopePlanSchema, ProfileSelectionSchema, SecurityPlanSchema, SitemapPlanSchema, StoragePlanSchema, SupabasePlanSchema, TestStrategyPlanSchema, UserFlowPlanSchema, formFieldId, isLegacyFormField, type PlannerAgentInput, type PlanningPackage, type Traceability } from "./contracts";
 import { effectivePlannerBrief } from "./brief-context";
 import { CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY } from "./semantic-checksum";
+import type { CanonicalBriefV3 } from "@/domain/requirements/v3/schema";
+import { canonicalUnresolvedBlockingStages, isLegalUnresolvedRequirement } from "@/domain/requirements/v3/unresolved";
+import { REAL_FORM_PROCESSING_APPROVAL_CODE } from "@/domain/requirements/v3/lifecycle-gates";
 
 const createdAt = new Date().toISOString();
 const id = (key: string) => { const bytes = Buffer.from(createHash("sha256").update(key).digest("hex").slice(0, 32), "hex"); bytes[6] = (bytes[6] & 15) | 80; bytes[8] = (bytes[8] & 63) | 128; return `${bytes.toString("hex").slice(0, 8)}-${bytes.toString("hex").slice(8, 12)}-${bytes.toString("hex").slice(12, 16)}-${bytes.toString("hex").slice(16, 20)}-${bytes.toString("hex").slice(20)}`; };
@@ -103,9 +106,10 @@ export function validatePlanningPackageAgainstBrief(brief: RequirementSpecificat
 }
 
 export type PlanningBlockerClass = "A" | "B" | "C" | "D" | "E" | "F";
-export type PlanningDeferredStage = "DESIGN" | "PUBLICATION";
+export type PlanningDeferredStage = "DESIGN" | "IMPLEMENTATION" | "PUBLICATION";
 export type PlanningAcceptanceContext = {
   legalPlaceholderPolicy?: "USE_EXPLICIT_PLACEHOLDERS" | "NO_PLACEHOLDERS" | "UNRESOLVED";
+  canonicalBrief?: CanonicalBriefV3;
 };
 export type PlanningAcceptanceItem = {
   id: string;
@@ -130,6 +134,12 @@ const photoMarker = /(?:photo|photograph|photography|image|imagery|foto|bild|sto
 const rightsMarker = /(?:right|license|licen[cs]|provenance|recht|lizenz|herkunft|urheber)/i;
 const futurePhotoMarker = /(?:future|additional|later|selection|select|pending|unverified|zus[aä]tz|sp[aä]ter|noch|aussteh)/i;
 const designMarker = /(?:design|visual|brand|direction|selection|typograph|layout|imagery)/i;
+const formProcessingMarker = /(?:\b(?:real|actual|echt|wirklich)\b[\s\S]{0,100}\b(?:form|formular|submission|transmission|processing|verarbeitung|übermittlung)\b|\b(?:form|formular|submission|transmission|processing|verarbeitung|übermittlung)\b[\s\S]{0,100}\b(?:real|actual|echt|wirklich|approval|approved|genehm|zustimm)\b[\s\S]{0,100}\b(?:approval|approved|genehm|zustimm|processing|transmission|verarbeitung|übermittlung)\b)/i;
+
+const broadFormProcessingMarker = /(?=[\s\S]*(?:real|actual|echt|wirklich))(?=[\s\S]*(?:approval|approved|genehm|zustimm))(?=[\s\S]*(?:form|formular|submission|transmission|processing|verarbeitung|bermittlung))/i;
+const hasRealFormProcessingMarker = (blocker: string) => /(?:form|formular|submission|transmission|processing|verarbeitung|bermittlung)/i.test(blocker)
+  && /(?:real|actual|echt|wirklich)/i.test(blocker)
+  && /(?:approval|approved|genehm|zustimm|freigabe|bestÃ¤t|bestaet)/i.test(blocker);
 
 const hasLegalRoutes = (planningPackage: PlanningPackage) => {
   const routes = new Set(planningPackage.sitemap.routes.map((route) => route.path.toLowerCase()));
@@ -144,6 +154,11 @@ const hasOnlyDeferredPhotographySlots = (planningPackage: PlanningPackage) => {
 
 const hasKnownInvalidConcreteAsset = (planningPackage: PlanningPackage, blocker: string) =>
   planningPackage.assets.entries.some((entry) => entry.generationStatus === "rejected") && /asset|image|imagery|photo|photography|logo|reference/i.test(blocker);
+
+const hasCanonicalLegalPublicationGate = (canonicalBrief: CanonicalBriefV3 | undefined) => canonicalBrief?.unresolved.some((item) =>
+  canonicalUnresolvedBlockingStages(canonicalBrief, item).includes("PUBLICATION")
+    && (item.target === "FINAL_LEGAL_FACTS_REQUIRED" || isLegalUnresolvedRequirement(canonicalBrief, item)),
+) ?? false;
 
 const admissionSourcePath = (blocker: string) => ({
   DUPLICATE_ROUTE: "planning-package.sitemap.routes",
@@ -165,11 +180,18 @@ function classifyPackageBlocker(planningPackage: PlanningPackage, blocker: strin
   const sourcePath = `planning-package.blockers[${index}]`;
   if (hasKnownInvalidConcreteAsset(planningPackage, blocker)) return { id: "CONCRETE_ASSET_INVALID", type: "PACKAGE_BLOCKER", sourcePath, sourceValidator: "planning acceptance asset safety classification", reason: blocker, classification: "A" };
   const legalPublicationBlocker = legalMarker.test(blocker)
-    && publicationMarker.test(blocker)
-    && legalFactMarker.test(blocker)
     && hasLegalRoutes(planningPackage)
-    && (context ? context.legalPlaceholderPolicy === "USE_EXPLICIT_PLACEHOLDERS" : /placeholder|platzhalter/i.test(blocker));
+    && (context?.canonicalBrief
+      ? context.legalPlaceholderPolicy === "USE_EXPLICIT_PLACEHOLDERS"
+        && hasCanonicalLegalPublicationGate(context.canonicalBrief)
+        && (legalFactMarker.test(blocker) || /(?:legal|recht|impressum|datenschutz)/i.test(blocker))
+      : context?.legalPlaceholderPolicy === "NO_PLACEHOLDERS"
+        ? false
+        : publicationMarker.test(blocker)
+        && legalFactMarker.test(blocker)
+        && /placeholder|platzhalter/i.test(blocker));
   if (legalPublicationBlocker) return { id: "FINAL_LEGAL_FACTS_REQUIRED", type: "PACKAGE_BLOCKER", sourcePath, sourceValidator: "planning acceptance lifecycle classification", reason: blocker, classification: "D", deferredStage: "PUBLICATION", publicationSafetyRequired: true };
+  if (context?.canonicalBrief?.decisions.form.formPresent && (formProcessingMarker.test(blocker) || broadFormProcessingMarker.test(blocker) || hasRealFormProcessingMarker(blocker))) return { id: REAL_FORM_PROCESSING_APPROVAL_CODE, type: "PACKAGE_BLOCKER", sourcePath, sourceValidator: "planning side-effect lifecycle classification", reason: blocker, classification: "D", deferredStage: "IMPLEMENTATION", publicationSafetyRequired: true };
   if (photoMarker.test(blocker) && rightsMarker.test(blocker) && futurePhotoMarker.test(blocker) && hasOnlyDeferredPhotographySlots(planningPackage)) return { id: "PHOTO_RIGHTS_PROVENANCE_REQUIRED", type: "PACKAGE_BLOCKER", sourcePath, sourceValidator: "planning acceptance lifecycle classification", reason: blocker, classification: "B", deferredStage: "DESIGN", publicationSafetyRequired: true };
   if (designMarker.test(blocker) && !publicationMarker.test(blocker)) return { id: "DESIGN_TIME_REQUIREMENT", type: "PACKAGE_BLOCKER", sourcePath, sourceValidator: "planning acceptance lifecycle classification", reason: blocker, classification: "B", deferredStage: "DESIGN" };
   return { id: `PACKAGE_BLOCKER_${index + 1}`, type: "PACKAGE_BLOCKER", sourcePath, sourceValidator: "planning acceptance package blocker validation", reason: blocker, classification: "A" };

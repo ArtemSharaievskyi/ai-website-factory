@@ -14,6 +14,7 @@ import {
 import { PlanningPackageSchema } from "@/agents/planner/contracts";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
 import { canonicalBriefToPlannerBrief } from "@/agents/planner/brief-context";
+import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { evaluatePlanningAcceptanceReadiness, validatePlanningStructure } from "@/agents/planner/deterministic";
 import { architectureReviewerAgentDefinition } from "@/agents/catalog";
 import { ArchitectureReviewError, rethrowWrappedArchitectureReviewError } from "./errors";
@@ -307,8 +308,11 @@ export class ArchitectureReviewService {
         input.acceptedPlanningChecksum !== planning.acceptance.checksum
       )
         throw new Error("The PlanningPackage checksum is stale.");
+      const canonicalContext = input.canonicalBrief && canonicalBriefChecksum(input.canonicalBrief) === input.approvedBriefChecksum
+        ? { legalPlaceholderPolicy: input.canonicalBrief.legal.placeholderPolicy, canonicalBrief: input.canonicalBrief }
+        : undefined;
       if (
-        !evaluatePlanningAcceptanceReadiness({ planningPackage: planning }).readyForAcceptance ||
+        !evaluatePlanningAcceptanceReadiness({ planningPackage: planning, context: canonicalContext }).readyForAcceptance ||
         brief.unresolvedItems.some((item) => item.blocking)
       )
         throw new Error("Blocking canonical architecture items remain unresolved.");

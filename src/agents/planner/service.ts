@@ -1599,7 +1599,7 @@ export class PlannerArchitectService {
 
   private async planningAcceptanceContext(projectId: string, projectVersion: number) {
     const canonical = await this.documents.get(projectId, projectVersion, "brief-v3");
-    if (canonical?.documentType === "brief-v3") return { legalPlaceholderPolicy: canonical.brief.legal.placeholderPolicy } as const;
+    if (canonical?.documentType === "brief-v3") return { legalPlaceholderPolicy: canonical.brief.legal.placeholderPolicy, canonicalBrief: canonical.brief } as const;
     const legacy = await this.documents.get(projectId, projectVersion, "requirements");
     const policy = legacy?.documentType === "requirements" ? legacy.legalComplianceConstraints?.placeholderPolicy : undefined;
     return policy ? { legalPlaceholderPolicy: policy } as const : undefined;
@@ -1608,7 +1608,7 @@ export class PlannerArchitectService {
   private async planningAcceptanceContextInTransaction(tx: PersistenceTransaction, projectId: string, projectVersion: number) {
     const canonicalRow = await tx.getDocument(projectId, projectVersion, "brief-v3");
     const canonical = canonicalRow ? mapRowToDocument(canonicalRow) : null;
-    if (canonical?.documentType === "brief-v3") return { legalPlaceholderPolicy: canonical.brief.legal.placeholderPolicy } as const;
+    if (canonical?.documentType === "brief-v3") return { legalPlaceholderPolicy: canonical.brief.legal.placeholderPolicy, canonicalBrief: canonical.brief } as const;
     const legacyRow = await tx.getDocument(projectId, projectVersion, "requirements");
     const legacy = legacyRow ? mapRowToDocument(legacyRow) : null;
     const policy = legacy?.documentType === "requirements" ? legacy.legalComplianceConstraints?.placeholderPolicy : undefined;

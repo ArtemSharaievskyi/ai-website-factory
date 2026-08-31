@@ -255,7 +255,7 @@ export class DesignAgentService {
         "UNAPPROVED_REQUIREMENT_CHANGE",
         "An unapproved requirement change blocks design.",
       );
-    if (!evaluatePlanningAcceptanceReadiness({ planningPackage: planning }).readyForAcceptance)
+    if (!evaluatePlanningAcceptanceReadiness({ planningPackage: planning, context: canonical ? { legalPlaceholderPolicy: canonical.brief.legal.placeholderPolicy, canonicalBrief: canonical.brief } : undefined }).readyForAcceptance)
       throw new DesignError(
         "DESIGN_BLOCKED",
         "The accepted planning package contains unresolved technical blockers.",

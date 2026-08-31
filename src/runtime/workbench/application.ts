@@ -246,7 +246,7 @@ export class WorkbenchApplication {
       : requirements?.documentType === "requirements"
         ? this.brief(requirements, status.brief?.checksum ?? checksumPersistedDocument(requirements), briefReady)
         : undefined;
-    const planningProjection = planning?.documentType === "planning-package" ? this.planning(planning, briefV3?.brief.legal.placeholderPolicy) : undefined;
+    const planningProjection = planning?.documentType === "planning-package" ? this.planning(planning, briefV3?.brief.legal.placeholderPolicy, briefV3?.brief) : undefined;
     const database = phase7c?.documentType === "phase-7c-contract-package" ? {
       packageChecksum: checksumPersistedDocument(phase7c),
       recommendation: phase7c.databaseDecision.plannerRecommendation,
@@ -423,8 +423,8 @@ export class WorkbenchApplication {
     };
   }
 
-  private planning(value: Extract<Awaited<ReturnType<DocumentRepository["get"]>>, { documentType: "planning-package" }>, legalPlaceholderPolicy?: "USE_EXPLICIT_PLACEHOLDERS" | "NO_PLACEHOLDERS" | "UNRESOLVED"): WorkbenchPlanning {
-    const readiness = evaluatePlanningAcceptanceReadiness({ planningPackage: value, context: legalPlaceholderPolicy ? { legalPlaceholderPolicy } : undefined });
+  private planning(value: Extract<Awaited<ReturnType<DocumentRepository["get"]>>, { documentType: "planning-package" }>, legalPlaceholderPolicy?: "USE_EXPLICIT_PLACEHOLDERS" | "NO_PLACEHOLDERS" | "UNRESOLVED", canonicalBrief?: CanonicalBriefV3): WorkbenchPlanning {
+    const readiness = evaluatePlanningAcceptanceReadiness({ planningPackage: value, context: legalPlaceholderPolicy ? { legalPlaceholderPolicy, ...(canonicalBrief ? { canonicalBrief } : {}) } : undefined });
     return {
       checksum: checksumPersistedDocument(value),
       accepted: value.accepted,

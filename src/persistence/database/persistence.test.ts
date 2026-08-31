@@ -9,6 +9,8 @@ import { InMemoryPersistenceDatabase } from "./fake";
 import { mapDocumentToRow, mapRowToDocument } from "./mapping";
 import { DecisionRepository, DocumentRepository, ProjectRepository, ProjectVersionRepository, ReleaseRepository, WorkflowPersistenceService } from "./repositories";
 import { FakeProjectMemorySyncPort } from "./sync";
+import { cleanBriefV3 } from "@/domain/requirements/v3/fixtures";
+import { createBriefV3Document } from "./brief-revision-v3-contracts";
 
 const id = () => randomUUID() as `${string}-${string}-${string}-${string}-${string}`;
 const base = (documentType: string, projectId: ReturnType<typeof id> = id()) => ({ schemaVersion: 1 as const, documentType, projectId, projectVersion: 1, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" });
@@ -53,6 +55,17 @@ describe("persistence foundation", () => {
     const release = ReleaseReportSchema.parse({ ...base("release-report", value.id as ReturnType<typeof id>), versionLabel: "v1", qualityReport: quality, knownErrors: [], ready: true, releasedAt: "2026-01-02T00:00:00.000Z", releasedBy: "user" });
     const saved = await new ReleaseRepository(db).create(value.id, 1, release); expect(saved.ready).toBe(true); expect((await new ProjectVersionRepository(db).get(value.id, 1))?.immutable).toBe(true);
     await expect(new ReleaseRepository(db).create(value.id, 1, release)).rejects.toMatchObject({ code: "PERSISTENCE_IMMUTABLE" });
+  });
+
+  it("enforces canonical legal publication readiness at the release transaction", async () => {
+    const db = new InMemoryPersistenceDatabase(); const value = project("VALIDATING"); await new ProjectRepository(db).create(value); await new ProjectVersionRepository(db).create(version(value.id, "VALIDATING"));
+    const canonical = createBriefV3Document({ projectId: value.id, projectVersion: 1, brief: cleanBriefV3, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }); await new DocumentRepository(db).save(canonical);
+    const quality = QualityReportSchema.parse({ ...base("quality-report", value.id as ReturnType<typeof id>), checks: [{ name: "unit-tests", status: "passed", attempt: 1, required: true }], knownErrors: [] });
+    const release = ReleaseReportSchema.parse({ ...base("release-report", value.id as ReturnType<typeof id>), versionLabel: "v1", qualityReport: quality, knownErrors: [], ready: true, releasedAt: "2026-01-02T00:00:00.000Z", releasedBy: "user" });
+    await expect(new ReleaseRepository(db).create(value.id, 1, release)).rejects.toMatchObject({ code: "PERSISTENCE_VALIDATION_FAILED" });
+    const resolved = createBriefV3Document({ projectId: value.id, projectVersion: 1, brief: { ...cleanBriefV3, legal: { ...cleanBriefV3.legal, placeholderPolicy: "NO_PLACEHOLDERS" } }, createdAt: canonical.createdAt, updatedAt: canonical.updatedAt }); await new DocumentRepository(db).save(resolved);
+    await expect(new ReleaseRepository(db).create(value.id, 1, release)).resolves.toMatchObject({ ready: true });
+    expect((await new ProjectVersionRepository(db).get(value.id, 1))?.immutable).toBe(true);
   });
 
   it("serializes persistence errors without provider details", () => { const safe = serializePersistenceError(new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "safe", undefined, new Error("secret connection"))); expect(safe).not.toHaveProperty("cause"); expect(safe).not.toHaveProperty("stack"); });

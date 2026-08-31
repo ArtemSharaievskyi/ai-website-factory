@@ -41,6 +41,7 @@ import { planningSemanticChecksum } from "@/agents/planner/deterministic";
 import type { DependencyAuthorityContext } from "@/dependencies/authority";
 import { validatePhase7CContractPackage, validateTaskContractBinding } from "@/domain/contracts/phase7c";
 import { validateDirectionDesignCapability } from "@/domain/design/capability";
+import { evaluateRealFormProcessingGate, isRealFormProcessingTask } from "@/domain/requirements/v3/lifecycle-gates";
 
 export interface ImplementationMemoryPort {
   writeSnapshot(
@@ -228,6 +229,16 @@ export class ImplementationAgentService {
         throw new ImplementationError(
           "IMPLEMENTATION_DOCUMENT_STALE",
           "Accepted Planning checksum is stale.",
+        );
+      const formProcessing = evaluateRealFormProcessingGate({
+        brief: input.canonicalBrief ?? input.approvedBrief,
+        decisions: input.existingDecisions,
+        approvedBriefChecksum: input.approvedBriefChecksum,
+      });
+      if (isRealFormProcessingTask(input.task.taskType) && !formProcessing.allowed)
+        throw new ImplementationError(
+          "FORM_PLAN_VIOLATION",
+          "Real form processing requires a current explicit user approval.",
         );
       validateSupportedTask(input.task);
       return input;
