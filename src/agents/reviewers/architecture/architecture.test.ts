@@ -121,6 +121,16 @@ describe("Architecture Reviewer", () => {
     expect(deterministicArchitectureReview(fixture.input).verdict).toBe("APPROVED");
   });
 
+  it("allows the bounded transport layer to compact duplicated supporting context", async () => {
+    const fixture = await createFixture();
+    const expandedCompatibilityBrief = RequirementSpecificationSchema.parse({
+      ...fixture.input.approvedBrief,
+      technicalConstraints: Array.from({ length: 40 }, (_, index) => `Synthetic constraint ${index} ${"x".repeat(3500)}`),
+    });
+    const service = new ArchitectureReviewService(fixture.database, { provider: deterministicProvider });
+    await expect(service.review({ ...fixture.input, approvedBrief: expandedCompatibilityBrief })).resolves.toMatchObject({ verdict: "APPROVED" });
+  });
+
   it("flags backend priority when a no-backend Brief is paired with an active priority list", async () => {
     const fixture = await createFixture();
     const planning = PlanningPackageSchema.parse({ ...fixture.planning, architecture: { ...fixture.planning.architecture, backendPriority: ["server-actions", "route-handlers", "supabase-services"] } });

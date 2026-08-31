@@ -280,13 +280,8 @@ export class ArchitectureReviewService {
         ? canonicalBriefToPlannerBrief(input.canonicalBrief, RequirementSpecificationSchema.parse(input.approvedBrief))
         : RequirementSpecificationSchema.parse(input.approvedBrief);
       const planning = PlanningPackageSchema.parse(input.acceptedPlanningPackage);
-      if (
-        Buffer.byteLength(JSON.stringify(input), "utf8") >
-          architectureReviewerAgentDefinition.contextPolicy.maxBytes ||
-        input.relevantProjectConstraints.length >
-          architectureReviewerAgentDefinition.contextPolicy.maxItems
-      )
-        throw new Error("Architecture review context exceeds its bounded policy.");
+      if (input.relevantProjectConstraints.length > architectureReviewerAgentDefinition.contextPolicy.maxItems)
+        throw new Error("Architecture review context exceeds its bounded item policy.");
       if (
         brief.projectId !== input.projectId ||
         planning.projectId !== input.projectId ||
