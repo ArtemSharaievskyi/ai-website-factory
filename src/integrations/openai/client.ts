@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import type { ChatCompletion } from "openai/resources/chat/completions";
 import { z, type ZodType } from "zod";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { AiProviderError, isAiProviderError } from "./errors";
@@ -10,9 +11,14 @@ import type { ContextBundle } from "@/runtime/context";
 import { createInvocationFingerprint, createInvocationUsageRecord } from "@/runtime/context/telemetry";
 import { createHash, randomUUID } from "node:crypto";
 
-export type StructuredRequest<T> = { role: string; promptVersion: string; system: string; user: string; schemaName: string; schema: ZodType<T>; signal?: AbortSignal; idempotencyKey?: string; contextBundle?: ContextBundle; promptPrefixChecksum?: string; promptPrefixBytes?: number; maxCompletionTokens?: number; retryPolicy?: { maxRetries: number; corrections: number } };
+export type StructuredRequest<T> = { role: string; promptVersion: string; system: string; user: string; schemaName: string; schema: ZodType<T>; signal?: AbortSignal; idempotencyKey?: string; contextBundle?: ContextBundle; promptPrefixChecksum?: string; promptPrefixBytes?: number; maxCompletionTokens?: number; retryPolicy?: { maxRetries: number; corrections: number }; parseStrategy?: "sdk" | "manual" };
 export type StructuredResponse<T> = { value: T; usage: ProviderUsage; requestId: string; diagnostic?: ProviderDiagnostic };
-export type StructuredExecutor = <T>(request: StructuredRequest<T>, client: OpenAI, config: AiProviderConfig, correction: boolean) => Promise<{ value: T; requestId: string; inputTokens?: number; cachedInputTokens?: number; outputTokens?: number; diagnostic?: ProviderDiagnostic }>;
+export type ProviderTransportResult = { requestId: string; inputTokens?: number; cachedInputTokens?: number; outputTokens?: number; diagnostic: ProviderDiagnostic };
+export type ProviderRawStructuredResult = ProviderTransportResult & { content: string };
+export type ProviderParsedStructuredResult<T> = ProviderRawStructuredResult & { value: T };
+type ProviderResponseCapture = (result: ProviderTransportResult) => void | Promise<void>;
+export type StructuredExecutorResult<T> = { value: T; requestId: string; inputTokens?: number; cachedInputTokens?: number; outputTokens?: number; diagnostic?: ProviderDiagnostic };
+export type StructuredExecutor = <T>(request: StructuredRequest<T>, client: OpenAI, config: AiProviderConfig, correction: boolean) => Promise<StructuredExecutorResult<T>>;
 
 function providerSchemaFieldPath(rawPath: string | undefined) {
   if (!rawPath) return undefined;
@@ -81,12 +87,14 @@ export class OpenAiStructuredClient {
   private readonly limiter: FifoConcurrencyLimiter;
   private readonly inFlight = new Map<string, Promise<StructuredResponse<unknown>>>();
   private readonly executor: StructuredExecutor;
+  private readonly executorInjected: boolean;
   private readonly usageSink?: ProviderUsageSink;
   private readonly eventSink?: ProviderEventSink;
 
   constructor(private readonly config: AiProviderConfig, options: { client?: OpenAI; executor?: StructuredExecutor; usageSink?: ProviderUsageSink; eventSink?: ProviderEventSink } = {}) {
     this.client = options.client ?? new OpenAI({ apiKey: config.apiKey, maxRetries: 0 });
     this.executor = options.executor ?? defaultExecutor;
+    this.executorInjected = options.executor !== undefined;
     this.limiter = new FifoConcurrencyLimiter(config.maxConcurrentRequests);
     this.usageSink = options.usageSink;
     this.eventSink = options.eventSink;
@@ -116,6 +124,7 @@ export class OpenAiStructuredClient {
   private async execute<T>(request: StructuredRequest<T>): Promise<StructuredResponse<T>> {
     let retries = 0;
     let correction = false;
+    let capturedUsage: ProviderUsage | undefined;
     const maxRetries = request.retryPolicy?.maxRetries ?? this.config.maxRetries;
     const maxCorrections = request.retryPolicy?.corrections ?? 1;
     const startedAt = new Date().toISOString();
@@ -126,10 +135,13 @@ export class OpenAiStructuredClient {
         if (request.signal?.aborted) throw new AiProviderError("AI_REQUEST_CANCELLED", "AI request was cancelled.", undefined, { stage: "request_construction", requestAttempted: false, apiResponseReceived: false, responseReceived: false, outputComplete: false, schemaName: request.schemaName });
         try {
           this.assertContextCapacity(request);
-          const result = await this.executor(request, this.client, this.config, correction);
-          const actualUsageCaptured = result.inputTokens !== undefined || result.outputTokens !== undefined;
-          const usage = createInvocationUsageRecord({ invocationFingerprint: this.fingerprint(request) ?? randomUUID(), agentId: request.role, ...(request.contextBundle?.taskId ? { taskId: request.contextBundle.taskId } : {}), workflowStage: request.contextBundle?.workflowStage ?? request.role, role: request.role, ...(request.contextBundle?.contextBundleId ? { contextBundleId: request.contextBundle.contextBundleId } : {}), ...(request.contextBundle?.checksum ? { contextChecksum: request.contextBundle.checksum } : {}), provider: "openai", model: this.config.model, ...(result.inputTokens === undefined ? {} : { inputTokens: result.inputTokens }), ...(result.cachedInputTokens === undefined ? {} : { cachedInputTokens: result.cachedInputTokens }), ...(result.outputTokens === undefined ? {} : { outputTokens: result.outputTokens }), ...(result.inputTokens !== undefined && result.outputTokens !== undefined ? { totalTokens: result.inputTokens + result.outputTokens } : {}), actualUsageCaptured, cacheTelemetryUnavailable: result.cachedInputTokens === undefined, prefixChecksum: request.promptPrefixChecksum ?? createHash("sha256").update(request.system, "utf8").digest("hex"), prefixBytes: request.promptPrefixBytes ?? Buffer.byteLength(request.system, "utf8"), contextMetrics: request.contextBundle?.metrics, requestCount: 1, retryCount: retries, correctionCount: correction ? 1 : 0, promptVersion: request.promptVersion }) as ProviderUsage;
-          await this.usageSink?.(usage);
+          const captureResponse: ProviderResponseCapture = async (response) => {
+            if (!capturedUsage) capturedUsage = await this.recordUsage(request, response, retries, correction);
+          };
+          const result = request.parseStrategy === "manual" && !this.executorInjected
+            ? await manualExecutor(request, this.client, this.config, correction, captureResponse)
+            : await this.executor(request, this.client, this.config, correction);
+          const usage = capturedUsage ?? await this.recordUsage(request, result, retries, correction);
           this.eventSink?.({ type: "request.completed", provider: "openai", model: this.config.model, role: request.role, promptVersion: request.promptVersion, requestId: result.requestId, retryCount: retries, startedAt, completedAt: new Date().toISOString(), elapsedMs: Date.now() - started, diagnostic: result.diagnostic });
           return { value: result.value, usage, requestId: result.requestId, diagnostic: result.diagnostic };
         } catch (error) {
@@ -150,6 +162,13 @@ export class OpenAiStructuredClient {
     } catch (error) {
       throw mapError(error, request.schemaName, true, this.config.model);
     }
+  }
+
+  private async recordUsage<T>(request: StructuredRequest<T>, result: Pick<ProviderTransportResult, "inputTokens" | "cachedInputTokens" | "outputTokens">, retries: number, correction: boolean) {
+    const actualUsageCaptured = result.inputTokens !== undefined || result.outputTokens !== undefined;
+    const usage = createInvocationUsageRecord({ invocationFingerprint: this.fingerprint(request) ?? randomUUID(), agentId: request.role, ...(request.contextBundle?.taskId ? { taskId: request.contextBundle.taskId } : {}), workflowStage: request.contextBundle?.workflowStage ?? request.role, role: request.role, ...(request.contextBundle?.contextBundleId ? { contextBundleId: request.contextBundle.contextBundleId } : {}), ...(request.contextBundle?.checksum ? { contextChecksum: request.contextBundle.checksum } : {}), provider: "openai", model: this.config.model, ...(result.inputTokens === undefined ? {} : { inputTokens: result.inputTokens }), ...(result.cachedInputTokens === undefined ? {} : { cachedInputTokens: result.cachedInputTokens }), ...(result.outputTokens === undefined ? {} : { outputTokens: result.outputTokens }), ...(result.inputTokens !== undefined && result.outputTokens !== undefined ? { totalTokens: result.inputTokens + result.outputTokens } : {}), actualUsageCaptured, cacheTelemetryUnavailable: result.cachedInputTokens === undefined, prefixChecksum: request.promptPrefixChecksum ?? createHash("sha256").update(request.system, "utf8").digest("hex"), prefixBytes: request.promptPrefixBytes ?? Buffer.byteLength(request.system, "utf8"), contextMetrics: request.contextBundle?.metrics, requestCount: 1, retryCount: retries, correctionCount: correction ? 1 : 0, promptVersion: request.promptVersion }) as ProviderUsage;
+    await this.usageSink?.(usage);
+    return usage;
   }
 
   private assertContextCapacity(request: StructuredRequest<unknown>) {
@@ -188,6 +207,92 @@ export class OpenAiStructuredClient {
       },
     );
   }
+}
+
+function sha256Text(value: string) {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function safeIssueToken(value: unknown) {
+  return typeof value === "string" && value.length >= 1 && value.length <= 160 && /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(value) ? value : undefined;
+}
+
+function safeIssuePath(path: readonly PropertyKey[]) {
+  const rendered = path.length ? `$${path.map((part) => `.${String(part)}`).join("")}` : "$";
+  const bounded = rendered.replace(/[^A-Za-z0-9_$.[\]/:-]/g, "_").slice(0, 240);
+  return bounded || "$";
+}
+
+function boundedZodIssues(error: z.ZodError) {
+  const issues = error.issues.map((issue) => {
+    const code = zodIssueCode({ issues: [issue] }) ?? "INVALID_FIELD";
+    const path = safeIssuePath(issue.path);
+    const details = issue as unknown as { expected?: unknown; received?: unknown };
+    const expected = safeIssueToken(details.expected);
+    const received = safeIssueToken(details.received);
+    return { path, code, ...(expected ? { expected } : {}), ...(received ? { received } : {}), message: `Provider wire schema validation failed at ${path}.` };
+  });
+  const completeZodIssuesChecksum = sha256Text(JSON.stringify(issues));
+  return { zodIssuesBounded: issues.slice(0, 20), zodIssueCount: issues.length, zodIssuesTruncated: issues.length > 20, completeZodIssuesChecksum };
+}
+
+function rawContentDiagnostic(content: string): Pick<ProviderDiagnostic, "rawContentBytes" | "rawContentChecksum" | "contentPresent" | "contentLength"> {
+  return { rawContentBytes: Buffer.byteLength(content, "utf8"), rawContentChecksum: sha256Text(content), contentPresent: true, contentLength: content.length };
+}
+
+/**
+ * Parses provider wire content after the network response has been captured.
+ * The raw content is accepted only in this bounded local seam and is never
+ * copied into diagnostics or persistence; diagnostics retain byte counts and
+ * checksums plus bounded schema issue metadata.
+ */
+export function parseProviderWireContent<T>(input: { content: string; schema: ZodType<T>; response: ProviderTransportResult }): ProviderParsedStructuredResult<T> {
+  const contentMetadata = rawContentDiagnostic(input.content);
+  const responseDiagnostic = { ...input.response.diagnostic, ...contentMetadata, responseReceived: true, apiResponseReceived: true, structuredParsingReached: true };
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(input.content);
+  } catch {
+    throw new AiProviderError("AI_STRUCTURED_PARSE_FAILED", "Provider structured output was not valid JSON.", undefined, { ...responseDiagnostic, stage: "structured_parse", outputStage: "STRUCTURED_OUTPUT_PARSE_FAILED", jsonParseSucceeded: false, outputComplete: false });
+  }
+  const parsed = input.schema.safeParse(decoded);
+  if (!parsed.success) {
+    const issueMetadata = boundedZodIssues(parsed.error);
+    throw new AiProviderError("AI_OUTPUT_DOMAIN_INVALID", "Provider structured output failed the strict transport schema.", undefined, { ...responseDiagnostic, stage: "domain_validation", outputStage: "TRANSPORT_SCHEMA_VALIDATION_FAILED", jsonParseSucceeded: true, outputComplete: false, issueCode: zodIssueCode(parsed.error), fieldPath: zodIssuePaths(parsed.error)?.[0], issueCount: zodIssueCount(parsed.error), domainValidationIssuePaths: zodIssuePaths(parsed.error), ...issueMetadata });
+  }
+  return { ...input.response, content: input.content, value: parsed.data, diagnostic: { ...responseDiagnostic, jsonParseSucceeded: true, outputComplete: true, parsedPresent: true } };
+}
+
+function completionResponseDiagnostic<T>(completion: ChatCompletion, request: StructuredRequest<T>, parsedPresent: boolean, outputComplete: boolean): ProviderDiagnostic {
+  const choice = completion.choices[0];
+  const message = choice?.message;
+  const inputTokens = completion.usage?.prompt_tokens;
+  const outputTokens = completion.usage?.completion_tokens;
+  const maxCompletionTokens = request.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS;
+  return { stage: "api_response", requestAttempted: true, apiResponseReceived: true, responseReceived: true, outputComplete, tokenExhaustion: choice?.finish_reason === "length" || (outputTokens !== undefined && outputTokens >= maxCompletionTokens), requestId: completion.id, choicesCount: completion.choices.length, finishReason: choice?.finish_reason ?? null, refusalPresent: Boolean(message?.refusal), parsedPresent, contentPresent: typeof message?.content === "string", contentLength: typeof message?.content === "string" ? message.content.length : undefined, schemaName: request.schemaName, inputTokens, outputTokens, ...(inputTokens !== undefined && outputTokens !== undefined ? { totalTokens: inputTokens + outputTokens } : {}), maxCompletionTokens };
+}
+
+async function manualExecutor<T>(request: StructuredRequest<T>, client: OpenAI, config: AiProviderConfig, correction: boolean, captureResponse: ProviderResponseCapture) {
+  const responseSchema = buildProductionResponseFormat(request.schema, request.schemaName);
+  const correctionInstruction = request.role === "design" ? "\nReturn exactly 3 directions. Repair only the structural deficiency; do not omit, clone, or add a fourth direction." : "\nCorrect the previous structured-output formatting.";
+  let completion: ChatCompletion;
+  try {
+    completion = await client.chat.completions.create({ model: config.model, max_completion_tokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, messages: [{ role: "system", content: `${request.system}${correction ? correctionInstruction : ""}` }, { role: "user", content: request.user }], response_format: responseSchema }, request.signal ? { signal: request.signal } : undefined) as unknown as ChatCompletion;
+  } catch (error) {
+    throw mapError(error, request.schemaName, true, config.model);
+  }
+  const choice = completion.choices[0];
+  const message = choice?.message;
+  const inputTokens = completion.usage?.prompt_tokens;
+  const outputTokens = completion.usage?.completion_tokens;
+  const cachedInputTokens = completion.usage?.prompt_tokens_details?.cached_tokens;
+  const responseDiagnostic = completionResponseDiagnostic(completion, request, false, false);
+  await captureResponse({ requestId: completion.id, inputTokens, ...(cachedInputTokens === undefined ? {} : { cachedInputTokens }), outputTokens, diagnostic: responseDiagnostic });
+  if (message?.refusal) throw new AiProviderError("AI_OUTPUT_REFUSED", "The provider refused the structured request.", undefined, { ...responseDiagnostic, outputStage: "PROVIDER_REFUSAL", outputComplete: false });
+  if (choice?.finish_reason === "length" || choice?.finish_reason === "content_filter") throw new AiProviderError("AI_OUTPUT_TRUNCATED", "The provider output was incomplete.", undefined, { ...responseDiagnostic, outputStage: "PROVIDER_OUTPUT_INCOMPLETE", outputComplete: false, tokenExhaustion: choice?.finish_reason === "length" });
+  if (typeof message?.content !== "string" || message.content.length === 0) throw new AiProviderError("AI_OUTPUT_NO_PARSED_OUTPUT", "The provider returned no structured output content.", undefined, { ...responseDiagnostic, outputStage: "STRUCTURED_OUTPUT_PARSE_FAILED", outputComplete: false, contentPresent: false });
+  const parsed = parseProviderWireContent({ content: message.content, schema: request.schema, response: { requestId: completion.id, inputTokens, ...(cachedInputTokens === undefined ? {} : { cachedInputTokens }), outputTokens, diagnostic: responseDiagnostic } });
+  return { value: parsed.value, requestId: parsed.requestId, inputTokens: parsed.inputTokens, ...(parsed.cachedInputTokens === undefined ? {} : { cachedInputTokens: parsed.cachedInputTokens }), outputTokens: parsed.outputTokens, diagnostic: parsed.diagnostic } as const;
 }
 
 async function defaultExecutor<T>(request: StructuredRequest<T>, client: OpenAI, config: AiProviderConfig, correction: boolean) {

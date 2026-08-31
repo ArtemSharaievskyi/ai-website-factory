@@ -1433,6 +1433,7 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
       idempotencyKey: `${input.plannerInput.idempotencyKey}:${skillContextIdentity}`,
       maxCompletionTokens: input.outputPolicy.maxEstimatedTokens,
       retryPolicy: { maxRetries: 0, corrections: 0 },
+      parseStrategy: "manual",
     });
     return normalizeRecoveryPlanningPackage(
       result.value,

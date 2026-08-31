@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
-import { buildProductionResponseFormat, OpenAiStructuredClient, type StructuredRequest } from "./client";
+import { buildProductionResponseFormat, OpenAiStructuredClient, parseProviderWireContent, type StructuredRequest } from "./client";
 import { AiProviderError } from "./errors";
 import { FifoConcurrencyLimiter } from "./limiter";
 import { zodResponseFormat } from "openai/helpers/zod";
@@ -241,6 +241,38 @@ describe("production AI provider boundary", () => {
     expect(result.requirementAccounting.every((entry) => !("requirementId" in entry))).toBe(true);
     expect(result.planningPackage.traceability.some((entry) => entry.requirementReferences.includes(fixture.input.planningRequirementManifest.requirements[0]!.requirementId))).toBe(true);
   });
+  it("replays the exact 11-route and 118-requirement recovery wire shape without network access", () => {
+    const fixture = recoveryNormalizationFixture();
+    const replay = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
+    const sitemap = replay.sitemap as Record<string, unknown>;
+    const baseRoute = (sitemap.routes as Array<Record<string, unknown>>)[0]!;
+    sitemap.routes = Array.from({ length: 11 }, (_, index) => ({ ...baseRoute, routeHandle: `planning-route:replay-${String(index + 1).padStart(3, "0")}`, pageHandle: `planning-page:replay-${String(index + 1).padStart(3, "0")}`, path: index === 0 ? "/" : `/replay-${index}` }));
+    const pages = replay.pages as Record<string, unknown>;
+    const basePage = (pages.pages as Array<Record<string, unknown>>)[0]!;
+    pages.pages = Array.from({ length: 11 }, (_, index) => ({ ...basePage, pageHandle: `planning-page:replay-${String(index + 1).padStart(3, "0")}`, routeHandle: `planning-route:replay-${String(index + 1).padStart(3, "0")}` }));
+    const architecture = replay.architecture as Record<string, unknown>;
+    const baseArchitectureRoute = (architecture.routes as Array<Record<string, unknown>>)[0]!;
+    architecture.routes = Array.from({ length: 11 }, (_, index) => ({ ...baseArchitectureRoute, routeHandle: `planning-route:replay-${String(index + 1).padStart(3, "0")}` }));
+    const accounting = replay.requirementAccounting as Array<Record<string, unknown>>;
+    replay.requirementAccounting = Array.from({ length: 118 }, (_, index) => ({ ...accounting[index % Math.max(accounting.length, 1)]!, semanticEvidence: `Synthetic replay evidence position ${index}.` }));
+    PlanningRecoveryPackageStructuredOutputSchema.parse(replay);
+    const responseFormat = buildProductionResponseFormat(PlanningRecoveryPackageStructuredOutputSchema, "planning-recovery-package") as unknown as { type: string; json_schema: { name: string; strict: boolean; schema: unknown } };
+    const parsed = parseProviderWireContent({
+      content: JSON.stringify(replay),
+      schema: PlanningRecoveryPackageStructuredOutputSchema,
+      response: {
+        requestId: "req_manual_replay",
+        inputTokens: 11,
+        outputTokens: 118,
+        diagnostic: { stage: "api_response", requestAttempted: true, apiResponseReceived: true, responseReceived: true, schemaName: "planning-recovery-package", requestId: "req_manual_replay", choicesCount: 1, finishReason: "stop", contentPresent: true, outputComplete: false },
+      },
+    });
+    expect(responseFormat).toMatchObject({ type: "json_schema", json_schema: { name: "planning-recovery-package", strict: true } });
+    expect(JSON.stringify(responseFormat.json_schema)).not.toContain("$parseRaw");
+    expect(parsed.value.sitemap.routes).toHaveLength(11);
+    expect(parsed.value.requirementAccounting).toHaveLength(118);
+    expect(parsed.diagnostic).toMatchObject({ jsonParseSucceeded: true, rawContentBytes: expect.any(Number), rawContentChecksum: expect.stringMatching(/^[a-f0-9]{64}$/), outputComplete: true });
+  });
   it("normalizes a provider backend priority to no-backend when the approved Brief requires frontend-only behavior", async () => {
     const fixture = noBackendPlannerTransport();
     const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: fixture.transport as T, requestId: "req_no_backend_planner" }) });
@@ -323,6 +355,47 @@ describe("production AI provider boundary", () => {
     await expect(client.request(request)).resolves.toMatchObject({ value: { ok: true, summary: "bounded" } });
     expect(sent).toMatchObject({ model: "test-model", response_format: expect.anything() });
     expect(sent).not.toHaveProperty("temperature");
+  });
+
+  it("uses create with the exact strict zodResponseFormat and captures usage before manual parsing", async () => {
+    let sent: Record<string, unknown> | undefined;
+    const usage = vi.fn();
+    const client = new OpenAiStructuredClient(config, { usageSink: usage, client: { chat: { completions: { create: async (value: Record<string, unknown>) => { sent = value; return { id: "req_manual_valid", choices: [{ message: { content: JSON.stringify({ ok: true, summary: "bounded" }) }, finish_reason: "stop" }], usage: { prompt_tokens: 7, completion_tokens: 3, total_tokens: 10, prompt_tokens_details: { cached_tokens: 1 } } }; } } } } as never });
+    const result = await client.request({ ...request, parseStrategy: "manual", retryPolicy: { maxRetries: 0, corrections: 0 } });
+    expect(result.value).toEqual({ ok: true, summary: "bounded" });
+    expect(sent).toMatchObject({ model: "test-model", response_format: { type: "json_schema", json_schema: { name: "test-output", strict: true } } });
+    expect(JSON.stringify(sent)).not.toContain("$parseRaw");
+    expect((sent?.response_format as { json_schema: { schema: unknown } }).json_schema.schema).toEqual((zodResponseFormat(schema, "test-output") as unknown as { json_schema: { schema: unknown } }).json_schema.schema);
+    expect(usage).toHaveBeenCalledWith(expect.objectContaining({ inputTokens: 7, cachedInputTokens: 1, outputTokens: 3, totalTokens: 10, actualUsageCaptured: true }));
+    expect(result.diagnostic).toMatchObject({ responseReceived: true, jsonParseSucceeded: true, outputComplete: true, rawContentBytes: expect.any(Number), rawContentChecksum: expect.stringMatching(/^[a-f0-9]{64}$/) });
+  });
+
+  it("records response usage and bounded wire-schema diagnostics when manual parsing fails without retry", async () => {
+    let calls = 0;
+    const usage = vi.fn();
+    const client = new OpenAiStructuredClient({ ...config, maxRetries: 3 }, { usageSink: usage, client: { chat: { completions: { create: async () => { calls += 1; return { id: "req_manual_invalid", choices: [{ message: { content: JSON.stringify({ ok: "SECRET_PROVIDER_VALUE", summary: "bounded" }) }, finish_reason: "stop" }], usage: { prompt_tokens: 13, completion_tokens: 5, total_tokens: 18 } }; } } } } as never });
+    let failure: AiProviderError | undefined;
+    try {
+      await client.request({ ...request, parseStrategy: "manual", idempotencyKey: "manual-wire-invalid", retryPolicy: { maxRetries: 0, corrections: 0 } });
+    } catch (error) {
+      failure = error as AiProviderError;
+    }
+    expect(failure?.code).toBe("AI_OUTPUT_DOMAIN_INVALID");
+    expect(calls).toBe(1);
+    expect(usage).toHaveBeenCalledWith(expect.objectContaining({ inputTokens: 13, outputTokens: 5, totalTokens: 18, actualUsageCaptured: true }));
+    expect(failure?.diagnostic).toMatchObject({ stage: "domain_validation", responseReceived: true, apiResponseReceived: true, structuredParsingReached: true, inputTokens: 13, outputTokens: 5, totalTokens: 18, jsonParseSucceeded: true, zodIssueCount: expect.any(Number), zodIssuesBounded: expect.any(Array), completeZodIssuesChecksum: expect.stringMatching(/^[a-f0-9]{64}$/), rawContentBytes: expect.any(Number), rawContentChecksum: expect.stringMatching(/^[a-f0-9]{64}$/) });
+    expect(failure?.failureDiagnostic).toMatchObject({ category: "STRUCTURED_OUTPUT", stage: "PROVIDER_RESPONSE", responseReceived: true, structuredParsingReached: true, inputTokens: 13, outputTokens: 5, totalTokens: 18, jsonParseSucceeded: true, zodIssueCount: expect.any(Number), rawContentChecksum: expect.stringMatching(/^[a-f0-9]{64}$/) });
+    expect(JSON.stringify(failure)).not.toContain("SECRET_PROVIDER_VALUE");
+  });
+
+  it("separates invalid JSON from wire-schema validation in the manual parser", () => {
+    const response = { requestId: "req_manual_json", inputTokens: 2, outputTokens: 1, diagnostic: { stage: "api_response" as const, requestAttempted: true, apiResponseReceived: true, responseReceived: true, schemaName: "test-output" } };
+    expect(() => parseProviderWireContent({ content: "{invalid", schema, response })).toThrowError(AiProviderError);
+    try {
+      parseProviderWireContent({ content: "{invalid", schema, response });
+    } catch (error) {
+      expect(error).toMatchObject({ code: "AI_STRUCTURED_PARSE_FAILED", diagnostic: { stage: "structured_parse", responseReceived: true, jsonParseSucceeded: false, rawContentBytes: 8, rawContentChecksum: expect.stringMatching(/^[a-f0-9]{64}$/) } });
+    }
   });
 
   it("classifies local strict-schema construction separately from API failures", async () => {

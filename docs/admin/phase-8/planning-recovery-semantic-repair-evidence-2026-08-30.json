@@ -6,8 +6,8 @@
   "files": [
     {
       "relativePath": "src/integrations/openai/adapters.ts",
-      "sha256": "7e57eb48a3e07cb455fa2d5e556432e2eeb55aee58bf9ef056bea3141cb62067"
+      "sha256": "e2b51aa9ee4ce194e6130a01d9c62d7f988ee1deb36f8fd105b726846a6c8dff"
     }
   ],
-  "snapshotChecksum": "b78f41c9d815e0f2d4349d20ca18e722349476aa55c30b0cf6296cf7f96a17b7"
+  "snapshotChecksum": "8600cd1993851fa0bc48a570d6567b0620761a0dc4d02c75e37fb122136d73ba"
 }

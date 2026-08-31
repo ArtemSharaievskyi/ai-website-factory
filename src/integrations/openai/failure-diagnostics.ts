@@ -40,6 +40,36 @@ function safeStatus(value: unknown) {
   return Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined;
 }
 
+function safeNonnegativeInt(value: unknown) {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
+}
+
+function safePositiveInt(value: unknown) {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
+function safeChecksum(value: unknown) {
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value) ? value : undefined;
+}
+
+function safePath(value: unknown) {
+  return typeof value === "string" && value.length >= 1 && value.length <= 240 && /^[A-Za-z0-9_$.[\]/:-]+$/.test(value) ? value : undefined;
+}
+
+function safeZodIssues(value: ProviderDiagnostic["zodIssuesBounded"]) {
+  if (!Array.isArray(value)) return undefined;
+  const issues = value.slice(0, 20).flatMap((issue) => {
+    const path = safePath(issue?.path);
+    const code = safeToken(issue?.code);
+    const message = typeof issue?.message === "string" && issue.message.length >= 1 && issue.message.length <= 240 ? issue.message : undefined;
+    if (!path || !code || !message) return [];
+    const expected = safeToken(issue.expected);
+    const received = safeToken(issue.received);
+    return [{ path, code, message, ...(expected ? { expected } : {}), ...(received ? { received } : {}) }];
+  });
+  return issues.length ? issues : undefined;
+}
+
 function categoryFor(input: ProviderFailureDiagnosticInput, status: number | undefined, providerErrorCode: string | undefined): ProviderFailureDiagnostic["category"] {
   if (status === 401 || status === 403 || input.errorCode === "AI_AUTHENTICATION_FAILED") return "AUTHENTICATION";
   if (status === 404 || input.errorCode === "AI_MODEL_ACCESS_FAILED") return "MODEL_ACCESS";
@@ -82,6 +112,8 @@ export function createProviderFailureDiagnostic(input: ProviderFailureDiagnostic
   const category = categoryFor(input, status, providerErrorCode);
   const responseReceived = responseReceivedFor(input, category, status);
   const structuredParsingReached = structuredParsingReachedFor(input, category);
+  const diagnostic = input.diagnostic;
+  const zodIssuesBounded = safeZodIssues(diagnostic?.zodIssuesBounded);
   return ProviderFailureDiagnosticSchema.parse({
     version: 1,
     category,
@@ -98,5 +130,21 @@ export function createProviderFailureDiagnostic(input: ProviderFailureDiagnostic
     ...(providerErrorCode ? { providerErrorCode } : {}),
     ...(safeToken(input.errorCode) ? { errorCode: safeToken(input.errorCode) } : {}),
     ...(safeToken(input.schemaName) ? { schemaName: safeToken(input.schemaName) } : {}),
+    ...(safeNonnegativeInt(diagnostic?.choicesCount) === undefined ? {} : { choicesCount: safeNonnegativeInt(diagnostic?.choicesCount) }),
+    ...(diagnostic?.finishReason === null ? { finishReason: null } : safeToken(diagnostic?.finishReason) ? { finishReason: safeToken(diagnostic?.finishReason) } : {}),
+    ...(typeof diagnostic?.refusalPresent === "boolean" ? { refusalPresent: diagnostic.refusalPresent } : {}),
+    ...(typeof diagnostic?.contentPresent === "boolean" ? { contentPresent: diagnostic.contentPresent } : {}),
+    ...(typeof diagnostic?.outputComplete === "boolean" ? { outputComplete: diagnostic.outputComplete } : {}),
+    ...(safeNonnegativeInt(diagnostic?.inputTokens) === undefined ? {} : { inputTokens: safeNonnegativeInt(diagnostic?.inputTokens) }),
+    ...(safeNonnegativeInt(diagnostic?.outputTokens) === undefined ? {} : { outputTokens: safeNonnegativeInt(diagnostic?.outputTokens) }),
+    ...(safeNonnegativeInt(diagnostic?.totalTokens) === undefined ? {} : { totalTokens: safeNonnegativeInt(diagnostic?.totalTokens) }),
+    ...(safePositiveInt(diagnostic?.maxCompletionTokens) === undefined ? {} : { maxCompletionTokens: safePositiveInt(diagnostic?.maxCompletionTokens) }),
+    ...(safeNonnegativeInt(diagnostic?.rawContentBytes) === undefined ? {} : { rawContentBytes: safeNonnegativeInt(diagnostic?.rawContentBytes) }),
+    ...(safeChecksum(diagnostic?.rawContentChecksum) ? { rawContentChecksum: safeChecksum(diagnostic?.rawContentChecksum) } : {}),
+    ...(typeof diagnostic?.jsonParseSucceeded === "boolean" ? { jsonParseSucceeded: diagnostic.jsonParseSucceeded } : {}),
+    ...(safeNonnegativeInt(diagnostic?.zodIssueCount) === undefined ? {} : { zodIssueCount: safeNonnegativeInt(diagnostic?.zodIssueCount) }),
+    ...(typeof diagnostic?.zodIssuesTruncated === "boolean" ? { zodIssuesTruncated: diagnostic.zodIssuesTruncated } : {}),
+    ...(safeChecksum(diagnostic?.completeZodIssuesChecksum) ? { completeZodIssuesChecksum: safeChecksum(diagnostic?.completeZodIssuesChecksum) } : {}),
+    ...(zodIssuesBounded ? { zodIssuesBounded } : {}),
   });
 }

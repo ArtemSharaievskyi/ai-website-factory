@@ -1,6 +1,15 @@
 import { z } from "zod";
 
 const SafeDiagnosticTokenSchema = z.string().min(1).max(160).regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/);
+const SafeDiagnosticPathSchema = z.string().min(1).max(240).regex(/^[A-Za-z0-9_$.[\]/:-]+$/);
+const SafeDiagnosticChecksumSchema = z.string().regex(/^[a-f0-9]{64}$/);
+const SafeZodIssueSchema = z.object({
+  path: SafeDiagnosticPathSchema,
+  code: SafeDiagnosticTokenSchema,
+  expected: SafeDiagnosticTokenSchema.optional(),
+  received: SafeDiagnosticTokenSchema.optional(),
+  message: z.string().min(1).max(240),
+}).strict();
 
 export const ProviderFailureDiagnosticSchema = z.object({
   version: z.literal(1),
@@ -30,6 +39,22 @@ export const ProviderFailureDiagnosticSchema = z.object({
   providerErrorCode: SafeDiagnosticTokenSchema.optional(),
   errorCode: SafeDiagnosticTokenSchema.optional(),
   schemaName: SafeDiagnosticTokenSchema.optional(),
+  choicesCount: z.number().int().nonnegative().optional(),
+  finishReason: SafeDiagnosticTokenSchema.nullable().optional(),
+  refusalPresent: z.boolean().optional(),
+  contentPresent: z.boolean().optional(),
+  outputComplete: z.boolean().optional(),
+  inputTokens: z.number().int().nonnegative().optional(),
+  outputTokens: z.number().int().nonnegative().optional(),
+  totalTokens: z.number().int().nonnegative().optional(),
+  maxCompletionTokens: z.number().int().positive().optional(),
+  rawContentBytes: z.number().int().nonnegative().optional(),
+  rawContentChecksum: SafeDiagnosticChecksumSchema.optional(),
+  jsonParseSucceeded: z.boolean().optional(),
+  zodIssueCount: z.number().int().nonnegative().optional(),
+  zodIssuesTruncated: z.boolean().optional(),
+  completeZodIssuesChecksum: SafeDiagnosticChecksumSchema.optional(),
+  zodIssuesBounded: z.array(SafeZodIssueSchema).max(20).optional(),
 }).strict();
 
 export type ProviderFailureDiagnostic = z.infer<typeof ProviderFailureDiagnosticSchema>;

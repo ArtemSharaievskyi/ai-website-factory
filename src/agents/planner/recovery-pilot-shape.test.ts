@@ -109,14 +109,14 @@ describePilot("Haus & Garten Service Planning Recovery pilot shape", () => {
     expect(Buffer.byteLength(serializedCompact, "utf8")).toBeLessThan(input.contextPolicy.maxBytes);
 
     let capturedRequest: Record<string, unknown> | undefined;
-    const parse = vi.fn(async (request: Record<string, unknown>) => {
+    const create = vi.fn(async (request: Record<string, unknown>) => {
       capturedRequest = request;
       throw Object.assign(new Error("network boundary intentionally stopped"), { code: "ECONNRESET" });
     });
     const config = readAiProviderConfig({ OPENAI_API_KEY: "synthetic-provider-key", OPENAI_MODEL: configuredProviderModel(), OPENAI_MAX_RETRIES: "0", OPENAI_MAX_CONCURRENT_REQUESTS: "1" });
-    const provider = new OpenAiPlannerProvider(new OpenAiStructuredClient(config, { client: { chat: { completions: { parse } } } as never }));
+    const provider = new OpenAiPlannerProvider(new OpenAiStructuredClient(config, { client: { chat: { completions: { create } } } as never }));
     await expect(provider.planRecovery(input)).rejects.toMatchObject({ code: "AI_NETWORK_ERROR", diagnostic: { stage: "api_request", requestAttempted: true, apiResponseReceived: false }, failureDiagnostic: { category: "NETWORK", stage: "REQUEST_TRANSPORT", requestAttempted: true, responseReceived: false, schemaName: "planning-recovery-package" } });
-    expect(parse).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledTimes(1);
     expect(capturedRequest).toBeDefined();
     const responseFormat = capturedRequest!.response_format as { type: string; json_schema: { name: string; strict: boolean; schema: unknown } };
     expect(responseFormat).toMatchObject({ type: "json_schema", json_schema: { name: "planning-recovery-package", strict: true } });
