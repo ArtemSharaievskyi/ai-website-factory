@@ -3,6 +3,7 @@ import { z } from "zod";
 const SafeDiagnosticTokenSchema = z.string().min(1).max(160).regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/);
 const SafeDiagnosticPathSchema = z.string().min(1).max(240).regex(/^[A-Za-z0-9_$.[\]/:-]+$/);
 const SafeDiagnosticChecksumSchema = z.string().regex(/^[a-f0-9]{64}$/);
+const SafeDiagnosticMessageSchema = z.string().min(1).max(500);
 const SafeZodIssueSchema = z.object({
   path: SafeDiagnosticPathSchema,
   code: SafeDiagnosticTokenSchema,
@@ -37,6 +38,9 @@ export const ProviderFailureDiagnosticSchema = z.object({
   requestId: SafeDiagnosticTokenSchema.optional(),
   sdkErrorClass: SafeDiagnosticTokenSchema.optional(),
   providerErrorCode: SafeDiagnosticTokenSchema.optional(),
+  providerErrorType: SafeDiagnosticTokenSchema.optional(),
+  providerErrorParam: SafeDiagnosticTokenSchema.optional(),
+  safeProviderMessage: SafeDiagnosticMessageSchema.optional(),
   errorCode: SafeDiagnosticTokenSchema.optional(),
   schemaName: SafeDiagnosticTokenSchema.optional(),
   choicesCount: z.number().int().nonnegative().optional(),

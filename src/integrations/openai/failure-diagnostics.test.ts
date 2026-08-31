@@ -60,4 +60,29 @@ describe("provider failure diagnostic normalization", () => {
     expect(failure?.failureDiagnostic).toMatchObject({ category: "REQUEST_CONSTRUCTION", stage: "REQUEST_CONSTRUCTION", requestAttempted: false, responseReceived: false, structuredParsingReached: false, errorCode: "AI_REQUEST_SCHEMA_INVALID", schemaName: "invalid-optional-schema" });
     expect(failure?.failureDiagnostic).not.toHaveProperty("httpStatus");
   });
+
+  it("retains only bounded provider error metadata and the normalized API message", async () => {
+    const failure = await failureFor(Object.assign(new Error("SECRET_SDK_MESSAGE"), {
+      status: 400,
+      request_id: "req_schema_rejected",
+      error: {
+        type: "invalid_request_error",
+        code: "invalid_json_schema",
+        param: "response_format",
+        message: "Schema rejected: total enum values exceed the supported limit.\nNo request content is retained.",
+      },
+    }));
+    expect(failure.failureDiagnostic).toMatchObject({
+      category: "REQUEST_REJECTED",
+      stage: "REQUEST_TRANSPORT",
+      httpStatus: 400,
+      requestId: "req_schema_rejected",
+      providerErrorType: "invalid_request_error",
+      providerErrorCode: "invalid_json_schema",
+      providerErrorParam: "response_format",
+      safeProviderMessage: "Schema rejected: total enum values exceed the supported limit. No request content is retained.",
+    });
+    expect(JSON.stringify(failure.failureDiagnostic)).not.toContain("SECRET_");
+    expect(ProviderFailureDiagnosticSchema.safeParse(failure.failureDiagnostic).success).toBe(true);
+  });
 });

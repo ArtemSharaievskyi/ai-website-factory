@@ -30,6 +30,12 @@ function safeToken(value: unknown) {
   return typeof value === "string" && value.length >= 1 && value.length <= 160 && /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(value) ? value : undefined;
 }
 
+function safeMessage(value: unknown) {
+  if (typeof value !== "string" || value.length === 0) return undefined;
+  const normalized = value.replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim();
+  return normalized.length > 500 ? normalized.slice(0, 500) : normalized || undefined;
+}
+
 function safeClassName(error: unknown) {
   const name = error instanceof Error && error.constructor?.name ? error.constructor.name : typeof error === "object" && error ? "SdkError" : "Error";
   return safeToken(name);
@@ -128,6 +134,9 @@ export function createProviderFailureDiagnostic(input: ProviderFailureDiagnostic
     ...(safeToken(input.diagnostic?.requestId) ? { requestId: safeToken(input.diagnostic?.requestId) } : {}),
     ...(safeToken(input.diagnostic?.sdkErrorClass) ?? safeClassName(input.error) ? { sdkErrorClass: safeToken(input.diagnostic?.sdkErrorClass) ?? safeClassName(input.error) } : {}),
     ...(providerErrorCode ? { providerErrorCode } : {}),
+    ...(safeToken(input.diagnostic?.openaiErrorType) ? { providerErrorType: safeToken(input.diagnostic?.openaiErrorType) } : {}),
+    ...(safeToken(input.diagnostic?.openaiErrorParam) ? { providerErrorParam: safeToken(input.diagnostic?.openaiErrorParam) } : {}),
+    ...(safeMessage(input.diagnostic?.openaiErrorMessage) ? { safeProviderMessage: safeMessage(input.diagnostic?.openaiErrorMessage) } : {}),
     ...(safeToken(input.errorCode) ? { errorCode: safeToken(input.errorCode) } : {}),
     ...(safeToken(input.schemaName) ? { schemaName: safeToken(input.schemaName) } : {}),
     ...(safeNonnegativeInt(diagnostic?.choicesCount) === undefined ? {} : { choicesCount: safeNonnegativeInt(diagnostic?.choicesCount) }),

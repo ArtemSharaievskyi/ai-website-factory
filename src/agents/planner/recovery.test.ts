@@ -636,6 +636,27 @@ describe("host-owned full Planning recovery", () => {
     expect(calls).toBe(1);
   });
 
+  it("fails the recovery schema preflight before creating a run or consuming the provider budget", async () => {
+    const base = brief();
+    const next = brief({ requirements: [...base.requirements, { id: "REQUIREMENT:preflight", category: "FEATURE", statement: "Provide the schema preflight fixture.", sourceRefs: ["fixture:preflight"] }] });
+    const fixture = await seeded({ currentBrief: next, packageBrief: base });
+    let preflightCalls = 0;
+    let providerCalls = 0;
+    const recovery = service(fixture, {
+      provider: {
+        preflightPlanRecovery: () => { preflightCalls += 1; throw new Error("synthetic-schema-preflight-failure"); },
+        planRecovery: async () => { providerCalls += 1; throw new Error("provider-call-forbidden"); },
+      },
+    });
+    await expect(recovery.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "schema-preflight" })).rejects.toMatchObject({ code: "PROVIDER_SCHEMA_INVALID" });
+    expect(preflightCalls).toBe(1);
+    expect(providerCalls).toBe(0);
+    const run = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "schema-preflight"));
+    expect(run).toBeNull();
+    const prepared = await recovery.prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: "schema-preflight-repeat" });
+    expect(prepared.eligibility).toMatchObject({ eligible: false, reason: "PROVIDER_SCHEMA_INVALID", blockers: ["RECOVERY_PROVIDER_SCHEMA_PREFLIGHT_FAILED"] });
+  });
+
   it("persists bounded complete blocker diagnostics for a failed admission", async () => {
     const base = brief();
     const next = brief({ requirements: [...base.requirements, ...Array.from({ length: 72 }, (_, index) => ({ id: `REQUIREMENT:diagnostic-${index}`, category: "LEGAL_CONSTRAINT" as const, statement: `Synthetic admission diagnostic constraint ${index} requires explicit traceability coverage.`, sourceRefs: [`fixture:diagnostic:${index}`] }))] });

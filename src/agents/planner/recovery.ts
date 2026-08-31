@@ -252,6 +252,7 @@ export const PlanningRecoveryEligibilitySchema = z.object({
     "CANONICAL_UNRESOLVED",
     "PROVIDER_RECOVERY_CAPABILITY_UNAVAILABLE",
     "CONTEXT_BOUND_EXCEEDED",
+    "PROVIDER_SCHEMA_INVALID",
   ]),
   planningOwnedRequirementCount: z.number().int().nonnegative(),
   currentCoverage: z.array(z.object({
@@ -276,6 +277,7 @@ export type PlanningRecoveryPreparation = {
 };
 
 export type PlanningRecoveryProvider = {
+  preflightPlanRecovery?(input: Pick<PlanningRecoveryProviderInput, "planningRequirementManifest">): void;
   planRecovery(input: PlanningRecoveryProviderInput, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string, hostTimestamp?: string): Promise<PlanningRecoveryProviderResult>;
 };
 
@@ -806,6 +808,18 @@ export class PlanningRecoveryService {
   private now() { return this.dependencies.now?.() ?? new Date().toISOString(); }
   private leaseExpiresAt(now: string) { return new Date(Date.parse(now) + PLANNING_RECOVERY_RUN_LEASE_MS).toISOString(); }
 
+  private preflightRecoveryProvider(plan: PlanningRecoveryPlan) {
+    const preflight = this.dependencies.provider.preflightPlanRecovery;
+    if (!preflight) return;
+    if (!plan.planningRequirementManifest) throw new PlanningRecoveryError("RECOVERY_PLAN_INVALID");
+    try {
+      preflight({ planningRequirementManifest: plan.planningRequirementManifest });
+    } catch (error) {
+      if (error instanceof PlanningRecoveryError && error.code === "RECOVERY_PLAN_INVALID") throw error;
+      throw new PlanningRecoveryError("PROVIDER_SCHEMA_INVALID");
+    }
+  }
+
   private async currentSource(expected: string) {
     let actual: Awaited<ReturnType<SourceCurrentnessPort["read"]>>;
     try { actual = await this.source.read(); }
@@ -992,6 +1006,12 @@ export class PlanningRecoveryService {
       if (error instanceof PlanningRecoveryError && error.code === "CONTEXT_BOUND_EXCEEDED") return fail("CONTEXT_BOUND_EXCEEDED", [error.code], count, scope);
       return fail("CURRENTNESS_TOKEN_INVALID", ["RECOVERY_PLAN_INVALID"], count, scope);
     }
+    try {
+      this.preflightRecoveryProvider(plan);
+    } catch (error) {
+      if (error instanceof PlanningRecoveryError && error.code === "PROVIDER_SCHEMA_INVALID") return fail("PROVIDER_SCHEMA_INVALID", ["RECOVERY_PROVIDER_SCHEMA_PREFLIGHT_FAILED"], count, scope);
+      return fail("CURRENTNESS_TOKEN_INVALID", ["RECOVERY_PLAN_INVALID"], count, scope);
+    }
     const eligibility = PlanningRecoveryEligibilitySchema.parse({ eligible: true, blockers: [], reason: "RECOVERY_REQUIRED", planningOwnedRequirementCount: count, currentCoverage: coverageMissing.map((entry) => ({ requirementId: entry.requirementId, category: entry.category, reason: entry.reason })) });
     return { eligibility, scope, plan, providerInput, execution };
   }
@@ -1027,6 +1047,7 @@ export class PlanningRecoveryService {
     const plan = parseRecoveryPlan(run);
     assertRecoveryRunSourceBinding(run, plan);
     if (preparation?.plan && preparation.plan.planChecksum !== plan.planChecksum) throw new PlanningRecoveryError("IDEMPOTENCY_CONFLICT");
+    this.preflightRecoveryProvider(plan);
     if (!isLeaseActive(run, this.now())) {
       try { await this.currentSource(plan.sourceHead); }
       catch (error) {

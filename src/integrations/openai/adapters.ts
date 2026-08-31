@@ -16,6 +16,9 @@ import type { PlannerArchitectureProvider } from "@/agents/planner/ports";
 import type { PlanningRecoveryProviderInput, PlanningRecoveryProviderResult } from "@/agents/planner/recovery";
 import {
   createPlanningRecoverySemanticAccountingSchema,
+  PlanningRecoverySemanticAccountingEntrySchema,
+  PlanningRequirementDispositionSchema,
+  PlanningTargetHandleRefSchema,
   type CanonicalPlanningRouteManifest,
   type PlanningOwnedRequirementManifest,
 } from "@/agents/planner/recovery-manifests";
@@ -41,7 +44,7 @@ import type {
   ImplementationChangeProposal,
 } from "@/agents/implementation/contracts";
 import { ImplementationChangeProposalSchema } from "@/agents/implementation/contracts";
-import { OpenAiStructuredClient } from "./client";
+import { OpenAiStructuredClient, buildProductionResponseFormat, type StructuredSchemaDefinition } from "./client";
 import { AiProviderError } from "./errors";
 import { boundedRolePrompt as rolePrompt } from "@/runtime/context/bridge";
 import type { ProviderDiagnostic, ProviderUsageSink } from "./usage";
@@ -815,6 +818,13 @@ export function createPlanningRecoveryProviderWireSchema(manifest: Pick<Planning
   }).strict();
 }
 
+/** Shared definitions keep the repeated keyed accounting values out of the provider wire schema. */
+export const PlanningRecoveryProviderSchemaDefinitions: Record<string, StructuredSchemaDefinition> = {
+  PlanningRecoveryAccountingEntry: PlanningRecoverySemanticAccountingEntrySchema,
+  PlanningRequirementDisposition: PlanningRequirementDispositionSchema,
+  PlanningTargetHandleRef: PlanningTargetHandleRefSchema,
+};
+
 /** Named factory exports retain the registered contract vocabulary without a static cardinality. */
 export const PlanningRecoveryProviderWireSchema = createPlanningRecoveryProviderWireSchema;
 export const PlanningRecoveryPackageStructuredOutputSchema = createPlanningRecoveryProviderWireSchema;
@@ -1472,6 +1482,10 @@ export function createPlanningRecoveryPromptContext(input: PlanningRecoveryProvi
 
 export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
   constructor(private readonly ai: OpenAiStructuredClient) {}
+  preflightPlanRecovery(input: Pick<PlanningRecoveryProviderInput, "planningRequirementManifest">): void {
+    const wireSchema = createPlanningRecoveryProviderWireSchema(input.planningRequirementManifest);
+    buildProductionResponseFormat(wireSchema, "planning-recovery-package", { schemaDefinitions: PlanningRecoveryProviderSchemaDefinitions });
+  }
   async plan(
     input: Parameters<PlannerArchitectureProvider["plan"]>[0],
     approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
@@ -1526,6 +1540,7 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
       system: `${prompt.system}\n${instruction}`,
       role: "planner",
       schema: wireSchema,
+      schemaDefinitions: PlanningRecoveryProviderSchemaDefinitions,
       schemaName: "planning-recovery-package",
       idempotencyKey: `${input.plannerInput.idempotencyKey}:${skillContextIdentity}`,
       maxCompletionTokens: input.outputPolicy.maxEstimatedTokens,

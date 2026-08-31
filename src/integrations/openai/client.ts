@@ -10,8 +10,10 @@ import type { ProviderDiagnostic, ProviderEventSink, ProviderOutputStage, Provid
 import type { ContextBundle } from "@/runtime/context";
 import { createInvocationFingerprint, createInvocationUsageRecord } from "@/runtime/context/telemetry";
 import { createHash, randomUUID } from "node:crypto";
+import { StructuredOutputPreflightError, assertStructuredOutputPreflight } from "./schema-preflight";
 
-export type StructuredRequest<T> = { role: string; promptVersion: string; system: string; user: string; schemaName: string; schema: ZodType<T>; signal?: AbortSignal; idempotencyKey?: string; contextBundle?: ContextBundle; promptPrefixChecksum?: string; promptPrefixBytes?: number; maxCompletionTokens?: number; retryPolicy?: { maxRetries: number; corrections: number }; parseStrategy?: "sdk" | "manual" };
+export type StructuredSchemaDefinition = Parameters<typeof zodResponseFormat>[0];
+export type StructuredRequest<T> = { role: string; promptVersion: string; system: string; user: string; schemaName: string; schema: ZodType<T>; schemaDefinitions?: Record<string, StructuredSchemaDefinition>; signal?: AbortSignal; idempotencyKey?: string; contextBundle?: ContextBundle; promptPrefixChecksum?: string; promptPrefixBytes?: number; maxCompletionTokens?: number; retryPolicy?: { maxRetries: number; corrections: number }; parseStrategy?: "sdk" | "manual" };
 export type StructuredResponse<T> = { value: T; usage: ProviderUsage; requestId: string; diagnostic?: ProviderDiagnostic };
 export type ProviderTransportResult = { requestId: string; inputTokens?: number; cachedInputTokens?: number; outputTokens?: number; diagnostic: ProviderDiagnostic };
 export type ProviderRawStructuredResult = ProviderTransportResult & { content: string };
@@ -62,10 +64,15 @@ function schemaConstructionDiagnostic(error: unknown, schemaName: string, schema
 }
 
 /** The production response-format boundary used immediately before the SDK call. */
-export function buildProductionResponseFormat<T>(schema: ZodType<T>, schemaName: string): ReturnType<typeof zodResponseFormat> {
+export function buildProductionResponseFormat<T>(schema: ZodType<T>, schemaName: string, options: { schemaDefinitions?: Record<string, StructuredSchemaDefinition> } = {}): ReturnType<typeof zodResponseFormat> {
   try {
-    return zodResponseFormat(schema as unknown as Parameters<typeof zodResponseFormat>[0], schemaName);
+    const responseFormat = zodResponseFormat(schema as unknown as Parameters<typeof zodResponseFormat>[0], schemaName, options.schemaDefinitions ? { schemaDefinitions: options.schemaDefinitions } : undefined);
+    const jsonSchema = responseFormat as unknown as { json_schema?: { schema?: unknown; strict?: unknown } };
+    assertStructuredOutputPreflight({ schema: jsonSchema.json_schema?.schema, strict: jsonSchema.json_schema?.strict });
+    return responseFormat;
   } catch (error) {
+    if (isAiProviderError(error)) throw error;
+    const preflight = error instanceof StructuredOutputPreflightError ? error : undefined;
     throw new AiProviderError("AI_REQUEST_SCHEMA_INVALID", "Structured output schema was rejected before the provider request.", error, {
       stage: "request_construction",
       outputStage: "REQUEST_SCHEMA_CONSTRUCTION_FAILED",
@@ -75,12 +82,12 @@ export function buildProductionResponseFormat<T>(schema: ZodType<T>, schemaName:
       outputComplete: false,
       sdkErrorClass: safeClassName(error),
       schemaName,
-      ...schemaConstructionDiagnostic(error, schemaName, schema),
+      ...(preflight ? { issueCode: preflight.issue.code, fieldPath: preflight.issue.path, schemaNodeKind: "JSONSchema", unsupportedConstruct: preflight.issue.keyword ?? preflight.issue.detail } : schemaConstructionDiagnostic(error, schemaName, schema)),
     });
   }
 }
 
-type ProviderErrorShape = { status?: unknown; requestID?: unknown; request_id?: unknown; error?: { type?: unknown; code?: unknown; param?: unknown } | null; type?: unknown; code?: unknown; param?: unknown; name?: unknown };
+type ProviderErrorShape = { status?: unknown; requestID?: unknown; request_id?: unknown; message?: unknown; error?: { type?: unknown; code?: unknown; param?: unknown; message?: unknown } | null; type?: unknown; code?: unknown; param?: unknown; name?: unknown };
 
 export class OpenAiStructuredClient {
   private readonly client: OpenAI;
@@ -273,7 +280,7 @@ function completionResponseDiagnostic<T>(completion: ChatCompletion, request: St
 }
 
 async function manualExecutor<T>(request: StructuredRequest<T>, client: OpenAI, config: AiProviderConfig, correction: boolean, captureResponse: ProviderResponseCapture) {
-  const responseSchema = buildProductionResponseFormat(request.schema, request.schemaName);
+  const responseSchema = buildProductionResponseFormat(request.schema, request.schemaName, { schemaDefinitions: request.schemaDefinitions });
   const correctionInstruction = request.role === "design" ? "\nReturn exactly 3 directions. Repair only the structural deficiency; do not omit, clone, or add a fourth direction." : "\nCorrect the previous structured-output formatting.";
   let completion: ChatCompletion;
   try {
@@ -296,7 +303,7 @@ async function manualExecutor<T>(request: StructuredRequest<T>, client: OpenAI, 
 }
 
 async function defaultExecutor<T>(request: StructuredRequest<T>, client: OpenAI, config: AiProviderConfig, correction: boolean) {
-  const responseSchema = buildProductionResponseFormat(request.schema, request.schemaName);
+  const responseSchema = buildProductionResponseFormat(request.schema, request.schemaName, { schemaDefinitions: request.schemaDefinitions });
   const correctionInstruction = request.role === "design" ? "\nReturn exactly 3 directions. Repair only the structural deficiency; do not omit, clone, or add a fourth direction." : "\nCorrect the previous structured-output formatting.";
   let completion: Awaited<ReturnType<OpenAI["chat"]["completions"]["parse"]>>;
   try {
@@ -326,6 +333,11 @@ async function defaultExecutor<T>(request: StructuredRequest<T>, client: OpenAI,
 
 function safeClassName(error: unknown) { return error instanceof Error && error.constructor?.name ? error.constructor.name : typeof error === "object" && error ? "SdkError" : "Error"; }
 function safeString(value: unknown) { return typeof value === "string" && value.length <= 160 ? value : undefined; }
+function safeProviderMessage(value: unknown) {
+  if (typeof value !== "string" || value.length === 0) return undefined;
+  const normalized = value.replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim();
+  return normalized.length > 500 ? normalized.slice(0, 500) : normalized || undefined;
+}
 function safeStatus(value: unknown) { const status = typeof value === "number" ? value : Number(value); return Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined; }
 function safeProviderErrorShape(error: unknown): ProviderErrorShape { return typeof error === "object" && error !== null ? error as ProviderErrorShape : {}; }
 function zodIssuePaths(error: unknown) { return error instanceof z.ZodError ? error.issues.map((issue) => issue.path.map(String).join(".")).filter(Boolean).slice(0, 20) : undefined; }
@@ -343,7 +355,7 @@ function diagnosticForError(error: unknown, schemaName: string, requestAttempted
   const shape = safeProviderErrorShape(error);
   const apiError = shape.error ?? {};
   const responseReceived = safeStatus(shape.status) !== undefined;
-  return { stage: requestAttempted ? "api_request" : "structured_parse", outputStage, requestAttempted, apiResponseReceived: responseReceived, responseReceived, outputComplete: false, httpStatus: safeStatus(shape.status), requestId: safeString(shape.requestID) ?? safeString(shape.request_id), sdkErrorClass: safeClassName(error), openaiErrorType: safeString(apiError.type) ?? safeString(shape.type), openaiErrorCode: safeString(apiError.code) ?? safeString(shape.code), openaiErrorParam: safeString(apiError.param) ?? safeString(shape.param), schemaName };
+  return { stage: requestAttempted ? "api_request" : "structured_parse", outputStage, requestAttempted, apiResponseReceived: responseReceived, responseReceived, outputComplete: false, httpStatus: safeStatus(shape.status), requestId: safeString(shape.requestID) ?? safeString(shape.request_id), sdkErrorClass: safeClassName(error), openaiErrorType: safeString(apiError.type) ?? safeString(shape.type), openaiErrorCode: safeString(apiError.code) ?? safeString(shape.code), openaiErrorParam: safeString(apiError.param) ?? safeString(shape.param), openaiErrorMessage: safeProviderMessage(apiError.message), schemaName };
 }
 function withFailureDiagnostic(error: AiProviderError, schemaName: string, requestAttempted: boolean, model: string): AiProviderError {
   const effectiveRequestAttempted = error.diagnostic?.requestAttempted ?? requestAttempted;

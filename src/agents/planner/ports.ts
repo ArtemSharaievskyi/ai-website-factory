@@ -7,6 +7,7 @@ import type { PlanningRecoveryProviderInput, PlanningRecoveryProviderResult } fr
 
 export interface PlannerArchitectureProvider {
   plan(input: PlannerAgentInput & { documentationExcerpts?: DocumentationExcerpt[] }, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string): Promise<PlanningPackage>;
+  preflightPlanRecovery?(input: Pick<PlanningRecoveryProviderInput, "planningRequirementManifest">): void;
   planRecovery?(input: PlanningRecoveryProviderInput, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string): Promise<PlanningRecoveryProviderResult>;
   proposeChangeSet?(input: PlannerRefreshProviderInput, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string): Promise<PlanningChangeSetProviderOutput>;
 }

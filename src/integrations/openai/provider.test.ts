@@ -5,7 +5,7 @@ import { buildProductionResponseFormat, OpenAiStructuredClient, parseProviderWir
 import { AiProviderError } from "./errors";
 import { FifoConcurrencyLimiter } from "./limiter";
 import { zodResponseFormat } from "openai/helpers/zod";
-import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, OpenAiLeadProvider, OpenAiPlannerProvider, PlanningPackageStructuredOutputSchema, createPlanningRecoveryProviderWireSchema, isWorkflowApprovalBlocker } from "./adapters";
+import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, OpenAiLeadProvider, OpenAiPlannerProvider, PlanningPackageStructuredOutputSchema, PlanningRecoveryProviderSchemaDefinitions, createPlanningRecoveryProviderWireSchema, isWorkflowApprovalBlocker } from "./adapters";
 import { readAiProviderConfig } from "./config";
 import { ArchitectureReviewProviderOutputSchema, CodeIntegrationReviewProviderOutputSchema, ContractAuditProviderOutputSchema, SecurityReviewProviderOutputSchema, TestQualityReviewProviderOutputSchema } from "@/domain/review/schema";
 import { analyzePromptDeterministically } from "@/agents/lead/deterministic";
@@ -283,7 +283,7 @@ describe("production AI provider boundary", () => {
     replay.requirementAccounting = Object.fromEntries(contractManifestRequirements.map((entry, index) => [entry.requirementHandle, { ...baseAccounting, semanticEvidence: `Synthetic replay evidence position ${index}.` }]));
     const recoverySchema = createPlanningRecoveryProviderWireSchema(contractManifest as never);
     recoverySchema.parse(replay);
-    const responseFormat = buildProductionResponseFormat(recoverySchema, "planning-recovery-package") as unknown as { type: string; json_schema: { name: string; strict: boolean; schema: unknown } };
+    const responseFormat = buildProductionResponseFormat(recoverySchema, "planning-recovery-package", { schemaDefinitions: PlanningRecoveryProviderSchemaDefinitions }) as unknown as { type: string; json_schema: { name: string; strict: boolean; schema: unknown } };
     const parsed = parseProviderWireContent({
       content: JSON.stringify(replay),
       schema: recoverySchema,

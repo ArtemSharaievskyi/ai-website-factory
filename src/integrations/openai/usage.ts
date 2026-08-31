@@ -30,6 +30,8 @@ export type ProviderDiagnostic = {
   openaiErrorType?: string;
   openaiErrorCode?: string;
   openaiErrorParam?: string;
+  /** Provider-supplied error text, normalized and capped; never a prompt or payload. */
+  openaiErrorMessage?: string;
   choicesCount?: number;
   finishReason?: string | null;
   refusalPresent?: boolean;
