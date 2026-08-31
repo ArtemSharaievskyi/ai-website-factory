@@ -115,7 +115,7 @@ describePilot("Haus & Garten Service Planning Recovery pilot shape", () => {
     });
     const config = readAiProviderConfig({ OPENAI_API_KEY: "synthetic-provider-key", OPENAI_MODEL: configuredProviderModel(), OPENAI_MAX_RETRIES: "0", OPENAI_MAX_CONCURRENT_REQUESTS: "1" });
     const provider = new OpenAiPlannerProvider(new OpenAiStructuredClient(config, { client: { chat: { completions: { create } } } as never }));
-    await expect(provider.planRecovery(input)).rejects.toMatchObject({ code: "AI_NETWORK_ERROR", diagnostic: { stage: "api_request", requestAttempted: true, apiResponseReceived: false }, failureDiagnostic: { category: "NETWORK", stage: "REQUEST_TRANSPORT", requestAttempted: true, responseReceived: false, schemaName: "planning-recovery-package" } });
+    await expect(provider.planRecovery(input, [], "none", "2026-08-31T00:00:00.000Z")).rejects.toMatchObject({ code: "AI_NETWORK_ERROR", diagnostic: { stage: "api_request", requestAttempted: true, apiResponseReceived: false }, failureDiagnostic: { category: "NETWORK", stage: "REQUEST_TRANSPORT", requestAttempted: true, responseReceived: false, schemaName: "planning-recovery-package" } });
     expect(create).toHaveBeenCalledTimes(1);
     expect(capturedRequest).toBeDefined();
     const responseFormat = capturedRequest!.response_format as { type: string; json_schema: { name: string; strict: boolean; schema: unknown } };

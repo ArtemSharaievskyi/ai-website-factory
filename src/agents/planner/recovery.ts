@@ -271,7 +271,7 @@ export type PlanningRecoveryPreparation = {
 };
 
 export type PlanningRecoveryProvider = {
-  planRecovery(input: PlanningRecoveryProviderInput, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string): Promise<PlanningRecoveryProviderResult>;
+  planRecovery(input: PlanningRecoveryProviderInput, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string, hostTimestamp?: string): Promise<PlanningRecoveryProviderResult>;
 };
 
 export type PlanningRecoveryResult = {
@@ -1081,7 +1081,7 @@ export class PlanningRecoveryService {
       let returned: unknown;
       try {
         if (!this.dependencies.provider.planRecovery) throw new PlanningRecoveryError("PROVIDER_RECOVERY_CAPABILITY_UNAVAILABLE");
-        returned = await this.dependencies.provider.planRecovery(providerInput, input.approvedSkills, input.skillContextIdentity);
+        returned = await this.dependencies.provider.planRecovery(providerInput, input.approvedSkills, input.skillContextIdentity, this.now());
       } catch (error) {
         await this.markRunTerminal(run, "PROVIDER_FAILED", owner, error, "provider");
         throw new PlanningRecoveryError("RECOVERY_PROVIDER_FAILED", "Planning recovery provider failed.");

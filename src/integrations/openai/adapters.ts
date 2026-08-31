@@ -79,6 +79,7 @@ import {
 import { z } from "zod";
 import {
   NonEmptyStringSchema,
+  IsoDateTimeSchema,
   UserValueSchema,
 } from "@/domain/shared/schemas";
 import { ProjectBriefV2Schema, type RequirementSpecification } from "@/domain/requirements/schema";
@@ -121,6 +122,17 @@ const withoutProjectIdentity = <T extends Record<string, z.ZodTypeAny>>(shape: T
   const result = { ...shape };
   delete result.projectId;
   delete result.projectVersion;
+  return result;
+};
+const withoutProviderDocumentMetadata = <T extends Record<string, z.ZodTypeAny>>(shape: T) => {
+  const result = withoutProjectIdentity(shape);
+  delete result.createdAt;
+  delete result.updatedAt;
+  return result;
+};
+const withoutProviderDocumentMetadataAndAcceptance = <T extends Record<string, z.ZodTypeAny>>(shape: T) => {
+  const result = withoutProviderDocumentMetadata(shape);
+  delete result.acceptance;
   return result;
 };
 const withoutProjectIdentityAndAcceptance = <T extends Record<string, z.ZodTypeAny>>(shape: T) => {
@@ -664,27 +676,49 @@ const StrictRecoveryFormSchema = z.object({
   routeHandle: RecoveryRouteHandleOutputSchema,
   requirementReferences: RecoveryRequirementReferencesSchema,
 }).strict();
-const StrictRecoveryArchitectureSchema = StrictArchitectureSchema.extend({
+const StrictRecoveryArchitectureSchema = z.object({
+  ...withoutProviderDocumentMetadataAndAcceptance(TechnicalArchitectureSchema.shape),
+  backendPriority: z
+    .array(z.enum(["server-actions", "route-handlers", "supabase-services"]))
+    .max(3),
+  npmScripts: z.array(
+    z
+      .object({ name: NonEmptyStringSchema, command: NonEmptyStringSchema })
+      .strict(),
+  ),
   routes: z.array(z.object({ routeHandle: RecoveryRouteHandleOutputSchema, responsibility: NonEmptyStringSchema }).strict()),
 }).strict();
 const StrictRecoveryProfileSchema = PlanningPackageStructuredOutputSchema.shape.profile.extend({
   requirementReferences: RecoveryRequirementReferencesSchema,
 }).strict();
-const StrictRecoveryProductScopeSchema = PlanningPackageStructuredOutputSchema.shape.productScope.extend({
+const StrictRecoveryProductScopeSchema = z.object({
+  ...withoutProviderDocumentMetadata(PlanningPackageStructuredOutputSchema.shape.productScope.shape),
   acceptanceMapping: z.array(PlanningPackageStructuredOutputSchema.shape.productScope.shape.acceptanceMapping.element.extend({ requirementReferences: RecoveryRequirementReferencesSchema }).strict()),
   traceability: z.array(StrictRecoveryTraceabilitySchema),
 }).strict();
-const StrictRecoveryDataModelSchema = PlanningPackageStructuredOutputSchema.shape.dataModel.extend({
+const StrictRecoveryDataModelSchema = z.object({
+  ...withoutProviderDocumentMetadata(PlanningPackageStructuredOutputSchema.shape.dataModel.shape),
   entities: z.array(PlanningPackageStructuredOutputSchema.shape.dataModel.shape.entities.element.extend({ requirementReferences: RecoveryRequirementReferencesSchema }).strict()),
   traceability: z.array(StrictRecoveryTraceabilitySchema),
 }).strict();
-const StrictRecoveryEnvironmentSchema = PlanningPackageStructuredOutputSchema.shape.environment.extend({
+const StrictRecoveryAuthenticationSchema = z.object({
+  ...withoutProviderDocumentMetadata(PlanningPackageStructuredOutputSchema.shape.authentication.shape),
+  traceability: z.array(StrictRecoveryTraceabilitySchema),
+}).strict();
+const StrictRecoverySupabaseSchema = z.object({
+  ...withoutProviderDocumentMetadata(PlanningPackageStructuredOutputSchema.shape.supabase.shape),
+  traceability: z.array(StrictRecoveryTraceabilitySchema),
+}).strict();
+const StrictRecoveryEnvironmentSchema = z.object({
+  ...withoutProviderDocumentMetadata(PlanningPackageStructuredOutputSchema.shape.environment.shape),
   variables: z.array(PlanningPackageStructuredOutputSchema.shape.environment.shape.variables.element.extend({ requirementReferences: RecoveryRequirementReferencesSchema }).strict()),
 }).strict();
-const StrictRecoveryDependencySchema = PlanningPackageStructuredOutputSchema.shape.dependencies.extend({
+const StrictRecoveryDependencySchema = z.object({
+  ...withoutProviderDocumentMetadata(PlanningPackageStructuredOutputSchema.shape.dependencies.shape),
   dependencies: z.array(PlanningPackageStructuredOutputSchema.shape.dependencies.shape.dependencies.element.extend({ requirementReferences: RecoveryRequirementReferencesSchema }).strict()),
 }).strict();
-const StrictRecoverySecuritySchema = PlanningPackageStructuredOutputSchema.shape.security.extend({
+const StrictRecoverySecuritySchema = z.object({
+  ...withoutProviderDocumentMetadata(PlanningPackageStructuredOutputSchema.shape.security.shape),
   controls: z.array(PlanningPackageStructuredOutputSchema.shape.security.shape.controls.element.extend({ requirementReferences: RecoveryRequirementReferencesSchema }).strict()),
 }).strict();
 const StrictRecoveryDatabaseRecommendationSchema = z.object({
@@ -694,11 +728,13 @@ const StrictRecoveryDatabaseRecommendationSchema = z.object({
   userDecisionRequired: z.literal(true),
   selectedMode: z.enum(["NONE", "SUPABASE_NEW", "SUPABASE_EXISTING"]).nullable(),
 }).strict().nullable();
-const StrictRecoverySitemapSchema = PlanningPackageStructuredOutputSchema.shape.sitemap.extend({
+const StrictRecoverySitemapSchema = z.object({
+  ...withoutProviderDocumentMetadata(PlanningPackageStructuredOutputSchema.shape.sitemap.shape),
   routes: z.array(StrictRecoveryRouteSchema),
   traceability: z.array(StrictRecoveryTraceabilitySchema),
 }).strict();
-const StrictRecoveryNavigationSchema = PlanningPackageStructuredOutputSchema.shape.navigation.extend({
+const StrictRecoveryNavigationSchema = z.object({
+  ...withoutProviderDocumentMetadata(PlanningPackageStructuredOutputSchema.shape.navigation.shape),
   primary: z.array(RecoveryRouteHandleOutputSchema),
   secondary: z.array(RecoveryRouteHandleOutputSchema),
   footer: z.array(RecoveryRouteHandleOutputSchema),
@@ -707,21 +743,51 @@ const StrictRecoveryNavigationSchema = PlanningPackageStructuredOutputSchema.sha
   routeReferences: z.array(RecoveryRouteHandleOutputSchema).min(1),
   traceability: z.array(StrictRecoveryTraceabilitySchema),
 }).strict();
-const StrictRecoveryPagesSchema = PlanningPackageStructuredOutputSchema.shape.pages.extend({
+const StrictRecoveryPagesSchema = z.object({
+  ...withoutProviderDocumentMetadata(PlanningPackageStructuredOutputSchema.shape.pages.shape),
   pages: z.array(StrictRecoveryPageSchema),
   traceability: z.array(StrictRecoveryTraceabilitySchema),
 }).strict();
-const StrictRecoveryUserFlowsSchema = PlanningPackageStructuredOutputSchema.shape.userFlows.extend({
+const StrictRecoveryUserFlowsSchema = z.object({
+  ...withoutProviderDocumentMetadata(PlanningPackageStructuredOutputSchema.shape.userFlows.shape),
   flows: z.array(StrictRecoveryFlowSchema),
   traceability: z.array(StrictRecoveryTraceabilitySchema),
 }).strict();
-const StrictRecoveryFormsSchema = PlanningPackageStructuredOutputSchema.shape.forms.extend({
+const StrictRecoveryFormsSchema = z.object({
+  ...withoutProviderDocumentMetadata(PlanningPackageStructuredOutputSchema.shape.forms.shape),
   forms: z.array(StrictRecoveryFormSchema),
   traceability: z.array(StrictRecoveryTraceabilitySchema),
 }).strict();
+const StrictRecoveryEmailSchema = z.object({
+  ...withoutProviderDocumentMetadata(PlanningPackageStructuredOutputSchema.shape.email.shape),
+  traceability: z.array(StrictRecoveryTraceabilitySchema),
+}).strict();
+const StrictRecoveryStorageSchema = z.object({
+  ...withoutProviderDocumentMetadata(StoragePlanSchema.shape),
+  traceability: z.array(StrictRecoveryTraceabilitySchema),
+}).strict();
+const StrictRecoveryAdministrationSchema = z.object({
+  ...withoutProviderDocumentMetadata(PlanningPackageStructuredOutputSchema.shape.administration.shape),
+  traceability: z.array(StrictRecoveryTraceabilitySchema),
+}).strict();
+const StrictRecoveryContentSchema = z.object({
+  ...withoutProviderDocumentMetadata(PlanningPackageStructuredOutputSchema.shape.content.shape),
+}).strict();
+const StrictRecoveryAssetManifestSchema = z.object({
+  ...withoutProviderDocumentMetadata(AssetManifestSchema.shape),
+  entries: z.array(
+    z.object({
+      ...AssetManifestEntrySchema.shape,
+      consistencyGroup: NonEmptyStringSchema.nullable(),
+    }).strict(),
+  ),
+}).strict();
+const StrictRecoveryTestStrategySchema = z.object({
+  ...withoutProviderDocumentMetadata(PlanningPackageStructuredOutputSchema.shape.testStrategy.shape),
+}).strict();
 
 /** Recovery-only provider DTO. Route/page identities are handles; accounting is positional and identity-free. */
-export const PlanningRecoveryPackageStructuredOutputSchema = PlanningPackageStructuredOutputSchema.extend({
+export const PlanningRecoveryProviderWireSchema = PlanningPackageStructuredOutputSchema.omit({ createdAt: true, updatedAt: true }).extend({
   requirementAccounting: PlanningRecoverySemanticAccountingSchema,
   profile: StrictRecoveryProfileSchema,
   databaseRecommendation: StrictRecoveryDatabaseRecommendationSchema,
@@ -732,14 +798,25 @@ export const PlanningRecoveryPackageStructuredOutputSchema = PlanningPackageStru
   userFlows: StrictRecoveryUserFlowsSchema,
   forms: StrictRecoveryFormsSchema,
   dataModel: StrictRecoveryDataModelSchema,
+  authentication: StrictRecoveryAuthenticationSchema,
+  supabase: StrictRecoverySupabaseSchema,
+  email: StrictRecoveryEmailSchema,
+  storage: StrictRecoveryStorageSchema,
+  administration: StrictRecoveryAdministrationSchema,
+  content: StrictRecoveryContentSchema,
+  assets: StrictRecoveryAssetManifestSchema,
   environment: StrictRecoveryEnvironmentSchema,
   dependencies: StrictRecoveryDependencySchema,
+  testStrategy: StrictRecoveryTestStrategySchema,
   security: StrictRecoverySecuritySchema,
   architecture: StrictRecoveryArchitectureSchema,
   traceability: z.array(StrictRecoveryTraceabilitySchema),
 }).strict();
 
-type PlanningRecoveryProviderPackage = z.infer<typeof PlanningRecoveryPackageStructuredOutputSchema>;
+/** Compatibility export for the registered planning-recovery contract name. */
+export const PlanningRecoveryPackageStructuredOutputSchema = PlanningRecoveryProviderWireSchema;
+export type PlanningRecoveryProviderWire = z.infer<typeof PlanningRecoveryProviderWireSchema>;
+type PlanningRecoveryProviderPackage = PlanningRecoveryProviderWire;
 
 function omitRecoveryFields(value: Record<string, unknown>, fields: readonly string[]) {
   return Object.fromEntries(Object.entries(value).filter(([key]) => !fields.includes(key)));
@@ -790,9 +867,20 @@ function bindRecoveryRequirementReferences(value: unknown, requirementsByHandle:
   }));
 }
 
+function injectRecoveryHostMetadata(value: unknown, timestamp: string): unknown {
+  if (Array.isArray(value)) return value.map((child) => injectRecoveryHostMetadata(child, timestamp));
+  if (!value || typeof value !== "object") return value;
+  const result = Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, child]) => [key, injectRecoveryHostMetadata(child, timestamp)]));
+  if (typeof result.documentType === "string") {
+    result.createdAt = timestamp;
+    result.updatedAt = timestamp;
+  }
+  return result;
+}
+
 function normalizeRecoveryPlanningPackage(
   value: PlanningRecoveryProviderPackage,
-  host: { projectId: string; projectVersion: number; approvedBriefChecksum: string },
+  host: { projectId: string; projectVersion: number; approvedBriefChecksum: string; timestamp: string },
   approvedBrief: PlannerBriefNormalizationInput,
   routeManifest: CanonicalPlanningRouteManifest,
   requirementManifest: PlanningOwnedRequirementManifest,
@@ -878,7 +966,7 @@ function normalizeRecoveryPlanningPackage(
   for (const form of normalizedForms) if (!routePaths.has(form.route)) recoveryBindingFailure("RECOVERY_FORM_ROUTE_MISMATCH", "forms.forms.route");
 
   const { requirementAccounting, ...planningPackageValue } = boundValue;
-  const normalized = {
+  const normalized = injectRecoveryHostMetadata({
     ...planningPackageValue,
     profile: boundValue.profile,
     productScope: boundValue.productScope,
@@ -888,7 +976,7 @@ function normalizeRecoveryPlanningPackage(
     userFlows: { ...boundValue.userFlows, flows: normalizedFlows },
     forms: { ...boundValue.forms, forms: normalizedForms },
     architecture: normalizedArchitecture,
-  } as z.infer<typeof PlanningPackageStructuredOutputSchema>;
+  }, host.timestamp) as z.infer<typeof PlanningPackageStructuredOutputSchema>;
   return { planningPackage: normalizePlanningPackage(normalized, host, approvedBrief), requirementAccounting };
 }
 function omitNull<T extends Record<string, unknown>>(value: T, keys: string[]) {
@@ -1407,6 +1495,7 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
     input: PlanningRecoveryProviderInput,
     approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
     skillContextIdentity = "none",
+    hostTimestamp?: string,
   ): Promise<PlanningRecoveryProviderResult> {
     const promptInput = createPlanningRecoveryPromptContext(input);
     const prompt = rolePrompt("planner", promptInput, false, approvedSkills);
@@ -1424,20 +1513,21 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
       "Do not invent requirement IDs, target handles, pages, assets, business facts, providers, backend capabilities, or user decisions.",
       "The host will bind identity, route policy, timestamps, decision IDs, acceptance, and checksum policy and will reject unsupported facts or incomplete coverage.",
     ].join(" ");
-    const result = await this.ai.request<z.infer<typeof PlanningRecoveryPackageStructuredOutputSchema>>({
+    const result = await this.ai.request<z.infer<typeof PlanningRecoveryProviderWireSchema>>({
       ...prompt,
       system: `${prompt.system}\n${instruction}`,
       role: "planner",
-      schema: PlanningRecoveryPackageStructuredOutputSchema,
+      schema: PlanningRecoveryProviderWireSchema,
       schemaName: "planning-recovery-package",
       idempotencyKey: `${input.plannerInput.idempotencyKey}:${skillContextIdentity}`,
       maxCompletionTokens: input.outputPolicy.maxEstimatedTokens,
       retryPolicy: { maxRetries: 0, corrections: 0 },
       parseStrategy: "manual",
     });
+    if (!hostTimestamp) throw new AiProviderError("AI_OUTPUT_INVALID", "Host recovery timestamp was not supplied for provider normalization.");
     return normalizeRecoveryPlanningPackage(
       result.value,
-      { projectId: input.plannerInput.projectId, projectVersion: input.plannerInput.projectVersion, approvedBriefChecksum: input.plannerInput.approvedBriefChecksum },
+      { projectId: input.plannerInput.projectId, projectVersion: input.plannerInput.projectVersion, approvedBriefChecksum: input.plannerInput.approvedBriefChecksum, timestamp: IsoDateTimeSchema.parse(hostTimestamp) },
       input.plannerInput.approvedBrief,
       input.canonicalRouteManifest,
       input.planningRequirementManifest,

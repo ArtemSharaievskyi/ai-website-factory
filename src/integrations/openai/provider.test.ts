@@ -5,7 +5,7 @@ import { buildProductionResponseFormat, OpenAiStructuredClient, parseProviderWir
 import { AiProviderError } from "./errors";
 import { FifoConcurrencyLimiter } from "./limiter";
 import { zodResponseFormat } from "openai/helpers/zod";
-import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, OpenAiLeadProvider, OpenAiPlannerProvider, PlanningPackageStructuredOutputSchema, PlanningRecoveryPackageStructuredOutputSchema, isWorkflowApprovalBlocker } from "./adapters";
+import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, OpenAiLeadProvider, OpenAiPlannerProvider, PlanningPackageStructuredOutputSchema, PlanningRecoveryPackageStructuredOutputSchema, PlanningRecoveryProviderWireSchema, isWorkflowApprovalBlocker } from "./adapters";
 import { readAiProviderConfig } from "./config";
 import { ArchitectureReviewProviderOutputSchema, CodeIntegrationReviewProviderOutputSchema, ContractAuditProviderOutputSchema, SecurityReviewProviderOutputSchema, TestQualityReviewProviderOutputSchema } from "@/domain/review/schema";
 import { analyzePromptDeterministically } from "@/agents/lead/deterministic";
@@ -20,15 +20,15 @@ import { createCanonicalPlanningRouteManifest, createPlanningOwnedRequirementMan
 
 const config = { apiKey: "test", model: "test-model", modelLabel: "GPT-5.6 Luna", maxRetries: 1, maxConcurrentRequests: 1 };
 const schema = z.object({ ok: z.boolean(), summary: z.string() }).strict();
-const hostOwnedPaths = (value: unknown, path = "root"): string[] => {
+const hostOwnedPaths = (value: unknown, path = "root", includeDocumentMetadata = false): string[] => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return [];
   const node = value as { properties?: Record<string, unknown>; items?: unknown; anyOf?: unknown[]; oneOf?: unknown[] };
   const paths = Object.entries(node.properties ?? []).flatMap(([name, child]) => [
-    ...(new Set(["projectId", "projectVersion", "briefChecksum", "decisionId", "approval", "approvedAt", "approvedBy", "currentness", "history", "trace"]).has(name) ? [path + "." + name] : []),
-    ...hostOwnedPaths(child, path + "." + name),
+    ...(new Set(["projectId", "projectVersion", ...(includeDocumentMetadata ? ["createdAt", "updatedAt"] : []), "briefChecksum", "decisionId", "approval", "approvedAt", "approvedBy", "currentness", "history", "trace"]).has(name) ? [path + "." + name] : []),
+    ...hostOwnedPaths(child, path + "." + name, includeDocumentMetadata),
   ]);
-  if (node.items) paths.push(...hostOwnedPaths(node.items, path + "[]"));
-  for (const child of [...(node.anyOf ?? []), ...(node.oneOf ?? [])]) paths.push(...hostOwnedPaths(child, path + ".variant"));
+  if (node.items) paths.push(...hostOwnedPaths(node.items, path + "[]", includeDocumentMetadata));
+  for (const child of [...(node.anyOf ?? []), ...(node.oneOf ?? [])]) paths.push(...hostOwnedPaths(child, path + ".variant", includeDocumentMetadata));
   return paths;
 };
 const request = { role: "test", promptVersion: "test.v1", system: "policy", user: "{}", schemaName: "test-output", schema, idempotencyKey: "same" };
@@ -80,7 +80,12 @@ function recoveryNormalizationFixture() {
     if (!value || typeof value !== "object") return value;
     return Object.fromEntries(Object.entries(value as JsonObject).map(([childKey, child]) => [childKey, handleizeReferences(child, childKey)]));
   };
-  const transport = handleizeReferences(JSON.parse(JSON.stringify(base.transport))) as JsonObject;
+  const removeProviderDocumentMetadata = (value: unknown): unknown => Array.isArray(value)
+    ? value.map(removeProviderDocumentMetadata)
+    : value && typeof value === "object"
+      ? Object.fromEntries(Object.entries(value as JsonObject).filter(([key]) => key !== "createdAt" && key !== "updatedAt").map(([key, child]) => [key, removeProviderDocumentMetadata(child)]))
+      : value;
+  const transport = removeProviderDocumentMetadata(handleizeReferences(JSON.parse(JSON.stringify(base.transport)))) as JsonObject;
   const sitemap = transport.sitemap as JsonObject;
   const routeRows = sitemap.routes as JsonObject[];
   const legacyRouteIds = new Map(routeRows.map((route, index) => [String(route.id), routeManifest.routes[index]! ]));
@@ -231,15 +236,22 @@ describe("production AI provider boundary", () => {
     expect(routeProperties).toHaveProperty("routeHandle");
     expect(routeProperties).toHaveProperty("pageHandle");
     expect(routeProperties).not.toHaveProperty("id");
+    expect(hostOwnedPaths((zodResponseFormat(PlanningRecoveryProviderWireSchema, "planning-recovery-package") as { json_schema: { schema: unknown } }).json_schema.schema, "root", true)).toEqual([]);
+    expect(JSON.stringify((zodResponseFormat(PlanningRecoveryProviderWireSchema, "planning-recovery-package") as { json_schema: { schema: unknown } }).json_schema.schema)).not.toMatch(/"(?:createdAt|updatedAt)"|date-time/);
   });
   it("normalizes a complete recovery response from opaque handles before canonical package validation", async () => {
     const fixture = recoveryNormalizationFixture();
     const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: fixture.transport as T, requestId: "req_recovery_handle_binding" }) });
-    const result = await new OpenAiPlannerProvider(client).planRecovery(fixture.input as never);
+    const result = await new OpenAiPlannerProvider(client).planRecovery(fixture.input as never, [], "none", "2026-08-31T00:00:00.000Z");
     expect(result.planningPackage.sitemap.routes.map((route) => route.path)).toEqual(["/", "/contact"]);
     expect(result.requirementAccounting).toHaveLength(fixture.input.planningRequirementManifest.requirements.length);
     expect(result.requirementAccounting.every((entry) => !("requirementId" in entry))).toBe(true);
     expect(result.planningPackage.traceability.some((entry) => entry.requirementReferences.includes(fixture.input.planningRequirementManifest.requirements[0]!.requirementId))).toBe(true);
+    expect(result.planningPackage.createdAt).toBe("2026-08-31T00:00:00.000Z");
+    expect(result.planningPackage.updatedAt).toBe("2026-08-31T00:00:00.000Z");
+    expect(result.planningPackage.sitemap.createdAt).toBe("2026-08-31T00:00:00.000Z");
+    expect(result.planningPackage.architecture.updatedAt).toBe("2026-08-31T00:00:00.000Z");
+    expect(PlanningRecoveryProviderWireSchema.safeParse({ ...fixture.transport, createdAt: "2026-08-30T00:00:00.000Z" }).success).toBe(false);
   });
   it("replays the exact 11-route and 118-requirement recovery wire shape without network access", () => {
     const fixture = recoveryNormalizationFixture();

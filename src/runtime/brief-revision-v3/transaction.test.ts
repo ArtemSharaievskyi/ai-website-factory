@@ -406,6 +406,34 @@ describe("isolated Brief Revision V3 transaction", () => {
     expect(provider.calls).toBe(1);
   });
 
+  it("treats a concurrent projection status CAS loss as an idempotent worker race", async () => {
+    const f = await fixture();
+    const provider = new FixtureProvider(() => multiDomainChangeSet);
+    await new BriefV3TransactionService({ database: f.database, provider }).execute(input(f.currentness));
+    let writes = 0;
+    let release!: () => void;
+    let reached = 0;
+    const bothWriters = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const projection: ProjectMemorySyncPort = {
+      writeVersionSnapshot: async () => {
+        writes += 1;
+        reached += 1;
+        if (reached === 2) release();
+        await (reached >= 2 ? Promise.resolve() : bothWriters);
+      },
+      appendDecision: async () => undefined,
+      verifyVersionSnapshot: async () => true,
+      compareDatabaseAndFilesystemChecksums: async () => ({ matches: true, mismatches: [] }),
+    };
+    const first = new BriefV3ProjectionService(f.database, projection).processPending();
+    const second = new BriefV3ProjectionService(f.database, projection).processPending();
+    await expect(Promise.all([first, second])).resolves.toHaveLength(2);
+    expect(writes).toBe(2);
+    expect([...f.database.briefRevisionProjectionSync.values()][0]?.status).toBe("SYNCED");
+  });
+
   it("resolves an ambiguous commit from authoritative persisted attempt state", async () => {
     class AmbiguousCommitDatabase implements PersistenceDatabase {
       private loseNextCommitAcknowledgement = true;
