@@ -3,7 +3,17 @@ import { CanonicalBriefV3Schema, type CanonicalBriefV3, type CanonicalRequiremen
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { PlanningPackageSchema, type PlanningPackage } from "./contracts";
 import { CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY } from "./semantic-checksum";
-import { canonicalPagePath, type CanonicalPlanningRouteManifest, type PlanningRecoveryRequirementAccounting } from "./recovery-manifests";
+import {
+  bindPlanningRecoverySemanticAccounting,
+  canonicalPagePath,
+  createPlanningOwnedRequirementManifest,
+  type CanonicalPlanningRouteManifest,
+  type PlanningOwnedRequirementManifest,
+  type PlanningRecoveryRequirementAccounting,
+  type PlanningTargetCatalog,
+  type PlanningTargetRef,
+  validatePlanningRecoveryRequirementAccounting,
+} from "./recovery-manifests";
 
 /**
  * These are the semantic areas owned by Planning. The list is deliberately
@@ -38,7 +48,24 @@ export type PlanningRequirementCoverage = {
   requirementId: string;
   category: RequirementCategory;
   statement: string;
-  reason: "MISSING_REFERENCE" | "MISSING_SEMANTIC_EVIDENCE";
+  reason: "MISSING_REFERENCE" | "MISSING_SEMANTIC_EVIDENCE" | "MISSING_TRACEABILITY";
+};
+
+export type PlanningAcceptanceCoverageEntry = {
+  requirementId: string;
+  category: RequirementCategory;
+  statement: string;
+  planningTargetRefs: PlanningTargetRef[];
+  semanticEvidence: string;
+};
+
+export type PlanningAcceptanceCoverageProjection = {
+  source: "RECOVERY_ACCOUNTING";
+  entries: PlanningAcceptanceCoverageEntry[];
+  coverage: PlanningRequirementCoverage[];
+  blockers: string[];
+  accounting: PlanningRecoveryRequirementAccounting;
+  accountingValidation: ReturnType<typeof validatePlanningRecoveryRequirementAccounting>;
 };
 
 export type PlanningRecoveryRequirementCoverage = PlanningRequirementCoverage | {
@@ -368,6 +395,82 @@ function traceabilityReferencesOf(value: unknown, result = new Set<string>()): S
   return result;
 }
 
+/**
+ * Project the already-admitted, host-bound recovery accounting into the
+ * acceptance coverage view. Acceptance must not ask the provider to repeat
+ * semantic evidence in a second package-owned array. The manifest supplies
+ * canonical identity and statement; accounting supplies the accepted
+ * responsibility, target refs, and evidence text.
+ */
+export function projectPlanningAcceptanceCoverageFromRecoveryAccounting(input: {
+  candidate: PlanningPackage;
+  canonicalBrief: CanonicalBriefV3;
+  semanticAccounting: unknown;
+  planningRequirementManifest?: PlanningOwnedRequirementManifest;
+  routeManifest: Pick<CanonicalPlanningRouteManifest, "routes">;
+  targetCatalog: PlanningTargetCatalog;
+}): PlanningAcceptanceCoverageProjection {
+  const brief = CanonicalBriefV3Schema.parse(input.canonicalBrief);
+  const manifest = input.planningRequirementManifest ?? createPlanningOwnedRequirementManifest(brief);
+  const binding = bindPlanningRecoverySemanticAccounting({
+    semanticAccounting: input.semanticAccounting,
+    manifest,
+    candidate: input.candidate,
+    routeManifest: input.routeManifest,
+    targetCatalog: input.targetCatalog,
+  });
+  const accounting = binding.accounting;
+  const accountingValidation = validatePlanningRecoveryRequirementAccounting({
+    accounting,
+    manifest,
+    candidate: input.candidate,
+    routeManifest: input.routeManifest,
+  });
+  const issues = [...binding.validation.issues, ...accountingValidation.issues].filter((issue, index, all) =>
+    all.findIndex((candidate) => candidate.code === issue.code && candidate.requirementId === issue.requirementId) === index,
+  );
+  const accountingByRequirementId = new Map(accounting.map((entry) => [entry.requirementId, entry]));
+  const references = referencesOf(input.candidate);
+  const traceabilityReferences = traceabilityReferencesOf(input.candidate);
+  const coverage: PlanningRequirementCoverage[] = [];
+  const entries: PlanningAcceptanceCoverageEntry[] = [];
+
+  for (const manifestEntry of manifest.requirements) {
+    const evidence = accountingByRequirementId.get(manifestEntry.requirementId);
+    if (!references.has(manifestEntry.requirementId)) {
+      coverage.push({ requirementId: manifestEntry.requirementId, category: manifestEntry.category, statement: manifestEntry.statement, reason: "MISSING_REFERENCE" });
+      continue;
+    }
+    if (!traceabilityReferences.has(manifestEntry.requirementId)) {
+      coverage.push({ requirementId: manifestEntry.requirementId, category: manifestEntry.category, statement: manifestEntry.statement, reason: "MISSING_TRACEABILITY" });
+      continue;
+    }
+    if (!evidence?.semanticEvidence?.trim()) {
+      coverage.push({ requirementId: manifestEntry.requirementId, category: manifestEntry.category, statement: manifestEntry.statement, reason: "MISSING_SEMANTIC_EVIDENCE" });
+      continue;
+    }
+    entries.push({
+      requirementId: manifestEntry.requirementId,
+      category: manifestEntry.category,
+      statement: manifestEntry.statement,
+      planningTargetRefs: evidence.planningTargetRefs,
+      semanticEvidence: evidence.semanticEvidence,
+    });
+  }
+
+  const issueBlockers = issues
+    .filter((issue) => issue.code !== "MISSING_REQUIREMENT_ID_ACCOUNTING" && issue.code !== "MISSING_SEMANTIC_EVIDENCE")
+    .map((issue) => issue.requirementId ? `PLANNING_REQUIREMENT_ACCOUNTING_INVALID:${issue.requirementId}:${issue.code}` : `PLANNING_REQUIREMENT_ACCOUNTING_INVALID:${issue.code}`);
+  return {
+    source: "RECOVERY_ACCOUNTING",
+    entries,
+    coverage,
+    blockers: [...new Set(issueBlockers)],
+    accounting,
+    accountingValidation,
+  };
+}
+
 function representedRequirementIds(candidate: PlanningPackage, brief: CanonicalBriefV3): Set<string> {
   const refs = referencesOf(candidate);
   return new Set(canonicalRequirementEntries(brief).filter((entry) => refs.has(entry.id) && hasSemanticEvidence(candidate, entry)).map((entry) => entry.id));
@@ -562,6 +665,7 @@ export function admitPlanningRefresh(input: {
   approvedBriefChecksum: string;
   timestamp?: string;
   validateRequirementCoverage?: boolean;
+  requirementCoverage?: PlanningRequirementCoverage[];
 }): PlanningRefreshAdmission {
   const candidate = normalizePlanningPackageForHost(input);
   const blockers: string[] = [];
@@ -572,7 +676,7 @@ export function admitPlanningRefresh(input: {
   if (input.canonicalBrief) {
     blockers.push(...validateCanonicalRouteAndFormShape(candidate, input.canonicalBrief));
     if (input.validateRequirementCoverage !== false) {
-      coverage = validatePlanningRequirementCoverage({ candidate, canonicalBrief: input.canonicalBrief });
+      coverage = input.requirementCoverage ?? validatePlanningRequirementCoverage({ candidate, canonicalBrief: input.canonicalBrief });
       blockers.push(...coverage.map((item) => `PLANNING_REQUIREMENT_COVERAGE_MISSING:${item.requirementId}:${item.reason}`));
     }
     if (input.current) {

@@ -12,7 +12,7 @@ import {
   saveDocumentInTransaction,
   transitionWorkflowInTransaction,
 } from "@/persistence/database/repositories";
-import { mapRowToDocument } from "@/persistence/database/mapping";
+import { mapRowToDocument, type DocumentRow } from "@/persistence/database/mapping";
 import type { PersistenceDatabase, PersistenceTransaction } from "@/persistence/database/types";
 import { PlannerError } from "./errors";
 import { PersistenceError } from "@/persistence/database/errors";
@@ -54,7 +54,22 @@ import { buildPhase7CContractPackage } from "@/domain/contracts/phase7c";
 import { BriefV3DocumentSchema } from "@/persistence/database/brief-revision-v3-contracts";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { canonicalBriefToPlannerBrief, effectivePlannerBrief } from "./brief-context";
-import { admitPlanningRefresh, PlanningAdmissionError, type PlanningRefreshDomain } from "./refresh-admission";
+import {
+  admitPlanningRefresh,
+  PlanningAdmissionError,
+  projectPlanningAcceptanceCoverageFromRecoveryAccounting,
+  type PlanningAcceptanceCoverageProjection,
+  type PlanningRefreshDomain,
+} from "./refresh-admission";
+import {
+  createCanonicalPlanningRouteManifest,
+  createPlanningOwnedRequirementManifest,
+  createPlanningTargetCatalog,
+} from "./recovery-manifests";
+import {
+  PlanningRecoveryPlanSchema,
+  PlanningRecoveryProviderResultSchema,
+} from "./recovery";
 import {
   applyPlanningChangeSet,
   createPlanningAuthorizationDelta,
@@ -688,11 +703,12 @@ export class PlannerArchitectService {
   async getPlanningStatus(projectId: string, projectVersion: number) {
     // Project Memory and the in-process cache are projections. Always rebuild
     // status from the persisted current document before exposing it.
-    const packageValue = await this.documents.get(
+    const storedPlanning = await this.documents.getWithMetadata(
       projectId,
       projectVersion,
       "planning-package",
     );
+    const packageValue = storedPlanning?.document;
     if (!packageValue || packageValue.documentType !== "planning-package")
       throw new PlannerError(
         "PLANNING_NOT_ACCEPTED",
@@ -703,6 +719,13 @@ export class PlannerArchitectService {
     if (briefV3?.documentType === "brief-v3") {
       try {
         const canonical = BriefV3DocumentSchema.parse(briefV3);
+        const acceptanceCoverage = await this.dependencies.database.transaction((tx) =>
+          this.planningAcceptanceCoverageInTransaction(tx, {
+            packageRow: storedPlanning,
+            packageValue,
+            canonicalBrief: canonical.brief,
+          }),
+        );
         const admission = admitPlanningRefresh({
           candidate: packageValue,
           current: packageValue,
@@ -711,8 +734,9 @@ export class PlannerArchitectService {
           projectVersion,
           approvedBriefChecksum: canonical.briefChecksum,
           timestamp: packageValue.updatedAt,
+          requirementCoverage: acceptanceCoverage?.projection?.coverage,
         });
-        admissionBlockers.push(...admission.blockers);
+        admissionBlockers.push(...(acceptanceCoverage?.blockers ?? []), ...admission.blockers);
       } catch (error) {
         if (error instanceof PlanningAdmissionError)
           admissionBlockers.push(error.message);
@@ -811,7 +835,18 @@ export class PlannerArchitectService {
     if (briefV3?.documentType === "brief-v3") {
       try {
         const canonical = BriefV3DocumentSchema.parse(briefV3);
+        const storedPlanning = await this.documents.getWithMetadata(projectId, projectVersion, "planning-package");
+        if (!storedPlanning || storedPlanning.document.documentType !== "planning-package")
+          throw new PlannerError("PLANNING_NOT_ACCEPTED", "No planning package is available.");
+        const acceptanceCoverage = await this.dependencies.database.transaction((tx) =>
+          this.planningAcceptanceCoverageInTransaction(tx, {
+            packageRow: storedPlanning,
+            packageValue,
+            canonicalBrief: canonical.brief,
+          }),
+        );
         admissionBlockers.push(
+          ...(acceptanceCoverage?.blockers ?? []),
           ...admitPlanningRefresh({
             candidate: packageValue,
             current: packageValue,
@@ -820,6 +855,7 @@ export class PlannerArchitectService {
             projectVersion,
             approvedBriefChecksum: canonical.briefChecksum,
             timestamp: packageValue.updatedAt,
+            requirementCoverage: acceptanceCoverage?.projection?.coverage,
           }).blockers,
         );
       } catch (error) {
@@ -908,6 +944,16 @@ export class PlannerArchitectService {
       if (brief.documentType === "brief-v3") {
         try {
           const canonical = BriefV3DocumentSchema.parse(brief);
+          const acceptanceCoverage = await this.planningAcceptanceCoverageInTransaction(tx, {
+            packageRow,
+            packageValue,
+            canonicalBrief: canonical.brief,
+          });
+          if (acceptanceCoverage?.blockers.length)
+            throw new PlannerError(
+              "ARCHITECTURE_BLOCKED",
+              `Planning acceptance evidence reconciliation failed: ${acceptanceCoverage.blockers.slice(0, 10).join(", ")}.`,
+            );
           const admission = admitPlanningRefresh({
             candidate: packageValue,
             current: packageValue,
@@ -916,6 +962,7 @@ export class PlannerArchitectService {
             projectVersion: input.projectVersion,
             approvedBriefChecksum: canonical.briefChecksum,
             timestamp: packageValue.updatedAt,
+            requirementCoverage: acceptanceCoverage?.projection?.coverage,
           });
           if (admission.blockers.length > 0)
             throw new PlannerError(
@@ -1419,6 +1466,13 @@ export class PlannerArchitectService {
       if (briefRow) {
         try {
           const brief = BriefV3DocumentSchema.parse(mapRowToDocument(briefRow));
+          const acceptanceCoverage = await this.planningAcceptanceCoverageInTransaction(tx, {
+            packageRow,
+            packageValue,
+            canonicalBrief: brief.brief,
+          });
+          if (acceptanceCoverage?.blockers.length)
+            throw new PlannerError("PLANNING_NOT_ACCEPTED", "Planning Acceptance evidence is not current.");
           const admission = admitPlanningRefresh({
             candidate: packageValue,
             current: packageValue,
@@ -1427,6 +1481,7 @@ export class PlannerArchitectService {
             projectVersion,
             approvedBriefChecksum: brief.briefChecksum,
             timestamp: packageValue.updatedAt,
+            requirementCoverage: acceptanceCoverage?.projection?.coverage,
           });
           if (admission.blockers.length > 0)
             throw new PlannerError(
@@ -1453,6 +1508,78 @@ export class PlannerArchitectService {
     this.packages.set(this.packageKey(projectId, projectVersion), canonical.package);
     await this.syncPlanningAcceptanceProjection({ projectId, projectVersion, ...canonical });
     return { projectId, projectVersion, projectionStatus: "SYNCED" as const };
+  }
+
+  private async planningAcceptanceCoverageInTransaction(
+    tx: PersistenceTransaction,
+    input: {
+      packageRow: Pick<DocumentRow, "rowVersion" | "checksum">;
+      packageValue: PlanningPackage;
+      canonicalBrief: z.infer<typeof BriefV3DocumentSchema>["brief"];
+    },
+  ): Promise<{ projection?: PlanningAcceptanceCoverageProjection; blockers: string[] } | undefined> {
+    const runs = await tx.listPlanningRecoveryRuns(input.packageValue.projectId, input.packageValue.projectVersion);
+    const evidenceRows = await tx.listPlanningRecoveryEvidence(input.packageValue.projectId, input.packageValue.projectVersion);
+    const acceptedBase = input.packageValue.accepted && input.packageValue.acceptance.checksum
+      ? { rowVersion: input.packageRow.rowVersion - 1, checksum: input.packageValue.acceptance.checksum }
+      : undefined;
+    const matches = runs
+      .filter((run) => run.state === "COMMITTED" || run.state === "COMMITTED_RECONCILED")
+      .map((run) => ({
+        run,
+        evidence: evidenceRows.find((candidate) => {
+          const currentPackage = candidate.nextPlanningRowVersion === input.packageRow.rowVersion && candidate.nextPlanningDocumentChecksum === input.packageRow.checksum;
+          const acceptedBasePackage = acceptedBase && candidate.nextPlanningRowVersion === acceptedBase.rowVersion && candidate.nextPlanningDocumentChecksum === acceptedBase.checksum;
+          return candidate.id === run.committedEvidenceId && candidate.operationKey === run.operationKey && (currentPackage || acceptedBasePackage);
+        }),
+      }))
+      .filter((candidate): candidate is { run: (typeof runs)[number]; evidence: (typeof evidenceRows)[number] } => Boolean(candidate.evidence))
+      .sort((left, right) => right.evidence.createdAt.localeCompare(left.evidence.createdAt) || right.run.runId.localeCompare(left.run.runId));
+    const match = matches[0];
+    if (!match) return undefined;
+
+    try {
+      const plan = PlanningRecoveryPlanSchema.parse(match.run.recoveryPlan);
+      const planPayload = Object.fromEntries(Object.entries(plan).filter(([key]) => key !== "planChecksum"));
+      const routeManifest = createCanonicalPlanningRouteManifest(input.canonicalBrief);
+      const requirementManifest = createPlanningOwnedRequirementManifest(input.canonicalBrief);
+      const targetCatalog = createPlanningTargetCatalog(routeManifest);
+      if (
+        checksumPersistedDocument(planPayload) !== plan.planChecksum
+        || match.run.recoveryPlanChecksum !== plan.planChecksum
+        || plan.projectId !== input.packageValue.projectId
+        || plan.projectVersion !== input.packageValue.projectVersion
+        || plan.briefChecksum !== canonicalBriefChecksum(input.canonicalBrief)
+        || plan.briefChecksum !== input.packageValue.approvedBriefChecksum
+        || plan.sourceHead !== match.run.expectedSourceHead
+        || plan.canonicalRouteManifest?.manifestChecksum !== routeManifest.manifestChecksum
+        || plan.planningRequirementManifest?.manifestChecksum !== requirementManifest.manifestChecksum
+        || plan.planningTargetCatalog?.catalogChecksum !== targetCatalog.catalogChecksum
+        || (!input.packageValue.accepted && match.evidence.nextPlanningSemanticChecksum !== planningSemanticChecksum(input.packageValue))
+      ) return { blockers: ["PLANNING_RECOVERY_ACCEPTANCE_EVIDENCE_INVALID"] };
+      if (plan.reAdmission) {
+        const sourceRun = runs.find((candidate) => candidate.runId === plan.reAdmission?.sourceProviderRunId);
+        if (!sourceRun || sourceRun.providerResultChecksum !== plan.reAdmission.sourceProviderResultChecksum) return { blockers: ["PLANNING_RECOVERY_ACCEPTANCE_EVIDENCE_INVALID"] };
+      }
+      const providerResult = PlanningRecoveryProviderResultSchema.parse(match.run.providerResult);
+      if (
+        !match.run.providerResultChecksum
+        || checksumPersistedDocument(providerResult) !== match.run.providerResultChecksum
+        || providerResult.planningPackage.projectId !== input.packageValue.projectId
+        || providerResult.planningPackage.projectVersion !== input.packageValue.projectVersion
+      ) return { blockers: ["PLANNING_RECOVERY_ACCEPTANCE_EVIDENCE_INVALID"] };
+      const projection = projectPlanningAcceptanceCoverageFromRecoveryAccounting({
+        candidate: input.packageValue,
+        canonicalBrief: input.canonicalBrief,
+        semanticAccounting: providerResult.requirementAccounting,
+        planningRequirementManifest: requirementManifest,
+        routeManifest,
+        targetCatalog,
+      });
+      return { projection, blockers: projection.blockers };
+    } catch {
+      return { blockers: ["PLANNING_RECOVERY_ACCEPTANCE_EVIDENCE_INVALID"] };
+    }
   }
 
   private async syncPlanningAcceptanceProjection(input: { projectId: string; projectVersion: number; package: PlanningPackage; architecture: PlanningPackage["architecture"]; content: PlanningPackage["content"]; assets: PlanningPackage["assets"]; phase7cContractPackage: ReturnType<typeof buildPhase7CContractPackage>; decision: z.infer<typeof DecisionRecordSchema> }) {
