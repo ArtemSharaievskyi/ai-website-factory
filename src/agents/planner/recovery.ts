@@ -108,6 +108,15 @@ export const PLANNING_RECOVERY_POLICY_VERSION = "planning-recovery-v1" as const;
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
 const RecoveryModeSchema = z.literal(PLANNING_RECOVERY_MODE);
 const RecoveryAuthoritySchema = z.literal(PLANNING_RECOVERY_AUTHORITY);
+const SourceHeadSchema = z.string().regex(/^[a-f0-9]{40}$/i);
+
+export const PlanningRecoveryReAdmissionBindingSchema = z.object({
+  sourceProviderRunId: z.string().uuid(),
+  sourceProviderResultChecksum: Sha256Schema,
+  providerSourceHead: SourceHeadSchema,
+  reAdmissionSourceHead: SourceHeadSchema,
+}).strict();
+export type PlanningRecoveryReAdmissionBinding = z.infer<typeof PlanningRecoveryReAdmissionBindingSchema>;
 
 const RecoveryCurrentnessSchema = z.object({
   projectId: z.string().uuid(),
@@ -153,6 +162,7 @@ const PlanningRecoveryPlanPayloadSchema = z.object({
     hostOwnedFields: z.array(z.enum(["projectId", "projectVersion", "approvedBriefChecksum", "semanticChecksumPolicyVersion", "accepted", "acceptance", "routePolicy", "timestamps", "decisionIds", "sourceHead"])),
     forbiddenProviderActions: z.array(z.enum(["mutateCanonicalBrief", "mutateProject", "mutateWorkflow", "writePersistence", "approvePlanning", "inventRequirementIds", "inventBusinessFacts"])),
   }).strict(),
+  reAdmission: PlanningRecoveryReAdmissionBindingSchema.optional(),
 }).strict();
 
 export const PlanningRecoveryPlanSchema = PlanningRecoveryPlanPayloadSchema.extend({
@@ -519,7 +529,7 @@ export function createRecoveryAdmissionDiagnosticSummary(input: RecoveryAdmissio
   });
 }
 
-function admitRecoveryCandidate(input: { candidate: PlanningPackage; semanticAccounting: unknown; projectId: string; projectVersion: number; plan: PlanningRecoveryPlan; brief: BriefV3Document; planning: PlanningPackage; compatibility: RequirementSpecification; now: string }) {
+export function admitPlanningRecoveryCandidate(input: { candidate: PlanningPackage; semanticAccounting: unknown; projectId: string; projectVersion: number; plan: PlanningRecoveryPlan; brief: BriefV3Document; planning: PlanningPackage; compatibility: RequirementSpecification; now: string }) {
   const rawCandidate = PlanningPackageSchema.parse(input.candidate);
   const providerFieldBlockers = [
     rawCandidate.projectId !== input.projectId && rawCandidate.projectId !== undefined ? "RECOVERY_PROVIDER_PROJECT_ID" : undefined,
@@ -640,6 +650,84 @@ function recoveryRunFromPreparation(input: { plan: PlanningRecoveryPlan; operati
     diagnosticSummary: null,
     leaseOwner: null,
     leaseExpiresAt: null,
+    terminalOutcome: null,
+    committedEvidenceId: null,
+    projectMemoryStatus: "PENDING",
+    projectMemoryFailureCode: null,
+    projectMemoryFailureMessage: null,
+    createdAt: input.now,
+    updatedAt: input.now,
+  });
+}
+
+function assertRecoveryRunPlanBinding(run: PlanningRecoveryRunRow, plan: PlanningRecoveryPlan) {
+  const current = plan.currentness;
+  if (
+    run.projectId !== plan.projectId ||
+    run.projectVersion !== plan.projectVersion ||
+    run.versionId !== plan.versionId ||
+    run.recoveryPlanChecksum !== plan.planChecksum ||
+    run.projectRowVersion !== current.projectRowVersion ||
+    run.projectVersionRowVersion !== current.projectVersionRowVersion ||
+    run.briefRowVersion !== current.briefRowVersion ||
+    run.briefSemanticChecksum !== current.briefSemanticChecksum ||
+    run.briefDocumentChecksum !== current.briefDocumentChecksum ||
+    run.planningRowVersion !== current.planningRowVersion ||
+    run.planningSemanticChecksum !== current.planningSemanticChecksum ||
+    run.planningDocumentChecksum !== current.planningDocumentChecksum
+  ) throw new PlanningRecoveryError("RECOVERY_RUN_BINDING_INVALID");
+}
+
+function reAdmissionPlanFromSource(input: { sourceRun: PlanningRecoveryRunRow; sourcePlan: PlanningRecoveryPlan; reAdmissionSourceHead: SourceHead }): PlanningRecoveryPlan {
+  if (input.sourcePlan.reAdmission) throw new PlanningRecoveryError("RECOVERY_READMISSION_SOURCE_INVALID");
+  const payload = {
+    ...input.sourcePlan,
+    sourceHead: input.reAdmissionSourceHead,
+    reAdmission: {
+      sourceProviderRunId: input.sourceRun.runId,
+      sourceProviderResultChecksum: input.sourceRun.providerResultChecksum,
+      providerSourceHead: input.sourcePlan.sourceHead,
+      reAdmissionSourceHead: input.reAdmissionSourceHead,
+    },
+  };
+  delete (payload as { planChecksum?: unknown }).planChecksum;
+  return PlanningRecoveryPlanSchema.parse({ ...payload, planChecksum: checksumPersistedDocument(payload) });
+}
+
+function reAdmissionRunFromSource(input: { sourceRun: PlanningRecoveryRunRow; plan: PlanningRecoveryPlan; operationKey: string; owner: string; leaseExpiresAt: string; now: string }): PlanningRecoveryRunRow {
+  const current = input.plan.currentness;
+  return PlanningRecoveryRunSchema.parse({
+    runId: deterministicUuid(`${input.plan.projectId}:${input.plan.projectVersion}:${input.operationKey}`),
+    operationKey: input.operationKey,
+    projectId: input.plan.projectId,
+    projectVersion: input.plan.projectVersion,
+    versionId: input.plan.versionId,
+    expectedSourceHead: input.plan.sourceHead,
+    recoveryPlanChecksum: input.plan.planChecksum,
+    recoveryPlan: input.plan,
+    projectRowVersion: current.projectRowVersion,
+    projectVersionRowVersion: current.projectVersionRowVersion,
+    briefRowVersion: current.briefRowVersion,
+    briefSemanticChecksum: current.briefSemanticChecksum,
+    briefDocumentChecksum: current.briefDocumentChecksum,
+    planningRowVersion: current.planningRowVersion,
+    planningSemanticChecksum: current.planningSemanticChecksum,
+    planningDocumentChecksum: current.planningDocumentChecksum,
+    providerBudget: 0,
+    providerAttemptCount: 0,
+    state: "ADMISSION_STARTED",
+    providerResultChecksum: input.sourceRun.providerResultChecksum,
+    providerResult: input.sourceRun.providerResult,
+    providerRequestId: null,
+    providerModel: null,
+    providerErrorClass: null,
+    providerErrorCode: null,
+    diagnosticStage: null,
+    diagnosticCode: null,
+    diagnosticMessage: null,
+    diagnosticSummary: null,
+    leaseOwner: input.owner,
+    leaseExpiresAt: input.leaseExpiresAt,
     terminalOutcome: null,
     committedEvidenceId: null,
     projectMemoryStatus: "PENDING",
@@ -1153,7 +1241,7 @@ export class PlanningRecoveryService {
       try {
         await this.currentSource(plan.sourceHead);
         const current = await this.readCanonicalState(plan);
-        candidate = admitRecoveryCandidate({ candidate, semanticAccounting: requirementAccounting, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief: current.brief, planning: current.planning, compatibility: current.compatibility, now: this.now() }).candidate;
+        candidate = admitPlanningRecoveryCandidate({ candidate, semanticAccounting: requirementAccounting, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief: current.brief, planning: current.planning, compatibility: current.compatibility, now: this.now() }).candidate;
       } catch (error) {
         const target = error instanceof PlanningRecoveryError && error.code === "RECOVERY_CURRENTNESS_STALE" ? "CURRENTNESS_FAILED" : "ADMISSION_FAILED";
         await this.markRunTerminal(run, target, owner, error, target === "CURRENTNESS_FAILED" ? "currentness" : "admission");
@@ -1200,7 +1288,7 @@ export class PlanningRecoveryService {
         const legacyRow = await tx.getDocument(input.projectId, input.projectVersion, "requirements");
         const legacy = legacyRow && mapRowToDocument(legacyRow).documentType === "requirements" ? RequirementSpecificationSchema.parse(mapRowToDocument(legacyRow)) : null;
         const compatibility = compatibilityBrief(project, version, brief, legacy);
-        candidate = admitRecoveryCandidate({ candidate, semanticAccounting: requirementAccounting, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief, planning, compatibility, now: this.now() }).candidate;
+        candidate = admitPlanningRecoveryCandidate({ candidate, semanticAccounting: requirementAccounting, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief, planning, compatibility, now: this.now() }).candidate;
         const existingEvidence = await tx.getPlanningRecoveryEvidence(input.projectId, input.projectVersion, input.operationKey);
         if (existingEvidence) {
           if (existingEvidence.nextPlanningDocumentChecksum !== planningDocumentChecksum(candidate)) throw new PlanningRecoveryError("IDEMPOTENCY_CONFLICT");
@@ -1229,6 +1317,140 @@ export class PlanningRecoveryService {
     return { status: "COMMITTED", package: committed.package, evidence: committed.evidence };
   }
 
+  /**
+   * Re-admit one Factory-owned provider result after a deterministic admission
+   * repair. The source run and its result are loaded from persistence; callers
+   * cannot provide a candidate or checksum. This path never claims or starts a
+   * provider attempt.
+   */
+  async reAdmitCandidate(input: { projectId: string; projectVersion: number; sourceOperationKey: string; operationKey: string }): Promise<PlanningRecoveryResult> {
+    if (!this.dependencies.hostRecoveryEnabled) throw new PlanningRecoveryError("HOST_RECOVERY_NOT_AUTHORIZED");
+    if (input.sourceOperationKey === input.operationKey) throw new PlanningRecoveryError("RECOVERY_READMISSION_OPERATION_INVALID");
+
+    const sourceRun = await this.dependencies.database.transaction((tx) => tx.getPlanningRecoveryRun(input.projectId, input.projectVersion, input.sourceOperationKey));
+    if (!sourceRun || sourceRun.projectId !== input.projectId || sourceRun.projectVersion !== input.projectVersion || sourceRun.state !== "ADMISSION_FAILED" || sourceRun.providerBudget !== 1 || sourceRun.providerAttemptCount !== 1) throw new PlanningRecoveryError("RECOVERY_READMISSION_SOURCE_INVALID");
+    const sourcePlan = parseRecoveryPlan(sourceRun);
+    assertRecoveryRunPlanBinding(sourceRun, sourcePlan);
+    if (!sourcePlan.canonicalRouteManifest || !sourcePlan.planningRequirementManifest || !sourcePlan.planningTargetCatalog) throw new PlanningRecoveryError("RECOVERY_READMISSION_SOURCE_INVALID");
+    const sourceResult = parseDurableCandidate(sourceRun);
+    if (!sourceRun.providerResultChecksum) throw new PlanningRecoveryError("RECOVERY_PROVIDER_RESULT_MISSING");
+
+    let run = await this.dependencies.database.transaction((tx) => tx.getPlanningRecoveryRun(input.projectId, input.projectVersion, input.operationKey));
+    let plan: PlanningRecoveryPlan;
+    let owner: string;
+    if (run) {
+      plan = parseRecoveryPlan(run);
+      const binding = plan.reAdmission;
+      if (!binding || binding.sourceProviderRunId !== sourceRun.runId || binding.sourceProviderResultChecksum !== sourceRun.providerResultChecksum || binding.providerSourceHead !== sourcePlan.sourceHead || binding.reAdmissionSourceHead !== plan.sourceHead) throw new PlanningRecoveryError("RECOVERY_READMISSION_BINDING_INVALID");
+      assertRecoveryRunPlanBinding(run, plan);
+      if (run.providerBudget !== 0 || run.providerAttemptCount !== 0 || run.providerResultChecksum !== sourceRun.providerResultChecksum) throw new PlanningRecoveryError("RECOVERY_READMISSION_BINDING_INVALID");
+      if (run.state === "COMMITTED" || run.state === "COMMITTED_RECONCILED") return this.replayRun(run);
+      if (isPlanningRecoveryRunTerminal(run.state)) throw new PlanningRecoveryError("TERMINAL_FAILURE_REPLAY", "Planning re-admission has a durable terminal outcome.", { state: run.state, providerAttemptCount: run.providerAttemptCount });
+      owner = randomUUID();
+      if (!isLeaseActive(run, this.now())) {
+        try { await this.currentSource(plan.sourceHead); }
+        catch (error) { const sourceError = error instanceof PlanningRecoveryError ? error : new PlanningRecoveryError("SOURCE_CURRENTNESS_FAILED"); await this.markRunTerminal(run, "CURRENTNESS_FAILED", undefined, sourceError, "currentness"); throw sourceError; }
+      }
+      const claim = await this.dependencies.database.transaction((tx) => tx.claimPlanningRecoveryRun({ runId: run!.runId, operationKey: input.operationKey, owner, now: this.now(), leaseExpiresAt: this.leaseExpiresAt(this.now()) }));
+      if (claim.outcome === "RUN_ALREADY_ACTIVE") throw new PlanningRecoveryError("RUN_ALREADY_ACTIVE", "Planning re-admission is already owned by another active execution.", { state: claim.row.state });
+      if (claim.outcome === "COMMITTED_REPLAY") return this.replayRun(claim.row);
+      if (claim.outcome === "TERMINAL_FAILURE_REPLAY") throw new PlanningRecoveryError("TERMINAL_FAILURE_REPLAY", "Planning re-admission has a durable terminal outcome.", { state: claim.row.state, providerAttemptCount: claim.row.providerAttemptCount });
+      if (claim.outcome === "PROVIDER_ATTEMPT_ALREADY_CONSUMED") throw new PlanningRecoveryError("RECOVERY_READMISSION_PROVIDER_ATTEMPT_INVALID");
+      run = claim.row;
+    } else {
+      const reAdmissionSourceHead = await this.certifiedSourceHead();
+      plan = reAdmissionPlanFromSource({ sourceRun, sourcePlan, reAdmissionSourceHead });
+      await this.currentSource(plan.sourceHead);
+      owner = randomUUID();
+      const candidateRun = reAdmissionRunFromSource({ sourceRun, plan, operationKey: input.operationKey, owner, leaseExpiresAt: this.leaseExpiresAt(this.now()), now: this.now() });
+      run = await this.dependencies.database.transaction((tx) => tx.createPlanningRecoveryRun(candidateRun));
+      if (run.runId !== candidateRun.runId || run.recoveryPlanChecksum !== plan.planChecksum) throw new PlanningRecoveryError("RECOVERY_READMISSION_BINDING_INVALID");
+    }
+
+    assertRecoveryRunPlanBinding(run, plan);
+    const durable = parseDurableCandidate(run);
+    if (durable.planningPackage !== sourceResult.planningPackage && checksumPersistedDocument(durable.planningPackage) !== checksumPersistedDocument(sourceResult.planningPackage)) throw new PlanningRecoveryError("RECOVERY_READMISSION_BINDING_INVALID");
+    let candidate = durable.planningPackage;
+    const requirementAccounting = durable.requirementAccounting;
+    if (run.state === "PERSISTENCE_STARTED") {
+      const reconciled = await this.reconcileCommitted(run, owner);
+      if (reconciled) return reconciled;
+    }
+    if (run.state === "ADMISSION_STARTED") {
+      try {
+        await this.currentSource(plan.sourceHead);
+        const current = await this.readCanonicalState(plan);
+        candidate = admitPlanningRecoveryCandidate({ candidate, semanticAccounting: requirementAccounting, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief: current.brief, planning: current.planning, compatibility: current.compatibility, now: this.now() }).candidate;
+      } catch (error) {
+        const currentness = error instanceof PlanningRecoveryError && ["RECOVERY_CURRENTNESS_STALE", "SOURCE_CURRENTNESS_FAILED", "SOURCE_HEAD_MISMATCH", "SOURCE_WORKTREE_DIRTY", "SOURCE_HEAD_INVALID"].includes(error.code);
+        const terminalState = currentness ? "CURRENTNESS_FAILED" : "ADMISSION_FAILED";
+        await this.markRunTerminal(run, terminalState, owner, error, currentness ? "currentness" : "admission");
+        throw error instanceof PlanningRecoveryError ? error : new PlanningRecoveryError("RECOVERY_CANDIDATE_INVALID", "Planning re-admission candidate failed deterministic admission.");
+      }
+      run = await this.persistRun({ run, from: "ADMISSION_STARTED", to: "ADMISSION_PASSED", owner });
+    } else if (run.state === "ADMISSION_PASSED") {
+      try {
+        await this.currentSource(plan.sourceHead);
+        const current = await this.readCanonicalState(plan);
+        candidate = admitPlanningRecoveryCandidate({ candidate, semanticAccounting: requirementAccounting, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief: current.brief, planning: current.planning, compatibility: current.compatibility, now: this.now() }).candidate;
+      } catch (error) {
+        const currentness = error instanceof PlanningRecoveryError && ["RECOVERY_CURRENTNESS_STALE", "SOURCE_CURRENTNESS_FAILED", "SOURCE_HEAD_MISMATCH", "SOURCE_WORKTREE_DIRTY", "SOURCE_HEAD_INVALID"].includes(error.code);
+        const terminalState = currentness ? "CURRENTNESS_FAILED" : "ADMISSION_FAILED";
+        await this.markRunTerminal(run, terminalState, owner, error, currentness ? "currentness" : "admission");
+        throw error instanceof PlanningRecoveryError ? error : new PlanningRecoveryError("RECOVERY_CANDIDATE_INVALID", "Planning re-admission candidate failed deterministic admission.");
+      }
+    }
+    if (run.state === "ADMISSION_PASSED") {
+      try { await this.currentSource(plan.sourceHead); }
+      catch (error) { const sourceError = error instanceof PlanningRecoveryError ? error : new PlanningRecoveryError("SOURCE_CURRENTNESS_FAILED"); await this.markRunTerminal(run, "CURRENTNESS_FAILED", owner, sourceError, "currentness"); throw sourceError; }
+      run = await this.persistRun({ run, from: "ADMISSION_PASSED", to: "PERSISTENCE_STARTED", owner });
+    }
+    if (run.state !== "PERSISTENCE_STARTED") throw new PlanningRecoveryError("RECOVERY_READMISSION_RUN_STATE_INVALID");
+
+    let committed: { run: PlanningRecoveryRunRow; package: PlanningPackage; evidence: PlanningRecoveryEvidence };
+    try {
+      committed = await this.dependencies.database.transaction(async (tx) => {
+        const currentRun = await tx.getPlanningRecoveryRun(input.projectId, input.projectVersion, input.operationKey);
+        if (!currentRun || currentRun.state !== "PERSISTENCE_STARTED" || currentRun.leaseOwner !== owner || !isLeaseActive(currentRun, this.now())) throw new PlanningRecoveryError("RECOVERY_RUN_LEASE_STALE");
+        const currentPlan = parseRecoveryPlan(currentRun);
+        if (!currentPlan.reAdmission || currentPlan.reAdmission.sourceProviderRunId !== sourceRun.runId || currentPlan.reAdmission.sourceProviderResultChecksum !== sourceRun.providerResultChecksum) throw new PlanningRecoveryError("RECOVERY_READMISSION_BINDING_INVALID");
+        assertRecoveryRunPlanBinding(currentRun, currentPlan);
+        await this.currentSource(currentPlan.sourceHead);
+        const project = await tx.getProject(input.projectId);
+        const version = await tx.getVersion(input.projectId, input.projectVersion);
+        const briefRow = await tx.getDocument(input.projectId, input.projectVersion, "brief-v3");
+        const planningRow = await tx.getDocument(input.projectId, input.projectVersion, "planning-package");
+        if (!project || !version || !briefRow || !planningRow) throw new PlanningRecoveryError("RECOVERY_CURRENTNESS_STALE");
+        const brief = BriefV3DocumentSchema.parse(mapRowToDocument(briefRow));
+        const planning = PlanningPackageSchema.parse(mapRowToDocument(planningRow));
+        assertRecoveryCurrentness({ project, version, briefRow, brief, planningRow, planning, plan: currentPlan });
+        const legacyRow = await tx.getDocument(input.projectId, input.projectVersion, "requirements");
+        const legacy = legacyRow && mapRowToDocument(legacyRow).documentType === "requirements" ? RequirementSpecificationSchema.parse(mapRowToDocument(legacyRow)) : null;
+        const durableCurrent = parseDurableCandidate(currentRun);
+        const admitted = admitPlanningRecoveryCandidate({ candidate: durableCurrent.planningPackage, semanticAccounting: durableCurrent.requirementAccounting, projectId: input.projectId, projectVersion: input.projectVersion, plan: currentPlan, brief, planning, compatibility: compatibilityBrief(project, version, brief, legacy), now: this.now() });
+        candidate = admitted.candidate;
+        const existingEvidence = await tx.getPlanningRecoveryEvidence(input.projectId, input.projectVersion, input.operationKey);
+        if (existingEvidence) {
+          if (existingEvidence.nextPlanningDocumentChecksum !== planningDocumentChecksum(candidate)) throw new PlanningRecoveryError("IDEMPOTENCY_CONFLICT");
+          return { run: currentRun, package: planning, evidence: PlanningRecoveryEvidenceSchema.parse(existingEvidence) };
+        }
+        await this.dependencies.fault?.hit("before-db-commit");
+        await saveDocumentCASInTransaction(tx, candidate, planningRow.rowVersion, planningRow.checksum);
+        const evidence = PlanningRecoveryEvidenceSchema.parse({ id: deterministicUuid(`${input.projectId}:${input.projectVersion}:${input.operationKey}`), operationKey: input.operationKey, projectId: input.projectId, projectVersion: input.projectVersion, recoveryPlanChecksum: currentPlan.planChecksum, briefRowVersion: briefRow.rowVersion, briefSemanticChecksum: brief.briefChecksum, briefDocumentChecksum: briefRow.checksum, priorPlanningRowVersion: planningRow.rowVersion, priorPlanningSemanticChecksum: planningSemanticChecksumForPolicy(planning, CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY), priorPlanningDocumentChecksum: planningDocumentChecksum(planning), priorPlanningPackage: planning, nextPlanningRowVersion: planningRow.rowVersion + 1, nextPlanningSemanticChecksum: planningSemanticChecksumForPolicy(candidate, CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY), nextPlanningDocumentChecksum: planningDocumentChecksum(candidate), createdAt: this.now() });
+        await tx.appendPlanningRecoveryEvidence(evidence);
+        const finalRun = await tx.transitionPlanningRecoveryRun({ runId: currentRun.runId, operationKey: currentRun.operationKey, from: "PERSISTENCE_STARTED", to: "COMMITTED", owner, now: this.now(), patch: { committedEvidenceId: evidence.id, projectMemoryStatus: "PENDING" } });
+        return { run: finalRun, package: candidate, evidence };
+      });
+    } catch (error) {
+      if (error instanceof PlanningRecoveryCrash) throw error;
+      const current = await this.dependencies.database.transaction((tx) => tx.getPlanningRecoveryRun(input.projectId, input.projectVersion, input.operationKey));
+      if (current && current.state === "PERSISTENCE_STARTED") await this.markRunTerminal(current, error instanceof PlanningRecoveryError && error.code === "RECOVERY_CURRENTNESS_STALE" ? "CURRENTNESS_FAILED" : "PERSISTENCE_FAILED", owner, error, error instanceof PlanningRecoveryError && error.code === "RECOVERY_CURRENTNESS_STALE" ? "currentness" : "persistence");
+      throw error instanceof PlanningRecoveryError ? error : new PlanningRecoveryError("RECOVERY_PERSISTENCE_FAILED", "Planning re-admission persistence failed.");
+    }
+    await this.projection(committed.run, committed.package);
+    return { status: "COMMITTED", package: committed.package, evidence: committed.evidence };
+  }
+
   async apply(input: { projectId: string; projectVersion: number; operationKey: string; plan: PlanningRecoveryPlan; providerInput?: PlanningRecoveryProviderInput; candidate: PlanningPackage; requirementAccounting: PlanningRecoveryProviderResult["requirementAccounting"] }): Promise<PlanningRecoveryResult> {
     if (!this.dependencies.hostRecoveryEnabled) throw new PlanningRecoveryError("HOST_RECOVERY_NOT_AUTHORIZED");
     const plan = PlanningRecoveryPlanSchema.parse(input.plan);
@@ -1248,7 +1470,7 @@ export class PlanningRecoveryService {
       const legacy = legacyRow && mapRowToDocument(legacyRow).documentType === "requirements" ? RequirementSpecificationSchema.parse(mapRowToDocument(legacyRow)) : null;
       if (brief.briefChecksum !== plan.briefChecksum || planning.approvedBriefChecksum !== plan.currentness.planningApprovedBriefChecksum || planning.accepted) throw new PlanningRecoveryError("RECOVERY_CURRENTNESS_STALE");
       try {
-        const candidate = admitRecoveryCandidate({ candidate: input.candidate, semanticAccounting: input.requirementAccounting, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief, planning, compatibility: compatibilityBrief(project, version, brief, legacy), now: this.now() }).candidate;
+        const candidate = admitPlanningRecoveryCandidate({ candidate: input.candidate, semanticAccounting: input.requirementAccounting, projectId: input.projectId, projectVersion: input.projectVersion, plan, brief, planning, compatibility: compatibilityBrief(project, version, brief, legacy), now: this.now() }).candidate;
         const existingEvidence = await tx.getPlanningRecoveryEvidence(input.projectId, input.projectVersion, input.operationKey);
         if (existingEvidence) {
           if (existingEvidence.nextPlanningDocumentChecksum !== planningDocumentChecksum(candidate)) throw new PlanningRecoveryError("IDEMPOTENCY_CONFLICT");

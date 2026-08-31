@@ -304,15 +304,21 @@ function targetRefKey(ref: PlanningTargetRef): string {
   return ref.kind === "route" ? `route:${ref.routeHandle}` : ref.kind === "page" ? `page:${ref.pageHandle}` : `section:${ref.section}`;
 }
 
-const TARGET_KINDS_BY_DISPOSITION: Record<PlanningRequirementDisposition, readonly PlanningTargetRef["kind"][]> = {
+/**
+ * Structural target compatibility only. A route is a first-class Planning
+ * host for form dependencies and user-flow starts/steps, so interaction and
+ * form responsibilities may be attached to it as well as to their page or
+ * section representation. This does not infer semantic suitability.
+ */
+export const PLANNING_TARGET_KINDS_BY_DISPOSITION: Record<PlanningRequirementDisposition, readonly PlanningTargetRef["kind"][]> = {
   PAGE_RESPONSIBILITY: ["page", "section"],
   ROUTE_RESPONSIBILITY: ["route", "page"],
   ARCHITECTURE_CONSTRAINT: ["section"],
-  FORM_CONSTRAINT: ["page", "section"],
+  FORM_CONSTRAINT: ["route", "page", "section"],
   CONTENT_REQUIREMENT: ["page", "section"],
   SEO_REQUIREMENT: ["route", "page", "section"],
   ASSET_REQUIREMENT: ["page", "section"],
-  INTERACTION_REQUIREMENT: ["page", "section"],
+  INTERACTION_REQUIREMENT: ["route", "page", "section"],
   NON_FUNCTIONAL_CONSTRAINT: ["section", "page"],
   EXPLICIT_EXCLUSION: ["section", "page"],
   OTHER_PLANNING_RESPONSIBILITY: ["route", "page", "section"],
@@ -322,6 +328,12 @@ function hostPreboundTargetRefs(requirementId: string, routeManifest?: Pick<Cano
   return (routeManifest?.routes ?? [])
     .filter((route) => [route.requirementIds, route.navigation.requirementIds, route.seo.requirementIds].some((requirements) => requirements.includes(requirementId)))
     .map((route) => ({ kind: "route" as const, routeHandle: route.routeHandle }));
+}
+
+function targetRoute(routeManifest: Pick<CanonicalPlanningRouteManifest, "routes"> | undefined, ref: PlanningTargetRef) {
+  if (ref.kind === "route") return routeManifest?.routes.find((route) => route.routeHandle === ref.routeHandle);
+  if (ref.kind === "page") return routeManifest?.routes.find((route) => route.pageHandle === ref.pageHandle);
+  return undefined;
 }
 
 export function createPlanningTargetCatalog(routeManifest: Pick<CanonicalPlanningRouteManifest, "routes">): PlanningTargetCatalog {
@@ -455,13 +467,19 @@ export function validatePlanningRecoveryRequirementAccounting(input: {
       if (missingTarget) issues.push({ code: "TARGET_NOT_IN_CANDIDATE", requirementId });
       const expectedEntry = requirementId ? expected.get(requirementId) : undefined;
       if (expectedEntry && typeof disposition === "string" && PlanningRequirementDispositionSchema.safeParse(disposition).success) {
-        const allowedKinds = TARGET_KINDS_BY_DISPOSITION[disposition as PlanningRequirementDisposition];
+        const allowedKinds = PLANNING_TARGET_KINDS_BY_DISPOSITION[disposition as PlanningRequirementDisposition];
         if (parsedTargets.data.some((ref) => !allowedKinds.includes(ref.kind))) issues.push({ code: "TARGET_TYPE_INCOMPATIBLE", requirementId });
       }
       if (requirementId) {
+        const prebound = hostPreboundTargetRefs(requirementId, input.routeManifest);
         const selected = new Set(parsedTargets.data.map(targetRefKey));
-        const missingPrebinding = hostPreboundTargetRefs(requirementId, input.routeManifest).some((ref) => !selected.has(targetRefKey(ref)));
-        if (missingPrebinding) issues.push({ code: "TARGET_RELATIONSHIP_INVALID", requirementId });
+        const missingPrebinding = prebound.some((ref) => !selected.has(targetRefKey(ref)));
+        const preboundRouteHandles = new Set(prebound.map((ref) => ref.kind === "route" ? ref.routeHandle : ""));
+        const contradictoryRoute = parsedTargets.data.some((ref) => {
+          const route = targetRoute(input.routeManifest, ref);
+          return Boolean(route && prebound.length > 0 && !preboundRouteHandles.has(route.routeHandle));
+        });
+        if (missingPrebinding || contradictoryRoute) issues.push({ code: "TARGET_RELATIONSHIP_INVALID", requirementId });
       }
     }
     if (typeof value.semanticEvidence === "string" && PLACEHOLDER_SEMANTIC_EVIDENCE.has(normalizedEvidence(value.semanticEvidence))) issues.push({ code: "PLACEHOLDER_SEMANTIC_EVIDENCE", requirementId });

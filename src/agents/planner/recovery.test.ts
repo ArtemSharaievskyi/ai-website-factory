@@ -16,7 +16,7 @@ import { PlanningPackageSchema, type PlanningPackage } from "./contracts";
 import { admitPlanningRefresh, normalizePlanningPackageForHost, validatePlanningRequirementCoverage } from "./refresh-admission";
 import { FakePlannerMemoryPort } from "./memory";
 import { createRecoveryAdmissionDiagnosticSummary, PlanningRecoveryCrash, PlanningRecoveryService, type PlanningRecoveryProvider, type PlanningRecoveryProviderResult } from "./recovery";
-import type { PlanningRecoveryProviderAttemptStartCurrentness } from "./recovery-runs";
+import { PlanningRecoveryRunSchema, type PlanningRecoveryProviderAttemptStartCurrentness } from "./recovery-runs";
 import { createCanonicalPlanningRouteManifest, createPlanningOwnedRequirementManifest, createPlanningTargetCatalog, validatePlanningRecoveryRequirementAccounting } from "./recovery-manifests";
 import { CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY, planningSemanticChecksumForPolicy } from "./semantic-checksum";
 import { buildPhase7CContractPackage } from "@/domain/contracts/phase7c";
@@ -169,6 +169,25 @@ function provider(): PlanningRecoveryProvider {
 
 function service(fixture: Awaited<ReturnType<typeof seeded>>, options: Partial<ConstructorParameters<typeof PlanningRecoveryService>[0]> = {}) {
   return new PlanningRecoveryService({ database: fixture.database, memory: new FakePlannerMemoryPort(), provider: provider(), source: createStaticSourceCurrentnessPort(TEST_SOURCE_HEAD), hostRecoveryEnabled: true, now: () => timestamp, ...options });
+}
+
+async function seedFailedProviderRun(fixture: Awaited<ReturnType<typeof seeded>>, plan: NonNullable<Awaited<ReturnType<PlanningRecoveryService["prepare"]>>["plan"]>, result: PlanningRecoveryProviderResult, operationKey: string) {
+  const current = plan.currentness;
+  const row = PlanningRecoveryRunSchema.parse({
+    runId: randomUUID(), operationKey, projectId: fixture.projectId, projectVersion: 1, versionId: plan.versionId,
+    expectedSourceHead: plan.sourceHead, recoveryPlanChecksum: plan.planChecksum, recoveryPlan: plan,
+    projectRowVersion: current.projectRowVersion, projectVersionRowVersion: current.projectVersionRowVersion,
+    briefRowVersion: current.briefRowVersion, briefSemanticChecksum: current.briefSemanticChecksum, briefDocumentChecksum: current.briefDocumentChecksum,
+    planningRowVersion: current.planningRowVersion, planningSemanticChecksum: current.planningSemanticChecksum, planningDocumentChecksum: current.planningDocumentChecksum,
+    providerBudget: 1, providerAttemptCount: 1, state: "ADMISSION_FAILED",
+    providerResultChecksum: checksumPersistedDocument(result), providerResult: result,
+    providerRequestId: null, providerModel: null, providerErrorClass: null, providerErrorCode: null,
+    diagnosticStage: "admission", diagnosticCode: "RECOVERY_CANDIDATE_INVALID", diagnosticMessage: "Planning recovery candidate failed deterministic admission.", diagnosticSummary: null,
+    leaseOwner: null, leaseExpiresAt: null, terminalOutcome: "ADMISSION_FAILED", committedEvidenceId: null,
+    projectMemoryStatus: "PENDING", projectMemoryFailureCode: null, projectMemoryFailureMessage: null, createdAt: timestamp, updatedAt: timestamp,
+  });
+  await fixture.database.transaction((tx) => tx.createPlanningRecoveryRun(row));
+  return row;
 }
 
 describe("host-owned full Planning recovery", () => {
@@ -358,6 +377,142 @@ describe("host-owned full Planning recovery", () => {
     const phase7c = await new DocumentRepository(fixture.database).get(fixture.projectId, 1, "phase-7c-contract-package");
     expect(architecture).toEqual(fixture.currentPackage.architecture);
     expect(phase7c).toMatchObject({ planningChecksum: expect.not.stringMatching(result.evidence.nextPlanningSemanticChecksum) });
+  });
+
+  it("re-admits a durable provider result through a new zero-call operation", async () => {
+    const base = brief();
+    const next = brief({ requirements: [...base.requirements, { id: "REQUIREMENT:readmission", category: "FEATURE", statement: "Provide the zero-call re-admission capability.", sourceRefs: ["fixture:readmission"] }] });
+    const fixture = await seeded({ currentBrief: next, packageBrief: base });
+    let providerCalls = 0;
+    const recovery = service(fixture, { provider: { planRecovery: async () => { providerCalls += 1; throw new Error("re-admission must not call provider"); } } });
+    const prepared = await recovery.prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: "readmission-source" });
+    const sourceResult = completeRecoveryResult(plannerInput(fixture.projectId, next));
+    const source = await seedFailedProviderRun(fixture, prepared.plan!, sourceResult, "readmission-source");
+    const sourceBefore = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "readmission-source"));
+    const planningBefore = await new DocumentRepository(fixture.database).getWithMetadata(fixture.projectId, 1, "planning-package");
+
+    const result = await recovery.reAdmitCandidate({ projectId: fixture.projectId, projectVersion: 1, sourceOperationKey: "readmission-source", operationKey: "readmission-success" });
+    expect(providerCalls).toBe(0);
+    expect(result.status).toBe("COMMITTED");
+    expect(result.package.accepted).toBe(false);
+    expect(result.evidence.priorPlanningDocumentChecksum).toBe(planningBefore?.checksum);
+    expect((await new DocumentRepository(fixture.database).getWithMetadata(fixture.projectId, 1, "planning-package"))?.rowVersion).toBe((planningBefore?.rowVersion ?? 0) + 1);
+    expect(await fixture.database.transaction((tx) => tx.listPlanningRecoveryEvidence(fixture.projectId, 1))).toHaveLength(1);
+    const readmitted = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "readmission-success"));
+    expect(readmitted).toMatchObject({ state: "COMMITTED", providerBudget: 0, providerAttemptCount: 0, providerResultChecksum: source.providerResultChecksum, recoveryPlan: { reAdmission: { sourceProviderRunId: source.runId, sourceProviderResultChecksum: source.providerResultChecksum, providerSourceHead: TEST_SOURCE_HEAD, reAdmissionSourceHead: TEST_SOURCE_HEAD } } });
+    expect(await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "readmission-source"))).toEqual(sourceBefore);
+
+    const duplicate = await recovery.reAdmitCandidate({ projectId: fixture.projectId, projectVersion: 1, sourceOperationKey: "readmission-source", operationKey: "readmission-success" });
+    expect(duplicate.status).toBe("REPLAYED");
+    expect(providerCalls).toBe(0);
+    expect(await fixture.database.transaction((tx) => tx.listPlanningRecoveryEvidence(fixture.projectId, 1))).toHaveLength(1);
+    expect((await new DocumentRepository(fixture.database).getWithMetadata(fixture.projectId, 1, "planning-package"))?.rowVersion).toBe((planningBefore?.rowVersion ?? 0) + 1);
+  });
+
+  it("rejects checksum and canonical currentness drift before re-admission mutation", async () => {
+    const base = brief();
+    const next = brief({ requirements: [...base.requirements, { id: "REQUIREMENT:readmission-drift", category: "FEATURE", statement: "Provide the drift protection fixture.", sourceRefs: ["fixture:readmission-drift"] }] });
+    const fixture = await seeded({ currentBrief: next, packageBrief: base });
+    const recovery = service(fixture);
+    const prepared = await recovery.prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: "drift-source" });
+    const sourceResult = completeRecoveryResult(plannerInput(fixture.projectId, next));
+    const source = await seedFailedProviderRun(fixture, prepared.plan!, sourceResult, "drift-source");
+
+    const checksumMismatch = PlanningRecoveryRunSchema.parse({ ...source, operationKey: "drift-checksum-source", runId: randomUUID(), providerResultChecksum: "a".repeat(64) });
+    await fixture.database.transaction((tx) => tx.createPlanningRecoveryRun(checksumMismatch));
+    await expect(recovery.reAdmitCandidate({ projectId: fixture.projectId, projectVersion: 1, sourceOperationKey: "drift-checksum-source", operationKey: "drift-checksum-readmission" })).rejects.toMatchObject({ code: "RECOVERY_PROVIDER_RESULT_CHECKSUM_INVALID" });
+    expect(await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "drift-checksum-readmission"))).toBeNull();
+
+    const briefRow = await new DocumentRepository(fixture.database).getWithMetadata(fixture.projectId, 1, "brief-v3");
+    const changedBrief = BriefV3DocumentSchema.parse({ ...(briefRow!.document as unknown as Record<string, unknown>), updatedAt: "2026-08-30T10:00:01.000Z" });
+    await new DocumentRepository(fixture.database).save(changedBrief);
+    await expect(recovery.reAdmitCandidate({ projectId: fixture.projectId, projectVersion: 1, sourceOperationKey: "drift-source", operationKey: "drift-brief-readmission" })).rejects.toMatchObject({ code: "RECOVERY_CURRENTNESS_STALE" });
+    expect(await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "drift-brief-readmission"))).toMatchObject({ state: "CURRENTNESS_FAILED", providerBudget: 0, providerAttemptCount: 0, diagnosticStage: "currentness" });
+  });
+
+  it.each([
+    ["planning row drift", "planning-drift"],
+    ["project workflow drift", "workflow-drift"],
+  ] as const)("records an independent currentness failure for %s", async (_label, suffix) => {
+    const base = brief();
+    const next = brief({ requirements: [...base.requirements, { id: `REQUIREMENT:${suffix}`, category: "FEATURE" as const, statement: `Provide the ${suffix} fixture.`, sourceRefs: [`fixture:${suffix}`] }] });
+    const fixture = await seeded({ currentBrief: next, packageBrief: base });
+    const recovery = service(fixture);
+    const prepared = await recovery.prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: `${suffix}-source` });
+    const source = await seedFailedProviderRun(fixture, prepared.plan!, completeRecoveryResult(plannerInput(fixture.projectId, next)), `${suffix}-source`);
+
+    if (suffix === "planning-drift") {
+      const planningRow = await new DocumentRepository(fixture.database).getWithMetadata(fixture.projectId, 1, "planning-package");
+      const planning = PlanningPackageSchema.parse(planningRow!.document);
+      await new DocumentRepository(fixture.database).save(PlanningPackageSchema.parse({ ...planning, updatedAt: "2026-08-30T10:00:01.000Z" }));
+    } else {
+      const project = await fixture.database.transaction((tx) => tx.getProject(fixture.projectId));
+      await fixture.database.transaction((tx) => tx.updateProjectState({ id: fixture.projectId, expectedState: "AWAITING_DESIGN_SELECTION", expectedRowVersion: project!.row_version, state: "DRAFT", updatedAt: "2026-08-30T10:00:01.000Z" }));
+    }
+
+    await expect(recovery.reAdmitCandidate({ projectId: fixture.projectId, projectVersion: 1, sourceOperationKey: `${suffix}-source`, operationKey: `${suffix}-readmission` })).rejects.toMatchObject({ code: "RECOVERY_CURRENTNESS_STALE" });
+    expect(await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, `${suffix}-readmission`))).toMatchObject({ state: "CURRENTNESS_FAILED", providerBudget: 0, providerAttemptCount: 0, diagnosticStage: "currentness" });
+    expect(await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, `${suffix}-source`))).toEqual(source);
+  });
+
+  it("rejects project/version mismatch and a real candidate admission defect without provider spend", async () => {
+    const base = brief();
+    const next = brief({ requirements: [...base.requirements, { id: "REQUIREMENT:readmission-defect", category: "FEATURE", statement: "Provide the genuine defect fixture.", sourceRefs: ["fixture:readmission-defect"] }] });
+    const fixture = await seeded({ currentBrief: next, packageBrief: base });
+    let providerCalls = 0;
+    const recovery = service(fixture, { provider: { planRecovery: async () => { providerCalls += 1; throw new Error("re-admission must not call provider"); } } });
+    const prepared = await recovery.prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: "defect-source" });
+    const validResult = completeRecoveryResult(plannerInput(fixture.projectId, next));
+    const defectiveResult: PlanningRecoveryProviderResult = {
+      ...validResult,
+      planningPackage: PlanningPackageSchema.parse({ ...validResult.planningPackage, accepted: true, acceptance: { acceptedAt: timestamp, acceptedBy: "synthetic-user" } }),
+    };
+    const source = await seedFailedProviderRun(fixture, prepared.plan!, defectiveResult, "defect-source");
+
+    await expect(recovery.reAdmitCandidate({ projectId: fixture.projectId, projectVersion: 2, sourceOperationKey: "defect-source", operationKey: "wrong-version" })).rejects.toMatchObject({ code: "RECOVERY_READMISSION_SOURCE_INVALID" });
+    await expect(recovery.reAdmitCandidate({ projectId: fixture.projectId, projectVersion: 1, sourceOperationKey: "defect-source", operationKey: "defect-readmission" })).rejects.toMatchObject({ code: "RECOVERY_CANDIDATE_INVALID" });
+    expect(providerCalls).toBe(0);
+    expect(await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "defect-readmission"))).toMatchObject({ state: "ADMISSION_FAILED", providerBudget: 0, providerAttemptCount: 0, diagnosticStage: "admission" });
+    expect(await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "defect-source"))).toEqual(source);
+  });
+
+  it("rejects Brief semantic drift independently of document-only drift", async () => {
+    const base = brief();
+    const next = brief({ requirements: [...base.requirements, { id: "REQUIREMENT:readmission-semantic-drift", category: "FEATURE", statement: "Provide the semantic drift fixture.", sourceRefs: ["fixture:readmission-semantic-drift"] }] });
+    const fixture = await seeded({ currentBrief: next, packageBrief: base });
+    const recovery = service(fixture);
+    const prepared = await recovery.prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: "semantic-drift-source" });
+    const source = await seedFailedProviderRun(fixture, prepared.plan!, completeRecoveryResult(plannerInput(fixture.projectId, next)), "semantic-drift-source");
+    const briefRow = await new DocumentRepository(fixture.database).getWithMetadata(fixture.projectId, 1, "brief-v3");
+    const changedBrief = createBriefV3Document({ projectId: fixture.projectId, projectVersion: 1, brief: brief({ ...next, summary: "A changed canonical summary for the drift fixture." }), createdAt: (briefRow!.document as { createdAt: string }).createdAt, updatedAt: "2026-08-30T10:00:01.000Z" });
+    await new DocumentRepository(fixture.database).save(BriefV3DocumentSchema.parse({ ...changedBrief, approval: { approved: true, approvedAt: timestamp, approvedBy: "synthetic-user", approvedCanonicalChecksum: changedBrief.briefChecksum } }));
+
+    await expect(recovery.reAdmitCandidate({ projectId: fixture.projectId, projectVersion: 1, sourceOperationKey: "semantic-drift-source", operationKey: "semantic-drift-readmission" })).rejects.toMatchObject({ code: "RECOVERY_CURRENTNESS_STALE" });
+    expect(await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "semantic-drift-readmission"))).toMatchObject({ state: "CURRENTNESS_FAILED", diagnosticStage: "currentness" });
+    expect(await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "semantic-drift-source"))).toEqual(source);
+  });
+
+  it("fails a stale re-admission CAS without partial Planning or evidence writes", async () => {
+    const base = brief();
+    const next = brief({ requirements: [...base.requirements, { id: "REQUIREMENT:readmission-cas", category: "FEATURE", statement: "Provide the stale CAS fixture.", sourceRefs: ["fixture:readmission-cas"] }] });
+    const fixture = await seeded({ currentBrief: next, packageBrief: base });
+    let injected = false;
+    const recovery = service(fixture, { fault: { hit: async (point) => {
+      if (point !== "before-db-commit" || injected) return;
+      injected = true;
+      const key = `${fixture.projectId}:1:planning-package`;
+      const row = fixture.database.documents.get(key)!;
+      fixture.database.documents.set(key, { ...row, rowVersion: row.rowVersion + 1 });
+    } } });
+    const prepared = await recovery.prepare({ projectId: fixture.projectId, projectVersion: 1, operationKey: "cas-source" });
+    const source = await seedFailedProviderRun(fixture, prepared.plan!, completeRecoveryResult(plannerInput(fixture.projectId, next)), "cas-source");
+    const planningBefore = await new DocumentRepository(fixture.database).getWithMetadata(fixture.projectId, 1, "planning-package");
+
+    await expect(recovery.reAdmitCandidate({ projectId: fixture.projectId, projectVersion: 1, sourceOperationKey: "cas-source", operationKey: "cas-readmission" })).rejects.toMatchObject({ code: "RECOVERY_PERSISTENCE_FAILED" });
+    expect(await new DocumentRepository(fixture.database).getWithMetadata(fixture.projectId, 1, "planning-package")).toMatchObject({ rowVersion: planningBefore!.rowVersion, checksum: planningBefore!.checksum });
+    expect(await fixture.database.transaction((tx) => tx.listPlanningRecoveryEvidence(fixture.projectId, 1))).toHaveLength(0);
+    expect(await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "cas-readmission"))).toMatchObject({ state: "PERSISTENCE_FAILED", providerBudget: 0, providerAttemptCount: 0 });
+    expect(await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "cas-source"))).toEqual(source);
   });
 
   it("rolls back package and evidence writes when the atomic boundary fails", async () => {

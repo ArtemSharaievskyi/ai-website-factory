@@ -12,7 +12,10 @@ import {
   createPlanningOwnedRequirementManifest,
   createPlanningRecoverySemanticAccountingSchema,
   createPlanningTargetCatalog,
+  PLANNING_TARGET_KINDS_BY_DISPOSITION,
+  PlanningRequirementDispositionSchema,
   PlanningRequirementHandleSchema,
+  type PlanningTargetRef,
   validatePlanningRecoveryRequirementAccounting,
 } from "./recovery-manifests";
 import {
@@ -337,5 +340,69 @@ describe("host-issued Planning Recovery manifests", () => {
 
     const incompatibleTarget = { ...valid, [firstHandle]: { ...valid[firstHandle]!, disposition: "ARCHITECTURE_CONSTRAINT" as const, planningTargetRefs: [{ targetHandle: createPlanningTargetCatalog(routeManifest).targets.find((entry) => entry.kind === "page")!.targetHandle }] } };
     expect(bindPlanningRecoverySemanticAccounting({ semanticAccounting: incompatibleTarget, manifest, candidate: base.candidate, routeManifest }).validation.issues).toContainEqual(expect.objectContaining({ code: "TARGET_TYPE_INCOMPATIBLE", requirementId: manifest.requirements[0]!.requirementId }));
+  });
+
+  it("keeps the complete disposition matrix structural and bounded", () => {
+    const brief = syntheticBrief();
+    const manifest = createPlanningOwnedRequirementManifest(brief);
+    const routeManifest = createCanonicalPlanningRouteManifest(brief);
+    const candidate = candidateFor(brief).candidate;
+    const catalog = createPlanningTargetCatalog(routeManifest);
+    const entriesByKind = Object.fromEntries((["route", "page", "section"] as const).map((kind) => [kind, catalog.targets.find((entry) => entry.kind === kind)!])) as Record<PlanningTargetRef["kind"], (typeof catalog.targets)[number]>;
+    const targetRef = (kind: PlanningTargetRef["kind"]): PlanningTargetRef => {
+      const entry = entriesByKind[kind];
+      if (kind === "route") return { kind: "route", routeHandle: entry.routeHandle! };
+      if (kind === "page") return { kind: "page", pageHandle: entry.pageHandle! };
+      return { kind: "section", section: entry.section! };
+    };
+    const base = accountingFor(manifest);
+    const firstRequirement = manifest.requirements[0]!;
+
+    for (const disposition of PlanningRequirementDispositionSchema.options) {
+      const allowed = PLANNING_TARGET_KINDS_BY_DISPOSITION[disposition];
+      for (const kind of allowed) {
+        const accounting = base.map((entry) => entry.requirementId === firstRequirement.requirementId ? { ...entry, disposition, planningTargetRefs: [targetRef(kind)] } : entry);
+        expect(validatePlanningRecoveryRequirementAccounting({ accounting, manifest, candidate, routeManifest }).issues).not.toContainEqual(expect.objectContaining({ code: "TARGET_TYPE_INCOMPATIBLE", requirementId: firstRequirement.requirementId }));
+      }
+      const disallowed = (["route", "page", "section"] as const).find((kind) => !allowed.includes(kind));
+      if (disallowed) {
+        const accounting = base.map((entry) => entry.requirementId === firstRequirement.requirementId ? { ...entry, disposition, planningTargetRefs: [targetRef(disallowed)] } : entry);
+        expect(validatePlanningRecoveryRequirementAccounting({ accounting, manifest, candidate, routeManifest }).issues).toContainEqual(expect.objectContaining({ code: "TARGET_TYPE_INCOMPATIBLE", requirementId: firstRequirement.requirementId }));
+      }
+    }
+  });
+
+  it("keeps explicit canonical route bindings hard while allowing supplementary sections", () => {
+    const brief = syntheticBrief();
+    const manifest = createPlanningOwnedRequirementManifest(brief);
+    const baseRoutes = createCanonicalPlanningRouteManifest(brief);
+    const firstRequirement = manifest.requirements[0]!;
+    const routeManifest = {
+      ...baseRoutes,
+      routes: baseRoutes.routes.map((route, index) => index === 1 ? { ...route, requirementIds: [firstRequirement.requirementId] } : route),
+    };
+    const catalog = createPlanningTargetCatalog(routeManifest);
+    const firstHandle = firstRequirement.requirementHandle;
+    const base = semanticAccountingFor(manifest, routeManifest);
+    const routeTargets = catalog.targets.filter((entry) => entry.kind === "route");
+    const canonicalRoute = routeTargets[1]!;
+    const otherRoute = routeTargets[0]!;
+    const canonical = bindPlanningRecoverySemanticAccounting({
+      semanticAccounting: { ...Object.fromEntries(manifest.requirements.map((entry) => [entry.requirementHandle, { ...base[entry.requirementHandle]!, planningTargetRefs: [{ targetHandle: canonicalRoute.targetHandle }] }])), [firstHandle]: { ...base[firstHandle]!, planningTargetRefs: [{ targetHandle: canonicalRoute.targetHandle }] } },
+      manifest,
+      candidate: candidateFor(brief).candidate,
+      routeManifest,
+      targetCatalog: catalog,
+    });
+    expect(canonical.validation.issues).not.toContainEqual(expect.objectContaining({ code: "TARGET_RELATIONSHIP_INVALID", requirementId: firstRequirement.requirementId }));
+
+    const contradictory = bindPlanningRecoverySemanticAccounting({
+      semanticAccounting: { ...Object.fromEntries(manifest.requirements.map((entry) => [entry.requirementHandle, { ...base[entry.requirementHandle]!, planningTargetRefs: [{ targetHandle: canonicalRoute.targetHandle }] }])), [firstHandle]: { ...base[firstHandle]!, planningTargetRefs: [{ targetHandle: otherRoute.targetHandle }] } },
+      manifest,
+      candidate: candidateFor(brief).candidate,
+      routeManifest,
+      targetCatalog: catalog,
+    });
+    expect(contradictory.validation.issues).toContainEqual(expect.objectContaining({ code: "TARGET_RELATIONSHIP_INVALID", requirementId: firstRequirement.requirementId }));
   });
 });
