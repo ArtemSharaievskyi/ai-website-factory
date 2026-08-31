@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { parseSourceHead } from "@/domain/shared/source-head";
+import { ProviderFailureDiagnosticSchema } from "@/domain/shared/provider-failure";
 
 const HashSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const SafeTokenSchema = z.string().min(1).max(160).regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/);
@@ -86,6 +87,7 @@ export type PlanningRecoveryLegacyDiagnosticSummary = z.infer<typeof PlanningRec
 export const PlanningRecoveryPersistedDiagnosticSummarySchema = z.union([
   PlanningRecoveryDiagnosticSummarySchema,
   PlanningRecoveryLegacyDiagnosticSummarySchema,
+  ProviderFailureDiagnosticSchema,
 ]);
 export type PlanningRecoveryPersistedDiagnosticSummary = z.infer<typeof PlanningRecoveryPersistedDiagnosticSummarySchema>;
 

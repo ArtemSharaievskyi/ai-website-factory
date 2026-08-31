@@ -378,6 +378,18 @@ describe("production AI provider boundary", () => {
     await expect(client.request({ ...request, idempotencyKey: "unsupported-parameter" })).rejects.toMatchObject({ code: "AI_REQUEST_PARAMETER_UNSUPPORTED" });
     expect(calls).toBe(1);
   });
+  it("distinguishes local schema construction failure from a network failure", async () => {
+    const localParse = vi.fn();
+    const localSchema = z.object({ values: z.record(z.string(), z.string()) }).strict();
+    const local = new OpenAiStructuredClient(config, { client: { chat: { completions: { parse: localParse } } } as never });
+    await expect(local.request({ ...request, schema: localSchema, schemaName: "local-schema", idempotencyKey: "local-schema" } as never)).rejects.toMatchObject({ code: "AI_REQUEST_SCHEMA_INVALID", diagnostic: { stage: "request_construction", requestAttempted: false, apiResponseReceived: false }, failureDiagnostic: { category: "REQUEST_CONSTRUCTION", stage: "REQUEST_CONSTRUCTION", requestAttempted: false, responseReceived: false, errorCode: "AI_REQUEST_SCHEMA_INVALID" } });
+    expect(localParse).not.toHaveBeenCalled();
+
+    const networkParse = vi.fn(async () => { throw Object.assign(new Error("secret network detail"), { code: "ECONNRESET" }); });
+    const network = new OpenAiStructuredClient(config, { client: { chat: { completions: { parse: networkParse } } } as never });
+    await expect(network.request({ ...request, idempotencyKey: "network-failure", retryPolicy: { maxRetries: 0, corrections: 0 } })).rejects.toMatchObject({ code: "AI_NETWORK_ERROR", diagnostic: { stage: "api_request", requestAttempted: true, apiResponseReceived: false }, failureDiagnostic: { category: "NETWORK", stage: "REQUEST_TRANSPORT", requestAttempted: true, responseReceived: false, errorCode: "AI_NETWORK_ERROR" } });
+    expect(networkParse).toHaveBeenCalledTimes(1);
+  });
 
   it("accepts only injected, schema-valid structured output and records safe usage", async () => { const usage = vi.fn(); const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: { ok: true, summary: "bounded" } as T, requestId: "req_1", inputTokens: 4, cachedInputTokens: 1, outputTokens: 3 }), usageSink: usage }); const result = await client.request(request); expect(result.value).toEqual({ ok: true, summary: "bounded" }); expect(usage).toHaveBeenCalledWith(expect.objectContaining({ inputTokens: 4, cachedInputTokens: 1, outputTokens: 3, promptVersion: "test.v1" })); });
   it("retries one transient failure and does not expose raw provider data", async () => { let calls = 0; const client = new OpenAiStructuredClient(config, { executor: async <T>() => { calls++; if (calls === 1) throw Object.assign(new Error("temporary"), { status: 503 }); return { value: { ok: true, summary: "recovered" } as T, requestId: "req_2" }; } }); await expect(client.request({ ...request, idempotencyKey: "retry" })).resolves.toMatchObject({ value: { ok: true } }); expect(calls).toBe(2); });

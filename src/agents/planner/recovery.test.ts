@@ -22,6 +22,7 @@ import { CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY, planningSemanticChecksumForP
 import { buildPhase7CContractPackage } from "@/domain/contracts/phase7c";
 import { createStaticSourceCurrentnessPort } from "@/runtime/source-head";
 import { createPlanningRecoveryPromptContext } from "@/integrations/openai/adapters";
+import { ProviderFailureDiagnosticSchema } from "@/domain/shared/provider-failure";
 
 const timestamp = "2026-08-30T10:00:00.000Z";
 const TEST_SOURCE_HEAD = "a".repeat(40);
@@ -622,10 +623,10 @@ describe("host-owned full Planning recovery", () => {
     const next = brief({ requirements: [...base.requirements, { id: "REQUIREMENT:provider-failure", category: "FEATURE", statement: "Provide the provider failure fixture.", sourceRefs: ["fixture:provider-failure"] }] });
     const fixture = await seeded({ currentBrief: next, packageBrief: base });
     let calls = 0;
-    const failing = service(fixture, { provider: { planRecovery: async () => { calls += 1; throw new Error("synthetic-provider-failure"); } } });
+    const failing = service(fixture, { provider: { planRecovery: async () => { calls += 1; throw Object.assign(new Error("synthetic-provider-failure"), { code: "AI_REQUEST_SCHEMA_INVALID", failureDiagnostic: ProviderFailureDiagnosticSchema.parse({ version: 1, category: "REQUEST_CONSTRUCTION", stage: "REQUEST_CONSTRUCTION", requestAttempted: false, responseReceived: false, structuredParsingReached: false, retryabilityHint: false, provider: "openai", model: "synthetic-model", sdkErrorClass: "ZodError", errorCode: "AI_REQUEST_SCHEMA_INVALID", schemaName: "planning-recovery-package" }) }); } } });
     await expect(failing.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "provider-failure" })).rejects.toMatchObject({ code: "RECOVERY_PROVIDER_FAILED" });
     const failed = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "provider-failure"));
-    expect(failed).toMatchObject({ state: "PROVIDER_FAILED", terminalOutcome: "PROVIDER_FAILED", providerAttemptCount: 1, diagnosticStage: "provider" });
+    expect(failed).toMatchObject({ state: "PROVIDER_FAILED", terminalOutcome: "PROVIDER_FAILED", providerAttemptCount: 1, diagnosticStage: "provider", diagnosticCode: "AI_REQUEST_SCHEMA_INVALID", diagnosticSummary: { category: "REQUEST_CONSTRUCTION", stage: "REQUEST_CONSTRUCTION", requestAttempted: false, responseReceived: false, model: "synthetic-model", errorCode: "AI_REQUEST_SCHEMA_INVALID", schemaName: "planning-recovery-package" }, providerModel: "synthetic-model", providerErrorClass: "ZodError", providerErrorCode: "AI_REQUEST_SCHEMA_INVALID" });
     const retry = service(fixture, { provider: { planRecovery: async () => { calls += 1; throw new Error("retry-forbidden"); } } });
     await expect(retry.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "provider-failure" })).rejects.toMatchObject({ code: "TERMINAL_FAILURE_REPLAY" });
     expect(calls).toBe(1);
@@ -639,7 +640,7 @@ describe("host-owned full Planning recovery", () => {
     await expect(recovery.recover({ projectId: fixture.projectId, projectVersion: 1, operationKey: "diagnostic-summary" })).rejects.toMatchObject({ code: "RECOVERY_CANDIDATE_INVALID" });
     const failed = await fixture.database.transaction((tx) => tx.getPlanningRecoveryRun(fixture.projectId, 1, "diagnostic-summary"));
     expect(failed?.diagnosticSummary).toMatchObject({ truncated: true, returnedBlockers: 64, blockerCategoryCounts: expect.objectContaining({ coverage: expect.any(Number) }) });
-    expect(failed?.diagnosticSummary?.totalBlockers).toBeGreaterThan(64);
+    expect(failed?.diagnosticSummary && "totalBlockers" in failed.diagnosticSummary ? failed.diagnosticSummary.totalBlockers : 0).toBeGreaterThan(64);
   });
 
   it("keeps complete deterministic admission diagnostics below the bounded-detail threshold", () => {

@@ -60,6 +60,7 @@ import {
   type DocumentRow,
 } from "@/persistence/database/mapping";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
+import { ProviderFailureDiagnosticSchema } from "@/domain/shared/provider-failure";
 import {
   saveDocumentCASInTransaction,
 } from "@/persistence/database/repositories";
@@ -643,11 +644,27 @@ function recoveryRunFromPreparation(input: { plan: PlanningRecoveryPlan; operati
 function safeRunDiagnostic(error: unknown, stage: string) {
   const raw = error instanceof PlanningRecoveryError ? error.code : error instanceof Error ? error.constructor.name : "UnknownError";
   const code = /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(raw) ? raw.slice(0, 160) : "RECOVERY_STAGE_FAILED";
+  const errorRecord = error && typeof error === "object" ? error as Record<string, unknown> : undefined;
+  const providerFailure = stage === "provider" ? ProviderFailureDiagnosticSchema.safeParse(errorRecord?.failureDiagnostic).data : undefined;
+  const providerErrorCode = providerFailure?.errorCode ?? (typeof errorRecord?.code === "string" && /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(errorRecord.code) ? errorRecord.code.slice(0, 160) : undefined);
   const diagnosticInput = stage === "admission" && error instanceof PlanningRecoveryError && error.details && typeof error.details === "object" && "diagnosticInput" in error.details
     ? (error.details as { diagnosticInput?: RecoveryAdmissionDiagnosticInput }).diagnosticInput
     : undefined;
   const summary = diagnosticInput ? createRecoveryAdmissionDiagnosticSummary(diagnosticInput) : null;
-  return { diagnosticStage: stage, diagnosticCode: code, diagnosticMessage: `Planning recovery ${stage} failed safely.`, diagnosticSummary: summary, providerErrorClass: stage === "provider" ? code : null, providerErrorCode: stage === "provider" ? code : null } as const;
+  const diagnosticMessage = providerFailure
+    ? `Planning recovery provider failed safely: ${providerFailure.category}/${providerFailure.stage}/${providerFailure.errorCode ?? "UNKNOWN"}.`
+    : `Planning recovery ${stage} failed safely.`;
+  const providerErrorClass = providerFailure?.sdkErrorClass ?? (error instanceof Error && /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(error.constructor.name) ? error.constructor.name.slice(0, 160) : code);
+  return {
+    diagnosticStage: stage,
+    diagnosticCode: providerErrorCode ?? code,
+    diagnosticMessage,
+    diagnosticSummary: providerFailure ?? summary,
+    providerRequestId: providerFailure?.requestId ?? null,
+    providerModel: providerFailure?.model ?? null,
+    providerErrorClass: stage === "provider" ? providerErrorClass : null,
+    providerErrorCode: stage === "provider" ? providerErrorCode ?? code : null,
+  } as const;
 }
 
 function recoveryProjectionDocuments(candidate: PlanningPackage) {
