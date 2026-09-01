@@ -72,5 +72,27 @@ describe("Design Agent workflow", () => {
     expect(attempt).toMatchObject({ state: "ADMISSION_FAILED", providerObservation: { model: "synthetic-design-model", requestId: "req_design_admission", inputTokens: 29, outputTokens: 13, totalTokens: 42, responseReceived: true }, providerAttempted: true, responseReceived: true, providerModel: "synthetic-design-model", providerRequestId: "req_design_admission", providerResultChecksum: expect.stringMatching(/^[a-f0-9]{64}$/), normalizedCandidateSchemaVersion: 1, normalizedCandidateChecksum: expect.stringMatching(/^[a-f0-9]{64}$/), normalizedCandidate: { directions: expect.any(Array) }, admissionFindingCount: 1, admissionFindings: [{ code: "FONTPAIR_SOURCE_INTEGRATION_UNRESOLVED", fieldPath: "professionalDesign", validatorPredicate: "ProfessionalDesignCapabilityPipeline.run" }] });
     expect(attempt.admissionFindingsChecksum).toMatch(/^[a-f0-9]{64}$/);
   });
+  it("re-admits a durable candidate with zero provider calls and idempotent replay", async () => {
+    const fixture = await designServiceFixture();
+    await fixture.service.generateDesignDirections(fixture.input);
+    const documents = new DocumentRepository(fixture.database);
+    const current = DesignGenerationAttemptSchema.parse(await documents.get(fixture.value.projectId, 1, "design-generation-attempt"));
+    await documents.delete(fixture.value.projectId, 1, "design-directions");
+    await documents.save(DesignGenerationAttemptSchema.parse({ ...current, state: "PERSISTENCE_FAILED", failureCode: "DESIGN_PROVIDER_FAILED", updatedAt: "2026-01-01T00:00:01.000Z" }));
+    const providerCallsBeforeReplay = fixture.providerCalls();
+    const replayRequest = { projectId: fixture.value.projectId, projectVersion: 1, historicalAttemptId: current.attemptId, operationKey: "design-candidate-replay", expectedRowVersion: 1 };
+    const replayed = await fixture.service.replayDesignCandidate(replayRequest);
+    expect(fixture.providerCalls()).toBe(providerCallsBeforeReplay);
+    expect(replayed.directionSet.directions).toHaveLength(3);
+    expect(replayed.directionSet.readyForSelection).toBe(true);
+    const history = DesignGenerationAttemptHistorySchema.parse(await documents.get(fixture.value.projectId, 1, "design-generation-attempt-history"));
+    expect(history.records).toHaveLength(1);
+    expect(history.records[0]?.attemptId).toBe(current.attemptId);
+    const replayAttempt = DesignGenerationAttemptSchema.parse(await documents.get(fixture.value.projectId, 1, "design-generation-attempt"));
+    expect(replayAttempt).toMatchObject({ state: "PERSISTED", operationKey: replayRequest.operationKey, replayOfAttemptId: current.attemptId, replayNormalizedCandidateChecksum: current.normalizedCandidateChecksum });
+    expect(await documents.get(fixture.value.projectId, 1, "design-directions")).toMatchObject({ documentType: "design-directions", generationIdempotencyKey: replayRequest.operationKey });
+    await expect(fixture.service.replayDesignCandidate(replayRequest)).resolves.toMatchObject({ directionSet: { directions: expect.any(Array) } });
+    expect(fixture.providerCalls()).toBe(providerCallsBeforeReplay);
+  });
   it("safe errors do not expose full brief contents", () => { const error = new DesignError("DESIGN_BLOCKED", "Design is blocked."); expect(JSON.stringify({ code: error.code, message: error.message })).not.toContain("Serve local customers"); });
 });

@@ -18,7 +18,7 @@ export type DesignReadiness = z.infer<typeof DesignReadinessSchema>;
 export const DesignGenerationResultSchema = z.object({ directionSet: DesignDirectionSetSchema, readiness: DesignReadinessSchema }).strict();
 export type DesignGenerationResult = z.infer<typeof DesignGenerationResultSchema>;
 
-export const DesignGenerationAttemptStateSchema = z.enum(["CREATED", "CLAIMED", "PROVIDER_STARTED", "PROVIDER_FAILED", "WIRE_FAILED", "DOMAIN_FAILED", "ADMISSION_FAILED", "PERSISTENCE_FAILED", "PERSISTED"]);
+export const DesignGenerationAttemptStateSchema = z.enum(["CREATED", "CLAIMED", "REPLAY_STARTED", "PROVIDER_STARTED", "PROVIDER_FAILED", "WIRE_FAILED", "DOMAIN_FAILED", "ADMISSION_FAILED", "PERSISTENCE_FAILED", "PERSISTED"]);
 export const DesignAdmissionFindingSchema = z.object({
   code: z.string().min(1).max(120).regex(/^[A-Za-z0-9_:-]+$/),
   severity: z.enum(["BLOCKING", "WARNING"]),
@@ -81,6 +81,9 @@ export const DesignGenerationAttemptSchema = z.object({
   normalizedCandidateSchemaVersion: z.literal(1).optional(),
   normalizedCandidateChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   normalizedCandidate: DesignDirectionSetSchema.optional(),
+  replayOfAttemptId: z.string().uuid().optional(),
+  replayProviderResultChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  replayNormalizedCandidateChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   admissionFindingCount: z.number().int().nonnegative().optional(),
   admissionFindingsChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   admissionFindings: z.array(DesignAdmissionFindingSchema).max(20).optional(),
@@ -99,6 +102,15 @@ export const DesignGenerationAttemptHistorySchema = z.object({
   records: z.array(DesignGenerationAttemptSchema),
 }).strict();
 export type DesignGenerationAttemptHistory = z.infer<typeof DesignGenerationAttemptHistorySchema>;
+
+export const DesignCandidateReplayRequestSchema = z.object({
+  projectId: z.string().uuid(),
+  projectVersion: z.number().int().positive(),
+  historicalAttemptId: z.string().uuid(),
+  operationKey: z.string().min(1).max(180),
+  expectedRowVersion: z.number().int().positive(),
+}).strict();
+export type DesignCandidateReplayRequest = z.input<typeof DesignCandidateReplayRequestSchema>;
 
 export const DesignSelectionRequestSchema = z.object({ projectId: z.string().uuid(), projectVersion: z.number().int().positive(), designDirectionSetId: z.string().uuid(), selectedDirectionId: z.string().uuid(), directionSetChecksum: z.string().regex(/^[a-f0-9]{64}$/), selectedDirectionChecksum: z.string().regex(/^[a-f0-9]{64}$/), expectedRowVersion: z.number().int().positive(), selectedBy: z.string().min(1), selectedAt: z.string().datetime(), selectionNotes: z.string().optional(), idempotencyKey: z.string().min(1) }).strict();
 export type DesignSelectionRequest = z.input<typeof DesignSelectionRequestSchema>;

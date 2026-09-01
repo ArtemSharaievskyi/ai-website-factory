@@ -31,6 +31,7 @@ import type { PersistenceDatabase } from "@/persistence/database/types";
 import {
   DesignAgentInputSchema,
   DesignAdmissionFindingSchema,
+  DesignCandidateReplayRequestSchema,
   DesignGenerationAttemptHistorySchema,
   DesignGenerationResultSchema,
   DesignGenerationAttemptSchema,
@@ -39,6 +40,7 @@ import {
   DesignSelectionRequestSchema,
   type DesignAgentInput,
   type DesignAdmissionFinding,
+  type DesignCandidateReplayRequest,
   type DesignGenerationAttempt,
   type DesignGenerationAttemptHistory,
   type DesignGenerationResult,
@@ -328,6 +330,109 @@ export class DesignAgentService {
       ...(errorHasProviderObservation ? { providerObservation: observationFor(error), ...providerAttemptFields(observationFor(error)) } : attempt.providerObservation ? { providerObservation: attempt.providerObservation, ...providerAttemptFields(attempt.providerObservation) } : {}),
     }));
   }
+  private async commitDesignAdmission(input: DesignAgentInput, set: DesignDirectionSet, attempt: DesignGenerationAttempt, readiness: ReturnType<typeof validateDesignDirectionSet>, replaceExisting: boolean) {
+    const generatedAt = now();
+    const committedSet = DesignDirectionSetSchema.parse({
+      ...set,
+      projectId: input.projectId,
+      projectVersion: input.projectVersion,
+      createdAt: generatedAt,
+      updatedAt: generatedAt,
+      generatedAt,
+      generatedBy: "factory-design-agent",
+      readyForSelection: readiness.readyForSelection,
+      blockingReasons: readiness.blockingReasons,
+      warnings: readiness.warnings,
+      approvedBriefChecksum: input.approvedBriefChecksum,
+      acceptedPlanningChecksum: input.acceptedPlanningChecksum,
+      generationIdempotencyKey: input.idempotencyKey,
+    });
+    const completedObservation = observationForSet(committedSet) ?? attempt.providerObservation;
+    const completedAttempt = DesignGenerationAttemptSchema.parse({
+      ...attempt,
+      state: "PERSISTED",
+      updatedAt: generatedAt,
+      ...(completedObservation ? { providerObservation: completedObservation, ...providerAttemptFields(completedObservation) } : {}),
+    });
+    const persistedSet = await this.dependencies.database.transaction(async (tx) => {
+      const projectRow = await tx.getProject(input.projectId);
+      const briefRow = await tx.getDocument(input.projectId, input.projectVersion, "requirements");
+      const planningRow = await tx.getDocument(input.projectId, input.projectVersion, "planning-package");
+      const reviewRow = await tx.getDocument(input.projectId, input.projectVersion, "architecture-review");
+      if (!projectRow || projectRow.current_version !== input.projectVersion || projectRow.workflow_state !== "AWAITING_DESIGN_SELECTION" || projectRow.row_version !== input.expectedRowVersion) throw new DesignError("DESIGN_SELECTION_STALE", "Design generation became stale before its canonical commit.");
+      const attemptRow = await tx.getDocument(input.projectId, input.projectVersion, "design-generation-attempt");
+      if (!attemptRow || attemptRow.checksum !== checksumPersistedDocument(attempt)) throw new DesignError("DESIGN_CONTRACT_STALE", "The Design provider attempt changed before its canonical commit.");
+      const brief = briefRow ? mapRowToDocument(briefRow) : null;
+      const planning = planningRow ? mapRowToDocument(planningRow) : null;
+      const review = reviewRow ? mapRowToDocument(reviewRow) : null;
+      const briefV3 = await tx.getDocument(input.projectId, input.projectVersion, "brief-v3");
+      if (briefV3?.documentType === "brief-v3") {
+        const currentBrief = BriefV3DocumentSchema.parse(briefV3);
+        if (!currentBrief.approval?.approved || currentBrief.approval.approvedCanonicalChecksum !== currentBrief.briefChecksum || input.approvedBriefChecksum !== currentBrief.briefChecksum || (input.canonicalBrief && canonicalBriefChecksum(input.canonicalBrief) !== currentBrief.briefChecksum)) throw new DesignError("DESIGN_BRIEF_STALE", "The approved CanonicalBriefV3 changed before Design commit.");
+      } else if (!brief || brief.documentType !== "requirements" || (!brief.approval.approvedRequirementsChecksum ? checksumPersistedDocument(brief) !== input.approvedBriefChecksum : brief.approval.approvedRequirementsChecksum !== input.approvedBriefChecksum && checksumPersistedDocument(brief) !== input.approvedBriefChecksum)) throw new DesignError("DESIGN_BRIEF_STALE", "The approved Brief changed before Design commit.");
+      if (!planning || planning.documentType !== "planning-package" || (!planning.acceptance?.checksum ? checksumPersistedDocument(planning) !== input.acceptedPlanningChecksum : planning.acceptance.checksum !== input.acceptedPlanningChecksum && checksumPersistedDocument(planning) !== input.acceptedPlanningChecksum)) throw new DesignError("DESIGN_PLANNING_STALE", "Accepted Planning changed before Design commit.");
+      if (!review || review.documentType !== "architecture-review" || review.result.verdict !== "APPROVED" || review.approvedBriefChecksum !== input.approvedBriefChecksum || review.acceptedPlanningChecksum !== input.acceptedPlanningChecksum) throw new DesignError("DESIGN_ARCHITECTURE_REVIEW_STALE", "Architecture Review changed before Design commit.");
+      const existingRow = await tx.getDocument(input.projectId, input.projectVersion, "design-directions");
+      if (!replaceExisting && existingRow) {
+        const existing = mapRowToDocument(existingRow);
+        if (existing.documentType === "design-directions" && existing.approvedBriefChecksum === input.approvedBriefChecksum && existing.acceptedPlanningChecksum === input.acceptedPlanningChecksum) return existing;
+      }
+      await saveDocumentInTransaction(tx, completedAttempt);
+      return saveDocumentInTransaction(tx, committedSet, `design-directions-${input.projectId}-${input.projectVersion}-${input.idempotencyKey}`);
+    }).catch(async (error) => {
+      const failure = designErrorFromProvider(error);
+      await this.failAttempt(attempt, "PERSISTENCE_FAILED", failure);
+      throw failure;
+    });
+    try {
+      await this.dependencies.memory.writeSnapshot(input.projectId, input.projectVersion, { "design-directions.json": persistedSet });
+    } catch (error) {
+      throw new DesignError("DESIGN_PROVIDER_FAILED", "Design was committed but its projection could not be synchronized.", error);
+    }
+    return DesignGenerationResultSchema.parse({
+      directionSet: persistedSet,
+      readiness: {
+        ...readiness,
+        directionSetChecksum: directionSetChecksum(committedSet),
+      },
+    });
+  }
+  private async admitCandidate(input: DesignAgentInput, attempt: DesignGenerationAttempt, candidate: DesignDirectionSet, replaceExisting = false) {
+    let set = candidate;
+    const providerInput = input.canonicalBrief
+      ? { ...input, canonicalBrief: input.canonicalBrief, approvedBrief: input.approvedBrief }
+      : input;
+    if (this.professionalPipeline) {
+      try {
+        set = (await this.professionalPipeline.run({ projectId: input.projectId, projectVersion: input.projectVersion, directionSet: set, prompt: providerInput.approvedBrief.projectSummary, idempotencyKey: input.idempotencyKey })).directionSet;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        const code = message.startsWith("DESIGN_SKILL_NOT_AVAILABLE_THROUGH_APPROVED_SOURCE") ? "DESIGN_SKILL_NOT_AVAILABLE_THROUGH_APPROVED_SOURCE" : message.startsWith("FONTPAIR_") ? "FONTPAIR_SOURCE_INTEGRATION_UNRESOLVED" : message.startsWith("IMPECCABLE_") ? "IMPECCABLE_DETECTOR_INTEGRATION_UNRESOLVED" : message.startsWith("PHASE_7F_EVIDENCE_INVALID") ? "PHASE_7F_EVIDENCE_INVALID" : message.startsWith("UNAPPROVED_DESIGN_DEPENDENCY") ? "UNAPPROVED_DESIGN_DEPENDENCY" : "DESIGN_PROVIDER_FAILED";
+        const failure = new DesignError(code, "Professional design capability pipeline failed.", error);
+        await this.failAttempt(attempt, "ADMISSION_FAILED", failure, [admissionFindingForPipeline(code)]);
+        throw failure;
+      }
+    }
+    if (set.projectId !== input.projectId || set.projectVersion !== input.projectVersion || set.directions.length !== 3) {
+      const failure = new DesignError("DESIGN_DIRECTION_COUNT_INVALID", "Exactly three directions for the current project version are required.");
+      await this.failAttempt(attempt, "DOMAIN_FAILED", failure);
+      throw failure;
+    }
+    const readiness = validateDesignDirectionSet(providerInput, set);
+    if (!readiness.readyForSelection) {
+      const code = readiness.blockingReasons.includes("DESIGN_DIRECTION_DUPLICATE")
+        ? "DESIGN_DIRECTION_DUPLICATE"
+        : readiness.blockingReasons.includes("DESIGN_DIRECTIONS_TOO_SIMILAR")
+          ? "DESIGN_DIRECTIONS_TOO_SIMILAR"
+          : readiness.blockingReasons.includes("DESIGN_DIRECTION_COUNT_INVALID")
+            ? "DESIGN_DIRECTION_COUNT_INVALID"
+            : "DESIGN_DIRECTION_SCHEMA_INVALID";
+      const failure = new DesignError(code, `Design provider output was rejected: ${readiness.blockingReasons.slice(0, 8).join(", ") || "strict readiness validation failed"}.`, readiness);
+      await this.failAttempt(attempt, "ADMISSION_FAILED", failure, admissionFindingsForReadiness(set, readiness));
+      throw failure;
+    }
+    return this.commitDesignAdmission(input, set, attempt, readiness, replaceExisting);
+  }
   private async validateInput(input: DesignAgentInput, allowReady = false) {
     const persistedV3 = await this.documents.get(input.projectId, input.projectVersion, "brief-v3");
     const canonical = persistedV3?.documentType === "brief-v3" ? BriefV3DocumentSchema.parse(persistedV3) : undefined;
@@ -512,6 +617,7 @@ export class DesignAgentService {
         try { await this.dependencies.memory.writeSnapshot(input.projectId, input.projectVersion, { "design-directions.json": persisted }); } catch (error) { throw new DesignError("DESIGN_PROVIDER_FAILED", "Design replay could not resynchronize its projection.", error); }
         return DesignGenerationResultSchema.parse({ directionSet: persisted, readiness: { readyForSelection: persisted.readyForSelection, blockingReasons: persisted.blockingReasons ?? [], warnings: persisted.warnings ?? [], directionSetChecksum: directionSetChecksum(persisted) } });
       }
+      if (attempt.state === "REPLAY_STARTED") throw new DesignError("DESIGN_PROVIDER_FAILED", "A zero-call Design candidate replay is already active and will not be replaced by provider generation.", attempt.failureDiagnostic, undefined, attempt.failureDiagnostic);
       if (["PROVIDER_FAILED", "WIRE_FAILED", "DOMAIN_FAILED", "ADMISSION_FAILED", "PERSISTENCE_FAILED"].includes(attempt.state)) throw new DesignError((attempt.failureCode as DesignError["code"] | undefined) ?? "DESIGN_PROVIDER_FAILED", "The Design operation has a durable terminal failure and will not be retried.", attempt.failureDiagnostic, undefined, attempt.failureDiagnostic);
       if (attempt.state === "PROVIDER_STARTED") throw new DesignError("DESIGN_PROVIDER_FAILED", "The Design provider attempt has an indeterminate durable outcome and will not be retried.", attempt.failureDiagnostic, undefined, attempt.failureDiagnostic);
     } else if (attempt && !options.replaceExisting) {
@@ -571,113 +677,104 @@ export class DesignAgentService {
       normalizedCandidate: set,
       updatedAt: now(),
     }));
-    if (this.professionalPipeline) {
-      try {
-      set = (await this.professionalPipeline.run({ projectId: input.projectId, projectVersion: input.projectVersion, directionSet: set, prompt: providerInput.approvedBrief.projectSummary, idempotencyKey: input.idempotencyKey })).directionSet;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "";
-        const code = message.startsWith("DESIGN_SKILL_NOT_AVAILABLE_THROUGH_APPROVED_SOURCE") ? "DESIGN_SKILL_NOT_AVAILABLE_THROUGH_APPROVED_SOURCE" : message.startsWith("FONTPAIR_") ? "FONTPAIR_SOURCE_INTEGRATION_UNRESOLVED" : message.startsWith("IMPECCABLE_") ? "IMPECCABLE_DETECTOR_INTEGRATION_UNRESOLVED" : message.startsWith("PHASE_7F_EVIDENCE_INVALID") ? "PHASE_7F_EVIDENCE_INVALID" : message.startsWith("UNAPPROVED_DESIGN_DEPENDENCY") ? "UNAPPROVED_DESIGN_DEPENDENCY" : "DESIGN_PROVIDER_FAILED";
-        const failure = new DesignError(code, "Professional design capability pipeline failed.", error);
-        await this.failAttempt(attempt, "ADMISSION_FAILED", failure, [admissionFindingForPipeline(code)]);
-        throw failure;
-      }
-    }
-    if (
-      set.projectId !== input.projectId ||
-      set.projectVersion !== input.projectVersion ||
-      set.directions.length !== 3
-    ) {
-      const failure = new DesignError(
-        "DESIGN_DIRECTION_COUNT_INVALID",
-        "Exactly three directions for the current project version are required.",
-      );
-      await this.failAttempt(attempt, "DOMAIN_FAILED", failure);
-      throw failure;
-    }
-    const readiness = validateDesignDirectionSet(providerInput, set);
-    if (!readiness.readyForSelection) {
-      const code = readiness.blockingReasons.includes(
-        "DESIGN_DIRECTION_DUPLICATE",
-      )
-        ? "DESIGN_DIRECTION_DUPLICATE"
-        : readiness.blockingReasons.includes("DESIGN_DIRECTIONS_TOO_SIMILAR")
-          ? "DESIGN_DIRECTIONS_TOO_SIMILAR"
-          : readiness.blockingReasons.includes("DESIGN_DIRECTION_COUNT_INVALID")
-            ? "DESIGN_DIRECTION_COUNT_INVALID"
-            : "DESIGN_DIRECTION_SCHEMA_INVALID";
-      const failure = new DesignError(
-        code,
-        `Design provider output was rejected: ${readiness.blockingReasons.slice(0, 8).join(", ") || "strict readiness validation failed"}.`,
-        readiness,
-      );
-      await this.failAttempt(attempt, "ADMISSION_FAILED", failure, admissionFindingsForReadiness(set, readiness));
-      throw failure;
-    }
-    const generatedAt = now();
-    set = DesignDirectionSetSchema.parse({
-      ...set,
-      projectId: input.projectId,
-      projectVersion: input.projectVersion,
-      createdAt: generatedAt,
-      updatedAt: generatedAt,
-      generatedAt,
-      generatedBy: "factory-design-agent",
-      readyForSelection: readiness.readyForSelection,
-      blockingReasons: readiness.blockingReasons,
-      warnings: readiness.warnings,
-      approvedBriefChecksum: input.approvedBriefChecksum,
-      acceptedPlanningChecksum: input.acceptedPlanningChecksum,
-      generationIdempotencyKey: input.idempotencyKey,
-    });
-    const completedObservation = observationForSet(set) ?? attempt.providerObservation;
-    const completedAttempt = DesignGenerationAttemptSchema.parse({
-      ...attempt,
-      state: "PERSISTED",
-      updatedAt: generatedAt,
-      ...(completedObservation ? { providerObservation: completedObservation, ...providerAttemptFields(completedObservation) } : {}),
-    });
-    const persistedSet = await this.dependencies.database.transaction(async (tx) => {
-      const projectRow = await tx.getProject(input.projectId);
-      const briefRow = await tx.getDocument(input.projectId, input.projectVersion, "requirements");
-      const planningRow = await tx.getDocument(input.projectId, input.projectVersion, "planning-package");
-      const reviewRow = await tx.getDocument(input.projectId, input.projectVersion, "architecture-review");
-      if (!projectRow || projectRow.current_version !== input.projectVersion || projectRow.workflow_state !== "AWAITING_DESIGN_SELECTION" || projectRow.row_version !== input.expectedRowVersion) throw new DesignError("DESIGN_SELECTION_STALE", "Design generation became stale before its canonical commit.");
-      const attemptRow = await tx.getDocument(input.projectId, input.projectVersion, "design-generation-attempt");
-      if (!attemptRow || attemptRow.checksum !== checksumPersistedDocument(attempt)) throw new DesignError("DESIGN_CONTRACT_STALE", "The Design provider attempt changed before its canonical commit.");
-      const brief = briefRow ? mapRowToDocument(briefRow) : null;
-      const planning = planningRow ? mapRowToDocument(planningRow) : null;
-      const review = reviewRow ? mapRowToDocument(reviewRow) : null;
-      const briefV3 = await tx.getDocument(input.projectId, input.projectVersion, "brief-v3");
-      if (briefV3?.documentType === "brief-v3") {
-        const currentBrief = BriefV3DocumentSchema.parse(briefV3);
-        if (!currentBrief.approval?.approved || currentBrief.approval.approvedCanonicalChecksum !== currentBrief.briefChecksum || input.approvedBriefChecksum !== currentBrief.briefChecksum || (input.canonicalBrief && canonicalBriefChecksum(input.canonicalBrief) !== currentBrief.briefChecksum)) throw new DesignError("DESIGN_BRIEF_STALE", "The approved CanonicalBriefV3 changed before Design commit.");
-      } else if (!brief || brief.documentType !== "requirements" || (!brief.approval.approvedRequirementsChecksum ? checksumPersistedDocument(brief) !== input.approvedBriefChecksum : brief.approval.approvedRequirementsChecksum !== input.approvedBriefChecksum && checksumPersistedDocument(brief) !== input.approvedBriefChecksum)) throw new DesignError("DESIGN_BRIEF_STALE", "The approved Brief changed before Design commit.");
-      if (!planning || planning.documentType !== "planning-package" || (!planning.acceptance?.checksum ? checksumPersistedDocument(planning) !== input.acceptedPlanningChecksum : planning.acceptance.checksum !== input.acceptedPlanningChecksum && checksumPersistedDocument(planning) !== input.acceptedPlanningChecksum)) throw new DesignError("DESIGN_PLANNING_STALE", "Accepted Planning changed before Design commit.");
-      if (!review || review.documentType !== "architecture-review" || review.result.verdict !== "APPROVED" || review.approvedBriefChecksum !== input.approvedBriefChecksum || review.acceptedPlanningChecksum !== input.acceptedPlanningChecksum) throw new DesignError("DESIGN_ARCHITECTURE_REVIEW_STALE", "Architecture Review changed before Design commit.");
-      const existingRow = await tx.getDocument(input.projectId, input.projectVersion, "design-directions");
-      if (!options.replaceExisting && existingRow) {
-        const existing = mapRowToDocument(existingRow);
-        if (existing.documentType === "design-directions" && existing.approvedBriefChecksum === input.approvedBriefChecksum && existing.acceptedPlanningChecksum === input.acceptedPlanningChecksum) return existing;
-      }
-      await saveDocumentInTransaction(tx, completedAttempt);
-      return saveDocumentInTransaction(tx, set, `design-directions-${input.projectId}-${input.projectVersion}-${input.idempotencyKey}`);
-    }).catch(async (error) => {
-      const failure = designErrorFromProvider(error);
-      await this.failAttempt(attempt, "PERSISTENCE_FAILED", failure);
-      throw failure;
-    });
+    return this.admitCandidate(input, attempt, set, Boolean(options.replaceExisting));
+  }
+  async replayDesignCandidate(rawRequest: DesignCandidateReplayRequest): Promise<DesignGenerationResult> {
+    let request: DesignCandidateReplayRequest;
     try {
-      await this.dependencies.memory.writeSnapshot(input.projectId, input.projectVersion, { "design-directions.json": persistedSet });
+      request = DesignCandidateReplayRequestSchema.parse(rawRequest);
     } catch (error) {
-      throw new DesignError("DESIGN_PROVIDER_FAILED", "Design was committed but its projection could not be synchronized.", error);
+      throw new DesignError("DESIGN_INPUT_INVALID", "Design candidate replay input did not match the strict contract.", error);
     }
-    return DesignGenerationResultSchema.parse({
-      directionSet: persistedSet,
-      readiness: {
-        ...readiness,
-        directionSetChecksum: directionSetChecksum(set),
-      },
+    const current = await this.projects.getWithVersion(request.projectId);
+    if (!current || current.project.currentVersion !== request.projectVersion || current.project.workflowState !== "AWAITING_DESIGN_SELECTION") throw new DesignError("DESIGN_SELECTION_STALE", "The Design candidate replay is not current for this project version.");
+    if (current.rowVersion !== request.expectedRowVersion) throw new DesignError("DESIGN_SELECTION_STALE", "The Design candidate replay row version is stale.");
+    const durable = await this.loadDurableContext(request.projectId, request.projectVersion, request.operationKey);
+    const input = DesignAgentInputSchema.parse({ ...durable, idempotencyKey: request.operationKey, expectedRowVersion: request.expectedRowVersion });
+    const validated = await this.validateInput(input);
+    const admissionInput = DesignAgentInputSchema.parse({
+      ...input,
+      approvedBrief: validated.brief,
+      canonicalBrief: validated.canonicalBrief ?? input.canonicalBrief,
+      acceptedPlanningPackage: validated.planning,
+      contentPlan: validated.planning.content,
+      assetManifest: validated.planning.assets,
     });
+    const persisted = await this.documents.get(request.projectId, request.projectVersion, "design-directions");
+    if (persisted?.documentType === "design-directions") {
+      if (persisted.generationIdempotencyKey === request.operationKey && persisted.approvedBriefChecksum === input.approvedBriefChecksum && persisted.acceptedPlanningChecksum === input.acceptedPlanningChecksum) {
+        try {
+          await this.dependencies.memory.writeSnapshot(request.projectId, request.projectVersion, { "design-directions.json": persisted });
+        } catch (error) {
+          throw new DesignError("DESIGN_PROVIDER_FAILED", "Design replay could not resynchronize its projection.", error);
+        }
+        return DesignGenerationResultSchema.parse({ directionSet: persisted, readiness: { readyForSelection: persisted.readyForSelection, blockingReasons: persisted.blockingReasons ?? [], warnings: persisted.warnings ?? [], directionSetChecksum: directionSetChecksum(persisted) } });
+      }
+      throw new DesignError("IDEMPOTENCY_CONFLICT", "A different current Design direction set already exists for this project.");
+    }
+    const currentAttemptDocument = await this.documents.get(request.projectId, request.projectVersion, "design-generation-attempt");
+    const currentAttempt = currentAttemptDocument?.documentType === "design-generation-attempt" ? DesignGenerationAttemptSchema.parse(currentAttemptDocument) : undefined;
+    const historyDocument = await this.documents.get(request.projectId, request.projectVersion, "design-generation-attempt-history");
+    const history = historyDocument?.documentType === "design-generation-attempt-history" ? DesignGenerationAttemptHistorySchema.parse(historyDocument) : undefined;
+    const existingReplay = currentAttempt?.operationKey === request.operationKey ? currentAttempt : undefined;
+    if (existingReplay && existingReplay.state !== "REPLAY_STARTED") throw new DesignError("DESIGN_PROVIDER_FAILED", "The Design replay operation has a durable terminal outcome and will not be retried.", existingReplay.failureDiagnostic, undefined, existingReplay.failureDiagnostic);
+    if (existingReplay && existingReplay.replayOfAttemptId !== request.historicalAttemptId) throw new DesignError("IDEMPOTENCY_CONFLICT", "The Design replay operation is bound to a different historical attempt.");
+    const sourceAttempt = existingReplay
+      ? existingReplay
+      : currentAttempt?.attemptId === request.historicalAttemptId
+        ? currentAttempt
+        : history?.records.find((record) => record.attemptId === request.historicalAttemptId);
+    if (!sourceAttempt?.normalizedCandidate || sourceAttempt.normalizedCandidateSchemaVersion !== 1 || !sourceAttempt.normalizedCandidateChecksum || !sourceAttempt.providerResultChecksum) throw new DesignError("DESIGN_PROVIDER_FAILED", "The requested Design attempt has no replayable typed candidate.");
+    if (sourceAttempt.projectId !== request.projectId || sourceAttempt.projectVersion !== request.projectVersion || sourceAttempt.expectedRowVersion !== request.expectedRowVersion || sourceAttempt.approvedBriefChecksum !== input.approvedBriefChecksum || sourceAttempt.acceptedPlanningChecksum !== input.acceptedPlanningChecksum) throw new DesignError("DESIGN_CONTRACT_STALE", "The persisted Design candidate is not bound to the current canonical inputs.");
+    const architectureReview = await this.documents.get(request.projectId, request.projectVersion, "architecture-review");
+    if (!architectureReview || architectureReview.documentType !== "architecture-review" || checksumPersistedDocument(architectureReview) !== sourceAttempt.architectureChecksum) throw new DesignError("DESIGN_ARCHITECTURE_REVIEW_STALE", "The persisted Design candidate is not bound to the current approved Architecture Review.");
+    const sourceHead = await this.readSourceHead();
+    if (sourceAttempt.sourceHead && sourceHead !== sourceAttempt.sourceHead) throw new DesignError("DESIGN_CONTRACT_STALE", "The persisted Design candidate was produced from a stale source head.");
+    if (sourceHead && !sourceAttempt.sourceHead) throw new DesignError("DESIGN_CONTRACT_STALE", "The persisted Design candidate has no source-head binding.");
+    const candidate = DesignDirectionSetSchema.parse(sourceAttempt.normalizedCandidate);
+    const candidateChecksum = directionSetChecksum(candidate);
+    if (candidate.projectId !== request.projectId || candidate.projectVersion !== request.projectVersion || candidateChecksum !== sourceAttempt.normalizedCandidateChecksum) throw new DesignError("DESIGN_CONTRACT_STALE", "The persisted Design candidate checksum or project binding is invalid.");
+    let attempt = existingReplay;
+    if (!attempt) {
+      if (currentAttempt) await this.preserveAttemptHistory(currentAttempt);
+      const observation = sourceAttempt.providerObservation;
+      attempt = DesignGenerationAttemptSchema.parse({
+        schemaVersion: 1,
+        documentType: "design-generation-attempt",
+        projectId: request.projectId,
+        projectVersion: request.projectVersion,
+        createdAt: now(),
+        updatedAt: now(),
+        attemptId: randomUUID(),
+        operationKey: request.operationKey,
+        state: "REPLAY_STARTED",
+        expectedRowVersion: request.expectedRowVersion,
+        approvedBriefChecksum: input.approvedBriefChecksum,
+        acceptedPlanningChecksum: input.acceptedPlanningChecksum,
+        architectureChecksum: checksumPersistedDocument(architectureReview),
+        selectedSkillIds: sourceAttempt.selectedSkillIds,
+        selectedSkillChecksums: sourceAttempt.selectedSkillChecksums,
+        ...(sourceHead ? { sourceHead } : {}),
+        ...(sourceAttempt.providerAttempted === undefined ? {} : { providerAttempted: sourceAttempt.providerAttempted }),
+        ...(sourceAttempt.responseReceived === undefined ? {} : { responseReceived: sourceAttempt.responseReceived }),
+        ...(sourceAttempt.providerModel ? { providerModel: sourceAttempt.providerModel } : {}),
+        ...(sourceAttempt.providerRequestId ? { providerRequestId: sourceAttempt.providerRequestId } : {}),
+        ...(sourceAttempt.finishReason !== undefined ? { finishReason: sourceAttempt.finishReason } : {}),
+        ...(sourceAttempt.inputTokens === undefined ? {} : { inputTokens: sourceAttempt.inputTokens }),
+        ...(sourceAttempt.outputTokens === undefined ? {} : { outputTokens: sourceAttempt.outputTokens }),
+        ...(sourceAttempt.totalTokens === undefined ? {} : { totalTokens: sourceAttempt.totalTokens }),
+        providerResultChecksum: sourceAttempt.providerResultChecksum,
+        normalizedCandidateSchemaVersion: 1,
+        normalizedCandidateChecksum: candidateChecksum,
+        normalizedCandidate: candidate,
+        replayOfAttemptId: sourceAttempt.attemptId,
+        replayProviderResultChecksum: sourceAttempt.providerResultChecksum,
+        replayNormalizedCandidateChecksum: candidateChecksum,
+        ...(observation ? { providerObservation: observation } : {}),
+      });
+      attempt = await this.saveAttempt(attempt);
+    }
+    return this.admitCandidate(admissionInput, attempt, candidate);
   }
   async reconcileDesignProjection(projectId: string, projectVersion: number) {
     const set = await this.documents.get(projectId, projectVersion, "design-directions");
