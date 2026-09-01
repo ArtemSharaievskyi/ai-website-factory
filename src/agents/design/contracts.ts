@@ -112,6 +112,15 @@ export const DesignCandidateReplayRequestSchema = z.object({
 }).strict();
 export type DesignCandidateReplayRequest = z.input<typeof DesignCandidateReplayRequestSchema>;
 
+export const DesignAdmissionInvalidationRequestSchema = z.object({
+  projectId: z.string().uuid(),
+  projectVersion: z.number().int().positive(),
+  directionSetChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+  operationKey: z.string().min(1).max(180),
+  expectedRowVersion: z.number().int().positive(),
+}).strict();
+export type DesignAdmissionInvalidationRequest = z.input<typeof DesignAdmissionInvalidationRequestSchema>;
+
 export const DesignSelectionRequestSchema = z.object({ projectId: z.string().uuid(), projectVersion: z.number().int().positive(), designDirectionSetId: z.string().uuid(), selectedDirectionId: z.string().uuid(), directionSetChecksum: z.string().regex(/^[a-f0-9]{64}$/), selectedDirectionChecksum: z.string().regex(/^[a-f0-9]{64}$/), expectedRowVersion: z.number().int().positive(), selectedBy: z.string().min(1), selectedAt: z.string().datetime(), selectionNotes: z.string().optional(), idempotencyKey: z.string().min(1) }).strict();
 export type DesignSelectionRequest = z.input<typeof DesignSelectionRequestSchema>;
 export const DesignSelectionResultSchema = z.object({ selectedDesign: SelectedDesignSchema, projectState: z.literal("READY_FOR_IMPLEMENTATION"), rowVersion: z.number().int().positive() }).strict();

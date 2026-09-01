@@ -31,6 +31,7 @@ import type { PersistenceDatabase } from "@/persistence/database/types";
 import {
   DesignAgentInputSchema,
   DesignAdmissionFindingSchema,
+  DesignAdmissionInvalidationRequestSchema,
   DesignCandidateReplayRequestSchema,
   DesignGenerationAttemptHistorySchema,
   DesignGenerationResultSchema,
@@ -40,6 +41,7 @@ import {
   DesignSelectionRequestSchema,
   type DesignAgentInput,
   type DesignAdmissionFinding,
+  type DesignAdmissionInvalidationRequest,
   type DesignCandidateReplayRequest,
   type DesignGenerationAttempt,
   type DesignGenerationAttemptHistory,
@@ -54,6 +56,7 @@ import {
   buildDesignDirectionSet,
   directionChecksum,
   directionSetChecksum,
+  hasFurnitureTransportMention,
   validateDesignDirectionSet,
 } from "./deterministic";
 import {
@@ -179,7 +182,9 @@ function admissionFindingForPipeline(code: string): DesignAdmissionFinding {
 
 function admissionFindingsForReadiness(set: DesignDirectionSet, readiness: { blockingReasons: readonly string[] }): DesignAdmissionFinding[] {
   return readiness.blockingReasons.flatMap((code) => {
-    const directionIndexes = code === "DESIGN_DIRECTION_REQUIREMENT_VIOLATION"
+    const directionIndexes = code === "MOBELTRANSPORT_REQUIREMENT_MISSING"
+      ? set.directions.map((direction, index) => hasFurnitureTransportMention(direction) ? -1 : index).filter((index) => index >= 0)
+      : code === "DESIGN_DIRECTION_REQUIREMENT_VIOLATION"
       ? set.directions.map((direction, index) => direction.approvedRequirementReferences?.length && direction.planningReferences?.length ? -1 : index).filter((index) => index >= 0)
       : code === "DESIGN_DIRECTION_NOT_FEASIBLE"
         ? set.directions.map((direction, index) => direction.responsiveDetails && direction.motionDetails && direction.colorRoles ? -1 : index).filter((index) => index >= 0)
@@ -188,8 +193,8 @@ function admissionFindingsForReadiness(set: DesignDirectionSet, readiness: { blo
     return indexes.map((directionIndex) => admissionFinding({
       code,
       directionIndex,
-      fieldPath: code === "DESIGN_DIRECTION_REQUIREMENT_VIOLATION" ? "approvedRequirementReferences|planningReferences" : code === "DESIGN_DIRECTION_NOT_FEASIBLE" ? "responsiveDetails|motionDetails|colorRoles" : code === "IMAGE_SOURCE_PENDING" ? "imageSourceDecision" : "directions",
-      expectedInvariant: code === "DESIGN_DIRECTION_DUPLICATE" || code === "DESIGN_DIRECTIONS_TOO_SIMILAR" ? "The three directions must have distinct structured design strategies." : "The Design direction set must satisfy the current deterministic admission predicate.",
+      fieldPath: code === "MOBELTRANSPORT_REQUIREMENT_MISSING" ? "direction.serviceSemantics" : code === "DESIGN_DIRECTION_REQUIREMENT_VIOLATION" ? "approvedRequirementReferences|planningReferences" : code === "DESIGN_DIRECTION_NOT_FEASIBLE" ? "responsiveDetails|motionDetails|colorRoles" : code === "IMAGE_SOURCE_PENDING" ? "imageSourceDecision" : "directions",
+      expectedInvariant: code === "MOBELTRANSPORT_REQUIREMENT_MISSING" ? "Every direction must visibly preserve the canonical Möbeltransport service requirement." : code === "DESIGN_DIRECTION_DUPLICATE" || code === "DESIGN_DIRECTIONS_TOO_SIMILAR" ? "The three directions must have distinct structured design strategies." : "The Design direction set must satisfy the current deterministic admission predicate.",
       actualCategory: code,
       validatorPredicate: "validateDesignDirectionSet",
     }));
@@ -421,7 +426,9 @@ export class DesignAgentService {
     }
     const readiness = validateDesignDirectionSet(providerInput, set);
     if (!readiness.readyForSelection) {
-      const code = readiness.blockingReasons.includes("DESIGN_DIRECTION_DUPLICATE")
+      const code = readiness.blockingReasons.includes("MOBELTRANSPORT_REQUIREMENT_MISSING")
+        ? "MOBELTRANSPORT_REQUIREMENT_MISSING"
+        : readiness.blockingReasons.includes("DESIGN_DIRECTION_DUPLICATE")
         ? "DESIGN_DIRECTION_DUPLICATE"
         : readiness.blockingReasons.includes("DESIGN_DIRECTIONS_TOO_SIMILAR")
           ? "DESIGN_DIRECTIONS_TOO_SIMILAR"
@@ -775,6 +782,65 @@ export class DesignAgentService {
       attempt = await this.saveAttempt(attempt);
     }
     return this.admitCandidate(admissionInput, attempt, candidate);
+  }
+  async invalidateDesignDirectionSet(rawRequest: DesignAdmissionInvalidationRequest): Promise<DesignGenerationAttempt> {
+    let request: DesignAdmissionInvalidationRequest;
+    try {
+      request = DesignAdmissionInvalidationRequestSchema.parse(rawRequest);
+    } catch (error) {
+      throw new DesignError("DESIGN_INPUT_INVALID", "Design admission invalidation input did not match the strict contract.", error);
+    }
+    const current = await this.projects.getWithVersion(request.projectId);
+    if (!current || current.project.currentVersion !== request.projectVersion || current.project.workflowState !== "AWAITING_DESIGN_SELECTION" || current.rowVersion !== request.expectedRowVersion) throw new DesignError("DESIGN_SELECTION_STALE", "The Design admission invalidation is not current for this project version.");
+    const directionDocument = await this.documents.get(request.projectId, request.projectVersion, "design-directions");
+    if (!directionDocument || directionDocument.documentType !== "design-directions" || directionSetChecksum(directionDocument) !== request.directionSetChecksum) throw new DesignError("DESIGN_SET_CHECKSUM_MISMATCH", "The Design admission invalidation does not reference the current direction set.");
+    const currentAttemptDocument = await this.documents.get(request.projectId, request.projectVersion, "design-generation-attempt");
+    const currentAttempt = currentAttemptDocument?.documentType === "design-generation-attempt" ? DesignGenerationAttemptSchema.parse(currentAttemptDocument) : undefined;
+    if (currentAttempt?.operationKey === request.operationKey && currentAttempt.state === "ADMISSION_FAILED") return currentAttempt;
+    const findings = directionDocument.directions.flatMap((direction, index) => hasFurnitureTransportMention(direction) ? [] : [admissionFinding({ code: "MOBELTRANSPORT_REQUIREMENT_MISSING", expectedInvariant: "Every direction must visibly preserve the canonical Möbeltransport service requirement.", actualCategory: "MOBELTRANSPORT_REQUIREMENT_MISSING", validatorPredicate: "validateDesignDirectionSet", directionIndex: index, fieldPath: "direction.serviceSemantics" })]);
+    const invalidatedAttempt = DesignGenerationAttemptSchema.parse({
+      ...(currentAttempt ?? {
+        schemaVersion: 1,
+        documentType: "design-generation-attempt",
+        projectId: request.projectId,
+        projectVersion: request.projectVersion,
+        createdAt: now(),
+        attemptId: randomUUID(),
+        expectedRowVersion: request.expectedRowVersion,
+        approvedBriefChecksum: directionDocument.approvedBriefChecksum ?? "0".repeat(64),
+        acceptedPlanningChecksum: directionDocument.acceptedPlanningChecksum ?? "0".repeat(64),
+        architectureChecksum: "0".repeat(64),
+        selectedSkillIds: [],
+        selectedSkillChecksums: [],
+      }),
+      updatedAt: now(),
+      attemptId: randomUUID(),
+      operationKey: request.operationKey,
+      state: "ADMISSION_FAILED",
+      expectedRowVersion: request.expectedRowVersion,
+      failureCode: "MOBELTRANSPORT_REQUIREMENT_MISSING",
+      admissionFindingCount: findings.length,
+      admissionFindingsChecksum: checksumPersistedDocument(findings),
+      admissionFindings: findings,
+      ...(currentAttempt?.replayOfAttemptId ? { replayOfAttemptId: currentAttempt.replayOfAttemptId } : currentAttempt ? { replayOfAttemptId: currentAttempt.attemptId } : {}),
+      ...(currentAttempt?.providerResultChecksum ? { replayProviderResultChecksum: currentAttempt.providerResultChecksum } : {}),
+      ...(currentAttempt?.normalizedCandidateChecksum ? { replayNormalizedCandidateChecksum: currentAttempt.normalizedCandidateChecksum } : {}),
+    });
+    await this.dependencies.database.transaction(async (tx) => {
+      const projectRow = await tx.getProject(request.projectId);
+      const directionRow = await tx.getDocument(request.projectId, request.projectVersion, "design-directions");
+      if (!projectRow || projectRow.current_version !== request.projectVersion || projectRow.workflow_state !== "AWAITING_DESIGN_SELECTION" || projectRow.row_version !== request.expectedRowVersion || !directionRow || directionRow.checksum !== checksumPersistedDocument(directionDocument)) throw new DesignError("DESIGN_SELECTION_STALE", "The Design admission invalidation became stale before its canonical commit.");
+      if (currentAttempt) {
+        const historyRow = await tx.getDocument(request.projectId, request.projectVersion, "design-generation-attempt-history");
+        const priorHistory = historyRow ? mapRowToDocument(historyRow) : undefined;
+        const history = priorHistory?.documentType === "design-generation-attempt-history" ? DesignGenerationAttemptHistorySchema.parse(priorHistory) : undefined;
+        if (!history?.records.some((record) => record.attemptId === currentAttempt.attemptId)) await saveDocumentInTransaction(tx, DesignGenerationAttemptHistorySchema.parse({ schemaVersion: 1, documentType: "design-generation-attempt-history", projectId: request.projectId, projectVersion: request.projectVersion, createdAt: history?.createdAt ?? currentAttempt.createdAt, updatedAt: now(), records: [...(history?.records ?? []), currentAttempt] }));
+      }
+      await tx.deleteDocument(request.projectId, request.projectVersion, "design-directions");
+      await saveDocumentInTransaction(tx, invalidatedAttempt);
+    });
+    await this.dependencies.memory.removeDocument?.(request.projectId, request.projectVersion, "design-directions");
+    return invalidatedAttempt;
   }
   async reconcileDesignProjection(projectId: string, projectVersion: number) {
     const set = await this.documents.get(projectId, projectVersion, "design-directions");
