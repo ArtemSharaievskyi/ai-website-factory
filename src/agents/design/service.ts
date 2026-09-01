@@ -141,6 +141,7 @@ function observationForSet(set: DesignDirectionSet) {
 
 function providerFailureState(error: unknown): DesignGenerationAttempt["state"] {
   const diagnostic = diagnosticFor(error) as Record<string, unknown> | undefined;
+  if (error instanceof z.ZodError) return "DOMAIN_FAILED";
   if (diagnostic?.stage === "structured_parse" || diagnostic?.stage === "domain_validation" || diagnostic?.jsonParseSucceeded !== undefined) return "WIRE_FAILED";
   if (diagnostic?.stage === "provider_normalization") return "DOMAIN_FAILED";
   return "PROVIDER_FAILED";
@@ -219,13 +220,14 @@ export class DesignAgentService {
   private async failAttempt(attempt: DesignGenerationAttempt, state: DesignGenerationAttempt["state"], error: unknown) {
     const designError = designErrorFromProvider(error);
     const failureDiagnostic = failureDiagnosticFor(error);
+    const errorHasProviderObservation = diagnosticFor(error) !== undefined || failureDiagnostic !== undefined;
     return this.saveAttempt(DesignGenerationAttemptSchema.parse({
       ...attempt,
       state,
       updatedAt: now(),
       failureCode: designError.code,
       ...(failureDiagnostic ? { failureDiagnostic } : {}),
-      providerObservation: observationFor(error),
+      ...(errorHasProviderObservation ? { providerObservation: observationFor(error) } : attempt.providerObservation ? { providerObservation: attempt.providerObservation } : {}),
     }));
   }
   private async validateInput(input: DesignAgentInput, allowReady = false) {
@@ -456,6 +458,8 @@ export class DesignAgentService {
       await this.failAttempt(attempt, providerFailureState(error), failure);
       throw failure;
     }
+    const providerObservation = observationForSet(set);
+    if (providerObservation) attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({ ...attempt, providerObservation, updatedAt: now() }));
     if (this.professionalPipeline) {
       try {
       set = (await this.professionalPipeline.run({ projectId: input.projectId, projectVersion: input.projectVersion, directionSet: set, prompt: providerInput.approvedBrief.projectSummary, idempotencyKey: input.idempotencyKey })).directionSet;

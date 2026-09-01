@@ -61,5 +61,15 @@ describe("Design Agent workflow", () => {
     await expect(fixture.service.generateDesignDirections(fixture.input)).rejects.toMatchObject({ code: "DESIGN_PROVIDER_FAILED", failureDiagnostic: { requestId: "req_design_failure" } });
     expect(calls).toBe(1);
   });
+  it("retains provider observation when post-provider admission fails", async () => {
+    const fixture = await designServiceFixture();
+    const providerSet = { ...buildDesignDirectionSet(fixture.input), provider: { name: "openai", used: true, model: "synthetic-design-model", requestId: "req_design_admission", responseReceived: true, finishReason: "stop", refusalPresent: false, parsedPresent: true, inputTokens: 29, outputTokens: 13, totalTokens: 42 } };
+    const provider = { proposeDesignDirections: async () => providerSet };
+    const pipeline = { run: async () => { throw new Error("FONTPAIR_SOURCE_UNAVAILABLE"); } };
+    const service = new DesignAgentService({ database: fixture.database, memory: fixture.memory, provider, professionalPipeline: pipeline as never });
+    await expect(service.generateDesignDirections(fixture.input)).rejects.toMatchObject({ code: "FONTPAIR_SOURCE_INTEGRATION_UNRESOLVED" });
+    const attempt = DesignGenerationAttemptSchema.parse(await new DocumentRepository(fixture.database).get(fixture.value.projectId, 1, "design-generation-attempt"));
+    expect(attempt).toMatchObject({ state: "ADMISSION_FAILED", providerObservation: { model: "synthetic-design-model", requestId: "req_design_admission", inputTokens: 29, outputTokens: 13, totalTokens: 42, responseReceived: true } });
+  });
   it("safe errors do not expose full brief contents", () => { const error = new DesignError("DESIGN_BLOCKED", "Design is blocked."); expect(JSON.stringify({ code: error.code, message: error.message })).not.toContain("Serve local customers"); });
 });
