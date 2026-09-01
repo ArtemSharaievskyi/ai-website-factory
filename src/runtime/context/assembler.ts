@@ -48,6 +48,8 @@ const CANONICAL_KEYS = new Set([
   "approvedRequirementSet",
   "currentCanonicalRequirements",
   "canonicalRequirements",
+  "canonicalContent",
+  "canonicalDesignContent",
   "acceptedPlanningPackage",
   "acceptedDependencyDecision",
   "dependencyDecision",

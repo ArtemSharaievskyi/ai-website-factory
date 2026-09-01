@@ -87,6 +87,7 @@ import { OpenAiBriefV3RevisionProvider } from "@/integrations/openai-v3/provider
 import { effectivePlannerBrief } from "@/agents/planner/brief-context";
 import { PlanningRecoveryService } from "@/agents/planner/recovery";
 import { createGitSourceCurrentnessPort } from "@/runtime/source-head";
+import { buildDesignContext } from "@/agents/design/context";
 export const RUNTIME_MODES = ["DETERMINISTIC_TEST", "REAL_E2E"] as const;
 export type FactoryRuntimeMode = (typeof RUNTIME_MODES)[number];
 export type ProductionAdapterIdentity = {
@@ -325,7 +326,7 @@ export function createProductionFactoryRuntime(
       requiredCoverage: hasForm ? ["responsive-form-ux"] : [],
       requestedTools: [],
       contextBudgetBytes: designAgentDefinition.contextPolicy.maxBytes,
-      reservedContextBytes: Buffer.byteLength(JSON.stringify(input), "utf8"),
+      reservedContextBytes: Buffer.byteLength(JSON.stringify(buildDesignContext(input)), "utf8"),
     });
   };
   const resolveImplementationSkills = async (

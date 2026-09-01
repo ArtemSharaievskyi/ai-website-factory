@@ -56,9 +56,9 @@ import {
   buildDesignDirectionSet,
   directionChecksum,
   directionSetChecksum,
-  hasFurnitureTransportMention,
   validateDesignDirectionSet,
 } from "./deterministic";
+import { buildDesignCanonicalContent } from "./canonical-content";
 import {
   EmptyDesignExplorationToolPort,
   EmptyDesignSkillSelectionPort,
@@ -182,8 +182,8 @@ function admissionFindingForPipeline(code: string): DesignAdmissionFinding {
 
 function admissionFindingsForReadiness(set: DesignDirectionSet, readiness: { blockingReasons: readonly string[] }): DesignAdmissionFinding[] {
   return readiness.blockingReasons.flatMap((code) => {
-    const directionIndexes = code === "MOBELTRANSPORT_REQUIREMENT_MISSING"
-      ? set.directions.map((direction, index) => hasFurnitureTransportMention(direction) ? -1 : index).filter((index) => index >= 0)
+    const directionIndexes = code.startsWith("DESIGN_CANONICAL_")
+      ? set.directions.map((_, index) => index)
       : code === "DESIGN_DIRECTION_REQUIREMENT_VIOLATION"
       ? set.directions.map((direction, index) => direction.approvedRequirementReferences?.length && direction.planningReferences?.length ? -1 : index).filter((index) => index >= 0)
       : code === "DESIGN_DIRECTION_NOT_FEASIBLE"
@@ -193,8 +193,8 @@ function admissionFindingsForReadiness(set: DesignDirectionSet, readiness: { blo
     return indexes.map((directionIndex) => admissionFinding({
       code,
       directionIndex,
-      fieldPath: code === "MOBELTRANSPORT_REQUIREMENT_MISSING" ? "direction.serviceSemantics" : code === "DESIGN_DIRECTION_REQUIREMENT_VIOLATION" ? "approvedRequirementReferences|planningReferences" : code === "DESIGN_DIRECTION_NOT_FEASIBLE" ? "responsiveDetails|motionDetails|colorRoles" : code === "IMAGE_SOURCE_PENDING" ? "imageSourceDecision" : "directions",
-      expectedInvariant: code === "MOBELTRANSPORT_REQUIREMENT_MISSING" ? "Every direction must visibly preserve the canonical Möbeltransport service requirement." : code === "DESIGN_DIRECTION_DUPLICATE" || code === "DESIGN_DIRECTIONS_TOO_SIMILAR" ? "The three directions must have distinct structured design strategies." : "The Design direction set must satisfy the current deterministic admission predicate.",
+      fieldPath: code.startsWith("DESIGN_CANONICAL_") ? "direction.canonicalContent" : code === "DESIGN_DIRECTION_REQUIREMENT_VIOLATION" ? "approvedRequirementReferences|planningReferences" : code === "DESIGN_DIRECTION_NOT_FEASIBLE" ? "responsiveDetails|motionDetails|colorRoles" : code === "IMAGE_SOURCE_PENDING" ? "imageSourceDecision" : "directions",
+      expectedInvariant: code.startsWith("DESIGN_CANONICAL_") ? "Every direction must preserve the exact host-owned canonical Design content binding; only an explicit typed contradiction may block admission." : code === "DESIGN_DIRECTION_DUPLICATE" || code === "DESIGN_DIRECTIONS_TOO_SIMILAR" ? "The three directions must have distinct structured design strategies." : "The Design direction set must satisfy the current deterministic admission predicate.",
       actualCategory: code,
       validatorPredicate: "validateDesignDirectionSet",
     }));
@@ -309,6 +309,16 @@ export class DesignAgentService {
       records: [...(history?.records ?? []), attempt],
     } satisfies DesignGenerationAttemptHistory));
   }
+  private bindCanonicalContent(input: DesignAgentInput, candidate: DesignDirectionSet) {
+    return DesignDirectionSetSchema.parse({
+      ...candidate,
+      directions: candidate.directions.map((direction) => {
+        const hostDirection = { ...direction } as Record<string, unknown>;
+        delete hostDirection.canonicalContent;
+        return { ...hostDirection, ...(input.canonicalContent ? { canonicalContent: input.canonicalContent } : {}) };
+      }),
+    });
+  }
   private async readSourceHead() {
     if (!this.dependencies.source) return undefined;
     try {
@@ -367,6 +377,7 @@ export class DesignAgentService {
       if (!projectRow || projectRow.current_version !== input.projectVersion || projectRow.workflow_state !== "AWAITING_DESIGN_SELECTION" || projectRow.row_version !== input.expectedRowVersion) throw new DesignError("DESIGN_SELECTION_STALE", "Design generation became stale before its canonical commit.");
       const attemptRow = await tx.getDocument(input.projectId, input.projectVersion, "design-generation-attempt");
       if (!attemptRow || attemptRow.checksum !== checksumPersistedDocument(attempt)) throw new DesignError("DESIGN_CONTRACT_STALE", "The Design provider attempt changed before its canonical commit.");
+      if (input.canonicalContent && attempt.canonicalContentChecksum !== input.canonicalContent.contentChecksum) throw new DesignError("DESIGN_CANONICAL_CONTENT_STALE", "The Design attempt is not bound to the current host-owned canonical content.");
       const brief = briefRow ? mapRowToDocument(briefRow) : null;
       const planning = planningRow ? mapRowToDocument(planningRow) : null;
       const review = reviewRow ? mapRowToDocument(reviewRow) : null;
@@ -404,7 +415,7 @@ export class DesignAgentService {
     });
   }
   private async admitCandidate(input: DesignAgentInput, attempt: DesignGenerationAttempt, candidate: DesignDirectionSet, replaceExisting = false) {
-    let set = candidate;
+    let set = this.bindCanonicalContent(input, candidate);
     const providerInput = input.canonicalBrief
       ? { ...input, canonicalBrief: input.canonicalBrief, approvedBrief: input.approvedBrief }
       : input;
@@ -419,6 +430,7 @@ export class DesignAgentService {
         throw failure;
       }
     }
+    set = this.bindCanonicalContent(providerInput, set);
     if (set.projectId !== input.projectId || set.projectVersion !== input.projectVersion || set.directions.length !== 3) {
       const failure = new DesignError("DESIGN_DIRECTION_COUNT_INVALID", "Exactly three directions for the current project version are required.");
       await this.failAttempt(attempt, "DOMAIN_FAILED", failure);
@@ -426,8 +438,9 @@ export class DesignAgentService {
     }
     const readiness = validateDesignDirectionSet(providerInput, set);
     if (!readiness.readyForSelection) {
-      const code = readiness.blockingReasons.includes("MOBELTRANSPORT_REQUIREMENT_MISSING")
-        ? "MOBELTRANSPORT_REQUIREMENT_MISSING"
+      const canonicalCode = readiness.blockingReasons.find((reason) => reason.startsWith("DESIGN_CANONICAL_"));
+      const code = canonicalCode
+        ? canonicalCode as DesignError["code"]
         : readiness.blockingReasons.includes("DESIGN_DIRECTION_DUPLICATE")
         ? "DESIGN_DIRECTION_DUPLICATE"
         : readiness.blockingReasons.includes("DESIGN_DIRECTIONS_TOO_SIMILAR")
@@ -581,7 +594,7 @@ export class DesignAgentService {
     const input = this.parseInput(rawInput);
     assertWorkbenchStyleIsolation(input);
     const validated = await this.validateInput(input);
-    const providerInput = validated.canonicalBrief
+    let providerInput: DesignAgentInput = validated.canonicalBrief
       ? { ...input, approvedBrief: validated.brief, canonicalBrief: validated.canonicalBrief }
       : { ...input, approvedBrief: validated.brief };
     const project = await this.projects.getWithVersion(input.projectId);
@@ -614,6 +627,18 @@ export class DesignAgentService {
     const architectureReview = await this.documents.get(input.projectId, input.projectVersion, "architecture-review");
     if (!architectureReview || architectureReview.documentType !== "architecture-review") throw new DesignError("DESIGN_ARCHITECTURE_REVIEW_REQUIRED", "A current approved Architecture Review is required before Design.");
     const architectureChecksum = checksumPersistedDocument(architectureReview);
+    if (validated.canonicalBrief) {
+      providerInput = DesignAgentInputSchema.parse({
+        ...providerInput,
+        canonicalContent: buildDesignCanonicalContent({
+          brief: validated.canonicalBrief,
+          briefChecksum: input.approvedBriefChecksum,
+          planning: validated.planning,
+          planningChecksum: input.acceptedPlanningChecksum,
+          architectureChecksum,
+        }),
+      });
+    }
     try { this.provider.preflight?.(); } catch (error) { throw designErrorFromProvider(error); }
     const existingAttemptDocument = await this.documents.get(input.projectId, input.projectVersion, "design-generation-attempt");
     let attempt = existingAttemptDocument?.documentType === "design-generation-attempt"
@@ -646,6 +671,7 @@ export class DesignAgentService {
       approvedBriefChecksum: input.approvedBriefChecksum,
       acceptedPlanningChecksum: input.acceptedPlanningChecksum,
       architectureChecksum,
+      ...(providerInput.canonicalContent ? { canonicalContentChecksum: providerInput.canonicalContent.contentChecksum } : {}),
       selectedSkillIds: [],
       selectedSkillChecksums: [],
       ...(sourceHead ? { sourceHead } : {}),
@@ -685,7 +711,7 @@ export class DesignAgentService {
       normalizedCandidate: set,
       updatedAt: now(),
     }));
-    return this.admitCandidate(input, attempt, set, Boolean(options.replaceExisting));
+    return this.admitCandidate(providerInput, attempt, set, Boolean(options.replaceExisting));
   }
   async replayDesignCandidate(rawRequest: DesignCandidateReplayRequest): Promise<DesignGenerationResult> {
     let request: DesignCandidateReplayRequest;
@@ -700,7 +726,7 @@ export class DesignAgentService {
     const durable = await this.loadDurableContext(request.projectId, request.projectVersion, request.operationKey);
     const input = DesignAgentInputSchema.parse({ ...durable, idempotencyKey: request.operationKey, expectedRowVersion: request.expectedRowVersion });
     const validated = await this.validateInput(input);
-    const admissionInput = DesignAgentInputSchema.parse({
+    let admissionInput = DesignAgentInputSchema.parse({
       ...input,
       approvedBrief: validated.brief,
       canonicalBrief: validated.canonicalBrief ?? input.canonicalBrief,
@@ -736,6 +762,19 @@ export class DesignAgentService {
     if (sourceAttempt.projectId !== request.projectId || sourceAttempt.projectVersion !== request.projectVersion || sourceAttempt.expectedRowVersion !== request.expectedRowVersion || sourceAttempt.approvedBriefChecksum !== input.approvedBriefChecksum || sourceAttempt.acceptedPlanningChecksum !== input.acceptedPlanningChecksum) throw new DesignError("DESIGN_CONTRACT_STALE", "The persisted Design candidate is not bound to the current canonical inputs.");
     const architectureReview = await this.documents.get(request.projectId, request.projectVersion, "architecture-review");
     if (!architectureReview || architectureReview.documentType !== "architecture-review" || checksumPersistedDocument(architectureReview) !== sourceAttempt.architectureChecksum) throw new DesignError("DESIGN_ARCHITECTURE_REVIEW_STALE", "The persisted Design candidate is not bound to the current approved Architecture Review.");
+    if (validated.canonicalBrief) {
+      admissionInput = DesignAgentInputSchema.parse({
+        ...admissionInput,
+        canonicalContent: buildDesignCanonicalContent({
+          brief: validated.canonicalBrief,
+          briefChecksum: input.approvedBriefChecksum,
+          planning: validated.planning,
+          planningChecksum: input.acceptedPlanningChecksum,
+          architectureChecksum: checksumPersistedDocument(architectureReview),
+        }),
+      });
+    }
+    if (sourceAttempt.canonicalContentChecksum && sourceAttempt.canonicalContentChecksum !== admissionInput.canonicalContent?.contentChecksum) throw new DesignError("DESIGN_CANONICAL_CONTENT_STALE", "The persisted Design candidate is not bound to the current host-owned canonical content.");
     const sourceHead = await this.readSourceHead();
     if (sourceHead && !sourceAttempt.sourceHead) throw new DesignError("DESIGN_CONTRACT_STALE", "The persisted Design candidate has no source-head binding.");
     const candidate = DesignDirectionSetSchema.parse(sourceAttempt.normalizedCandidate);
@@ -759,6 +798,7 @@ export class DesignAgentService {
         approvedBriefChecksum: input.approvedBriefChecksum,
         acceptedPlanningChecksum: input.acceptedPlanningChecksum,
         architectureChecksum: checksumPersistedDocument(architectureReview),
+        ...(admissionInput.canonicalContent ? { canonicalContentChecksum: admissionInput.canonicalContent.contentChecksum } : {}),
         selectedSkillIds: sourceAttempt.selectedSkillIds,
         selectedSkillChecksums: sourceAttempt.selectedSkillChecksums,
         ...(sourceHead ? { sourceHead } : {}),
@@ -797,7 +837,7 @@ export class DesignAgentService {
     const currentAttemptDocument = await this.documents.get(request.projectId, request.projectVersion, "design-generation-attempt");
     const currentAttempt = currentAttemptDocument?.documentType === "design-generation-attempt" ? DesignGenerationAttemptSchema.parse(currentAttemptDocument) : undefined;
     if (currentAttempt?.operationKey === request.operationKey && currentAttempt.state === "ADMISSION_FAILED") return currentAttempt;
-    const findings = directionDocument.directions.flatMap((direction, index) => hasFurnitureTransportMention(direction) ? [] : [admissionFinding({ code: "MOBELTRANSPORT_REQUIREMENT_MISSING", expectedInvariant: "Every direction must visibly preserve the canonical Möbeltransport service requirement.", actualCategory: "MOBELTRANSPORT_REQUIREMENT_MISSING", validatorPredicate: "validateDesignDirectionSet", directionIndex: index, fieldPath: "direction.serviceSemantics" })]);
+    const findings = [admissionFinding({ code: "DESIGN_CANONICAL_CONTENT_STALE", expectedInvariant: "The current Design direction set must remain bound to the host-owned canonical content projection.", actualCategory: "DESIGN_CANONICAL_CONTENT_STALE", validatorPredicate: "validateDesignDirectionSet", directionIndex: null, fieldPath: "direction.canonicalContent" })];
     const invalidatedAttempt = DesignGenerationAttemptSchema.parse({
       ...(currentAttempt ?? {
         schemaVersion: 1,
@@ -818,7 +858,7 @@ export class DesignAgentService {
       operationKey: request.operationKey,
       state: "ADMISSION_FAILED",
       expectedRowVersion: request.expectedRowVersion,
-      failureCode: "MOBELTRANSPORT_REQUIREMENT_MISSING",
+      failureCode: "DESIGN_CANONICAL_CONTENT_STALE",
       admissionFindingCount: findings.length,
       admissionFindingsChecksum: checksumPersistedDocument(findings),
       admissionFindings: findings,
@@ -860,7 +900,20 @@ export class DesignAgentService {
   }
   async validateDesignDirectionSet(projectId: string, projectVersion: number) {
     const set = await this.getDesignDirectionSet(projectId, projectVersion);
-    const context = await this.loadDurableContext(projectId, projectVersion);
+    let context = await this.loadDurableContext(projectId, projectVersion);
+    const architectureReview = await this.documents.get(projectId, projectVersion, "architecture-review");
+    if (context.canonicalBrief && architectureReview?.documentType === "architecture-review") {
+      context = DesignAgentInputSchema.parse({
+        ...context,
+        canonicalContent: buildDesignCanonicalContent({
+          brief: context.canonicalBrief,
+          briefChecksum: context.approvedBriefChecksum,
+          planning: context.acceptedPlanningPackage,
+          planningChecksum: context.acceptedPlanningChecksum,
+          architectureChecksum: checksumPersistedDocument(architectureReview),
+        }),
+      });
+    }
     const readiness = validateDesignDirectionSet(context, set);
     return { set, readiness };
   }

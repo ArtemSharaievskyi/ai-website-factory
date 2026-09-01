@@ -348,7 +348,10 @@ export const BriefDraftStructuredOutputSchema = BriefDraftSchema.omit({ projectI
 // Professional design contracts are host-bound after model generation; they
 // are intentionally excluded from the model transport shape so the strict
 // provider schema does not become a second source of design authority.
-const StrictDesignDirectionSchema = DesignDirectionSchema.omit({ id: true, professionalDesign: true }).required();
+const StrictDesignDirectionSchema = DesignDirectionSchema.omit({ id: true, professionalDesign: true, canonicalContent: true, canonicalServiceConflictRefs: true }).required().extend({
+  /** Optional typed provider observation; host canonical content remains authoritative. */
+  canonicalServiceConflictRefs: z.array(NonEmptyStringSchema.max(240)).max(20).nullable(),
+});
 /** Provider-authored semantic directions only; all set, identity, and lifecycle metadata is host-owned. */
 export const DesignDirectionStructuredOutputSchema = z
   .object({ directions: z.array(StrictDesignDirectionSchema).length(3) })
@@ -1259,6 +1262,7 @@ const DESIGN_OPTIONAL_KEYS = [
   "motionDetails",
   "responsiveDetails",
   "genericTemplateRisk",
+  "canonicalServiceConflictRefs",
 ];
 function normalizeDesignDirectionSet(
   value: z.infer<typeof DesignDirectionStructuredOutputSchema>,

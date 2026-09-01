@@ -10,8 +10,8 @@
     },
     {
       "relativePath": "src/integrations/openai/adapters.ts",
-      "sha256": "e83135392cf91edcb154ede1d177cfdb3fc111c06145a6dbd7183f7f1dc5d5b2"
+      "sha256": "6443952e6ace3c2c249f1dacfc464f7d8f6f093b0960818feace3d76cd74ee32"
     }
   ],
-  "snapshotChecksum": "3aa389f2d3ecfc9f605801559419e9ebbbab0d3288c2e97b9812979647e8782e"
+  "snapshotChecksum": "3365a91db120aafa9328327fa92e4f599b02705977418a2028381ccc25ad5a48"
 }

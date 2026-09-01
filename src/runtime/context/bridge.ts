@@ -1,5 +1,7 @@
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { rolePrompt, type ApprovedProceduralSkillPromptContext } from "@/integrations/openai/prompts";
+import { buildDesignContext, designContextBudget } from "@/agents/design/context";
+import type { DesignAgentInput } from "@/agents/design/contracts";
 import { assembleContext, contextBundleMetadata, extractContextIdentity, inferCanonicalDocumentType, prepareRoleContext, renderContextItems, type ContextCandidate } from "./assembler";
 import { CONTEXT_BUDGET_PROFILES } from "./contracts";
 import { designCandidateContextCandidates, diagnosticContextCandidate, sliceApprovedSkill, sliceDiagnostics, documentationContextCandidate } from "./slicing";
@@ -64,12 +66,13 @@ function buildCandidates(input: unknown, skills: readonly ApprovedProceduralSkil
 /** Builds one prompt bundle with lossless canonical input and bounded supporting input. */
 export function boundedRolePrompt(role: Parameters<typeof rolePrompt>[0], input: unknown, correction = false, approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = []) {
   const slicedSkills = approvedSkills.map((skill) => ({ ...skill, skillMarkdown: sliceApprovedSkill({ skill, agentRole: role, requestedCoverage: skill.coverageKeys, maxBytes: role.includes("reviewer") ? 24_000 : role === "implementation" ? 36_000 : 48_000 }).content }));
-  const preparedInput = prepareRoleContext(input);
-  const prompt = rolePrompt(role, preparedInput, correction, slicedSkills);
+  const contextInput = role === "design" ? buildDesignContext(input as DesignAgentInput) : input;
+  const preparedInput = prepareRoleContext(contextInput);
+  const prompt = rolePrompt(role, contextInput, correction, slicedSkills);
   const identity = extractContextIdentity(preparedInput);
   const canonicalContent = JSON.stringify(preparedInput);
   const candidates: ContextCandidate[] = [{ kind: "CANONICAL_CONTRACT", authority: "CANONICAL_REQUIREMENT", canonicalDocumentType: inferCanonicalDocumentType(role, input), sourceRef: `canonical:${role}:${correction ? "correction" : "request"}`, selectionReason: "Full canonical role requirements are passed without token/context reduction.", priority: "HIGH", required: true, content: canonicalContent }, ...buildCandidates(input, approvedSkills, role)];
-  const result = assembleContext({ agentId: role, agentRole: role, workflowStage: correction ? `${role}:correction` : role, ...identity, currentnessIdentity: checksumPersistedDocument(preparedInput), budget: role.includes("reviewer") ? CONTEXT_BUDGET_PROFILES.reviewer : role === "implementation" ? CONTEXT_BUDGET_PROFILES.implementation : CONTEXT_BUDGET_PROFILES.default, candidates });
+  const result = assembleContext({ agentId: role, agentRole: role, workflowStage: correction ? `${role}:correction` : role, ...identity, currentnessIdentity: checksumPersistedDocument(preparedInput), budget: role === "design" ? designContextBudget() : role.includes("reviewer") ? CONTEXT_BUDGET_PROFILES.reviewer : role === "implementation" ? CONTEXT_BUDGET_PROFILES.implementation : CONTEXT_BUDGET_PROFILES.default, candidates });
   if (result.status === "BLOCKED") throw new Error(`CONTEXT_ASSEMBLY_BLOCKED:${result.blocker.code}`);
   const variableItems = result.bundle.selectedItems.filter((item) => item.kind !== "SKILL_SLICE");
   return { ...prompt, user: `${JSON.stringify(contextBundleMetadata(result.bundle))}\n${renderContextItems(variableItems)}`, contextBundle: result.bundle, promptPrefixChecksum: checksumPersistedDocument({ promptVersion: prompt.promptVersion, system: prompt.system }), promptPrefixBytes: Buffer.byteLength(prompt.system, "utf8") };

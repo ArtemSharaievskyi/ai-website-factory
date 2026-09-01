@@ -36,7 +36,7 @@ function inputFor(value: RequirementSpecification, idempotencyKey = "design-prov
 
 function wireFixture(input: DesignAgentInput) {
   const set = buildDesignDirectionSet(input, { generatedAt: "2026-01-01T00:00:00.000Z" });
-  return { directions: set.directions.map((direction) => { const semantic = { ...direction } as Record<string, unknown>; delete semantic.id; delete semantic.professionalDesign; return { ...semantic, imageSourceDecision: "placeholders" as const, genericTemplateRisk: "low" as const }; }) };
+  return { directions: set.directions.map((direction) => { const semantic = { ...direction } as Record<string, unknown>; delete semantic.id; delete semantic.professionalDesign; delete semantic.canonicalContent; delete semantic.canonicalServiceConflictRefs; return { ...semantic, imageSourceDecision: "placeholders" as const, genericTemplateRisk: "low" as const, canonicalServiceConflictRefs: null }; }) };
 }
 
 function clientFor(response: { content: string; id?: string; usage?: Record<string, unknown> }, capture?: (request: Record<string, unknown>) => void) {
@@ -57,6 +57,7 @@ describe("OpenAI Design provider boundary", () => {
     expect(sent).not.toHaveProperty("temperature");
     expect(JSON.stringify(sent)).not.toContain("$parseRaw");
     expect((sent?.response_format as { json_schema: { schema: { properties: Record<string, unknown> } } }).json_schema.schema.properties).toEqual({ directions: expect.anything() });
+    expect(DesignDirectionStructuredOutputSchema.safeParse({ directions: wire.directions.map((direction) => ({ ...direction, canonicalContent: {} })) }).success).toBe(false);
     expect(DesignDirectionStructuredOutputSchema.safeParse({ ...wire, projectId: input.projectId }).success).toBe(false);
     expect(DesignDirectionStructuredOutputSchema.safeParse({ directions: wire.directions.map((direction) => ({ ...direction, id: randomUUID() })) }).success).toBe(false);
   });
