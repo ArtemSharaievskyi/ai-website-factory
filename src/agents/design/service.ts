@@ -1029,24 +1029,45 @@ export class DesignAgentService {
         "DESIGN_SELECTION_STALE",
         "The project row version is stale.",
       );
-    const requirements = await this.documents.get(
+    const requirementsDocument = await this.documents.get(
       request.projectId,
       request.projectVersion,
       "requirements",
+    );
+    const briefV3Document = await this.documents.get(
+      request.projectId,
+      request.projectVersion,
+      "brief-v3",
     );
     const planning = await this.documents.get(
       request.projectId,
       request.projectVersion,
       "planning-package",
     );
-    if (
-      !requirements ||
-      requirements.documentType !== "requirements" ||
-      !requirements.approval.approved
-    )
+    const canonicalBrief = briefV3Document?.documentType === "brief-v3"
+      ? BriefV3DocumentSchema.parse(briefV3Document)
+      : undefined;
+    if (!requirementsDocument || requirementsDocument.documentType !== "requirements")
       throw new DesignError(
         "DESIGN_BRIEF_STALE",
         "Approved requirements are unavailable.",
+      );
+    const requirements = canonicalBrief
+      ? canonicalBriefToPlannerBrief(
+          canonicalBrief.brief,
+          requirementsDocument,
+          canonicalBrief.approval,
+        )
+      : requirementsDocument;
+    if (canonicalBrief
+      ? !canonicalBrief.approval?.approved
+        || canonicalBrief.approval.approvedCanonicalChecksum !== canonicalBrief.briefChecksum
+        || directionDocument.approvedBriefChecksum !== canonicalBrief.briefChecksum
+        || reviewDocument.approvedBriefChecksum !== canonicalBrief.briefChecksum
+      : !requirements.approval.approved)
+      throw new DesignError(
+        "DESIGN_BRIEF_STALE",
+        "The approved Brief is unavailable or stale.",
       );
     if (
       !planning ||
@@ -1111,11 +1132,13 @@ export class DesignAgentService {
     const transition = await this.dependencies.database.transaction(async (tx) => {
       const projectRow = await tx.getProject(request.projectId);
       const requirementsRow = await tx.getDocument(request.projectId, request.projectVersion, "requirements");
+      const briefV3Row = await tx.getDocument(request.projectId, request.projectVersion, "brief-v3");
       const planningRow = await tx.getDocument(request.projectId, request.projectVersion, "planning-package");
       const reviewRow = await tx.getDocument(request.projectId, request.projectVersion, "architecture-review");
       const directionRow = await tx.getDocument(request.projectId, request.projectVersion, "design-directions");
       if (!projectRow || projectRow.current_version !== request.projectVersion || projectRow.workflow_state !== "AWAITING_DESIGN_SELECTION" || projectRow.row_version !== request.expectedRowVersion) throw new DesignError("DESIGN_SELECTION_STALE", "Design selection became stale before its canonical commit.");
-      if (!requirementsRow || !planningRow || !reviewRow || requirementsRow.checksum !== checksumPersistedDocument(requirements) || planningRow.checksum !== checksumPersistedDocument(planning) || reviewRow.checksum !== checksumPersistedDocument(reviewDocument)) throw new DesignError("DESIGN_SELECTION_STALE", "A canonical Design input changed before selection commit.");
+      if (!requirementsRow || !planningRow || !reviewRow || requirementsRow.checksum !== checksumPersistedDocument(requirementsDocument) || planningRow.checksum !== checksumPersistedDocument(planning) || reviewRow.checksum !== checksumPersistedDocument(reviewDocument)) throw new DesignError("DESIGN_SELECTION_STALE", "A canonical Design input changed before selection commit.");
+      if (canonicalBrief && (!briefV3Row || briefV3Row.checksum !== checksumPersistedDocument(canonicalBrief))) throw new DesignError("DESIGN_SELECTION_STALE", "The approved CanonicalBriefV3 changed before selection commit.");
       if (!directionRow || mapRowToDocument(directionRow).documentType !== "design-directions" || directionRow.checksum !== checksumPersistedDocument(set)) throw new DesignError("DESIGN_SET_CHECKSUM_MISMATCH", "The current Design direction set changed before selection commit.");
       await saveDocumentInTransaction(tx, selected, request.idempotencyKey);
       await appendDecisionInTransaction(tx, request.projectId, request.projectVersion, record);
