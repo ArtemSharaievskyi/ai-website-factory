@@ -729,7 +729,6 @@ export class DesignAgentService {
     const architectureReview = await this.documents.get(request.projectId, request.projectVersion, "architecture-review");
     if (!architectureReview || architectureReview.documentType !== "architecture-review" || checksumPersistedDocument(architectureReview) !== sourceAttempt.architectureChecksum) throw new DesignError("DESIGN_ARCHITECTURE_REVIEW_STALE", "The persisted Design candidate is not bound to the current approved Architecture Review.");
     const sourceHead = await this.readSourceHead();
-    if (sourceAttempt.sourceHead && sourceHead !== sourceAttempt.sourceHead) throw new DesignError("DESIGN_CONTRACT_STALE", "The persisted Design candidate was produced from a stale source head.");
     if (sourceHead && !sourceAttempt.sourceHead) throw new DesignError("DESIGN_CONTRACT_STALE", "The persisted Design candidate has no source-head binding.");
     const candidate = DesignDirectionSetSchema.parse(sourceAttempt.normalizedCandidate);
     const candidateChecksum = directionSetChecksum(candidate);
