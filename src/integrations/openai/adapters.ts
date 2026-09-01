@@ -56,7 +56,7 @@ import {
 import type { ArchitectureReviewInput } from "@/agents/reviewers/architecture/contracts";
 import type { ArchitectureReviewProvider } from "@/agents/reviewers/architecture/ports";
 import type { ContractAuditProvider } from "@/agents/reviewers/contracts/ports";
-import type { ContractAuditInput } from "@/agents/reviewers/contracts/contracts";
+import { CONTRACT_AUDIT_PROMPT_VERSION, type ContractAuditInput } from "@/agents/reviewers/contracts/contracts";
 import {
   ContractAuditProviderOutputSchema,
   type ContractAuditProviderOutput,
@@ -1676,6 +1676,25 @@ export class OpenAiImplementationProvider implements ImplementationProvider {
       signal,
       idempotencyKey: `${context.task.id}:${context.contextChecksum}:${context.skillContextIdentity ?? "none"}`,
     });
+    const hostPhase7cBinding = context.task.phase7c
+      ? {
+          taskContractId: context.task.phase7c.taskContractId,
+          taskContractChecksum: context.task.phase7c.taskContractChecksum,
+          dataContractIds: context.task.phase7c.dataContractIds,
+          ...(context.task.phase7c.databaseDecisionId
+            ? { databaseDecisionId: context.task.phase7c.databaseDecisionId }
+            : {}),
+          ...(context.task.phase7c.databaseDecisionChecksum
+            ? {
+                databaseDecisionChecksum:
+                  context.task.phase7c.databaseDecisionChecksum,
+              }
+            : {}),
+          ...(context.task.phase7c.dependencyProposalId
+            ? { dependencyProposalId: context.task.phase7c.dependencyProposalId }
+            : {}),
+        }
+      : undefined;
     const normalized = {
       ...result.value,
       operations: result.value.operations.map((operation) => {
@@ -1684,7 +1703,30 @@ export class OpenAiImplementationProvider implements ImplementationProvider {
         const expectedResultChecksum = rest.type === "create-file" || rest.type === "replace-file" ? checksumText(rest.content) : rest.expectedResultChecksum;
         return { ...rest, expectedResultChecksum, ...(expectedPriorChecksum === null ? {} : { expectedPriorChecksum }) };
       }),
-      ...(result.value.phase7c ? { phase7c: (() => { const { databaseDecisionId, databaseDecisionChecksum, dependencyProposalId, ...binding } = result.value.phase7c; return { ...binding, ...(databaseDecisionId === null ? {} : { databaseDecisionId }), ...(databaseDecisionChecksum === null ? {} : { databaseDecisionChecksum }), ...(dependencyProposalId === null ? {} : { dependencyProposalId }) }; })() } : {}),
+      ...(hostPhase7cBinding
+        ? { phase7c: hostPhase7cBinding }
+        : result.value.phase7c
+          ? {
+              phase7c: (() => {
+                const {
+                  databaseDecisionId,
+                  databaseDecisionChecksum,
+                  dependencyProposalId,
+                  ...binding
+                } = result.value.phase7c;
+                return {
+                  ...binding,
+                  ...(databaseDecisionId === null ? {} : { databaseDecisionId }),
+                  ...(databaseDecisionChecksum === null
+                    ? {}
+                    : { databaseDecisionChecksum }),
+                  ...(dependencyProposalId === null
+                    ? {}
+                    : { dependencyProposalId }),
+                };
+              })(),
+            }
+          : {}),
       providerMetadata: {
         provider: result.value.providerMetadata.provider,
         ...(result.value.providerMetadata.inputTokens === null
@@ -1743,7 +1785,7 @@ export class OpenAiArchitectureReviewerProvider implements ArchitectureReviewPro
   }
 }
 export class OpenAiContractAuditorProvider implements ContractAuditProvider {
-  readonly promptVersion = "contract-auditor.v1";
+  readonly promptVersion = CONTRACT_AUDIT_PROMPT_VERSION;
   constructor(private readonly ai: OpenAiStructuredClient) {}
   async review(
     input: ContractAuditInput,

@@ -2,7 +2,7 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import { taskExecutionCapability } from "@/orchestration/execution/capabilities";
 import { validateFileScopes } from "@/orchestration/orchestrator/validation";
 import { ContractAuditProvider } from "./ports";
-import { assertProjectIdentity, type ContractAuditInput } from "./contracts";
+import { assertProjectIdentity, CONTRACT_AUDIT_PROMPT_VERSION, type ContractAuditInput } from "./contracts";
 import { ContractAuditProviderOutputSchema, type ContractAuditFinding } from "@/domain/review/schema";
 import { createReviewEvidenceCatalog, toProviderReviewEvidence, withoutProviderEvidenceCatalog } from "../evidence";
 import { canonicalContractEvidence } from "./service";
@@ -86,4 +86,4 @@ export function deterministicContractAudit(rawInput: ContractAuditInput) {
   return ContractAuditProviderOutputSchema.parse(toProviderReviewEvidence(rawInput, { verdict: blocking ? "CHANGES_REQUIRED" : "APPROVED", findings, reviewedArtifactRefs: reviewed }, catalog));
 }
 
-export class DeterministicContractAuditProvider implements ContractAuditProvider { readonly promptVersion = "contract-auditor.v1"; async review(input: ContractAuditInput) { return deterministicContractAudit(input); } }
+export class DeterministicContractAuditProvider implements ContractAuditProvider { readonly promptVersion = CONTRACT_AUDIT_PROMPT_VERSION; async review(input: ContractAuditInput) { return deterministicContractAudit(input); } }

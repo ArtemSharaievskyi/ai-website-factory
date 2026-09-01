@@ -45,9 +45,9 @@ export function validateProposal(
   }
   if (phase7cPackage) {
     try {
-      const contract = phase7cPackage.taskContracts.find((candidate) => candidate.taskId === task.id);
+      const contract = phase7cPackage.taskContracts.find((candidate) => candidate.taskId === (task.taskType === "repair-targeted-failure" ? task.repairOfTaskId : task.id) || (task.taskType === "repair-targeted-failure" && candidate.taskContractId === task.phase7c?.taskContractId));
       if (!contract) throw new Error("TaskContract is missing.");
-      validateTaskContractBinding(task, contract);
+      validateTaskContractBinding({ ...task, phase7cTaskContractId: task.phase7c?.taskContractId }, contract);
       if (!proposal.phase7c || proposal.phase7c.taskContractId !== contract.taskContractId || proposal.phase7c.taskContractChecksum !== contract.checksum) throw new Error("ChangeProposal is not bound to the current TaskContract.");
       if (proposal.phase7c.databaseDecisionId && proposal.phase7c.databaseDecisionChecksum !== phase7cPackage.databaseDecision.checksum) throw new Error("ChangeProposal database binding is stale.");
       if (phase7cPackage.databaseDecision.mode === "NONE" && ((task.taskType.includes("database")) || task.taskType === "implement-rls-policy" || proposal.operations.some((operation) => /^(supabase\/migrations|src\/lib\/supabase)(?:\/|$)/i.test(operation.relativePath)))) throw new Error("Database implementation is forbidden under DatabaseDecision NONE.");

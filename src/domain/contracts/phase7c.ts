@@ -398,9 +398,10 @@ const contractScopeCovers = (allowed: string, requested: string) => {
   return false;
 };
 
-export function validateTaskContractBinding(task: { id: string; projectId: string; projectVersion: number; taskType: string; allowedTools: string[]; allowedSkills: string[]; fileScopes: string[]; requiredCapabilities?: string[]; expectedArtifactTypes?: string[] }, contract: TaskContract) {
+export function validateTaskContractBinding(task: { id: string; projectId: string; projectVersion: number; taskType: string; allowedTools: string[]; allowedSkills: string[]; fileScopes: string[]; requiredCapabilities?: string[]; expectedArtifactTypes?: string[]; repairOfTaskId?: string; phase7cTaskContractId?: string }, contract: TaskContract) {
   validateTaskContract(contract);
-  if (task.id !== contract.taskId || task.projectId !== contract.projectId || task.projectVersion !== contract.projectVersion || task.taskType !== contract.taskType) throw new Phase7CContractError("TASK_CONTRACT_ESCALATION", "Task identity does not match its TaskContract.");
+  const boundedRepair = task.taskType === "repair-targeted-failure" && (task.repairOfTaskId === contract.taskId || task.phase7cTaskContractId === contract.taskContractId);
+  if ((!boundedRepair && task.id !== contract.taskId) || task.projectId !== contract.projectId || task.projectVersion !== contract.projectVersion || (!boundedRepair && task.taskType !== contract.taskType)) throw new Phase7CContractError("TASK_CONTRACT_ESCALATION", "Task identity does not match its TaskContract.");
   if (task.allowedTools.some((tool) => !contract.allowedTools.includes(tool)) || task.allowedSkills.some((skill) => !contract.allowedSkillIds.includes(skill)) || (task.requiredCapabilities ?? []).some((capability) => !contract.capabilityIds.includes(capability)) || task.fileScopes.some((scope) => !contract.fileScopes.some((allowedScope) => contractScopeCovers(allowedScope, scope))) || (task.expectedArtifactTypes ?? []).some((artifact) => !contract.ownedArtifactTypes.includes(artifact))) throw new Phase7CContractError("TASK_CONTRACT_ESCALATION", "Task exceeds the tools, skills, capabilities, file scopes, or artifacts authorized by its TaskContract.");
   return true;
 }

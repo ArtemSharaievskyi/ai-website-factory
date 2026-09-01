@@ -93,6 +93,13 @@ describe("Phase 7C typed contracts", () => {
     expect(() => validateTaskContractBinding({ id: taskId, projectId, projectVersion: 1, taskType: "implement-shared-component", allowedTools: [], allowedSkills: [], fileScopes: ["src/components/shared/hero/**"], expectedArtifactTypes: ["shared-component"] }, contract)).not.toThrow();
   });
 
+  it("binds a targeted repair to its original TaskContract without granting escalation", () => {
+    const contract = createTaskContract({ taskId, projectId, projectVersion: 1, createdAt: now, taskType: "prepare-workspace", allowedTools: ["filesystem-read"], fileScopes: ["src/**"], ownedArtifactTypes: ["workspace-reservation"], acceptanceCriteria: ["Workspace is reserved"], validationRequirements: ["deterministic validation"] });
+    expect(() => validateTaskContractBinding({ id: "repair-task", repairOfTaskId: taskId, projectId, projectVersion: 1, taskType: "repair-targeted-failure", allowedTools: ["filesystem-read"], allowedSkills: [], fileScopes: ["src/app/factory-prepared.ts"], expectedArtifactTypes: ["workspace-reservation"] }, contract)).not.toThrow();
+    expect(() => validateTaskContractBinding({ id: "nested-repair-task", repairOfTaskId: "prior-repair-task", phase7cTaskContractId: contract.taskContractId, projectId, projectVersion: 1, taskType: "repair-targeted-failure", allowedTools: ["filesystem-read"], allowedSkills: [], fileScopes: ["src/app/factory-prepared.ts"], expectedArtifactTypes: ["workspace-reservation"] }, contract)).not.toThrow();
+    expect(() => validateTaskContractBinding({ id: "repair-task", repairOfTaskId: taskId, projectId, projectVersion: 1, taskType: "repair-targeted-failure", allowedTools: ["filesystem-read"], allowedSkills: [], fileScopes: ["supabase/**"], expectedArtifactTypes: ["workspace-reservation"] }, contract)).toThrow(/escalation/i);
+  });
+
   it("requires database task bindings to use the current decision and blocks NONE", () => {
     const pkg = packageFixture();
     const databaseTask = createTaskContract({ taskId, projectId, projectVersion: 1, createdAt: now, taskType: "implement-database-schema", allowedTools: ["filesystem-write"], fileScopes: ["supabase/migrations/**"], ownedArtifactTypes: ["database-schema"], acceptanceCriteria: ["Only approved schema is represented"], validationRequirements: ["migration validation"], databaseDecisionRef: { id: pkg.databaseDecision.databaseDecisionId, checksum: pkg.databaseDecision.checksum } });

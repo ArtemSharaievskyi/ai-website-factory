@@ -36,4 +36,18 @@ describe("approved procedural prompt guidance", () => {
       expect(prompt.system).not.toContain("reviewing-test-quality");
     }
   });
+
+  it("keeps host-owned historical evidence and baseline validation dependencies in scope", () => {
+    const prompt = rolePrompt("contract-auditor", {});
+    expect(prompt.system).toContain("historical evidence catalog");
+    expect(prompt.system).toContain("Zod is a fixed Factory baseline dependency");
+  });
+
+  it("binds implementation proposals to the advertised edit strategies", () => {
+    const prompt = rolePrompt("implementation", {});
+    expect(prompt.promptVersion).toBe("implementation.v3");
+    expect(prompt.system).toContain("Select every proposal operation only from the context's allowedEditStrategies");
+    expect(prompt.system).toContain("If AST_PATCH_EXISTING is absent, never return an ast-patch operation");
+    expect(prompt.system).toContain("When the task scope is exactly src/app/factory-prepared.ts and AST_PATCH_EXISTING is absent");
+  });
 });

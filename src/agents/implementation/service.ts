@@ -42,6 +42,7 @@ import type { DependencyAuthorityContext } from "@/dependencies/authority";
 import { validatePhase7CContractPackage, validateTaskContractBinding } from "@/domain/contracts/phase7c";
 import { validateDirectionDesignCapability } from "@/domain/design/capability";
 import { evaluateRealFormProcessingGate, isRealFormProcessingTask } from "@/domain/requirements/v3/lifecycle-gates";
+import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 
 export interface ImplementationMemoryPort {
   writeSnapshot(
@@ -65,6 +66,10 @@ const dependencyContextFor = (input: ImplementationAgentInput, taskType: string)
     : [];
   return { projectId: input.projectId, projectVersion: input.projectVersion, planningChecksum: input.acceptedPlanningChecksum, plannedDependencies, taskType };
 };
+const approvedBriefChecksumMatches = (input: ImplementationAgentInput) =>
+  input.approvedBriefChecksum === checksumPersistedDocument(input.approvedBrief) ||
+  input.approvedBriefChecksum === input.approvedBrief.approval.approvedRequirementsChecksum ||
+  (input.canonicalBrief !== undefined && canonicalBriefChecksum(input.canonicalBrief) === input.approvedBriefChecksum);
 const runBase = (
   input: ImplementationAgentInput,
   status: ImplementationExecutionRun["status"],
@@ -188,12 +193,7 @@ export class ImplementationAgentService {
           "IMPLEMENTATION_DEPENDENCY_INCOMPLETE",
           "A task dependency has not passed.",
         );
-      if (
-        input.approvedBriefChecksum !==
-          checksumPersistedDocument(input.approvedBrief) &&
-        input.approvedBriefChecksum !==
-          input.approvedBrief.approval.approvedRequirementsChecksum
-      )
+      if (!approvedBriefChecksumMatches(input))
         throw new ImplementationError(
           "IMPLEMENTATION_DOCUMENT_STALE",
           "Approved Brief checksum is stale.",
@@ -391,15 +391,15 @@ export class ImplementationAgentService {
         this.documents.get(input.projectId, input.projectVersion, "selected-design"),
       ]);
       const parsedPlanning = planning?.documentType === "planning-package" ? PlanningPackageSchema.parse(planning) : null;
-      if ([brief, planning, selected].some(Boolean) && (!brief || brief.documentType !== "requirements" || (input.approvedBriefChecksum !== checksumPersistedDocument(brief) && input.approvedBriefChecksum !== brief.approval.approvedRequirementsChecksum) || !parsedPlanning || (input.acceptedPlanningChecksum !== checksumPersistedDocument(parsedPlanning) && input.acceptedPlanningChecksum !== parsedPlanning.acceptance.checksum) || checksumPersistedDocument(input.assetManifest) !== checksumPersistedDocument(parsedPlanning.assets) || input.architectureChecksum !== checksumPersistedDocument(parsedPlanning.architecture) || !selected || selected.documentType !== "selected-design" || input.selectedDesignChecksum !== checksumPersistedDocument(selected)))
+      if ([brief, planning, selected].some(Boolean) && (!brief || brief.documentType !== "requirements" || (!approvedBriefChecksumMatches({ ...input, approvedBrief: brief }) && !(input.canonicalBrief !== undefined && canonicalBriefChecksum(input.canonicalBrief) === input.approvedBriefChecksum)) || !parsedPlanning || (input.acceptedPlanningChecksum !== checksumPersistedDocument(parsedPlanning) && input.acceptedPlanningChecksum !== parsedPlanning.acceptance.checksum) || checksumPersistedDocument(input.assetManifest) !== checksumPersistedDocument(parsedPlanning.assets) || input.architectureChecksum !== checksumPersistedDocument(parsedPlanning.architecture) || !selected || selected.documentType !== "selected-design" || input.selectedDesignChecksum !== checksumPersistedDocument(selected)))
         throw new ImplementationError("IMPLEMENTATION_DOCUMENT_STALE", "Canonical implementation documents changed before execution.");
       if (input.phase7cContractPackage) {
         try {
-          const contract = input.phase7cContractPackage.taskContracts.find((candidate) => candidate.taskId === input.task.id);
+          const contract = input.phase7cContractPackage.taskContracts.find((candidate) => candidate.taskId === (input.task.taskType === "repair-targeted-failure" ? input.task.repairOfTaskId : input.task.id) || (input.task.taskType === "repair-targeted-failure" && candidate.taskContractId === input.task.phase7c?.taskContractId));
           if (!contract) throw new Error("TaskContract is missing.");
           validatePhase7CContractPackage(input.phase7cContractPackage);
           if (input.phase7cContractPackage.projectId !== input.projectId || input.phase7cContractPackage.projectVersion !== input.projectVersion || input.phase7cContractPackage.currentness.status !== "CURRENT" || input.phase7cContractPackage.approvedBriefChecksum !== input.approvedBriefChecksum || !parsedPlanning || input.phase7cContractPackage.planningChecksum !== planningSemanticChecksum(parsedPlanning) || input.phase7cContractPackage.architectureChecksum !== checksumPersistedDocument(parsedPlanning.architecture)) throw new Error("Phase 7C package is stale.");
-          validateTaskContractBinding(input.task, contract);
+          validateTaskContractBinding({ ...input.task, phase7cTaskContractId: input.task.phase7c?.taskContractId }, contract);
           if (input.task.phase7c?.taskContractChecksum !== contract.checksum) throw new Error("Task binding checksum is stale.");
         } catch (error) {
           throw new ImplementationError("IMPLEMENTATION_GRAPH_STALE", "Implementation is blocked by a stale Phase 7C contract package.", error);

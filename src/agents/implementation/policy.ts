@@ -534,7 +534,7 @@ export class TaskContextAssembler {
         : []),
     ];
     const phase7cContract = input.phase7cContractPackage
-      ? input.phase7cContractPackage.taskContracts.find((contract) => contract.taskId === input.task.id)
+      ? input.phase7cContractPackage.taskContracts.find((contract) => contract.taskId === (input.task.taskType === "repair-targeted-failure" ? input.task.repairOfTaskId : input.task.id) || (input.task.taskType === "repair-targeted-failure" && contract.taskContractId === input.task.phase7c?.taskContractId))
       : undefined;
     if (input.phase7cContractPackage && !phase7cContract)
       throw new ImplementationError(

@@ -66,7 +66,7 @@ export class WorkspaceManager {
   }
 
   async createMutableExecutionStaging(project: FactoryProject, version: number, operation: string) {
-    const parsed = FactoryProjectSchema.parse(project); await this.getProjectRoot(parsed.slug); const source = path.join(await this.getProjectRoot(parsed.slug), versionDirectoryName(version));
+    const parsed = FactoryProjectSchema.parse(project); const projectRoot = await this.getProjectRoot(parsed.slug); await mkdir(path.join(projectRoot, ".staging"), { recursive: true }); const source = path.join(projectRoot, versionDirectoryName(version));
     if (!(await this.exists(source))) throw new WorkspaceError("WORKSPACE_VERSION_NOT_FOUND", "The execution source version was not found.");
     const staging = await this.createStaging(parsed.slug, version, operation);
     try { await this.copyVersionFiles(source, staging); await this.initializeVersionMemoryAt(staging, this.versionProject(parsed, version)); return staging; }

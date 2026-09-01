@@ -1,5 +1,5 @@
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
-import { DocumentRepository } from "@/persistence/database/repositories";
+import { DocumentRepository, saveDocumentCASInTransaction } from "@/persistence/database/repositories";
 import type { PersistenceDatabase } from "@/persistence/database/types";
 import {
   approveDatabaseDecision,
@@ -11,11 +11,12 @@ import {
   type Phase7CContractPackage,
 } from "@/domain/contracts/phase7c";
 import { Phase7CContractError } from "@/domain/contracts/phase7c";
+import { planningSemanticChecksum } from "@/agents/planner/deterministic";
 
 export class Phase7CContractService {
   private readonly documents: DocumentRepository;
 
-  constructor(database: PersistenceDatabase) {
+  constructor(private readonly database: PersistenceDatabase) {
     this.documents = new DocumentRepository(database);
   }
 
@@ -48,9 +49,25 @@ export class Phase7CContractService {
   }
 
   async approvePlanning(input: { projectId: string; projectVersion: number; expectedPackageChecksum: string; actorId: string; approvedAt: string; idempotencyKey?: string }) {
-    const pkg = await this.get(input.projectId, input.projectVersion);
+    const current = await this.documents.getWithMetadata(input.projectId, input.projectVersion, "phase-7c-contract-package");
+    if (!current || current.document.documentType !== "phase-7c-contract-package") throw new Phase7CContractError("CONTRACT_PACKAGE_INVALID", "The Phase 7C contract package is not persisted.");
+    const pkg = validatePhase7CContractPackage(current.document);
     this.assertCurrent(pkg, input.expectedPackageChecksum);
-    const next = approvePhase7CContractPackage(pkg, { actorId: input.actorId, approvedAt: input.approvedAt });
-    return this.documents.save(next, input.idempotencyKey);
+    const [planning, architecture, architectureReview, selected, audit] = await Promise.all([
+      this.documents.get(input.projectId, input.projectVersion, "planning-package"),
+      this.documents.get(input.projectId, input.projectVersion, "architecture"),
+      this.documents.get(input.projectId, input.projectVersion, "architecture-review"),
+      this.documents.get(input.projectId, input.projectVersion, "selected-design"),
+      this.documents.get(input.projectId, input.projectVersion, "contract-audit"),
+    ]);
+    const selectedChecksum = selected ? checksumPersistedDocument(selected) : undefined;
+    if (!planning || planning.documentType !== "planning-package" || planningSemanticChecksum(planning) !== pkg.planningChecksum) throw new Phase7CContractError("PLANNING_ACCEPTANCE_STALE", "The persisted Planning package is not current for this Phase 7C approval.");
+    if (!architecture || architecture.documentType !== "architecture" || !architecture.acceptance.accepted || checksumPersistedDocument(architecture) !== pkg.architectureChecksum) throw new Phase7CContractError("PLANNING_ACCEPTANCE_STALE", "The approved Architecture is not current for this Phase 7C approval.");
+    if (!architectureReview || architectureReview.documentType !== "architecture-review" || architectureReview.result.verdict !== "APPROVED" || architectureReview.approvedBriefChecksum !== pkg.approvedBriefChecksum || architectureReview.acceptedPlanningChecksum !== checksumPersistedDocument(planning)) throw new Phase7CContractError("PLANNING_ACCEPTANCE_STALE", "The approved Architecture Review is not current for this Phase 7C approval.");
+    if (!selected || selected.documentType !== "selected-design" || !selectedChecksum) throw new Phase7CContractError("PLANNING_ACCEPTANCE_STALE", "The selected Design is not current for this Phase 7C approval.");
+    if (!audit || audit.documentType !== "contract-audit" || audit.result.verdict !== "APPROVED" || audit.briefChecksum !== pkg.approvedBriefChecksum || audit.planningChecksum !== checksumPersistedDocument(planning) || audit.designChecksum !== selectedChecksum) throw new Phase7CContractError("PLANNING_ACCEPTANCE_STALE", "The approved Contract Audit is not current for this Phase 7C approval.");
+    const approved = approvePhase7CContractPackage(pkg, { actorId: input.actorId, approvedAt: input.approvedAt });
+    const next = validatePhase7CContractPackage({ ...approved, designChecksum: selectedChecksum, architectureAccepted: true, contractAuditAccepted: true, designSelected: true });
+    return this.database.transaction((tx) => saveDocumentCASInTransaction(tx, next, current.rowVersion, current.checksum));
   }
 }
