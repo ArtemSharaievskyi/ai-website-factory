@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "documentType": "architecture-review-resolution-evidence",
+  "recordedOn": "2026-09-01",
+  "sourceCommit": "84d09573e0b7b6f8d1a8a7b8849c4b57accbad37",
+  "protectedProjectRef": "session-protected-project",
+  "findingClassification": [
+    { "findingId": "architecture-review-001", "classification": "ARCHITECTURE_REVIEW_FALSE_POSITIVE", "disposition": "Typed simulated-form decisions resolve retained lossless positive and negative requirement wording; no canonical requirement was deleted or rewritten." },
+    { "findingId": "architecture-review-002", "classification": "ARCHITECTURE_REVIEW_FALSE_POSITIVE", "disposition": "The typed MULTI_PAGE route policy and accepted 11-route sitemap are authoritative; no Planning route was changed." },
+    { "findingId": "architecture-review-003", "classification": "ARCHITECTURE_REVIEW_FALSE_POSITIVE", "disposition": "Accepted Planning responsibilities preserve responsive navigation, smooth scrolling, and mobile sticky CTA behavior; no invented disabled flag was applied." },
+    { "findingId": "architecture-review-004", "classification": "ARCHITECTURE_REVIEW_FALSE_POSITIVE", "disposition": "The separate current asset manifest contains seven entries; the Architecture input does not include that artifact, so accepted Planning was not overwritten to satisfy an unsupported claim." }
+  ],
+  "offlineReplay": {
+    "beforeFindingIds": ["architecture-review-001", "architecture-review-002", "architecture-review-003", "architecture-review-004"],
+    "afterFindingIds": [],
+    "providerCalls": 0,
+    "deterministicProviderPromptVersion": "architecture-reviewer.v2"
+  },
+  "canonicalStateBeforeArchitectureReview": {
+    "projectRowVersion": 16,
+    "workflowState": "ARCHITECTURE_REVIEW",
+    "versionRowVersion": 4,
+    "briefV3": { "rowVersion": 6, "checksum": "9c8c684ee214c6b5a061aea91e289bb646cbc656d5583d6dffe8fce078ab5cd7" },
+    "legacyRequirements": { "rowVersion": 4, "checksum": "45ee3543dcf03d8700bd17a5f1bd04e4a645614d43d18f2a4695c8075966ef67" },
+    "planningPackage": { "rowVersion": 12, "checksum": "194ceed1a4d81583e484dd44ab899f39cc34d7ff540e040ecfd41bbd536ce8a3", "accepted": true, "routePolicy": "MULTI_PAGE", "routeCount": 11, "formSubmissionMechanism": "client-only", "blockerCount": 2 },
+    "architecture": { "rowVersion": 8, "checksum": "385dc8fa5c58f79d1ea080ff79d9f114d65996b280b210166c3e4ebc8bfc9dbc", "accepted": true },
+    "architectureReview": { "rowVersion": 4, "checksum": "a32ae2bd1618a96e6102932f96c171e39a4f0b8489ec6680d49289a354134136", "verdict": "CHANGES_REQUIRED", "findingCount": 4 },
+    "architectureReviewHistory": { "rowVersion": 4, "checksum": "4856e2d12d5b7cccf88e821286f75722aeeb24172ceb763c2be01acc1369b94c" },
+    "assetManifest": { "rowVersion": 4, "checksum": "2540a734c02300dee257e6b18d4dfccff02445aebf15730ee8a25e70cd49e027", "entryCount": 7 },
+    "phase7c": { "rowVersion": 4, "checksum": "bc598c76400648f18e7ca38f54be8c1ead7894496f2cee495d4b3c3374fb622c" },
+    "briefHistoryCount": 2,
+    "formDecision": { "mode": "SIMULATED", "transmissionMode": "NONE", "persistenceMode": "NONE", "serverProcessingMode": "NONE", "externalProviderMode": "NONE" },
+    "backendDecisions": { "database": "NONE", "auth": "NONE", "analytics": "NONE" },
+    "legalPlaceholderPolicy": "USE_EXPLICIT_PLACEHOLDERS",
+    "planningDeferredIds": ["FINAL_LEGAL_FACTS_REQUIRED", "REAL_FORM_PROCESSING_EXPLICIT_APPROVAL_REQUIRED"]
+  },
+  "canonicalStateAfterArchitectureReview": {
+    "projectRowVersion": 17,
+    "workflowState": "AWAITING_DESIGN_SELECTION",
+    "planningPackageUnchanged": true,
+    "architectureUnchanged": true,
+    "briefV3Unchanged": true,
+    "legacyRequirementsUnchanged": true,
+    "assetManifestUnchanged": true,
+    "phase7cUnchanged": true,
+    "architectureReview": { "rowVersion": 5, "checksum": "670a5002043e3835d53f2324d46b0f0112e28d66df84f0b95d706324a9e80cc2", "verdict": "APPROVED", "findingCount": 0 },
+    "architectureReviewHistory": { "rowVersion": 5, "checksum": "4bf2e1c69228832db43b84405a4427cc02923388c6e94b96a93e63199ff50f8a" },
+    "projectMemoryProjection": "SYNCED"
+  },
+  "designAttempt": {
+    "status": "STOPPED",
+    "classification": "OBSERVABILITY_GAP",
+    "directionSetPersisted": false,
+    "selectedDesignPersisted": false,
+    "retryPerformed": false,
+    "fallbackPerformed": false,
+    "workflowStatePreserved": "AWAITING_DESIGN_SELECTION",
+    "rowVersionPreserved": 17
+  },
+  "protectedBaselineReconciliation": {
+    "authorization": "User task explicitly authorized the Planning Acceptance and Architecture Review lifecycle continuation.",
+    "preTaskSessionBaseline": { "projectRowVersion": 15, "workflowState": "AWAITING_DESIGN_SELECTION", "pendingUserAction": "APPROVE_PLANNING_AND_SELECT_DESIGN" },
+    "observedAuthorizedPlanningMutation": { "projectRowVersion": 16, "workflowState": "ARCHITECTURE_REVIEW" },
+    "observedAuthorizedArchitectureMutation": { "projectRowVersion": 17, "workflowState": "AWAITING_DESIGN_SELECTION" },
+    "reconciledUsing": "Existing codex:start --reset protected session protocol after final verification; no guard weakening or second verification system."
+  },
+  "validation": {
+    "architectureAndPromptFocusedTests": "PASS",
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "build": "PASS",
+    "npmAuditHigh": "PASS",
+    "providerContracts": "PASS",
+    "databaseValidationStatusVerificationIntegrity": "PASS",
+    "taskgraphSmoke": "PASS",
+    "preReconciliationCodexVerify": "EXPECTED_PROTECTED_DELTA_ONLY"
+  },
+  "finalVerdict": "DESIGN_GENERATION_BLOCKED_PROVIDER_OBSERVABILITY_GAP"
+}
