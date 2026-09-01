@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "kind": "LATER_PHASE_DRIFT_SNAPSHOT",
   "sourceEvidence": "docs/admin/phase-7d/phase-7d-controlled-ast-aware-patching-result-2026-08-12.json",
-  "reason": "The Planning Recovery semantic-accounting repair and the Architecture Review source-of-truth repair change the OpenAI provider boundary and agent catalog after the frozen Phase 7D snapshot. The changed files are verified here against this separately governed later-phase snapshot; all other Phase 7D files remain byte-frozen.",
+  "reason": "The Planning Recovery semantic-accounting repair, Architecture Review source-of-truth repair, and Design admission durability repair change the OpenAI provider boundary and agent catalog after the frozen Phase 7D snapshot. The changed files are verified here against this separately governed later-phase snapshot; all other Phase 7D files remain byte-frozen.",
   "files": [
     {
       "relativePath": "src/agents/catalog.ts",
@@ -10,8 +10,8 @@
     },
     {
       "relativePath": "src/integrations/openai/adapters.ts",
-      "sha256": "68022effe948fa2cf97c1130e341b7ff5d48f5461300fe248d9af06e4fa7ff30"
+      "sha256": "e83135392cf91edcb154ede1d177cfdb3fc111c06145a6dbd7183f7f1dc5d5b2"
     }
   ],
-  "snapshotChecksum": "f94edd4dae823136137c5937526170b5e4b8e22932c3075f8e05f41410bf8ff2"
+  "snapshotChecksum": "3aa389f2d3ecfc9f605801559419e9ebbbab0d3288c2e97b9812979647e8782e"
 }
