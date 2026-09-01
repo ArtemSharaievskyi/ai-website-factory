@@ -31,14 +31,19 @@ import type { PersistenceDatabase } from "@/persistence/database/types";
 import {
   DesignAgentInputSchema,
   DesignGenerationResultSchema,
+  DesignGenerationAttemptSchema,
+  DesignProviderObservationSchema,
   DesignRevisionRequestSchema,
   DesignSelectionRequestSchema,
   type DesignAgentInput,
+  type DesignGenerationAttempt,
   type DesignGenerationResult,
   type DesignRevisionRequest,
   type DesignSelectionRequest,
 } from "./contracts";
 import { DesignError } from "./errors";
+import { isAiProviderError } from "@/integrations/openai/errors";
+import { ProviderFailureDiagnosticSchema } from "@/domain/shared/provider-failure";
 import {
   buildDesignDirectionSet,
   directionChecksum,
@@ -69,6 +74,88 @@ type DesignServiceDependencies = {
   resolveSkills?: (input: DesignAgentInput) => Promise<AgentSkillSelection>;
   professionalPipeline?: ProfessionalDesignCapabilityPipeline;
 };
+
+function diagnosticFor(error: unknown) {
+  if (isAiProviderError(error)) return error.diagnostic;
+  if (error instanceof DesignError && error.diagnostic && typeof error.diagnostic === "object") return error.diagnostic as Record<string, unknown>;
+  return undefined;
+}
+
+function failureDiagnosticFor(error: unknown) {
+  if (isAiProviderError(error) && error.failureDiagnostic) return ProviderFailureDiagnosticSchema.parse(error.failureDiagnostic);
+  if (error instanceof DesignError && error.failureDiagnostic) return ProviderFailureDiagnosticSchema.parse(error.failureDiagnostic);
+  return undefined;
+}
+
+function observationFor(error: unknown, fallbackModel?: string) {
+  const diagnostic = diagnosticFor(error) as Record<string, unknown> | undefined;
+  const failure = failureDiagnosticFor(error);
+  return DesignProviderObservationSchema.parse({
+    provider: "openai",
+    model: (failure?.model as string | undefined) ?? fallbackModel ?? null,
+    requestAttempted: diagnostic?.requestAttempted ?? failure?.requestAttempted ?? true,
+    requestId: (diagnostic?.requestId as string | undefined) ?? failure?.requestId ?? null,
+    responseReceived: diagnostic?.responseReceived ?? failure?.responseReceived ?? false,
+    httpStatus: diagnostic?.httpStatus ?? failure?.httpStatus ?? null,
+    choicesCount: diagnostic?.choicesCount ?? failure?.choicesCount ?? null,
+    finishReason: diagnostic?.finishReason ?? failure?.finishReason ?? null,
+    refusalPresent: diagnostic?.refusalPresent ?? failure?.refusalPresent ?? null,
+    parsedPresent: diagnostic?.parsedPresent ?? null,
+    inputTokens: diagnostic?.inputTokens ?? failure?.inputTokens ?? null,
+    outputTokens: diagnostic?.outputTokens ?? failure?.outputTokens ?? null,
+    totalTokens: diagnostic?.totalTokens ?? failure?.totalTokens ?? null,
+    jsonParseSucceeded: diagnostic?.jsonParseSucceeded ?? failure?.jsonParseSucceeded ?? null,
+    rawContentBytes: diagnostic?.rawContentBytes ?? failure?.rawContentBytes ?? null,
+    rawContentChecksum: diagnostic?.rawContentChecksum ?? failure?.rawContentChecksum ?? null,
+    zodIssueCount: diagnostic?.zodIssueCount ?? failure?.zodIssueCount ?? null,
+    zodIssuesTruncated: diagnostic?.zodIssuesTruncated ?? failure?.zodIssuesTruncated ?? null,
+    completeZodIssuesChecksum: diagnostic?.completeZodIssuesChecksum ?? failure?.completeZodIssuesChecksum ?? null,
+  });
+}
+
+function observationForSet(set: DesignDirectionSet) {
+  const provider = set.provider;
+  if (!provider || provider.name !== "openai") return undefined;
+  return DesignProviderObservationSchema.parse({
+    provider: "openai",
+    model: provider.model ?? null,
+    requestAttempted: true,
+    requestId: provider.requestId ?? null,
+    responseReceived: provider.responseReceived ?? true,
+    httpStatus: null,
+    choicesCount: null,
+    finishReason: provider.finishReason ?? null,
+    refusalPresent: provider.refusalPresent ?? false,
+    parsedPresent: provider.parsedPresent ?? true,
+    inputTokens: provider.inputTokens ?? null,
+    outputTokens: provider.outputTokens ?? null,
+    totalTokens: provider.totalTokens ?? null,
+    jsonParseSucceeded: true,
+    rawContentBytes: null,
+    rawContentChecksum: null,
+    zodIssueCount: null,
+    zodIssuesTruncated: null,
+    completeZodIssuesChecksum: null,
+  });
+}
+
+function providerFailureState(error: unknown): DesignGenerationAttempt["state"] {
+  const diagnostic = diagnosticFor(error) as Record<string, unknown> | undefined;
+  if (diagnostic?.stage === "structured_parse" || diagnostic?.stage === "domain_validation" || diagnostic?.jsonParseSucceeded !== undefined) return "WIRE_FAILED";
+  if (diagnostic?.stage === "provider_normalization") return "DOMAIN_FAILED";
+  return "PROVIDER_FAILED";
+}
+
+function designErrorFromProvider(error: unknown) {
+  if (error instanceof DesignError) return error;
+  if (isAiProviderError(error)) return new DesignError("DESIGN_PROVIDER_FAILED", "Design provider failed.", error, error.diagnostic, error.failureDiagnostic);
+  if (error instanceof z.ZodError) {
+    const directionIssue = error.issues.find((issue) => issue.path[0] === "directions");
+    const countIssue = directionIssue && (directionIssue.code === "too_small" || directionIssue.code === "too_big");
+    return new DesignError(countIssue ? "DESIGN_DIRECTION_COUNT_INVALID" : "DESIGN_DIRECTION_SCHEMA_INVALID", countIssue ? "Design provider returned a direction set with a cardinality other than exactly three." : "Design provider returned a direction set that failed the strict direction contract.", error);
+  }
+  return new DesignError("DESIGN_PROVIDER_FAILED", "Design provider failed.", error);
+}
 
 export class DesignAgentService {
   private readonly projects;
@@ -125,6 +212,21 @@ export class DesignAgentService {
         error,
       );
     }
+  }
+  private async saveAttempt(attempt: DesignGenerationAttempt) {
+    return DesignGenerationAttemptSchema.parse(await this.documents.save(attempt));
+  }
+  private async failAttempt(attempt: DesignGenerationAttempt, state: DesignGenerationAttempt["state"], error: unknown) {
+    const designError = designErrorFromProvider(error);
+    const failureDiagnostic = failureDiagnosticFor(error);
+    return this.saveAttempt(DesignGenerationAttemptSchema.parse({
+      ...attempt,
+      state,
+      updatedAt: now(),
+      failureCode: designError.code,
+      ...(failureDiagnostic ? { failureDiagnostic } : {}),
+      providerObservation: observationFor(error),
+    }));
   }
   private async validateInput(input: DesignAgentInput, allowReady = false) {
     const persistedV3 = await this.documents.get(input.projectId, input.projectVersion, "brief-v3");
@@ -295,11 +397,51 @@ export class DesignAgentService {
       }
       return DesignGenerationResultSchema.parse({ directionSet: persisted, readiness: { readyForSelection: persisted.readyForSelection, blockingReasons: persisted.blockingReasons ?? [], warnings: persisted.warnings ?? [], directionSetChecksum: directionSetChecksum(persisted) } });
     }
+    const architectureReview = await this.documents.get(input.projectId, input.projectVersion, "architecture-review");
+    if (!architectureReview || architectureReview.documentType !== "architecture-review") throw new DesignError("DESIGN_ARCHITECTURE_REVIEW_REQUIRED", "A current approved Architecture Review is required before Design.");
+    const architectureChecksum = checksumPersistedDocument(architectureReview);
+    try { this.provider.preflight?.(); } catch (error) { throw designErrorFromProvider(error); }
+    const existingAttemptDocument = await this.documents.get(input.projectId, input.projectVersion, "design-generation-attempt");
+    let attempt = existingAttemptDocument?.documentType === "design-generation-attempt"
+      ? DesignGenerationAttemptSchema.parse(existingAttemptDocument)
+      : undefined;
+    if (attempt && attempt.operationKey === input.idempotencyKey) {
+      if (attempt.approvedBriefChecksum !== input.approvedBriefChecksum || attempt.acceptedPlanningChecksum !== input.acceptedPlanningChecksum || attempt.architectureChecksum !== architectureChecksum || attempt.expectedRowVersion !== input.expectedRowVersion) throw new DesignError("DESIGN_CONTRACT_STALE", "The Design operation is bound to stale canonical inputs.");
+      if (attempt.state === "PERSISTED" && persisted?.documentType === "design-directions") {
+        try { await this.dependencies.memory.writeSnapshot(input.projectId, input.projectVersion, { "design-directions.json": persisted }); } catch (error) { throw new DesignError("DESIGN_PROVIDER_FAILED", "Design replay could not resynchronize its projection.", error); }
+        return DesignGenerationResultSchema.parse({ directionSet: persisted, readiness: { readyForSelection: persisted.readyForSelection, blockingReasons: persisted.blockingReasons ?? [], warnings: persisted.warnings ?? [], directionSetChecksum: directionSetChecksum(persisted) } });
+      }
+      if (["PROVIDER_FAILED", "WIRE_FAILED", "DOMAIN_FAILED", "ADMISSION_FAILED", "PERSISTENCE_FAILED"].includes(attempt.state)) throw new DesignError((attempt.failureCode as DesignError["code"] | undefined) ?? "DESIGN_PROVIDER_FAILED", "The Design operation has a durable terminal failure and will not be retried.", attempt.failureDiagnostic, undefined, attempt.failureDiagnostic);
+      if (attempt.state === "PROVIDER_STARTED") throw new DesignError("DESIGN_PROVIDER_FAILED", "The Design provider attempt has an indeterminate durable outcome and will not be retried.", attempt.failureDiagnostic, undefined, attempt.failureDiagnostic);
+    } else if (attempt && !options.replaceExisting) {
+      throw new DesignError("IDEMPOTENCY_CONFLICT", "A different Design generation operation is already bound to the current project.");
+    }
+    attempt = DesignGenerationAttemptSchema.parse({
+      schemaVersion: 1,
+      documentType: "design-generation-attempt",
+      projectId: input.projectId,
+      projectVersion: input.projectVersion,
+      createdAt: now(),
+      updatedAt: now(),
+      attemptId: randomUUID(),
+      operationKey: input.idempotencyKey,
+      state: "CREATED",
+      expectedRowVersion: input.expectedRowVersion,
+      approvedBriefChecksum: input.approvedBriefChecksum,
+      acceptedPlanningChecksum: input.acceptedPlanningChecksum,
+      architectureChecksum,
+      selectedSkillIds: [],
+      selectedSkillChecksums: [],
+    });
+    attempt = await this.saveAttempt(attempt);
+    attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({ ...attempt, state: "CLAIMED", updatedAt: now() }));
     const skillSelection = this.resolveSkills
       ? await this.resolveSkills(providerInput)
       : undefined;
+    attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({ ...attempt, selectedSkillIds: skillSelection?.selectedSkillIds ?? [], selectedSkillChecksums: skillSelection?.selectedSkillChecksums ?? [], updatedAt: now() }));
     await this.skills.select({ role: "design", taskType: "visual-direction" });
     await this.explorationTool.explore(providerInput).catch(() => null);
+    attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({ ...attempt, state: "PROVIDER_STARTED", updatedAt: now() }));
     let set: DesignDirectionSet;
     try {
       set = DesignDirectionSetSchema.parse(
@@ -310,30 +452,9 @@ export class DesignAgentService {
         ),
       );
     } catch (error) {
-      if (error instanceof DesignError) throw error;
-      if (error instanceof z.ZodError) {
-        const directionIssue = error.issues.find(
-          (issue) => issue.path[0] === "directions",
-        );
-        const countIssue =
-          directionIssue &&
-          (directionIssue.code === "too_small" ||
-            directionIssue.code === "too_big");
-        throw new DesignError(
-          countIssue
-            ? "DESIGN_DIRECTION_COUNT_INVALID"
-            : "DESIGN_DIRECTION_SCHEMA_INVALID",
-          countIssue
-            ? "Design provider returned a direction set with a cardinality other than exactly three."
-            : "Design provider returned a direction set that failed the strict direction contract.",
-          error,
-        );
-      }
-      throw new DesignError(
-        "DESIGN_PROVIDER_FAILED",
-        "Design provider failed.",
-        error,
-      );
+      const failure = designErrorFromProvider(error);
+      await this.failAttempt(attempt, providerFailureState(error), failure);
+      throw failure;
     }
     if (this.professionalPipeline) {
       try {
@@ -341,18 +462,23 @@ export class DesignAgentService {
       } catch (error) {
         const message = error instanceof Error ? error.message : "";
         const code = message.startsWith("DESIGN_SKILL_NOT_AVAILABLE_THROUGH_APPROVED_SOURCE") ? "DESIGN_SKILL_NOT_AVAILABLE_THROUGH_APPROVED_SOURCE" : message.startsWith("FONTPAIR_") ? "FONTPAIR_SOURCE_INTEGRATION_UNRESOLVED" : message.startsWith("IMPECCABLE_") ? "IMPECCABLE_DETECTOR_INTEGRATION_UNRESOLVED" : message.startsWith("PHASE_7F_EVIDENCE_INVALID") ? "PHASE_7F_EVIDENCE_INVALID" : message.startsWith("UNAPPROVED_DESIGN_DEPENDENCY") ? "UNAPPROVED_DESIGN_DEPENDENCY" : "DESIGN_PROVIDER_FAILED";
-        throw new DesignError(code, "Professional design capability pipeline failed.", error);
+        const failure = new DesignError(code, "Professional design capability pipeline failed.", error);
+        await this.failAttempt(attempt, "ADMISSION_FAILED", failure);
+        throw failure;
       }
     }
     if (
       set.projectId !== input.projectId ||
       set.projectVersion !== input.projectVersion ||
       set.directions.length !== 3
-    )
-      throw new DesignError(
+    ) {
+      const failure = new DesignError(
         "DESIGN_DIRECTION_COUNT_INVALID",
         "Exactly three directions for the current project version are required.",
       );
+      await this.failAttempt(attempt, "DOMAIN_FAILED", failure);
+      throw failure;
+    }
     const readiness = validateDesignDirectionSet(providerInput, set);
     if (!readiness.readyForSelection) {
       const code = readiness.blockingReasons.includes(
@@ -364,11 +490,13 @@ export class DesignAgentService {
           : readiness.blockingReasons.includes("DESIGN_DIRECTION_COUNT_INVALID")
             ? "DESIGN_DIRECTION_COUNT_INVALID"
             : "DESIGN_DIRECTION_SCHEMA_INVALID";
-      throw new DesignError(
+      const failure = new DesignError(
         code,
         `Design provider output was rejected: ${readiness.blockingReasons.slice(0, 8).join(", ") || "strict readiness validation failed"}.`,
         readiness,
       );
+      await this.failAttempt(attempt, "ADMISSION_FAILED", failure);
+      throw failure;
     }
     const generatedAt = now();
     set = DesignDirectionSetSchema.parse({
@@ -386,12 +514,20 @@ export class DesignAgentService {
       acceptedPlanningChecksum: input.acceptedPlanningChecksum,
       generationIdempotencyKey: input.idempotencyKey,
     });
+    const completedAttempt = DesignGenerationAttemptSchema.parse({
+      ...attempt,
+      state: "PERSISTED",
+      updatedAt: generatedAt,
+      providerObservation: observationForSet(set),
+    });
     const persistedSet = await this.dependencies.database.transaction(async (tx) => {
       const projectRow = await tx.getProject(input.projectId);
       const briefRow = await tx.getDocument(input.projectId, input.projectVersion, "requirements");
       const planningRow = await tx.getDocument(input.projectId, input.projectVersion, "planning-package");
       const reviewRow = await tx.getDocument(input.projectId, input.projectVersion, "architecture-review");
       if (!projectRow || projectRow.current_version !== input.projectVersion || projectRow.workflow_state !== "AWAITING_DESIGN_SELECTION" || projectRow.row_version !== input.expectedRowVersion) throw new DesignError("DESIGN_SELECTION_STALE", "Design generation became stale before its canonical commit.");
+      const attemptRow = await tx.getDocument(input.projectId, input.projectVersion, "design-generation-attempt");
+      if (!attemptRow || attemptRow.checksum !== checksumPersistedDocument(attempt)) throw new DesignError("DESIGN_CONTRACT_STALE", "The Design provider attempt changed before its canonical commit.");
       const brief = briefRow ? mapRowToDocument(briefRow) : null;
       const planning = planningRow ? mapRowToDocument(planningRow) : null;
       const review = reviewRow ? mapRowToDocument(reviewRow) : null;
@@ -407,7 +543,12 @@ export class DesignAgentService {
         const existing = mapRowToDocument(existingRow);
         if (existing.documentType === "design-directions" && existing.approvedBriefChecksum === input.approvedBriefChecksum && existing.acceptedPlanningChecksum === input.acceptedPlanningChecksum) return existing;
       }
+      await saveDocumentInTransaction(tx, completedAttempt);
       return saveDocumentInTransaction(tx, set, `design-directions-${input.projectId}-${input.projectVersion}-${input.idempotencyKey}`);
+    }).catch(async (error) => {
+      const failure = designErrorFromProvider(error);
+      await this.failAttempt(attempt, "PERSISTENCE_FAILED", failure);
+      throw failure;
     });
     try {
       await this.dependencies.memory.writeSnapshot(input.projectId, input.projectVersion, { "design-directions.json": persistedSet });

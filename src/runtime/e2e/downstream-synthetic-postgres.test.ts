@@ -170,7 +170,7 @@ describePostgres("synthetic downstream lifecycle on real Postgres", () => {
     expect(await documents.get(brief.projectId, 1, "design-directions")).toBeNull();
     expect(await documents.get(brief.projectId, 1, "selected-design")).toBeNull();
     const design = new DesignAgentService({ database, memory: new FakeDesignMemoryPort(), professionalPipeline, provider: { proposeDesignDirections: async (input) => providerShapedDirections(input) } });
-    const generated = await design.generateDesignDirections(designInput);
+    const generated = await design.generateDesignDirections({ ...designInput, idempotencyKey: `${designInput.idempotencyKey}-replacement` }, { replaceExisting: true });
     expect(generated.directionSet.directions).toHaveLength(3);
     expect(generated.directionSet.directions.every((direction) => direction.professionalDesign?.currentness.status === "CURRENT")).toBe(true);
     expect(generated.directionSet.professionalCapability?.directions).toHaveLength(3);

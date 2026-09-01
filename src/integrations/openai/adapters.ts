@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { LeadAnalysisProvider } from "@/agents/lead/ports";
 import {
   BriefDraftSchema,
@@ -348,30 +348,10 @@ export const BriefDraftStructuredOutputSchema = BriefDraftSchema.omit({ projectI
 // Professional design contracts are host-bound after model generation; they
 // are intentionally excluded from the model transport shape so the strict
 // provider schema does not become a second source of design authority.
-const StrictDesignDirectionSchema = DesignDirectionSchema.omit({ professionalDesign: true }).required();
-const StrictDesignProviderSchema = z
-  .object({
-    name: NonEmptyStringSchema,
-    used: z.boolean(),
-    inputTokens: z.number().int().nonnegative(),
-    outputTokens: z.number().int().nonnegative(),
-  })
-  .strict();
-const { professionalCapability: _professionalCapability, ...DesignDirectionSetTransportShape } = withoutProjectIdentity(DesignDirectionSetSchema.shape);
-void _professionalCapability;
+const StrictDesignDirectionSchema = DesignDirectionSchema.omit({ id: true, professionalDesign: true }).required();
+/** Provider-authored semantic directions only; all set, identity, and lifecycle metadata is host-owned. */
 export const DesignDirectionStructuredOutputSchema = z
-  .object({
-    ...DesignDirectionSetTransportShape,
-    directions: z.array(StrictDesignDirectionSchema).length(3),
-    approvedBriefChecksum: z.string().nullable(),
-    acceptedPlanningChecksum: z.string().nullable(),
-    blockingReasons: z.array(NonEmptyStringSchema),
-    warnings: z.array(NonEmptyStringSchema),
-    directionSetChecksum: z.string().nullable(),
-    provider: StrictDesignProviderSchema,
-    supersedesSetId: z.string().nullable(),
-    supersededAt: z.string().nullable(),
-  })
+  .object({ directions: z.array(StrictDesignDirectionSchema).length(3) })
   .strict()
   .required();
 export const isWorkflowApprovalBlocker = (text: string) =>
@@ -1283,38 +1263,55 @@ const DESIGN_OPTIONAL_KEYS = [
 function normalizeDesignDirectionSet(
   value: z.infer<typeof DesignDirectionStructuredOutputSchema>,
   host: { projectId: string; projectVersion: number },
+  provider: { requestId: string; model: string; usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number }; diagnostic?: ProviderDiagnostic },
 ): DesignDirectionSet {
-  const normalized = bindProjectIdentity({
-    ...value,
-    directions: value.directions.map((direction) =>
-      omitNull(direction, DESIGN_OPTIONAL_KEYS),
-    ),
-    ...(value.approvedBriefChecksum === null
-      ? {}
-      : { approvedBriefChecksum: value.approvedBriefChecksum }),
-    ...(value.acceptedPlanningChecksum === null
-      ? {}
-      : { acceptedPlanningChecksum: value.acceptedPlanningChecksum }),
-    ...(value.directionSetChecksum === null
-      ? {}
-      : { directionSetChecksum: value.directionSetChecksum }),
-    ...(value.supersedesSetId === null
-      ? {}
-      : { supersedesSetId: value.supersedesSetId }),
-    ...(value.supersededAt === null
-      ? {}
-      : { supersededAt: value.supersededAt }),
-  }, host) as DesignDirectionSet;
-  delete (normalized as unknown as { approvedBriefChecksum?: unknown })
-    .approvedBriefChecksum;
-  delete (normalized as unknown as { acceptedPlanningChecksum?: unknown })
-    .acceptedPlanningChecksum;
-  delete (normalized as unknown as { directionSetChecksum?: unknown })
-    .directionSetChecksum;
-  delete (normalized as unknown as { supersedesSetId?: unknown })
-    .supersedesSetId;
-  delete (normalized as unknown as { supersededAt?: unknown }).supersededAt;
-  return DesignDirectionSetSchema.parse(normalized);
+  const generatedAt = new Date().toISOString();
+  try {
+    return DesignDirectionSetSchema.parse({
+      schemaVersion: 1,
+      documentType: "design-directions",
+      projectId: host.projectId,
+      projectVersion: host.projectVersion,
+      createdAt: generatedAt,
+      updatedAt: generatedAt,
+      setId: randomUUID(),
+      directions: value.directions.map((direction) => ({
+        ...omitNull(direction, DESIGN_OPTIONAL_KEYS),
+        id: randomUUID(),
+      })),
+      generatedAt,
+      generatedBy: "openai-design-provider",
+      readyForSelection: true,
+      provider: {
+        name: "openai",
+        used: true,
+        model: provider.model,
+        requestId: provider.requestId,
+        ...(provider.diagnostic?.responseReceived === undefined ? {} : { responseReceived: provider.diagnostic.responseReceived }),
+        ...(provider.diagnostic?.finishReason === undefined ? {} : { finishReason: provider.diagnostic.finishReason }),
+        ...(provider.diagnostic?.refusalPresent === undefined ? {} : { refusalPresent: provider.diagnostic.refusalPresent }),
+        ...(provider.diagnostic?.parsedPresent === undefined ? {} : { parsedPresent: provider.diagnostic.parsedPresent }),
+        ...(provider.usage.inputTokens === undefined ? {} : { inputTokens: provider.usage.inputTokens }),
+        ...(provider.usage.outputTokens === undefined ? {} : { outputTokens: provider.usage.outputTokens }),
+        ...(provider.usage.totalTokens === undefined ? {} : { totalTokens: provider.usage.totalTokens }),
+      },
+    });
+  } catch (error) {
+    throw new AiProviderError("AI_OUTPUT_INVALID", "Provider output could not be normalized into the Design direction contract.", undefined, {
+      ...provider.diagnostic,
+      stage: "provider_normalization",
+      outputStage: "HOST_MAPPING_FAILED",
+      requestAttempted: provider.diagnostic?.requestAttempted ?? true,
+      apiResponseReceived: provider.diagnostic?.apiResponseReceived ?? true,
+      responseReceived: provider.diagnostic?.responseReceived ?? true,
+      outputComplete: provider.diagnostic?.outputComplete ?? true,
+      schemaName: provider.diagnostic?.schemaName ?? "design-direction-set",
+      issueCode: zodIssueCode(error),
+      fieldPath: zodIssuePaths(error)?.[0],
+      issueCount: zodIssueCount(error),
+      domainValidationIssuePaths: zodIssuePaths(error),
+    });
+  }
 }
 
 export class OpenAiLeadProvider implements LeadAnalysisProvider {
@@ -1588,6 +1585,9 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
 }
 export class OpenAiDesignProvider implements DesignDirectionProvider {
   constructor(private readonly ai: OpenAiStructuredClient) {}
+  preflight() {
+    buildProductionResponseFormat(DesignDirectionStructuredOutputSchema, "design-direction-set");
+  }
   async proposeDesignDirections(
     input: Parameters<DesignDirectionProvider["proposeDesignDirections"]>[0],
     approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
@@ -1610,8 +1610,10 @@ export class OpenAiDesignProvider implements DesignDirectionProvider {
       schema: DesignDirectionStructuredOutputSchema,
       schemaName: "design-direction-set",
       idempotencyKey: `${input.idempotencyKey}:${skillContextIdentity}`,
+      retryPolicy: { maxRetries: 0, corrections: 0 },
+      parseStrategy: "manual",
     });
-    return normalizeDesignDirectionSet(result.value, { projectId: input.projectId, projectVersion: input.projectVersion });
+    return normalizeDesignDirectionSet(result.value, { projectId: input.projectId, projectVersion: input.projectVersion }, { requestId: result.requestId, model: result.usage.model, usage: result.usage, diagnostic: result.diagnostic });
   }
 }
 export class OpenAiImplementationProvider implements ImplementationProvider {
