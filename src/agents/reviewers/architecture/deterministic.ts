@@ -5,9 +5,36 @@ import type { ArchitectureReviewInput } from "./contracts";
 import type { ArchitectureReviewProvider } from "./ports";
 
 const finding = (findingId: string, category: ArchitectureReviewResult["findings"][number]["category"], severity: ArchitectureReviewResult["findings"][number]["severity"], summary: string, evidenceRefs: string[], recommendedAction: string) => ({ findingId, category, severity, summary, evidenceRefs, affectedArtifacts: evidenceRefs, recommendedAction });
-const hasPersistenceRequirement = (input: ArchitectureReviewInput) => [...input.approvedBrief.features, ...input.approvedBrief.forms, ...input.approvedBrief.backendRequirements, ...input.approvedBrief.supabaseRequirements].some((value) => /persist|database|store|save|submission|record/i.test(value));
+const hasPersistenceRequirement = (input: ArchitectureReviewInput) => {
+  const canonical = input.canonicalBrief;
+  if (canonical) {
+    return canonical.decisions.database.mode !== "NONE"
+      || canonical.decisions.form.persistenceMode === "DATABASE"
+      || canonical.decisions.form.serverProcessingMode === "SERVER";
+  }
+  return input.approvedBrief.backendRequirements.length > 0
+    || input.approvedBrief.supabaseRequirements.length > 0;
+};
 const isStaticProfile = (input: ArchitectureReviewInput) => input.acceptedPlanningPackage.profile.selectedProfile === "marketing-site" && input.approvedBrief.backendRequirements.length === 0 && input.approvedBrief.supabaseRequirements.length === 0 && input.approvedBrief.authenticationDecision !== "authentication-required";
 const hasDuplicate = (values: string[]) => new Set(values).size !== values.length;
+const canonicalPagePath = (slug: string) => slug === "home" || slug === "index"
+  ? "/"
+  : "/" + slug.replace(/^\//, "").replace(/[^a-z0-9-]/g, "-");
+
+const usesCanonicalNoBackendDecision = (input: ArchitectureReviewInput) => {
+  const canonical = input.canonicalBrief;
+  if (!canonical) return null;
+  const form = canonical.decisions.form;
+  return canonical.decisions.database.mode === "NONE"
+    && canonical.decisions.auth.mode === "NONE"
+    && canonical.decisions.analytics.mode === "NONE"
+    && form.transmissionMode === "NONE"
+    && form.persistenceMode === "NONE"
+    && form.serverProcessingMode === "NONE"
+    && form.externalProviderMode === "NONE"
+    && input.approvedBrief.backendRequirements.length === 0
+    && input.approvedBrief.supabaseRequirements.length === 0;
+};
 const canonicalBriefEvidence = [
   "brief:projectId", "brief:projectVersion", "brief:projectSummary", "brief:protectedFunctionalityRequired", "brief:imagesRequired", "brief:businessGoals", "brief:targetAudiences", "brief:pages", "brief:userRoles", "brief:features", "brief:forms", "brief:contentRequirements", "brief:backendRequirements", "brief:supabaseRequirements", "brief:authenticationDecision", "brief:storageDecision", "brief:emailDecision", "brief:administrationDecision", "brief:seoRequirements", "brief:localization", "brief:imageSourceDecision", "brief:suppliedBrandInformation", "brief:suppliedLogoLocation", "brief:technicalConstraints", "brief:explicitExclusions", "brief:userAcceptanceCriteria", "brief:unresolvedItems", "brief:unresolved:blockingStages", "brief:approval", "brief:projectTitle", "brief:contactFacts", "brief:legalFacts", "brief:brandFacts", "brief:logoMetadata", "brief:imageSourcingNotes", "brief:evidence", "brief:recommendations", "brief:briefStatus", "brief:briefVersion", "brief:briefApprovalNote",
 ] as const;
@@ -24,12 +51,24 @@ export function canonicalArchitectureEvidence(input: ArchitectureReviewInput) {
 export function deterministicArchitectureReview(input: ArchitectureReviewInput) {
   const planning = input.acceptedPlanningPackage;
   const findings: ArchitectureReviewResult["findings"] = [];
-  const noBackend = isNoBackendBrief(input.approvedBrief);
+  const noBackend = usesCanonicalNoBackendDecision(input) ?? isNoBackendBrief(input.approvedBrief);
   if (noBackend && planning.architecture.backendPriority.length > 0) findings.push(finding("architecture-backend-priority-conflict", "CONTRADICTORY_DECISION", "ERROR", "The approved Brief requires a frontend-only project, but Planning still declares backend processing priorities.", ["brief:backendRequirements", "brief:supabaseRequirements", "planning:architecture", "planning:supabase"], "Set backendPriority to an empty array and keep server actions, route handlers, Supabase capabilities, and persisted data disabled."));
   if (noBackend && (planning.architecture.serverActions.length > 0 || planning.architecture.routeHandlers.length > 0 || planning.architecture.supabaseDatabaseRequirements.length > 0 || planning.architecture.schemaPlan.length > 0 || planning.architecture.rlsRequirements.length > 0 || planning.architecture.environmentVariables.some((variable) => variable.required) || planning.dataModel.entities.length > 0 || planning.supabase.postgres || planning.supabase.auth || planning.supabase.storage || planning.supabase.realtime || planning.supabase.edgeFunctions || planning.supabase.environmentVariables.length > 0 || planning.authentication.decision !== "none" || planning.authentication.required || planning.storage.decision !== "not-required" || planning.email.decision !== "not-required" || planning.administration.decision !== "no-admin")) findings.push(finding("architecture-no-backend-capability-conflict", "CONTRADICTORY_DECISION", "ERROR", "The approved Brief requires a frontend-only project, but Planning contains an active backend capability.", ["brief:backendRequirements", "brief:supabaseRequirements", "brief:authenticationDecision", "brief:storageDecision", "brief:emailDecision", "planning:architecture", "planning:dataModel", "planning:supabase", "planning:authentication", "planning:storage", "planning:email"], "Remove the active backend capability without changing the approved product requirements."));
   if (isStaticProfile(input) && (planning.authentication.decision !== "none" || planning.dataModel.entities.length > 0 || planning.supabase.postgres || planning.storage.decision !== "not-required" || planning.email.decision !== "not-required" || planning.administration.decision !== "no-admin")) findings.push(finding("unnecessary-infrastructure", "UNNECESSARY_COMPLEXITY", "ERROR", "Planning introduces infrastructure beyond the approved static-site requirements.", ["brief:features", "brief:backendRequirements", "planning:authentication", "planning:dataModel", "planning:supabase", "planning:storage", "planning:email", "planning:administration"], "Remove infrastructure not justified by the approved Brief."));
   if (hasPersistenceRequirement(input) && (planning.dataModel.entities.length === 0 || !planning.supabase.postgres)) findings.push(finding("missing-persistence-architecture", "DATA_ARCHITECTURE", "ERROR", "Approved requirements describe persistent data, but Planning does not provide a persistence architecture.", ["brief:backendRequirements", "brief:forms", "planning:dataModel", "planning:supabase"], "Define the minimal persistence model and its approved Supabase boundary."));
   if (planning.sitemap.routes.some((route) => route.visibility === "protected") && planning.authentication.decision === "none") findings.push(finding("protected-route-without-auth", "AUTH_ARCHITECTURE", "ERROR", "Planning declares a protected route while authentication is disabled.", ["planning:sitemap", "planning:authentication"], "Resolve the authentication decision or make the route public."));
+  if (input.canonicalBrief) {
+    const expectedRoutePolicy = input.canonicalBrief.decisions.routePolicy.mode;
+    const actualPaths = planning.sitemap.routes.map((route) => route.path);
+    const expectedPaths = input.canonicalBrief.pages.map((page) => canonicalPagePath(page.slug));
+    if (expectedRoutePolicy !== "UNRESOLVED" && planning.routePolicy !== expectedRoutePolicy)
+      findings.push(finding("route-policy-mismatch", "REQUIREMENT_TRACEABILITY", "ERROR", "The accepted Planning route policy does not match the canonical route-policy decision.", ["brief:pages", "planning:productScope", "planning:sitemap"], "Preserve the canonical route policy in accepted Planning and its Architecture projection."));
+    if (JSON.stringify(actualPaths) !== JSON.stringify(expectedPaths))
+      findings.push(finding("route-model-mismatch", "REQUIREMENT_TRACEABILITY", "ERROR", "The accepted Planning route model does not preserve the canonical page routes.", ["brief:pages", "planning:sitemap", "planning:pages"], "Project every canonical page route exactly once and keep page responsibilities bound to those routes."));
+    const canonicalForm = input.canonicalBrief.decisions.form;
+    if (canonicalForm.mode === "SIMULATED" && canonicalForm.transmissionMode === "NONE" && canonicalForm.persistenceMode === "NONE" && canonicalForm.serverProcessingMode === "NONE" && canonicalForm.externalProviderMode === "NONE" && planning.forms.forms.some((form) => form.submissionMechanism !== "client-only"))
+      findings.push(finding("client-only-form-mismatch", "SERVER_CLIENT_BOUNDARY", "ERROR", "The canonical form decision is client-only and simulated, but Planning selects a non-client-only submission mechanism.", ["brief:forms", "planning:forms", "planning:architecture"], "Keep the form on the client with local validation, simulated success, and no transmission, persistence, server processing, or external provider."));
+  }
   const routeIds = planning.sitemap.routes.map((route) => route.id);
   if (hasDuplicate(routeIds) || hasDuplicate(planning.pages.pages.map((page) => page.id)) || hasDuplicate(planning.forms.forms.map((form) => form.id))) findings.push(finding("unstable-domain-identifiers", "IDENTITY_MODEL", "ERROR", "Planning contains duplicate internal identifiers.", ["planning:sitemap", "planning:pages", "planning:forms"], "Assign unique stable language-independent identifiers."));
   for (const form of planning.forms.forms) for (const field of form.fields) if ("fieldId" in field && field.fieldId === field.label) findings.push(finding(`localized-identity-${form.id}-${field.fieldId.toLowerCase()}`, "IDENTITY_MODEL", "ERROR", "A user-facing field label is also used as the internal field identity.", [`form:${form.id}`, "planning:forms"], "Use a stable English machine fieldId and keep the localized label separate."));
@@ -47,6 +86,6 @@ export function deterministicArchitectureReview(input: ArchitectureReviewInput) 
 }
 
 export class DeterministicArchitectureReviewProvider implements ArchitectureReviewProvider {
-  readonly promptVersion = "architecture-reviewer.v1";
+  readonly promptVersion = "architecture-reviewer.v2";
   async review(input: ArchitectureReviewInput) { return deterministicArchitectureReview(input); }
 }

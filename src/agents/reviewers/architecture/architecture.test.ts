@@ -106,7 +106,7 @@ async function stateOf(database: PersistenceDatabase, projectId: string) {
   }));
 }
 
-const deterministicProvider = { promptVersion: "architecture-reviewer.v1", review: async (input: ArchitectureReviewInput) => deterministicArchitectureReview(input) };
+const deterministicProvider = { promptVersion: "architecture-reviewer.v2", review: async (input: ArchitectureReviewInput) => deterministicArchitectureReview(input) };
 
 describe("Architecture Reviewer", () => {
   it("has a read-only catalog definition and review-only prompt", () => {
@@ -119,6 +119,29 @@ describe("Architecture Reviewer", () => {
   it("approves a minimal valid architecture deterministically", async () => {
     const fixture = await createFixture();
     expect(deterministicArchitectureReview(fixture.input).verdict).toBe("APPROVED");
+  });
+
+  it("does not infer persistence from lossless client-only form wording", () => {
+    const v2 = emptyBriefV2Fields();
+    const brief = baseBrief({
+      ...v2,
+      forms: ["The contact submission is simulated locally and is never transmitted."],
+      formBehaviorRequirements: {
+        ...v2.formBehaviorRequirements,
+        formPresent: true,
+        validation: "ACTIVE",
+        successUx: "SIMULATED",
+        dataTransmission: "NONE",
+        persistence: "NONE",
+        thirdParty: "NONE",
+        privacyCheckbox: "REQUIRED",
+      },
+    });
+    const planning = PlanningPackageSchema.parse({ ...acceptedPlanning(brief), blockers: [] });
+    const result = deterministicArchitectureReview(reviewInput(brief, planning));
+
+    expect(result.verdict).toBe("APPROVED");
+    expect(result.findings.map((item) => item.findingId)).not.toContain("missing-persistence-architecture");
   });
 
   it("allows the bounded transport layer to compact duplicated supporting context", async () => {
@@ -174,7 +197,7 @@ describe("Architecture Reviewer", () => {
 
   it("rejects a provider-authored legacy policy field as an invalid semantic proposal", async () => {
     const fixture = await createFixture();
-    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => ({ ...deterministicArchitectureReview(fixture.input), policyVersion: "provider-authored-old-policy" } as unknown as ReturnType<typeof deterministicArchitectureReview>) };
+    const provider = { promptVersion: "architecture-reviewer.v2", review: async () => ({ ...deterministicArchitectureReview(fixture.input), policyVersion: "provider-authored-old-policy" } as unknown as ReturnType<typeof deterministicArchitectureReview>) };
     await expect(new ArchitectureReviewService(fixture.database, { provider }).review(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_OUTPUT_INVALID" });
     const state = await stateOf(fixture.database, fixture.brief.projectId);
     expect(state.review).toBeNull();
@@ -184,7 +207,7 @@ describe("Architecture Reviewer", () => {
 
   it("rejects a malformed semantic proposal without canonical writes", async () => {
     const fixture = await createFixture();
-    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => ({ verdict: "APPROVED", findings: [], reviewedArtifactRefs: [] } as never) };
+    const provider = { promptVersion: "architecture-reviewer.v2", review: async () => ({ verdict: "APPROVED", findings: [], reviewedArtifactRefs: [] } as never) };
     await expect(new ArchitectureReviewService(fixture.database, { provider }).review(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_OUTPUT_INVALID" });
     const state = await stateOf(fixture.database, fixture.brief.projectId);
     expect(state.review).toBeNull();
@@ -194,7 +217,7 @@ describe("Architecture Reviewer", () => {
 
   it("rejects a provider-authored canonical evidence path without canonical writes", async () => {
     const fixture = await createFixture();
-    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => ({ verdict: "APPROVED", findings: [], reviewedArtifactRefs: ["acceptedPlanningPackage.architecture"] }) as never };
+    const provider = { promptVersion: "architecture-reviewer.v2", review: async () => ({ verdict: "APPROVED", findings: [], reviewedArtifactRefs: ["acceptedPlanningPackage.architecture"] }) as never };
     await expect(new ArchitectureReviewService(fixture.database, { provider }).review(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_OUTPUT_INVALID" });
     const state = await stateOf(fixture.database, fixture.brief.projectId);
     expect(state.review).toBeNull();
@@ -206,7 +229,7 @@ describe("Architecture Reviewer", () => {
     const fixture = await createFixture();
     let policy = "architecture-review-p1";
     const authority = () => policy;
-    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => { policy = "architecture-review-p2"; return deterministicArchitectureReview(fixture.input); } };
+    const provider = { promptVersion: "architecture-reviewer.v2", review: async () => { policy = "architecture-review-p2"; return deterministicArchitectureReview(fixture.input); } };
     const service = new ArchitectureReviewService(fixture.database, { provider, policyVersion: authority });
     await expect(new ArchitectureReviewOrchestrationService(fixture.database, service, { policyVersion: authority }).reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE", message: expect.stringMatching(/policy changed/i) });
     const state = await stateOf(fixture.database, fixture.brief.projectId);
@@ -247,7 +270,7 @@ describe("Architecture Reviewer", () => {
     expect(checksumPersistedDocument(current)).not.toBe(checksumPersistedDocument(fixture.planning));
     const input = { ...fixture.input, acceptedPlanningPackage: current, acceptedPlanningChecksum: checksumPersistedDocument(current) };
     let providerCalls = 0;
-    const provider = { promptVersion: "architecture-reviewer.v1", review: async (reviewInput: ArchitectureReviewInput) => { providerCalls += 1; return deterministicArchitectureReview(reviewInput); } };
+    const provider = { promptVersion: "architecture-reviewer.v2", review: async (reviewInput: ArchitectureReviewInput) => { providerCalls += 1; return deterministicArchitectureReview(reviewInput); } };
     await expect(new ArchitectureReviewOrchestrationService(fixture.database, new ArchitectureReviewService(fixture.database, { provider })).reviewAndRoute(input)).resolves.toMatchObject({ projectState: "AWAITING_DESIGN_SELECTION" });
     const state = await stateOf(fixture.database, fixture.brief.projectId);
     expect(providerCalls).toBe(1);
@@ -263,7 +286,7 @@ describe("Architecture Reviewer", () => {
     await documents.save(changed);
     const input = { ...fixture.input, acceptedPlanningPackage: changed, acceptedPlanningChecksum: checksumPersistedDocument(changed) };
     let providerCalls = 0;
-    const provider = { promptVersion: "architecture-reviewer.v1", review: async (reviewInput: ArchitectureReviewInput) => { providerCalls += 1; return deterministicArchitectureReview(reviewInput); } };
+    const provider = { promptVersion: "architecture-reviewer.v2", review: async (reviewInput: ArchitectureReviewInput) => { providerCalls += 1; return deterministicArchitectureReview(reviewInput); } };
     await expect(new ArchitectureReviewOrchestrationService(fixture.database, new ArchitectureReviewService(fixture.database, { provider })).reviewAndRoute(input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE" });
     const state = await stateOf(fixture.database, fixture.brief.projectId);
     expect(providerCalls).toBe(0);
@@ -279,7 +302,7 @@ describe("Architecture Reviewer", () => {
       canonicalBrief: { ...fixture.briefV3.brief, summary: "Synthetic stale canonical payload." },
     };
     let providerCalls = 0;
-    const provider = { promptVersion: "architecture-reviewer.v1", review: async (reviewInput: ArchitectureReviewInput) => { providerCalls += 1; return deterministicArchitectureReview(reviewInput); } };
+    const provider = { promptVersion: "architecture-reviewer.v2", review: async (reviewInput: ArchitectureReviewInput) => { providerCalls += 1; return deterministicArchitectureReview(reviewInput); } };
     await expect(new ArchitectureReviewOrchestrationService(fixture.database, new ArchitectureReviewService(fixture.database, { provider })).reviewAndRoute(input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE" });
     expect(providerCalls).toBe(0);
     expect((await stateOf(fixture.database, fixture.brief.projectId)).review).toBeNull();
@@ -293,7 +316,7 @@ describe("Architecture Reviewer", () => {
     const planningDocumentChecksum = checksumPersistedDocument(fixture.planning);
     await documents.save({ ...phase7c, planningChecksum: planningDocumentChecksum, currentness: { ...phase7c.currentness, derivedFromChecksum: planningDocumentChecksum }, updatedAt: "2026-08-23T12:00:01.000Z" });
     let providerCalls = 0;
-    const provider = { promptVersion: "architecture-reviewer.v1", review: async (reviewInput: ArchitectureReviewInput) => { providerCalls += 1; return deterministicArchitectureReview(reviewInput); } };
+    const provider = { promptVersion: "architecture-reviewer.v2", review: async (reviewInput: ArchitectureReviewInput) => { providerCalls += 1; return deterministicArchitectureReview(reviewInput); } };
     await expect(new ArchitectureReviewOrchestrationService(fixture.database, new ArchitectureReviewService(fixture.database, { provider })).reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE", message: expect.stringMatching(/Phase 7C/) });
     expect(providerCalls).toBe(0);
     expect((await stateOf(fixture.database, fixture.brief.projectId)).review).toBeNull();
@@ -306,7 +329,7 @@ describe("Architecture Reviewer", () => {
     const providerResult = label === "BLOCKED"
       ? { verdict: "BLOCKED" as const, findings: [], reviewedArtifactRefs: [planningArchitectureId], blockedReason: "Synthetic canonical evidence block." }
       : { verdict: "CHANGES_REQUIRED" as const, findings: [{ findingId: "missing-decision", category: "MISSING_DECISION" as const, severity: "ERROR" as const, summary: "A decision is missing.", evidenceRefs: [planningArchitectureId], affectedArtifacts: [planningArchitectureId], recommendedAction: "Resolve the decision." }], reviewedArtifactRefs: [planningArchitectureId] };
-    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => providerResult as unknown as ArchitectureReviewResult };
+    const provider = { promptVersion: "architecture-reviewer.v2", review: async () => providerResult as unknown as ArchitectureReviewResult };
     const result = await new ArchitectureReviewOrchestrationService(fixture.database, new ArchitectureReviewService(fixture.database, { provider })).reviewAndRoute(fixture.input);
     const state = await stateOf(fixture.database, fixture.brief.projectId);
     expect(result.projectState).toBe("ARCHITECTURE_REVIEW");
@@ -332,7 +355,7 @@ describe("Architecture Reviewer", () => {
     const fixture = await createFixture();
     const semanticBefore = planningSemanticChecksum(fixture.planning);
     let providerCalls = 0;
-    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => { providerCalls += 1; const current = await new DocumentRepository(fixture.database).get(fixture.brief.projectId, 1, "planning-package"); if (!current || current.documentType !== "planning-package") throw new Error("fixture planning missing"); await new DocumentRepository(fixture.database).save({ ...current, updatedAt: "2026-08-23T12:01:00.000Z" }); return deterministicArchitectureReview(fixture.input); } };
+    const provider = { promptVersion: "architecture-reviewer.v2", review: async () => { providerCalls += 1; const current = await new DocumentRepository(fixture.database).get(fixture.brief.projectId, 1, "planning-package"); if (!current || current.documentType !== "planning-package") throw new Error("fixture planning missing"); await new DocumentRepository(fixture.database).save({ ...current, updatedAt: "2026-08-23T12:01:00.000Z" }); return deterministicArchitectureReview(fixture.input); } };
     const service = new ArchitectureReviewService(fixture.database, { provider });
     await expect(new ArchitectureReviewOrchestrationService(fixture.database, service).reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE" });
     const current = await new DocumentRepository(fixture.database).get(fixture.brief.projectId, 1, "planning-package");
@@ -348,7 +371,7 @@ describe("Architecture Reviewer", () => {
 
   it.each(["architecture", "phase-7c-contract-package"] as const)("rejects a stale %s artifact at the commit boundary", async (documentType) => {
     const fixture = await createFixture();
-    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => { const current = await new DocumentRepository(fixture.database).get(fixture.brief.projectId, 1, documentType); if (!current) throw new Error("fixture document missing"); await new DocumentRepository(fixture.database).save({ ...current, updatedAt: "2026-08-23T12:01:00.000Z" }); return deterministicArchitectureReview(fixture.input); } };
+    const provider = { promptVersion: "architecture-reviewer.v2", review: async () => { const current = await new DocumentRepository(fixture.database).get(fixture.brief.projectId, 1, documentType); if (!current) throw new Error("fixture document missing"); await new DocumentRepository(fixture.database).save({ ...current, updatedAt: "2026-08-23T12:01:00.000Z" }); return deterministicArchitectureReview(fixture.input); } };
     const service = new ArchitectureReviewService(fixture.database, { provider });
     await expect(new ArchitectureReviewOrchestrationService(fixture.database, service).reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE" });
     const state = await stateOf(fixture.database, fixture.brief.projectId);
@@ -359,7 +382,7 @@ describe("Architecture Reviewer", () => {
 
   it("rejects a stale project-version row at the commit boundary", async () => {
     const fixture = await createFixture();
-    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => {
+    const provider = { promptVersion: "architecture-reviewer.v2", review: async () => {
       await fixture.database.transaction((tx) => tx.updateVersionRequirementsChecksum({ projectId: fixture.brief.projectId, version: 1, expectedRowVersion: 1, checksum: "a".repeat(64), updatedAt: "2026-08-23T12:01:00.000Z" }));
       return deterministicArchitectureReview(fixture.input);
     } };
@@ -375,7 +398,7 @@ describe("Architecture Reviewer", () => {
     const fixture = await createFixture();
     const first = new ArchitectureReviewService(fixture.database, { provider: deterministicProvider });
     await expect(new ArchitectureReviewOrchestrationService(fixture.database, first).reviewAndRoute(fixture.input)).resolves.toMatchObject({ projectState: "AWAITING_DESIGN_SELECTION" });
-    const second = new ArchitectureReviewService(fixture.database, { provider: { promptVersion: "architecture-reviewer.v1", review: async () => { throw new Error("provider must not run on replay"); } } });
+    const second = new ArchitectureReviewService(fixture.database, { provider: { promptVersion: "architecture-reviewer.v2", review: async () => { throw new Error("provider must not run on replay"); } } });
     await expect(new ArchitectureReviewOrchestrationService(fixture.database, second).reviewAndRoute(fixture.input)).resolves.toMatchObject({ projectState: "AWAITING_DESIGN_SELECTION", projectionStatus: "REPLAYED" });
     const state = await stateOf(fixture.database, fixture.brief.projectId);
     expect(state.decisions).toHaveLength(1);
@@ -493,7 +516,7 @@ describePostgres("Architecture Review real Postgres certification", () => {
     const fixture = await createFixture(database);
     postgresProjectIds.push(fixture.brief.projectId);
     let providerCalls = 0;
-    const provider = { promptVersion: "architecture-reviewer.v1", review: async (reviewInput: ArchitectureReviewInput) => {
+    const provider = { promptVersion: "architecture-reviewer.v2", review: async (reviewInput: ArchitectureReviewInput) => {
       providerCalls += 1;
       return { ...deterministicArchitectureReview(reviewInput), reviewedArtifactRefs: [`E${"f".repeat(16)}-999`] };
     } };
@@ -532,7 +555,7 @@ describePostgres("Architecture Review real Postgres certification", () => {
     await documents.save(changed);
     const input = { ...fixture.input, acceptedPlanningPackage: changed, acceptedPlanningChecksum: checksumPersistedDocument(changed) };
     let providerCalls = 0;
-    const provider = { promptVersion: "architecture-reviewer.v1", review: async (reviewInput: ArchitectureReviewInput) => { providerCalls += 1; return deterministicArchitectureReview(reviewInput); } };
+    const provider = { promptVersion: "architecture-reviewer.v2", review: async (reviewInput: ArchitectureReviewInput) => { providerCalls += 1; return deterministicArchitectureReview(reviewInput); } };
     await expect(new ArchitectureReviewOrchestrationService(database, new ArchitectureReviewService(database, { provider })).reviewAndRoute(input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE" });
     expect(providerCalls).toBe(0);
     expect((await stateOf(database, fixture.brief.projectId)).review).toBeNull();
@@ -542,7 +565,7 @@ describePostgres("Architecture Review real Postgres certification", () => {
     const fixture = await createFixture(database);
     postgresProjectIds.push(fixture.brief.projectId);
     let providerCalls = 0;
-    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => { providerCalls += 1; const current = await new DocumentRepository(database).get(fixture.brief.projectId, 1, "planning-package"); if (!current || current.documentType !== "planning-package") throw new Error("fixture planning missing"); await new DocumentRepository(database).save({ ...current, updatedAt: "2026-08-23T12:01:00.000Z" }); return deterministicArchitectureReview(fixture.input); } };
+    const provider = { promptVersion: "architecture-reviewer.v2", review: async () => { providerCalls += 1; const current = await new DocumentRepository(database).get(fixture.brief.projectId, 1, "planning-package"); if (!current || current.documentType !== "planning-package") throw new Error("fixture planning missing"); await new DocumentRepository(database).save({ ...current, updatedAt: "2026-08-23T12:01:00.000Z" }); return deterministicArchitectureReview(fixture.input); } };
     await expect(new ArchitectureReviewOrchestrationService(database, new ArchitectureReviewService(database, { provider })).reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE" });
     expect(providerCalls).toBe(1);
     const state = await stateOf(database, fixture.brief.projectId);
@@ -556,7 +579,7 @@ describePostgres("Architecture Review real Postgres certification", () => {
     postgresProjectIds.push(fixture.brief.projectId);
     let policy = "architecture-review-p1";
     const authority = () => policy;
-    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => { policy = "architecture-review-p2"; return deterministicArchitectureReview(fixture.input); } };
+    const provider = { promptVersion: "architecture-reviewer.v2", review: async () => { policy = "architecture-review-p2"; return deterministicArchitectureReview(fixture.input); } };
     const service = new ArchitectureReviewService(database, { provider, policyVersion: authority });
     await expect(new ArchitectureReviewOrchestrationService(database, service, { policyVersion: authority }).reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE" });
     const state = await stateOf(database, fixture.brief.projectId);
@@ -570,7 +593,7 @@ describePostgres("Architecture Review real Postgres certification", () => {
     const fixture = await createFixture(database);
     postgresProjectIds.push(fixture.brief.projectId);
     let providerCalls = 0;
-    const provider = { promptVersion: "architecture-reviewer.v1", review: async () => { providerCalls += 1; const current = await new DocumentRepository(database).get(fixture.brief.projectId, 1, "planning-package"); if (!current || current.documentType !== "planning-package") throw new Error("fixture planning missing"); await new DocumentRepository(database).save(current); return deterministicArchitectureReview(fixture.input); } };
+    const provider = { promptVersion: "architecture-reviewer.v2", review: async () => { providerCalls += 1; const current = await new DocumentRepository(database).get(fixture.brief.projectId, 1, "planning-package"); if (!current || current.documentType !== "planning-package") throw new Error("fixture planning missing"); await new DocumentRepository(database).save(current); return deterministicArchitectureReview(fixture.input); } };
     await expect(new ArchitectureReviewOrchestrationService(database, new ArchitectureReviewService(database, { provider })).reviewAndRoute(fixture.input)).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_STALE", message: "The accepted PlanningPackage row is stale." });
     expect(providerCalls).toBe(1);
     const state = await stateOf(database, fixture.brief.projectId);

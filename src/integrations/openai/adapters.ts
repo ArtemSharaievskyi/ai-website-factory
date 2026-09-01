@@ -1708,7 +1708,7 @@ export class OpenAiOrchestrationProvider implements OrchestrationPlanningProvide
   }
 }
 export class OpenAiArchitectureReviewerProvider implements ArchitectureReviewProvider {
-  readonly promptVersion = "architecture-reviewer.v1";
+  readonly promptVersion = "architecture-reviewer.v2";
   constructor(private readonly ai: OpenAiStructuredClient) {}
   async review(
     input: ArchitectureReviewInput,

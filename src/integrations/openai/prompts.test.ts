@@ -15,6 +15,15 @@ describe("approved procedural prompt guidance", () => {
   it("omits procedural guidance when the resolver selects none", () => {
     expect(renderApprovedProceduralGuidance([])).toBe("");
   });
+
+  it("binds architecture review to typed canonical and accepted Planning decisions", () => {
+    const prompt = rolePrompt("architecture-reviewer", {});
+    expect(prompt.system).toContain("typed canonical decisions and accepted Planning fields");
+    expect(prompt.system).toContain("do not call that a contradiction");
+    expect(prompt.system).toContain("typed routePolicy and sitemap");
+    expect(prompt.system).toContain("supplied accepted Planning asset evidence");
+  });
+
   it("keeps multi-skill guidance deterministic and identity-ready for every semantic role", () => {
     const skills = [
       { skillId: "internal-procedure", approvedChecksum: "1".repeat(64), coverageKeys: ["first"], skillMarkdown: "INTERNAL PROCEDURE", references: [] },

@@ -18,7 +18,7 @@ const LaterPhaseDriftSnapshotSchema = z.object({
   kind: z.literal("LATER_PHASE_DRIFT_SNAPSHOT"),
   sourceEvidence: z.literal("docs/admin/phase-7d/phase-7d-controlled-ast-aware-patching-result-2026-08-12.json"),
   reason: z.string().min(1).max(1000),
-  files: z.array(z.object({ relativePath: z.literal("src/integrations/openai/adapters.ts"), sha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict()).length(1),
+  files: z.array(z.object({ relativePath: z.enum(["src/agents/catalog.ts", "src/integrations/openai/adapters.ts"]), sha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict()).min(1),
   snapshotChecksum: z.string().regex(/^[a-f0-9]{64}$/),
 }).strict();
 type LaterPhaseDriftSnapshot = z.infer<typeof LaterPhaseDriftSnapshotSchema>;

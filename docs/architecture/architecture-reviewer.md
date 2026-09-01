@@ -24,7 +24,7 @@ The reviewer must not invent requirements, judge visual design, demand optional 
 - `review-maintainability-d9faf7cb9775`
 - `architecture-tradeoff-review`
 
-The resolver may select zero, one, or multiple relevant procedures from that allowlist; the documentation list does not itself grant eligibility. Prompt ownership remains `src/integrations/openai/prompts.ts`, version `architecture-reviewer.v1`.
+The resolver may select zero, one, or multiple relevant procedures from that allowlist; the documentation list does not itself grant eligibility. Prompt ownership remains `src/integrations/openai/prompts.ts`, version `architecture-reviewer.v2`.
 
 ## Normal review versus Factory self-review
 

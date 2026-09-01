@@ -67,7 +67,7 @@ export const architectureReviewerAgentDefinition = definition({
   allowedTools: ["openai-generation"], allowedSkillIds: ["module-boundaries-fb20497b5c35", "review-maintainability-d9faf7cb9775", "architecture-tradeoff-review"],
   contextPolicy: { version: "architecture-review-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "PREVIOUS_FINDINGS"], maxBytes: 140000, maxItems: 60 },
   inputContract: { schemaId: "architecture-reviewer.input", version: "1" }, outputContract: { schemaId: "review.output", version: "1" },
-  promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "architecture-reviewer.v1", policyVersions: { context: "architecture-review-context-v1", execution: "architecture-review-execution-v1" },
+  promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "architecture-reviewer.v2", policyVersions: { context: "architecture-review-context-v1", execution: "architecture-review-execution-v1" },
   executionPolicy: { aiGenerationAllowed: true, retryClass: "bounded-provider", cancellationSupported: true, concurrencyClass: "single-flight", requiresExplicitApprovalBeforeTransition: false }, readOnly: true,
 });
 export const contractAuditorAgentDefinition = definition({
