@@ -365,7 +365,8 @@ export class DesignAgentService {
       const brief = briefRow ? mapRowToDocument(briefRow) : null;
       const planning = planningRow ? mapRowToDocument(planningRow) : null;
       const review = reviewRow ? mapRowToDocument(reviewRow) : null;
-      const briefV3 = await tx.getDocument(input.projectId, input.projectVersion, "brief-v3");
+      const briefV3Row = await tx.getDocument(input.projectId, input.projectVersion, "brief-v3");
+      const briefV3 = briefV3Row ? mapRowToDocument(briefV3Row) : null;
       if (briefV3?.documentType === "brief-v3") {
         const currentBrief = BriefV3DocumentSchema.parse(briefV3);
         if (!currentBrief.approval?.approved || currentBrief.approval.approvedCanonicalChecksum !== currentBrief.briefChecksum || input.approvedBriefChecksum !== currentBrief.briefChecksum || (input.canonicalBrief && canonicalBriefChecksum(input.canonicalBrief) !== currentBrief.briefChecksum)) throw new DesignError("DESIGN_BRIEF_STALE", "The approved CanonicalBriefV3 changed before Design commit.");
