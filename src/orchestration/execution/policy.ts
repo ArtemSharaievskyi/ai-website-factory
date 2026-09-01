@@ -2,7 +2,7 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import { validateImplementationTaskGraph } from "@/orchestration/orchestrator/validation";
 import { FullExecutionError } from "./errors";
 import { DEFAULT_FULL_EXECUTION_POLICY, type FullExecutionPolicy, type FullExecutionStartInput } from "./contracts";
-export { taskExecutionCapability, validateExecutionCapabilities, PRODUCTION_EXECUTION_CAPABILITIES } from "./capabilities";
+export { taskExecutionCapability, validateExecutionCapabilities, executorCapabilitiesForTasks, PRODUCTION_EXECUTION_CAPABILITIES } from "./capabilities";
 export type { ExecutionCapability } from "./capabilities";
 
 export function graphChecksum(graph: FullExecutionStartInput["graph"]) { const value = { ...graph }; delete value.graphChecksum; return checksumPersistedDocument(value); }

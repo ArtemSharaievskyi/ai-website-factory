@@ -33,7 +33,7 @@ import type { WorkbenchAsset } from "./contracts";
 import type { CanonicalBriefV3, RequirementCategory } from "@/domain/requirements/v3/schema";
 import { type RequirementSpecification } from "@/domain/requirements/schema";
 import { BriefV3DocumentSchema, type BriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
-import { taskExecutionCapability } from "@/orchestration/execution/capabilities";
+import { executorCapabilitiesForTasks } from "@/orchestration/execution/capabilities";
 import { canonicalBriefToPlannerBrief } from "@/agents/planner/brief-context";
 import { admitPlanningRefresh, PlanningAdmissionError } from "@/agents/planner/refresh-admission";
 
@@ -383,17 +383,41 @@ export class WorkbenchApplication {
     const brief = approvedBriefForDownstream(persistedBrief, briefV3);
     const decisions = await new DecisionRepository(this.dependencies.database).list(projectId, version);
     const input = { projectId, projectVersion: version, approvedBrief: brief, canonicalBrief: briefV3.brief, approvedBriefChecksum: briefV3.briefChecksum, acceptedPlanningPackage: planning, acceptedPlanningChecksum: planningDocumentChecksum(planning), selectedDesign: selected, selectedDesignChecksum: checksumPersistedDocument(selected), technicalArchitecture: planning.architecture, contentPlan: planning.content, assetManifest: planning.assets, currentWorkflowState: "READY_FOR_IMPLEMENTATION" as const, existingDecisions: decisions, allowedRoles: ["lead", "planner-architect", "design", "implementation", "qa-release"] as ("lead" | "planner-architect" | "design" | "implementation" | "qa-release")[], approvedSkillRegistrySnapshot: { schemaVersion: 1 as const, checksum: "0".repeat(64), skills: [] }, toolPolicyVersion: "tools-v1", orchestrationPolicyVersion: DEFAULT_ORCHESTRATION_POLICY.version, idempotencyKey: `workbench-orchestrator:${projectId}`, expectedRowVersion: current.rowVersion, workspaceReserved: true, projectImmutable: false, phase7cContractPackage: phase7c };
-    const graph = await scope.orchestrator.createImplementationTaskGraph(input);
+    const priorGraph = await this.documents.get(projectId, version, "task-graph");
+    const priorAudit = await this.documents.get(projectId, version, "contract-audit");
+    const priorTaskGraph = priorGraph?.documentType === "task-graph" ? priorGraph : undefined;
+    const priorContractAudit = priorAudit?.documentType === "contract-audit" ? priorAudit : undefined;
+    const auditRecovery = current.project.workflowState === "CONTRACT_AUDIT";
+    const reconciling = auditRecovery && (priorContractAudit?.result.verdict === "CHANGES_REQUIRED" || priorContractAudit?.result.verdict === "BLOCKED");
+    if (auditRecovery && (!priorTaskGraph || !priorContractAudit || !reconciling)) throw new WorkbenchActionError("IMPLEMENTATION_START_BLOCKED", "The current Contract Audit cycle cannot be recovered safely.");
+    const dependencyReconciliation = reconciling && priorContractAudit!.result.findings.some((finding) => finding.category === "DEPENDENCY_CONTRACT_MISMATCH");
+    const scopeReconciliation = reconciling && priorContractAudit!.result.findings.some((finding) => finding.category === "ARTIFACT_MULTIPLE_OWNERS" || finding.category === "SCOPE_CONTRACT_MISMATCH");
+    const persistedGraphChecksum = priorTaskGraph ? checksumPersistedDocument(priorTaskGraph) : undefined;
+    const graph = dependencyReconciliation
+      ? await scope.orchestrator.reconcileImplementationTaskGraphDependencies(input, persistedGraphChecksum!, `workbench-orchestrator-dependency-reconciliation:${projectId}:${persistedGraphChecksum}`)
+      : scopeReconciliation
+        ? await scope.orchestrator.reconcileImplementationTaskGraphPolicy(input, persistedGraphChecksum!, `workbench-orchestrator-policy-reconciliation:${projectId}:${persistedGraphChecksum}`)
+        : reconciling
+          ? { taskGraph: priorTaskGraph!, valid: priorTaskGraph!.validation?.valid ?? false, errors: priorTaskGraph!.validation?.errors ?? [], warnings: priorTaskGraph!.warnings ?? [], readyForExecution: priorTaskGraph!.readyForExecution, blockingReasons: priorTaskGraph!.blockingReasons ?? [], graphChecksum: priorTaskGraph!.graphChecksum! }
+          : await scope.orchestrator.createImplementationTaskGraph(input);
     if (!graph.valid || !graph.readyForExecution) throw new WorkbenchActionError("IMPLEMENTATION_START_BLOCKED", "The canonical implementation graph is not ready.");
     const architectureReview = await this.documents.get(projectId, version, "architecture-review");
     if (!architectureReview || architectureReview.documentType !== "architecture-review" || architectureReview.result.verdict !== "APPROVED") throw new WorkbenchActionError("IMPLEMENTATION_START_BLOCKED", "The current approved Architecture Review is required before Contract Audit.");
     const auditEntry = await scope.contractAuditor.enterAudit({ projectId, projectVersion: version, expectedRowVersion: (await this.projects.getWithVersion(projectId))?.rowVersion ?? current.rowVersion, idempotencyKey: `workbench-contract-audit-enter:${projectId}` });
-    const executorCatalog = [{ executorId: "factory-runtime", kind: "runtime" as const, current: true, capabilities: [...new Set(graph.taskGraph.tasks.map((task) => taskExecutionCapability(task.taskType)).filter(Boolean) as string[])] }];
-    const audit = await scope.contractAuditor.auditAndRoute({ projectId, projectVersion: version, approvedBrief: brief, briefChecksum: briefV3.briefChecksum, acceptedPlanningPackage: planning, planningChecksum: planningDocumentChecksum(planning), approvedArchitectureReview: architectureReview, architectureReviewChecksum: checksumPersistedDocument(architectureReview), selectedDesign: selected, designChecksum: checksumPersistedDocument(selected), taskGraph: graph.taskGraph, taskGraphChecksum: graph.taskGraph.graphChecksum!, executorCatalog, idempotencyKey: `workbench-contract-audit:${projectId}`, expectedRowVersion: auditEntry.rowVersion });
+    const executorCatalog = [{ executorId: "factory-runtime", kind: "runtime" as const, current: true, capabilities: executorCapabilitiesForTasks(graph.taskGraph.tasks) }];
+    const currentAssetReferences = this.dependencies.assets ? await this.dependencies.assets.listCurrentReadyReferences(projectId) : [];
+    const auditIdempotencyKey = dependencyReconciliation
+      ? `workbench-contract-audit-dependency-reconciliation:${projectId}:${graph.taskGraph.graphChecksum}`
+      : scopeReconciliation
+        ? `workbench-contract-audit-reconciliation:${projectId}:${graph.taskGraph.graphChecksum}`
+        : reconciling
+          ? `workbench-contract-audit-recheck:${projectId}:${graph.taskGraph.graphChecksum}`
+          : `workbench-contract-audit:${projectId}`;
+    const audit = await scope.contractAuditor.auditAndRoute({ projectId, projectVersion: version, approvedBrief: brief, canonicalBrief: briefV3.brief, briefChecksum: briefV3.briefChecksum, acceptedPlanningPackage: planning, planningChecksum: planningDocumentChecksum(planning), approvedArchitectureReview: architectureReview, architectureReviewChecksum: checksumPersistedDocument(architectureReview), selectedDesign: selected, designChecksum: checksumPersistedDocument(selected), taskGraph: graph.taskGraph, taskGraphChecksum: graph.taskGraph.graphChecksum!, executorCatalog, currentAssetReferences, idempotencyKey: auditIdempotencyKey, expectedRowVersion: auditEntry.rowVersion });
     if (audit.result.verdict !== "APPROVED") throw new WorkbenchActionError("IMPLEMENTATION_START_BLOCKED", "Contract Audit rejected the current implementation chain.");
     const approvedAudit = await this.documents.get(projectId, version, "contract-audit");
     if (!approvedAudit || approvedAudit.documentType !== "contract-audit") throw new WorkbenchActionError("IMPLEMENTATION_START_BLOCKED", "The approved Contract Audit was not persisted.");
-    await scope.orchestrator.startImplementation({ ...input, approvedContractAuditChecksum: checksumPersistedDocument(approvedAudit), expectedRowVersion: (await this.projects.getWithVersion(projectId))?.rowVersion ?? current.rowVersion });
+    await scope.orchestrator.startImplementation({ ...input, idempotencyKey: auditRecovery ? `workbench-orchestrator-start-recovery:${projectId}` : input.idempotencyKey, approvedContractAuditChecksum: checksumPersistedDocument(approvedAudit), expectedRowVersion: (await this.projects.getWithVersion(projectId))?.rowVersion ?? current.rowVersion });
   }
 
   private brief(requirements: Extract<Awaited<ReturnType<DocumentRepository["get"]>>, { documentType: "requirements" }>, checksum: string, readyForApproval: boolean): WorkbenchBrief {

@@ -63,10 +63,26 @@ function buildCandidates(input: unknown, skills: readonly ApprovedProceduralSkil
   return candidates;
 }
 
+function contractAuditPromptContext(input: unknown) {
+  const source = record(input);
+  const graph = record(source?.taskGraph);
+  if (!source || !graph || !Array.isArray(graph.tasks)) return input;
+  const tasks = graph.tasks.map((value) => {
+    const task = record(value);
+    if (!task) return value;
+    const references = (key: "requirementReferences" | "planningReferences") => {
+      const values = Array.isArray(task[key]) ? task[key].filter((item): item is string => typeof item === "string") : [];
+      return { [`${key}Sample`]: values.slice(0, 16), [`${key}Count`]: values.length };
+    };
+    return { ...task, ...references("requirementReferences"), ...references("planningReferences"), requirementReferences: undefined, planningReferences: undefined };
+  });
+  return { ...source, taskGraph: { ...graph, tasks } };
+}
+
 /** Builds one prompt bundle with lossless canonical input and bounded supporting input. */
 export function boundedRolePrompt(role: Parameters<typeof rolePrompt>[0], input: unknown, correction = false, approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = []) {
   const slicedSkills = approvedSkills.map((skill) => ({ ...skill, skillMarkdown: sliceApprovedSkill({ skill, agentRole: role, requestedCoverage: skill.coverageKeys, maxBytes: role.includes("reviewer") ? 24_000 : role === "implementation" ? 36_000 : 48_000 }).content }));
-  const contextInput = role === "design" ? buildDesignContext(input as DesignAgentInput) : input;
+  const contextInput = role === "design" ? buildDesignContext(input as DesignAgentInput) : role === "contract-auditor" ? contractAuditPromptContext(input) : input;
   const preparedInput = prepareRoleContext(contextInput);
   const prompt = rolePrompt(role, contextInput, correction, slicedSkills);
   const identity = extractContextIdentity(preparedInput);

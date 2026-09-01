@@ -88,6 +88,11 @@ describe("Phase 7C typed contracts", () => {
     expect(() => validateTaskContractBinding({ id: taskId, projectId, projectVersion: 1, taskType: "prepare-workspace", allowedTools: ["filesystem-read"], allowedSkills: [], fileScopes: ["supabase/**"], expectedArtifactTypes: ["workspace-reservation"] }, contract)).toThrow(/escalation/i);
   });
 
+  it("accepts a narrower task scope covered by a contract scope", () => {
+    const contract = createTaskContract({ taskId, projectId, projectVersion: 1, createdAt: now, taskType: "implement-shared-component", allowedTools: [], fileScopes: ["src/components/**"], ownedArtifactTypes: ["shared-component"], acceptanceCriteria: ["Component is implemented"], validationRequirements: ["deterministic validation"] });
+    expect(() => validateTaskContractBinding({ id: taskId, projectId, projectVersion: 1, taskType: "implement-shared-component", allowedTools: [], allowedSkills: [], fileScopes: ["src/components/shared/hero/**"], expectedArtifactTypes: ["shared-component"] }, contract)).not.toThrow();
+  });
+
   it("requires database task bindings to use the current decision and blocks NONE", () => {
     const pkg = packageFixture();
     const databaseTask = createTaskContract({ taskId, projectId, projectVersion: 1, createdAt: now, taskType: "implement-database-schema", allowedTools: ["filesystem-write"], fileScopes: ["supabase/migrations/**"], ownedArtifactTypes: ["database-schema"], acceptanceCriteria: ["Only approved schema is represented"], validationRequirements: ["migration validation"], databaseDecisionRef: { id: pkg.databaseDecision.databaseDecisionId, checksum: pkg.databaseDecision.checksum } });

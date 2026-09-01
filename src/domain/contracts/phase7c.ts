@@ -381,10 +381,27 @@ export function validateStartImplementationGate(input: StartImplementationGateIn
   return { valid: true as const, databaseMode: pkg.databaseDecision.mode, taskContractCount: contracts.length };
 }
 
+const normalizeContractScope = (value: string) => value.replaceAll("\\", "/").replace(/^\.\//, "");
+const contractScopeCovers = (allowed: string, requested: string) => {
+  const allowedScope = normalizeContractScope(allowed);
+  const requestedScope = normalizeContractScope(requested);
+  if (allowedScope === requestedScope) return true;
+  if (allowedScope.endsWith("/**")) {
+    const base = allowedScope.slice(0, -3).replace(/\/$/, "");
+    return requestedScope === base || requestedScope.startsWith(`${base}/`);
+  }
+  if (allowedScope.endsWith("/*")) {
+    const base = allowedScope.slice(0, -2).replace(/\/$/, "");
+    const relative = requestedScope.startsWith(`${base}/`) ? requestedScope.slice(base.length + 1) : "";
+    return relative.length > 0 && !relative.includes("/");
+  }
+  return false;
+};
+
 export function validateTaskContractBinding(task: { id: string; projectId: string; projectVersion: number; taskType: string; allowedTools: string[]; allowedSkills: string[]; fileScopes: string[]; requiredCapabilities?: string[]; expectedArtifactTypes?: string[] }, contract: TaskContract) {
   validateTaskContract(contract);
   if (task.id !== contract.taskId || task.projectId !== contract.projectId || task.projectVersion !== contract.projectVersion || task.taskType !== contract.taskType) throw new Phase7CContractError("TASK_CONTRACT_ESCALATION", "Task identity does not match its TaskContract.");
-  if (task.allowedTools.some((tool) => !contract.allowedTools.includes(tool)) || task.allowedSkills.some((skill) => !contract.allowedSkillIds.includes(skill)) || (task.requiredCapabilities ?? []).some((capability) => !contract.capabilityIds.includes(capability)) || task.fileScopes.some((scope) => !contract.fileScopes.includes(scope)) || (task.expectedArtifactTypes ?? []).some((artifact) => !contract.ownedArtifactTypes.includes(artifact))) throw new Phase7CContractError("TASK_CONTRACT_ESCALATION", "Task exceeds the tools, skills, capabilities, file scopes, or artifacts authorized by its TaskContract.");
+  if (task.allowedTools.some((tool) => !contract.allowedTools.includes(tool)) || task.allowedSkills.some((skill) => !contract.allowedSkillIds.includes(skill)) || (task.requiredCapabilities ?? []).some((capability) => !contract.capabilityIds.includes(capability)) || task.fileScopes.some((scope) => !contract.fileScopes.some((allowedScope) => contractScopeCovers(allowedScope, scope))) || (task.expectedArtifactTypes ?? []).some((artifact) => !contract.ownedArtifactTypes.includes(artifact))) throw new Phase7CContractError("TASK_CONTRACT_ESCALATION", "Task exceeds the tools, skills, capabilities, file scopes, or artifacts authorized by its TaskContract.");
   return true;
 }
 

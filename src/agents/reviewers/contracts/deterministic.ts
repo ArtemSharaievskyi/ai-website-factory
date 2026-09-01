@@ -20,11 +20,27 @@ const refsForPlanning = (input: ContractAuditInput) => unique([
   ...input.acceptedPlanningPackage.userFlows.flows.map((item) => item.id),
   ...input.acceptedPlanningPackage.navigation.routeReferences,
 ]);
-const refsForRequirements = (input: ContractAuditInput) => unique([
-  ...input.approvedBrief.pages.map((item) => `requirement:page:${item.slug}`),
-  ...input.approvedBrief.features.map((item) => `requirement:feature:${item}`),
-  ...input.acceptedPlanningPackage.traceability.flatMap((item) => item.requirementReferences),
-]);
+const refsForRequirements = (input: ContractAuditInput) => {
+  const briefRefs: string[] = [];
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (!value || typeof value !== "object") return;
+    const record = value as Record<string, unknown>;
+    if (typeof record.id === "string" && /^REQUIREMENT:v3-[a-f0-9]{64}$/i.test(record.id)) briefRefs.push(record.id);
+    if (Array.isArray(record.sourceRefs)) briefRefs.push(...record.sourceRefs.filter((ref): ref is string => typeof ref === "string"));
+    Object.values(record).forEach(visit);
+  };
+  visit(input.approvedBrief);
+  return unique([
+    ...input.approvedBrief.pages.map((item) => `requirement:page:${item.slug}`),
+    ...input.approvedBrief.features.map((item) => `requirement:feature:${item}`),
+    ...input.acceptedPlanningPackage.traceability.flatMap((item) => item.requirementReferences),
+    ...briefRefs,
+  ]);
+};
 const taskText = (task: ContractAuditInput["taskGraph"]["tasks"][number]) => text({ objective: task.objective, inputs: task.inputs, outputs: task.expectedOutputs, acceptance: task.acceptanceCriteria });
 const finding = (findingId: string, category: ContractAuditFinding["category"], summary: string, evidenceRefs: string[], affectedArtifacts: string[], recommendedAction: string, correctionTarget: ContractAuditFinding["correctionTarget"] = "TASKGRAPH", severity: ContractAuditFinding["severity"] = "ERROR"): ContractAuditFinding => ({ findingId: findingId.toLowerCase().replace(/[^a-z0-9_.-]+/g, "-"), severity, category, summary, evidenceRefs, affectedArtifacts, recommendedAction, correctionTarget });
 

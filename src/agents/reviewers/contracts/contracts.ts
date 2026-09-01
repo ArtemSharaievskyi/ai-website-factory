@@ -5,6 +5,8 @@ import { ArchitectureReviewRecordSchema, ContractAuditResultSchema } from "@/dom
 import { SelectedDesignSchema } from "@/domain/design/schema";
 import { TaskGraphSchema } from "@/domain/tasks/schema";
 import { AgentCapabilityIdSchema, AgentIdSchema } from "@/domain/agents/schema";
+import { CanonicalBriefV3Schema } from "@/domain/requirements/v3/schema";
+import { ProjectAssetReferenceSchema } from "@/domain/assets/project";
 
 export const CONTRACT_AUDIT_POLICY_VERSION = "contract-audit-v1";
 export const CONTRACT_AUDIT_PROMPT_VERSION = "contract-auditor.v1";
@@ -33,8 +35,9 @@ export function addProjectIdentityIssues(
   for (const label of projectIdentityMismatches(expected, artifacts)) context.addIssue({ code: "custom", path: [label, "projectId"], message: `The ${label} is not bound to the requested project identity/version.` });
 }
 export const ContractAuditInputSchema = z.object({
-  projectId: z.string().uuid(), projectVersion: z.number().int().positive(), approvedBrief: RequirementSpecificationSchema, briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), acceptedPlanningPackage: PlanningPackageSchema, planningChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+  projectId: z.string().uuid(), projectVersion: z.number().int().positive(), approvedBrief: RequirementSpecificationSchema, canonicalBrief: CanonicalBriefV3Schema.optional(), briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), acceptedPlanningPackage: PlanningPackageSchema, planningChecksum: z.string().regex(/^[a-f0-9]{64}$/),
   approvedArchitectureReview: ArchitectureReviewRecordSchema, architectureReviewChecksum: z.string().regex(/^[a-f0-9]{64}$/), selectedDesign: SelectedDesignSchema, designChecksum: z.string().regex(/^[a-f0-9]{64}$/), taskGraph: TaskGraphSchema, taskGraphChecksum: z.string().regex(/^[a-f0-9]{64}$/), executorCatalog: z.array(ContractExecutorSchema).max(40), idempotencyKey: z.string().min(1), expectedRowVersion: z.number().int().positive(),
+  currentAssetReferences: z.array(ProjectAssetReferenceSchema).max(40).optional(),
 }).strict().superRefine((input, context) => addProjectIdentityIssues(
   input,
   [

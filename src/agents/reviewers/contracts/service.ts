@@ -35,9 +35,26 @@ import {
   providerEvidenceCatalog,
   resolveProviderReviewEvidence,
 } from "../evidence";
+import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 
 const now = () => new Date().toISOString();
 const findingKey = (value: unknown) => JSON.stringify(value);
+const briefEvidenceRefs = (brief: unknown) => {
+  const refs: string[] = [];
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (!value || typeof value !== "object") return;
+    const record = value as Record<string, unknown>;
+    if (Array.isArray(record.sourceRefs)) refs.push(...record.sourceRefs.filter((ref): ref is string => typeof ref === "string"));
+    if (typeof record.id === "string" && /^REQUIREMENT:v3-[a-f0-9]{64}$/i.test(record.id)) refs.push(record.id);
+    Object.values(record).forEach(visit);
+  };
+  visit(brief);
+  return refs;
+};
 export function canonicalContractEvidence(input: ContractAuditInput) {
   return new Set([
     "requirements",
@@ -57,6 +74,7 @@ export function canonicalContractEvidence(input: ContractAuditInput) {
     "supabase-plan",
     "requirements.authenticationDecision",
     "authentication-plan",
+    ...briefEvidenceRefs(input.approvedBrief),
     ...input.acceptedPlanningPackage.sitemap.routes.flatMap((route) => [
       `route:${route.id}`,
       `planning:${route.id}`,
@@ -90,6 +108,11 @@ export function canonicalContractEvidence(input: ContractAuditInput) {
       `executor:${executor.executorId}`,
       ...executor.capabilities.map((capability) => `capability:${capability}`),
     ]),
+    ...((input.currentAssetReferences ?? []).flatMap((asset) => [
+      `asset:${asset.assetId}`,
+      `asset:${asset.safeDisplayName}`,
+      `asset-category:${asset.category}`,
+    ])),
   ]);
 }
 
@@ -326,6 +349,8 @@ export class ContractAuditService {
         input.briefChecksum !== brief.approval.approvedRequirementsChecksum
       )
         throw new Error("The Brief checksum is stale.");
+      if (input.canonicalBrief && canonicalBriefChecksum(input.canonicalBrief) !== input.briefChecksum)
+        throw new Error("The CanonicalBriefV3 checksum is stale.");
       if (!planning.accepted || !planning.architecture.acceptance.accepted)
         throw new Error("The PlanningPackage is not accepted.");
       if (

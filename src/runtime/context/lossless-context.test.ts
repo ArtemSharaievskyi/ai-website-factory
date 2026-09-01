@@ -61,6 +61,18 @@ describe("lossless canonical requirements context policy", () => {
     expect(sent?.user).toContain("rechtliche Angaben");
   });
 
+  it("keeps the Contract Auditor within budget by bounding repeated TaskGraph references", () => {
+    const prompt = boundedRolePrompt("contract-auditor", {
+      approvedBrief: { projectId, projectVersion: 1, explicitExclusions: ["CONTRACT_AUDIT_CANONICAL_MARKER"] },
+      acceptedPlanningPackage: { projectId, projectVersion: 1, traceability: [] },
+      taskGraph: { tasks: Array.from({ length: 36 }, (_, taskIndex) => ({ id: uuid, taskType: "implement-page", objective: "Review the bounded task contract.", requirementReferences: Array.from({ length: 327 }, (_, referenceIndex) => `REF_${taskIndex}_${referenceIndex}`), planningReferences: Array.from({ length: 327 }, (_, referenceIndex) => `PLAN_${taskIndex}_${referenceIndex}`) })) },
+    });
+    expect(prompt.contextBundle.metrics.canonicalRequirementTruncated).toBe(false);
+    expect(prompt.user).toContain("CONTRACT_AUDIT_CANONICAL_MARKER");
+    expect(prompt.user).not.toContain("REF_0_326");
+    expect(prompt.user).toContain("requirementReferencesSample");
+  });
+
   it("LRC1: persists the complete normalized InitialProjectRequest in project and memory authority", async () => {
     const database = new InMemoryPersistenceDatabase();
     const memory = new FakeLeadMemoryPort();
