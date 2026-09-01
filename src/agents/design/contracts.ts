@@ -7,6 +7,7 @@ import { AssetManifestSchema } from "@/domain/assets/schema";
 import { ContentPlanSchema } from "@/domain/content/schema";
 import { PlanningPackageSchema } from "@/agents/planner/contracts";
 import { ProviderFailureDiagnosticSchema } from "@/domain/shared/provider-failure";
+import { SourceHeadSchema } from "@/domain/shared/source-head";
 
 export const DesignAgentInputSchema = z.object({ projectId: z.string().uuid(), projectVersion: z.number().int().positive(), approvedBrief: RequirementSpecificationSchema, canonicalBrief: CanonicalBriefV3Schema.optional(), approvedBriefChecksum: z.string().regex(/^[a-f0-9]{64}$/), acceptedPlanningPackage: PlanningPackageSchema, acceptedPlanningChecksum: z.string().regex(/^[a-f0-9]{64}$/), contentPlan: ContentPlanSchema, assetManifest: AssetManifestSchema, suppliedBrandMetadata: z.record(z.string(), z.unknown()), suppliedLogoMetadata: z.record(z.string(), z.unknown()), imageSourceDecision: z.enum(["ai-generated", "user-supplied", "ai-plus-user-supplied", "placeholders", "custom", "pending"]), designPreferences: z.array(z.string()), explicitDesignExclusions: z.array(z.string()), currentWorkflowState: WorkflowStateSchema, existingDecisions: z.array(z.unknown()), allowedSkills: z.array(z.string()), idempotencyKey: z.string().min(1), expectedRowVersion: z.number().int().positive() }).strict();
 export type DesignAgentInput = z.infer<typeof DesignAgentInputSchema>;
@@ -18,6 +19,18 @@ export const DesignGenerationResultSchema = z.object({ directionSet: DesignDirec
 export type DesignGenerationResult = z.infer<typeof DesignGenerationResultSchema>;
 
 export const DesignGenerationAttemptStateSchema = z.enum(["CREATED", "CLAIMED", "PROVIDER_STARTED", "PROVIDER_FAILED", "WIRE_FAILED", "DOMAIN_FAILED", "ADMISSION_FAILED", "PERSISTENCE_FAILED", "PERSISTED"]);
+export const DesignAdmissionFindingSchema = z.object({
+  code: z.string().min(1).max(120).regex(/^[A-Za-z0-9_:-]+$/),
+  severity: z.enum(["BLOCKING", "WARNING"]),
+  directionIndex: z.number().int().min(0).max(2).nullable(),
+  directionRole: z.string().min(1).max(80).nullable(),
+  fieldPath: z.string().min(1).max(200).nullable(),
+  expectedInvariant: z.string().min(1).max(320),
+  actualCategory: z.string().min(1).max(180),
+  relatedAuthorities: z.array(z.string().min(1).max(160)).max(8),
+  validatorPredicate: z.string().min(1).max(240),
+}).strict();
+export type DesignAdmissionFinding = z.infer<typeof DesignAdmissionFindingSchema>;
 export const DesignProviderObservationSchema = z.object({
   provider: z.literal("openai"),
   model: z.string().min(1).max(160).nullable(),
@@ -55,11 +68,37 @@ export const DesignGenerationAttemptSchema = z.object({
   architectureChecksum: z.string().regex(/^[a-f0-9]{64}$/),
   selectedSkillIds: z.array(z.string().min(1).max(160)),
   selectedSkillChecksums: z.array(z.object({ skillId: z.string().min(1).max(160), checksum: z.string().regex(/^[a-f0-9]{64}$/) }).strict()),
+  sourceHead: SourceHeadSchema.optional(),
+  providerAttempted: z.boolean().optional(),
+  responseReceived: z.boolean().optional(),
+  providerModel: z.string().min(1).max(160).optional(),
+  providerRequestId: z.string().min(1).max(160).optional(),
+  finishReason: z.string().min(1).max(160).nullable().optional(),
+  inputTokens: z.number().int().nonnegative().optional(),
+  outputTokens: z.number().int().nonnegative().optional(),
+  totalTokens: z.number().int().nonnegative().optional(),
+  providerResultChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  normalizedCandidateSchemaVersion: z.literal(1).optional(),
+  normalizedCandidateChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  normalizedCandidate: DesignDirectionSetSchema.optional(),
+  admissionFindingCount: z.number().int().nonnegative().optional(),
+  admissionFindingsChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  admissionFindings: z.array(DesignAdmissionFindingSchema).max(20).optional(),
   failureCode: z.string().min(1).max(120).regex(/^[A-Za-z0-9_:-]+$/).optional(),
   failureDiagnostic: ProviderFailureDiagnosticSchema.optional(),
   providerObservation: DesignProviderObservationSchema.optional(),
 }).strict();
 export type DesignGenerationAttempt = z.infer<typeof DesignGenerationAttemptSchema>;
+export const DesignGenerationAttemptHistorySchema = z.object({
+  schemaVersion: z.literal(1),
+  documentType: z.literal("design-generation-attempt-history"),
+  projectId: z.string().uuid(),
+  projectVersion: z.number().int().positive(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  records: z.array(DesignGenerationAttemptSchema),
+}).strict();
+export type DesignGenerationAttemptHistory = z.infer<typeof DesignGenerationAttemptHistorySchema>;
 
 export const DesignSelectionRequestSchema = z.object({ projectId: z.string().uuid(), projectVersion: z.number().int().positive(), designDirectionSetId: z.string().uuid(), selectedDirectionId: z.string().uuid(), directionSetChecksum: z.string().regex(/^[a-f0-9]{64}$/), selectedDirectionChecksum: z.string().regex(/^[a-f0-9]{64}$/), expectedRowVersion: z.number().int().positive(), selectedBy: z.string().min(1), selectedAt: z.string().datetime(), selectionNotes: z.string().optional(), idempotencyKey: z.string().min(1) }).strict();
 export type DesignSelectionRequest = z.input<typeof DesignSelectionRequestSchema>;

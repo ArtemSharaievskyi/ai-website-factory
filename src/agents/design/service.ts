@@ -30,13 +30,17 @@ import { evaluatePlanningAcceptanceReadiness } from "@/agents/planner/determinis
 import type { PersistenceDatabase } from "@/persistence/database/types";
 import {
   DesignAgentInputSchema,
+  DesignAdmissionFindingSchema,
+  DesignGenerationAttemptHistorySchema,
   DesignGenerationResultSchema,
   DesignGenerationAttemptSchema,
   DesignProviderObservationSchema,
   DesignRevisionRequestSchema,
   DesignSelectionRequestSchema,
   type DesignAgentInput,
+  type DesignAdmissionFinding,
   type DesignGenerationAttempt,
+  type DesignGenerationAttemptHistory,
   type DesignGenerationResult,
   type DesignRevisionRequest,
   type DesignSelectionRequest,
@@ -63,6 +67,7 @@ import type { AgentSkillSelection } from "@/skills/runtime/resolver";
 import { assertWorkbenchStyleIsolation } from "@/integrations/design/isolation";
 import { ProfessionalDesignCapabilityPipeline } from "./professional";
 import { approveDesignDependencyAmendment, buildDesignDependencyAmendment, DesignDependencyAmendmentSchema } from "@/domain/design/capability";
+import type { SourceCurrentnessPort } from "@/domain/shared/source-head";
 
 const now = () => new Date().toISOString();
 type DesignServiceDependencies = {
@@ -73,6 +78,7 @@ type DesignServiceDependencies = {
   explorationTool?: DesignExplorationToolPort;
   resolveSkills?: (input: DesignAgentInput) => Promise<AgentSkillSelection>;
   professionalPipeline?: ProfessionalDesignCapabilityPipeline;
+  source?: SourceCurrentnessPort;
 };
 
 function diagnosticFor(error: unknown) {
@@ -131,12 +137,74 @@ function observationForSet(set: DesignDirectionSet) {
     outputTokens: provider.outputTokens ?? null,
     totalTokens: provider.totalTokens ?? null,
     jsonParseSucceeded: true,
-    rawContentBytes: null,
-    rawContentChecksum: null,
+    rawContentBytes: provider.rawContentBytes ?? null,
+    rawContentChecksum: provider.rawContentChecksum ?? null,
     zodIssueCount: null,
     zodIssuesTruncated: null,
     completeZodIssuesChecksum: null,
   });
+}
+
+const DESIGN_AUTHORITIES = ["CanonicalBriefV3", "acceptedPlanningPackage", "approvedArchitectureReview"];
+const admissionFinding = (input: {
+  code: string;
+  expectedInvariant: string;
+  actualCategory: string;
+  validatorPredicate: string;
+  directionIndex?: number | null;
+  fieldPath?: string | null;
+}) => DesignAdmissionFindingSchema.parse({
+  code: input.code,
+  severity: "BLOCKING",
+  directionIndex: input.directionIndex ?? null,
+  directionRole: input.directionIndex == null ? null : `direction-${input.directionIndex}`,
+  fieldPath: input.fieldPath ?? null,
+  expectedInvariant: input.expectedInvariant,
+  actualCategory: input.actualCategory,
+  relatedAuthorities: DESIGN_AUTHORITIES,
+  validatorPredicate: input.validatorPredicate,
+});
+
+function admissionFindingForPipeline(code: string): DesignAdmissionFinding {
+  return admissionFinding({
+    code,
+    expectedInvariant: "Professional Design capability admission must complete with current approved evidence.",
+    actualCategory: code,
+    validatorPredicate: "ProfessionalDesignCapabilityPipeline.run",
+    fieldPath: "professionalDesign",
+  });
+}
+
+function admissionFindingsForReadiness(set: DesignDirectionSet, readiness: { blockingReasons: readonly string[] }): DesignAdmissionFinding[] {
+  return readiness.blockingReasons.flatMap((code) => {
+    const directionIndexes = code === "DESIGN_DIRECTION_REQUIREMENT_VIOLATION"
+      ? set.directions.map((direction, index) => direction.approvedRequirementReferences?.length && direction.planningReferences?.length ? -1 : index).filter((index) => index >= 0)
+      : code === "DESIGN_DIRECTION_NOT_FEASIBLE"
+        ? set.directions.map((direction, index) => direction.responsiveDetails && direction.motionDetails && direction.colorRoles ? -1 : index).filter((index) => index >= 0)
+        : [];
+    const indexes: Array<number | null> = directionIndexes.length ? directionIndexes : [null];
+    return indexes.map((directionIndex) => admissionFinding({
+      code,
+      directionIndex,
+      fieldPath: code === "DESIGN_DIRECTION_REQUIREMENT_VIOLATION" ? "approvedRequirementReferences|planningReferences" : code === "DESIGN_DIRECTION_NOT_FEASIBLE" ? "responsiveDetails|motionDetails|colorRoles" : code === "IMAGE_SOURCE_PENDING" ? "imageSourceDecision" : "directions",
+      expectedInvariant: code === "DESIGN_DIRECTION_DUPLICATE" || code === "DESIGN_DIRECTIONS_TOO_SIMILAR" ? "The three directions must have distinct structured design strategies." : "The Design direction set must satisfy the current deterministic admission predicate.",
+      actualCategory: code,
+      validatorPredicate: "validateDesignDirectionSet",
+    }));
+  });
+}
+
+function providerAttemptFields(observation: z.infer<typeof DesignProviderObservationSchema>): Partial<DesignGenerationAttempt> {
+  return {
+    providerAttempted: observation.requestAttempted,
+    responseReceived: observation.responseReceived,
+    ...(observation.model ? { providerModel: observation.model } : {}),
+    ...(observation.requestId ? { providerRequestId: observation.requestId } : {}),
+    ...(observation.finishReason !== null ? { finishReason: observation.finishReason } : { finishReason: null }),
+    ...(observation.inputTokens === null ? {} : { inputTokens: observation.inputTokens }),
+    ...(observation.outputTokens === null ? {} : { outputTokens: observation.outputTokens }),
+    ...(observation.totalTokens === null ? {} : { totalTokens: observation.totalTokens }),
+  };
 }
 
 function providerFailureState(error: unknown): DesignGenerationAttempt["state"] {
@@ -217,17 +285,47 @@ export class DesignAgentService {
   private async saveAttempt(attempt: DesignGenerationAttempt) {
     return DesignGenerationAttemptSchema.parse(await this.documents.save(attempt));
   }
-  private async failAttempt(attempt: DesignGenerationAttempt, state: DesignGenerationAttempt["state"], error: unknown) {
+  private async preserveAttemptHistory(attempt: DesignGenerationAttempt) {
+    const existing = await this.documents.get(attempt.projectId, attempt.projectVersion, "design-generation-attempt-history");
+    const history = existing?.documentType === "design-generation-attempt-history"
+      ? DesignGenerationAttemptHistorySchema.parse(existing)
+      : undefined;
+    if (history?.records.some((record) => record.attemptId === attempt.attemptId)) return history;
+    const timestamp = now();
+    return DesignGenerationAttemptHistorySchema.parse(await this.documents.save({
+      schemaVersion: 1,
+      documentType: "design-generation-attempt-history",
+      projectId: attempt.projectId,
+      projectVersion: attempt.projectVersion,
+      createdAt: history?.createdAt ?? attempt.createdAt,
+      updatedAt: timestamp,
+      records: [...(history?.records ?? []), attempt],
+    } satisfies DesignGenerationAttemptHistory));
+  }
+  private async readSourceHead() {
+    if (!this.dependencies.source) return undefined;
+    try {
+      const current = await this.dependencies.source.read();
+      if (!current.trackedWorktreeClean) throw new DesignError("DESIGN_CONTRACT_STALE", "Design source currentness is not clean.");
+      return current.head;
+    } catch (error) {
+      if (error instanceof DesignError) throw error;
+      throw new DesignError("DESIGN_CONTRACT_STALE", "Design source currentness could not be verified.");
+    }
+  }
+  private async failAttempt(attempt: DesignGenerationAttempt, state: DesignGenerationAttempt["state"], error: unknown, admissionFindings?: readonly DesignAdmissionFinding[]) {
     const designError = designErrorFromProvider(error);
     const failureDiagnostic = failureDiagnosticFor(error);
     const errorHasProviderObservation = diagnosticFor(error) !== undefined || failureDiagnostic !== undefined;
+    const findings = admissionFindings?.length ? admissionFindings : attempt.admissionFindings;
     return this.saveAttempt(DesignGenerationAttemptSchema.parse({
       ...attempt,
       state,
       updatedAt: now(),
       failureCode: designError.code,
+      ...(findings ? { admissionFindingCount: findings.length, admissionFindingsChecksum: checksumPersistedDocument(findings), admissionFindings: findings } : {}),
       ...(failureDiagnostic ? { failureDiagnostic } : {}),
-      ...(errorHasProviderObservation ? { providerObservation: observationFor(error) } : attempt.providerObservation ? { providerObservation: attempt.providerObservation } : {}),
+      ...(errorHasProviderObservation ? { providerObservation: observationFor(error), ...providerAttemptFields(observationFor(error)) } : attempt.providerObservation ? { providerObservation: attempt.providerObservation, ...providerAttemptFields(attempt.providerObservation) } : {}),
     }));
   }
   private async validateInput(input: DesignAgentInput, allowReady = false) {
@@ -389,6 +487,7 @@ export class DesignAgentService {
         "DESIGN_SELECTION_STALE",
         "The project row version is stale.",
       );
+    const sourceHead = await this.readSourceHead();
     const persisted = await this.documents.get(input.projectId, input.projectVersion, "design-directions");
     if (!options.replaceExisting && persisted?.documentType === "design-directions" && persisted.approvedBriefChecksum === input.approvedBriefChecksum && persisted.acceptedPlanningChecksum === input.acceptedPlanningChecksum && persisted.generationIdempotencyKey && persisted.generationIdempotencyKey !== input.idempotencyKey) throw new DesignError("IDEMPOTENCY_CONFLICT", "Design generation idempotency key was reused with different input.");
     if (!options.replaceExisting && persisted?.documentType === "design-directions" && persisted.approvedBriefChecksum === input.approvedBriefChecksum && persisted.acceptedPlanningChecksum === input.acceptedPlanningChecksum) {
@@ -418,6 +517,7 @@ export class DesignAgentService {
     } else if (attempt && !options.replaceExisting) {
       throw new DesignError("IDEMPOTENCY_CONFLICT", "A different Design generation operation is already bound to the current project.");
     }
+    if (attempt && attempt.operationKey !== input.idempotencyKey && options.replaceExisting) await this.preserveAttemptHistory(attempt);
     attempt = DesignGenerationAttemptSchema.parse({
       schemaVersion: 1,
       documentType: "design-generation-attempt",
@@ -434,6 +534,7 @@ export class DesignAgentService {
       architectureChecksum,
       selectedSkillIds: [],
       selectedSkillChecksums: [],
+      ...(sourceHead ? { sourceHead } : {}),
     });
     attempt = await this.saveAttempt(attempt);
     attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({ ...attempt, state: "CLAIMED", updatedAt: now() }));
@@ -459,7 +560,17 @@ export class DesignAgentService {
       throw failure;
     }
     const providerObservation = observationForSet(set);
-    if (providerObservation) attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({ ...attempt, providerObservation, updatedAt: now() }));
+    const normalizedCandidateChecksum = directionSetChecksum(set);
+    const providerResultChecksum = providerObservation?.rawContentChecksum ?? normalizedCandidateChecksum;
+    attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({
+      ...attempt,
+      ...(providerObservation ? { providerObservation, ...providerAttemptFields(providerObservation) } : { providerAttempted: true, responseReceived: true }),
+      providerResultChecksum,
+      normalizedCandidateSchemaVersion: 1,
+      normalizedCandidateChecksum,
+      normalizedCandidate: set,
+      updatedAt: now(),
+    }));
     if (this.professionalPipeline) {
       try {
       set = (await this.professionalPipeline.run({ projectId: input.projectId, projectVersion: input.projectVersion, directionSet: set, prompt: providerInput.approvedBrief.projectSummary, idempotencyKey: input.idempotencyKey })).directionSet;
@@ -467,7 +578,7 @@ export class DesignAgentService {
         const message = error instanceof Error ? error.message : "";
         const code = message.startsWith("DESIGN_SKILL_NOT_AVAILABLE_THROUGH_APPROVED_SOURCE") ? "DESIGN_SKILL_NOT_AVAILABLE_THROUGH_APPROVED_SOURCE" : message.startsWith("FONTPAIR_") ? "FONTPAIR_SOURCE_INTEGRATION_UNRESOLVED" : message.startsWith("IMPECCABLE_") ? "IMPECCABLE_DETECTOR_INTEGRATION_UNRESOLVED" : message.startsWith("PHASE_7F_EVIDENCE_INVALID") ? "PHASE_7F_EVIDENCE_INVALID" : message.startsWith("UNAPPROVED_DESIGN_DEPENDENCY") ? "UNAPPROVED_DESIGN_DEPENDENCY" : "DESIGN_PROVIDER_FAILED";
         const failure = new DesignError(code, "Professional design capability pipeline failed.", error);
-        await this.failAttempt(attempt, "ADMISSION_FAILED", failure);
+        await this.failAttempt(attempt, "ADMISSION_FAILED", failure, [admissionFindingForPipeline(code)]);
         throw failure;
       }
     }
@@ -499,7 +610,7 @@ export class DesignAgentService {
         `Design provider output was rejected: ${readiness.blockingReasons.slice(0, 8).join(", ") || "strict readiness validation failed"}.`,
         readiness,
       );
-      await this.failAttempt(attempt, "ADMISSION_FAILED", failure);
+      await this.failAttempt(attempt, "ADMISSION_FAILED", failure, admissionFindingsForReadiness(set, readiness));
       throw failure;
     }
     const generatedAt = now();
@@ -518,11 +629,12 @@ export class DesignAgentService {
       acceptedPlanningChecksum: input.acceptedPlanningChecksum,
       generationIdempotencyKey: input.idempotencyKey,
     });
+    const completedObservation = observationForSet(set) ?? attempt.providerObservation;
     const completedAttempt = DesignGenerationAttemptSchema.parse({
       ...attempt,
       state: "PERSISTED",
       updatedAt: generatedAt,
-      providerObservation: observationForSet(set),
+      ...(completedObservation ? { providerObservation: completedObservation, ...providerAttemptFields(completedObservation) } : {}),
     });
     const persistedSet = await this.dependencies.database.transaction(async (tx) => {
       const projectRow = await tx.getProject(input.projectId);

@@ -52,7 +52,7 @@ describe("OpenAI Design provider boundary", () => {
     const result = await new OpenAiDesignProvider(clientFor({ content: JSON.stringify(wire), usage: { prompt_tokens: 31, completion_tokens: 17, total_tokens: 48 } }, (request) => { sent = request; })).proposeDesignDirections(input);
     expect(result.directions).toHaveLength(3);
     expect(new Set(result.directions.map((direction) => direction.id)).size).toBe(3);
-    expect(result.provider).toMatchObject({ name: "openai", used: true, model: "synthetic-design-model", requestId: "req_design_fixture", responseReceived: true, finishReason: "stop", inputTokens: 31, outputTokens: 17, totalTokens: 48 });
+    expect(result.provider).toMatchObject({ name: "openai", used: true, model: "synthetic-design-model", requestId: "req_design_fixture", responseReceived: true, finishReason: "stop", inputTokens: 31, outputTokens: 17, totalTokens: 48, rawContentBytes: expect.any(Number), rawContentChecksum: expect.stringMatching(/^[a-f0-9]{64}$/) });
     expect(sent).toMatchObject({ model: "synthetic-design-model", response_format: { type: "json_schema", json_schema: { name: "design-direction-set", strict: true } } });
     expect(sent).not.toHaveProperty("temperature");
     expect(JSON.stringify(sent)).not.toContain("$parseRaw");

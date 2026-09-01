@@ -1294,6 +1294,8 @@ function normalizeDesignDirectionSet(
         ...(provider.usage.inputTokens === undefined ? {} : { inputTokens: provider.usage.inputTokens }),
         ...(provider.usage.outputTokens === undefined ? {} : { outputTokens: provider.usage.outputTokens }),
         ...(provider.usage.totalTokens === undefined ? {} : { totalTokens: provider.usage.totalTokens }),
+        ...(provider.diagnostic?.rawContentBytes === undefined ? {} : { rawContentBytes: provider.diagnostic.rawContentBytes }),
+        ...(provider.diagnostic?.rawContentChecksum === undefined ? {} : { rawContentChecksum: provider.diagnostic.rawContentChecksum }),
       },
     });
   } catch (error) {

@@ -428,6 +428,7 @@ export function createProductionFactoryRuntime(
         memory: new DesignMemoryAdapter(sync),
         resolveSkills: resolveDesignSkills,
         professionalPipeline: new ProfessionalDesignCapabilityPipeline(),
+        source: createGitSourceCurrentnessPort(),
       });
       const architectureReviewer = new ArchitectureReviewOrchestrationService(
         database,
