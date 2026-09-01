@@ -66,6 +66,7 @@
   },
   "validation": {
     "architectureAndPromptFocusedTests": "PASS",
+    "npmTest": "PASS (1,894 passed; 2 skipped)",
     "typecheck": "PASS",
     "lint": "PASS",
     "build": "PASS",
@@ -73,7 +74,8 @@
     "providerContracts": "PASS",
     "databaseValidationStatusVerificationIntegrity": "PASS",
     "taskgraphSmoke": "PASS",
-    "preReconciliationCodexVerify": "EXPECTED_PROTECTED_DELTA_ONLY"
+    "preReconciliationCodexVerify": "EXPECTED_PROTECTED_DELTA_ONLY",
+    "postReconciliationCodexVerify": "PASS"
   },
   "finalVerdict": "DESIGN_GENERATION_BLOCKED_PROVIDER_OBSERVABILITY_GAP"
 }
