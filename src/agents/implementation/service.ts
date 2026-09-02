@@ -9,6 +9,7 @@ import {
 } from "@/persistence/database/repositories";
 import { mapRowToDocument } from "@/persistence/database/mapping";
 import type { PersistenceDatabase } from "@/persistence/database/types";
+import { PersistenceError } from "@/persistence/database/errors";
 import {
   ImplementationRunsSchema,
   type ImplementationExecutionRun,
@@ -43,6 +44,7 @@ import { validatePhase7CContractPackage, validateTaskContractBinding } from "@/d
 import { validateDirectionDesignCapability } from "@/domain/design/capability";
 import { evaluateRealFormProcessingGate, isRealFormProcessingTask } from "@/domain/requirements/v3/lifecycle-gates";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
+import { validateTaskCapabilityBinding } from "@/orchestration/tooling/authority";
 
 export interface ImplementationMemoryPort {
   writeSnapshot(
@@ -59,6 +61,8 @@ const graphWithoutChecksum = (graph: TaskGraph) => {
 };
 const graphChecksum = (graph: TaskGraph) =>
   checksumPersistedDocument(graphWithoutChecksum(graph));
+type TaskGraphOwner = "implementation-agent" | "full-execution";
+type CanonicalPersistenceState = { outcome: "NOT_COMMITTED" | "COMMITTED" | "AMBIGUOUS" };
 const dependencyContextFor = (input: ImplementationAgentInput, taskType: string): DependencyAuthorityContext => {
   const planning = PlanningPackageSchema.safeParse(input.acceptedPlanningPackage);
   const plannedDependencies = planning.success
@@ -100,6 +104,7 @@ export class ImplementationAgentService {
   private readonly applier: AtomicChangeApplier;
   private readonly provider: ImplementationProvider;
   private readonly policy: ExecutionPolicy;
+  private readonly taskGraphOwner: TaskGraphOwner;
   private readonly active = new Set<string>();
   private readonly idempotency = new Map<
     string,
@@ -111,6 +116,7 @@ export class ImplementationAgentService {
       memory?: ImplementationMemoryPort;
       provider?: ImplementationProvider;
       policy?: ExecutionPolicy;
+      taskGraphOwner?: TaskGraphOwner;
     },
   ) {
     this.documents = new DocumentRepository(database);
@@ -124,6 +130,7 @@ export class ImplementationAgentService {
     this.provider =
       dependencies.provider ?? new DeterministicImplementationProvider();
     this.policy = dependencies.policy ?? DEFAULT_EXECUTION_POLICY;
+    this.taskGraphOwner = dependencies.taskGraphOwner ?? "implementation-agent";
     this.memory = dependencies.memory;
   }
   getAgentDefinition() {
@@ -240,6 +247,14 @@ export class ImplementationAgentService {
           "FORM_PLAN_VIOLATION",
           "Real form processing requires a current explicit user approval.",
         );
+      const capabilityBinding = validateTaskCapabilityBinding(input.task);
+      if (!capabilityBinding.valid)
+        throw new ImplementationError(
+          "IMPLEMENTATION_CAPABILITY_BINDING_INVALID",
+          "The implementation task advertises capabilities that its approved tools do not provide.",
+          undefined,
+          { missingCapabilities: capabilityBinding.missingCapabilities },
+        );
       validateSupportedTask(input.task);
       return input;
     } catch (error) {
@@ -255,41 +270,56 @@ export class ImplementationAgentService {
     input: ImplementationAgentInput,
     run: ImplementationExecutionRun,
     graph: TaskGraph,
+    persistenceState: CanonicalPersistenceState,
     expectedGraph?: { rowVersion: number; checksum: string },
   ) {
-    const runs = await this.database.transaction(async (tx) => {
-      const existingRow = await tx.getDocument(input.projectId, input.projectVersion, "implementation-runs");
-      const existing = existingRow ? mapRowToDocument(existingRow) : null;
-      const nextRuns: ImplementationRuns = existing?.documentType === "implementation-runs"
-        ? {
-            ...existing,
-            runs: [
-              ...existing.runs.filter(
-                (candidate) => candidate.executionId !== run.executionId,
-              ),
-              run,
-            ],
-            updatedAt: now(),
-          }
-        : {
-            schemaVersion: 1,
-            documentType: "implementation-runs",
-            projectId: input.projectId,
-            projectVersion: input.projectVersion,
-            createdAt: input.task.createdAt,
-            updatedAt: now(),
-            runs: [run],
-        };
-      await saveDocumentInTransaction(tx, ImplementationRunsSchema.parse(nextRuns));
-      if (expectedGraph) await saveDocumentCASInTransaction(tx, graph, expectedGraph.rowVersion, expectedGraph.checksum);
-      else await saveDocumentInTransaction(tx, graph);
-      return nextRuns;
-    });
-    if (this.memory)
-      await this.memory.writeSnapshot(input.projectId, input.projectVersion, {
-        "implementation-runs.json": runs,
-        "task-graph.json": graph,
+    let runs: ImplementationRuns;
+    try {
+      runs = await this.database.transaction(async (tx) => {
+        const existingRow = await tx.getDocument(input.projectId, input.projectVersion, "implementation-runs");
+        const existing = existingRow ? mapRowToDocument(existingRow) : null;
+        const nextRuns: ImplementationRuns = existing?.documentType === "implementation-runs"
+          ? {
+              ...existing,
+              runs: [
+                ...existing.runs.filter(
+                  (candidate) => candidate.executionId !== run.executionId,
+                ),
+                run,
+              ],
+              updatedAt: now(),
+            }
+          : {
+              schemaVersion: 1,
+              documentType: "implementation-runs",
+              projectId: input.projectId,
+              projectVersion: input.projectVersion,
+              createdAt: input.task.createdAt,
+              updatedAt: now(),
+              runs: [run],
+          };
+        await saveDocumentInTransaction(tx, ImplementationRunsSchema.parse(nextRuns));
+        if (this.taskGraphOwner === "implementation-agent") {
+          if (expectedGraph) await saveDocumentCASInTransaction(tx, graph, expectedGraph.rowVersion, expectedGraph.checksum);
+          else await saveDocumentInTransaction(tx, graph);
+        }
+        return nextRuns;
       });
+      persistenceState.outcome = "COMMITTED";
+    } catch (error) {
+      persistenceState.outcome = error instanceof PersistenceError && error.code === "PERSISTENCE_COMMIT_AMBIGUOUS" ? "AMBIGUOUS" : "NOT_COMMITTED";
+      throw error;
+    }
+    if (this.memory) {
+      try {
+        await this.memory.writeSnapshot(input.projectId, input.projectVersion, {
+          "implementation-runs.json": runs,
+          ...(this.taskGraphOwner === "implementation-agent" ? { "task-graph.json": graph } : {}),
+        });
+      } catch (error) {
+        throw new ImplementationError("IMPLEMENTATION_STATE_MISMATCH", "Implementation was committed but its derived Project Memory projection could not be synchronized.", error);
+      }
+    }
   }
   private updateGraph(
     graph: TaskGraph,
@@ -362,17 +392,20 @@ export class ImplementationAgentService {
     const startedAt = now();
     let run = runBase(input, "running", startedAt);
     let graph = input.taskGraph;
+    let executionTask = input.task;
     let graphCommitContext: { rowVersion: number; checksum: string } | undefined;
+    const canonicalPersistence: CanonicalPersistenceState = { outcome: "NOT_COMMITTED" };
+    let applied: Awaited<ReturnType<AtomicChangeApplier["apply"]>> | undefined;
     try {
       const project = await this.projects.getWithVersion(input.projectId);
       const version = await this.versions.get(
         input.projectId,
         input.projectVersion,
       );
-      if (!project || project.project.workflowState !== "IMPLEMENTING")
+      if (!project || project.project.currentVersion !== input.projectVersion || project.project.workflowState !== "IMPLEMENTING")
         throw new ImplementationError(
           "IMPLEMENTATION_WORKFLOW_STATE_INVALID",
-          "Project workflow state is stale.",
+          "Project version or workflow state is stale.",
         );
       if (!version || version.immutable)
         throw new ImplementationError(
@@ -380,11 +413,9 @@ export class ImplementationAgentService {
           "Project version is unavailable or immutable.",
         );
       const persistedGraph = await this.documents.getWithMetadata(input.projectId, input.projectVersion, "task-graph");
-      if (persistedGraph) {
-        if (persistedGraph.document.documentType !== "task-graph" || persistedGraph.rowVersion !== input.expectedTaskRowVersion || persistedGraph.document.graphChecksum !== input.taskGraphChecksum)
-          throw new ImplementationError("IMPLEMENTATION_GRAPH_STALE", "The persisted TaskGraph changed before implementation admission.");
-        graph = persistedGraph.document;
-      }
+      if (!persistedGraph || persistedGraph.document.documentType !== "task-graph" || persistedGraph.rowVersion !== input.expectedTaskRowVersion || persistedGraph.document.graphChecksum !== input.taskGraphChecksum)
+        throw new ImplementationError("IMPLEMENTATION_GRAPH_STALE", "The current persisted TaskGraph is required and must match the implementation admission token.");
+      graph = persistedGraph.document;
       const [brief, planning, selected] = await Promise.all([
         this.documents.get(input.projectId, input.projectVersion, "requirements"),
         this.documents.get(input.projectId, input.projectVersion, "planning-package"),
@@ -405,20 +436,33 @@ export class ImplementationAgentService {
           throw new ImplementationError("IMPLEMENTATION_GRAPH_STALE", "Implementation is blocked by a stale Phase 7C contract package.", error);
         }
       }
-      if (persistedGraph && persistedGraph.document.documentType === "task-graph") {
-        const currentTask = persistedGraph.document.tasks.find((candidate) => candidate.id === input.taskId);
-        if (!currentTask || currentTask.status !== input.expectedTaskState || currentTask.attempt !== input.task.attempt) throw new ImplementationError("IMPLEMENTATION_GRAPH_STALE", "The implementation task is no longer admissible from the current TaskGraph.");
+      const currentTask = persistedGraph.document.tasks.find((candidate) => candidate.id === input.taskId);
+      if (!currentTask || currentTask.status !== input.expectedTaskState || currentTask.attempt !== input.task.attempt || checksumPersistedDocument(currentTask) !== checksumPersistedDocument(input.task)) throw new ImplementationError("IMPLEMENTATION_GRAPH_STALE", "The implementation task is no longer admissible from the current TaskGraph.");
+      const capabilityBinding = validateTaskCapabilityBinding(currentTask);
+      if (!capabilityBinding.valid) throw new ImplementationError("IMPLEMENTATION_CAPABILITY_BINDING_INVALID", "The implementation task advertises capabilities that its approved tools do not provide.", undefined, { missingCapabilities: capabilityBinding.missingCapabilities });
+      executionTask = currentTask;
+      const graphAdmission = { rowVersion: persistedGraph.rowVersion, checksum: persistedGraph.checksum };
+      if (this.taskGraphOwner === "implementation-agent") {
+        graph = this.updateGraph(
+          graph,
+          executionTask.id,
+          "running",
+          executionTask.attempt + 1,
+        );
+        await this.database.transaction(async (tx) => {
+          const currentProject = await tx.getProject(input.projectId);
+          const currentVersion = await tx.getVersion(input.projectId, input.projectVersion);
+          const currentGraph = await tx.getDocument(input.projectId, input.projectVersion, "task-graph");
+          if (!currentProject || currentProject.current_version !== input.projectVersion || currentProject.workflow_state !== "IMPLEMENTING")
+            throw new ImplementationError("IMPLEMENTATION_WORKFLOW_STATE_INVALID", "Project version or workflow state changed before implementation admission was committed.");
+          if (!currentVersion || currentVersion.immutable)
+            throw new ImplementationError("IMPLEMENTATION_VERSION_IMMUTABLE", "Project version became unavailable or immutable before implementation admission was committed.");
+          if (!currentGraph || currentGraph.rowVersion !== graphAdmission.rowVersion || currentGraph.checksum !== graphAdmission.checksum)
+            throw new ImplementationError("IMPLEMENTATION_GRAPH_STALE", "The current persisted TaskGraph changed before implementation admission was committed.");
+          await saveDocumentCASInTransaction(tx, graph, graphAdmission.rowVersion, graphAdmission.checksum);
+        });
+        graphCommitContext = { rowVersion: graphAdmission.rowVersion + 1, checksum: checksumPersistedDocument(graph) };
       }
-      const graphAdmission = persistedGraph ? { rowVersion: persistedGraph.rowVersion, checksum: persistedGraph.checksum } : undefined;
-      graph = this.updateGraph(
-        graph,
-        input.taskId,
-        "running",
-        input.task.attempt + 1,
-      );
-      if (graphAdmission) await this.database.transaction((tx) => saveDocumentCASInTransaction(tx, graph, graphAdmission.rowVersion, graphAdmission.checksum));
-      else await this.documents.save(graph);
-      graphCommitContext = { rowVersion: graphAdmission ? graphAdmission.rowVersion + 1 : 1, checksum: checksumPersistedDocument(graph) };
       if (input.cancellation.requested || signal?.aborted)
         throw new ImplementationError(
           "IMPLEMENTATION_CANCELLED",
@@ -427,9 +471,9 @@ export class ImplementationAgentService {
       const context = await this.context.assemble({
         ...input,
         task: {
-          ...input.task,
+          ...executionTask,
           status: "running",
-          attempt: input.task.attempt + 1,
+          attempt: executionTask.attempt + 1,
           startedAt,
         },
       }, skillSelection);
@@ -441,8 +485,8 @@ export class ImplementationAgentService {
       const proposal = await this.provider.proposeTaskChanges(context, signal);
       validateProposal(
         {
-          ...input.task,
-          attempt: input.task.attempt + 1,
+          ...executionTask,
+          attempt: executionTask.attempt + 1,
           status: "running",
           startedAt,
         },
@@ -453,10 +497,10 @@ export class ImplementationAgentService {
         input.phase7cContractPackage,
         { taskGraphChecksum: input.taskGraphChecksum },
       );
-      const applied = await this.applier.apply(
+      applied = await this.applier.apply(
         {
-          ...input.task,
-          attempt: input.task.attempt + 1,
+          ...executionTask,
+          attempt: executionTask.attempt + 1,
           status: "running",
           startedAt,
         },
@@ -469,13 +513,13 @@ export class ImplementationAgentService {
         { taskGraphChecksum: input.taskGraphChecksum },
       );
       const acceptedPlanning = input.acceptedPlanningPackage as BackendPlans["planning"];
-      if (input.task.taskType === "implement-storage") StoragePlanSchema.parse(acceptedPlanning?.storage);
+      if (executionTask.taskType === "implement-storage") StoragePlanSchema.parse(acceptedPlanning?.storage);
       const backendPlans = {
         brief: input.approvedBrief,
         planning: acceptedPlanning,
       };
       const validations = validateTaskResult(
-        input.task,
+        executionTask,
         proposal,
         backendPlans,
         input.stagingWorkspacePath,
@@ -495,19 +539,35 @@ export class ImplementationAgentService {
         validationResults: validations,
         completedAt: now(),
         providerUsageMetadata: proposal.providerMetadata,
-        attempt: input.task.attempt + 1,
+        attempt: executionTask.attempt + 1,
       };
       graph = this.updateGraph(
         graph,
-        input.taskId,
+        executionTask.id,
         "passed",
-        input.task.attempt + 1,
+        executionTask.attempt + 1,
       );
-      await this.saveRun(input, run, graph, graphCommitContext);
+      await this.saveRun(input, run, graph, canonicalPersistence, graphCommitContext);
       this.idempotency.set(key, { hash, result: run });
       return run;
     } catch (error) {
-      const implementationError =
+      if (canonicalPersistence.outcome === "COMMITTED") {
+        this.idempotency.set(key, { hash, result: run });
+        return run;
+      }
+      if (canonicalPersistence.outcome === "AMBIGUOUS") {
+        try {
+          const authoritative = await this.getImplementationExecution(input.projectId, input.projectVersion, run.executionId);
+          if (authoritative) {
+            this.idempotency.set(key, { hash, result: authoritative });
+            return authoritative;
+          }
+        } catch (readbackError) {
+          throw new ImplementationError("IMPLEMENTATION_STATE_MISMATCH", "Implementation persistence outcome is indeterminate and authoritative readback failed.", readbackError);
+        }
+        throw new ImplementationError("IMPLEMENTATION_STATE_MISMATCH", "Implementation persistence outcome is indeterminate; workspace changes were preserved for reconciliation.", error);
+      }
+      let implementationError =
         error instanceof ImplementationError
           ? error
           : new ImplementationError(
@@ -515,6 +575,17 @@ export class ImplementationAgentService {
               "Implementation task failed safely.",
               error,
             );
+      if (applied && canonicalPersistence.outcome === "NOT_COMMITTED") {
+        try { await applied.rollback(); }
+        catch (rollbackError) {
+          implementationError = rollbackError instanceof ImplementationError
+            ? rollbackError
+            : new ImplementationError("AST_PATCH_ROLLBACK_FAILED", "Workspace rollback could not be proven complete.", rollbackError);
+        }
+      }
+      const schemaPaths = error && typeof error === "object" && "issues" in error && Array.isArray((error as { issues?: unknown }).issues)
+        ? (error as { issues: Array<{ path?: unknown[]; code?: unknown; message?: unknown }> }).issues.slice(0, 4).map((issue) => `${Array.isArray(issue.path) ? issue.path.join(".") : "unknown"}:${typeof issue.code === "string" ? issue.code : "invalid"}:${typeof issue.message === "string" ? issue.message.slice(0, 120) : "invalid"}`).join(",")
+        : "";
       const status =
         implementationError.code === "IMPLEMENTATION_CANCELLED"
           ? ("cancelled" as const)
@@ -523,21 +594,21 @@ export class ImplementationAgentService {
         ...run,
         status,
         safeFailureCode: implementationError.code,
-        safeFailureSummary: implementationError.message,
+        safeFailureSummary: `${implementationError.message}${schemaPaths ? ` [schemaPaths=${schemaPaths}]` : ""}`,
         completedAt: now(),
       };
       if (graphCommitContext) {
         graph = this.updateGraph(
           graph,
-          input.taskId,
+          executionTask.id,
           status,
-          Math.min(input.task.attempt + 1, input.task.maxAttempts),
+          Math.min(executionTask.attempt + 1, executionTask.maxAttempts),
           {
             code: implementationError.code,
             summary: implementationError.message,
           },
         );
-        await this.saveRun(input, run, graph, graphCommitContext);
+        await this.saveRun(input, run, graph, canonicalPersistence, graphCommitContext);
       }
       this.idempotency.set(key, { hash, result: run });
       throw implementationError;

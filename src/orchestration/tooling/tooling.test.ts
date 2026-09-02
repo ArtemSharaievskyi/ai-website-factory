@@ -11,7 +11,7 @@ import { RuntimeCommandResultSchema, type GeneratedProjectRuntimeValidator } fro
 import { FunctionalQaReportSchema } from "@/runtime/qa/contracts";
 import { validateDependencyNames } from "@/dependencies/authority";
 import { rolePrompt } from "@/integrations/openai/prompts";
-import { authorizeToolRequest, resolveAuthorizedToolOperations, taskCapabilitiesFor } from "./authority";
+import { authorizeToolRequest, resolveAuthorizedToolOperations, taskCapabilitiesFor, validateTaskCapabilityBinding } from "./authority";
 import { executeBoundToolOperation } from "./adapters";
 import { boundToolText, executeControlledRuntimeOperation, registeredOutputToToolResult, runtimeResultToToolResult } from "./executors";
 import { createHostToolContext, isTrustedToolHostContext, type ToolHostContext } from "./host-context";
@@ -46,7 +46,7 @@ function host(scope = workspace, trustedExecutorIds: readonly ("openai-structure
 }
 
 function validationTask(overrides: Partial<AgentTask> = {}) {
-  return task({ taskType: "validate-typecheck", role: "qa-release", allowedTools: ["filesystem-read"], requiredCapabilities: ["validation.typecheck", "dependency.materialize"], fileScopes: [], ...overrides });
+  return task({ taskType: "validate-typecheck", role: "qa-release", allowedTools: ["generated-runtime-validation"], requiredCapabilities: ["validation.typecheck", "dependency.materialize"], fileScopes: [], ...overrides });
 }
 
 function request(overrides: Record<string, unknown> = {}) {
@@ -153,6 +153,8 @@ describe("Phase 7B developer tooling authority", () => {
     expect(authorizeToolRequest({ request: request(), task: task(), hostContext: host(), agentDefinition: leadAgentDefinition }).code).toBe("AGENT_TOOL_NOT_ALLOWED");
     const missingCapabilityTask = task({ requiredCapabilities: ["source.inspect"] });
     expect(authorizeToolRequest({ request: request(), task: missingCapabilityTask, hostContext: host(workspace, [], missingCapabilityTask), agentDefinition: implementationAgentDefinition }).code).toBe("TASK_CAPABILITY_MISSING");
+    const invalidBindingTask = task({ allowedTools: ["filesystem-read"], requiredCapabilities: ["edit.ast-patch"] });
+    expect(authorizeToolRequest({ request: request(), task: invalidBindingTask, hostContext: host(workspace, [], invalidBindingTask), agentDefinition: implementationAgentDefinition }).code).toBe("TASK_CAPABILITY_MISSING");
     expect(authorizeToolRequest({ request: request(), task: task({ status: "cancelled", completedAt: "2026-01-01T00:01:00.000Z" }), hostContext: host(), agentDefinition: implementationAgentDefinition }).code).toBe("TASK_NOT_CURRENT");
     expect(authorizeToolRequest({ request: request({ projectId: "33333333-3333-4333-8333-333333333333" }), task: task(), hostContext: host(), agentDefinition: implementationAgentDefinition }).code).toBe("PROJECT_SCOPE_INVALID");
     expect(authorizeToolRequest({ request: request({ projectVersion: 2 }), task: task(), hostContext: host(), agentDefinition: implementationAgentDefinition }).code).toBe("PROJECT_SCOPE_INVALID");
@@ -173,7 +175,7 @@ describe("Phase 7B developer tooling authority", () => {
     expect(authorizeToolRequest({ request: request({ toolId: "shadcn-registry-read", operationId: "resolve-component", input: { registryUrl: "https://evil.example" } }), task: task(), hostContext: host(), agentDefinition: implementationAgentDefinition }).code).toBe("INPUT_NOT_ALLOWED");
     const commandTask = validationTask();
     expect(authorizeToolRequest({ request: request({ toolId: "generated-runtime-validation", operationId: "typecheck", input: { command: "npm run build && whoami" } }), task: commandTask, hostContext: host({ ...workspace, allowedFileScopes: [] }, ["generated-runtime-validator"], commandTask) }).code).toBe("INPUT_NOT_ALLOWED");
-    const foundationTask = task({ taskType: "implement-project-foundation", allowedTools: ["filesystem-read", "filesystem-write"], requiredCapabilities: ["dependency.materialize"] });
+    const foundationTask = task({ taskType: "implement-project-foundation", allowedTools: ["filesystem-read", "filesystem-write"], requiredCapabilities: [] });
     expect(authorizeToolRequest({ request: request({ toolId: "generated-runtime-validation", operationId: "install-locked", input: { package: "unapproved-package" } }), task: foundationTask, hostContext: host(workspace, ["generated-runtime-validator"], foundationTask) }).code).toBe("INPUT_NOT_ALLOWED");
     expect(authorizeToolRequest({ request: request({ toolId: "codebase-memory-read", operationId: "get-relevant-source", input: { file: "src/page.ts", relativePath: "src2/secret.ts" } }), task: task(), hostContext: host(), agentDefinition: implementationAgentDefinition }).code).toBe("INPUT_NOT_ALLOWED");
     const narrowerTask = task({ fileScopes: ["src/components/**"] });
@@ -220,6 +222,19 @@ describe("Phase 7B developer tooling authority", () => {
     expect(generated.allowedTools).toContain("generated-runtime-validation");
     expect(taskCapabilitiesFor(generated)).toEqual(expect.arrayContaining(["validation.typecheck", "dependency.materialize"]));
     expect(resolveTools("validate-functional-flow").allowed).toEqual(expect.arrayContaining(["Playwright-functional", "playwright-functional-qa"]));
+  });
+
+  it("binds capabilities to the task's approved tools and preserves explicit empty authority", () => {
+    const foundation = task({ taskType: "implement-project-foundation", allowedTools: ["filesystem-read", "filesystem-write"], requiredCapabilities: [] });
+    expect(taskCapabilitiesFor(foundation)).toEqual([]);
+    expect(validateTaskCapabilityBinding({ ...foundation, requiredCapabilities: ["edit.ast-patch"] })).toMatchObject({ valid: false, missingCapabilities: ["edit.ast-patch"] });
+    const page = task({ requiredCapabilities: ["edit.ast-patch"], allowedTools: ["filesystem-read", "filesystem-write", "controlled-edit"] });
+    expect(validateTaskCapabilityBinding(page)).toMatchObject({ valid: true, requiredCapabilities: ["edit.ast-patch"] });
+    const foundationWithControlledEdit = task({ taskType: "implement-project-foundation", allowedTools: ["filesystem-read", "filesystem-write", "controlled-edit"], requiredCapabilities: ["edit.ast-patch"] });
+    expect(validateTaskCapabilityBinding(foundationWithControlledEdit)).toMatchObject({ valid: false, missingCapabilities: ["edit.ast-patch"] });
+    const ordinaryPageTools = resolveTools("implement-page");
+    expect(ordinaryPageTools.allowed).not.toContain("controlled-edit");
+    expect(taskCapabilitiesFor(task({ taskType: "implement-page", allowedTools: ordinaryPageTools.allowed, requiredCapabilities: undefined }))).not.toContain("edit.ast-patch");
   });
 
   it("converts failed, cancelled, redacted, and oversized runtime output into bounded results", () => {

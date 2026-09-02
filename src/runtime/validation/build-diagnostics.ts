@@ -16,6 +16,11 @@ function relativeSource(raw: string, workspacePath: string) {
   return relative;
 }
 function sourceFromLine(line: string, workspacePath: string) {
+  const quoted = line.match(/[\s("'`]((?:[A-Za-z]:[\\/]|\.\/)[^"'`]+?)["'`]/);
+  if (quoted) {
+    const relativePath = relativeSource(quoted[1]!, workspacePath);
+    if (relativePath) return { relativePath };
+  }
   const match = line.match(/(?:^|[\s("'`])((?:[A-Za-z]:[\\/]|\.\/|(?:src|tests|public|supabase|package\.json|next\.config\.|postcss\.config\.|tsconfig\.json|eslint\.config\.))[^\s()\]"'`]+?)(?::(\d+)(?::(\d+))?|\((\d+),(\d+)\))/);
   if (!match) { const bare = line.match(/(?:^|[\s("'`])((?:\.\/)?(?:src|tests|public|supabase)\/[^\s()\]"'`:]+)/); if (!bare) return undefined; const relativePath = relativeSource(bare[1]!, workspacePath); return relativePath ? { relativePath } : undefined; }
   const relativePath = relativeSource(match[1]!, workspacePath);

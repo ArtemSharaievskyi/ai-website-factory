@@ -34,6 +34,8 @@ import {
   taskExecutionCapability,
   validateFullExecutionReadiness,
 } from "./policy";
+import { taskCapabilitiesFor } from "@/orchestration/tooling/authority";
+import { resolveTools } from "@/orchestration/orchestrator/tools";
 
 const now = () => new Date().toISOString();
 const withoutGraphChecksum = (graph: TaskGraph) => {
@@ -57,6 +59,26 @@ const runtimeOperation: Readonly<
 const recordsEqual = (left: Record<string, string>, right: Record<string, string>) =>
   Object.keys(left).length === Object.keys(right).length &&
   Object.entries(left).every(([key, value]) => right[key] === value);
+const executionIdentityFor = (input: FullExecutionStartInput) => input.executionIdentity ?? `full-execution:${input.projectId}:${input.projectVersion}`;
+export function fullExecutionRequestChecksum(input: FullExecutionStartInput) {
+  return checksumPersistedDocument({
+    projectId: input.projectId,
+    projectVersion: input.projectVersion,
+    executionIdentity: executionIdentityFor(input),
+    idempotencyKey: input.idempotencyKey,
+    graph: input.graph,
+    expectedGraphChecksum: input.expectedGraphChecksum,
+    workflowState: input.workflowState,
+    projectImmutable: input.projectImmutable,
+    workspaceValid: input.workspaceValid,
+    sourceDocumentChecksums: input.sourceDocumentChecksums,
+    currentDocumentChecksums: input.currentDocumentChecksums,
+    toolPolicyVersion: input.toolPolicyVersion,
+    activeRunIds: input.activeRunIds ?? [],
+    requirementChangePending: input.requirementChangePending ?? false,
+    pause: input.pause ?? false,
+  });
+}
 
 const defaultRepairer: RepairPort = {
   async create(input) {
@@ -66,6 +88,7 @@ const defaultRepairer: RepairPort = {
         unresolvedCode: "REPAIR_SCOPE_UNRESOLVED",
         unresolvedSummary: `taskId=${source.id};taskType=${source.taskType};reason=original task has no writable scope`,
       };
+    const repairTools = resolveTools("repair-targeted-failure");
     const repairTask = AgentTaskSchema.parse({
       ...source,
       id: randomUUID(),
@@ -77,6 +100,8 @@ const defaultRepairer: RepairPort = {
         "Apply the targeted repair for the failed validation.",
       dependencies: source.dependencies,
       status: "ready",
+      executionMode: "exclusive-write",
+      parallelGroup: undefined,
       attempt: 0,
       maxAttempts: 1,
       repairOfTaskId: source.id,
@@ -87,6 +112,9 @@ const defaultRepairer: RepairPort = {
           "The original failure is corrected.",
       ],
       fileScopes: [...source.fileScopes],
+      allowedTools: repairTools.allowed,
+      deniedTools: repairTools.denied,
+      requiredCapabilities: taskCapabilitiesFor({ taskType: "repair-targeted-failure", allowedTools: repairTools.allowed }),
       createdAt: now(),
       startedAt: undefined,
       completedAt: undefined,
@@ -127,8 +155,9 @@ export class FullTaskGraphExecutor {
   async execute(
     input: FullExecutionStartInput,
   ): Promise<TaskGraphExecutionRun> {
-    const key = `${input.projectId}:${input.projectVersion}:${input.idempotencyKey}`;
-    const hash = checksumPersistedDocument(input);
+    const normalizedInput = { ...input, executionIdentity: executionIdentityFor(input) };
+    const key = `${normalizedInput.projectId}:${normalizedInput.projectVersion}:${normalizedInput.idempotencyKey}`;
+    const hash = fullExecutionRequestChecksum(normalizedInput);
     const prior = this.completed.get(key);
     if (prior) {
       if (prior.hash !== hash)
@@ -138,10 +167,19 @@ export class FullTaskGraphExecutor {
         );
       return prior.run;
     }
+    const persisted = await this.state.load({ projectId: normalizedInput.projectId, projectVersion: normalizedInput.projectVersion });
+    const persistedRun = persisted.executionRun;
+    if (persistedRun && persistedRun.idempotencyKey === normalizedInput.idempotencyKey) {
+      if (persisted.executionRequestChecksum !== hash)
+        throw new FullExecutionError("FULL_EXECUTION_IDEMPOTENCY_CONFLICT", "Execution idempotency key was reused with different input.");
+      if (["paused", "failed", "cancelled", "completed"].includes(persistedRun.status) && !persisted.activeRunIds.includes(persistedRun.runId)) return persistedRun;
+    }
+    if (persisted.activeRunIds.length)
+      throw new FullExecutionError("FULL_EXECUTION_CONFLICT", "Another full execution is active for this project version.");
     const existing = [...this.active.values()].find(
       (session) =>
-        session.input.projectId === input.projectId &&
-        session.input.projectVersion === input.projectVersion,
+        session.input.projectId === normalizedInput.projectId &&
+        session.input.projectVersion === normalizedInput.projectVersion,
     );
     if (existing)
       throw new FullExecutionError(
@@ -149,18 +187,23 @@ export class FullTaskGraphExecutor {
         "Another full execution is active for this project version.",
       );
     const controller = new AbortController();
-    if (input.signal)
-      input.signal.addEventListener("abort", () => controller.abort(), {
+    if (normalizedInput.signal)
+      normalizedInput.signal.addEventListener("abort", () => controller.abort(), {
         once: true,
       });
-    const promise = this.start(input, controller);
-    this.active.set(key, { controller, promise, input });
+    const promise = this.start(normalizedInput, controller, hash);
+    this.active.set(key, { controller, promise, input: normalizedInput });
     try {
       const run = await promise;
-      this.completed.set(key, { hash, run });
+      if (["paused", "failed", "cancelled", "completed"].includes(run.status)) this.completed.set(key, { hash, run });
       return run;
     } finally {
       this.active.delete(key);
+      try {
+        await this.state.release?.(input.projectId, input.projectVersion);
+      } catch {
+        // Lease cleanup is best-effort; the durable run state remains authoritative.
+      }
     }
   }
 
@@ -223,6 +266,7 @@ export class FullTaskGraphExecutor {
   private async start(
     input: FullExecutionStartInput,
     controller: AbortController,
+    requestChecksum: string,
   ): Promise<TaskGraphExecutionRun> {
     validateFullExecutionReadiness(input, this.policy);
     const runId = randomUUID();
@@ -248,8 +292,9 @@ export class FullTaskGraphExecutor {
       finalWorkflowState: "IMPLEMENTING",
       pauseState: ExecutionPauseStateSchema.parse({ paused: false }),
       idempotencyKey: input.idempotencyKey,
+      executionIdentity: executionIdentityFor(input),
     });
-    await this.persist(run, graph, input.workflowState, "run-started");
+    await this.persist(run, graph, input.workflowState, "run-started", input, graph, requestChecksum);
     const repairFor = new Map<string, string>(
       graph.tasks
         .filter((task) => task.repairOfTaskId)
@@ -282,11 +327,12 @@ export class FullTaskGraphExecutor {
             reason: this.pauseRequest?.reason ?? "Explicit pause requested.",
           },
         };
-        await this.persist(run, graph, input.workflowState, "run-paused");
+        await this.persist(run, graph, input.workflowState, "run-paused", input, graph, requestChecksum);
         this.pauseRequested = false;
         return run;
       }
       if (controller.signal.aborted) {
+        const persistedGraph = graph;
         graph = this.cancelPending(graph);
         run = {
           ...run,
@@ -299,17 +345,19 @@ export class FullTaskGraphExecutor {
           finalWorkflowState: input.workflowState,
           safeFailureCode: "FULL_EXECUTION_CANCELLED",
         };
-        await this.persist(run, graph, input.workflowState, "run-cancelled");
+        await this.persist(run, graph, input.workflowState, "run-cancelled", input, persistedGraph, requestChecksum);
         return run;
       }
       const ready = this.selectReady(graph).filter(
         (task) => !this.policy.releaseBoundaryTaskTypes.includes(task.taskType),
       );
       if (ready.length === 0) {
+        const persistedGraph = graph;
         graph = this.blockDependents(graph);
         const boundary = graph.tasks.filter(
           (task) =>
-            !this.policy.releaseBoundaryTaskTypes.includes(task.taskType),
+            !this.policy.releaseBoundaryTaskTypes.includes(task.taskType) &&
+            task.status !== "cancelled",
         );
         const complete = boundary.every((task) => task.status === "passed");
         const failed = graph.tasks.some((task) => task.status === "failed");
@@ -326,7 +374,7 @@ export class FullTaskGraphExecutor {
               .filter((task) => task.status === "passed")
               .map((task) => task.id),
           };
-          await this.finishSummary(run, graph, input, snapshot);
+          await this.finishSummary(run, graph, input, snapshot, persistedGraph);
           return run;
         }
         if (failed || blocked) {
@@ -349,7 +397,7 @@ export class FullTaskGraphExecutor {
               .map((task) => task.id),
             safeFailureCode: failureCode,
           };
-          await this.persist(run, graph, input.workflowState, "run-failed");
+          await this.persist(run, graph, input.workflowState, "run-failed", input, persistedGraph, requestChecksum);
           return run;
         }
         throw new FullExecutionError(
@@ -406,6 +454,7 @@ export class FullTaskGraphExecutor {
         }),
       );
       for (const item of outcomes) {
+        const persistedGraph = graph;
         run = await this.applyOutcome(
           run,
           graph,
@@ -421,6 +470,9 @@ export class FullTaskGraphExecutor {
           graph,
           run.status === "validating" ? "VALIDATING" : input.workflowState,
           item.outcome.status === "passed" ? "task-completed" : "task-failed",
+          input,
+          persistedGraph,
+          requestChecksum,
         );
         if (
           item.outcome.status === "failed" &&
@@ -443,6 +495,9 @@ export class FullTaskGraphExecutor {
               graph,
               input.workflowState,
               "repair-limit-exceeded",
+              input,
+              graph,
+              requestChecksum,
             );
             return run;
           }
@@ -470,6 +525,9 @@ export class FullTaskGraphExecutor {
               graph,
               input.workflowState,
               "repair-scope-unresolved",
+              input,
+              graph,
+              requestChecksum,
             );
             return run;
           }
@@ -500,12 +558,13 @@ export class FullTaskGraphExecutor {
             currentCheckpoint: this.checkpoint("repair-created", graph),
           };
           repairFor.set(repair.repairTask.id, item.task.id);
+          const persistedGraph = graph;
           graph = withGraphChecksum({
             ...graph,
             tasks: [...graph.tasks, repair.repairTask],
             updatedAt: this.clock(),
           });
-          await this.persist(run, graph, input.workflowState, "repair-created");
+          await this.persist(run, graph, input.workflowState, "repair-created", input, persistedGraph, requestChecksum);
         }
       }
     }
@@ -712,16 +771,16 @@ export class FullTaskGraphExecutor {
       );
     }
     if (outcome.status === "passed")
-      for (const candidate of tasks)
-        if (
-          ["pending", "blocked"].includes(candidate.status) &&
-          candidate.dependencies.length &&
-          candidate.dependencies.every(
-            (dependency) =>
-              tasks.find((item) => item.id === dependency)?.status === "passed",
-          )
+      tasks = tasks.map((candidate) =>
+        ["pending", "blocked"].includes(candidate.status) &&
+        candidate.dependencies.length > 0 &&
+        candidate.dependencies.every(
+          (dependency) =>
+            tasks.find((item) => item.id === dependency)?.status === "passed",
         )
-          candidate.status = "ready";
+          ? { ...candidate, status: "ready" as const }
+          : candidate,
+      );
     return { ...graph, tasks, updatedAt: this.clock() };
   }
   private blockDependents(graph: TaskGraph) {
@@ -888,11 +947,24 @@ export class FullTaskGraphExecutor {
     graph: TaskGraph,
     workflowState: string,
     eventType: string,
+    input: FullExecutionStartInput,
+    expectedGraph: TaskGraph,
+    requestChecksum: string,
   ) {
+    const snapshot = await this.state.load({ projectId: input.projectId, projectVersion: input.projectVersion });
+    if (graphChecksum(snapshot.graph) !== graphChecksum(expectedGraph))
+      throw new FullExecutionError("FULL_EXECUTION_GRAPH_STALE", "The authoritative TaskGraph changed before execution persistence.");
+    if (Object.keys(input.sourceDocumentChecksums).some((name) => input.sourceDocumentChecksums[name] !== snapshot.currentDocumentChecksums[name]))
+      throw new FullExecutionError("FULL_EXECUTION_DOCUMENT_STALE", "An approved document changed before execution persistence.");
     await this.state.save({
       run: TaskGraphExecutionRunSchema.parse(run),
       graph: withGraphChecksum(graph),
       workflowState,
+      requestChecksum,
+      expectedGraphRowVersion: snapshot.graphRowVersion,
+      expectedGraphDocumentChecksum: snapshot.graphDocumentChecksum,
+      expectedRunDocumentRowVersion: snapshot.runDocumentRowVersion,
+      expectedRunDocumentChecksum: snapshot.runDocumentChecksum,
     });
     await this.state.appendEvent({
       runId: run.runId,
@@ -906,6 +978,7 @@ export class FullTaskGraphExecutor {
     graph: TaskGraph,
     input: FullExecutionStartInput,
     snapshot: FullExecutionSnapshot,
+    expectedGraph: TaskGraph,
   ) {
     const quality = snapshot.qualityChecks.length
       ? snapshot.qualityChecks
@@ -948,7 +1021,8 @@ export class FullTaskGraphExecutor {
       .filter(
         (task) =>
           !this.policy.releaseBoundaryTaskTypes.includes(task.taskType) &&
-          task.status !== "passed",
+          task.status !== "passed" &&
+          task.status !== "cancelled",
       )
       .map(
         (task) => task.safeFailureCode ?? `TASK_${task.status.toUpperCase()}`,
@@ -997,6 +1071,9 @@ export class FullTaskGraphExecutor {
       graph,
       "VALIDATING",
       "run-completed",
+      input,
+      expectedGraph,
+      fullExecutionRequestChecksum(input),
     );
   }
 }

@@ -93,6 +93,12 @@ describe("Phase 7C typed contracts", () => {
     expect(() => validateTaskContractBinding({ id: taskId, projectId, projectVersion: 1, taskType: "implement-shared-component", allowedTools: [], allowedSkills: [], fileScopes: ["src/components/shared/hero/**"], expectedArtifactTypes: ["shared-component"] }, contract)).not.toThrow();
   });
 
+  it("accepts a concrete repair file covered by a suffix wildcard contract scope", () => {
+    const contract = createTaskContract({ taskId, projectId, projectVersion: 1, createdAt: now, taskType: "implement-project-foundation", allowedTools: ["filesystem-read"], fileScopes: ["next.config.*", "src/app/layout.*"], ownedArtifactTypes: ["project-foundation"], acceptanceCriteria: ["The foundation is implemented"], validationRequirements: ["deterministic validation"] });
+    expect(() => validateTaskContractBinding({ id: "repair-task", repairOfTaskId: taskId, projectId, projectVersion: 1, taskType: "repair-targeted-failure", allowedTools: ["filesystem-read"], allowedSkills: [], fileScopes: ["next.config.mjs", "src/app/layout.tsx"], expectedArtifactTypes: ["project-foundation"] }, contract)).not.toThrow();
+    expect(() => validateTaskContractBinding({ id: "repair-task", repairOfTaskId: taskId, projectId, projectVersion: 1, taskType: "repair-targeted-failure", allowedTools: ["filesystem-read"], allowedSkills: [], fileScopes: ["next.config.mjs/subpath"], expectedArtifactTypes: ["project-foundation"] }, contract)).toThrow(/escalation/i);
+  });
+
   it("binds a targeted repair to its original TaskContract without granting escalation", () => {
     const contract = createTaskContract({ taskId, projectId, projectVersion: 1, createdAt: now, taskType: "prepare-workspace", allowedTools: ["filesystem-read"], fileScopes: ["src/**"], ownedArtifactTypes: ["workspace-reservation"], acceptanceCriteria: ["Workspace is reserved"], validationRequirements: ["deterministic validation"] });
     expect(() => validateTaskContractBinding({ id: "repair-task", repairOfTaskId: taskId, projectId, projectVersion: 1, taskType: "repair-targeted-failure", allowedTools: ["filesystem-read"], allowedSkills: [], fileScopes: ["src/app/factory-prepared.ts"], expectedArtifactTypes: ["workspace-reservation"] }, contract)).not.toThrow();

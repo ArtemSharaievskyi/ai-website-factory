@@ -186,9 +186,18 @@ export const TaskGraphExecutionRunSchema = z
     safeFailureSummary: z.string().max(1000).optional(),
     pauseState: ExecutionPauseStateSchema,
     idempotencyKey: z.string().min(1),
+    executionIdentity: z.string().min(1),
   })
   .strict();
 export type TaskGraphExecutionRun = z.infer<typeof TaskGraphExecutionRunSchema>;
+export const FullExecutionRunDocumentSchema = DocumentBaseSchema.extend({
+  documentType: z.literal("full-execution-run"),
+  requestChecksum: Hash,
+  leaseOwner: z.string().min(1).nullable(),
+  leaseExpiresAt: Iso.nullable(),
+  run: TaskGraphExecutionRunSchema,
+}).strict();
+export type FullExecutionRunDocument = z.infer<typeof FullExecutionRunDocumentSchema>;
 export const ExecutionSummarySchema = DocumentBaseSchema.extend({
   documentType: z.literal("full-execution"),
   runId: Uuid,
@@ -214,6 +223,8 @@ export const ExecutionSummarySchema = DocumentBaseSchema.extend({
 export type ExecutionSummary = z.infer<typeof ExecutionSummarySchema>;
 export type FullExecutionSnapshot = {
   graph: TaskGraph;
+  graphRowVersion: number;
+  graphDocumentChecksum: string;
   workflowState: string;
   projectImmutable: boolean;
   workspaceValid: boolean;
@@ -226,6 +237,10 @@ export type FullExecutionSnapshot = {
   runtimeValidationRunId?: string;
   qaRunId?: string;
   testQualityReviewApproved?: boolean;
+  executionRun?: TaskGraphExecutionRun;
+  executionRequestChecksum?: string;
+  runDocumentRowVersion: number | null;
+  runDocumentChecksum: string | null;
 };
 export type FullExecutionStartInput = {
   projectId: string;
@@ -240,6 +255,7 @@ export type FullExecutionStartInput = {
   currentDocumentChecksums: Record<string, string>;
   toolPolicyVersion: string;
   activeRunIds?: string[];
+  executionIdentity?: string;
   requirementChangePending?: boolean;
   pause?: boolean;
   signal?: AbortSignal;
@@ -253,7 +269,13 @@ export type ExecutionStatePort = {
     run: TaskGraphExecutionRun;
     graph: TaskGraph;
     workflowState: string;
+    requestChecksum: string;
+    expectedGraphRowVersion: number;
+    expectedGraphDocumentChecksum: string;
+    expectedRunDocumentRowVersion: number | null;
+    expectedRunDocumentChecksum: string | null;
   }): Promise<void>;
+  release?(projectId: string, projectVersion: number): Promise<void>;
   saveSummary(summary: ExecutionSummary): Promise<void>;
   appendEvent(event: {
     runId: string;

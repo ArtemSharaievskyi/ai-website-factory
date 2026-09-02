@@ -10,6 +10,7 @@ import { applyAstPatch, AstPatchFailure } from "./ast-patch-executor";
 import { ImplementationChangeProposalSchema, type ImplementationChangeProposal, type ExecutionPolicy } from "./contracts";
 import { ImplementationError } from "./errors";
 import { isWithinTaskScope } from "./scope";
+import { validateTaskCapabilityBinding } from "@/orchestration/tooling/authority";
 
 const sha = (value: Buffer) => createHash("sha256").update(value).digest("hex");
 const fileNameUnsafe = (value: string) => value.startsWith("/") || /^[A-Za-z]:/.test(value) || value.includes("\0") || value.split("/").includes("..") || value.split("/").some((part) => /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i.test(part));
@@ -38,7 +39,8 @@ export function validateProposal(
   if (proposal.projectId !== task.projectId || proposal.projectVersion !== task.projectVersion || proposal.taskId !== task.id || proposal.taskAttempt !== task.attempt) throw new ImplementationError("IMPLEMENTATION_GRAPH_STALE", "Change proposal does not match the authorized task attempt.");
   const astOperations = proposal.operations.filter(isAst);
   if (astOperations.length > 0) {
-    if (task.role !== "implementation" || !task.allowedTools.includes("controlled-edit") || !task.requiredCapabilities?.includes("edit.ast-patch")) throw new ImplementationError("AST_PATCH_UNAUTHORIZED_CAPABILITY", "AST patching requires the implementation role, controlled-edit permission, and edit.ast-patch capability.");
+    const capabilityBinding = validateTaskCapabilityBinding(task);
+    if (!capabilityBinding.valid || task.role !== "implementation" || !task.allowedTools.includes("controlled-edit") || !task.requiredCapabilities?.includes("edit.ast-patch")) throw new ImplementationError("AST_PATCH_UNAUTHORIZED_CAPABILITY", "AST patching requires the implementation role, controlled-edit permission, and edit.ast-patch capability.");
     if (!phase7cPackage || !task.phase7c || !proposal.phase7c) throw new ImplementationError("AST_PATCH_TASK_CONTRACT_STALE", "AST patching requires the current Phase 7C TaskContract binding.");
     if (currentness.taskGraphChecksum && currentness.taskGraphChecksum !== astOperations[0].taskGraphChecksum) throw new ImplementationError("AST_PATCH_TASK_CONTRACT_STALE", "AST patching is bound to a stale TaskGraph checksum.");
     if (astOperations.length > (policy.maxAstPatchOperations ?? 8)) throw new ImplementationError("AST_PATCH_PAYLOAD_TOO_LARGE", "AST patch operation count exceeded the bounded policy.");
@@ -91,7 +93,7 @@ export function validateProposal(
   return true;
 }
 
-export interface AppliedChanges { changedFiles: string[]; createdFiles: string[]; deletedFiles: string[]; beforeChecksums: Record<string, string>; afterChecksums: Record<string, string>; astPatchEvidence?: AstPatchExecutionEvidence[]; }
+export interface AppliedChanges { changedFiles: string[]; createdFiles: string[]; deletedFiles: string[]; beforeChecksums: Record<string, string>; afterChecksums: Record<string, string>; astPatchEvidence?: AstPatchExecutionEvidence[]; rollback: () => Promise<void>; }
 
 export class AtomicChangeApplier {
   async apply(task: AgentTask, proposal: ImplementationChangeProposal, rootDirectory: string, policy: ExecutionPolicy, isCancelled: () => boolean = () => false, dependencyContext: DependencyAuthorityContext = {}, phase7cPackage?: Phase7CContractPackage, currentness: Currentness = {}): Promise<AppliedChanges> {
@@ -104,6 +106,24 @@ export class AtomicChangeApplier {
     const touched = [...new Set(proposal.operations.map((operation) => normalized(operation.relativePath)))];
     const astPatchEvidence: AstPatchExecutionEvidence[] = [];
     const appliedTargetKeys = new Set<string>();
+    let rolledBack = false;
+    const rollback = async () => {
+      if (rolledBack) return;
+      let rollbackError: unknown;
+      for (const [relative, previous] of backups) {
+        const target = path.resolve(root, relative);
+        try { if (previous === null) await rm(target, { force: true }); else { await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, previous, { flag: "w", mode: 0o600 }); } } catch (error) { rollbackError ??= error; }
+      }
+      if (!rollbackError) for (const [relative, previous] of backups) {
+        const target = path.resolve(root, relative);
+        try {
+          if (previous === null) { await lstat(target); rollbackError = new Error(`Created target remained after rollback: ${relative}`); }
+          else if (sha(await readFile(target)) !== sha(previous)) rollbackError = new Error(`Original target checksum was not restored: ${relative}`);
+        } catch (error) { if (previous !== null || (error as NodeJS.ErrnoException).code !== "ENOENT") rollbackError = error; }
+      }
+      if (rollbackError) throw new ImplementationError("AST_PATCH_ROLLBACK_FAILED", "Workspace rollback could not be proven complete.", rollbackError);
+      rolledBack = true;
+    };
     try {
       for (const [index, operation] of proposal.operations.entries()) {
         if (isCancelled()) throw new ImplementationError("IMPLEMENTATION_CANCELLED", "Implementation was cancelled before file application.");
@@ -145,15 +165,12 @@ export class AtomicChangeApplier {
         catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") deletedFiles.push(relative); else throw error; }
       }
       await rm(transaction, { recursive: true, force: true });
-      return { changedFiles: touched, createdFiles, deletedFiles, beforeChecksums, afterChecksums, ...(astPatchEvidence.length ? { astPatchEvidence } : {}) };
+      return { changedFiles: touched, createdFiles, deletedFiles, beforeChecksums, afterChecksums, ...(astPatchEvidence.length ? { astPatchEvidence } : {}), rollback };
     } catch (error) {
       let rollbackError: unknown;
-      for (const [relative, previous] of backups) {
-        const target = path.resolve(root, relative);
-        try { if (previous === null) await rm(target, { force: true }); else { await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, previous, { flag: "w", mode: 0o600 }); } } catch (rollbackFailure) { rollbackError = rollbackFailure; }
-      }
+      try { await rollback(); } catch (rollbackFailure) { rollbackError = rollbackFailure; }
       await rm(transaction, { recursive: true, force: true }).catch((cleanupFailure) => { rollbackError ??= cleanupFailure; });
-      if (rollbackError && proposal.operations.some(isAst)) throw new ImplementationError("AST_PATCH_ROLLBACK_FAILED", "AST patch application failed and rollback could not be proven complete.", rollbackError);
+      if (rollbackError) throw rollbackError;
       if (error instanceof ImplementationError) throw error;
       throw new ImplementationError("IMPLEMENTATION_WORKSPACE_TAMPERED", "Atomic proposal application failed and was rolled back.", error);
     }

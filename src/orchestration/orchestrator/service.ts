@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
-import { DocumentRepository, DecisionRepository, ProjectRepository, WorkflowPersistenceService, appendDecisionInTransaction, saveDocumentInTransaction, transitionWorkflowInTransaction } from "@/persistence/database/repositories";
+import { DocumentRepository, DecisionRepository, ProjectRepository, WorkflowPersistenceService, appendDecisionInTransaction, saveDocumentCASInTransaction, saveDocumentInTransaction, transitionWorkflowInTransaction } from "@/persistence/database/repositories";
 import type { PersistenceDatabase } from "@/persistence/database/types";
 import { TaskGraphSchema, type AgentTask, type TaskGraph } from "@/domain/tasks/schema";
-import { DecisionRecordSchema } from "@/domain/workflow/decision";
+import { DecisionRecordSchema, type DecisionRecord } from "@/domain/workflow/decision";
 import { OrchestratorError } from "./errors";
 import { OrchestratorInputSchema, DEFAULT_ORCHESTRATION_POLICY, type OrchestratorInput, type OrchestrationPolicy, type OrchestrationResult, type TaskEvent } from "./contracts";
 import { buildImplementationTaskGraph } from "./graph";
@@ -15,6 +15,9 @@ import { DesignDependencyAmendmentSchema, validateDirectionDesignCapability } fr
 import { evaluatePlanningAcceptanceReadiness, planningSemanticChecksum } from "@/agents/planner/deterministic";
 import { BriefV3DocumentSchema } from "@/persistence/database/brief-revision-v3-contracts";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
+import { deriveTaskCapabilities, taskCapabilitiesFor, validateTaskCapabilityBinding } from "@/orchestration/tooling/authority";
+import { mapRowToDocument, mapRowToProject } from "@/persistence/database/mapping";
+import { PersistenceError } from "@/persistence/database/errors";
 
 export interface OrchestratorMemoryPort { writeSnapshot(projectId: string, version: number, documents: Record<string, unknown>): Promise<void>; appendDecision(projectId: string, version: number, decision: unknown): Promise<void>; }
 export interface OrchestratorWorkspacePort { verify(projectId: string, version: number): Promise<boolean>; reserve?(projectId: string, version: number): Promise<boolean>; }
@@ -24,11 +27,38 @@ const now = () => new Date().toISOString();
 const event = (taskId: string, from: AgentTask["status"], to: AgentTask["status"], actor: string, reason: string, attempt: number): TaskEvent => ({ taskId, from, to, actor, reason, attempt, createdAt: now() });
 const withoutChecksum = (graph: TaskGraph) => { const rest = { ...graph }; delete rest.graphChecksum; return rest; };
 const withChecksum = (graph: TaskGraph) => TaskGraphSchema.parse({ ...graph, graphChecksum: checksumPersistedDocument(withoutChecksum(graph)) });
+const repairScopeCovers = (allowed: string, requested: string) => { const pattern = allowed.replaceAll("\\", "/").replace(/^\.\//, ""); const value = requested.replaceAll("\\", "/").replace(/^\.\//, ""); if (pattern === value) return true; if (pattern.endsWith("/**")) { const base = pattern.slice(0, -3).replace(/\/$/, ""); return value === base || value.startsWith(`${base}/`); } if (pattern.endsWith("/*")) { const base = pattern.slice(0, -2).replace(/\/$/, ""); const relative = value.startsWith(`${base}/`) ? value.slice(base.length + 1) : ""; return Boolean(relative) && !relative.includes("/"); } if (pattern.endsWith("*")) { const prefix = pattern.slice(0, -1); const relative = value.startsWith(prefix) ? value.slice(prefix.length) : ""; return Boolean(relative) && !relative.includes("/"); } return false; };
+const repairOwner = (graph: TaskGraph, failed: AgentTask, scopes: string[]) => { if (!failed.taskType.startsWith("validate-")) return failed; const candidates = graph.tasks.filter((task) => task.role === "implementation" && !task.taskType.startsWith("validate-") && task.taskType !== "repair-targeted-failure" && scopes.every((scope) => task.fileScopes.some((allowed) => repairScopeCovers(allowed, scope)))); return candidates.sort((left, right) => Math.max(...right.fileScopes.map((scope) => scope.replaceAll("*", "").length), 0) - Math.max(...left.fileScopes.map((scope) => scope.replaceAll("*", "").length), 0))[0]; };
+const repairTemplate = (graph: TaskGraph, task: AgentTask) => { if (task.taskType !== "repair-targeted-failure" || !task.repairOfTaskId) return task; const referenced = graph.tasks.find((candidate) => candidate.id === task.repairOfTaskId); return referenced ? repairOwner(graph, referenced, task.fileScopes) ?? referenced : task; };
+const repairRoot = (graph: TaskGraph, task: AgentTask) => { let current = task; const visited = new Set<string>(); while (current.taskType === "repair-targeted-failure" && current.repairOfTaskId && !visited.has(current.id)) { visited.add(current.id); const next = graph.tasks.find((candidate) => candidate.id === current.repairOfTaskId); if (!next) break; current = next; } return current; };
+const hasExplicitValidAstPatchBinding = (task: AgentTask) => task.allowedTools.includes("controlled-edit") && task.requiredCapabilities?.includes("edit.ast-patch") === true && validateTaskCapabilityBinding(task).valid;
 
 export class OrchestratorService {
+  async getImplementationResumeCheckpoint(projectId: string, projectVersion: number) {
+    return this.database.transaction(async (tx) => {
+      const projectRow = await tx.getProject(projectId);
+      const version = await tx.getVersion(projectId, projectVersion);
+      const readDocument = async (documentType: string) => {
+        const row = await tx.getDocument(projectId, projectVersion, documentType);
+        return row ? mapRowToDocument(row) : null;
+      };
+      return {
+        current: projectRow ? { project: mapRowToProject(projectRow), rowVersion: projectRow.row_version } : null,
+        version,
+        documents: {
+          requirements: await readDocument("requirements"),
+          briefV3: await readDocument("brief-v3"),
+          planning: await readDocument("planning-package"),
+          selected: await readDocument("selected-design"),
+          graph: await readDocument("task-graph"),
+        },
+      };
+    });
+  }
+
   async reconcileRuntimeAfterArtifactRepair(input: { projectId: string; projectVersion: number; expectedGraphChecksum: string; actor: string; policyVersion: string }) { const graph = await this.documents.get(input.projectId, input.projectVersion, "task-graph"); if (!graph || graph.documentType !== "task-graph") throw new OrchestratorError("ORCHESTRATOR_GRAPH_NOT_READY", "Task graph was not found."); if (graph.graphChecksum !== input.expectedGraphChecksum) throw new OrchestratorError("TASK_STATE_CONFLICT", "Task graph changed before runtime repair reconciliation."); const next = withChecksum(TaskGraphSchema.parse({ ...graph, tasks: graph.tasks.map((task) => task.taskType === "validate-build" ? { ...task, status: "ready" as const, attempt: 0, completedAt: undefined, safeFailureCode: undefined, validationDiagnosticCount: undefined, validationDiagnosticPolicyVersion: input.policyVersion, validationSourceChecksum: undefined } : ["validate-functional-flow", "prepare-release"].includes(task.taskType) ? { ...task, status: "pending" as const, attempt: 0, completedAt: undefined, safeFailureCode: undefined, validationDiagnosticCount: undefined, validationDiagnosticPolicyVersion: undefined, validationSourceChecksum: undefined } : task), checkpoint: "validation-started" as const, updatedAt: now() })); await this.documents.save(next); return { taskGraph: next, reconciled: true as const, actor: input.actor }; }
   async markRuntimeValidationReady(input: { projectId: string; projectVersion: number; taskId: string; expectedGraphChecksum: string; policyVersion: string; actor: string }) { const graph = await this.documents.get(input.projectId, input.projectVersion, "task-graph"); if (!graph || graph.documentType !== "task-graph") throw new OrchestratorError("ORCHESTRATOR_GRAPH_NOT_READY", "Task graph was not found."); if (graph.graphChecksum !== input.expectedGraphChecksum) throw new OrchestratorError("TASK_STATE_CONFLICT", "Task graph changed before runtime validation readiness update."); const task = graph.tasks.find((candidate) => candidate.id === input.taskId); if (!task || !["validate-lint", "validate-typecheck", "validate-unit-tests", "validate-build"].includes(task.taskType)) throw new OrchestratorError("TASK_STATE_CONFLICT", "Only a supported runtime validation task may be marked ready."); const next = withChecksum(TaskGraphSchema.parse({ ...graph, tasks: graph.tasks.map((candidate) => candidate.id === task.id ? { ...candidate, status: "ready" as const, validationDiagnosticPolicyVersion: input.policyVersion, completedAt: undefined, safeFailureCode: undefined } : candidate), updatedAt: now() })); await this.documents.save(next); return { taskGraph: next, actor: input.actor }; }
-  async reconcileFunctionalQaDependencies(input: { projectId: string; projectVersion: number; expectedGraphChecksum: string; actor: string }) { const graph = await this.documents.get(input.projectId, input.projectVersion, "task-graph"); if (!graph || graph.documentType !== "task-graph") throw new OrchestratorError("ORCHESTRATOR_GRAPH_NOT_READY", "Task graph was not found."); if (graph.graphChecksum !== input.expectedGraphChecksum) throw new OrchestratorError("TASK_STATE_CONFLICT", "Task graph changed before QA dependency reconciliation."); const runtimeDependencies = graph.tasks.filter((task) => ["validate-lint", "validate-typecheck", "validate-unit-tests", "validate-build"].includes(task.taskType)).map((task) => task.id); const qa = graph.tasks.find((task) => task.taskType === "validate-functional-flow"); if (!qa) return { taskGraph: graph, reconciled: false as const }; const needsReset = qa.status === "failed" || qa.status === "ready"; if (!needsReset && runtimeDependencies.every((dependency) => qa.dependencies.includes(dependency))) return { taskGraph: graph, reconciled: false as const }; const next = withChecksum(TaskGraphSchema.parse({ ...graph, tasks: graph.tasks.map((task) => task.id === qa.id ? { ...task, dependencies: [...new Set([...task.dependencies, ...runtimeDependencies])], ...(needsReset ? { status: "pending" as const, attempt: 0, completedAt: undefined, safeFailureCode: undefined, validationReplayIdentity: undefined, validationReplayPolicyVersion: undefined } : {}) } : task), updatedAt: now() })); await this.documents.save(next); return { taskGraph: next, reconciled: true as const, actor: input.actor }; }
+  async reconcileFunctionalQaDependencies(input: { projectId: string; projectVersion: number; expectedGraphChecksum: string; actor: string }) { return this.database.transaction(async (tx) => { const graphRow = await tx.getDocument(input.projectId, input.projectVersion, "task-graph"); if (!graphRow) throw new OrchestratorError("ORCHESTRATOR_GRAPH_NOT_READY", "Task graph was not found."); const graph = mapRowToDocument(graphRow); if (graph.documentType !== "task-graph") throw new OrchestratorError("ORCHESTRATOR_GRAPH_NOT_READY", "Task graph was not found."); if (graph.graphChecksum !== input.expectedGraphChecksum) throw new OrchestratorError("TASK_STATE_CONFLICT", "Task graph changed before QA dependency reconciliation."); const runtimeDependencies = graph.tasks.filter((task) => ["validate-lint", "validate-typecheck", "validate-unit-tests", "validate-build"].includes(task.taskType)).map((task) => task.id); const qa = graph.tasks.find((task) => task.taskType === "validate-functional-flow"); if (!qa) return { taskGraph: graph, reconciled: false as const }; const dependencies = [...new Set([...qa.dependencies, ...runtimeDependencies])]; const dependenciesReady = runtimeDependencies.every((dependency) => graph.tasks.find((task) => task.id === dependency)?.status === "passed"); const needsReset = qa.status === "failed" || qa.status === "ready" || (qa.status === "passed" && !dependenciesReady); const needsReady = qa.status === "pending" && dependenciesReady; if (!needsReset && !needsReady && runtimeDependencies.every((dependency) => qa.dependencies.includes(dependency))) return { taskGraph: graph, reconciled: false as const }; const next = withChecksum(TaskGraphSchema.parse({ ...graph, tasks: graph.tasks.map((task) => task.id === qa.id ? { ...task, dependencies, ...((needsReset || needsReady) ? { status: dependenciesReady ? "ready" as const : "pending" as const, ...(needsReset ? { attempt: 0, completedAt: undefined, safeFailureCode: undefined, validationReplayIdentity: undefined, validationReplayPolicyVersion: undefined } : {}) } : {}) } : task), updatedAt: now() })); const saved = TaskGraphSchema.parse(await saveDocumentCASInTransaction(tx, next, graphRow.rowVersion, graphRow.checksum)); return { taskGraph: saved, reconciled: true as const, actor: input.actor }; }); }
   private readonly documents: DocumentRepository; private readonly decisions: DecisionRepository; private readonly projects: ProjectRepository; private readonly workflow: WorkflowPersistenceService;
   private readonly memory?: OrchestratorMemoryPort; private readonly workspace?: OrchestratorWorkspacePort; private readonly policy: OrchestrationPolicy;
   constructor(private readonly database: PersistenceDatabase, dependencies: { memory?: OrchestratorMemoryPort; workspace?: OrchestratorWorkspacePort; policy?: OrchestrationPolicy } = {}) { this.documents = new DocumentRepository(database); this.decisions = new DecisionRepository(database); this.projects = new ProjectRepository(database); this.workflow = new WorkflowPersistenceService(database); this.memory = dependencies.memory; this.workspace = dependencies.workspace; this.policy = dependencies.policy ?? DEFAULT_ORCHESTRATION_POLICY; }
@@ -188,12 +218,40 @@ export class OrchestratorService {
     repairIdentity?: string;
     lateValidationEvidence?: boolean;
   }) {
-    const graph = await this.documents.get(
+    try {
+      return await this.database.transaction(async (tx) => {
+    const project = await tx.getProject(input.projectId);
+    const version = await tx.getVersion(input.projectId, input.projectVersion);
+    if (!project || !version)
+      throw new OrchestratorError(
+        "ORCHESTRATOR_GRAPH_NOT_READY",
+        "The project version or task graph was not found.",
+      );
+    if (
+      project.current_version !== input.projectVersion ||
+      project.workflow_state !== "IMPLEMENTING"
+    )
+      throw new OrchestratorError(
+        "TASK_STATE_CONFLICT",
+        "Targeted repair requires the current IMPLEMENTING project version.",
+      );
+    if (version.immutable)
+      throw new OrchestratorError(
+        "ORCHESTRATOR_PROJECT_IMMUTABLE",
+        "Released project versions are immutable.",
+      );
+    const graphRow = await tx.getDocument(
       input.projectId,
       input.projectVersion,
       "task-graph",
     );
-    if (!graph || graph.documentType !== "task-graph")
+    if (!graphRow)
+      throw new OrchestratorError(
+        "ORCHESTRATOR_GRAPH_NOT_READY",
+        "Task graph was not found.",
+      );
+    const graph = mapRowToDocument(graphRow);
+    if (graph.documentType !== "task-graph")
       throw new OrchestratorError(
         "ORCHESTRATOR_GRAPH_NOT_READY",
         "Task graph was not found.",
@@ -215,12 +273,6 @@ export class OrchestratorService {
         "TASK_REPAIR_INVALID",
         "A repair task must target a failed validation task or a pending task with late validation evidence.",
       );
-    const existing = graph.tasks.find(
-      (task) =>
-        task.repairOfTaskId === failed.id &&
-        ["pending", "ready", "running"].includes(task.status),
-    );
-    if (existing) return existing;
     const scopes = input.fileScopes ?? failed.fileScopes;
     if (
       !scopes.length ||
@@ -240,6 +292,80 @@ export class OrchestratorService {
         "TASK_REPAIR_INVALID",
         "Repair scope cannot be empty or unsafe.",
       );
+    const owner = repairOwner(graph, failed, scopes);
+    if (!owner)
+      throw new OrchestratorError(
+        "TASK_REPAIR_INVALID",
+        "The targeted repair scope has no canonical implementation owner.",
+      );
+    const repairIdentity =
+      input.repairIdentity ??
+      `${failed.id}:${input.failureCode}:${scopes.join(",")}:targeted-repair-v1`;
+    const operation = "orchestrator.targeted-repair-task";
+    const operationKey = `${input.projectId}:${input.projectVersion}:${repairIdentity}`;
+    const operationPayload = {
+      projectId: input.projectId,
+      projectVersion: input.projectVersion,
+      failedTaskId: failed.id,
+      failureCode: input.failureCode,
+      failureSummary: input.failureSummary,
+      expectedCorrection: input.expectedCorrection,
+      revalidationTaskIds: input.revalidationTaskIds,
+      fileScopes: scopes,
+      repairIdentity,
+      lateValidationEvidence: Boolean(input.lateValidationEvidence),
+    };
+    const operationPayloadHash = checksumPersistedDocument(operationPayload);
+    const activeExisting = graph.tasks.find(
+      (task) =>
+        task.repairOfTaskId === failed.id &&
+        ["pending", "ready", "running"].includes(task.status),
+    );
+    if (activeExisting && activeExisting.repairIdentity !== repairIdentity)
+      throw new OrchestratorError(
+        "TASK_REPAIR_INVALID",
+        "A different targeted repair is already active for the failed task.",
+      );
+    const reservation = await tx.reserveOperation({
+      operation,
+      key: operationKey,
+      payloadHash: operationPayloadHash,
+    });
+    if (reservation.status === "IN_PROGRESS")
+      throw new OrchestratorError(
+        "TASK_STATE_CONFLICT",
+        "Targeted repair creation is already in progress.",
+      );
+    if (reservation.status === "SUCCEEDED") {
+      const stored =
+        reservation.result && typeof reservation.result === "object"
+          ? (reservation.result as { repairTaskId?: unknown })
+          : {};
+      const replay = graph.tasks.find(
+        (task) =>
+          task.id === stored.repairTaskId &&
+          task.taskType === "repair-targeted-failure" &&
+          task.repairIdentity === repairIdentity,
+      );
+      if (!replay)
+        throw new OrchestratorError(
+          "TASK_STATE_CONFLICT",
+          "The targeted repair operation completed without its repair task.",
+        );
+      return replay;
+    }
+    if (activeExisting) {
+      await tx.completeOperation({
+        operation,
+        key: operationKey,
+        payloadHash: operationPayloadHash,
+        result: {
+          repairTaskId: activeExisting.id,
+          graphChecksum: graph.graphChecksum,
+        },
+      });
+      return activeExisting;
+    }
     const dependencies = failed.dependencies.filter((dependency) => {
       const task = graph.tasks.find((candidate) => candidate.id === dependency);
       return (
@@ -252,8 +378,9 @@ export class OrchestratorService {
       (dependency) =>
         graph.tasks.find((task) => task.id === dependency)?.status === "passed",
     );
+    const repairAllowedTools = owner.allowedTools.filter((tool) => tool !== "shadcn-registry-read");
     const repair: AgentTask = {
-      ...failed,
+      ...owner,
       id: randomUUID(),
       taskType: "repair-targeted-failure",
       title: `Repair ${failed.title}`,
@@ -261,23 +388,37 @@ export class OrchestratorService {
       status: dependenciesPassed ? "ready" : "pending",
       completedAt: undefined,
       dependencies,
+      executionMode: "exclusive-write",
+      parallelGroup: undefined,
       attempt: 0,
       maxAttempts: 1,
       repairOfTaskId: failed.id,
-      repairIdentity:
-        input.repairIdentity ??
-        `${failed.id}:${input.failureCode}:${scopes.join(",")}:targeted-repair-v1`,
+      repairIdentity,
       safeFailureCode: input.failureCode,
       blockingFailure: true,
       expectedOutputs: ["targeted correction"],
       acceptanceCriteria: [input.failureSummary, input.expectedCorrection],
       fileScopes: scopes,
+      allowedTools: repairAllowedTools,
+      requiredCapabilities: taskCapabilitiesFor({ taskType: "repair-targeted-failure", allowedTools: repairAllowedTools }),
     };
     const resetExhaustedTask = (candidate: AgentTask) =>
       candidate.attempt >= candidate.maxAttempts
         ? { ...candidate, attempt: 0, safeFailureCode: input.failureCode }
         : candidate;
+    const supersededRepairIds = new Set(
+      graph.tasks
+        .filter(
+          (candidate) =>
+            candidate.taskType === "repair-targeted-failure" &&
+            candidate.status === "failed" &&
+            candidate.repairOfTaskId === failed.id,
+        )
+        .map((candidate) => candidate.id),
+    );
     const nextTasks = graph.tasks.map((candidate) => {
+      if (supersededRepairIds.has(candidate.id))
+        return { ...candidate, status: "cancelled" as const, completedAt: now() };
       if (candidate.id !== failed.id) return candidate;
       const rerunnable = resetExhaustedTask(candidate);
       return candidate.status === "pending"
@@ -298,15 +439,140 @@ export class OrchestratorService {
         updatedAt: now(),
       }),
     );
-    await this.documents.save(next);
+    await saveDocumentCASInTransaction(
+      tx,
+      next,
+      graphRow.rowVersion,
+      graphRow.checksum,
+    );
+    await tx.completeOperation({
+      operation,
+      key: operationKey,
+      payloadHash: operationPayloadHash,
+      result: { repairTaskId: repair.id, graphChecksum: next.graphChecksum },
+    });
     return repair;
+    });
+    } catch (error) {
+      if (error instanceof PersistenceError && error.code === "IDEMPOTENCY_CONFLICT")
+        throw new OrchestratorError(
+          "TASK_STATE_CONFLICT",
+          "The targeted repair identity is already bound to a different correction.",
+          error,
+        );
+      throw error;
+    }
+  }
+  async repairTaskCapabilityBindings(input: { projectId: string; projectVersion: number; expectedGraphChecksum: string; actor: string; idempotencyKey?: string }) {
+    const operation = "orchestrator.task-capability-binding-repair";
+    const idempotencyKey = input.idempotencyKey ?? `${input.projectId}:${input.projectVersion}:${input.expectedGraphChecksum}`;
+    const payload = { projectId: input.projectId, projectVersion: input.projectVersion, actor: input.actor, operationVersion: "task-capability-binding-repair-v2" };
+    const payloadHash = checksumPersistedDocument(payload);
+    let projectionProject: ReturnType<typeof mapRowToProject> | undefined;
+    let projectionDecision: DecisionRecord | undefined;
+    try {
+      const result = await this.database.transaction(async (tx) => {
+        const project = await tx.getProject(input.projectId);
+        const version = await tx.getVersion(input.projectId, input.projectVersion);
+        const graphRow = await tx.getDocument(input.projectId, input.projectVersion, "task-graph");
+        if (!project || !version || !graphRow) throw new PersistenceError("PERSISTENCE_NOT_FOUND", "The project version or task graph was not found.");
+        if (project.current_version !== input.projectVersion || project.workflow_state !== "IMPLEMENTING") throw new PersistenceError("PERSISTENCE_CONFLICT", "Capability binding repair requires the current IMPLEMENTING project version.");
+        if (version.immutable) throw new PersistenceError("PERSISTENCE_IMMUTABLE", "Released project versions are immutable.");
+        projectionProject = mapRowToProject(project);
+        const graph = mapRowToDocument(graphRow);
+        if (graph.documentType !== "task-graph") throw new PersistenceError("PERSISTENCE_VALIDATION_FAILED", "The persisted implementation graph is invalid.");
+        const graphWithoutChecksum = { ...graph };
+        delete graphWithoutChecksum.graphChecksum;
+        if (graph.graphChecksum !== checksumPersistedDocument(graphWithoutChecksum)) throw new PersistenceError("PERSISTENCE_CONFLICT", "The persisted task graph checksum is invalid.");
+        const reservation = await tx.reserveOperation({ operation, key: idempotencyKey, payloadHash });
+        if (reservation.status === "IN_PROGRESS") throw new PersistenceError("PERSISTENCE_CONFLICT", "Capability binding repair is already in progress.");
+        if (reservation.status === "SUCCEEDED") {
+          const stored = reservation.result && typeof reservation.result === "object" ? reservation.result as { repaired?: unknown; repairedTaskIds?: unknown; graphChecksum?: unknown; decisionId?: unknown } : {};
+          if (stored.graphChecksum !== graph.graphChecksum && input.expectedGraphChecksum !== graph.graphChecksum) throw new PersistenceError("PERSISTENCE_CONFLICT", "The persisted task graph changed after capability binding repair completed.");
+          const repairedTaskIds = Array.isArray(stored.repairedTaskIds) && stored.repairedTaskIds.every((taskId): taskId is string => typeof taskId === "string") ? stored.repairedTaskIds : [];
+          if (stored.repaired === true) {
+            const decisions = await tx.listDecisions(input.projectId, input.projectVersion);
+            const decisionId = typeof stored.decisionId === "string" ? stored.decisionId : undefined;
+            projectionDecision = decisions.find((decision) => decision.id === decisionId)
+              ?? [...decisions].reverse().find((decision) => decision.category === "task-capability-binding-repair");
+            if (!projectionDecision)
+              throw new PersistenceError("PERSISTENCE_CONFLICT", "The capability binding repair decision is missing from canonical persistence.");
+          }
+          return { taskGraph: graph, repairedTaskIds, repaired: stored.repaired === true };
+        }
+        if (graph.graphChecksum !== input.expectedGraphChecksum) throw new PersistenceError("PERSISTENCE_CONFLICT", "Task graph changed before capability binding repair.");
+        const retiredRepairTaskIds = graph.tasks.filter((task) => task.taskType === "repair-targeted-failure" && task.status === "failed" && repairRoot(graph, task).status === "passed").map((task) => task.id);
+        const repairedTaskIds = [...new Set([...graph.tasks.filter((task) => !validateTaskCapabilityBinding(task).valid || (task.allowedTools.includes("controlled-edit") && !hasExplicitValidAstPatchBinding(task)) || (task.taskType === "repair-targeted-failure" && (task.allowedTools.includes("shadcn-registry-read") || task.role !== "implementation" || task.executionMode === "parallel-safe" || task.parallelGroup !== undefined))).map((task) => task.id), ...retiredRepairTaskIds])];
+        if (!repairedTaskIds.length) {
+          await tx.completeOperation({ operation, key: idempotencyKey, payloadHash, result: { repaired: false, repairedTaskIds: [], graphChecksum: graph.graphChecksum } });
+          return { taskGraph: graph, repairedTaskIds, repaired: false as const };
+        }
+        const candidate = withChecksum(TaskGraphSchema.parse({
+          ...graph,
+          tasks: graph.tasks.map((task) => { if (retiredRepairTaskIds.includes(task.id)) return { ...task, status: "cancelled" as const, completedAt: task.completedAt ?? now() }; if (!repairedTaskIds.includes(task.id)) return task; const template = repairTemplate(graph, task); const allowedTools = template.allowedTools.filter((tool) => tool !== "controlled-edit" && !(task.taskType === "repair-targeted-failure" && tool === "shadcn-registry-read")); return task.taskType === "repair-targeted-failure" ? { ...task, role: "implementation" as const, allowedSkills: template.allowedSkills.slice(), allowedTools, requiredCapabilities: deriveTaskCapabilities({ taskType: task.taskType, allowedTools }), executionMode: "exclusive-write" as const, parallelGroup: undefined, expectedArtifactTypes: template.expectedArtifactTypes, ...(template.phase7c ? { phase7c: template.phase7c } : {}) } : { ...task, allowedTools, requiredCapabilities: deriveTaskCapabilities({ taskType: task.taskType, allowedTools }) }; }),
+          updatedAt: now(),
+        }));
+        const validation = validateImplementationTaskGraph(candidate);
+        const blockingReasons = [...new Set([...(graph.blockingReasons ?? []).filter((reason) => reason !== "TASK_CAPABILITY_BINDING_INVALID"), ...validation.errors])];
+        const next = withChecksum(TaskGraphSchema.parse({
+          ...candidate,
+          validation: { valid: validation.valid, errors: validation.errors, warnings: validation.warnings },
+          readyForExecution: validation.valid && blockingReasons.length === 0,
+          blockingReasons,
+          warnings: [...new Set([...(graph.warnings ?? []), ...validation.warnings])],
+        }));
+        const decision = DecisionRecordSchema.parse({ id: randomUUID(), timestamp: now(), actorType: "system", actorIdentifier: input.actor, category: "task-capability-binding-repair", decision: "Repaired persisted TaskGraph capability bindings from the canonical task/tool registry.", rationale: "The existing graph was structurally retained; invalid required capabilities were replaced with host-derived bindings, repair tasks were rebound to their canonical implementation owners, legacy broad controlled-edit grants were removed, inherited registry access was removed from repair tasks, repairs were made exclusive-write so they cannot conflict with their owner, and failed repairs superseded by passed work were retired as cancelled history.", affectedDocuments: ["task-graph.json"], requirementChange: false, userApprovalRequired: false, userApprovalStatus: "not-required" });
+        projectionDecision = decision;
+        await saveDocumentCASInTransaction(tx, next, graphRow.rowVersion, graphRow.checksum);
+        await appendDecisionInTransaction(tx, input.projectId, input.projectVersion, decision);
+        const operationResult = { repaired: true, repairedTaskIds, graphChecksum: next.graphChecksum, decisionId: decision.id };
+        await tx.completeOperation({ operation, key: idempotencyKey, payloadHash, result: operationResult });
+        return { taskGraph: next, repairedTaskIds, repaired: true as const };
+      });
+      if (this.memory && projectionProject) {
+        try {
+          if (projectionDecision) await this.memory.appendDecision(input.projectId, input.projectVersion, projectionDecision);
+          await this.memory.writeSnapshot(input.projectId, input.projectVersion, { "task-graph.json": result.taskGraph, "project.json": projectionProject });
+        } catch (error) {
+          throw new OrchestratorError("TASK_STATE_CONFLICT", "Capability binding repair committed but its derived projection could not be synchronized.", error);
+        }
+      }
+      return { ...result, actor: input.actor };
+    } catch (error) {
+      if (error instanceof PersistenceError && error.code === "PERSISTENCE_NOT_FOUND") throw new OrchestratorError("ORCHESTRATOR_GRAPH_NOT_READY", "The project version or task graph was not found.", error);
+      if (error instanceof PersistenceError && error.code === "PERSISTENCE_IMMUTABLE") throw new OrchestratorError("ORCHESTRATOR_PROJECT_IMMUTABLE", "Released project versions are immutable.", error);
+      throw new OrchestratorError("TASK_STATE_CONFLICT", "Task graph changed before capability binding repair was persisted.", error);
+    }
   }
   async cancelTask(input: Omit<Parameters<OrchestratorService["transitionTaskState"]>[0], "targetStatus"> & { reason: string }) { return this.transitionTaskState({ ...input, targetStatus: "cancelled" }); }
   async reconcileTaskGraph(projectId: string, version: number) { const document = await this.documents.get(projectId, version, "task-graph"); if (!document || document.documentType !== "task-graph") return [{ code: "ORCHESTRATION_GRAPH_MISSING", description: "Task graph is missing from persistence.", automaticRepairAllowed: false, recommendedAction: "Recreate the graph from current approved inputs." }]; const issues: Array<{ code: string; description: string; automaticRepairAllowed: boolean; recommendedAction: string }> = []; if (document.graphChecksum !== checksumPersistedDocument(withoutChecksum(document))) issues.push({ code: "ORCHESTRATION_CHECKSUM_MISMATCH", description: "Persisted task graph checksum does not match its content.", automaticRepairAllowed: false, recommendedAction: "Inspect the persisted graph before any repair." }); const running = document.tasks.filter((task) => task.status === "running"); if (running.length) issues.push({ code: "ORCHESTRATION_INTERRUPTED_TASK", description: "A task was running when orchestration was interrupted.", automaticRepairAllowed: false, recommendedAction: "Inspect the task attempt and explicitly retry or cancel it." }); for (const task of document.tasks) { if (task.taskType === "repair-targeted-failure" && task.fileScopes.length === 0) issues.push({ code: "ORCHESTRATION_REPAIR_SCOPE_INVALID", description: "A persisted repair task has no writable scope.", automaticRepairAllowed: false, recommendedAction: "Supersede the invalid repair record after explicit investigation." }); for (const dependency of task.dependencies) if (!document.tasks.some((candidate) => candidate.id === dependency)) issues.push({ code: "ORCHESTRATION_TASK_ORPHANED", description: "A task dependency is missing from the graph.", automaticRepairAllowed: false, recommendedAction: "Rebuild or manually reconcile the graph." }); } return issues; }
   async reconcileValidationReplay(input: Parameters<OrchestratorService["replayFailedValidationTask"]>[0]) { const graph = await this.documents.get(input.projectId, input.projectVersion, "task-graph"); if (!graph || graph.documentType !== "task-graph") throw new OrchestratorError("ORCHESTRATOR_GRAPH_NOT_READY", "Task graph was not found."); const task = graph.tasks.find((candidate) => candidate.id === input.taskId); const identity = task ? `${task.id}:${input.sourceChecksum}:${input.diagnosticPolicyVersion}:${input.reason}` : ""; if (task?.validationReplayIdentity === identity) return { taskGraph: graph, replayed: false as const, event: event(task.id, task.status, task.status, input.actor, "Validation replay already reconciled.", task.attempt) }; if (task && graph.tasks.some((candidate) => candidate.repairOfTaskId === task.id && ["pending", "ready", "running"].includes(candidate.status))) return { taskGraph: graph, replayed: false as const, event: event(task.id, task.status, task.status, input.actor, "Validation replay deferred to the active canonical repair.", task.attempt) }; return this.replayFailedValidationTask(input); }
   async reconcileStaleTestArtifactTask(input: { projectId: string; projectVersion: number; expectedGraphChecksum: string; actor: string; artifactCount?: number }) { const graph = await this.documents.get(input.projectId, input.projectVersion, "task-graph"); if (!graph || graph.documentType !== "task-graph") throw new OrchestratorError("ORCHESTRATOR_GRAPH_NOT_READY", "Task graph was not found."); if (graph.graphChecksum !== input.expectedGraphChecksum) throw new OrchestratorError("TASK_STATE_CONFLICT", "Task graph changed before test-artifact reconciliation."); const task = graph.tasks.find((candidate) => candidate.taskType === "write-unit-tests"); if (!task || (task.status !== "passed" && !(task.status === "failed" && (task.attempt < task.maxAttempts || task.safeFailureCode === "IMPLEMENTATION_CONTEXT_TOO_LARGE" || JSON.stringify(task.fileScopes) !== JSON.stringify(ownershipForTask("write-unit-tests")!.scopes)))) || (task.status === "passed" && task.taskAcceptancePolicyVersion === UNIT_TEST_ARTIFACT_POLICY_VERSION && input.artifactCount !== 0)) return { taskGraph: graph, reconciled: false as const, staleTaskId: undefined }; const dependents = new Set<string>(); let changed = true; while (changed) { changed = false; for (const candidate of graph.tasks) if (!dependents.has(candidate.id) && candidate.dependencies.some((dependency) => dependency === task.id || dependents.has(dependency))) { dependents.add(candidate.id); changed = true; } } const timestamp = now(); const nextTasks = graph.tasks.map((candidate) => { if (candidate.id === task.id) return { ...candidate, status: "ready" as const, fileScopes: ownershipForTask("write-unit-tests")!.scopes.slice(), attempt: JSON.stringify(task.fileScopes) !== JSON.stringify(ownershipForTask("write-unit-tests")!.scopes) || (task.status === "failed" && task.attempt >= task.maxAttempts) ? 0 : task.attempt, completedAt: undefined, safeFailureCode: undefined, taskAcceptancePolicyVersion: UNIT_TEST_ARTIFACT_POLICY_VERSION }; if (dependents.has(candidate.id) && (candidate.taskType.startsWith("validate-") || candidate.taskType === "prepare-release")) return { ...candidate, status: "pending" as const, attempt: 0, completedAt: undefined, safeFailureCode: undefined, validationDiagnosticCount: undefined, validationDiagnosticPolicyVersion: undefined, validationSourceChecksum: undefined, validationReplayCount: undefined, validationReplayIdentity: undefined }; return candidate; }); const next = withChecksum(TaskGraphSchema.parse({ ...graph, tasks: nextTasks, checkpoint: "implementation-started" as const, updatedAt: timestamp })); await this.documents.save(next); return { taskGraph: next, reconciled: true as const, staleTaskId: task.id, actor: input.actor }; }
   async reconcileStaleFoundationTask(input: { projectId: string; projectVersion: number; expectedGraphChecksum: string; actor: string; configPresent: boolean }) { const graph = await this.documents.get(input.projectId, input.projectVersion, "task-graph"); if (!graph || graph.documentType !== "task-graph") throw new OrchestratorError("ORCHESTRATOR_GRAPH_NOT_READY", "Task graph was not found."); if (graph.graphChecksum !== input.expectedGraphChecksum) throw new OrchestratorError("TASK_STATE_CONFLICT", "Task graph changed before foundation reconciliation."); const task = graph.tasks.find((candidate) => candidate.taskType === "implement-project-foundation"); if (!task || (task.status !== "passed" && task.safeFailureCode !== "IMPLEMENTATION_CONTEXT_TOO_LARGE") || input.configPresent) return { taskGraph: graph, reconciled: false as const }; const dependents = new Set<string>(); let changed = true; while (changed) { changed = false; for (const candidate of graph.tasks) if (!dependents.has(candidate.id) && candidate.dependencies.some((dependency) => dependency === task.id || dependents.has(dependency))) { dependents.add(candidate.id); changed = true; } } const timestamp = now(); const nextTasks = graph.tasks.map((candidate) => candidate.id === task.id ? { ...candidate, status: "ready" as const, attempt: 0, completedAt: undefined, safeFailureCode: undefined } : dependents.has(candidate.id) && (candidate.taskType.startsWith("validate-") || candidate.taskType === "prepare-release") ? { ...candidate, status: "pending" as const, attempt: 0, completedAt: undefined, safeFailureCode: undefined, validationDiagnosticCount: undefined, validationDiagnosticPolicyVersion: undefined, validationSourceChecksum: undefined, validationReplayCount: undefined, validationReplayIdentity: undefined } : candidate); const next = withChecksum(TaskGraphSchema.parse({ ...graph, tasks: nextTasks, checkpoint: "implementation-started" as const, updatedAt: timestamp })); await this.documents.save(next); return { taskGraph: next, reconciled: true as const, staleTaskId: task.id, actor: input.actor }; }
-  async reconcileRuntimeGatePolicy(input: { projectId: string; projectVersion: number; expectedGraphChecksum: string; actor: string; policyVersion: string }) { const graph = await this.documents.get(input.projectId, input.projectVersion, "task-graph"); if (!graph || graph.documentType !== "task-graph") throw new OrchestratorError("ORCHESTRATOR_GRAPH_NOT_READY", "Task graph was not found."); if (graph.graphChecksum !== input.expectedGraphChecksum) throw new OrchestratorError("TASK_STATE_CONFLICT", "Task graph changed before runtime policy reconciliation."); const runtimeTypes = new Set(["validate-lint", "validate-typecheck", "validate-unit-tests", "validate-build", "prepare-release"]); const stale = graph.tasks.some((task) => runtimeTypes.has(task.taskType) && task.validationDiagnosticPolicyVersion !== input.policyVersion); if (!stale) return { taskGraph: graph, reconciled: false as const }; const nextTasks = graph.tasks.map((task) => { const expectedPolicy = task.taskType === "validate-functional-flow" ? FUNCTIONAL_QA_DIAGNOSTIC_POLICY_VERSION : input.policyVersion; if (!runtimeTypes.has(task.taskType) || (task.validationDiagnosticPolicyVersion === expectedPolicy && !(task.taskType === "validate-functional-flow" && (task.validationDiagnosticCount === undefined || task.validationDiagnosticCount === 0)))) return task; if (task.taskType === "validate-functional-flow") return { ...task, status: "ready" as const, completedAt: undefined, safeFailureCode: undefined, validationReplayCount: 1, validationReplayIdentity: `${task.id}:persisted-qa-replay`, validationDiagnosticPolicyVersion: FUNCTIONAL_QA_DIAGNOSTIC_POLICY_VERSION }; return { ...task, status: task.taskType === "validate-lint" ? "ready" as const : "pending" as const, attempt: 0, completedAt: undefined, safeFailureCode: undefined, validationDiagnosticCount: undefined, validationDiagnosticPolicyVersion: undefined, validationSourceChecksum: undefined, validationReplayCount: undefined, validationReplayIdentity: undefined }; }); const next = withChecksum(TaskGraphSchema.parse({ ...graph, tasks: nextTasks, checkpoint: "validation-started" as const, updatedAt: now() })); await this.documents.save(next); return { taskGraph: next, reconciled: true as const, actor: input.actor }; }
+  async reconcileRuntimeGatePolicy(input: { projectId: string; projectVersion: number; expectedGraphChecksum: string; actor: string; policyVersion: string; refreshPassed?: boolean }) {
+    const graph = await this.documents.get(input.projectId, input.projectVersion, "task-graph");
+    if (!graph || graph.documentType !== "task-graph") throw new OrchestratorError("ORCHESTRATOR_GRAPH_NOT_READY", "Task graph was not found.");
+    if (graph.graphChecksum !== input.expectedGraphChecksum) throw new OrchestratorError("TASK_STATE_CONFLICT", "Task graph changed before runtime policy reconciliation.");
+    const refreshPassed = input.refreshPassed ?? input.actor === "real-e2e-resume";
+    const runtimeTypes = new Set(["validate-lint", "validate-typecheck", "validate-unit-tests", "validate-build", "prepare-release"]);
+    const stale = refreshPassed || graph.tasks.some((task) => {
+      if (runtimeTypes.has(task.taskType)) return task.validationDiagnosticPolicyVersion !== input.policyVersion;
+      return task.taskType === "validate-functional-flow" && (task.validationDiagnosticPolicyVersion !== FUNCTIONAL_QA_DIAGNOSTIC_POLICY_VERSION || task.validationDiagnosticCount === undefined || task.validationDiagnosticCount === 0);
+    });
+    if (!stale) return { taskGraph: graph, reconciled: false as const };
+    const nextTasks = graph.tasks.map((task) => {
+      const expectedPolicy = task.taskType === "validate-functional-flow" ? FUNCTIONAL_QA_DIAGNOSTIC_POLICY_VERSION : input.policyVersion;
+      if (task.taskType === "validate-functional-flow") {
+        if (!refreshPassed && task.validationDiagnosticPolicyVersion === expectedPolicy && task.validationDiagnosticCount !== undefined && task.validationDiagnosticCount > 0) return task;
+        return { ...task, status: "pending" as const, attempt: 0, completedAt: undefined, safeFailureCode: undefined, validationDiagnosticCount: undefined, validationDiagnostics: undefined, validationDiagnosticPolicyVersion: undefined, validationSourceChecksum: undefined, validationPlanChecksum: undefined, validationReplayCount: undefined, validationReplayIdentity: undefined, validationReplayPolicyVersion: undefined };
+      }
+      if (!runtimeTypes.has(task.taskType) || (!refreshPassed && task.validationDiagnosticPolicyVersion === expectedPolicy)) return task;
+      return { ...task, status: task.taskType === "validate-lint" ? "ready" as const : "pending" as const, attempt: 0, completedAt: undefined, safeFailureCode: undefined, validationDiagnosticCount: undefined, validationDiagnostics: undefined, validationDiagnosticPolicyVersion: undefined, validationSourceChecksum: undefined, validationReplayCount: undefined, validationReplayIdentity: undefined, validationReplayPolicyVersion: undefined };
+    });
+    const next = withChecksum(TaskGraphSchema.parse({ ...graph, tasks: nextTasks, checkpoint: "validation-started" as const, updatedAt: now() }));
+    await this.documents.save(next);
+    return { taskGraph: next, reconciled: true as const, actor: input.actor };
+  }
   async reconcileQaPolicyRefresh(input: { projectId: string; projectVersion: number; expectedGraphChecksum: string; actor: string; sourceChecksum: string; policyVersion: string; scenarioChecksum: string }) { const graph = await this.documents.get(input.projectId, input.projectVersion, "task-graph"); if (!graph || graph.documentType !== "task-graph") throw new OrchestratorError("ORCHESTRATOR_GRAPH_NOT_READY", "Task graph was not found."); if (graph.graphChecksum !== input.expectedGraphChecksum) throw new OrchestratorError("TASK_STATE_CONFLICT", "Task graph changed before QA policy refresh."); const task = graph.tasks.find((candidate) => candidate.taskType === "validate-functional-flow"); if (!task || !["failed", "ready"].includes(task.status)) return { taskGraph: graph, replayed: false as const, reason: "NO_FAILED_QA" as const }; if (graph.tasks.some((candidate) => candidate.repairOfTaskId === task.id && ["pending", "ready", "running"].includes(candidate.status))) return { taskGraph: graph, replayed: false as const, reason: "QA_REPAIR_ACTIVE" as const }; if (task.validationReplayPolicyVersion === input.policyVersion || task.validationReplayIdentity?.includes(`:${input.policyVersion}:`)) { if (task.status === "ready") return { taskGraph: graph, replayed: false as const, reason: "POLICY_REFRESH_ALREADY_PENDING" as const }; throw new OrchestratorError("QA_POLICY_REPLAY_ALREADY_USED", "The current QA policy refresh has already been scheduled."); } if (task.validationSourceChecksum && task.validationSourceChecksum !== input.sourceChecksum) throw new OrchestratorError("QA_SOURCE_STALE", "The failed QA task source checksum is stale."); if (task.validationPlanChecksum && task.validationPlanChecksum !== input.scenarioChecksum) throw new OrchestratorError("QA_PLAN_STALE", "The failed QA scenario plan checksum is stale."); if (task.dependencies.some((dependency) => graph.tasks.find((candidate) => candidate.id === dependency)?.status !== "passed")) throw new OrchestratorError("QA_DEPENDENCY_FAILED", "QA policy refresh requires all dependencies to remain passed."); const identity = `${task.id}:${input.sourceChecksum}:${input.scenarioChecksum}:${input.policyVersion}:POLICY_REFRESH`; const nextTask = { ...task, status: "ready" as const, completedAt: undefined, safeFailureCode: undefined, validationReplayCount: 1, validationReplayIdentity: identity, validationReplayPolicyVersion: input.policyVersion, validationReplayBaseAttempt: task.attempt, validationReplayKind: "policy-refresh" as const, validationSourceChecksum: input.sourceChecksum, validationPlanChecksum: input.scenarioChecksum }; const next = withChecksum(TaskGraphSchema.parse({ ...graph, tasks: graph.tasks.map((candidate) => candidate.id === task.id ? nextTask : candidate), checkpoint: "validation-started" as const, updatedAt: now() })); await this.documents.save(next); return { taskGraph: next, replayed: true as const, reason: "POLICY_REFRESH_SCHEDULED" as const }; }
   async replayFailedQaEvidence(input: { projectId: string; projectVersion: number; taskId: string; expectedGraphChecksum: string; actor: string; sourceChecksum: string; policyVersion: string; scenarioChecksum: string }) { const graph = await this.documents.get(input.projectId, input.projectVersion, "task-graph"); if (!graph || graph.documentType !== "task-graph") throw new OrchestratorError("ORCHESTRATOR_GRAPH_NOT_READY", "Task graph was not found."); if (graph.graphChecksum !== input.expectedGraphChecksum) throw new OrchestratorError("TASK_STATE_CONFLICT", "Task graph changed before QA replay."); const task = graph.tasks.find((candidate) => candidate.id === input.taskId); if (!task || task.taskType !== "validate-functional-flow" || task.status !== "failed") throw new OrchestratorError("TASK_TRANSITION_INVALID", "Only a failed functional QA task can be replayed."); const identity = `${task.id}:${input.sourceChecksum}:${input.policyVersion}:${input.scenarioChecksum}:VALIDATION_EVIDENCE_REFRESH`; if (task.validationReplayIdentity === identity) return { taskGraph: graph, replayed: false as const }; if ((task.validationReplayCount ?? 0) >= 1) throw new OrchestratorError("TASK_ATTEMPT_LIMIT_REACHED", "Functional QA evidence replay is bounded to one attempt."); if (graph.tasks.some((candidate) => candidate.repairOfTaskId === task.id && ["pending", "ready", "running"].includes(candidate.status))) throw new OrchestratorError("TASK_REPAIR_INVALID", "QA replay is blocked while an active repair owns the failed task."); if (task.dependencies.some((dependency) => graph.tasks.find((candidate) => candidate.id === dependency)?.status !== "passed")) throw new OrchestratorError("TASK_DEPENDENCY_FAILED", "QA replay requires all implementation and runtime dependencies to remain passed."); const nextTask = { ...task, status: "ready" as const, completedAt: undefined, validationReplayCount: 1, validationReplayIdentity: identity, validationDiagnosticPolicyVersion: input.policyVersion, validationSourceChecksum: input.sourceChecksum }; const next = withChecksum(TaskGraphSchema.parse({ ...graph, tasks: graph.tasks.map((candidate) => candidate.id === task.id ? nextTask : candidate), checkpoint: "validation-started" as const, updatedAt: now() })); await this.documents.save(next); return { taskGraph: next, replayed: true as const }; }
   async reconcileStaleQaEvidence(input: { projectId: string; projectVersion: number; expectedGraphChecksum: string; actor: string; sourceChecksum: string; policyVersion: string; scenarioChecksum: string }) { const graph = await this.documents.get(input.projectId, input.projectVersion, "task-graph"); if (!graph || graph.documentType !== "task-graph") throw new OrchestratorError("ORCHESTRATOR_GRAPH_NOT_READY", "Task graph was not found."); if (graph.graphChecksum !== input.expectedGraphChecksum) throw new OrchestratorError("TASK_STATE_CONFLICT", "Task graph changed before QA evidence reconciliation."); const task = graph.tasks.find((candidate) => candidate.taskType === "validate-functional-flow"); if (!task || task.status !== "failed" || (task.validationDiagnosticPolicyVersion === input.policyVersion && (task.validationDiagnosticCount ?? 0) > 0)) return { taskGraph: graph, replayed: false as const }; return this.replayFailedQaEvidence({ projectId: input.projectId, projectVersion: input.projectVersion, expectedGraphChecksum: input.expectedGraphChecksum, actor: input.actor, sourceChecksum: input.sourceChecksum, policyVersion: input.policyVersion, scenarioChecksum: input.scenarioChecksum, taskId: task.id }); }

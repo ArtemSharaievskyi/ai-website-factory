@@ -16,6 +16,8 @@ describe("production E2E stage runner structure", () => {
     expect(source.indexOf('stage("ORCHESTRATOR"')).toBeLessThan(source.indexOf('stage("START_IMPLEMENTATION"'));
     expect(source.indexOf('stage("START_IMPLEMENTATION"')).toBeLessThan(source.indexOf('stage("FULL_EXECUTION"'));
     expect(source.indexOf('stage("FULL_EXECUTION"')).toBeLessThan(source.indexOf('stage("RELEASE_ELIGIBILITY"'));
+    expect(source).toContain("repairTaskCapabilityBindings");
+    expect(source.indexOf("repairTaskCapabilityBindings")).toBeLessThan(source.indexOf("!graph.readyForExecution"));
     expect(source).not.toMatch(/from ["']openai["']/);
     expect(source).not.toContain("child_process");
     expect(source).not.toMatch(/from ["'][^"']*playwright/i);

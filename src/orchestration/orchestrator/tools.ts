@@ -3,16 +3,15 @@ import type { AgentTask } from "@/domain/tasks/schema";
 
 const read = ["filesystem-read"] as const;
 const write = ["filesystem-read", "filesystem-write"] as const;
-const controlledEdit = ["controlled-edit"] as const;
 const professionalDesign = ["fontpair-read", "design-quality-validation", "design-source-discovery"] as const;
 export function resolveTools(taskType: string, assetSources: string[] = []): { allowed: string[]; denied: string[] } {
   if (taskType === "create-design-directions") return { allowed: [...professionalDesign], denied: ["git-write", "shell-restricted", "npm"] };
   if (taskType === "prepare-workspace") return { allowed: [...write], denied: ["git-write", "npm"] };
   if (taskType.startsWith("validate-") || taskType === "prepare-release" || taskType === "write-e2e-tests") return { allowed: [...read, ...(taskType.startsWith("validate-") ? ["generated-runtime-validation"] : []), ...(taskType === "write-e2e-tests" ? ["filesystem-write"] : []), ...(taskType === "validate-functional-flow" ? ["Playwright-functional", "playwright-functional-qa"] : [])], denied: ["git-write", "shell-restricted"] };
-  if (taskType === "implement-database-schema" || taskType === "implement-rls-policy" || taskType === "implement-storage") return { allowed: [...write, ...controlledEdit, "database-read", "database-write"], denied: ["Playwright-functional", "git-write"] };
-  if (taskType === "implement-motion") return { allowed: [...write, ...controlledEdit], denied: ["Playwright-functional", "git-write"] };
+  if (taskType === "implement-database-schema" || taskType === "implement-rls-policy" || taskType === "implement-storage") return { allowed: [...write, "database-read", "database-write"], denied: ["Playwright-functional", "git-write"] };
+  if (taskType === "implement-motion") return { allowed: [...write], denied: ["Playwright-functional", "git-write"] };
   const allowed: string[] = [...write];
-  if (taskType.startsWith("implement-") || taskType.startsWith("write-") || taskType === "repair-targeted-failure") { allowed.push(...controlledEdit, "Context7-read", "codebase-memory-read"); }
+  if (taskType.startsWith("implement-") || taskType.startsWith("write-") || taskType === "repair-targeted-failure") { allowed.push("Context7-read", "codebase-memory-read"); }
   if (["implement-design-system", "implement-shared-layout", "implement-navigation", "implement-page", "implement-shared-component", "implement-form"].includes(taskType)) allowed.push("shadcn-registry-read");
   if (assetSources.some((source) => source === "ai-generated" || source === "ai-plus-user-supplied")) allowed.push("image-generation");
   return { allowed, denied: ["Playwright-functional", "git-write", "npm"] };

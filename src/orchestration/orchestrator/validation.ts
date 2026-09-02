@@ -4,6 +4,7 @@ import { OrchestratorError } from "./errors";
 import { validateToolPolicy } from "./tools";
 import type { OrchestratorInput, OrchestrationPolicy } from "./contracts";
 import { validateExecutionCapabilities } from "@/orchestration/execution/capabilities";
+import { validateTaskCapabilityBinding } from "@/orchestration/tooling/authority";
 
 const infrastructure = new Set(["prepare-workspace", "implement-project-foundation", "validate-lint", "validate-typecheck", "validate-unit-tests", "validate-build", "validate-database", "validate-security", "validate-functional-flow", "prepare-release", "write-unit-tests", "write-integration-tests", "write-e2e-tests"]);
 const scope = (value: string) => value.replaceAll("\\", "/").replace(/^\.\//, "");
@@ -30,6 +31,7 @@ export function validateImplementationTaskGraph(graph: TaskGraph, input?: Orches
     if (!task.role || !["lead", "planner-architect", "design", "implementation", "qa-release"].includes(task.role)) errors.push("ORCHESTRATOR_GRAPH_INVALID");
     if (task.dependencies.some((dependency) => !ids.has(dependency))) errors.push("ORCHESTRATOR_GRAPH_INVALID");
     try { validateToolPolicy(task); } catch (error) { if (error instanceof OrchestratorError) errors.push(error.code); }
+    if (!validateTaskCapabilityBinding(task).valid) errors.push("TASK_CAPABILITY_BINDING_INVALID");
     if (task.allowedTools.some((tool) => task.deniedTools?.includes(tool))) errors.push("TASK_TOOL_POLICY_VIOLATION");
     if (task.estimatedContextBytes && policy && task.estimatedContextBytes > policy.maxContextBytes) errors.push("TASK_SKILL_CONTEXT_EXCEEDED");
     if (task.repairOfTaskId && (!ids.has(task.repairOfTaskId) || task.taskType !== "repair-targeted-failure")) errors.push("TASK_REPAIR_INVALID");

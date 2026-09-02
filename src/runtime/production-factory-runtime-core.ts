@@ -484,6 +484,7 @@ export function createProductionFactoryRuntime(
         : undefined;
       const implementation = new ImplementationAgentService(database, {
         provider: ai.implementation,
+        taskGraphOwner: "full-execution",
         resolveSkills: resolveImplementationSkills,
         memory: implementationMemory,
         codebaseMemory: codebaseMemory

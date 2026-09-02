@@ -8,15 +8,36 @@ import { hostAgentIdentityMatches, hostTaskIdentityMatches, isTrustedToolHostCon
 const unique = (values: readonly string[]) => [...new Set(values)];
 
 export function deriveTaskCapabilities(task: Pick<AgentTask, "taskType" | "allowedTools">) {
-  void task.allowedTools;
-  const capabilities = CAPABILITY_REGISTRY.filter((capability) => capability.taskTypes.some((pattern) => pattern.endsWith("*") ? task.taskType.startsWith(pattern.slice(0, -1)) : pattern === task.taskType)).map((capability) => capability.id);
+  const allowedToolIds = new Set(task.allowedTools.map(canonicalToolId));
+  const capabilities = CAPABILITY_REGISTRY.filter((capability) =>
+    capability.taskTypes.some((pattern) => pattern.endsWith("*") ? task.taskType.startsWith(pattern.slice(0, -1)) : pattern === task.taskType)
+    && capability.eligibleOperations.some((eligible) => allowedToolIds.has(canonicalToolId(eligible.toolId))),
+  ).map((capability) => capability.id);
   return unique(capabilities) as CapabilityId[];
 }
 
+export type TaskCapabilityBinding = {
+  derivedCapabilities: CapabilityId[];
+  requiredCapabilities: CapabilityId[];
+  missingCapabilities: CapabilityId[];
+  valid: boolean;
+};
+
+export function resolveTaskCapabilityBinding(task: Pick<AgentTask, "taskType" | "allowedTools"> & { requiredCapabilities?: readonly string[] }): TaskCapabilityBinding {
+  const derivedCapabilities = deriveTaskCapabilities(task);
+  const requiredCapabilities = task.requiredCapabilities === undefined
+    ? derivedCapabilities
+    : unique(task.requiredCapabilities) as CapabilityId[];
+  const missingCapabilities = requiredCapabilities.filter((capability) => !derivedCapabilities.includes(capability));
+  return { derivedCapabilities, requiredCapabilities, missingCapabilities, valid: missingCapabilities.length === 0 };
+}
+
+export function validateTaskCapabilityBinding(task: Pick<AgentTask, "taskType" | "allowedTools"> & { requiredCapabilities?: readonly string[] }) {
+  return resolveTaskCapabilityBinding(task);
+}
+
 export function taskCapabilitiesFor(task: Pick<AgentTask, "taskType" | "allowedTools"> & { requiredCapabilities?: readonly string[] }) {
-  const derived = deriveTaskCapabilities(task);
-  if (task.requiredCapabilities?.length) return unique(task.requiredCapabilities.filter((capability) => derived.includes(capability as CapabilityId))) as CapabilityId[];
-  return derived;
+  return resolveTaskCapabilityBinding(task).requiredCapabilities;
 }
 
 const forbiddenInputKeys = new Set([
@@ -90,6 +111,8 @@ function authorizeToolRequestInternal(input: ToolAuthorityInput, validateInput: 
   if (tool.availability !== "AVAILABLE") return deny("TOOL_UNAVAILABLE", taskCapabilities, tool.id, operation.operationId, operation.executorId, hostContext.identity);
   if (!scopeAllows(operation, projectScope)) return deny("TASK_SCOPE_INVALID", taskCapabilities, tool.id, operation.operationId, operation.executorId, hostContext.identity);
   if (validateInput && !inputIsSafe(request, operation, projectScope, hostContext.taskFileScopes)) return deny("INPUT_NOT_ALLOWED", taskCapabilities, tool.id, operation.operationId, operation.executorId, hostContext.identity);
+  const taskCapabilityBinding = validateTaskCapabilityBinding(input.task);
+  if (!taskCapabilityBinding.valid) return ToolAuthorityDecisionSchema.parse({ allowed: false, code: "TASK_CAPABILITY_MISSING", toolId: request.toolId, operationId: operation.operationId, requiredCapabilities: taskCapabilityBinding.missingCapabilities, taskCapabilities, hostContextIdentity: hostContext.identity });
   const isAgentAuthorized = Boolean(input.agentDefinition && hostContext.agentId && hostContext.agentAllowedToolIds.includes(tool.id) && hostContext.agentSupportedTaskTypes.includes(hostContext.taskType));
   const isHostAuthorized = hostContext.trustedExecutorIds.includes(operation.executorId as typeof hostContext.trustedExecutorIds[number]);
   if (!isAgentAuthorized && !isHostAuthorized) return deny(input.agentDefinition ? "AGENT_TOOL_NOT_ALLOWED" : "EXECUTOR_NOT_TRUSTED", taskCapabilities, tool.id, operation.operationId, operation.executorId, hostContext.identity);

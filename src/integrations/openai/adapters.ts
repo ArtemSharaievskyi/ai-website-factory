@@ -120,6 +120,12 @@ export const OrchestrationPlanSchema = z
   .strict();
 const checksumText = (value: string) =>
   createHash("sha256").update(value, "utf8").digest("hex");
+const checksumTextPatchResult = (operation: { relativePath: string; oldText: string; newText: string; expectedResultChecksum: string }, files: ImplementationContext["files"]) => {
+  const relativePath = operation.relativePath.replaceAll("\\", "/");
+  const source = files.find((file) => file.relativePath.replaceAll("\\", "/") === relativePath);
+  if (!source || source.content.split(operation.oldText).length - 1 !== 1) return operation.expectedResultChecksum;
+  return checksumText(source.content.replace(operation.oldText, operation.newText));
+};
 const dropNullFields = (value: Record<string, unknown>) => Object.fromEntries(Object.entries(value).filter(([, nested]) => nested !== null));
 const withoutProjectIdentity = <T extends Record<string, z.ZodTypeAny>>(shape: T) => {
   const result = { ...shape };
@@ -154,7 +160,16 @@ function bindProjectIdentity<T>(value: T, host: { projectId: string; projectVers
   return result as T;
 }
 const normalizeAstTransportOperation = (operation: Record<string, unknown>) => {
-  const { artifactId, expectedTarget, selector, payload, ...rest } = operation;
+  const rest = { ...operation };
+  for (const key of ["taskId", "taskContractId", "taskContractChecksum", "taskGraphChecksum", "projectId", "projectVersion"]) delete rest[key];
+  const artifactId = rest.artifactId;
+  const expectedTarget = rest.expectedTarget;
+  const selector = rest.selector;
+  const payload = rest.payload;
+  delete rest.artifactId;
+  delete rest.expectedTarget;
+  delete rest.selector;
+  delete rest.payload;
   return { ...rest, ...(artifactId === null ? {} : { artifactId }), ...(expectedTarget === null ? {} : { expectedTarget: dropNullFields(expectedTarget as Record<string, unknown>) }), selector: dropNullFields(selector as Record<string, unknown>), payload: dropNullFields(payload as Record<string, unknown>) };
 };
 
@@ -191,10 +206,6 @@ const AstPatchStructuredBaseSchema = z.object({
   expectedFileChecksum: z.string().regex(/^[a-f0-9]{64}$/),
   expectedResultChecksum: z.string().regex(/^[a-f0-9]{64}$/),
   encoding: z.literal("utf-8"),
-  taskId: z.string().uuid(),
-  taskContractId: z.string().uuid(),
-  taskContractChecksum: z.string().regex(/^[a-f0-9]{64}$/),
-  taskGraphChecksum: z.string().regex(/^[a-f0-9]{64}$/),
   artifactId: z.string().nullable(),
   reason: z.string().min(1).max(500),
   requirementReferences: z.array(z.string().min(1)),
@@ -224,11 +235,14 @@ const ImplementationOperationStructuredSchema = z.union([
   ImplementationOperationStructuredBaseSchema.extend({
     type: z.literal("delete-file"),
   }),
+  ImplementationOperationStructuredBaseSchema.extend({
+    type: z.literal("patch-text"),
+    oldText: z.string(),
+    newText: z.string(),
+  }),
   AstPatchStructuredSchema,
 ]);
 const Phase7CStructuredBindingSchema = z.object({
-  taskContractId: z.string().uuid(),
-  taskContractChecksum: z.string().regex(/^[a-f0-9]{64}$/),
   dataContractIds: z.array(z.string().uuid()),
   databaseDecisionId: z.string().uuid().nullable(),
   databaseDecisionChecksum: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
@@ -237,8 +251,6 @@ const Phase7CStructuredBindingSchema = z.object({
 export const ImplementationChangeProposalStructuredOutputSchema = z
   .object({
     proposalId: z.string().uuid(),
-    taskId: z.string().uuid(),
-    taskAttempt: z.number().int().nonnegative(),
     summary: z.string().min(1).max(1000),
     operations: z.array(ImplementationOperationStructuredSchema),
     expectedChangedFiles: z.array(z.string().min(1)),
@@ -259,6 +271,13 @@ export const ImplementationChangeProposalStructuredOutputSchema = z
     generatedAt: z.string().datetime(),
   })
   .strict();
+const ImplementationOperationWithoutAstStructuredSchema = z.union([
+  ImplementationOperationStructuredBaseSchema.extend({ type: z.literal("create-file"), content: z.string() }),
+  ImplementationOperationStructuredBaseSchema.extend({ type: z.literal("replace-file"), content: z.string() }),
+  ImplementationOperationStructuredBaseSchema.extend({ type: z.literal("patch-text"), oldText: z.string(), newText: z.string() }),
+  ImplementationOperationStructuredBaseSchema.extend({ type: z.literal("delete-file") }),
+]);
+const ImplementationChangeProposalWithoutAstStructuredOutputSchema = ImplementationChangeProposalStructuredOutputSchema.extend({ operations: z.array(ImplementationOperationWithoutAstStructuredSchema) });
 
 const BriefStructuredAnalysisMetadataSchema = z
   .object({
@@ -1652,10 +1671,16 @@ export class OpenAiImplementationProvider implements ImplementationProvider {
       context.task.taskType === "implement-project-foundation"
         ? "For foundation, create package.json using only the supplied Foundation required-artifact policy, required npm scripts, approved stack, and authorized scopes. Do not create package-lock.json; the Factory prepares it with a fixed npm command after package.json is accepted. For foundation, also create eslint.config.mjs as the approved ESLint 9 flat config importing defineConfig/globalIgnores from eslint/config and nextVitals from eslint-config-next/core-web-vitals, with only the approved ignore directories. Also create next.config.mjs with the approved Turbopack root setting `{ turbopack: { root: process.cwd() } }`. Do not execute npm or any shell command."
         : "Do not execute npm or any shell command.";
+    const approvedFormFields = context.formPlan?.forms.flatMap((form) => form.fields.map((field) => `${form.id}:${field.fieldId}${field.required ? " (required)" : ""}`)) ?? [];
     const formRetryInstruction =
       context.task.taskType === "implement-form" &&
       context.task.safeFailureCode === "FORM_FIELD_UNAPPROVED"
-        ? "This is a bounded retry after FORM_FIELD_UNAPPROVED. Use the accepted FormPlan as the complete product-field allowlist: Name, E-Mail, Fahrradtyp, and Beschreibung des Problems, all required. Do not add phone, address, appointment date, privacy consent, or any other product field. Stable HTML name keys may use only explicit validator aliases; preserve the approved submission behavior and exact writable scope. Do not return raw prior provider output."
+        ? `This is a bounded retry after FORM_FIELD_UNAPPROVED. Use the accepted FormPlan as the complete product-field allowlist: ${approvedFormFields.join(", ") || "the fields in the accepted FormPlan"}. Do not add any other product field. Stable HTML name keys may use only explicit validator aliases; preserve the approved submission behavior and exact writable scope. Do not return raw prior provider output.`
+        : "";
+    const formRepairInstruction =
+      context.task.taskType === "repair-targeted-failure" &&
+      context.formPlan?.forms.length
+        ? `For a form repair, the accepted FormPlan is authoritative. Preserve exactly its form id, submission mechanism, and fieldIds: ${approvedFormFields.join(", ")}. Remove every input, select, or textarea whose name is not an approved fieldId or explicit validator alias, including any phone, address, appointment-date, or consent field not present in that FormPlan. Emit one data-qa-field per approved fieldId, using either the fieldId value or exactly the canonical formId:fieldId namespace, and emit the exact data-qa-form id. For client-only forms, keep validation and success local with no network, persistence, server action, route handler, or external provider.`
         : "";
     const testArtifactInstruction =
       context.task.taskType === "write-unit-tests"
@@ -1663,15 +1688,18 @@ export class OpenAiImplementationProvider implements ImplementationProvider {
         : "";
     const repairInstruction =
       context.task.taskType === "repair-targeted-failure"
-        ? "This is a targeted repair. You MUST return at least one create-file, replace-file, or patch-text operation that directly corrects the reported failure. Every operation MUST remain within the task's canonical writable fileScopes; do not return an empty or no-op proposal, do not rewrite an unrelated parent page, and do not modify tests when the scope is production source. If the required route file is absent, create it at the exact route path indicated by fileScopes. Preserve approved facts, routes, and existing behavior. For QA_FORM_VALIDATION_FAILURE on the approved appointment form, preserve the exact four approved fields and implement the existing QA contract: add data-qa-form to the form, data-qa-field matching each approved field name, submit handling, and a visible data-qa-state=success result after valid synthetic submission; keep client/server validation and do not invent persistence or external delivery."
+        ? "This is a targeted repair. You MUST return at least one create-file, replace-file, or patch-text operation that directly corrects the reported failure. Every operation MUST remain within the task's canonical writable fileScopes; do not return an empty or no-op proposal, do not rewrite an unrelated parent page, and do not modify tests when the scope is production source. If the required route file is absent, create it at the exact route path indicated by fileScopes. Preserve approved facts, routes, and existing behavior. For QA_FORM_VALIDATION_FAILURE, use the accepted FormPlan in context as the complete form contract: preserve its form id, submission mechanism, approved fieldIds, validation, selectors, and success behavior; do not invent fields, persistence, or external delivery."
         : "";
+    const responseSchema = context.allowedEditStrategies?.includes("AST_PATCH_EXISTING")
+      ? ImplementationChangeProposalStructuredOutputSchema
+      : ImplementationChangeProposalWithoutAstStructuredOutputSchema;
     const result = await this.ai.request<
-      z.infer<typeof ImplementationChangeProposalStructuredOutputSchema>
+      z.infer<typeof ImplementationChangeProposalStructuredOutputSchema> | z.infer<typeof ImplementationChangeProposalWithoutAstStructuredOutputSchema>
     >({
       ...prompt,
-      system: `${prompt.system}\n${foundationInstruction}\n${formRetryInstruction}\n${testArtifactInstruction}\n${repairInstruction}\nFor every create-file or replace-file operation, expectedResultChecksum must be the lowercase SHA-256 checksum of the exact UTF-8 content string. For patch-text, checksum the exact resulting UTF-8 file content. AST_PATCH_EXISTING is allowed only when the context advertises it: use one typed structural selector against an existing .ts/.tsx file, include the current expectedFileChecksum, current TaskContract/TaskGraph identity, and the exact expectedResultChecksum. AST patches must be narrow, parse-valid, dependency-authorized, and must never contain executable callbacks, shell instructions, or raw source outside the bounded payload. Preserve authorized relative paths and do not invent Factory metadata paths.`,
+      system: `${prompt.system}\n${foundationInstruction}\n${formRetryInstruction}\n${formRepairInstruction}\n${testArtifactInstruction}\n${repairInstruction}\nFor every create-file or replace-file operation, expectedResultChecksum must be the lowercase SHA-256 checksum of the exact UTF-8 content string. For patch-text, checksum the exact resulting UTF-8 file content. AST_PATCH_EXISTING is allowed only when the context advertises it: use one typed structural selector against an existing .ts/.tsx file, include the current expectedFileChecksum and the exact expectedResultChecksum, and do not emit project, task, attempt, TaskContract, or TaskGraph identity fields because those are host-owned and stamped after transport validation. AST patches must be narrow, parse-valid, dependency-authorized, and must never contain executable callbacks, shell instructions, or raw source outside the bounded payload. Preserve authorized relative paths and do not invent Factory metadata paths.`,
       role: "implementation",
-      schema: ImplementationChangeProposalStructuredOutputSchema,
+      schema: responseSchema,
       schemaName: "implementation-change-proposal",
       signal,
       idempotencyKey: `${context.task.id}:${context.contextChecksum}:${context.skillContextIdentity ?? "none"}`,
@@ -1698,9 +1726,20 @@ export class OpenAiImplementationProvider implements ImplementationProvider {
     const normalized = {
       ...result.value,
       operations: result.value.operations.map((operation) => {
-        if (operation.type === "ast-patch") return { ...normalizeAstTransportOperation(operation as unknown as Record<string, unknown>), projectId: context.task.projectId, projectVersion: context.task.projectVersion };
+        if (operation.type === "ast-patch") {
+          const normalizedAst = normalizeAstTransportOperation(operation as unknown as Record<string, unknown>);
+          return {
+            ...normalizedAst,
+            projectId: context.task.projectId,
+            projectVersion: context.task.projectVersion,
+            taskId: context.task.id,
+            taskContractId: context.task.phase7c?.taskContractId,
+            taskContractChecksum: context.task.phase7c?.taskContractChecksum,
+            taskGraphChecksum: context.taskGraphChecksum,
+          };
+        }
         const { expectedPriorChecksum, ...rest } = operation;
-        const expectedResultChecksum = rest.type === "create-file" || rest.type === "replace-file" ? checksumText(rest.content) : rest.expectedResultChecksum;
+        const expectedResultChecksum = rest.type === "create-file" || rest.type === "replace-file" ? checksumText(rest.content) : rest.type === "patch-text" ? checksumTextPatchResult(rest, context.files) : rest.expectedResultChecksum;
         return { ...rest, expectedResultChecksum, ...(expectedPriorChecksum === null ? {} : { expectedPriorChecksum }) };
       }),
       ...(hostPhase7cBinding
@@ -1738,6 +1777,8 @@ export class OpenAiImplementationProvider implements ImplementationProvider {
       },
       projectId: context.task.projectId,
       projectVersion: context.task.projectVersion,
+      taskId: context.task.id,
+      taskAttempt: context.task.attempt,
     };
     return ImplementationChangeProposalSchema.parse(normalized);
   }

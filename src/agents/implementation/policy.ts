@@ -29,6 +29,7 @@ import { summarizeTypeScriptSource } from "./ast-patch-executor";
 
 const sha = (value: string) =>
   createHash("sha256").update(value, "utf8").digest("hex");
+const CODEBASE_MEMORY_REFERENCE_LIMIT = 20;
 const safePattern = (pattern: string, candidate: string) => {
   const escaped = pattern
     .replaceAll("\\", "/")
@@ -396,7 +397,7 @@ export class TaskContextAssembler {
           symbol: candidate,
           reason:
             "Resolve current structural references relevant to the implementation task.",
-          requirementReferences: input.task.requirementReferences ?? [],
+          requirementReferences: (input.task.requirementReferences ?? []).slice(0, CODEBASE_MEMORY_REFERENCE_LIMIT),
           taskReferences: [input.task.id],
           maxResults: 10,
           maxBytes: Math.min(12000, this.policy.maxContextBytes),
@@ -416,20 +417,39 @@ export class TaskContextAssembler {
     const rawForms =
       (input.acceptedPlanningPackage as BackendPlans["planning"])?.forms
         ?.forms ?? [];
+    const scopeCovers = (allowed: string, requested: string) => {
+      const pattern = allowed.replaceAll("\\", "/").replace(/^\.\//, "");
+      const value = requested.replaceAll("\\", "/").replace(/^\.\//, "");
+      return pattern === value || (pattern.endsWith("/**") && (value === pattern.slice(0, -3) || value.startsWith(pattern.slice(0, -2))));
+    };
+    const formOwner =
+      input.task.taskType === "implement-form"
+        ? input.task
+        : input.task.taskType === "repair-targeted-failure"
+          ? input.taskGraph.tasks.find(
+              (candidate) =>
+                candidate.taskType === "implement-form" &&
+                input.task.fileScopes.every((scope) =>
+                  candidate.fileScopes.some((allowed) =>
+                    scopeCovers(allowed, scope),
+                  ),
+                ),
+            )
+          : undefined;
     const storagePlan =
       input.task.taskType === "implement-storage"
         ? (input.acceptedPlanningPackage as BackendPlans["planning"])?.storage
         : undefined;
     const formPlan =
-      input.task.taskType === "implement-form" &&
+      formOwner &&
       rawForms.every((form) =>
         (form.fields ?? []).every((field) => field.fieldId && field.label),
       )
         ? {
             forms: rawForms.map((form) => ({
               id: form.id ?? "",
-              route: "",
-              submissionMechanism: "server-action",
+              route: form.route ?? "",
+              submissionMechanism: form.submissionMechanism as "client-only" | "server-action" | "route-handler" | "pending-decision",
               fields: (form.fields ?? []).map((field) => ({
                 fieldId: field.fieldId!,
                 label: field.label!,
@@ -561,6 +581,7 @@ export class TaskContextAssembler {
       : ["FULL_FILE_CREATE", "FULL_FILE_REPLACE", "PATCH_TEXT"];
     const context = ImplementationContextSchema.parse({
       task: input.task,
+      taskGraphChecksum: input.taskGraphChecksum,
       acceptanceCriteria: input.task.acceptanceCriteria ?? [],
       requirementReferences: input.task.requirementReferences ?? [],
       planningReferences: input.task.planningReferences ?? [],
@@ -585,6 +606,7 @@ export class TaskContextAssembler {
       conventions,
       contextChecksum: checksumPersistedDocument({
         task: input.task,
+        taskGraphChecksum: input.taskGraphChecksum,
         selectedDesignContract: input.selectedDesign.selectedDirectionContract,
         files,
         structuralContext,

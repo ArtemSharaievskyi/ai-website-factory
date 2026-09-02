@@ -48,6 +48,7 @@ describe("approved procedural prompt guidance", () => {
     expect(prompt.promptVersion).toBe("implementation.v3");
     expect(prompt.system).toContain("Select every proposal operation only from the context's allowedEditStrategies");
     expect(prompt.system).toContain("If AST_PATCH_EXISTING is absent, never return an ast-patch operation");
+    expect(prompt.system).toContain("Project, task, attempt, TaskContract, and TaskGraph identities are host-owned");
     expect(prompt.system).toContain("When the task scope is exactly src/app/factory-prepared.ts and AST_PATCH_EXISTING is absent");
   });
 });

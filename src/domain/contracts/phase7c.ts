@@ -395,6 +395,11 @@ const contractScopeCovers = (allowed: string, requested: string) => {
     const relative = requestedScope.startsWith(`${base}/`) ? requestedScope.slice(base.length + 1) : "";
     return relative.length > 0 && !relative.includes("/");
   }
+  if (allowedScope.endsWith("*")) {
+    const prefix = allowedScope.slice(0, -1);
+    const relative = requestedScope.startsWith(prefix) ? requestedScope.slice(prefix.length) : "";
+    return relative.length > 0 && !relative.includes("/");
+  }
   return false;
 };
 

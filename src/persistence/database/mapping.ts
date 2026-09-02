@@ -19,13 +19,13 @@ import { checksumPersistedDocument } from "./serialization";
 import { PersistenceError } from "./errors";
 import { PlanningPackageSchema } from "../../agents/planner/contracts";
 import { ImplementationRunsSchema } from "@/domain/implementation/schema";
-import { ExecutionSummarySchema } from "@/orchestration/execution/contracts";
+import { ExecutionSummarySchema, FullExecutionRunDocumentSchema } from "@/orchestration/execution/contracts";
 import { ArchitectureReviewHistorySchema, ArchitectureReviewRecordSchema, ContractAuditHistorySchema, ContractAuditRecordSchema, CodeIntegrationReviewHistorySchema, CodeIntegrationReviewRecordSchema, SecurityReviewHistorySchema, SecurityReviewRecordSchema, TestQualityReviewHistorySchema, TestQualityReviewRecordSchema } from "@/domain/review/schema";
 import { Phase7CContractPackageSchema } from "@/domain/contracts/phase7c";
 import { BriefV3DocumentSchema } from "./brief-revision-v3-contracts";
 import { PlanningRefreshDiagnosticsSchema } from "@/agents/planner/refresh-diagnostics";
 
-export const PersistedDocumentSchema = z.union([BriefV3DocumentSchema, ClarificationSessionSchema, RequirementSpecificationSchema, DesignDirectionSetSchema, SelectedDesignSchema, DesignDependencyAmendmentSchema, DesignGenerationAttemptSchema, DesignGenerationAttemptHistorySchema, TechnicalArchitectureSchema, ContentPlanSchema, AssetManifestSchema, PlanningPackageSchema, PlanningRefreshDiagnosticsSchema, TaskGraphSchema, ImplementationRunsSchema, QualityReportSchema, ReleaseReportSchema, ExecutionSummarySchema, Phase7CContractPackageSchema, ArchitectureReviewRecordSchema, ArchitectureReviewHistorySchema, ContractAuditRecordSchema, ContractAuditHistorySchema, CodeIntegrationReviewRecordSchema, CodeIntegrationReviewHistorySchema, SecurityReviewRecordSchema, SecurityReviewHistorySchema, TestQualityReviewRecordSchema, TestQualityReviewHistorySchema]);
+export const PersistedDocumentSchema = z.union([BriefV3DocumentSchema, ClarificationSessionSchema, RequirementSpecificationSchema, DesignDirectionSetSchema, SelectedDesignSchema, DesignDependencyAmendmentSchema, DesignGenerationAttemptSchema, DesignGenerationAttemptHistorySchema, TechnicalArchitectureSchema, ContentPlanSchema, AssetManifestSchema, PlanningPackageSchema, PlanningRefreshDiagnosticsSchema, TaskGraphSchema, ImplementationRunsSchema, QualityReportSchema, ReleaseReportSchema, ExecutionSummarySchema, FullExecutionRunDocumentSchema, Phase7CContractPackageSchema, ArchitectureReviewRecordSchema, ArchitectureReviewHistorySchema, ContractAuditRecordSchema, ContractAuditHistorySchema, CodeIntegrationReviewRecordSchema, CodeIntegrationReviewHistorySchema, SecurityReviewRecordSchema, SecurityReviewHistorySchema, TestQualityReviewRecordSchema, TestQualityReviewHistorySchema]);
 export type PersistedDocument = z.infer<typeof PersistedDocumentSchema>;
 
 export type DocumentRow = { projectId: string; projectVersion: number; documentType: string; schemaVersion: number; checksum: string; payload: unknown; createdAt: string; updatedAt: string; rowVersion: number };
