@@ -7,7 +7,7 @@
   "verdict": "FIRST_PILOT_BASELINE_CERTIFIED",
   "recordedAt": "2026-09-03T00:00:00.000Z",
   "sourceHead": "c34f6248adb0298c8a837c1d094fe21d2b97a019",
-  "evidencePackChecksum": "fbbc5ee37246ccf8805a054e864eaf53b8f313264f049f13b8e177db426a302c",
+  "evidencePackChecksum": "584d0f96b7f9f7a5fcf56554b6f8b426e59e74d284424f2ecb7001e20b17345e",
   "scope": {
     "projectReference": "protected-pilot-v1",
     "projectData": "referenced only through protected persistence and checksum-bound evidence",
@@ -146,7 +146,7 @@
     "databaseIntegrity": "PASS",
     "taskGraphSmoke": "PASS",
     "gitDiffCheck": "PASS",
-    "fullRepositoryTests": "4_FAILURES: 155_FILES_PASSED, 1957_TESTS_PASSED, 2_SKIPPED; 2_STALE_MANIFEST, 1_PARALLEL_POSTGRES_CONTENTION_SUITE_FAILURE",
+    "fullRepositoryTests": "3_FAILED_TESTS: 155_FILES_PASSED, 1957_TESTS_PASSED, 2_SKIPPED; 2_STALE_MANIFEST, 1_PARALLEL_POSTGRES_CONTENTION_SUITE_FAILURE",
     "protectedPilotState": "PASS_UNCHANGED",
     "noProviderCall": "PASS",
     "noReleaseOrDeployment": "PASS"
