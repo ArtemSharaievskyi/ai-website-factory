@@ -26,6 +26,8 @@ import { isWithinTaskScope } from "./scope";
 import type { AgentSkillSelection } from "@/skills/runtime/resolver";
 import { allowedDependencyNamesForPlan, dependencyCatalogPromptContext, type DependencyPlanIntent } from "@/dependencies/authority";
 import { summarizeTypeScriptSource } from "./ast-patch-executor";
+import { implementationOrchestrator } from "@/orchestration/orchestrator/implementation-routing";
+import { implementationProfileRegistry } from "@/domain/implementation/profiles";
 
 const sha = (value: string) =>
   createHash("sha256").update(value, "utf8").digest("hex");
@@ -98,6 +100,20 @@ export class TaskContextAssembler {
       brief: input.approvedBrief,
       planning: input.acceptedPlanningPackage as BackendPlans["planning"],
     });
+    const route = implementationOrchestrator.resolveTask({
+      task: input.task,
+      architecture: input.technicalArchitecture,
+      phase7c: input.phase7cContractPackage,
+      taskById: new Map(input.taskGraph.tasks.map((task) => [task.id, task])),
+    });
+    if (route.status !== "ACTIVE" || !route.specialistProfileId)
+      throw new ImplementationError(
+        route.status === "UNROUTABLE" ? "IMPLEMENTATION_TASK_TYPE_UNSUPPORTED" : "IMPLEMENTATION_TASK_NOT_REQUIRED",
+        "The implementation task is not admitted to an active Factory specialist domain.",
+        undefined,
+        { routeStatus: route.status, domain: route.domain },
+      );
+    const specialistProfile = implementationProfileRegistry.get(route.specialistProfileId);
     if (
       !(await this.dependencies.workspace.verifyStaging(
         input.projectId,
@@ -231,7 +247,7 @@ export class TaskContextAssembler {
           skillId,
           role: "implementation",
           taskType: input.task.taskType,
-          requestedTools: input.task.allowedTools,
+          requestedTools: [],
           contextBudgetBytes: this.policy.maxContextBytes,
         });
       skills.push({
@@ -582,6 +598,7 @@ export class TaskContextAssembler {
     const context = ImplementationContextSchema.parse({
       task: input.task,
       taskGraphChecksum: input.taskGraphChecksum,
+      specialistProfile: { profileId: specialistProfile.profileId, domain: specialistProfile.domain, version: specialistProfile.version, checksum: specialistProfile.checksum, normalizedGuidance: specialistProfile.normalizedGuidance },
       acceptanceCriteria: input.task.acceptanceCriteria ?? [],
       requirementReferences: input.task.requirementReferences ?? [],
       planningReferences: input.task.planningReferences ?? [],
@@ -607,6 +624,7 @@ export class TaskContextAssembler {
       contextChecksum: checksumPersistedDocument({
         task: input.task,
         taskGraphChecksum: input.taskGraphChecksum,
+        specialistProfile: { profileId: specialistProfile.profileId, domain: specialistProfile.domain, version: specialistProfile.version, checksum: specialistProfile.checksum, normalizedGuidance: specialistProfile.normalizedGuidance },
         selectedDesignContract: input.selectedDesign.selectedDirectionContract,
         files,
         structuralContext,

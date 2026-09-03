@@ -82,6 +82,8 @@ import {
   testQualityReviewerAgentDefinition,
 } from "@/agents/catalog";
 import { classifySecuritySurface } from "@/agents/reviewers/security/deterministic";
+import { implementationOrchestrator } from "@/orchestration/orchestrator/implementation-routing";
+import { implementationProfileRegistry } from "@/domain/implementation/profiles";
 import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
 import { OpenAiBriefV3RevisionProvider } from "@/integrations/openai-v3/provider";
 import { effectivePlannerBrief } from "@/agents/planner/brief-context";
@@ -333,19 +335,24 @@ export function createProductionFactoryRuntime(
     input: import("@/agents/implementation/contracts").ImplementationAgentInput,
   ) => {
     const taskType = input.task.taskType;
-    const backend = ["implement-database-schema", "implement-rls-policy", "implement-authentication", "implement-storage", "implement-email"].includes(taskType) || input.task.fileScopes.some((scope) => /supabase|src\/lib\/(auth|storage|email)/i.test(scope));
+    const route = implementationOrchestrator.resolveTask({ task: input.task, architecture: input.technicalArchitecture, phase7c: input.phase7cContractPackage, taskById: new Map(input.taskGraph.tasks.map((task) => [task.id, task])) });
+    const profile = route.specialistProfileId ? implementationProfileRegistry.get(route.specialistProfileId) : undefined;
+    const backend = route.domain === "BACKEND" || route.domain === "DATABASE";
     const form = taskType === "implement-form";
     const performance = /performance|maintain|refactor/i.test(taskType);
-    const projectSurfaces = backend
-      ? ["supabase", "database", "auth", "storage"]
+    const projectSurfaces = route.domain === "DATABASE"
+      ? ["supabase", "postgres", "database", "rls"]
+      : route.domain === "BACKEND"
+        ? ["supabase", "auth", "storage", "server", "api"]
       : form
         ? ["forms", "validation", "typed"]
         : performance
           ? ["performance", "maintenance"]
           : ["nextjs", "server", "client", "page", "component"];
+    const agent = profile ? { ...implementationAgentDefinition, allowedSkillIds: profile.allowedSkillIds } : implementationAgentDefinition;
     return prepareAgentSkillContext(skillRegistry, {
-      agent: implementationAgentDefinition,
-      capability: backend ? "implementation.backend" : "implementation.code",
+      agent,
+      capability: route.domain === "BACKEND" || route.domain === "DATABASE" ? "implementation.backend" : "implementation.code",
       taskType: backend ? "implement-backend" : "implement-frontend",
       projectSurfaces,
       requiredCoverage: backend
@@ -355,8 +362,8 @@ export function createProductionFactoryRuntime(
           : performance
             ? ["maintainability-performance"]
             : ["nextjs-implementation", "server-client-boundaries"],
-      requestedTools: input.task.allowedTools,
-      contextBudgetBytes: implementationAgentDefinition.contextPolicy.maxBytes,
+      requestedTools: [],
+      contextBudgetBytes: profile?.contextPolicy.maxBytes ?? implementationAgentDefinition.contextPolicy.maxBytes,
       reservedContextBytes: Buffer.byteLength(JSON.stringify(input), "utf8"),
     });
   };

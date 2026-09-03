@@ -45,6 +45,7 @@ import { validateDirectionDesignCapability } from "@/domain/design/capability";
 import { evaluateRealFormProcessingGate, isRealFormProcessingTask } from "@/domain/requirements/v3/lifecycle-gates";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { validateTaskCapabilityBinding } from "@/orchestration/tooling/authority";
+import { implementationOrchestrator } from "@/orchestration/orchestrator/implementation-routing";
 
 export interface ImplementationMemoryPort {
   writeSnapshot(
@@ -254,6 +255,19 @@ export class ImplementationAgentService {
           "The implementation task advertises capabilities that its approved tools do not provide.",
           undefined,
           { missingCapabilities: capabilityBinding.missingCapabilities },
+        );
+      const route = implementationOrchestrator.resolveTask({
+        task: input.task,
+        architecture: input.technicalArchitecture,
+        phase7c: input.phase7cContractPackage,
+        taskById: new Map(input.taskGraph.tasks.map((task) => [task.id, task])),
+      });
+      if (route.status !== "ACTIVE")
+        throw new ImplementationError(
+          route.status === "UNROUTABLE" ? "IMPLEMENTATION_TASK_TYPE_UNSUPPORTED" : "IMPLEMENTATION_TASK_NOT_REQUIRED",
+          "The implementation task is not admitted to an active Factory specialist domain.",
+          undefined,
+          { routeStatus: route.status, domain: route.domain },
         );
       validateSupportedTask(input.task);
       return input;

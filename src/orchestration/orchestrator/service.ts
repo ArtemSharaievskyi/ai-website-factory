@@ -16,6 +16,7 @@ import { evaluatePlanningAcceptanceReadiness, planningSemanticChecksum } from "@
 import { BriefV3DocumentSchema } from "@/persistence/database/brief-revision-v3-contracts";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { deriveTaskCapabilities, taskCapabilitiesFor, validateTaskCapabilityBinding } from "@/orchestration/tooling/authority";
+import { implementationDomainForTaskType, specialistProfileIdForDomain } from "@/domain/implementation/profiles";
 import { mapRowToDocument, mapRowToProject } from "@/persistence/database/mapping";
 import { PersistenceError } from "@/persistence/database/errors";
 
@@ -32,6 +33,12 @@ const repairOwner = (graph: TaskGraph, failed: AgentTask, scopes: string[]) => {
 const repairTemplate = (graph: TaskGraph, task: AgentTask) => { if (task.taskType !== "repair-targeted-failure" || !task.repairOfTaskId) return task; const referenced = graph.tasks.find((candidate) => candidate.id === task.repairOfTaskId); return referenced ? repairOwner(graph, referenced, task.fileScopes) ?? referenced : task; };
 const repairRoot = (graph: TaskGraph, task: AgentTask) => { let current = task; const visited = new Set<string>(); while (current.taskType === "repair-targeted-failure" && current.repairOfTaskId && !visited.has(current.id)) { visited.add(current.id); const next = graph.tasks.find((candidate) => candidate.id === current.repairOfTaskId); if (!next) break; current = next; } return current; };
 const hasExplicitValidAstPatchBinding = (task: AgentTask) => task.allowedTools.includes("controlled-edit") && task.requiredCapabilities?.includes("edit.ast-patch") === true && validateTaskCapabilityBinding(task).valid;
+const expectedSpecialistBinding = (graph: TaskGraph, task: AgentTask) => {
+  const template = task.taskType === "repair-targeted-failure" ? repairTemplate(graph, task) : task;
+  const root = repairRoot(graph, template);
+  const domain = implementationDomainForTaskType(root.taskType) ?? template.implementationDomain ?? root.implementationDomain;
+  return domain ? { implementationDomain: domain, specialistProfileId: specialistProfileIdForDomain(domain) } : undefined;
+};
 
 export class OrchestratorService {
   async getImplementationResumeCheckpoint(projectId: string, projectVersion: number) {
@@ -502,14 +509,32 @@ export class OrchestratorService {
         }
         if (graph.graphChecksum !== input.expectedGraphChecksum) throw new PersistenceError("PERSISTENCE_CONFLICT", "Task graph changed before capability binding repair.");
         const retiredRepairTaskIds = graph.tasks.filter((task) => task.taskType === "repair-targeted-failure" && task.status === "failed" && repairRoot(graph, task).status === "passed").map((task) => task.id);
-        const repairedTaskIds = [...new Set([...graph.tasks.filter((task) => !validateTaskCapabilityBinding(task).valid || (task.allowedTools.includes("controlled-edit") && !hasExplicitValidAstPatchBinding(task)) || (task.taskType === "repair-targeted-failure" && (task.allowedTools.includes("shadcn-registry-read") || task.role !== "implementation" || task.executionMode === "parallel-safe" || task.parallelGroup !== undefined))).map((task) => task.id), ...retiredRepairTaskIds])];
+        const repairedTaskIds = [...new Set([
+          ...graph.tasks.filter((task) => {
+            const expectedBinding = expectedSpecialistBinding(graph, task);
+            const specialistBindingInvalid = task.role === "implementation" && expectedBinding !== undefined && (task.implementationDomain !== expectedBinding.implementationDomain || task.specialistProfileId !== expectedBinding.specialistProfileId);
+            return !validateTaskCapabilityBinding(task).valid || (task.allowedTools.includes("controlled-edit") && !hasExplicitValidAstPatchBinding(task)) || specialistBindingInvalid || (task.taskType === "repair-targeted-failure" && (task.allowedTools.includes("shadcn-registry-read") || task.role !== "implementation" || task.executionMode === "parallel-safe" || task.parallelGroup !== undefined));
+          }).map((task) => task.id),
+          ...retiredRepairTaskIds,
+        ])];
         if (!repairedTaskIds.length) {
           await tx.completeOperation({ operation, key: idempotencyKey, payloadHash, result: { repaired: false, repairedTaskIds: [], graphChecksum: graph.graphChecksum } });
           return { taskGraph: graph, repairedTaskIds, repaired: false as const };
         }
         const candidate = withChecksum(TaskGraphSchema.parse({
           ...graph,
-          tasks: graph.tasks.map((task) => { if (retiredRepairTaskIds.includes(task.id)) return { ...task, status: "cancelled" as const, completedAt: task.completedAt ?? now() }; if (!repairedTaskIds.includes(task.id)) return task; const template = repairTemplate(graph, task); const allowedTools = template.allowedTools.filter((tool) => tool !== "controlled-edit" && !(task.taskType === "repair-targeted-failure" && tool === "shadcn-registry-read")); return task.taskType === "repair-targeted-failure" ? { ...task, role: "implementation" as const, allowedSkills: template.allowedSkills.slice(), allowedTools, requiredCapabilities: deriveTaskCapabilities({ taskType: task.taskType, allowedTools }), executionMode: "exclusive-write" as const, parallelGroup: undefined, expectedArtifactTypes: template.expectedArtifactTypes, ...(template.phase7c ? { phase7c: template.phase7c } : {}) } : { ...task, allowedTools, requiredCapabilities: deriveTaskCapabilities({ taskType: task.taskType, allowedTools }) }; }),
+          tasks: graph.tasks.map((task) => {
+            if (retiredRepairTaskIds.includes(task.id)) return { ...task, status: "cancelled" as const, completedAt: task.completedAt ?? now() };
+            if (!repairedTaskIds.includes(task.id)) return task;
+            const template = repairTemplate(graph, task);
+            const preserveAstBinding = hasExplicitValidAstPatchBinding(template);
+            const allowedTools = template.allowedTools.filter((tool) => (tool !== "controlled-edit" || preserveAstBinding) && !(task.taskType === "repair-targeted-failure" && tool === "shadcn-registry-read"));
+            const specialistBinding = expectedSpecialistBinding(graph, task);
+            const binding = specialistBinding ? { implementationDomain: specialistBinding.implementationDomain, specialistProfileId: specialistBinding.specialistProfileId } : {};
+            return task.taskType === "repair-targeted-failure"
+              ? { ...task, ...binding, role: "implementation" as const, allowedSkills: template.allowedSkills.slice(), allowedTools, requiredCapabilities: deriveTaskCapabilities({ taskType: task.taskType, allowedTools }), executionMode: "exclusive-write" as const, parallelGroup: undefined, expectedArtifactTypes: template.expectedArtifactTypes, ...(template.phase7c ? { phase7c: template.phase7c } : {}) }
+              : { ...task, ...binding, allowedTools, requiredCapabilities: deriveTaskCapabilities({ taskType: task.taskType, allowedTools }) };
+          }),
           updatedAt: now(),
         }));
         const validation = validateImplementationTaskGraph(candidate);
