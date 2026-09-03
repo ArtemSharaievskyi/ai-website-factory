@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 1,
+  "documentType": "first-pilot-baseline",
+  "phase": "POST_PILOT",
+  "title": "First pilot lifecycle baseline",
+  "status": "CERTIFIED_WITH_POST_PILOT_DEBT",
+  "verdict": "FIRST_PILOT_BASELINE_CERTIFIED",
+  "recordedAt": "2026-09-03T00:00:00.000Z",
+  "sourceHead": "c34f6248adb0298c8a837c1d094fe21d2b97a019",
+  "evidencePackChecksum": "fbbc5ee37246ccf8805a054e864eaf53b8f313264f049f13b8e177db426a302c",
+  "scope": {
+    "projectReference": "protected-pilot-v1",
+    "projectData": "referenced only through protected persistence and checksum-bound evidence",
+    "customerContent": "not copied into this artifact",
+    "providerCallsDuringClosure": 0,
+    "implementationWorkersDuringClosure": 0,
+    "publicationOrDeployment": "not executed"
+  },
+  "canonicalLineage": [
+    { "artifact": "approved-brief-semantic", "checksum": "60552d996de42aaaa38a41dd994f0d173a197af6e3e70b3220d297da922f87f8", "documentChecksum": "9c8c684ee214c6b5a061aea91e289bb646cbc656d5583d6dffe8fce078ab5cd7" },
+    { "artifact": "accepted-planning-package", "checksum": "194ceed1a4d81583e484dd44ab899f39cc34d7ff540e040ecfd41bbd536ce8a3" },
+    { "artifact": "accepted-architecture", "checksum": "385dc8fa5c58f79d1ea080ff79d9f114d65996b280b210166c3e4ebc8bfc9dbc" },
+    { "artifact": "selected-design", "direction": "B", "checksum": "d46fd6f208417246b6bbf0425b2c37df2364948677d26272ceb53582ada37ce6" }
+  ],
+  "taskGraph": {
+    "currentDocumentChecksum": "dc758c6efdf823f8ebb7e9ee4be65189b076f3a8f607c520951990b3b391303c",
+    "currentGraphChecksum": "008a20945ab27c86343f3cc3bab5824f65d61213353cb2100aa5c610704db32f",
+    "executionBoundGraphChecksum": "63d281d4eb5e50c4fb5f4158563c06a13bf8650e1d698f8a24e72ddda1546765",
+    "checkpoint": "validation-started",
+    "readyForExecution": true,
+    "blockingReasons": [],
+    "totalTasks": 104,
+    "passed": 81,
+    "failed": 0,
+    "cancelled": 22,
+    "ready": 1,
+    "repairsRecorded": 68,
+    "releaseTask": { "taskType": "prepare-release", "status": "READY", "attempt": 0, "action": "DEFERRED_AND_RESUMABLE" }
+  },
+  "lifecycle": {
+    "persistedWorkflowState": "IMPLEMENTING",
+    "implementationState": "COMPLETE",
+    "executionFinalWorkflowState": "VALIDATING",
+    "observedTransition": "IMPLEMENTING -> VALIDATING is available to the executor; no project-row transition to PROJECT_READY was executed.",
+    "releaseEligible": true,
+    "releaseBoundary": "prepare-release is excluded by the full-execution releaseBoundaryTaskTypes policy.",
+    "publication": "DEFERRED",
+    "deployment": "NOT_RUN",
+    "resumability": "preserved; the READY prepare-release task remains in the current TaskGraph"
+  },
+  "specialistArchitecture": {
+    "implementationOrchestrator": "PRESENT_AND_FROZEN",
+    "profiles": [
+      {
+        "profileId": "frontend-implementation",
+        "domain": "FRONTEND",
+        "version": "1.0.0",
+        "profileChecksum": "e29ced7fd460602d78f4dd36ada4bbc0ed61d986752bdf21ff61ba4ef95d7e81",
+        "sourceContentChecksum": "eb0bfbc04907684718bbaef429c62e7ebf6dcdd13f501388da674959c32977a0",
+        "allowedSkillIds": ["nextjs-server-client-implementation", "typed-form-implementation", "maintainable-performance-implementation"],
+        "contextPolicy": { "maxBytes": 120000, "maxItems": 80 }
+      },
+      {
+        "profileId": "backend-implementation",
+        "domain": "BACKEND",
+        "version": "1.0.0",
+        "profileChecksum": "c068a76d81d64844a26b7986a7b246480a9c057dbd0e53737ff28594b47037a1",
+        "sourceContentChecksum": "b93c1cb963386bb04569a37e0c0e55cd9752479a99122b10941a415a9490aa0d",
+        "allowedSkillIds": ["supabase-application-integration"],
+        "contextPolicy": { "maxBytes": 80000, "maxItems": 60 }
+      },
+      {
+        "profileId": "database-implementation",
+        "domain": "DATABASE",
+        "version": "1.0.0",
+        "profileChecksum": "1387164ca3aa41572c980a1b6c62198694b8defd55e41c9d423e873484dad2d9",
+        "sourceContentChecksum": "729da19aba957c448bf16b64f8ddc0501d5c5ca1ac2f678b64d4fe6c5d083e06",
+        "allowedSkillIds": ["supabase-application-integration"],
+        "contextPolicy": { "maxBytes": 80000, "maxItems": 60 }
+      }
+    ],
+    "routing": { "frontend": "ACTIVE", "backend": "NOT_REQUIRED", "database": "NOT_REQUIRED", "contradictions": [], "missingDomains": [] },
+    "taskBindings": { "FRONTEND": 97, "BACKEND": 0, "DATABASE": 0, "ORCHESTRATOR_QA_INTEGRATION": 7, "frontendProfileBoundTasks": 97 },
+    "capabilityEnforcement": "typed admission, least-privilege tools, bounded file scopes, and controlled AST patch authority",
+    "inactiveSuppression": "backend and database implementation tasks were not scheduled for backend NONE/database NONE",
+    "qaHandoff": "implementation completion feeds deterministic validation and Playwright functional QA"
+  },
+  "approvedSkillBindings": [
+    { "skillId": "nextjs-server-client-implementation", "sourceChecksum": "cb29a4234743e931a90d7fde443bcdde254f8d85fd0bcc6759318266fb9bdef3", "normalizedContentChecksum": "7781dc0f003aef30c6d3bebc5ba72bac8f2b2f4de58812488a9273f2d6c36f4c", "manifestChecksum": "cb29a4234743e931a90d7fde443bcdde254f8d85fd0bcc6759318266fb9bdef3", "status": "APPROVED_IMMUTABLE" },
+    { "skillId": "typed-form-implementation", "sourceChecksum": "48da6e97dab7ccf8138799923b692afb395d4376e6b0c59748f663ffd7381b6b", "normalizedContentChecksum": "f72ea7786e203908691e52e59932af2ba68cf13cf9f2ea453eb3b47d91b41182", "manifestChecksum": "48da6e97dab7ccf8138799923b692afb395d4376e6b0c59748f663ffd7381b6b", "status": "APPROVED_IMMUTABLE" },
+    { "skillId": "maintainable-performance-implementation", "sourceChecksum": "1cfc56678637add40d533240c16415e552a9411a38ccda97484864ab897d5583", "normalizedContentChecksum": "f996bde1493bc2d0b6246b2e5e098aea28e43b07b1dd148da8dffff5a3af33f6", "manifestChecksum": "1cfc56678637add40d533240c16415e552a9411a38ccda97484864ab897d5583", "status": "APPROVED_IMMUTABLE" },
+    { "skillId": "supabase-application-integration", "sourceChecksum": "406cb79c107375f427afe4f90ae4bfda694400bb8088508422ba30aa48701337", "normalizedContentChecksum": "c819bba97e69bcaf4a3d3b4c40e2476251387e623dc698113a20e919a74f1b78", "manifestChecksum": "406cb79c107375f427afe4f90ae4bfda694400bb8088508422ba30aa48701337", "status": "APPROVED_IMMUTABLE" }
+  ],
+  "topology": {
+    "backendDecision": "NONE",
+    "databaseDecision": "NONE",
+    "frontendRequired": true,
+    "backendRequired": false,
+    "databaseRequired": false,
+    "futureBackendAndDatabaseCoverage": "retained in profile registry, routing tests, capability tests, and database contract tests"
+  },
+  "generatedCoverage": {
+    "generatedSourceReference": "protected-pilot:v1:staging (transient, not source)",
+    "runtimeSourceChecksum": "cc8e1879b2a8f7ac3b81a116b61398d45299b86f18f2f12cf6a56968e549bfbe",
+    "functionalQaSourceChecksum": "4ee4d0f2aed2d7de9e57bc6ac1ee0294e9dd39458b8108087a45ebd7c5e4ff9f",
+    "routes": ["/datenschutz", "/einsatzgebiet", "/footer", "/header-navigation", "/hero", "/impressum", "/kontakt", "/leistungen", "/so-funktioniert-es", "/ueber-uns", "/vorteile"],
+    "routeCount": 11,
+    "legalRoutesPresent": ["/impressum", "/datenschutz"],
+    "serviceInventory": { "sourcePath": "src/app/leistungen/page.tsx", "titleFieldCount": 31, "status": "COVERED" },
+    "moebeltransportCoverage": "COVERED",
+    "contactFormClientBoundary": { "sourcePath": "src/components/forms/contact-form.tsx", "useClient": true }
+  },
+  "pilotQualityEvidence": {
+    "fullExecution": { "runIdReference": "protected-pilot:v1:full-execution", "status": "completed", "releaseEligible": true, "qualityGateCount": 5, "qualityGates": { "lint": "PASS", "typecheck": "PASS", "build": "PASS", "unit-tests": "PASS", "e2e": "PASS" } },
+    "playwright": { "scenarios": 12, "passed": 12, "failed": 0, "skipped": 0, "unexpectedExternalRequests": 0 },
+    "network": { "policy": "loopback-only interception", "unexpectedExternalRequests": 0, "externalServicesExpected": 0 },
+    "generatedArtifact": { "sourceChecksumVerified": true, "routesAndServicesVerified": true }
+  },
+  "contextEfficiency": {
+    "frontend": { "representativeTaskBytes": 2361, "representativeSkillBytes": 2627, "boundedContextBytes": 4988, "profileMaxBytes": 120000, "profileMaxItems": 80, "observedBudgetUsePercent": 4.16 },
+    "orchestrator": { "persistedGraphBytes": 1089993, "executionModel": "bounded per-task slices; no whole-graph provider context", "providerCallsDuringClosure": 0 },
+    "qa": { "qualityGateEvidenceBytes": 875, "functionalScenarioCount": 12, "duplicateCanonicalContextObserved": false },
+    "highValueOpportunity": "Keep whole-graph serialization out of provider context and add measured queue-claim observability in the next hardening task; no pilot implementation change required."
+  },
+  "frozenManifestReview": [
+    { "path": "src/agents/catalog.ts", "expectedFrozenChecksum": "8239c91c78afaf8525a897054655d08a1b01ea642d5ba1dc256a5064678a93f4", "actualChecksum": "33670eaf880ddac4a4d483fd492a32c24e8ab1bea2c6084c858f68d6df36830d", "classification": "STALE_BASELINE", "pilotImpact": "none" },
+    { "path": "src/runtime/qa/qa.test.ts", "expectedFrozenChecksum": "ef1a5add4e5a014756c4694db491aea55a1489ace23fa1a47bfeb550209df641", "actualChecksum": "e18b81b1a5d0bb8c259edfa11a91245734d20e3753a6b01a488e7fc56e80e660", "classification": "STALE_BASELINE", "pilotImpact": "none" }
+  ],
+  "parallelPostgresInvestigation": {
+    "classification": "DATABASE_CONTENTION",
+    "secondaryMechanism": "REAL_RACE",
+    "evidence": ["isolated downstream synthetic Postgres test passed", "isolated Brief V3 production route passed", "isolated Brief V3 Postgres concurrency suite passed", "full parallel suite reproduced a deadlock/timeout in synthetic cleanup", "a prior parallel run reproduced projection-status stale CAS while isolated route passed"],
+    "firstFailingBoundaryObserved": "parallel synthetic Postgres cleanup / shared database transaction interaction",
+    "notAResolution": "increasing a timeout",
+    "pilotImpact": "none; no protected pilot mutation or provider call"
+  },
+  "validation": {
+    "typecheck": "PASS",
+    "lint": "PASS_WITH_2_WARNINGS",
+    "build": "PASS",
+    "audit": "PASS_0_HIGH_OR_CRITICAL_VULNERABILITIES",
+    "providerContracts": "PASS_NO_NETWORK",
+    "codexVerify": "PASS_WITH_4_UNCHANGED_ARCHITECTURE_BASELINE_FAILURES",
+    "databaseValidation": "PASS",
+    "databaseVerification": "PASS",
+    "databaseIntegrity": "PASS",
+    "taskGraphSmoke": "PASS",
+    "gitDiffCheck": "PASS",
+    "fullRepositoryTests": "4_FAILURES: 155_FILES_PASSED, 1957_TESTS_PASSED, 2_SKIPPED; 2_STALE_MANIFEST, 1_PARALLEL_POSTGRES_CONTENTION_SUITE_FAILURE",
+    "protectedPilotState": "PASS_UNCHANGED",
+    "noProviderCall": "PASS",
+    "noReleaseOrDeployment": "PASS"
+  },
+  "hardeningBacklogSummary": {
+    "P0": [],
+    "P1": ["Bounded Postgres projection/cleanup queue claim and parallel-isolation repair with deterministic concurrency evidence."],
+    "P2": ["Refresh Phase 7D and Phase 7E frozen manifests only through an authorized evidence update after confirming no real regression.", "Remove or justify the two existing lint warnings."],
+    "P3": ["Re-measure provider-context and persisted graph efficiency after the next lifecycle shape change; keep deferred specialist activation dormant until topology requires it."],
+    "recommendedNextTask": "Repair the shared Postgres queue/cleanup contention boundary, add a deterministic parallel regression, then separately recertify the two stale manifests."
+  },
+  "prohibitedActions": { "prepareReleaseExecuted": false, "published": false, "deployed": false, "customerDataMutated": false, "providerCalled": false },
+  "evidenceReferences": [
+    { "path": "src/domain/implementation/profiles.ts", "sha256": "97946462f37ea6238dafae2551be46cbca9fbd10a168b02ed25cf6726aeac6e3" },
+    { "path": "src/orchestration/orchestrator/implementation-routing.ts", "sha256": "838b068c0e24b89d7dfbcbd9ba604fc3d98b687b82da76eaedb71f17b4f0ec3b" },
+    { "path": "src/agents/implementation/policy.ts", "sha256": "add20b949340f1623e8b3a10263e8cd4fd21748e9b4fca0f782a66d06b67e8b1" },
+    { "path": "src/agents/implementation/service.ts", "sha256": "8f3dbb50e367b15373b4d63ccf981668070380074f14ad9fd43b93811039cd0a" },
+    { "path": "src/runtime/production-factory-runtime-core.ts", "sha256": "b29b977d3df9eb140d7afafc7312c3e15bdb913931b47ffac9494f615c527a6f" },
+    { "path": "src/orchestration/orchestrator/service.ts", "sha256": "eeb0857445bfe36cfdcfbc99c2dba251e67a3a31eb9adabf6fabab13c98809bf" },
+    { "path": "src/orchestration/execution/contracts.ts", "sha256": "6e1f69de3159ff74f4d0e02c2ad33e604f62c332b11f842c43d5750e76cf5378" },
+    { "path": "src/orchestration/execution/service.ts", "sha256": "7e05f721f7c3b560b7e96299102d2a0f35842aab701a31ea30735e2472ab4e0e" },
+    { "path": "src/domain/workflow/engine.ts", "sha256": "ab1127912eb748aa633a601309a6a0c504c559898f91c7db39cb722216704ec6" },
+    { "path": "docs/admin/phase-7d/phase-7d-controlled-ast-aware-patching-result-2026-08-12.json", "role": "frozen-manifest-source" },
+    { "path": "docs/admin/phase-7e/phase-7e-qa-workspace-lifecycle-result-2026-08-12.json", "role": "frozen-manifest-source" },
+    { "path": "docs/admin/phase-7b/phase-7b-implementation-evidence-2026-08-11.json", "role": "existing-evidence-convention" }
+  ]
+}
