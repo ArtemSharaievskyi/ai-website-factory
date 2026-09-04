@@ -399,7 +399,10 @@ describe("isolated Brief Revision V3 transaction", () => {
     const job = [...f.database.briefRevisionProjectionSync.values()][0];
     expect(job?.status).toBe("FAILED_RETRYABLE");
     if (!job) throw new Error("Projection job missing from synthetic fixture.");
-    await f.database.transaction((tx) => tx.updateBriefRevisionProjectionSync({ id: job.id, expectedStatus: "FAILED_RETRYABLE", status: "FAILED_RETRYABLE", nextAttemptAt: null, updatedAt: timestamp }));
+    const retryNow = new Date(Date.now() + 2_000).toISOString();
+    const retryClaim = await f.database.transaction((tx) => tx.claimBriefRevisionProjectionSync({ id: job.id, projectId: job.projectId, owner: "projection-retry-owner", now: retryNow, leaseExpiresAt: new Date(Date.parse(retryNow) + 60_000).toISOString() }));
+    if (retryClaim.outcome !== "CLAIMED") throw new Error("Projection retry claim missing from synthetic fixture.");
+    await f.database.transaction((tx) => tx.updateBriefRevisionProjectionSync({ id: job.id, expectedStatus: "FAILED_RETRYABLE", status: "FAILED_RETRYABLE", nextAttemptAt: null, owner: "projection-retry-owner", claimGeneration: retryClaim.row.claimGeneration, updatedAt: retryNow }));
     fail = false;
     await new BriefV3ProjectionService(f.database, projection).processPending();
     expect([...f.database.briefRevisionProjectionSync.values()][0]?.status).toBe("SYNCED");

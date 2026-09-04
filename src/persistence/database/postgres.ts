@@ -363,9 +363,9 @@ class PostgresTransaction implements PersistenceTransaction {
     const row = result.rows[0];
     return row ? { outcome: "CLAIMED", row: normalizeBriefRevisionProjection(row) } : { outcome: "NOT_CLAIMABLE", row: null };
   }
-  async updateBriefRevisionProjectionSync(input: { id: string; expectedStatus: BriefRevisionProjectionStatus; status: BriefRevisionProjectionStatus; attemptCount?: number; failureCode?: string | null; nextAttemptAt?: string | null; owner?: string; claimGeneration?: number; updatedAt: string }) {
-    const ownerPredicate = input.owner ? " AND lease_owner=$8 AND claim_generation=$9 AND lease_expires_at>$10" : " AND lease_owner IS NULL";
-    const values = [input.status, input.attemptCount ?? null, input.failureCode ?? null, input.nextAttemptAt ?? null, input.updatedAt, input.id, input.expectedStatus, ...(input.owner ? [input.owner, input.claimGeneration, input.updatedAt] : [])];
+  async updateBriefRevisionProjectionSync(input: { id: string; expectedStatus: BriefRevisionProjectionStatus; status: BriefRevisionProjectionStatus; attemptCount?: number; failureCode?: string | null; nextAttemptAt?: string | null; owner: string; claimGeneration: number; updatedAt: string }) {
+    const values = [input.status, input.attemptCount ?? null, input.failureCode ?? null, input.nextAttemptAt ?? null, input.updatedAt, input.id, input.expectedStatus, input.owner, input.claimGeneration, input.updatedAt];
+    const ownerPredicate = " AND lease_owner=$8 AND claim_generation=$9 AND lease_expires_at>$10";
     const result = value<Record<string, unknown>>(await this.query("UPDATE brief_revision_projection_sync SET status=$1, attempt_count=COALESCE($2, attempt_count), last_failure_code=$3, next_attempt_at=$4, lease_owner=NULL, lease_expires_at=NULL, updated_at=$5 WHERE id=$6 AND status=$7" + ownerPredicate + " RETURNING id, attempt_id AS \"attemptId\", project_id AS \"projectId\", project_version AS \"projectVersion\", document_checksum AS \"documentChecksum\", status, attempt_count AS \"attemptCount\", last_failure_code AS \"lastFailureCode\", next_attempt_at AS \"nextAttemptAt\", claim_generation AS \"claimGeneration\", lease_owner AS \"leaseOwner\", lease_expires_at AS \"leaseExpiresAt\", created_at AS \"createdAt\", updated_at AS \"updatedAt\"", values));
     if (!result) throw new PersistenceError("PERSISTENCE_CONFLICT", "The projection sync status is stale.");
     return normalizeBriefRevisionProjection(result);

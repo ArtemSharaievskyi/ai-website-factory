@@ -117,7 +117,7 @@ export interface PersistenceTransaction {
   commitBriefRevision(input: BriefRevisionAtomicCommitInput): Promise<BriefRevisionAtomicCommitResult>;
   listBriefRevisionProjectionSync(limit: number): Promise<BriefRevisionProjectionRow[]>;
   claimBriefRevisionProjectionSync(input: { id: string; projectId: string; owner: string; now: string; leaseExpiresAt: string }): Promise<BriefRevisionProjectionClaim>;
-  updateBriefRevisionProjectionSync(input: { id: string; expectedStatus: BriefRevisionProjectionStatus; status: BriefRevisionProjectionStatus; attemptCount?: number; failureCode?: string | null; nextAttemptAt?: string | null; owner?: string; claimGeneration?: number; updatedAt: string }): Promise<BriefRevisionProjectionRow>;
+  updateBriefRevisionProjectionSync(input: { id: string; expectedStatus: BriefRevisionProjectionStatus; status: BriefRevisionProjectionStatus; attemptCount?: number; failureCode?: string | null; nextAttemptAt?: string | null; owner: string; claimGeneration: number; updatedAt: string }): Promise<BriefRevisionProjectionRow>;
   getPlanningRecoveryEvidence(projectId: string, projectVersion: number, operationKey: string): Promise<PlanningRecoveryEvidenceRow | null>;
   listPlanningRecoveryEvidence(projectId: string, projectVersion: number): Promise<PlanningRecoveryEvidenceRow[]>;
   appendPlanningRecoveryEvidence(row: PlanningRecoveryEvidenceRow): Promise<PlanningRecoveryEvidenceRow>;

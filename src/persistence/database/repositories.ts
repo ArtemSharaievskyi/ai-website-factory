@@ -170,7 +170,7 @@ export class BriefRevisionAttemptRepository {
   async transition(input: BriefRevisionAttemptTransition) { return this.db.transaction((tx) => tx.transitionBriefRevisionAttempt(input)); }
   async listProjectionSync(limit = 20) { return this.db.transaction((tx) => tx.listBriefRevisionProjectionSync(limit)); }
   async claimProjectionSync(input: { id: string; projectId: string; owner: string; now: string; leaseExpiresAt: string }): Promise<BriefRevisionProjectionClaim> { return this.db.transaction((tx) => tx.claimBriefRevisionProjectionSync(input)); }
-  async updateProjectionSync(input: { id: string; expectedStatus: BriefRevisionProjectionStatus; status: BriefRevisionProjectionStatus; attemptCount?: number; failureCode?: string | null; nextAttemptAt?: string | null; owner?: string; claimGeneration?: number; updatedAt: string }): Promise<BriefRevisionProjectionRow> { return this.db.transaction((tx) => tx.updateBriefRevisionProjectionSync(input)); }
+  async updateProjectionSync(input: { id: string; expectedStatus: BriefRevisionProjectionStatus; status: BriefRevisionProjectionStatus; attemptCount?: number; failureCode?: string | null; nextAttemptAt?: string | null; owner: string; claimGeneration: number; updatedAt: string }): Promise<BriefRevisionProjectionRow> { return this.db.transaction((tx) => tx.updateBriefRevisionProjectionSync(input)); }
 }
 
 export type { PersistenceTransaction, WorkflowEvent };
