@@ -9,7 +9,10 @@ import { createBriefV3Document } from "@/persistence/database/brief-revision-v3-
 import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
 import { mapDocumentToRow } from "@/persistence/database/mapping";
 import { createPostgresPool, PostgresPersistenceDatabase } from "@/persistence/database/postgres";
+import type { ProjectMemorySyncPort } from "@/persistence/database/sync";
+import { executeSyntheticCleanupTransaction } from "./cleanup-policy";
 import { createRevisionCurrentnessToken } from "./identity";
+import { BriefV3ProjectionService } from "./projection";
 import { BriefV3TransactionService } from "./service";
 import type { BriefV3ProviderInput, BriefV3RevisionProvider } from "./ports";
 
@@ -67,6 +70,21 @@ function request(fixture: Awaited<ReturnType<typeof createFixture>>, revisionIns
   return { projectId: fixture.projectId, projectVersion: 1, revisionInstruction, expectedCurrentness: fixture.currentness, targetHints: ["SEO_TITLE"], targetWorkflowState: "CLARIFYING" as const, ownerId };
 }
 
+function gatedProjection() {
+  let writes = 0;
+  let enter!: () => void;
+  let release!: () => void;
+  const entered = new Promise<void>((resolve) => { enter = resolve; });
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const projection: ProjectMemorySyncPort = {
+    writeVersionSnapshot: async () => { writes += 1; enter(); await gate; },
+    appendDecision: async () => undefined,
+    verifyVersionSnapshot: async () => true,
+    compareDatabaseAndFilesystemChecksums: async () => ({ matches: true, mismatches: [] }),
+  };
+  return { projection, entered, release: () => release(), writes: () => writes };
+}
+
 async function cleanup(pool: ReturnType<typeof createPostgresPool>) {
   for (const projectId of projectIds) {
     const client = await pool.connect();
@@ -88,6 +106,11 @@ async function cleanup(pool: ReturnType<typeof createPostgresPool>) {
       client.release();
     }
   }
+}
+
+async function resetSyntheticFixtures(pool: ReturnType<typeof createPostgresPool>) {
+  await cleanup(pool);
+  projectIds.splice(0, projectIds.length);
 }
 
 describePostgres("Brief Revision V3 Postgres concurrency certification", () => {
@@ -171,6 +194,85 @@ describePostgres("Brief Revision V3 Postgres concurrency certification", () => {
     expect(replays.every((result) => result.outcome === "COMMITTED_REPLAY")).toBe(true);
     expect(provider.calls).toBe(1);
   });
+
+  it("atomically claims a real Postgres projection before filesystem work", async () => {
+    await resetSyntheticFixtures(pool);
+    const fixture = await createFixture(database);
+    const provider = { proposeChanges: async () => multiDomainChangeSet };
+    const committed = await new BriefV3TransactionService({ database, provider }).execute(request(fixture, "real Postgres projection claim race", "pg-owner"));
+    const gated = gatedProjection();
+    const first = new BriefV3ProjectionService(database, gated.projection, { workerId: "pg-projection-owner-a" }).processPending();
+    await gated.entered;
+    const second = new BriefV3ProjectionService(database, gated.projection, { workerId: "pg-projection-owner-b" }).processPending();
+    await expect(second).resolves.toEqual([]);
+    expect(gated.writes()).toBe(1);
+    gated.release();
+    await expect(first).resolves.toHaveLength(1);
+    expect(gated.writes()).toBe(1);
+    const projection = await database.transaction((tx) => tx.getBriefRevisionProjectionSync(committed.attemptId));
+    expect(projection?.status).toBe("SYNCED");
+  });
+
+  it("blocks cleanup for an active projection owner and permits it after settlement", async () => {
+    const fixture = await createFixture(database);
+    const provider = { proposeChanges: async () => multiDomainChangeSet };
+    await new BriefV3TransactionService({ database, provider }).execute(request(fixture, "real Postgres cleanup race", "pg-owner"));
+    const gated = gatedProjection();
+    const first = new BriefV3ProjectionService(database, gated.projection, { workerId: "pg-cleanup-owner" }).processPending();
+    await gated.entered;
+    const activeClient = await pool.connect();
+    const blocked = await executeSyntheticCleanupTransaction(activeClient, fixture.projectId);
+    activeClient.release();
+    expect(blocked).toEqual({ attempted: true, succeeded: false, blockedByActiveClaim: true });
+    const stillPresent = await pool.query("SELECT count(*)::int AS count FROM factory_projects WHERE id=$1", [fixture.projectId]);
+    expect(stillPresent.rows[0].count).toBe(1);
+    gated.release();
+    await first;
+    const cleanupClient = await pool.connect();
+    const deleted = await executeSyntheticCleanupTransaction(cleanupClient, fixture.projectId);
+    cleanupClient.release();
+    expect(deleted).toEqual({ attempted: true, succeeded: true });
+    const gone = await pool.query("SELECT count(*)::int AS count FROM factory_projects WHERE id=$1", [fixture.projectId]);
+    expect(gone.rows[0].count).toBe(0);
+  });
+
+  it("allows cleanup to reclaim an expired projection lease", async () => {
+    const fixture = await createFixture(database);
+    const provider = { proposeChanges: async () => multiDomainChangeSet };
+    const committed = await new BriefV3TransactionService({ database, provider }).execute(request(fixture, "real Postgres abandoned projection", "pg-owner"));
+    const projection = await database.transaction((tx) => tx.getBriefRevisionProjectionSync(committed.attemptId));
+    if (!projection) throw new Error("Projection row missing from synthetic Postgres fixture.");
+    const now = new Date().toISOString();
+    const expired = new Date(Date.now() - 60_000).toISOString();
+    const claimed = await database.transaction((tx) => tx.claimBriefRevisionProjectionSync({ id: projection.id, projectId: fixture.projectId, owner: "abandoned-projection-owner", now, leaseExpiresAt: expired }));
+    expect(claimed.outcome).toBe("CLAIMED");
+    const client = await pool.connect();
+    const cleanup = await executeSyntheticCleanupTransaction(client, fixture.projectId);
+    client.release();
+    expect(cleanup).toEqual({ attempted: true, succeeded: true });
+  });
+
+  it("keeps 20 repeated Postgres claim races single-owner and terminal", async () => {
+    const provider = { proposeChanges: async () => multiDomainChangeSet };
+    let writes = 0;
+    const statuses: string[] = [];
+    for (let iteration = 0; iteration < 20; iteration += 1) {
+      const fixture = await createFixture(database);
+      const committed = await new BriefV3TransactionService({ database, provider }).execute(request(fixture, `real Postgres repeated projection race ${iteration}`, "pg-owner"));
+      const gated = gatedProjection();
+      const first = new BriefV3ProjectionService(database, gated.projection, { workerId: `pg-repeat-a-${iteration}` }).processPending();
+      await gated.entered;
+      const second = new BriefV3ProjectionService(database, gated.projection, { workerId: `pg-repeat-b-${iteration}` }).processPending();
+      await expect(second).resolves.toEqual([]);
+      gated.release();
+      await first;
+      writes += gated.writes();
+      const row = await database.transaction((tx) => tx.getBriefRevisionProjectionSync(committed.attemptId));
+      statuses.push(row?.status ?? "MISSING");
+    }
+    expect(writes).toBe(20);
+    expect(statuses).toEqual(Array.from({ length: 20 }, () => "SYNCED"));
+  }, 30_000);
 });
 
 if (!databaseUrl) console.log("BRIEF REVISION V3 POSTGRES CONCURRENCY: SKIPPED (DATABASE_URL unavailable)");

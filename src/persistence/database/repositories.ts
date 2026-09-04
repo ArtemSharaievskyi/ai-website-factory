@@ -12,7 +12,7 @@ import { CLARIFICATION_POLICY_VERSION, isWorkflowRequirement } from "@/agents/le
 import { mapDocumentToRow, mapProjectToRow, mapRowToDocument, mapRowToProject } from "./mapping";
 import { documentPayloadHash } from "./fake";
 import { newWorkflowEvent } from "./workflow-events";
-import type { BriefRevisionAttemptClaim, BriefRevisionAttemptTransition, BriefRevisionProjectionRow, BriefRevisionProjectionStatus, PersistenceDatabase, PersistenceTransaction, ProjectVersionRow, StoredDocument, WorkflowEvent, CostRecord } from "./types";
+import type { BriefRevisionAttemptClaim, BriefRevisionAttemptTransition, BriefRevisionProjectionClaim, BriefRevisionProjectionRow, BriefRevisionProjectionStatus, PersistenceDatabase, PersistenceTransaction, ProjectVersionRow, StoredDocument, WorkflowEvent, CostRecord } from "./types";
 import { ProjectAssetSchema, type ProjectAsset } from "@/domain/assets/project";
 import { PlanningRefreshDiagnosticsSchema, appendPlanningRefreshDiagnostic, type PlanningRefreshDiagnosticAttempt } from "@/agents/planner/refresh-diagnostics";
 import { BriefV3DocumentSchema } from "./brief-revision-v3-contracts";
@@ -169,7 +169,8 @@ export class BriefRevisionAttemptRepository {
   async claim(input: { attemptId: string; operationKind: string; operationKey: string; payloadHash: string; owner: string; now: string; leaseExpiresAt: string }): Promise<BriefRevisionAttemptClaim> { return this.db.transaction((tx) => tx.claimBriefRevisionAttempt(input)); }
   async transition(input: BriefRevisionAttemptTransition) { return this.db.transaction((tx) => tx.transitionBriefRevisionAttempt(input)); }
   async listProjectionSync(limit = 20) { return this.db.transaction((tx) => tx.listBriefRevisionProjectionSync(limit)); }
-  async updateProjectionSync(input: { id: string; expectedStatus: BriefRevisionProjectionStatus; status: BriefRevisionProjectionStatus; attemptCount?: number; failureCode?: string | null; nextAttemptAt?: string | null; updatedAt: string }): Promise<BriefRevisionProjectionRow> { return this.db.transaction((tx) => tx.updateBriefRevisionProjectionSync(input)); }
+  async claimProjectionSync(input: { id: string; projectId: string; owner: string; now: string; leaseExpiresAt: string }): Promise<BriefRevisionProjectionClaim> { return this.db.transaction((tx) => tx.claimBriefRevisionProjectionSync(input)); }
+  async updateProjectionSync(input: { id: string; expectedStatus: BriefRevisionProjectionStatus; status: BriefRevisionProjectionStatus; attemptCount?: number; failureCode?: string | null; nextAttemptAt?: string | null; owner?: string; claimGeneration?: number; updatedAt: string }): Promise<BriefRevisionProjectionRow> { return this.db.transaction((tx) => tx.updateBriefRevisionProjectionSync(input)); }
 }
 
 export type { PersistenceTransaction, WorkflowEvent };

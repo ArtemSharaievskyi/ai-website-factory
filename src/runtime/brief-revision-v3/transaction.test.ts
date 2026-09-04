@@ -406,31 +406,34 @@ describe("isolated Brief Revision V3 transaction", () => {
     expect(provider.calls).toBe(1);
   });
 
-  it("treats a concurrent projection status CAS loss as an idempotent worker race", async () => {
+  it("atomically assigns one projection owner before filesystem work", async () => {
     const f = await fixture();
     const provider = new FixtureProvider(() => multiDomainChangeSet);
     await new BriefV3TransactionService({ database: f.database, provider }).execute(input(f.currentness));
     let writes = 0;
     let release!: () => void;
     let reached = 0;
-    const bothWriters = new Promise<void>((resolve) => {
+    const firstWriterGate = new Promise<void>((resolve) => {
       release = resolve;
     });
     const projection: ProjectMemorySyncPort = {
       writeVersionSnapshot: async () => {
         writes += 1;
         reached += 1;
-        if (reached === 2) release();
-        await (reached >= 2 ? Promise.resolve() : bothWriters);
+        await firstWriterGate;
       },
       appendDecision: async () => undefined,
       verifyVersionSnapshot: async () => true,
       compareDatabaseAndFilesystemChecksums: async () => ({ matches: true, mismatches: [] }),
     };
-    const first = new BriefV3ProjectionService(f.database, projection).processPending();
-    const second = new BriefV3ProjectionService(f.database, projection).processPending();
-    await expect(Promise.all([first, second])).resolves.toHaveLength(2);
-    expect(writes).toBe(2);
+    const first = new BriefV3ProjectionService(f.database, projection, { workerId: "projection-worker-1" }).processPending();
+    while (reached < 1) await new Promise((resolve) => setTimeout(resolve, 0));
+    const second = new BriefV3ProjectionService(f.database, projection, { workerId: "projection-worker-2" }).processPending();
+    await expect(second).resolves.toEqual([]);
+    expect(writes).toBe(1);
+    release();
+    await expect(first).resolves.toHaveLength(1);
+    expect(writes).toBe(1);
     expect([...f.database.briefRevisionProjectionSync.values()][0]?.status).toBe("SYNCED");
   });
 

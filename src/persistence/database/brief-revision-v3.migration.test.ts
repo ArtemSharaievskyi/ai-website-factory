@@ -5,6 +5,9 @@ import type { PoolClient } from "pg";
 import { createPostgresPool } from "./postgres";
 
 const migrationPath = new URL("../../../supabase/migrations/202608160001_brief_revision_v3_transaction.sql", import.meta.url);
+const claimMigrationPath = new URL("../../../supabase/migrations/202609040001_brief_revision_projection_claim.sql", import.meta.url);
+const claimGuardMigrationPath = new URL("../../../supabase/migrations/202609040002_brief_revision_projection_claim_guard.sql", import.meta.url);
+const claimGenerationMigrationPath = new URL("../../../supabase/migrations/202609040003_brief_revision_projection_claim_generation.sql", import.meta.url);
 const configuredDatabaseUrl = () => {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
   for (const filename of [".env.local", ".env"]) {
@@ -122,6 +125,40 @@ describe("Brief Revision V3 transaction migration", () => {
     expect(sql).not.toMatch(/drop\s+(table|column)/i);
     expect(sql).toMatch(/references factory_projects\(id\)/i);
     expect(await withRollbackSandbox(sql)).toBe(databaseUrl ? true : false);
+  });
+
+  it("adds an idempotent generation-bound projection claim schema", async () => {
+    const baseSql = await readFile(migrationPath, "utf8");
+    const claimSql = await readFile(claimMigrationPath, "utf8");
+    const claimGuardSql = await readFile(claimGuardMigrationPath, "utf8");
+    const claimGenerationSql = await readFile(claimGenerationMigrationPath, "utf8");
+    expect(claimSql).toMatch(/add column if not exists claim_generation integer not null default 0/i);
+    expect(claimSql).toMatch(/add column if not exists lease_owner text/i);
+    expect(claimSql).toMatch(/add column if not exists lease_expires_at timestamptz/i);
+    expect(claimSql).toMatch(/brief_revision_projection_claim_state_check/i);
+    expect(claimSql).toMatch(/brief_revision_projection_claim_idx/i);
+    expect(claimSql).not.toMatch(/\b(drop|truncate)\b/i);
+    expect(claimGuardSql).toMatch(/conrelid = 'brief_revision_projection_sync'::regclass/i);
+    expect(claimGuardSql).not.toMatch(/\b(drop|truncate)\b/i);
+    expect(claimGenerationSql).toMatch(/claim_generation >= 0/i);
+    expect(claimGenerationSql).not.toMatch(/\b(drop|truncate)\b/i);
+    expect(await withMigrationSandbox(baseSql, async (client) => {
+      await client.query(baseSql);
+      await client.query(claimSql);
+      await client.query(claimGuardSql);
+      await client.query(claimGenerationSql);
+      await client.query(claimSql);
+      await client.query(claimGuardSql);
+      await client.query(claimGenerationSql);
+      const columns = await client.query("SELECT attname FROM pg_attribute WHERE attrelid='pg_temp.brief_revision_projection_sync'::regclass AND attname = ANY($1::text[]) AND NOT attisdropped ORDER BY attname", [["claim_generation", "lease_owner", "lease_expires_at"]]);
+      expect(columns.rows).toEqual([{ attname: "claim_generation" }, { attname: "lease_expires_at" }, { attname: "lease_owner" }]);
+      const constraint = await client.query("SELECT count(*)::int AS count FROM pg_constraint WHERE conrelid='pg_temp.brief_revision_projection_sync'::regclass AND conname='brief_revision_projection_claim_state_check'");
+      expect(constraint.rows[0]?.count).toBe(1);
+      const generationConstraint = await client.query("SELECT count(*)::int AS count FROM pg_constraint WHERE conrelid='pg_temp.brief_revision_projection_sync'::regclass AND conname='brief_revision_projection_claim_generation_check'");
+      expect(generationConstraint.rows[0]?.count).toBe(1);
+      const index = await client.query("SELECT to_regclass('pg_temp.brief_revision_projection_claim_idx') AS name");
+      expect(index.rows[0]?.name).toBe("brief_revision_projection_claim_idx");
+    })).toBe(databaseUrl ? true : false);
   });
 });
 

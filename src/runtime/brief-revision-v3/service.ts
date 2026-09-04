@@ -148,7 +148,7 @@ export class BriefV3TransactionService {
       const documentRow = document ? mapDocumentToRow(document) : null;
       const history = changed ? deriveBriefProvenance(reduction, claim.row.id) : null;
       const workflowEvent = changed && targetState !== beforeProvider.project.workflow_state ? newWorkflowEvent(input.projectId, input.projectVersion, beforeProvider.project.workflow_state, targetState, input.actor ?? "brief-revision-v3", "Brief Revision V3 committed", identity.operationKey, claim.row.id) : null;
-      const projection: BriefRevisionProjectionRow | null = changed && documentRow ? { id: randomUUID(), attemptId: claim.row.id, projectId: input.projectId, projectVersion: input.projectVersion, documentChecksum: documentRow.checksum, status: "PENDING", attemptCount: 0, lastFailureCode: null, nextAttemptAt: null, createdAt: timestamp, updatedAt: timestamp } : null;
+      const projection: BriefRevisionProjectionRow | null = changed && documentRow ? { id: randomUUID(), attemptId: claim.row.id, projectId: input.projectId, projectVersion: input.projectVersion, documentChecksum: documentRow.checksum, status: "PENDING", attemptCount: 0, lastFailureCode: null, nextAttemptAt: null, claimGeneration: 0, leaseOwner: null, leaseExpiresAt: null, createdAt: timestamp, updatedAt: timestamp } : null;
       const historyId = history ? randomUUID() : null;
       const result: BriefV3CommittedResult = { outcome: "COMMITTED", projectId: input.projectId, projectVersion: input.projectVersion, attemptId: claim.row.id, changed, currentBriefChecksum: nextChecksum, workflowState: targetState, historyId, projectionStatus: projection ? "PENDING" : "NONE" };
       await input.faults?.hit("before-final-transaction");

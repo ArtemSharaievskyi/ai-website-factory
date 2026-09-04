@@ -24,7 +24,7 @@ export const SYNTHETIC_CLEANUP_DELETE_STATEMENTS = [
   "DELETE FROM release_reports WHERE project_id = $1",
   "DELETE FROM quality_reports WHERE project_id = $1",
   "DELETE FROM agent_tasks WHERE project_id = $1",
-  "DELETE FROM brief_revision_projection_sync WHERE project_id = $1",
+  "DELETE FROM brief_revision_projection_sync WHERE project_id = $1 AND (lease_owner IS NULL OR lease_expires_at <= now())",
   "DELETE FROM brief_revision_history WHERE project_id = $1",
   "DELETE FROM brief_revision_attempts WHERE project_id = $1",
   "DELETE FROM workflow_documents WHERE project_id = $1",
@@ -65,6 +65,12 @@ export async function executeSyntheticCleanupTransaction(client: CleanupQuerySes
   try {
     attempted = true;
     await client.query("BEGIN");
+    await client.query("SELECT id FROM factory_projects WHERE id = $1 FOR UPDATE", [projectId]);
+    const activeClaim = await client.query("SELECT id FROM brief_revision_projection_sync WHERE project_id = $1 AND lease_owner IS NOT NULL AND lease_expires_at > now() LIMIT 1", [projectId]);
+    if (activeClaim.rows.length) {
+      await client.query("ROLLBACK");
+      return { attempted, succeeded: false, blockedByActiveClaim: true };
+    }
     for (const statement of SYNTHETIC_CLEANUP_DELETE_STATEMENTS) await client.query(statement, statement.includes("idempotency_records") ? [syntheticIdempotencyOwnershipPattern(projectId)] : [projectId]);
     await client.query("COMMIT");
     return { attempted, succeeded: true };

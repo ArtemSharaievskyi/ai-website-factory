@@ -32,15 +32,6 @@ import { implementationProfileRegistry } from "@/domain/implementation/profiles"
 const sha = (value: string) =>
   createHash("sha256").update(value, "utf8").digest("hex");
 const CODEBASE_MEMORY_REFERENCE_LIMIT = 20;
-const safePattern = (pattern: string, candidate: string) => {
-  const escaped = pattern
-    .replaceAll("\\", "/")
-    .replace(/\*\*/g, "§§")
-    .replace(/\*/g, "[^/]*")
-    .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
-    .replaceAll("§§", ".*");
-  return new RegExp(`^${escaped}$`, "i").test(candidate.replaceAll("\\", "/"));
-};
 const secretLike =
   /(sk-[A-Za-z0-9]{12,}|AKIA[A-Z0-9]{12,}|-----BEGIN .*PRIVATE KEY-----|password\s*[:=]|DATABASE_URL\s*[:=])/i;
 export type SkillLoader = {
