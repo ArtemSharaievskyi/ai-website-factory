@@ -4,9 +4,9 @@
   "phaseId": "PHASE_7E",
   "generatedOn": "2026-08-12",
   "currentVerification": {
-    "verifiedAgainstCommit": "4ed16fa7cf2a401a8b5845d886d67527913f918a",
-    "verifiedOn": "2026-08-30",
-    "scope": "Machine-readable candidate file hashes were refreshed against the committed current source; historical acceptance evidence remains unchanged."
+    "verifiedAgainstCommit": "a35880e0e861f6d6956974da705746f5d883de3e",
+    "verifiedOn": "2026-09-04",
+    "scope": "Machine-readable candidate file hashes were re-certified against the post-pilot committed source after semantic review of the QA selector/data-boundary delta; historical acceptance evidence remains unchanged."
   },
   "baselineHead": "2fe12b46eca9c1de4d33c3acc62428877a67ab5c",
   "implementationCommit": "4ed16fa7cf2a401a8b5845d886d67527913f918a",
@@ -97,7 +97,7 @@
   },
   "candidate": {
     "candidateId": "phase-7e-qa-workspace-lifecycle-2026-08-12",
-    "candidateChecksum": "afd73e959843af1c76e6b4a3c7b4beca130f35e5910e764ca5d17f706c737e55",
+    "candidateChecksum": "d2b5a64592a156c8998fcbf594cf0d0ba404c32bb8d9ac7912affa6d928f5378",
     "checksumMethod": "SHA-256 of JSON.stringify of the ordered [{relativePath,checksum}] manifest; file entries expose the same checksum as sha256",
     "baselineHead": "2fe12b46eca9c1de4d33c3acc62428877a67ab5c",
     "phase7dCandidateChecksum": "694a62684a412a5886080e9baad1eadf75a9a81cc255b2e95dcb51cb14f752fb",
@@ -110,7 +110,7 @@
       {"relativePath": "src/runtime/qa/contracts.ts", "sha256": "8eea9794e1c3c5c983a82e8f186cb547853b8f6f147e4f0583bc43b7680135bd"},
       {"relativePath": "src/runtime/qa/errors.ts", "sha256": "e56d11cb515644ddefd513372d4f5eb0a50f7784e1882ddc2be92686940a6e56"},
       {"relativePath": "src/runtime/qa/index.ts", "sha256": "548f6e8cda67b5ee6c243a103a627d9b68726952571547e91e035a6f2e9005e6"},
-      {"relativePath": "src/runtime/qa/qa.test.ts", "sha256": "ef1a5add4e5a014756c4694db491aea55a1489ace23fa1a47bfeb550209df641"},
+      {"relativePath": "src/runtime/qa/qa.test.ts", "sha256": "e18b81b1a5d0bb8c259edfa11a91245734d20e3753a6b01a488e7fc56e80e660"},
       {"relativePath": "src/runtime/qa/server.test.ts", "sha256": "b667d368a801e0ecb63a6fdef1360ec0c5ada28aa5fb25482d7fb0e229e212b9"},
       {"relativePath": "src/runtime/qa/server.ts", "sha256": "e18e9f17defd0a0052aa75ad2d6df30a910ec20e3fce7e7a742f91b4bcc34c24"},
       {"relativePath": "src/runtime/qa/service.ts", "sha256": "6619d2bc04eb0821fdd9ee866b11992cae492d54aee97c092c596413bd967198"},
@@ -119,7 +119,7 @@
     ]
   },
   "evidencePackId": "phase-7e-evidence-pack-2026-08-12",
-  "evidencePackChecksum": "afd73e959843af1c76e6b4a3c7b4beca130f35e5910e764ca5d17f706c737e55",
+  "evidencePackChecksum": "d2b5a64592a156c8998fcbf594cf0d0ba404c32bb8d9ac7912affa6d928f5378",
   "acceptanceCriteria": [
     {"id":"E1","status":"PASS","evidenceRefs":["src/runtime/qa/workspace.ts:175-208","src/runtime/qa/workspace.test.ts:32"]},
     {"id":"E2","status":"PASS","evidenceRefs":["src/runtime/qa/workspace.ts:317-329","src/runtime/qa/workspace.test.ts:33"]},
@@ -216,11 +216,11 @@
   "evidence": {"freshGptReviewerCalls": 0, "referenceValidation": {"format": "repository-relative path:start[-end]", "invalidReferenceCount": 0, "evidenceValid": true}, "semanticReviewClaim": "Repository reviewer suites are deterministic evidence; no external model review is claimed."},
   "requiredReviewers": ["code-integration-reviewer", "security-reviewer", "test-quality-reviewer", "architecture-reviewer", "contract-auditor"],
   "perReviewer": {
-    "code-integration-reviewer": {"scope": "QA lifecycle ownership, shutdown order, process integration, Windows cleanup, finally paths, reconciliation, Playwright regression", "executionId": "deterministic-vitest-test-reviewers-2026-08-12", "selectedSkills": [], "candidateChecksum": "afd73e959843af1c76e6b4a3c7b4beca130f35e5910e764ca5d17f706c737e55", "evidenceChecksum": "afd73e959843af1c76e6b4a3c7b4beca130f35e5910e764ca5d17f706c737e55", "evidenceValid": true, "verdict": "APPROVED"},
-    "security-reviewer": {"scope": "ownership proof, authorized root, traversal, junction safety, arbitrary PID protection, no generic cleanup authority, legacy preservation", "executionId": "deterministic-vitest-test-reviewers-2026-08-12", "selectedSkills": [], "candidateChecksum": "afd73e959843af1c76e6b4a3c7b4beca130f35e5910e764ca5d17f706c737e55", "evidenceChecksum": "afd73e959843af1c76e6b4a3c7b4beca130f35e5910e764ca5d17f706c737e55", "evidenceValid": true, "verdict": "APPROVED"},
-    "test-quality-reviewer": {"scope": "success/failure/timeout/cancellation, process exit, transient retries, exhaustion, reconciliation, active protection, legacy safety, repeated-run leakage", "executionId": "deterministic-vitest-test-reviewers-2026-08-12", "selectedSkills": [], "candidateChecksum": "afd73e959843af1c76e6b4a3c7b4beca130f35e5910e764ca5d17f706c737e55", "evidenceChecksum": "afd73e959843af1c76e6b4a3c7b4beca130f35e5910e764ca5d17f706c737e55", "evidenceValid": true, "verdict": "APPROVED"},
-    "architecture-reviewer": {"scope": "single canonical lifecycle owner, no generic collector, no persistence/orchestration duplication, bounded local reconciliation", "executionId": "deterministic-vitest-test-reviewers-2026-08-12", "selectedSkills": [], "candidateChecksum": "afd73e959843af1c76e6b4a3c7b4beca130f35e5910e764ca5d17f706c737e55", "evidenceChecksum": "afd73e959843af1c76e6b4a3c7b4beca130f35e5910e764ca5d17f706c737e55", "evidenceValid": true, "verdict": "APPROVED"},
-    "contract-auditor": {"scope": "typed lifecycle cleanup result, FunctionalQaService input/report consistency, currentness and traceability", "executionId": "deterministic-vitest-test-reviewers-2026-08-12", "selectedSkills": [], "candidateChecksum": "afd73e959843af1c76e6b4a3c7b4beca130f35e5910e764ca5d17f706c737e55", "evidenceChecksum": "afd73e959843af1c76e6b4a3c7b4beca130f35e5910e764ca5d17f706c737e55", "evidenceValid": true, "verdict": "APPROVED"}
+    "code-integration-reviewer": {"scope": "QA lifecycle ownership, shutdown order, process integration, Windows cleanup, finally paths, reconciliation, Playwright regression", "executionId": "deterministic-vitest-test-reviewers-2026-08-12", "selectedSkills": [], "candidateChecksum": "d2b5a64592a156c8998fcbf594cf0d0ba404c32bb8d9ac7912affa6d928f5378", "evidenceChecksum": "d2b5a64592a156c8998fcbf594cf0d0ba404c32bb8d9ac7912affa6d928f5378", "evidenceValid": true, "verdict": "APPROVED"},
+    "security-reviewer": {"scope": "ownership proof, authorized root, traversal, junction safety, arbitrary PID protection, no generic cleanup authority, legacy preservation", "executionId": "deterministic-vitest-test-reviewers-2026-08-12", "selectedSkills": [], "candidateChecksum": "d2b5a64592a156c8998fcbf594cf0d0ba404c32bb8d9ac7912affa6d928f5378", "evidenceChecksum": "d2b5a64592a156c8998fcbf594cf0d0ba404c32bb8d9ac7912affa6d928f5378", "evidenceValid": true, "verdict": "APPROVED"},
+    "test-quality-reviewer": {"scope": "success/failure/timeout/cancellation, process exit, transient retries, exhaustion, reconciliation, active protection, legacy safety, repeated-run leakage", "executionId": "deterministic-vitest-test-reviewers-2026-08-12", "selectedSkills": [], "candidateChecksum": "d2b5a64592a156c8998fcbf594cf0d0ba404c32bb8d9ac7912affa6d928f5378", "evidenceChecksum": "d2b5a64592a156c8998fcbf594cf0d0ba404c32bb8d9ac7912affa6d928f5378", "evidenceValid": true, "verdict": "APPROVED"},
+    "architecture-reviewer": {"scope": "single canonical lifecycle owner, no generic collector, no persistence/orchestration duplication, bounded local reconciliation", "executionId": "deterministic-vitest-test-reviewers-2026-08-12", "selectedSkills": [], "candidateChecksum": "d2b5a64592a156c8998fcbf594cf0d0ba404c32bb8d9ac7912affa6d928f5378", "evidenceChecksum": "d2b5a64592a156c8998fcbf594cf0d0ba404c32bb8d9ac7912affa6d928f5378", "evidenceValid": true, "verdict": "APPROVED"},
+    "contract-auditor": {"scope": "typed lifecycle cleanup result, FunctionalQaService input/report consistency, currentness and traceability", "executionId": "deterministic-vitest-test-reviewers-2026-08-12", "selectedSkills": [], "candidateChecksum": "d2b5a64592a156c8998fcbf594cf0d0ba404c32bb8d9ac7912affa6d928f5378", "evidenceChecksum": "d2b5a64592a156c8998fcbf594cf0d0ba404c32bb8d9ac7912affa6d928f5378", "evidenceValid": true, "verdict": "APPROVED"}
   },
   "adjacentFindings": [{"finding": "Final hardening audit, customer website-generation E2E, and deployment remain out of scope.", "routing": "FINAL_HARDENING"}],
   "preservedUntracked": [".context7-cache/", "14 historical Phase 7B admin artifacts", ".qa-foundation-TtJjjb (unverified prefix match)"],

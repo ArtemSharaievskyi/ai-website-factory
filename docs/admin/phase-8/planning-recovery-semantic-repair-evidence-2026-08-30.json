@@ -2,16 +2,16 @@
   "schemaVersion": 1,
   "kind": "LATER_PHASE_DRIFT_SNAPSHOT",
   "sourceEvidence": "docs/admin/phase-7d/phase-7d-controlled-ast-aware-patching-result-2026-08-12.json",
-  "reason": "The Planning Recovery semantic-accounting repair, Architecture Review source-of-truth repair, and Design admission durability repair change the OpenAI provider boundary and agent catalog after the frozen Phase 7D snapshot. The changed files are verified here against this separately governed later-phase snapshot; all other Phase 7D files remain byte-frozen.",
+  "reason": "The Planning Recovery semantic-accounting repair, Architecture Review source-of-truth repair, Design admission durability repair, and certified specialist task-routing updates change the OpenAI provider boundary and agent catalog after the frozen Phase 7D snapshot. The catalog delta is limited to implementation and Contract Auditor prompt-version bindings; no foreign orchestrator or runtime authority was introduced. The changed files are verified here against this separately governed later-phase snapshot; all other Phase 7D files remain byte-frozen.",
   "files": [
     {
       "relativePath": "src/agents/catalog.ts",
-      "sha256": "8239c91c78afaf8525a897054655d08a1b01ea642d5ba1dc256a5064678a93f4"
+      "sha256": "33670eaf880ddac4a4d483fd492a32c24e8ab1bea2c6084c858f68d6df36830d"
     },
     {
       "relativePath": "src/integrations/openai/adapters.ts",
-      "sha256": "6443952e6ace3c2c249f1dacfc464f7d8f6f093b0960818feace3d76cd74ee32"
+      "sha256": "33386b14b64b090ab24b83286432b9505a53eec686a6097fa13e3c8071823363"
     }
   ],
-  "snapshotChecksum": "3365a91db120aafa9328327fa92e4f599b02705977418a2028381ccc25ad5a48"
+  "snapshotChecksum": "5cccd88050db8c68536ba2c8c306a48c65399791e30ab7889cd6bc3b3fe51955"
 }
