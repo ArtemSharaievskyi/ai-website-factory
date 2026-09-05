@@ -521,6 +521,12 @@ describe("production AI provider boundary", () => {
     expect(calls).toBe(1);
     expect(corrections).toEqual([false]);
   });
+  it("does not silently correct structured output when a request omits an explicit retry policy", async () => {
+    let calls = 0;
+    const client = new OpenAiStructuredClient({ ...config, maxRetries: 0 }, { executor: async () => { calls += 1; throw new AiProviderError("AI_OUTPUT_SCHEMA_MISMATCH", "synthetic schema mismatch"); } });
+    await expect(client.request({ ...request, idempotencyKey: "default-no-correction" })).rejects.toMatchObject({ code: "AI_OUTPUT_SCHEMA_MISMATCH" });
+    expect(calls).toBe(1);
+  });
   it("passes the recovery output capacity to the single provider request", async () => {
     let completionTokens: number | undefined;
     const client = new OpenAiStructuredClient(config, { client: { chat: { completions: { parse: async (value: Record<string, unknown>) => { completionTokens = value.max_completion_tokens as number; return { id: "req_recovery_capacity", choices: [{ message: { parsed: { ok: true, summary: "bounded" } }, finish_reason: "stop" }], usage: {} }; } } } } as never });

@@ -65,10 +65,16 @@ export const APPROVED_OPTIONAL_DESIGN_DEPENDENCIES = {
   motion: "12.43.0",
 } as const;
 
+export const APPROVED_OPTIONAL_SUPABASE_DEPENDENCIES = {
+  "@supabase/supabase-js": "2.112.4",
+  "@supabase/ssr": "0.12.6",
+} as const;
+
 const baselineEntries: DependencyCatalogEntry[] = [
   ...Object.entries(GENERATED_BASELINE_DEPENDENCIES).map(([packageName, allowedVersionSpec]) => ({ packageName, allowedVersionSpec, dependencyClass: "BASELINE_REQUIRED" as const, baselineRequired: true, allowedDependencySection: "dependencies" as const, allowedCapabilities: ["baseline"], reason: "Required by the current generated-project runtime foundation." })),
   ...Object.entries(GENERATED_BASELINE_DEV_DEPENDENCIES).map(([packageName, allowedVersionSpec]) => ({ packageName, allowedVersionSpec, dependencyClass: "BASELINE_REQUIRED" as const, baselineRequired: true, allowedDependencySection: "devDependencies" as const, allowedCapabilities: ["baseline"], reason: "Required by the current generated-project development and validation foundation." })),
   ...Object.entries(APPROVED_OPTIONAL_DESIGN_DEPENDENCIES).map(([packageName, allowedVersionSpec]) => ({ packageName, allowedVersionSpec, dependencyClass: "OPTIONAL_CAPABILITY" as const, baselineRequired: false, allowedDependencySection: "dependencies" as const, allowedCapabilities: ["design.motion"], reason: "Optional Motion for React runtime selected only by an approved professional design contract." })),
+  ...Object.entries(APPROVED_OPTIONAL_SUPABASE_DEPENDENCIES).map(([packageName, allowedVersionSpec]) => ({ packageName, allowedVersionSpec, dependencyClass: "OPTIONAL_CAPABILITY" as const, baselineRequired: false, allowedDependencySection: "dependencies" as const, allowedCapabilities: ["implement-project-foundation", "implement-authentication", "implement-server-action", "implement-route-handler", "implement-storage"], reason: "Optional Supabase runtime selected only by an approved database, authentication, or storage contract." })),
 ];
 
 /**

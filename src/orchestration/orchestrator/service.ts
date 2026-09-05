@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { DocumentRepository, DecisionRepository, ProjectRepository, WorkflowPersistenceService, appendDecisionInTransaction, saveDocumentCASInTransaction, saveDocumentInTransaction, transitionWorkflowInTransaction } from "@/persistence/database/repositories";
 import type { PersistenceDatabase } from "@/persistence/database/types";
-import { TaskGraphSchema, type AgentTask, type TaskGraph } from "@/domain/tasks/schema";
+import { AgentTaskSchema, TaskGraphSchema, type AgentTask, type TaskGraph } from "@/domain/tasks/schema";
 import { DecisionRecordSchema, type DecisionRecord } from "@/domain/workflow/decision";
 import { OrchestratorError } from "./errors";
 import { OrchestratorInputSchema, DEFAULT_ORCHESTRATION_POLICY, type OrchestratorInput, type OrchestrationPolicy, type OrchestrationResult, type TaskEvent } from "./contracts";
@@ -17,6 +17,8 @@ import { BriefV3DocumentSchema } from "@/persistence/database/brief-revision-v3-
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { deriveTaskCapabilities, taskCapabilitiesFor, validateTaskCapabilityBinding } from "@/orchestration/tooling/authority";
 import { implementationDomainForTaskType, specialistProfileIdForDomain } from "@/domain/implementation/profiles";
+import { assertApprovedCrossDomainChange, type CrossDomainChangeProposal } from "@/domain/implementation/contracts";
+import { isWithinSpecialistDomainScope, isWithinTaskScope } from "@/agents/implementation/scope";
 import { mapRowToDocument, mapRowToProject } from "@/persistence/database/mapping";
 import { PersistenceError } from "@/persistence/database/errors";
 
@@ -469,6 +471,59 @@ export class OrchestratorService {
         );
       throw error;
     }
+  }
+  /**
+   * Routes an explicitly host-approved, implementation-compatible proposal to
+   * the owning upstream domain.  It never gives the proposing specialist a
+   * cross-domain write path.
+   */
+  async routeCrossDomainChangeProposal(input: { proposal: CrossDomainChangeProposal; expectedGraphChecksum: string; workspaceChecksum: string; actor: string }) {
+    const proposal = assertApprovedCrossDomainChange(input.proposal);
+    if (proposal.canonicalImpact !== "IMPLEMENTATION_CONTRACT_REPAIR" || proposal.requestedContractDelta.some((delta) => !delta.compatibleWithArchitecture)) throw new OrchestratorError("TASK_REPAIR_INVALID", "The requested change requires lifecycle escalation rather than an implementation repair.");
+    if (proposal.currentness.workspaceChecksum !== input.workspaceChecksum || proposal.requestedFileScopes.some((scope) => scope.includes("*") || scope.includes("..") || scope.startsWith("/"))) throw new OrchestratorError("TASK_REPAIR_INVALID", "The cross-domain proposal has stale workspace binding or non-explicit paths.");
+    const operation = "orchestrator.cross-domain-change";
+    const operationKey = `${proposal.projectId}:${proposal.projectVersion}:${proposal.proposalId}`;
+    const payloadHash = checksumPersistedDocument({ proposalChecksum: proposal.checksum, expectedGraphChecksum: input.expectedGraphChecksum });
+    return this.database.transaction(async (tx) => {
+      const project = await tx.getProject(proposal.projectId);
+      const version = await tx.getVersion(proposal.projectId, proposal.projectVersion);
+      const graphRow = await tx.getDocument(proposal.projectId, proposal.projectVersion, "task-graph");
+      if (!project || !version || !graphRow || project.current_version !== proposal.projectVersion || project.workflow_state !== "IMPLEMENTING" || version.immutable) throw new OrchestratorError("TASK_STATE_CONFLICT", "Cross-domain repair requires the current mutable IMPLEMENTING project version.");
+      const graph = mapRowToDocument(graphRow);
+      if (graph.documentType !== "task-graph") throw new OrchestratorError("ORCHESTRATOR_GRAPH_NOT_READY", "The persisted implementation graph is invalid.");
+      const reservation = await tx.reserveOperation({ operation, key: operationKey, payloadHash });
+      if (reservation.status === "IN_PROGRESS") throw new OrchestratorError("TASK_STATE_CONFLICT", "Cross-domain repair routing is already in progress.");
+      if (reservation.status === "SUCCEEDED") {
+        const repairId = typeof (reservation.result as { repairTaskId?: unknown } | null)?.repairTaskId === "string" ? (reservation.result as { repairTaskId: string }).repairTaskId : undefined;
+        const repair = graph.tasks.find((task) => task.id === repairId);
+        if (!repair) throw new OrchestratorError("TASK_STATE_CONFLICT", "The completed cross-domain route has no repair task.");
+        return { repairTask: repair, taskGraph: graph, routed: false as const };
+      }
+      if (graph.graphChecksum !== input.expectedGraphChecksum || proposal.currentness.taskGraphChecksum !== graph.graphChecksum || proposal.currentness.architectureChecksum !== (graph.sourceDocumentChecksums?.architecture ?? "0".repeat(64))) throw new OrchestratorError("TASK_STATE_CONFLICT", "The cross-domain proposal is stale against the current TaskGraph or Architecture.");
+      const source = graph.tasks.find((task) => task.id === proposal.sourceTaskId);
+      const target = graph.tasks.find((task) => task.role === "implementation" && task.implementationDomain === proposal.targetDomain && task.taskType !== "repair-targeted-failure");
+      if (!source || source.implementationDomain !== proposal.sourceDomain || !target || !["passed", "failed", "blocked"].includes(source.status)) throw new OrchestratorError("TASK_REPAIR_INVALID", "The proposal source or the target-domain task is not eligible for repair routing.");
+      const sourceContractType = proposal.sourceDomain === "DATABASE" ? "database-implementation-contract" : proposal.sourceDomain === "BACKEND" ? "backend-implementation-contract" : undefined;
+      if (sourceContractType) {
+        const sourceContractRow = await tx.getDocument(proposal.projectId, proposal.projectVersion, sourceContractType);
+        const sourceContract = sourceContractRow ? mapRowToDocument(sourceContractRow) : undefined;
+        if (!sourceContract || !["database-implementation-contract", "backend-implementation-contract"].includes(sourceContract.documentType) || sourceContract.documentType !== sourceContractType || sourceContract.sourceTaskId !== source.id || sourceContract.currentness.upstreamArtifactChecksum !== proposal.currentness.sourceArtifactChecksum) throw new OrchestratorError("TASK_STATE_CONFLICT", "The proposal source implementation artifact is stale.");
+      } else if (proposal.currentness.sourceArtifactChecksum !== checksumPersistedDocument({ taskId: source.id, taskType: source.taskType, attempt: source.attempt })) {
+        throw new OrchestratorError("TASK_STATE_CONFLICT", "The frontend proposal source task binding is stale.");
+      }
+      if (!proposal.requestedFileScopes.every((scope) => isWithinSpecialistDomainScope(proposal.targetDomain, scope) && target.fileScopes.some((allowed) => isWithinTaskScope(allowed, scope)))) throw new OrchestratorError("TASK_REPAIR_INVALID", "The proposed paths are outside the target specialist's explicit ownership.");
+      const repairIdentity = `cross-domain:${proposal.checksum}`;
+      const existing = graph.tasks.find((task) => task.repairIdentity === repairIdentity);
+      if (existing) return { repairTask: existing, taskGraph: graph, routed: false as const };
+      const dependencies = target.dependencies;
+      const repair: AgentTask = AgentTaskSchema.parse({ ...target, id: randomUUID(), taskType: "repair-targeted-failure", title: `Repair ${target.title}`, objective: proposal.rationale, status: dependencies.every((dependency) => graph.tasks.find((task) => task.id === dependency)?.status === "passed") ? "ready" : "pending", dependencies, executionMode: "exclusive-write", parallelGroup: undefined, attempt: 0, maxAttempts: 1, repairOfTaskId: target.id, repairIdentity, safeFailureCode: "CROSS_DOMAIN_CONTRACT_REPAIR", blockingFailure: true, expectedOutputs: ["recertified implementation contract"], acceptanceCriteria: proposal.requestedContractDelta.map((delta) => delta.change), fileScopes: proposal.requestedFileScopes, requiredCapabilities: taskCapabilitiesFor({ taskType: "repair-targeted-failure", allowedTools: target.allowedTools }) });
+      const next = withChecksum(TaskGraphSchema.parse({ ...graph, tasks: graph.tasks.map((task) => task.id === source.id ? { ...task, status: "blocked" as const, completedAt: undefined, safeFailureCode: "DOMAIN_HANDOFF_STALE", dependencies: [...new Set([...task.dependencies, repair.id])] } : task).concat(repair), checkpoint: "repair-required" as const, updatedAt: now() }));
+      const priorProposal = await tx.getDocument(proposal.projectId, proposal.projectVersion, "cross-domain-change-proposal");
+      await saveDocumentCASInTransaction(tx, { schemaVersion: 1, documentType: "cross-domain-change-proposal", projectId: proposal.projectId, projectVersion: proposal.projectVersion, createdAt: proposal.createdAt, updatedAt: now(), proposal }, priorProposal?.rowVersion ?? null, priorProposal?.checksum ?? null);
+      await saveDocumentCASInTransaction(tx, next, graphRow.rowVersion, graphRow.checksum);
+      await tx.completeOperation({ operation, key: operationKey, payloadHash, result: { repairTaskId: repair.id, graphChecksum: next.graphChecksum } });
+      return { repairTask: repair, taskGraph: next, routed: true as const };
+    });
   }
   async repairTaskCapabilityBindings(input: { projectId: string; projectVersion: number; expectedGraphChecksum: string; actor: string; idempotencyKey?: string }) {
     const operation = "orchestrator.task-capability-binding-repair";

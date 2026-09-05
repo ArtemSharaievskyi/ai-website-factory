@@ -594,6 +594,10 @@ export class FullTaskGraphExecutor {
             runtimeOperation[capability],
           ),
         );
+      if (capability === "database-validation" && this.executors.databaseValidation)
+        return TaskExecutionOutcomeSchema.parse(
+          await this.executors.databaseValidation(context),
+        );
       if (capability === "functional-qa" && this.executors.functionalQa)
         return TaskExecutionOutcomeSchema.parse(
           await this.executors.functionalQa(context),

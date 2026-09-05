@@ -26,6 +26,13 @@ export const FOUNDATION_PACKAGE_JSON = JSON.stringify({
   scripts: FOUNDATION_PACKAGE_POLICY.scripts,
 }, null, 2) + "\n";
 
+export function foundationPackageJson(optional: readonly { packageName: string; versionSpec: string; section: "dependencies" | "devDependencies" }[] = []) {
+  const dependencies: Record<string, string> = { ...FOUNDATION_PACKAGE_POLICY.dependencies };
+  const devDependencies: Record<string, string> = { ...FOUNDATION_PACKAGE_POLICY.devDependencies };
+  for (const dependency of optional) (dependency.section === "dependencies" ? dependencies : devDependencies)[dependency.packageName] = dependency.versionSpec;
+  return JSON.stringify({ name: "generated-project", version: "0.1.0", private: true, packageManager: "npm", dependencies, devDependencies, scripts: FOUNDATION_PACKAGE_POLICY.scripts }, null, 2) + "\n";
+}
+
 export const FOUNDATION_REQUIRED_ARTIFACTS = ["package.json", "package-lock.json", "eslint.config.mjs", "next.config.mjs"] as const;
 export const FOUNDATION_ESLINT_CONFIG_PATH = "eslint.config.mjs";
 export const FOUNDATION_NEXT_CONFIG_PATH = "next.config.mjs";

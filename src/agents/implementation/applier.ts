@@ -9,7 +9,7 @@ import { AstPatchOperationSchema, type AstPatchExecutionEvidence, type AstPatchO
 import { applyAstPatch, AstPatchFailure } from "./ast-patch-executor";
 import { ImplementationChangeProposalSchema, type ImplementationChangeProposal, type ExecutionPolicy } from "./contracts";
 import { ImplementationError } from "./errors";
-import { isWithinTaskScope } from "./scope";
+import { isWithinSpecialistDomainScope, isWithinTaskScope } from "./scope";
 import { validateTaskCapabilityBinding } from "@/orchestration/tooling/authority";
 
 const sha = (value: Buffer) => createHash("sha256").update(value).digest("hex");
@@ -69,6 +69,7 @@ export function validateProposal(
     if (fileNameUnsafe(relative)) throw new ImplementationError("IMPLEMENTATION_PATH_INVALID", "Proposal path is unsafe.");
     if (forbidden(relative)) throw new ImplementationError(isAst(operation) ? "AST_PATCH_RESTRICTED_PATH" : "IMPLEMENTATION_FORBIDDEN_FILE", "Proposal targets a forbidden file.");
     if (!scopes.some((scope) => isWithinTaskScope(scope, relative))) throw new ImplementationError(isAst(operation) ? "AST_PATCH_SCOPE_VIOLATION" : "IMPLEMENTATION_SCOPE_VIOLATION", `Proposal path is outside task scope: path=${relative}; operation=${operation.type}; scopes=${scopes.join(",")}.`);
+    if (!isWithinSpecialistDomainScope(task.implementationDomain, relative)) throw new ImplementationError("IMPLEMENTATION_SCOPE_VIOLATION", "Proposal path is outside the resolved specialist domain authority.");
     if (operation.encoding !== "utf-8") throw new ImplementationError("IMPLEMENTATION_BINARY_UNSUPPORTED", "Only UTF-8 text operations are supported.");
     if (isAst(operation)) {
       if (!/\.(?:ts|tsx)$/i.test(relative)) throw new ImplementationError("AST_PATCH_UNSUPPORTED_FILE", "AST patches are supported only for .ts and .tsx files.");

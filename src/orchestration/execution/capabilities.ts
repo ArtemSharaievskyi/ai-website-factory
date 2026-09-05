@@ -1,7 +1,7 @@
-export type ExecutionCapability = "implementation" | "runtime-lint" | "runtime-typecheck" | "runtime-tests" | "runtime-build" | "functional-qa" | "static-security";
+export type ExecutionCapability = "implementation" | "runtime-lint" | "runtime-typecheck" | "runtime-tests" | "runtime-build" | "database-validation" | "functional-qa" | "static-security";
 
-const TASK_CAPABILITIES: Readonly<Record<string, ExecutionCapability>> = { "validate-lint": "runtime-lint", "validate-typecheck": "runtime-typecheck", "validate-unit-tests": "runtime-tests", "validate-build": "runtime-build", "validate-functional-flow": "functional-qa", "validate-security": "static-security" };
-export const PRODUCTION_EXECUTION_CAPABILITIES: readonly ExecutionCapability[] = ["implementation", "runtime-lint", "runtime-typecheck", "runtime-tests", "runtime-build", "functional-qa", "static-security"];
+const TASK_CAPABILITIES: Readonly<Record<string, ExecutionCapability>> = { "validate-lint": "runtime-lint", "validate-typecheck": "runtime-typecheck", "validate-unit-tests": "runtime-tests", "validate-build": "runtime-build", "validate-database": "database-validation", "validate-functional-flow": "functional-qa", "validate-security": "static-security" };
+export const PRODUCTION_EXECUTION_CAPABILITIES: readonly ExecutionCapability[] = ["implementation", "runtime-lint", "runtime-typecheck", "runtime-tests", "runtime-build", "database-validation", "functional-qa", "static-security"];
 export function taskExecutionCapability(taskType: string): ExecutionCapability | undefined { return TASK_CAPABILITIES[taskType] ?? (taskType.startsWith("implement-") || taskType.startsWith("write-") || taskType === "prepare-workspace" || taskType === "integrate-assets" || taskType === "integrate-content" || taskType === "repair-targeted-failure" ? "implementation" : undefined); }
 export function executorCapabilitiesForTasks(tasks: readonly { taskType: string; requiredCapabilities?: readonly string[] }[]) {
   return [...new Set([

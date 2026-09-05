@@ -133,7 +133,7 @@ export class OpenAiStructuredClient {
     let correction = false;
     let capturedUsage: ProviderUsage | undefined;
     const maxRetries = request.retryPolicy?.maxRetries ?? this.config.maxRetries;
-    const maxCorrections = request.retryPolicy?.corrections ?? 1;
+    const maxCorrections = request.retryPolicy?.corrections ?? 0;
     const startedAt = new Date().toISOString();
     const started = Date.now();
     this.eventSink?.({ type: "request.started", provider: "openai", model: this.config.model, role: request.role, promptVersion: request.promptVersion, startedAt });

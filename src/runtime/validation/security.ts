@@ -1,6 +1,7 @@
 import { ImplementationError } from "@/agents/implementation/errors";
 import type { StoragePlan } from "@/agents/planner/contracts";
 import { storagePlanContractChecksum } from "@/agents/planner/contracts";
+import type { AccessControlContract } from "@/domain/implementation/contracts";
 
 export const GENERATED_SECURITY_VALIDATION_POLICY_VERSION = "generated-security-v1";
 
@@ -34,6 +35,38 @@ export function validateGeneratedRlsPolicy(content: string) {
   if (blocks.length < 4 || blocks.some((block) => !hasAuthenticatedRole(block))) throw new ImplementationError("RLS_POLICY_MISSING", "RLS policies must be limited to authenticated users.");
   if (!hasPolicyFor(blocks, "select", ownershipPredicate) || !hasPolicyFor(blocks, "update", ownershipPredicate) || !hasPolicyFor(blocks, "delete", ownershipPredicate)) throw new ImplementationError("RLS_OWNERSHIP_UNSAFE", "SELECT, UPDATE, and DELETE policies must constrain rows to auth.uid() = user_id.");
   if (!hasPolicyFor(blocks, "insert", /with\s+check[\s\S]*auth\.uid\s*\(\s*\)\s*=\s*user_id/i) || !hasPolicyFor(blocks, "update", /with\s+check[\s\S]*auth\.uid\s*\(\s*\)\s*=\s*user_id/i)) throw new ImplementationError("RLS_OWNERSHIP_UNSAFE", "INSERT and UPDATE policies must constrain written ownership with WITH CHECK.");
+}
+
+const sqlName = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const policyOperation = (block: string, operation: string) => new RegExp(`\\bfor\\s+(?:${operation}|all)\\b`, "i").test(block);
+const ownerExpression = (column: string) => new RegExp(`(?:auth\\.uid\\s*\\(\\s*\\)\\s*=\\s*${sqlName(column)}|${sqlName(column)}\\s*=\\s*auth\\.uid\\s*\\(\\s*\\))`, "i");
+const trustedRoleExpression = (contract: AccessControlContract, roles: readonly string[]) => {
+  const alternatives = roles.map(sqlName).join("|");
+  if (contract.roleAuthority.kind === "JWT_APP_METADATA") return new RegExp(`auth\\.jwt\\s*\\(\\s*\\)[\\s\\S]*(?:app_metadata)[\\s\\S]*(?:${alternatives})`, "i");
+  if (contract.roleAuthority.kind === "MEMBERSHIP_TABLE") return new RegExp(`exists\\s*\\([\\s\\S]*from\\s+${sqlName(contract.roleAuthority.table)}[\\s\\S]*${sqlName(contract.roleAuthority.userColumn)}\\s*=\\s*auth\\.uid\\s*\\(\\s*\\)[\\s\\S]*${sqlName(contract.roleAuthority.roleColumn)}[\\s\\S]*(?:${alternatives})`, "i");
+  return /(?!)a/;
+};
+
+/** Validate generated policies against the approved resource/role/organization/status matrix. */
+export function validateGeneratedRlsPolicyAgainstContract(content: string, contract: AccessControlContract) {
+  if (/\bto\s+public\b|using\s*\(\s*true\s*\)|with\s+check\s*\(\s*true\s*\)|user_metadata|service_role/i.test(content)) throw new ImplementationError("RLS_POLICY_TOO_BROAD", "Contract-aware RLS cannot use public access, unconditional predicates, user metadata, or service-role bypasses.");
+  for (const resource of contract.resources) {
+    if (!new RegExp(`alter\\s+table\\s+(?:public\\.)?${sqlName(resource.table)}\\s+enable\\s+row\\s+level\\s+security`, "i").test(content)) throw new ImplementationError("DATABASE_RLS_REQUIRED", `RLS is not enabled for ${resource.table}.`);
+    const blocks = policyBlocks(content).filter((block) => new RegExp(`\\bon\\s+(?:public\\.)?${sqlName(resource.table)}\\b`, "i").test(block));
+    for (const grant of resource.grants) {
+      const block = blocks.find((candidate) => policyOperation(candidate, grant.operation) && hasAuthenticatedRole(candidate));
+      if (!block) throw new ImplementationError("RLS_POLICY_MISSING", `${resource.table} lacks its authenticated ${grant.operation} policy.`);
+      const owner = resource.ownerColumn ? ownerExpression(resource.ownerColumn).test(block) : false;
+      const organization = resource.organizationColumn ? new RegExp(`${sqlName(resource.organizationColumn)}[\\s\\S]*(?:auth\\.jwt|${contract.roleAuthority.kind === "MEMBERSHIP_TABLE" ? sqlName(contract.roleAuthority.table) : "app_metadata"})`, "i").test(block) : false;
+      const role = grant.roles.length > 0 && trustedRoleExpression(contract, grant.roles).test(block);
+      const scopeSatisfied = grant.scope === "DENY" ? /false/i.test(block) : grant.scope === "OWNER" ? owner : grant.scope === "ORGANIZATION" ? organization : grant.scope === "ROLE" ? role : owner && role;
+      if (!scopeSatisfied) throw new ImplementationError("RLS_OWNERSHIP_UNSAFE", `${resource.table} ${grant.operation} does not implement its approved ${grant.scope} scope.`);
+      const statusColumn = resource.statusColumn;
+      if (grant.allowedStatuses.length > 0 && (!statusColumn || grant.allowedStatuses.some((status) => !new RegExp(`${sqlName(statusColumn)}[\\s\\S]*['\"]${sqlName(status)}['\"]`, "i").test(block)))) throw new ImplementationError("RLS_POLICY_MISSING", `${resource.table} ${grant.operation} does not enforce all approved status constraints.`);
+      const predicate = grant.operation === "INSERT" ? /with\s+check\s*\(/i : /using\s*\(/i;
+      if (!predicate.test(block) || (grant.operation === "UPDATE" && !/with\s+check\s*\(/i.test(block))) throw new ImplementationError("RLS_POLICY_MISSING", `${resource.table} ${grant.operation} uses the wrong RLS predicate boundary.`);
+    }
+  }
 }
 
 export function validateGeneratedStorage(content: string, plannedBucketNames: readonly string[] = [], storagePlan?: StoragePlan) {

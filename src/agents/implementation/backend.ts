@@ -7,13 +7,12 @@ import {
   validateGeneratedProtectedHandler,
   validateGeneratedRlsPolicy,
   validateGeneratedStorage,
-  validateGeneratedStoragePolicy,
 } from "@/runtime/validation/security";
 import type { StoragePlan } from "@/agents/planner/contracts";
 
 export const BACKEND_TASK_TYPES = new Set([
   "implement-form", "implement-server-action", "implement-route-handler",
-  "implement-database-schema", "implement-rls-policy", "implement-authentication",
+  "implement-database-schema", "implement-rls-policy", "write-database-tests", "implement-authentication",
   "implement-storage", "implement-email",
 ]);
 
@@ -58,7 +57,7 @@ export function assertBackendTaskRequired(task: AgentTask, plans: BackendPlans) 
   const planning = plans.planning;
   const brief = plans.brief;
   if (!BACKEND_TASK_TYPES.has(task.taskType)) return;
-  const required = task.taskType === "implement-form" ? Boolean(brief?.forms?.length || planning?.forms?.forms?.length) : task.taskType === "implement-server-action" ? Boolean(planning?.architecture?.serverActions?.length) : task.taskType === "implement-route-handler" ? Boolean(planning?.architecture?.routeHandlers?.length) : task.taskType === "implement-database-schema" ? Boolean(planning?.dataModel?.entities?.length) : task.taskType === "implement-rls-policy" ? Boolean(planning?.supabase?.policies?.length) : task.taskType === "implement-authentication" ? (brief?.authenticationDecision === "authentication-required" || planning?.authentication?.decision === "supabase-auth") : task.taskType === "implement-storage" ? (brief?.storageDecision === "needed" || planning?.storage?.decision === "supabase-storage") : (brief?.emailDecision === "needed" || planning?.email?.decision === "required-configured-provider");
+  const required = task.taskType === "implement-form" ? Boolean(brief?.forms?.length || planning?.forms?.forms?.length) : task.taskType === "implement-server-action" ? Boolean(planning?.architecture?.serverActions?.length) : task.taskType === "implement-route-handler" ? Boolean(planning?.architecture?.routeHandlers?.length) : task.taskType === "implement-database-schema" || task.taskType === "write-database-tests" ? Boolean(planning?.dataModel?.entities?.length) : task.taskType === "implement-rls-policy" ? Boolean(planning?.supabase?.policies?.length) : task.taskType === "implement-authentication" ? (brief?.authenticationDecision === "authentication-required" || planning?.authentication?.decision === "supabase-auth") : task.taskType === "implement-storage" ? (brief?.storageDecision === "needed" || planning?.storage?.decision === "supabase-storage") : (brief?.emailDecision === "needed" || planning?.email?.decision === "required-configured-provider");
   if (!required) throw new ImplementationError("IMPLEMENTATION_TASK_NOT_REQUIRED", `The approved plans do not require ${task.taskType}.`);
 }
 
@@ -71,25 +70,24 @@ export function validateBackendProposal(task: AgentTask, proposal: Implementatio
   if (task.taskType === "implement-route-handler") { if (!paths.some((path) => /app\/api\/.*route\.(ts|tsx)$/.test(path))) throw new ImplementationError("ROUTE_HANDLER_NOT_PLANNED", "Route Handler output is outside the approved API boundary."); if (!/GET|POST|PUT|PATCH|DELETE|export\s+async/i.test(content)) throw new ImplementationError("ROUTE_HANDLER_METHOD_NOT_ALLOWED", "Route Handler has no supported HTTP method."); if (!/zod|safeParse|parse\(/i.test(content)) throw new ImplementationError("ROUTE_HANDLER_VALIDATION_MISSING", "Route Handler validation is missing."); if (/fetch\s*\([\s\S]*https?:\/\//i.test(content)) throw new ImplementationError("ROUTE_HANDLER_PROXY_FORBIDDEN", "Generic proxy behavior is forbidden."); validateGeneratedProtectedHandler(content, "route-handler"); }
   if (task.taskType === "implement-database-schema") { validateMigration(content, paths, plans); validateGeneratedDatabaseSchema(content); }
   if (task.taskType === "implement-rls-policy") validateGeneratedRlsPolicy(content);
+  if (task.taskType === "write-database-tests" && (!paths.every((path) => path.startsWith("supabase/tests/") || path === "supabase/seed.sql") || !/\b(?:plan|is|ok|throws_ok|lives_ok|has_table|policies_are)\s*\(/i.test(content))) throw new ImplementationError("IMPLEMENTATION_TEST_SCOPE_INVALID", "Database tests must remain under supabase/tests and use the approved pgTAP boundary.");
   if (task.taskType === "implement-authentication") { if (plans.brief?.authenticationDecision !== "authentication-required" && plans.planning?.authentication?.decision !== "supabase-auth") throw new ImplementationError("AUTH_METHOD_UNAPPROVED", "Authentication method is not approved."); validateGeneratedAuthentication(content); }
   if (task.taskType === "implement-storage") {
     const storagePlan = plans.planning?.storage;
     if (!storagePlan || storagePlan.decision !== "supabase-storage") throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Storage implementation requires the accepted typed StoragePlan.");
+    if (!paths.every((path) => /src\/lib\/storage\/.*\.(ts|tsx)$/.test(path))) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Storage implementation is Backend-owned and cannot write database migrations or other domains.");
     const source = proposal.operations.filter((operation) => /src\/lib\/storage\/.*\.(ts|tsx)$/.test(operation.relativePath.replaceAll("\\", "/"))).map(text).join("\n");
-    const policy = proposal.operations.filter((operation) => /^supabase\/migrations\/.*\.sql$/.test(operation.relativePath.replaceAll("\\", "/"))).map(text).join("\n");
-    if (!source || !policy) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Storage implementation must include both the server helper and storage.objects policy migration artifact.");
+    if (!source) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Storage implementation must include the approved server helper; storage policy migrations remain Database-owned.");
     validateGeneratedStorage(source, [storagePlan.bucketId], storagePlan);
-    validateGeneratedStoragePolicy(policy, storagePlan);
     const sourceChecksum = source.match(/storage-contract-checksum:\s*([a-f0-9]{64})/i)?.[1];
-    const policyChecksum = policy.match(/storage-contract-checksum:\s*([a-f0-9]{64})/i)?.[1];
-    if (!sourceChecksum || sourceChecksum !== policyChecksum) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Generated storage source and policy must bind to the same typed StoragePlan checksum.");
+    if (!sourceChecksum) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Generated storage source must bind to the typed StoragePlan checksum.");
   }
   if (task.taskType === "implement-email") { if (plans.brief?.emailDecision !== "needed" && plans.planning?.email?.decision !== "required-configured-provider") throw new ImplementationError("EMAIL_PROVIDER_PENDING", "Email provider is not resolved."); if (/from\s*:\s*user|replyTo\s*:\s*input|\r|\n.*subject/i.test(content)) throw new ImplementationError("EMAIL_TEMPLATE_UNSAFE", "Email input may permit header injection."); if (/process\.env\.[A-Z_]+/i.test(content) && !/server|email/i.test(paths.join(" "))) throw new ImplementationError("EMAIL_SECRET_EXPOSURE", "Email secret is used outside a server boundary."); }
   if (/\b(Prisma|Drizzle|Sequelize|TypeORM|Express|NestJS|Redis|BullMQ)\b/i.test(content)) throw new ImplementationError("UNAPPROVED_DEPENDENCY", "Backend proposal introduces a prohibited dependency.");
   if (/process\.env\.([A-Z0-9_]+)/g.test(content)) { const declared = new Set(plans.planning?.architecture?.environment?.variables?.map((variable) => variable.name) ?? []); const names = [...content.matchAll(/process\.env\.([A-Z0-9_]+)/g)].map((match) => match[1]); if (names.some((name) => !declared.has(name))) throw new ImplementationError("ENV_VARIABLE_UNPLANNED", "Backend code references an undeclared environment variable."); }
 }
 
-function validateMigration(content: string, paths: string[], plans: BackendPlans) { if (!paths.every((path) => path.startsWith("supabase/migrations/") && path.endsWith(".sql"))) throw new ImplementationError("DATABASE_MIGRATION_UNSAFE", "Customer migrations must remain under supabase/migrations."); if (/drop\s+(database|schema|table)|truncate|alter\s+system|copy\s+.*program|disable\s+row\s+level\s+security|security\s+definer|grant\s+all|database_url|service_role|sk-[A-Za-z0-9]/i.test(content)) throw new ImplementationError("DATABASE_MIGRATION_UNSAFE", "Migration contains a prohibited SQL construct."); if (/\b(drop|truncate|delete|update)\b/i.test(content)) throw new ImplementationError("DATABASE_DESTRUCTIVE_CHANGE_UNAPPROVED", "Destructive migration changes require explicit approval."); if (plans.planning?.dataModel?.entities?.length && !/create\s+table/i.test(content)) throw new ImplementationError("DATABASE_ENTITY_UNAPPROVED", "Migration does not create a planned entity."); }
+function validateMigration(content: string, paths: string[], plans: BackendPlans) { if (!paths.every((path) => path === "supabase/config.toml" || (path.startsWith("supabase/migrations/") && path.endsWith(".sql")))) throw new ImplementationError("DATABASE_MIGRATION_UNSAFE", "Customer database initialization must remain under supabase/config.toml and supabase/migrations."); if (/drop\s+(database|schema|table)|truncate|alter\s+system|copy\s+.*program|disable\s+row\s+level\s+security|security\s+definer|grant\s+all|database_url|service_role|sk-[A-Za-z0-9]/i.test(content)) throw new ImplementationError("DATABASE_MIGRATION_UNSAFE", "Migration contains a prohibited SQL construct."); if (/\b(drop|truncate|delete|update)\b/i.test(content)) throw new ImplementationError("DATABASE_DESTRUCTIVE_CHANGE_UNAPPROVED", "Destructive migration changes require explicit approval."); if (plans.planning?.dataModel?.entities?.length && !/create\s+table/i.test(content)) throw new ImplementationError("DATABASE_ENTITY_UNAPPROVED", "Migration does not create a planned entity."); }
 
 export class DefaultBackendTaskHandler implements ImplementationTaskHandler {
   supports(taskType: string) { return BACKEND_TASK_TYPES.has(taskType); }
@@ -97,5 +95,5 @@ export class DefaultBackendTaskHandler implements ImplementationTaskHandler {
   deriveDocumentationNeeds(task: AgentTask) { return task.taskType === "implement-server-action" ? ["Next.js Server Actions", "Zod input validation"] : task.taskType === "implement-route-handler" ? ["Next.js Route Handlers", "Zod request validation"] : task.taskType.startsWith("implement-") ? ["Supabase SSR and task-specific API guidance"] : []; }
   deriveRegistryNeeds(task: AgentTask) { return task.taskType === "implement-form" ? ["form", "input", "textarea", "select", "button"] : []; }
   validateProposal(task: AgentTask, proposal: ImplementationChangeProposal, plans: BackendPlans) { validateBackendProposal(task, proposal, plans); }
-  validateAppliedResult(task: AgentTask, changedFiles: string[], plans: BackendPlans) { if (task.taskType === "implement-database-schema" && changedFiles.some((file) => !file.startsWith("supabase/migrations/"))) throw new ImplementationError("DATABASE_MIGRATION_UNSAFE", "Applied migration task changed a non-migration file."); assertBackendTaskRequired(task, plans); }
+  validateAppliedResult(task: AgentTask, changedFiles: string[], plans: BackendPlans) { if (task.taskType === "implement-database-schema" && changedFiles.some((file) => file !== "supabase/config.toml" && !file.startsWith("supabase/migrations/"))) throw new ImplementationError("DATABASE_MIGRATION_UNSAFE", "Applied migration task changed a non-database file."); assertBackendTaskRequired(task, plans); }
 }

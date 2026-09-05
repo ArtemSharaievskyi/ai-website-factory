@@ -301,6 +301,9 @@ export type TaskExecutorPort = {
     context: TaskExecutionContext,
     operation: "lint" | "typecheck" | "tests" | "build",
   ) => Promise<TaskExecutionOutcome>;
+  databaseValidation?: (
+    context: TaskExecutionContext,
+  ) => Promise<TaskExecutionOutcome>;
   functionalQa?: (
     context: TaskExecutionContext,
   ) => Promise<TaskExecutionOutcome>;

@@ -480,10 +480,11 @@ export class TaskContextAssembler {
               "Vitest default include patterns discover src/**/*.test.ts and src/**/*.test.tsx" as const,
           }
         : undefined;
-    const architectureExcerpt = [
-      "write-unit-tests",
-      "implement-project-foundation",
-    ].includes(input.task.taskType)
+    const architectureExcerpt = specialistProfile.domain === "DATABASE"
+      ? { schemaPlan: input.technicalArchitecture.schemaPlan, rlsRequirements: input.technicalArchitecture.rlsRequirements, supabaseDatabaseRequirements: input.technicalArchitecture.supabaseDatabaseRequirements, authenticationPlan: input.technicalArchitecture.authenticationPlan }
+      : specialistProfile.domain === "BACKEND"
+        ? { serverActions: input.technicalArchitecture.serverActions, routeHandlers: input.technicalArchitecture.routeHandlers, authenticationPlan: input.technicalArchitecture.authenticationPlan, storagePlan: input.technicalArchitecture.storagePlan, emailPlan: input.technicalArchitecture.emailPlan, environmentVariables: input.technicalArchitecture.environmentVariables }
+      : ["write-unit-tests", "implement-project-foundation"].includes(input.task.taskType)
       ? {
           applicationProfile: input.technicalArchitecture.applicationProfile,
           componentBoundaries: input.technicalArchitecture.componentBoundaries,
@@ -493,21 +494,28 @@ export class TaskContextAssembler {
           npmScripts: input.technicalArchitecture.npmScripts,
           testStrategy: input.technicalArchitecture.testStrategy,
         }
-      : input.technicalArchitecture;
-    const contentExcerpt = [
-      "write-unit-tests",
-      "implement-project-foundation",
-    ].includes(input.task.taskType)
+      : {
+          applicationProfile: input.technicalArchitecture.applicationProfile,
+          routes: input.technicalArchitecture.routes,
+          componentBoundaries: input.technicalArchitecture.componentBoundaries,
+          componentDecisions: input.technicalArchitecture.componentDecisions,
+          npmScripts: input.technicalArchitecture.npmScripts,
+          testStrategy: input.technicalArchitecture.testStrategy,
+        };
+    const contentExcerpt = specialistProfile.domain === "DATABASE"
+      ? { dataRequirements: input.approvedBrief.supabaseRequirements, accessRequirements: input.approvedBrief.backendRequirements }
+      : specialistProfile.domain === "BACKEND"
+        ? { serverRequirements: input.approvedBrief.backendRequirements, authenticationDecision: input.approvedBrief.authenticationDecision, storageDecision: input.approvedBrief.storageDecision, emailDecision: input.approvedBrief.emailDecision }
+      : ["write-unit-tests", "implement-project-foundation"].includes(input.task.taskType)
       ? {
           userProvidedFacts: input.contentPlan.userProvidedFacts,
           approvedGeneratedCopy: input.contentPlan.approvedGeneratedCopy,
           approvedPlaceholders: input.contentPlan.approvedPlaceholders,
         }
       : input.contentPlan;
-    const assetExcerpt = [
-      "write-unit-tests",
-      "implement-project-foundation",
-    ].includes(input.task.taskType)
+    const assetExcerpt = specialistProfile.domain === "DATABASE" || specialistProfile.domain === "BACKEND"
+      ? { entries: [] }
+      : ["write-unit-tests", "implement-project-foundation"].includes(input.task.taskType)
       ? {
           entries: input.assetManifest.entries.map((entry) => ({
             id: entry.id,
@@ -594,10 +602,11 @@ export class TaskContextAssembler {
       requirementReferences: input.task.requirementReferences ?? [],
       planningReferences: input.task.planningReferences ?? [],
       selectedDesignReferences: input.task.selectedDesignReferences ?? [],
-      ...(input.selectedDesign.selectedDirectionContract ? { selectedDesignContract: input.selectedDesign.selectedDirectionContract } : {}),
+      ...(specialistProfile.domain === "FRONTEND" && input.selectedDesign.selectedDirectionContract ? { selectedDesignContract: input.selectedDesign.selectedDirectionContract } : {}),
       architectureExcerpt,
       contentExcerpt,
       assetExcerpt,
+      ...(input.domainHandoffs ? { domainHandoffs: input.domainHandoffs } : {}),
       ...(phase7c ? { phase7c } : {}),
       ...(storagePlan ? { storagePlan } : {}),
       ...(formPlan ? { formPlan } : {}),
@@ -629,6 +638,7 @@ export class TaskContextAssembler {
         architectureExcerpt,
         contentExcerpt,
         assetExcerpt,
+        domainHandoffs: input.domainHandoffs,
         storagePlan,
         context7Excerpts,
         shadcnReferences,

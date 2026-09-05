@@ -31,7 +31,7 @@ const baselineLockfile = {
 
 describe("dependency authority", () => {
   it("uses the generated foundation as the complete baseline catalog", () => {
-    expect(DEPENDENCY_CATALOG).toHaveLength(16);
+    expect(DEPENDENCY_CATALOG).toHaveLength(18);
     expect(BASELINE_REQUIRED_PACKAGE_NAMES).toEqual([
       ...Object.keys(GENERATED_BASELINE_DEPENDENCIES),
       ...Object.keys(GENERATED_BASELINE_DEV_DEPENDENCIES),
@@ -67,6 +67,13 @@ describe("dependency authority", () => {
     expect(validateDependencyPlan([{ name: "zod", runtime: "dev", required: true }]).valid).toBe(false);
     expect(validateDependencyPlan([{ name: "react-hook-form", runtime: "runtime", required: true }]).valid).toBe(false);
     expect(validateDependencyNames(["zod"]).valid).toBe(true);
+  });
+
+  it("authorizes pinned Supabase runtime packages only with current plan intent and an owning task", () => {
+    const plannedDependencies = [{ name: "@supabase/supabase-js", runtime: "runtime" as const, required: true }];
+    expect(decideDependency({ operation: "ADD", packageName: "@supabase/supabase-js", versionSpec: "2.112.4", dependencySection: "dependencies", context: { plannedDependencies, taskType: "implement-authentication" } }).code).toBe("APPROVED");
+    expect(decideDependency({ operation: "ADD", packageName: "@supabase/supabase-js", versionSpec: "2.112.4", dependencySection: "dependencies", context: { plannedDependencies, taskType: "implement-page" } }).code).toBe("CAPABILITY_NOT_ALLOWED");
+    expect(decideDependency({ operation: "ADD", packageName: "@supabase/ssr", versionSpec: "0.12.6", dependencySection: "dependencies", context: { taskType: "implement-authentication" } }).code).toBe("NOT_IN_PROJECT_PLAN");
   });
 
   it("parses scoped and unscoped package specs without discarding versions", () => {

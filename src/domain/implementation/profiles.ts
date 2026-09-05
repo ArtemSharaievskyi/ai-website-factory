@@ -193,7 +193,7 @@ const databaseProfile = createApprovedProfile({
   capabilitySurface: ["SOURCE_READ", "DATABASE_SCHEMA_WRITE", "CONTROLLED_TEXT_PATCH", "RELEVANT_TESTS"],
   allowedTools: ["openai-generation", "context7-read", "codebase-memory-read"],
   allowedSkillIds: ["supabase-application-integration"],
-  allowedTaskTypes: ["implement-database-schema", "implement-rls-policy", "validate-database", "repair-targeted-failure"],
+  allowedTaskTypes: ["implement-database-schema", "implement-rls-policy", "write-database-tests", "validate-database", "repair-targeted-failure"],
   contextPolicy: { version: "database-specialist-context-v1", allowedCategories: ["PLANNING_PACKAGE", "TASK_SLICE", "CODEBASE_CONTEXT", "VALIDATION_DIAGNOSTIC", "PREVIOUS_FINDINGS"], maxBytes: 80_000, maxItems: 60 },
   approval: { status: "APPROVED", reviewer: "factory-import-policy", approvedAt: APPROVED_AT },
 });

@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { AgentTaskSchema } from "@/domain/tasks/schema";
 import { ImplementationChangeProposalSchema } from "./contracts";
-import { FOUNDATION_ESLINT_CONFIG, FOUNDATION_NEXT_CONFIG, FOUNDATION_PACKAGE_JSON, FOUNDATION_PACKAGE_POLICY } from "./foundation-policy";
+import { FOUNDATION_ESLINT_CONFIG, FOUNDATION_NEXT_CONFIG, FOUNDATION_PACKAGE_JSON, FOUNDATION_PACKAGE_POLICY, foundationPackageJson } from "./foundation-policy";
 import { DeterministicImplementationProvider } from "./provider";
 import { validateTaskResult } from "./validators";
 
@@ -22,6 +22,7 @@ describe("generated foundation artifacts", () => {
     expect(manifestOperation && "content" in manifestOperation ? manifestOperation.content : undefined).toBe(FOUNDATION_PACKAGE_JSON);
   });
   it("owns the canonical flat ESLint and Next runtime configs", () => expect(task().requiredArtifacts).toEqual(["package.json", "package-lock.json", "eslint.config.mjs", "next.config.mjs"]));
+  it("adds only explicitly supplied pinned optional dependencies to the generated manifest", () => { const manifest = JSON.parse(foundationPackageJson([{ packageName: "@supabase/supabase-js", versionSpec: "2.112.4", section: "dependencies" }])); expect(manifest.dependencies["@supabase/supabase-js"]).toBe("2.112.4"); expect(JSON.parse(FOUNDATION_PACKAGE_JSON).dependencies["@supabase/supabase-js"]).toBeUndefined(); });
   it("rejects a foundation with no ESLint config", () => expect(() => validateTaskResult(task(), proposal(false))).toThrow());
   it("rejects legacy ESLint configuration", () => expect(() => validateTaskResult(task(), proposal(true, true))).toThrow());
   it("accepts the approved flat config and approved scripts", () => expect(validateTaskResult(task(), proposal())[0]?.status).toBe("passed"));
