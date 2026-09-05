@@ -3,6 +3,7 @@ import { lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import path from "node:path";
 import type { AgentTask } from "@/domain/tasks/schema";
 import { ownershipForTask } from "@/domain/tasks/ownership";
+import { taskOwnsGeneratedArtifact } from "@/domain/tasks/shared-ownership";
 import { assertGeneratedPackageManifest, DependencyAuthorityError, type DependencyAuthorityContext } from "@/dependencies/authority";
 import { validatePhase7CContractPackage, validateTaskContractBinding, type Phase7CContractPackage } from "@/domain/contracts/phase7c";
 import { AstPatchOperationSchema, type AstPatchExecutionEvidence, type AstPatchOperation } from "@/domain/implementation/ast-patching";
@@ -70,6 +71,7 @@ export function validateProposal(
     if (forbidden(relative)) throw new ImplementationError(isAst(operation) ? "AST_PATCH_RESTRICTED_PATH" : "IMPLEMENTATION_FORBIDDEN_FILE", "Proposal targets a forbidden file.");
     if (!scopes.some((scope) => isWithinTaskScope(scope, relative))) throw new ImplementationError(isAst(operation) ? "AST_PATCH_SCOPE_VIOLATION" : "IMPLEMENTATION_SCOPE_VIOLATION", `Proposal path is outside task scope: path=${relative}; operation=${operation.type}; scopes=${scopes.join(",")}.`);
     if (!isWithinSpecialistDomainScope(task.implementationDomain, relative)) throw new ImplementationError("IMPLEMENTATION_SCOPE_VIOLATION", "Proposal path is outside the resolved specialist domain authority.");
+    if (task.implementationDomain && !taskOwnsGeneratedArtifact(task.taskType, task.implementationDomain, relative)) throw new ImplementationError("IMPLEMENTATION_SCOPE_VIOLATION", "Proposal path is not exclusively owned by this task.");
     if (operation.encoding !== "utf-8") throw new ImplementationError("IMPLEMENTATION_BINARY_UNSUPPORTED", "Only UTF-8 text operations are supported.");
     if (isAst(operation)) {
       if (!/\.(?:ts|tsx)$/i.test(relative)) throw new ImplementationError("AST_PATCH_UNSUPPORTED_FILE", "AST patches are supported only for .ts and .tsx files.");

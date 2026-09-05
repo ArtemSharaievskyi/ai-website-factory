@@ -9,6 +9,7 @@ import {
   type GeneratedDatabaseValidationResult,
   type GeneratedDatabaseValidatorPort,
 } from "./contracts";
+import { isBehavioralSecurityFixture } from "./security-fixtures";
 
 const MAX_OUTPUT_BYTES = 16_000;
 const SUMMARY_BYTES = 2_000;
@@ -110,6 +111,8 @@ export class LocalSupabaseDatabaseValidator implements GeneratedDatabaseValidato
     if (!migrations.length) return finish(false, "No ordered generated migration is available.", "GENERATED_DATABASE_MIGRATION_INVALID");
     for (const migration of migrations) if (forbiddenSql.test(await readFile(path.join(migrationsPath, migration), "utf8"))) return finish(false, "A generated migration violates the local database safety policy.", "GENERATED_DATABASE_MIGRATION_INVALID", migrations.length, tests.length);
     if (!tests.length) return finish(false, "Generated database tests are required.", "GENERATED_DATABASE_TESTS_MISSING", migrations.length, tests.length);
+    const behavioralTests = await Promise.all(tests.map(async (name) => readFile(path.join(testsPath, name), "utf8").catch(() => "")));
+    if (!behavioralTests.some(isBehavioralSecurityFixture)) return finish(false, "Generated behavioral access-control security tests are required.", "GENERATED_DATABASE_TESTS_MISSING", migrations.length, tests.length);
     let started = false;
     try {
       const start = await run("supabase-start");

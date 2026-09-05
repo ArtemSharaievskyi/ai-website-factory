@@ -15,7 +15,7 @@ async function fixture() {
   await mkdir(path.join(workspace, "supabase", "tests", "database"), { recursive: true });
   await writeFile(path.join(workspace, "supabase", "config.toml"), "project_id = \"foundation-fixture\"\n");
   await writeFile(path.join(workspace, "supabase", "migrations", "20260905000000_create_fixture.sql"), "create table public.fixture_rows (id uuid primary key);\n");
-  await writeFile(path.join(workspace, "supabase", "tests", "database", "001_fixture.test.sql"), "begin; select plan(1); select has_table('fixture_rows'); select * from finish(); rollback;\n");
+  await writeFile(path.join(workspace, "supabase", "tests", "database", "001_fixture.test.sql"), "-- FACTORY_SECURITY_FIXTURE_V1 OWNER_A OWNER_B PRIVILEGED ANONYMOUS OWNER_ONLY ROLE_WIDE OWNER_OR_ROLE DENY ANONYMOUS_DENY SELF_ESCALATION_DENY app_metadata\nbegin; select plan(1); select has_table('fixture_rows'); select * from finish(); rollback;\n");
   return { root, workspace, cleanup: () => rm(root, { recursive: true, force: true }) };
 }
 

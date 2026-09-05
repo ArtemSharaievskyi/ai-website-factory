@@ -4,9 +4,9 @@
   "phaseId": "PHASE_7D",
   "generatedOn": "2026-08-12",
   "currentVerification": {
-    "verifiedAgainstCommit": "4ed16fa7cf2a401a8b5845d886d67527913f918a",
-    "verifiedOn": "2026-08-30",
-    "scope": "Machine-readable candidate file hashes were refreshed against the committed current source; historical acceptance evidence remains unchanged."
+    "verifiedAgainstCommit": "00a80d9ede07088308188c342e3db2e451067e38",
+    "verifiedOn": "2026-09-05",
+    "scope": "Machine-readable candidate file hashes were semantically recertified for the authorized Foundation applier delta: bounded domain handoffs, ownership preflight, capability enforcement, and host-routed cross-domain repair remain within the existing single applier authority; historical acceptance evidence remains unchanged."
   },
   "status": "COMPLETE",
   "baseline": {
@@ -20,9 +20,9 @@
   },
   "candidate": {
     "candidateId": "phase-7d-controlled-ast-patching-2026-08-12",
-    "candidateChecksum": "79655a0b18e29282e39a223602097f745bfcc1a99fd9ea4a84671e76dc76d6ea",
+    "candidateChecksum": "fea0e8a92ac1f5e32e58987b20aea5cfe6b529f8e9f6fff155f3a9752fd80052",
     "checksumMethod": "SHA-256 of JSON.stringify of the ordered [{relativePath,checksum}] manifest; file entries expose the same checksum as sha256",
-    "implementationCommit": "4ed16fa7cf2a401a8b5845d886d67527913f918a",
+    "implementationCommit": "00a80d9ede07088308188c342e3db2e451067e38",
     "parentCommit": "35bd11b4a123c230edbaa66f77945b62b85093ab",
     "candidateMutatedDuringValidation": false,
     "files": [
@@ -30,13 +30,13 @@
       { "relativePath": "docs/architecture/implementation-agent.md", "sha256": "c5b4d9a80eb373cd5cfe020113739132a1a1406f481dd0bd818207d0bf39ad06" },
       { "relativePath": "src/agents/catalog.test.ts", "sha256": "bdba1d333aa19b698af93046439e44758bb0f424bf62e17463d599bb5194c987" },
       { "relativePath": "src/agents/catalog.ts", "sha256": "33670eaf880ddac4a4d483fd492a32c24e8ab1bea2c6084c858f68d6df36830d" },
-      { "relativePath": "src/agents/implementation/applier.ts", "sha256": "0e3c481ed32e00bb508793df7764e614f6eafa7c30757066ffae8e488f2009bf" },
+      { "relativePath": "src/agents/implementation/applier.ts", "sha256": "23e3c19a5652f5f3b10c67a46a94febbc5272d2165c7020c5a65eff48706acb3" },
       { "relativePath": "src/agents/implementation/ast-patch-executor.test.ts", "sha256": "344eb94589649101b8f50acdca5c19aba0c7d1222b4ccd075feea2fcf15cd3ad" },
       { "relativePath": "src/agents/implementation/ast-patch-executor.ts", "sha256": "8b47d22153a1acc3e542d1d2ceb9330a7852e8a573b00e1700a3bed4ff912aeb" },
-      { "relativePath": "src/agents/implementation/backend.ts", "sha256": "fc25005e511e051106a6794e9577fcaab2e94f74b7b92cbd9eacb3b19a871b6e" },
-      { "relativePath": "src/agents/implementation/contracts.ts", "sha256": "447cc32db065d85d0ccb66721ee31343b729c9697bc0e8a38754094cb8096b86" },
+      { "relativePath": "src/agents/implementation/backend.ts", "sha256": "b56033b92e5a6c6266663093c4580cd8d428e847599e308ba407e4cdf9021e60" },
+      { "relativePath": "src/agents/implementation/contracts.ts", "sha256": "59e9d878decb957c04a26e814973010e1cf5250abb5178dcba888da67de89d07" },
       { "relativePath": "src/agents/implementation/errors.ts", "sha256": "b62322f0f5f601b85d9290b0054858d5b808276364e66963dec1ca7cd1b19d1e" },
-      { "relativePath": "src/agents/implementation/policy.ts", "sha256": "6556f74951823c75794556035d1195adf7012cb715f06581bffdcdb1d4112cb9" },
+      { "relativePath": "src/agents/implementation/policy.ts", "sha256": "2782ba5bcec02eae836ba1851ab90b6d1c7ba09275fd972add0ed81cb365cd86" },
       { "relativePath": "src/agents/implementation/service.ts", "sha256": "8f3dbb50e367b15373b4d63ccf981668070380074f14ad9fd43b93811039cd0a" },
       { "relativePath": "src/domain/implementation/ast-patching.ts", "sha256": "a5d6bc3cfa8bbeed4086429f90f3a6138d1fdf8ac510168aef3a46caef5a1770" },
       { "relativePath": "src/domain/implementation/schema.ts", "sha256": "d1cb8272046cfcf824e130b2ab630b7683f50ccd8f3a60d68f9122502b56a2cd" },
@@ -150,7 +150,7 @@
   ],
   "evidence": {
     "evidenceId": "phase-7d-evidence-pack-2026-08-12",
-    "evidenceManifestChecksum": "79655a0b18e29282e39a223602097f745bfcc1a99fd9ea4a84671e76dc76d6ea",
+    "evidenceManifestChecksum": "fea0e8a92ac1f5e32e58987b20aea5cfe6b529f8e9f6fff155f3a9752fd80052",
     "evidenceChecksum": "694a62684a412a5886080e9baad1eadf75a9a81cc255b2e95dcb51cb14f752fb",
     "referenceValidation": { "format": "repository-relative path:line or path:start-end", "invalidReferenceCount": 0, "evidenceValid": true },
     "freshGptReviewerCalls": 0,
