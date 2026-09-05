@@ -149,12 +149,12 @@ export class ProfessionalDesignCapabilityPipeline {
 
   async run(input: ProfessionalDesignPipelineInput): Promise<ProfessionalDesignPipelineResult> {
     if (input.directionSet.directions.length !== 3) throw new Error("DESIGN_DIRECTION_COUNT_INVALID");
-    const fontpair = this.dependencies.fontpair ?? new FontpairAdapter();
-    const pairCandidates = await fontpair.listPairings({ idempotencyKey: `${input.idempotencyKey}:fontpair`, signal: input.signal });
-    if (pairCandidates.length < 3) throw new Error("FONTPAIR_MULTIPLE_CANDIDATES_REQUIRED");
     const skillEvidence = await (this.dependencies.approvedSkillEvidence ?? (() => inspectApprovedDesignSkills()))();
     const skillCoverage = validateDesignSkillCoverage(skillEvidence);
     if (!skillCoverage.valid) throw new Error(`PHASE_7F_REQUIRED_DESIGN_CAPABILITY_SOURCE_MISSING:${skillCoverage.missing.join(",")}`);
+    const fontpair = this.dependencies.fontpair ?? new FontpairAdapter();
+    const pairCandidates = await fontpair.listPairings({ idempotencyKey: `${input.idempotencyKey}:fontpair`, signal: input.signal });
+    if (pairCandidates.length < 3) throw new Error("FONTPAIR_MULTIPLE_CANDIDATES_REQUIRED");
 
     const twentyFirstDev = this.dependencies.twentyFirstDev ?? new TwentyFirstDevAdapter();
     const reactBits = this.dependencies.reactBits ?? new ReactBitsAdapter();
