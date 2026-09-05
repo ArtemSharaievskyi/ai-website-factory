@@ -12,8 +12,9 @@ const projectId = "11111111-1111-4111-8111-111111111111";
 const timestamp = "2026-09-05T08:00:00.000Z";
 const hash = (value: string) => value.repeat(64);
 
-function implementationTask(input: { domain: "DATABASE" | "BACKEND"; taskType: "implement-database-schema" | "implement-server-action"; scopes: string[]; dependencies?: string[] }) {
-  return AgentTaskSchema.parse({ id: randomUUID(), projectId, projectVersion: 1, role: "implementation", taskType: input.taskType, title: input.taskType, objective: "fixture", implementationDomain: input.domain, specialistProfileId: input.domain === "DATABASE" ? "database-implementation" : "backend-implementation", inputs: [], expectedOutputs: [], allowedSkills: [], allowedTools: ["filesystem-write"], fileScopes: input.scopes, dependencies: input.dependencies ?? [], status: "passed", attempt: 1, maxAttempts: 1, createdAt: timestamp, completedAt: timestamp });
+function implementationTask(input: { domain: "DATABASE" | "BACKEND" | "FRONTEND"; taskType: "implement-database-schema" | "implement-server-action" | "implement-page"; scopes: string[]; dependencies?: string[] }) {
+  const specialistProfileId = input.domain === "DATABASE" ? "database-implementation" : input.domain === "BACKEND" ? "backend-implementation" : "frontend-implementation";
+  return AgentTaskSchema.parse({ id: randomUUID(), projectId, projectVersion: 1, role: "implementation", taskType: input.taskType, title: input.taskType, objective: "fixture", implementationDomain: input.domain, specialistProfileId, inputs: [], expectedOutputs: [], allowedSkills: [], allowedTools: ["filesystem-write"], fileScopes: input.scopes, dependencies: input.dependencies ?? [], status: "passed", attempt: 1, maxAttempts: 1, createdAt: timestamp, completedAt: timestamp });
 }
 
 describe("cross-domain implementation repair routing", () => {
@@ -40,5 +41,22 @@ describe("cross-domain implementation repair routing", () => {
     expect(duplicate.routed).toBe(false);
     expect(duplicate.repairTask.id).toBe(first.repairTask.id);
     expect((await new DocumentRepository(database).get(projectId, 1, "cross-domain-change-proposal"))?.documentType).toBe("cross-domain-change-proposal");
+  });
+
+  it("routes an approved Frontend-to-Backend proposal without granting the frontend a server write path", async () => {
+    const database = new InMemoryPersistenceDatabase();
+    const backendTask = implementationTask({ domain: "BACKEND", taskType: "implement-server-action", scopes: ["src/actions/**"] });
+    const frontendTask = implementationTask({ domain: "FRONTEND", taskType: "implement-page", scopes: ["src/app/**/page.*"], dependencies: [backendTask.id] });
+    const base = { schemaVersion: 1 as const, documentType: "task-graph" as const, projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, tasks: [backendTask, frontendTask], sourceDocumentChecksums: { architecture: hash("a") } };
+    const graph = TaskGraphSchema.parse({ ...base, graphChecksum: checksumPersistedDocument(base) });
+    await new ProjectRepository(database).create(FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: projectId, slug: "frontend-cross-domain", originalPrompt: "fixture", currentVersion: 1, workflowState: "IMPLEMENTING" }));
+    await new ProjectVersionRepository(database).create({ id: randomUUID(), projectId, versionNumber: 1, state: "IMPLEMENTING", memoryRootPath: "C:\\fixture", requirementsChecksum: null, selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
+    await new DocumentRepository(database).save(graph);
+    const pending = createCrossDomainChangeProposal({ projectId, projectVersion: 1, sourceTaskId: frontendTask.id, sourceDomain: "FRONTEND", targetDomain: "BACKEND", requestedFileScopes: ["src/actions/approved-action.ts"], rationale: "Add an Architecture-compatible server contract response.", requestedContractDelta: [{ contractId: "backend-implementation-contract", change: "Add the approved server operation response.", compatibleWithArchitecture: true }], canonicalImpact: "IMPLEMENTATION_CONTRACT_REPAIR", currentness: { taskGraphChecksum: graph.graphChecksum!, architectureChecksum: hash("a"), sourceArtifactChecksum: checksumPersistedDocument({ taskId: frontendTask.id, taskType: frontendTask.taskType, attempt: frontendTask.attempt }), workspaceChecksum: hash("c") }, affectedContractIds: ["backend-implementation-contract"], createdAt: timestamp });
+    const proposal = approveCrossDomainChangeProposal(pending, { actorId: "host", decidedAt: timestamp });
+    const result = await new OrchestratorService(database).routeCrossDomainChangeProposal({ proposal, expectedGraphChecksum: graph.graphChecksum!, workspaceChecksum: hash("c"), actor: "host" });
+    expect(result.repairTask.implementationDomain).toBe("BACKEND");
+    expect(result.repairTask.fileScopes).toEqual(["src/actions/approved-action.ts"]);
+    expect(result.taskGraph.tasks.find((task) => task.id === frontendTask.id)?.status).toBe("blocked");
   });
 });
