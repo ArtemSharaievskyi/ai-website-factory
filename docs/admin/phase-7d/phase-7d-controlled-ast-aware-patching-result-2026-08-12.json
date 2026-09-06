@@ -4,9 +4,9 @@
   "phaseId": "PHASE_7D",
   "generatedOn": "2026-08-12",
   "currentVerification": {
-    "verifiedAgainstCommit": "0656f42bc11967073e6fd772c8769d956f7a0e3f plus the current source-closure working tree",
-    "verifiedOn": "2026-09-05",
-    "scope": "Machine-readable candidate file hashes were semantically recertified for the authorized Foundation source-closure delta. The implementation service now rejects unsafe or colliding active exclusive claims before provider execution; it preserves the existing single applier mutation authority, bounded domain handoffs, capability enforcement, and host-routed cross-domain repair. Regression coverage proves the rejected path makes zero provider calls; historical acceptance evidence remains unchanged."
+    "verifiedAgainstCommit": "fd51dcb02324b77158e0882c6154711da65b4953",
+    "verifiedOn": "2026-09-06",
+    "scope": "Machine-readable candidate file hashes were semantically recertified for the authorized Foundation source-closure delta. The implementation service now rejects unsafe or colliding active exclusive claims before provider execution; the applier enforces resolved specialist ownership, bounded domain handoffs, capability enforcement, and host-routed cross-domain repair. Regression coverage proves rejected paths make zero provider or workspace-worker calls; historical acceptance evidence remains unchanged."
   },
   "status": "COMPLETE",
   "baseline": {
@@ -22,7 +22,7 @@
     "candidateId": "phase-7d-controlled-ast-patching-2026-08-12",
     "candidateChecksum": "1e0c5050ea0110f2f8fec874b1d6e2c323dff8cde1941611a25b9577873e4132",
     "checksumMethod": "SHA-256 of JSON.stringify of the ordered [{relativePath,checksum}] manifest; file entries expose the same checksum as sha256",
-    "implementationCommit": "00a80d9ede07088308188c342e3db2e451067e38",
+    "implementationCommit": "fd51dcb02324b77158e0882c6154711da65b4953",
     "parentCommit": "35bd11b4a123c230edbaa66f77945b62b85093ab",
     "candidateMutatedDuringValidation": false,
     "files": [
