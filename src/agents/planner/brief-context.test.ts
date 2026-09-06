@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPlanningPackage } from "./deterministic";
+import { buildPlanningPackage, validatePlanningDependencies } from "./deterministic";
 import { PlannerAgentInputSchema } from "./contracts";
 import { canonicalBriefToPlannerBrief } from "./brief-context";
 import { representativeV1Brief } from "@/domain/requirements/v3/fixtures";
@@ -100,6 +100,42 @@ describe("canonical Brief to Planner boundary", () => {
     expect(planning.forms.forms[0]?.submissionMechanism).toBe("client-only");
     expect(planning.architecture.serverActions).toEqual([]);
     expect(planning.architecture.routeHandlers).toEqual([]);
+  });
+
+  it("does not infer Supabase from stale backend-looking requirements when canonical Database and Auth are NONE", () => {
+    const brief = CanonicalBriefV3Schema.parse({
+      ...canonical(),
+      requirements: [
+        ...canonical().requirements,
+        { id: "REQUIREMENT:stale-backend-signal", category: "BACKEND" as const, statement: "Synthetic external request boundary; no persistence is approved.", sourceRefs: ["fixture:backend"] },
+      ],
+    });
+    const planning = buildPlanningPackage(input(brief));
+    expect(planning.dataModel.entities).toHaveLength(0);
+    expect(planning.supabase).toMatchObject({ postgres: false, auth: false, storage: false, realtime: false, environmentVariables: [] });
+    expect(planning.dependencies.dependencies.map((dependency) => dependency.name)).toEqual(["zod@^4.4.3"]);
+    expect(planning.architecture.dependencies.map((dependency) => dependency.name)).toEqual(["zod@^4.4.3"]);
+  });
+
+  it("adds only pinned Supabase database dependencies for an approved database-only decision", () => {
+    const base = canonical();
+    const brief = CanonicalBriefV3Schema.parse({
+      ...base,
+      requirements: [...base.requirements, { id: "REQUIREMENT:persistence", category: "DATABASE" as const, statement: "Persist synthetic requests in the approved database.", sourceRefs: ["fixture:database"] }],
+      decisions: { ...base.decisions, database: { mode: "SUPABASE" as const } },
+    });
+    const planning = buildPlanningPackage(input(brief));
+    expect(planning.supabase).toMatchObject({ postgres: true, auth: false });
+    expect(planning.dependencies.dependencies.map((dependency) => dependency.name)).toEqual(["zod@^4.4.3", "@supabase/supabase-js@2.112.4", "@supabase/ssr@0.12.6"]);
+    expect(validatePlanningDependencies(planning).every((decision) => decision.approved)).toBe(true);
+  });
+
+  it("adds the approved pinned auth and SSR dependencies for an auth-required project", () => {
+    const base = canonical();
+    const brief = CanonicalBriefV3Schema.parse({ ...base, decisions: { ...base.decisions, auth: { mode: "REQUIRED" as const } } });
+    const planning = buildPlanningPackage(input(brief));
+    expect(planning.supabase).toMatchObject({ postgres: false, auth: true });
+    expect(planning.dependencies.dependencies.map((dependency) => dependency.name)).toEqual(["zod@^4.4.3", "@supabase/supabase-js@2.112.4", "@supabase/ssr@0.12.6"]);
   });
 
   it("carries the full canonical Brief on the typed Planner input", () => {

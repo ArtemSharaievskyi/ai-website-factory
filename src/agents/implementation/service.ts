@@ -46,6 +46,7 @@ import { evaluateRealFormProcessingGate, isRealFormProcessingTask } from "@/doma
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { validateTaskCapabilityBinding } from "@/orchestration/tooling/authority";
 import { implementationOrchestrator } from "@/orchestration/orchestrator/implementation-routing";
+import { exclusivePathsOverlap, preflightExclusivePathClaims } from "@/domain/tasks/shared-ownership";
 
 export interface ImplementationMemoryPort {
   writeSnapshot(
@@ -455,6 +456,13 @@ export class ImplementationAgentService {
       const capabilityBinding = validateTaskCapabilityBinding(currentTask);
       if (!capabilityBinding.valid) throw new ImplementationError("IMPLEMENTATION_CAPABILITY_BINDING_INVALID", "The implementation task advertises capabilities that its approved tools do not provide.", undefined, { missingCapabilities: capabilityBinding.missingCapabilities });
       executionTask = currentTask;
+      const activeClaims = graph.tasks.filter((task) => task.role === "implementation" && task.status === "running");
+      const requestedPaths = executionTask.fileScopes.filter((scope) => !/[*?[\]]/.test(scope));
+      if (activeClaims.some((active) => active.id !== executionTask.id && active.fileScopes.some((activeScope) => requestedPaths.some((requestedPath) => exclusivePathsOverlap(activeScope, requestedPath)))))
+        throw new ImplementationError("IMPLEMENTATION_SCOPE_VIOLATION", "Implementation path ownership or an active exclusive path claim was denied before provider execution.", undefined, { code: "TASK_PATH_COLLISION" });
+      const exclusiveClaims = [{ taskId: executionTask.id, taskType: executionTask.taskType, implementationDomain: executionTask.implementationDomain, paths: requestedPaths }];
+      const exclusivePreflight = preflightExclusivePathClaims(exclusiveClaims);
+      if (!exclusivePreflight.valid) throw new ImplementationError("IMPLEMENTATION_SCOPE_VIOLATION", "Implementation path ownership or an active exclusive path claim was denied before provider execution.", undefined, { code: exclusivePreflight.code });
       const graphAdmission = { rowVersion: persistedGraph.rowVersion, checksum: persistedGraph.checksum };
       if (this.taskGraphOwner === "implementation-agent") {
         graph = this.updateGraph(

@@ -27,8 +27,24 @@ export type GeneratedDatabaseProcessPort = {
   }): Promise<GeneratedDatabaseProcessResult>;
 };
 
+export type GeneratedDatabaseValidationStatus =
+  | "STATIC_VALIDATION_PASSED"
+  | "STATIC_VALIDATION_FAILED"
+  | "BEHAVIORAL_VALIDATION_PASSED"
+  | "BEHAVIORAL_VALIDATION_RUNTIME_UNAVAILABLE"
+  | "BEHAVIORAL_VALIDATION_FAILED";
+
+export type GeneratedDatabaseBehavioralValidation =
+  | "NOT_RUN"
+  | "PASSED"
+  | "RUNTIME_UNAVAILABLE"
+  | "FAILED";
+
 export type GeneratedDatabaseValidationResult = {
   passed: boolean;
+  status: GeneratedDatabaseValidationStatus;
+  staticValidation: "PASSED" | "FAILED";
+  behavioralValidation: GeneratedDatabaseBehavioralValidation;
   safeFailureCode?:
     | "LOCAL_SUPABASE_RUNTIME_UNAVAILABLE"
     | "LOCAL_SUPABASE_CLI_UNAVAILABLE"

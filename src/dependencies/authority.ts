@@ -186,7 +186,7 @@ export function parseDependencySpec(value: string): ParsedDependencySpec {
 }
 
 function plannedDependency(context: DependencyAuthorityContext | undefined, packageName: string) {
-  return context?.plannedDependencies?.find((dependency) => dependency.name === packageName);
+  return context?.plannedDependencies?.find((dependency) => parseDependencySpec(dependency.name).packageName === packageName);
 }
 
 function decision(
@@ -223,6 +223,9 @@ export function decideDependency(request: DependencyRequest): DependencyDecision
   if (!entry.baselineRequired) {
     const planned = plannedDependency(request.context, request.packageName);
     if (!planned) return decision(request, "NOT_IN_PROJECT_PLAN", "Optional direct dependencies require current project DependencyPlan intent.", entry);
+    const plannedSpec = parseDependencySpec(planned.name).versionSpec;
+    if (plannedSpec !== entry.allowedVersionSpec || request.versionSpec !== entry.allowedVersionSpec)
+      return decision(request, "VERSION_NOT_APPROVED", "Optional direct dependencies must be pinned to the exact host-approved project and catalog version.", entry);
     if (request.context?.taskType && !entry.allowedCapabilities.includes(request.context.taskType))
       return decision(request, "CAPABILITY_NOT_ALLOWED", "The current implementation capability is not authorized for this optional dependency.", entry);
   }
@@ -281,14 +284,7 @@ export function validateDependencyPlan(
 ) {
   const decisions: DependencyDecision[] = [];
   const seen = new Set<string>();
-  const canonicalDependencies = dependencies.map((dependency) => ({
-    ...dependency,
-    name: parseDependencySpec(dependency.name).packageName,
-  }));
-  const plannedDependencies = context.plannedDependencies?.map((dependency) => ({
-    ...dependency,
-    name: parseDependencySpec(dependency.name).packageName,
-  })) ?? canonicalDependencies;
+  const plannedDependencies = context.plannedDependencies ?? dependencies;
   for (const dependency of dependencies) {
     const section: DependencySection = dependency.runtime === "runtime" ? "dependencies" : "devDependencies";
     const parsed = parseDependencySpec(dependency.name);
@@ -299,8 +295,8 @@ export function validateDependencyPlan(
     seen.add(parsed.packageName);
     decisions.push(decideDependency({
       operation: "ADD",
-      packageName: parsed.packageName,
-      ...(parsed.versionSpec === undefined ? {} : { versionSpec: parsed.versionSpec }),
+       packageName: parsed.packageName,
+       ...(parsed.versionSpec === undefined ? {} : { versionSpec: parsed.versionSpec }),
       dependencySection: section,
       context: {
         ...context,
@@ -385,7 +381,7 @@ export function validateDependencyReferences(
     const catalogEntry = getDependencyCatalogEntry(parsed.packageName);
     const expectedSpec = planDecision.allowedSpec ?? catalogEntry?.allowedVersionSpec;
     const effectiveRequestedSpec = parsed.versionSpec ?? expectedSpec;
-    if (!expectedSpec || effectiveRequestedSpec !== expectedSpec) {
+    if (!expectedSpec || (!catalogEntry?.baselineRequired && parsed.versionSpec === undefined) || effectiveRequestedSpec !== expectedSpec) {
       decisions.push({
         approved: false,
         code: "VERSION_NOT_APPROVED",

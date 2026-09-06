@@ -91,38 +91,50 @@ export class LocalSupabaseDatabaseValidator implements GeneratedDatabaseValidato
     const startedAt = new Date().toISOString();
     const workspacePath = assertWorkspace(input.workspacePath, input.generatedProjectsRoot);
     const commands: GeneratedDatabaseProcessResult[] = [];
-    const finish = (passed: boolean, summary: string, safeFailureCode?: GeneratedDatabaseValidationResult["safeFailureCode"], migrationCount = 0, testCount = 0): GeneratedDatabaseValidationResult => ({ passed, ...(safeFailureCode ? { safeFailureCode } : {}), summary: `${summary};policy=${LOCAL_SUPABASE_RUNTIME_POLICY_VERSION}`, startedAt, completedAt: new Date().toISOString(), commands, migrationCount, testCount });
+    const finish = (status: GeneratedDatabaseValidationResult["status"], summary: string, safeFailureCode?: GeneratedDatabaseValidationResult["safeFailureCode"], migrationCount = 0, testCount = 0): GeneratedDatabaseValidationResult => ({
+      passed: status === "BEHAVIORAL_VALIDATION_PASSED",
+      status,
+      staticValidation: status === "STATIC_VALIDATION_FAILED" ? "FAILED" : "PASSED",
+      behavioralValidation: status === "BEHAVIORAL_VALIDATION_PASSED" ? "PASSED" : status === "BEHAVIORAL_VALIDATION_FAILED" ? "FAILED" : status === "BEHAVIORAL_VALIDATION_RUNTIME_UNAVAILABLE" ? "RUNTIME_UNAVAILABLE" : "NOT_RUN",
+      ...(safeFailureCode ? { safeFailureCode } : {}),
+      summary: `${summary};policy=${LOCAL_SUPABASE_RUNTIME_POLICY_VERSION}`,
+      startedAt,
+      completedAt: new Date().toISOString(),
+      commands,
+      migrationCount,
+      testCount,
+    });
     const run = async (command: GeneratedDatabaseCommand) => {
       const result = await this.processes.run({ command, workspacePath, signal: input.signal });
       commands.push(result);
       return result;
     };
 
-    const docker = await run("docker-info");
-    if (docker.exitCode !== 0) return finish(false, "Docker-compatible local runtime is unavailable.", "LOCAL_SUPABASE_RUNTIME_UNAVAILABLE");
-    const cli = await run("supabase-version");
-    if (cli.exitCode !== 0) return finish(false, "The pinned project-local Supabase CLI is unavailable.", "LOCAL_SUPABASE_CLI_UNAVAILABLE");
     try { await access(path.join(workspacePath, "supabase", "config.toml")); }
-    catch { return finish(false, "Generated Supabase configuration is missing.", "GENERATED_DATABASE_NOT_INITIALIZED"); }
+    catch { return finish("STATIC_VALIDATION_FAILED", "Generated Supabase configuration is missing.", "GENERATED_DATABASE_NOT_INITIALIZED"); }
     const migrationsPath = path.join(workspacePath, "supabase", "migrations");
     const testsPath = path.join(workspacePath, "supabase", "tests");
     const migrations = (await readdir(migrationsPath).catch(() => [])).filter((name) => /^\d{14}_[a-z0-9_]+\.sql$/.test(name)).sort();
     const tests = (await readdir(testsPath, { recursive: true }).catch(() => [])).filter((name) => /\.sql$/.test(name));
-    if (!migrations.length) return finish(false, "No ordered generated migration is available.", "GENERATED_DATABASE_MIGRATION_INVALID");
-    for (const migration of migrations) if (forbiddenSql.test(await readFile(path.join(migrationsPath, migration), "utf8"))) return finish(false, "A generated migration violates the local database safety policy.", "GENERATED_DATABASE_MIGRATION_INVALID", migrations.length, tests.length);
-    if (!tests.length) return finish(false, "Generated database tests are required.", "GENERATED_DATABASE_TESTS_MISSING", migrations.length, tests.length);
+    if (!migrations.length) return finish("STATIC_VALIDATION_FAILED", "No ordered generated migration is available.", "GENERATED_DATABASE_MIGRATION_INVALID");
+    for (const migration of migrations) if (forbiddenSql.test(await readFile(path.join(migrationsPath, migration), "utf8"))) return finish("STATIC_VALIDATION_FAILED", "A generated migration violates the local database safety policy.", "GENERATED_DATABASE_MIGRATION_INVALID", migrations.length, tests.length);
+    if (!tests.length) return finish("STATIC_VALIDATION_FAILED", "Generated database tests are required.", "GENERATED_DATABASE_TESTS_MISSING", migrations.length, tests.length);
     const behavioralTests = await Promise.all(tests.map(async (name) => readFile(path.join(testsPath, name), "utf8").catch(() => "")));
-    if (!behavioralTests.some(isBehavioralSecurityFixture)) return finish(false, "Generated behavioral access-control security tests are required.", "GENERATED_DATABASE_TESTS_MISSING", migrations.length, tests.length);
+    if (!behavioralTests.some(isBehavioralSecurityFixture)) return finish("STATIC_VALIDATION_FAILED", "Generated behavioral access-control security tests are required.", "GENERATED_DATABASE_TESTS_MISSING", migrations.length, tests.length);
+    const docker = await run("docker-info");
+    if (docker.exitCode !== 0) return finish("BEHAVIORAL_VALIDATION_RUNTIME_UNAVAILABLE", "Docker-compatible local runtime is unavailable after static database and behavioral-security discovery.", "LOCAL_SUPABASE_RUNTIME_UNAVAILABLE", migrations.length, tests.length);
+    const cli = await run("supabase-version");
+    if (cli.exitCode !== 0) return finish("BEHAVIORAL_VALIDATION_RUNTIME_UNAVAILABLE", "The pinned project-local Supabase CLI is unavailable.", "LOCAL_SUPABASE_CLI_UNAVAILABLE", migrations.length, tests.length);
     let started = false;
     try {
       const start = await run("supabase-start");
-      if (start.exitCode !== 0) return finish(false, "Local Supabase failed to start.", "LOCAL_SUPABASE_RUNTIME_UNAVAILABLE", migrations.length, tests.length);
+      if (start.exitCode !== 0) return finish("BEHAVIORAL_VALIDATION_RUNTIME_UNAVAILABLE", "Local Supabase failed to start.", "LOCAL_SUPABASE_RUNTIME_UNAVAILABLE", migrations.length, tests.length);
       started = true;
       for (const command of ["supabase-status", "supabase-reset", "supabase-test"] as const) {
         const result = await run(command);
-        if (result.exitCode !== 0) return finish(false, `Generated database command ${command} failed.`, "GENERATED_DATABASE_VALIDATION_FAILED", migrations.length, tests.length);
+        if (result.exitCode !== 0) return finish("BEHAVIORAL_VALIDATION_FAILED", `Generated database command ${command} failed.`, "GENERATED_DATABASE_VALIDATION_FAILED", migrations.length, tests.length);
       }
-      return finish(true, "Local migrations and database tests passed.", undefined, migrations.length, tests.length);
+      return finish("BEHAVIORAL_VALIDATION_PASSED", "Local migrations and database tests passed.", undefined, migrations.length, tests.length);
     } finally {
       if (started) await run("supabase-stop");
     }

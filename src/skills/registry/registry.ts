@@ -46,7 +46,7 @@ const safeSlug = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60) || "skill";
-const safePath = (value: string) => {
+export const safeSkillRelativePath = (value: string) => {
   const normalized = value.replaceAll("\\", "/");
   if (
     !normalized ||
@@ -54,6 +54,7 @@ const safePath = (value: string) => {
     /^[A-Za-z]:[\\/]/.test(normalized) ||
     normalized.split("/").includes("..") ||
     normalized.includes("\0")
+    || normalized.split("/").some((part) => !part || part === ".")
   )
     throw new SkillError("SKILL_PATH_INVALID", "Skill file path is unsafe.");
   if (
@@ -69,6 +70,7 @@ const safePath = (value: string) => {
     );
   return normalized;
 };
+const safePath = safeSkillRelativePath;
 const isMissing = (error: unknown) =>
   (error as NodeJS.ErrnoException).code === "ENOENT";
 const RecordSchema = z
@@ -263,11 +265,12 @@ export class SkillRegistry {
     await mkdir(temporary, { recursive: true });
     try {
       for (const file of files) {
-        const target = path.join(temporary, file.relativePath);
+        const relative = safeSkillRelativePath(file.relativePath);
+        const target = path.join(temporary, relative);
         await mkdir(path.dirname(target), { recursive: true });
         await writeFile(
           target,
-          await readFile(path.join(source, file.relativePath)),
+          await readFile(path.join(source, relative)),
           { flag: "wx", mode: 0o600 },
         );
         if (file.executable) await chmod(target, 0o600);
@@ -667,9 +670,16 @@ export class SkillRegistry {
         "SKILL_CHECKSUM_MISMATCH",
         "Internal approval must bind the exact version and normalized checksum.",
       );
-    const allowedFiles =
-      input.allowedFiles ??
-      record.definition.manifest.files.map((file) => file.relativePath);
+    const allowedFiles = (input.allowedFiles ??
+      record.definition.manifest.files.map((file) => file.relativePath)).map(
+      safeSkillRelativePath,
+    );
+    const excludedFiles = (input.excludedFiles ?? []).map(safeSkillRelativePath);
+    const manifestFiles = new Set(record.definition.manifest.files.map((file) => file.relativePath));
+    for (const relativePath of [...allowedFiles, ...excludedFiles]) {
+      if (!manifestFiles.has(relativePath))
+        throw new SkillError("SKILL_PATH_INVALID", "Approval file selections must be safe paths from the staged manifest.");
+    }
     const approval = SkillApprovalRecordSchema.parse({
       ...input,
       id: input.id,
@@ -679,7 +689,7 @@ export class SkillRegistry {
         JSON.stringify(record.definition.manifest.files),
       ),
       approvedFiles: allowedFiles,
-      excludedFiles: input.excludedFiles ?? [],
+      excludedFiles,
       maxContextBytes:
         input.maxContextBytes ?? record.definition.maxContextBytes,
       ...(input.applicability
@@ -842,7 +852,8 @@ export class SkillRegistry {
         | "SKILL_TOOL_NOT_ALLOWED"
         | "SKILL_NOT_ALLOWED_FOR_AGENT"
         | "SKILL_CONTEXT_LIMIT_EXCEEDED"
-        | "SKILL_CHECKSUM_MISMATCH",
+        | "SKILL_CHECKSUM_MISMATCH"
+        | "SKILL_PATH_INVALID",
       message: string,
     ): Promise<never> => {
       await this.audit({
@@ -893,18 +904,30 @@ export class SkillRegistry {
       )
     )
       return deny("SKILL_TOOL_NOT_ALLOWED", "Requested tool is not allowed.");
+    let requestedFiles: string[];
+    try {
+      requestedFiles = parsed.requestedFiles.map((relativePath) => safeSkillRelativePath(relativePath));
+    } catch (error) {
+      return deny("SKILL_PATH_INVALID", error instanceof SkillError ? error.message : "Requested skill file path is unsafe.");
+    }
     const files = record.definition.manifest.files;
-    const selected = parsed.requestedFiles.length
+    const manifestFiles = new Set(files.map((file) => file.relativePath));
+    const approvedFiles = new Set(approval.approvedFiles);
+    if (requestedFiles.some((relativePath) => !manifestFiles.has(relativePath) || !approvedFiles.has(relativePath)))
+      return deny("SKILL_PATH_INVALID", "Requested skill files must be explicitly present in the approved manifest and file allowlist.");
+    if (!approvedFiles.has("SKILL.md"))
+      return deny("SKILL_PATH_INVALID", "Approved skill loading requires the approved SKILL.md entry file.");
+    const manifest = await this.readApprovedManifest(record);
+    if (manifest.sourceChecksum !== record.definition.sourceChecksum)
+      return deny("SKILL_CHECKSUM_MISMATCH", "Approved source checksum no longer matches.");
+    const selected = requestedFiles.length
       ? files.filter((file) =>
-          parsed.requestedFiles.includes(file.relativePath),
+          requestedFiles.includes(file.relativePath),
         )
-      : files.filter((file) => file.kind === "reference");
+      : files.filter((file) => file.kind === "reference" && approvedFiles.has(file.relativePath));
     const contents: Array<{ relativePath: string; content: string }> = [];
     let total = 0;
-    const entry = await readFile(
-      path.join(record.approvedDirectory, "SKILL.md"),
-      "utf8",
-    );
+    const entry = await this.readApprovedText(record, "SKILL.md");
     const entryContent = parsed.requestedSections.length
       ? entry
           .split(/\r?\n/)
@@ -924,10 +947,7 @@ export class SkillRegistry {
     for (const file of selected
       .filter((item) => item.kind === "reference")
       .slice(0, record.definition.maxReferenceFilesPerLoad)) {
-      const content = await readFile(
-        path.join(record.approvedDirectory, file.relativePath),
-        "utf8",
-      );
+      const content = await this.readApprovedText(record, file.relativePath);
       total += Buffer.byteLength(content);
       if (total > parsed.contextBudgetBytes || total > approval.maxContextBytes)
         return deny(
@@ -936,12 +956,6 @@ export class SkillRegistry {
         );
       contents.push({ relativePath: file.relativePath, content });
     }
-    const manifest = await this.readApprovedManifest(record);
-    if (manifest.sourceChecksum !== record.definition.sourceChecksum)
-      return deny(
-        "SKILL_CHECKSUM_MISMATCH",
-        "Approved source checksum no longer matches.",
-      );
     await this.audit({
       skillId: parsed.skillId,
       sourceChecksum: record.definition.sourceChecksum,
@@ -959,7 +973,7 @@ export class SkillRegistry {
         a.relativePath.localeCompare(b.relativePath),
       ),
       scripts: files
-        .filter((file) => file.kind === "script")
+        .filter((file) => file.kind === "script" && approvedFiles.has(file.relativePath))
         .map((file) => ({
           relativePath: file.relativePath,
           sha256: file.sha256,
@@ -979,26 +993,60 @@ export class SkillRegistry {
       },
     };
   }
+  private async approvedRoot(record: RegistryRecord) {
+    const approvedDirectory = record.approvedDirectory;
+    if (!approvedDirectory) throw new SkillError("SKILL_CHECKSUM_MISMATCH", "Approved skill directory is missing.");
+    const root = path.resolve(this.dir("approved"));
+    const candidate = path.resolve(approvedDirectory);
+    const relative = path.relative(root, candidate);
+    if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) throw new SkillError("SKILL_PATH_INVALID", "Approved skill directory escapes the approved registry.");
+    const info = await lstat(candidate);
+    if (!info.isDirectory() || info.isSymbolicLink()) throw new SkillError("SKILL_CHECKSUM_MISMATCH", "Approved skill directory is not a regular directory.");
+    return candidate;
+  }
+  private async approvedFilePath(record: RegistryRecord, relativePath: string) {
+    const root = await this.approvedRoot(record);
+    const safe = safeSkillRelativePath(relativePath);
+    let current = root;
+    const parts = safe.split("/");
+    for (const [index, part] of parts.entries()) {
+      current = path.join(current, part);
+      const info = await lstat(current);
+      if (info.isSymbolicLink()) throw new SkillError("SKILL_CHECKSUM_MISMATCH", "Approved skill content contains a symbolic link.");
+      if (index < parts.length - 1 && !info.isDirectory()) throw new SkillError("SKILL_CHECKSUM_MISMATCH", "Approved skill path is not a directory chain.");
+      if (index === parts.length - 1 && !info.isFile()) throw new SkillError("SKILL_CHECKSUM_MISMATCH", "Approved skill content is not a regular file.");
+    }
+    return current;
+  }
+  private async readApprovedFile(record: RegistryRecord, relativePath: string) {
+    return readFile(await this.approvedFilePath(record, relativePath));
+  }
+  private async readApprovedText(record: RegistryRecord, relativePath: string) {
+    return readFile(await this.approvedFilePath(record, relativePath), "utf8");
+  }
   private async readApprovedManifest(record: RegistryRecord) {
     try {
       const manifest = SkillManifestSchema.parse(
         JSON.parse(
-          await readFile(
-            path.join(record.approvedDirectory ?? "", "manifest.json"),
-            "utf8",
-          ),
+          await this.readApprovedText(record, "manifest.json"),
         ),
       );
+      const definitionFiles = new Map(record.definition.manifest.files.map((file) => [file.relativePath, file]));
+      const seen = new Set<string>();
       for (const file of manifest.files) {
-        const bytes = await readFile(
-          path.join(record.approvedDirectory ?? "", file.relativePath),
-        );
+        const relativePath = safeSkillRelativePath(file.relativePath);
+        if (seen.has(relativePath) || definitionFiles.get(relativePath)?.sha256 !== file.sha256 || definitionFiles.get(relativePath)?.byteSize !== file.byteSize || definitionFiles.get(relativePath)?.kind !== file.kind || definitionFiles.get(relativePath)?.executable !== file.executable)
+          throw new SkillError("SKILL_CHECKSUM_MISMATCH", "Approved manifest does not match the staged manifest.");
+        seen.add(relativePath);
+        if (!record.approval?.approvedFiles.includes(relativePath)) continue;
+        const bytes = await this.readApprovedFile(record, relativePath);
         if (digest(bytes) !== file.sha256)
           throw new SkillError(
             "SKILL_CHECKSUM_MISMATCH",
             "Approved skill content changed after promotion.",
           );
       }
+      if (!seen.has("SKILL.md") || !record.approval?.approvedFiles.includes("SKILL.md")) throw new SkillError("SKILL_CHECKSUM_MISMATCH", "Approved manifest is missing the approved entry file.");
       return manifest;
     } catch (error) {
       if (error instanceof SkillError) throw error;

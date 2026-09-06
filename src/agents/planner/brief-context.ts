@@ -128,7 +128,7 @@ export const canonicalBriefToPlannerBrief = (
     forms: formStatements,
     contentRequirements,
     backendRequirements: statements("BACKEND"),
-    supabaseRequirements: statements("DATABASE"),
+    supabaseRequirements: databaseMode === "NONE" ? [] : statements("DATABASE"),
     authenticationDecision: modeToAuthentication(canonical.decisions.auth.mode),
     storageDecision: databaseMode === "NONE" ? "not-needed" as const : databaseMode === "UNRESOLVED" ? "pending" as const : "needed" as const,
     emailDecision: form.transmissionMode === "EMAIL" ? "needed" as const : "not-needed" as const,

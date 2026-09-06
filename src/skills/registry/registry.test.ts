@@ -44,6 +44,27 @@ describe("approved skills registry", () => {
   it("binds approval to the exact checksum", async () => { const reg = await registry(); const source = await fixture({ "SKILL.md": safeMarkdown }); const { staged } = await approved(reg, source); expect(staged.approval).toBeUndefined(); expect((await reg.getReview(staged.definition.id)).reviewChecksum).toMatch(/^[a-f0-9]{64}$/); });
   it("rejects a candidate checksum that differs from staged provenance", async () => { const reg = await registry(); const source = await fixture({ "SKILL.md": safeMarkdown }); const staged = await reg.stageLocalImport(source, { license: "MIT", sourceType: "skills-sh", normalizedContentChecksum: "a".repeat(64) }); await expect(reg.createApproval(staged.definition.id, { id: "approval-candidate-mismatch", reviewedBy: "reviewer", reviewedAt: new Date().toISOString(), decision: "approved", candidateChecksum: "b".repeat(64), allowedRoles: ["implementation"], allowedTaskTypes: ["implement-frontend"], allowedTools: [], deniedTools: [], allowedCommandPatterns: [], deniedCommandPatterns: [], notes: "Mismatch" })).rejects.toMatchObject({ code: "SKILL_CHECKSUM_MISMATCH" }); });
   it("promotes approved content atomically", async () => { const reg = await registry(); const source = await fixture({ "SKILL.md": safeMarkdown, "references/guide.md": "Guide" }); const { staged } = await approved(reg, source); const loaded = await reg.load({ skillId: staged.definition.id, role: "implementation", taskType: "implement-frontend", requestedFiles: ["references/guide.md"], requestedTools: ["workspace-write"], contextBudgetBytes: 10_000 }); expect(loaded.references[0].content).toBe("Guide"); });
+  it("rejects traversal, absolute, workspace-escape, normalized, and unapproved requested files", async () => {
+    const cases = ["../SKILL.md", "references/../../SKILL.md", path.join(os.tmpdir(), "outside.md"), path.resolve("workspace-escape.md"), "references/./guide.md", "references//guide.md", "references/missing.md"];
+    for (const requestedFile of cases) {
+      const reg = await registry();
+      const source = await fixture({ "SKILL.md": safeMarkdown, "references/guide.md": "Guide" });
+      const { staged } = await approved(reg, source);
+      await expect(reg.load({ skillId: staged.definition.id, role: "implementation", taskType: "implement-frontend", requestedFiles: [requestedFile], requestedTools: [], contextBudgetBytes: 10_000 })).rejects.toMatchObject({ code: "SKILL_PATH_INVALID" });
+    }
+  });
+  it("rejects an approved file replaced by a symlink before loading", async () => {
+    const reg = await registry();
+    const source = await fixture({ "SKILL.md": safeMarkdown, "references/guide.md": "Guide" });
+    const outside = await mkdtemp(path.join(os.tmpdir(), "skill-approved-outside-"));
+    roots.push(outside);
+    await writeFile(path.join(outside, "secret.md"), "secret");
+    const { staged } = await approved(reg, source);
+    const approvedRoot = path.join((reg as { root: string }).root, "approved", staged.definition.slug, `${staged.definition.version}-${staged.definition.sourceChecksum.slice(0, 12)}`, "references", "guide.md");
+    await rm(approvedRoot, { force: true });
+    try { await symlink(path.join(outside, "secret.md"), approvedRoot); } catch { return; }
+    await expect(reg.load({ skillId: staged.definition.id, role: "implementation", taskType: "implement-frontend", requestedFiles: ["references/guide.md"], requestedTools: [], contextBudgetBytes: 10_000 })).rejects.toMatchObject({ code: "SKILL_CHECKSUM_MISMATCH" });
+  });
   it("does not overwrite an existing approved copy", async () => { const reg = await registry(); const source = await fixture({ "SKILL.md": safeMarkdown }); const { staged } = await approved(reg, source); await expect(reg.promoteApproved(staged.definition.id)).rejects.toMatchObject({ code: "SKILL_IMMUTABLE" }); });
   it("rejects changed approved content", async () => { const reg = await registry(); const source = await fixture({ "SKILL.md": safeMarkdown }); const { staged } = await approved(reg, source); const record = await reg.load({ skillId: staged.definition.id, role: "implementation", taskType: "implement-frontend", requestedTools: ["workspace-write"], contextBudgetBytes: 10_000 }); expect(record.skillMarkdown).toContain("Safe"); const approvedRoot = path.join((reg as { root: string }).root, "approved", staged.definition.slug, `${staged.definition.version}-${staged.definition.sourceChecksum.slice(0, 12)}`, "SKILL.md"); await writeFile(approvedRoot, `${safeMarkdown}\nchanged`); await expect(reg.load({ skillId: staged.definition.id, role: "implementation", taskType: "implement-frontend", requestedTools: ["workspace-write"], contextBudgetBytes: 10_000 })).rejects.toMatchObject({ code: "SKILL_CHECKSUM_MISMATCH" }); });
   it("revoked skills cannot load", async () => { const reg = await registry(); const source = await fixture({ "SKILL.md": safeMarkdown }); const { staged } = await approved(reg, source); await reg.revoke(staged.definition.id); await expect(reg.load({ skillId: staged.definition.id, role: "implementation", taskType: "implement-frontend", requestedTools: [], contextBudgetBytes: 10_000 })).rejects.toMatchObject({ code: "SKILL_REVOKED" }); });
