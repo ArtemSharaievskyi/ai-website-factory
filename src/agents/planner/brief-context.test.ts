@@ -126,7 +126,7 @@ describe("canonical Brief to Planner boundary", () => {
     });
     const planning = buildPlanningPackage(input(brief));
     expect(planning.supabase).toMatchObject({ postgres: true, auth: false });
-    expect(planning.dependencies.dependencies.map((dependency) => dependency.name)).toEqual(["zod@^4.4.3", "@supabase/supabase-js@2.112.4", "@supabase/ssr@0.12.6"]);
+    expect(planning.dependencies.dependencies.map((dependency) => dependency.name)).toEqual(["zod@^4.4.3", "@supabase/supabase-js@2.112.4"]);
     expect(validatePlanningDependencies(planning).every((decision) => decision.approved)).toBe(true);
   });
 
