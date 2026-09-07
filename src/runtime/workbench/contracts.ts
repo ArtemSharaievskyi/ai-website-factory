@@ -227,7 +227,9 @@ const STATUS: Record<WorkflowState, { label: string; detail: string; stage: Work
   DRAFT: { label: "Ready for Lead", detail: "Send a project request to begin the controlled workflow.", stage: "Lead" },
   CLARIFYING: { label: "Lead clarification", detail: "Answer the open questions so Lead can prepare a Project Brief.", stage: "Lead" },
   AWAITING_BRIEF_APPROVAL: { label: "Project Brief ready", detail: "Review the current Brief, then approve it or request changes.", stage: "Brief" },
-  AWAITING_DESIGN_SELECTION: { label: "Planning and design", detail: "Planning, architecture review, and design selection remain explicit gates.", stage: "Planning" },
+  AWAITING_PLANNING_GENERATION: { label: "Ready for Planning", detail: "The approved Brief is current and is ready for one Planner generation.", stage: "Planning" },
+  AWAITING_PLANNING_APPROVAL: { label: "Planning ready", detail: "Review the current Planning candidate, then approve it or request changes.", stage: "Planning" },
+  AWAITING_DESIGN_SELECTION: { label: "Design selection", detail: "Architecture review is complete and a current Design Direction must be selected.", stage: "Planning" },
   ARCHITECTURE_REVIEW: { label: "Architecture review", detail: "The current planning package is with the read-only architecture gate.", stage: "Review" },
   READY_FOR_IMPLEMENTATION: { label: "Ready to implement", detail: "All current gates must pass before implementation can start.", stage: "Implementation" },
   CONTRACT_AUDIT: { label: "Contract audit", detail: "The pre-implementation contract chain is being checked.", stage: "Review" },
@@ -256,6 +258,8 @@ export function actionsForWorkbenchState(input: {
       if (input.hasBrief && input.briefReady && !input.hasBlockingQuestions) return ["APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES"];
       return input.hasBlockingQuestions ? ["ANSWER_LEAD_CLARIFICATIONS", ...(input.canRefreshClarifications ? ["REFRESH_LEAD_CLARIFICATIONS" as WorkbenchAction] : [])] : [];
     case "AWAITING_BRIEF_APPROVAL": return input.hasBrief && input.briefReady ? ["APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES"] : [];
+    case "AWAITING_PLANNING_GENERATION": return ["APPROVE_PLANNING"];
+    case "AWAITING_PLANNING_APPROVAL": return input.hasPlanning ? ["APPROVE_PLANNING", "REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL"] : [];
     case "AWAITING_DESIGN_SELECTION":
       return [
         ...(!input.hasPlanning ? ["APPROVE_PLANNING"] as WorkbenchAction[] : []),

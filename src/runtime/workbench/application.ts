@@ -3,7 +3,6 @@ import { DecisionRepository, DocumentRepository, ProjectRepository } from "@/per
 import type { PersistenceDatabase } from "@/persistence/database/types";
 import type { WorkflowState } from "@/domain/workflow/engine";
 import { evaluatePlanningAcceptanceReadiness, planningDocumentChecksum } from "@/agents/planner/deterministic";
-import { FACTORY_ARCHITECTURE_STACK } from "@/agents/reviewers/architecture/contracts";
 import type { PlannerArchitectService } from "@/agents/planner/service";
 import type { ArchitectureReviewOrchestrationService } from "@/orchestration/architecture-review/service";
 import type { DesignAgentService } from "@/agents/design/service";
@@ -325,12 +324,14 @@ export class WorkbenchApplication {
     const brief = approvedBriefForDownstream(persistedBrief, briefV3);
     const decisions = await new DecisionRepository(this.dependencies.database).list(projectId, version);
     const approvedBriefChecksum = briefV3.briefChecksum;
-    const planning = await scope.planner.planApprovedProject({ projectId, projectVersion: version, approvedBrief: brief, canonicalBrief: briefV3.brief, approvedBriefChecksum, originalPromptReference: "original-prompt.md", clarificationEvidenceReferences: ["clarification-log.json"], currentWorkflowState: "AWAITING_DESIGN_SELECTION", existingDecisions: decisions, suppliedFiles: [], allowedSkills: [], idempotencyKey: `workbench-planning:${projectId}`, expectedRowVersion: current.rowVersion });
-    const accepted = await scope.planner.acceptPlanningPackage({ projectId, projectVersion: version, planningChecksum: planningDocumentChecksum(planning), acceptedAt: new Date().toISOString(), acceptedBy: "workbench-user", expectedRowVersion: (await this.projects.getWithVersion(projectId))?.rowVersion ?? current.rowVersion, idempotencyKey: `workbench-planning-accept:${projectId}` });
-    const reviewed = await scope.architectureReviewer.reviewAndRoute({ projectId, projectVersion: version, approvedBrief: brief, canonicalBrief: briefV3.brief, approvedBriefChecksum, acceptedPlanningPackage: accepted.package, acceptedPlanningChecksum: accepted.planningChecksum, factoryArchitecturePolicy: { policyVersion: "factory-architecture-v1", stack: [...FACTORY_ARCHITECTURE_STACK], prohibitedTechnologies: ["redis", "nestjs", "bullmq", "pnpm", "yarn"], serverActionPreference: "preferred", routeHandlerPreference: "second", packageManager: "npm" }, relevantProjectConstraints: brief.technicalConstraints, idempotencyKey: `workbench-architecture-review:${projectId}`, expectedRowVersion: (await this.projects.getWithVersion(projectId))?.rowVersion ?? accepted.rowVersion });
-    if (reviewed.projectState !== "AWAITING_DESIGN_SELECTION") throw new WorkbenchActionError("ARCHITECTURE_REVIEW_BLOCKED", "Architecture review requested changes before Design can begin.");
-    const afterReview = await this.projects.getWithVersion(projectId);
-    await scope.design.generateDesignDirections({ projectId, projectVersion: version, approvedBrief: brief, canonicalBrief: briefV3.brief, approvedBriefChecksum, acceptedPlanningPackage: accepted.package, acceptedPlanningChecksum: accepted.planningChecksum, contentPlan: accepted.package.content, assetManifest: accepted.package.assets, suppliedBrandMetadata: {}, suppliedLogoMetadata: brief.suppliedLogoLocation, imageSourceDecision: brief.imageSourceDecision, designPreferences: [], explicitDesignExclusions: [], currentWorkflowState: "AWAITING_DESIGN_SELECTION", existingDecisions: decisions, allowedSkills: [], idempotencyKey: `workbench-design:${projectId}`, expectedRowVersion: afterReview?.rowVersion ?? reviewed.rowVersion });
+    if (current.project.workflowState === "AWAITING_PLANNING_GENERATION") {
+      await scope.planner.planApprovedProject({ projectId, projectVersion: version, approvedBrief: brief, canonicalBrief: briefV3.brief, approvedBriefChecksum, originalPromptReference: "original-prompt.md", clarificationEvidenceReferences: ["clarification-log.json"], currentWorkflowState: "AWAITING_PLANNING_GENERATION", existingDecisions: decisions, suppliedFiles: [], allowedSkills: [], idempotencyKey: `workbench-planning:${projectId}`, expectedRowVersion: current.rowVersion });
+      return;
+    }
+    if (current.project.workflowState !== "AWAITING_PLANNING_APPROVAL") throw new WorkbenchActionError("PLANNING_WORKFLOW_INVALID", "Planning can only be generated or explicitly approved from its canonical lifecycle states.");
+    const planning = await this.documents.get(projectId, version, "planning-package");
+    if (!planning || planning.documentType !== "planning-package") throw new WorkbenchActionError("PLANNING_NOT_READY", "No current Planning candidate is available for approval.");
+    await scope.planner.acceptPlanningPackage({ projectId, projectVersion: version, planningChecksum: planningDocumentChecksum(planning), acceptedAt: new Date().toISOString(), acceptedBy: "workbench-user", expectedRowVersion: current.rowVersion, idempotencyKey: `workbench-planning-accept:${projectId}` });
   }
 
   private async requestPlanningChanges(projectId: string, reason: string) {

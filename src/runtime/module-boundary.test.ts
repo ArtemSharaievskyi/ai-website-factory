@@ -85,6 +85,7 @@ describe("runtime module boundaries", () => {
       "src/runtime/workbench/application.ts",
       "src/runtime/workbench/contracts.ts",
       "src/runtime/workbench/production.ts",
+      "src/runtime/workbench/workbench.test.ts",
     ]);
     const manifest = document.candidate.exactFileManifest;
     const unchangedManifest = manifest.filter((entry) => !allowlistedHistoricalChanges.has(entry.relativePath));

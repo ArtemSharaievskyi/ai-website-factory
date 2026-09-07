@@ -914,7 +914,7 @@ export class LeadAgentService {
       projectVersion: request.projectVersion,
       expectedState: "AWAITING_BRIEF_APPROVAL",
       expectedRowVersion: request.expectedRowVersion,
-      targetState: "AWAITING_DESIGN_SELECTION",
+      targetState: "AWAITING_PLANNING_GENERATION",
       actor: request.approvedBy,
       reason: "User approved the Project Brief.",
       context: {
@@ -938,7 +938,7 @@ export class LeadAgentService {
         requirements: approved,
         briefChecksum: request.briefChecksum,
       },
-      projectState: "AWAITING_DESIGN_SELECTION" as const,
+      projectState: "AWAITING_PLANNING_GENERATION" as const,
       rowVersion: transition.rowVersion,
     };
     this.drafts.set(

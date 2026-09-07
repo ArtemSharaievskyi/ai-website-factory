@@ -141,6 +141,10 @@ const actionForState = (state: WorkflowState) => {
       return { pendingUserAction: "ANSWER_LEAD_CLARIFICATIONS", nextAllowedActions: ["ANSWER_LEAD_CLARIFICATIONS"] };
     case "AWAITING_BRIEF_APPROVAL":
       return { pendingUserAction: "APPROVE_BRIEF_OR_REQUEST_CHANGES", nextAllowedActions: ["APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES"] };
+    case "AWAITING_PLANNING_GENERATION":
+      return { pendingUserAction: "GENERATE_PLANNING", nextAllowedActions: ["APPROVE_PLANNING", "REQUEST_BRIEF_CHANGES"] };
+    case "AWAITING_PLANNING_APPROVAL":
+      return { pendingUserAction: "APPROVE_PLANNING", nextAllowedActions: ["APPROVE_PLANNING", "REQUEST_BRIEF_CHANGES", "REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL"] };
     case "AWAITING_DESIGN_SELECTION":
       return { pendingUserAction: "APPROVE_PLANNING_AND_SELECT_DESIGN", nextAllowedActions: ["APPROVE_PLANNING", "REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL", "DESIGN_SELECTION"] };
     case "READY_FOR_IMPLEMENTATION":
@@ -522,6 +526,7 @@ export class TrialEntryService {
 
   private revisionTargetState(state: WorkflowState): WorkflowState {
     if (state === "AWAITING_BRIEF_APPROVAL") return "CLARIFYING";
+    if (state === "AWAITING_PLANNING_GENERATION" || state === "AWAITING_PLANNING_APPROVAL") return "AWAITING_BRIEF_APPROVAL";
     if (state === "AWAITING_DESIGN_SELECTION") return "AWAITING_BRIEF_APPROVAL";
     throw new LeadError("BRIEF_REVISION_REQUIRED", "Brief revision is only available before implementation.");
   }

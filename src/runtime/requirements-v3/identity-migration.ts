@@ -263,7 +263,8 @@ async function assertIdentityMigrationReadback(input: {
   }
 
   if (input.updatedVersion.rowVersion !== input.version.rowVersion + 1 || input.updatedVersion.requirementsChecksum !== input.plan.nextBriefChecksum) fail("The committed Project Version binding is inconsistent.");
-  const expectedProjectRowVersion = input.project.workflow_state === "AWAITING_DESIGN_SELECTION" ? input.project.row_version + 1 : input.project.row_version;
+  const invalidatesBriefApproval = ["AWAITING_PLANNING_GENERATION", "AWAITING_PLANNING_APPROVAL", "AWAITING_DESIGN_SELECTION"].includes(input.project.workflow_state);
+  const expectedProjectRowVersion = invalidatesBriefApproval ? input.project.row_version + 1 : input.project.row_version;
   if (input.updatedProject.row_version !== expectedProjectRowVersion) fail("The committed project currentness row version is inconsistent.");
 
   const storedLineage = await input.tx.listRequirementIdentityLineage(input.plan.projectId, input.plan.projectVersion);
@@ -329,7 +330,7 @@ export class RequirementIdentityMigrationService {
       ? PlanningPackageSchema.parse({ ...prepared.nextPlanningPackage, createdAt: planningRow.createdAt, updatedAt: now })
       : null;
     await tx.updateVersionArtifactChecksums({ projectId: plan.projectId, version: plan.projectVersion, expectedRowVersion: version.rowVersion, requirementsChecksum: plan.nextBriefChecksum, selectedDesignChecksum: null, architectureChecksum: null, updatedAt: now });
-    if (project.workflow_state === "AWAITING_DESIGN_SELECTION") {
+    if (["AWAITING_PLANNING_GENERATION", "AWAITING_PLANNING_APPROVAL", "AWAITING_DESIGN_SELECTION"].includes(project.workflow_state)) {
       transitionWorkflow(project.workflow_state, "AWAITING_BRIEF_APPROVAL");
       await tx.updateProjectState({ id: project.id, expectedState: project.workflow_state, expectedRowVersion: project.row_version, state: "AWAITING_BRIEF_APPROVAL", updatedAt: now });
       await tx.appendWorkflowEvent({ id: randomUUID(), projectId: project.id, projectVersion: plan.projectVersion, fromState: project.workflow_state, toState: "AWAITING_BRIEF_APPROVAL", actor: input.actor ?? "requirement-identity-migration", reason: "Canonical requirement identities changed; downstream approvals require explicit re-approval.", createdAt: now, idempotencyKey: id });

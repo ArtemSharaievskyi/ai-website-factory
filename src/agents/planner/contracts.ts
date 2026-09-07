@@ -3,7 +3,7 @@ import { AssetManifestSchema } from "@/domain/assets/schema";
 import { TechnicalArchitectureSchema } from "@/domain/architecture/schema";
 import { ContentPlanSchema } from "@/domain/content/schema";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
-import { CanonicalBriefV3Schema, RoutePolicySchema, type CanonicalBriefV3 } from "@/domain/requirements/v3/schema";
+import { CanonicalBriefV3Schema, RequirementCategorySchema, RoutePolicySchema, type CanonicalBriefV3 } from "@/domain/requirements/v3/schema";
 import { WorkflowStateSchema } from "@/domain/project/schema";
 import { DocumentBaseSchema, IsoDateTimeSchema, NonEmptyStringSchema } from "@/domain/shared/schemas";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
@@ -93,7 +93,17 @@ export type ProductScopePlan = z.infer<typeof ProductScopePlanSchema>;
 export const ProfileSelectionSchema = z.object({ selectedProfile: z.enum(["marketing-site", "business-site", "web-application"]), rationale: NonEmptyStringSchema, requirementReferences: z.array(NonEmptyStringSchema).min(1), rejectedProfiles: z.array(z.object({ profile: z.enum(["marketing-site", "business-site", "web-application"]), rationale: NonEmptyStringSchema }).strict()) }).strict();
 export type ProfileSelection = z.infer<typeof ProfileSelectionSchema>;
 
-export const PlannerAgentInputSchema = z.object({ projectId: z.string().uuid(), projectVersion: z.number().int().positive(), approvedBrief: RequirementSpecificationSchema, canonicalBrief: CanonicalBriefV3Schema.optional(), approvedBriefChecksum: z.string().regex(/^[a-f0-9]{64}$/), originalPromptReference: NonEmptyStringSchema, clarificationEvidenceReferences: z.array(NonEmptyStringSchema), currentWorkflowState: WorkflowStateSchema, existingDecisions: z.array(z.unknown()), suppliedFiles: z.array(z.object({ path: NonEmptyStringSchema, kind: NonEmptyStringSchema, sha256: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict()), allowedSkills: z.array(NonEmptyStringSchema), allowedTools: z.array(NonEmptyStringSchema).optional(), idempotencyKey: NonEmptyStringSchema, expectedRowVersion: z.number().int().positive() }).strict();
+const PlannerAuthorityRouteSchema = z.object({ routeId: NonEmptyStringSchema, pageId: NonEmptyStringSchema, path: z.string().regex(/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/), purpose: NonEmptyStringSchema }).strict();
+const PlannerRequirementLedgerEntrySchema = z.object({ requirementId: NonEmptyStringSchema, statement: NonEmptyStringSchema.max(4000), category: RequirementCategorySchema, planningCoverageType: z.enum(["REQUIRED_PLANNING_COVERAGE", "NON_PLANNING_OWNED"]) }).strict();
+export const PlannerAuthorityContextSchema = z.object({ routePolicy: RoutePolicySchema, allowedRoutes: z.array(PlannerAuthorityRouteSchema), requirementLedger: z.array(PlannerRequirementLedgerEntrySchema), allowedCanonicalRequirementIds: z.array(NonEmptyStringSchema), requiredCanonicalRequirementIds: z.array(NonEmptyStringSchema) }).strict().superRefine((value, context) => {
+  const ledgerIds = value.requirementLedger.map((entry) => entry.requirementId);
+  if (new Set(ledgerIds).size !== ledgerIds.length) context.addIssue({ code: z.ZodIssueCode.custom, path: ["requirementLedger"], message: "Planner requirement ledger identities must be unique." });
+  const allowed = new Set(value.allowedCanonicalRequirementIds);
+  if (value.requiredCanonicalRequirementIds.some((id) => !allowed.has(id))) context.addIssue({ code: z.ZodIssueCode.custom, path: ["requiredCanonicalRequirementIds"], message: "Required Planner requirement IDs must be members of the canonical allowlist." });
+  if (value.requirementLedger.some((entry) => entry.planningCoverageType === "REQUIRED_PLANNING_COVERAGE" && !value.requiredCanonicalRequirementIds.includes(entry.requirementId))) context.addIssue({ code: z.ZodIssueCode.custom, path: ["requirementLedger"], message: "Every Planning-owned ledger entry must be required for Planning coverage." });
+});
+export type PlannerAuthorityContext = z.infer<typeof PlannerAuthorityContextSchema>;
+export const PlannerAgentInputSchema = z.object({ projectId: z.string().uuid(), projectVersion: z.number().int().positive(), approvedBrief: RequirementSpecificationSchema, canonicalBrief: CanonicalBriefV3Schema.optional(), plannerAuthority: PlannerAuthorityContextSchema.optional(), approvedBriefChecksum: z.string().regex(/^[a-f0-9]{64}$/), originalPromptReference: NonEmptyStringSchema, clarificationEvidenceReferences: z.array(NonEmptyStringSchema), currentWorkflowState: WorkflowStateSchema, existingDecisions: z.array(z.unknown()), suppliedFiles: z.array(z.object({ path: NonEmptyStringSchema, kind: NonEmptyStringSchema, sha256: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict()), allowedSkills: z.array(NonEmptyStringSchema), allowedTools: z.array(NonEmptyStringSchema).optional(), idempotencyKey: NonEmptyStringSchema, expectedRowVersion: z.number().int().positive() }).strict();
 export type PlannerAgentInput = z.input<typeof PlannerAgentInputSchema>;
 export type { CanonicalBriefV3 };
 

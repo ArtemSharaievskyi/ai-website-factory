@@ -41,14 +41,14 @@ function pilotBrief(withPlanningBlocker = false) {
 async function seed(brief = pilotBrief()) {
   const database = new InMemoryPersistenceDatabase();
   const projectId = randomUUID();
-  const project = FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: projectId, slug: "synthetic-planner-boundary", originalPrompt: "Synthetic planning boundary fixture.", currentVersion: 1, workflowState: "AWAITING_DESIGN_SELECTION" });
+  const project = FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: projectId, slug: "synthetic-planner-boundary", originalPrompt: "Synthetic planning boundary fixture.", currentVersion: 1, workflowState: "AWAITING_PLANNING_GENERATION" });
   await new ProjectRepository(database).create(project);
   const briefChecksum = canonicalBriefChecksum(brief);
-  await new ProjectVersionRepository(database).create({ id: randomUUID(), projectId, versionNumber: 1, state: "AWAITING_DESIGN_SELECTION", memoryRootPath: null, requirementsChecksum: briefChecksum, selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
+  await new ProjectVersionRepository(database).create({ id: randomUUID(), projectId, versionNumber: 1, state: "AWAITING_PLANNING_GENERATION", memoryRootPath: null, requirementsChecksum: briefChecksum, selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
   const document = createBriefV3Document({ projectId, projectVersion: 1, brief, createdAt: timestamp, updatedAt: timestamp });
   await new DocumentRepository(database).save(BriefV3DocumentSchema.parse({ ...document, approval: { approved: true, approvedAt: timestamp, approvedBy: "synthetic-user", approvedCanonicalChecksum: document.briefChecksum } }));
   const approvedBrief = RequirementSpecificationSchema.parse({ ...representativeV1Brief, projectId, projectVersion: 1 });
-  const input: PlannerAgentInput = { projectId, projectVersion: 1, approvedBrief, canonicalBrief: brief, approvedBriefChecksum: briefChecksum, originalPromptReference: "synthetic-prompt", clarificationEvidenceReferences: ["synthetic-clarification"], currentWorkflowState: "AWAITING_DESIGN_SELECTION", existingDecisions: [], suppliedFiles: [], allowedSkills: [], idempotencyKey: randomUUID(), expectedRowVersion: 1 };
+  const input: PlannerAgentInput = { projectId, projectVersion: 1, approvedBrief, canonicalBrief: brief, approvedBriefChecksum: briefChecksum, originalPromptReference: "synthetic-prompt", clarificationEvidenceReferences: ["synthetic-clarification"], currentWorkflowState: "AWAITING_PLANNING_GENERATION", existingDecisions: [], suppliedFiles: [], allowedSkills: [], idempotencyKey: randomUUID(), expectedRowVersion: 1 };
   return { database, projectId, brief, input };
 }
 

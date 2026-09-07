@@ -38,7 +38,7 @@ function plannerInput(brief: CanonicalBriefV3, projectId: string = randomUUID())
     approvedBriefChecksum: canonicalBriefChecksum(brief),
     originalPromptReference: "synthetic-refresh-prompt",
     clarificationEvidenceReferences: ["synthetic-clarification"],
-    currentWorkflowState: "AWAITING_DESIGN_SELECTION",
+    currentWorkflowState: "AWAITING_PLANNING_GENERATION",
     existingDecisions: [],
     suppliedFiles: [],
     allowedSkills: [],
@@ -66,14 +66,14 @@ async function seededFixture(brief = fixtureBrief()) {
     slug: "synthetic-planning-refresh",
     originalPrompt: "Synthetic planning refresh fixture.",
     currentVersion: 1,
-    workflowState: "AWAITING_DESIGN_SELECTION",
+    workflowState: "AWAITING_PLANNING_GENERATION",
   });
   await new ProjectRepository(database).create(project);
   await new ProjectVersionRepository(database).create({
     id: randomUUID(),
     projectId,
     versionNumber: 1,
-    state: "AWAITING_DESIGN_SELECTION",
+    state: "AWAITING_PLANNING_GENERATION",
     memoryRootPath: null,
     requirementsChecksum: canonicalBriefChecksum(brief),
     selectedDesignChecksum: null,
@@ -340,7 +340,7 @@ describe("host-owned Planning refresh admission", () => {
 
     expect(validation.ready).toBe(false);
     await expect(service.acceptPlanningPackage({ projectId: fixture.projectId, projectVersion: 1, planningChecksum: checksumPersistedDocument(bad), acceptedBy: "synthetic-user", acceptedAt: timestamp, expectedRowVersion: 1, idempotencyKey: randomUUID() })).rejects.toMatchObject({ code: "ARCHITECTURE_BLOCKED" });
-    expect(fixture.database.projects.get(fixture.projectId)?.workflow_state).toBe("AWAITING_DESIGN_SELECTION");
+    expect(fixture.database.projects.get(fixture.projectId)?.workflow_state).toBe("AWAITING_PLANNING_GENERATION");
     expect((await fixture.database.transaction((tx) => tx.listDecisions(fixture.projectId, 1)))).toHaveLength(0);
   });
 

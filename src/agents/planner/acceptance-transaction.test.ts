@@ -92,7 +92,7 @@ function plannerInput(brief: RequirementSpecification): PlannerAgentInput {
     approvedBriefChecksum: checksumPersistedDocument(brief),
     originalPromptReference: "original-prompt.md",
     clarificationEvidenceReferences: ["clarification-log.json"],
-    currentWorkflowState: "AWAITING_DESIGN_SELECTION",
+    currentWorkflowState: "AWAITING_PLANNING_GENERATION",
     existingDecisions: [],
     suppliedFiles: [],
     allowedSkills: [],
@@ -117,9 +117,9 @@ async function createFixture(database: PersistenceDatabase = new InMemoryPersist
   const projectId = randomUUID();
   const brief = syntheticBrief(projectId);
   const planning = deferredPackage(brief);
-  const project = FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: projectId, slug: `synthetic-planning-atomic-${runId}-${projectId.slice(0, 8)}`, origin: "SYNTHETIC", siteLanguage: "en", originalPrompt: "Synthetic Planning Acceptance transaction fixture.", currentVersion: 1, workflowState: "AWAITING_DESIGN_SELECTION" });
+  const project = FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: projectId, slug: `synthetic-planning-atomic-${runId}-${projectId.slice(0, 8)}`, origin: "SYNTHETIC", siteLanguage: "en", originalPrompt: "Synthetic Planning Acceptance transaction fixture.", currentVersion: 1, workflowState: "AWAITING_PLANNING_APPROVAL" });
   await new ProjectRepository(database).create(project);
-  await new ProjectVersionRepository(database).create({ id: randomUUID(), projectId, versionNumber: 1, state: "AWAITING_DESIGN_SELECTION", memoryRootPath: null, requirementsChecksum: checksumPersistedDocument(brief), selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
+  await new ProjectVersionRepository(database).create({ id: randomUUID(), projectId, versionNumber: 1, state: "AWAITING_PLANNING_APPROVAL", memoryRootPath: null, requirementsChecksum: checksumPersistedDocument(brief), selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
   const documents = new DocumentRepository(database);
   await documents.save(brief);
   await documents.save(planning);
@@ -205,7 +205,7 @@ describe("Planning Acceptance canonical transaction", () => {
     expect(state.decisions).toHaveLength(1);
     expect(state.decisions[0]).toMatchObject({ category: "planning-acceptance", actorIdentifier: "synthetic-user" });
     expect(state.events).toHaveLength(1);
-    expect(state.events[0]).toMatchObject({ fromState: "AWAITING_DESIGN_SELECTION", toState: "ARCHITECTURE_REVIEW" });
+    expect(state.events[0]).toMatchObject({ fromState: "AWAITING_PLANNING_APPROVAL", toState: "ARCHITECTURE_REVIEW" });
     expect(accepted.accepted).toBe(true);
     expect(JSON.stringify(semanticPlanningValue(accepted))).toBe(beforeSemantic);
     expect(planningSemanticChecksum(accepted)).toBe(beforeSemanticChecksum);
@@ -238,7 +238,7 @@ describe("Planning Acceptance canonical transaction", () => {
     const service = new PlannerArchitectService({ database: fixture.database, memory: fixture.memory, acceptanceFaultInjector: { hit: async (current) => { if (current === point) throw new Error(`synthetic-${point}`); } } });
     await expect(service.acceptPlanningPackage(acceptanceInput(fixture))).rejects.toThrow(`synthetic-${point}`);
     const state = await stateOf(fixture.database, fixture.projectId);
-    expect(state.project).toMatchObject({ workflow_state: "AWAITING_DESIGN_SELECTION", row_version: 1 });
+    expect(state.project).toMatchObject({ workflow_state: "AWAITING_PLANNING_APPROVAL", row_version: 1 });
     expect(state.planning?.checksum).toBe(mapDocumentToRow(fixture.planning).checksum);
     expect(state.architecture?.rowVersion).toBe(1);
     expect(state.phase7c).toBeNull();
@@ -254,7 +254,7 @@ describe("Planning Acceptance canonical transaction", () => {
     const service = new PlannerArchitectService({ database: fixture.database, memory: fixture.memory });
     await expect(service.acceptPlanningPackage(acceptanceInput(fixture, { expectedRowVersion: observed?.rowVersion ?? 1 }))).rejects.toMatchObject({ code: "PLANNING_STALE" });
     const state = await stateOf(fixture.database, fixture.projectId);
-    expect(state.project?.workflow_state).toBe("AWAITING_DESIGN_SELECTION");
+    expect(state.project?.workflow_state).toBe("AWAITING_PLANNING_APPROVAL");
     expect(state.decisions).toHaveLength(0);
     expect(state.events).toHaveLength(0);
   });
@@ -266,7 +266,7 @@ describe("Planning Acceptance canonical transaction", () => {
     const service = new PlannerArchitectService({ database: fixture.database, memory: fixture.memory });
     await expect(service.acceptPlanningPackage(acceptanceInput({ ...fixture, planning: blocked }))).rejects.toMatchObject({ code: "ARCHITECTURE_BLOCKED" });
     const state = await stateOf(fixture.database, fixture.projectId);
-    expect(state.project?.workflow_state).toBe("AWAITING_DESIGN_SELECTION");
+    expect(state.project?.workflow_state).toBe("AWAITING_PLANNING_APPROVAL");
     expect(state.decisions).toHaveLength(0);
     expect(state.events).toHaveLength(0);
     expect(state.phase7c).toBeNull();

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderApprovedProceduralGuidance, rolePrompt } from "./prompts";
+import { cleanBriefV3 } from "@/domain/requirements/v3/fixtures";
+import { plannerAuthorityFor } from "@/agents/planner/service";
 
 describe("approved procedural prompt guidance", () => {
   it("renders multiple procedures with checksums and non-authority boundaries", () => {
@@ -22,6 +24,20 @@ describe("approved procedural prompt guidance", () => {
     expect(prompt.system).toContain("do not call that a contradiction");
     expect(prompt.system).toContain("typed routePolicy and sitemap");
     expect(prompt.system).toContain("supplied accepted Planning asset evidence");
+  });
+
+  it("binds Planner generation to the canonical page and requirement allowlists", () => {
+    const plannerAuthority = plannerAuthorityFor(cleanBriefV3);
+    const prompt = rolePrompt("planner", { canonicalBrief: cleanBriefV3, plannerAuthority });
+    expect(prompt.system).toContain("only allowed sitemap/page paths");
+    expect(prompt.system).toContain("Complete coverage is required for every host-issued canonical requirement ID");
+    expect(plannerAuthority.requirementLedger).toHaveLength(cleanBriefV3.requirements.length);
+    expect(plannerAuthority.requirementLedger.every((entry) => entry.statement && entry.category && entry.planningCoverageType)).toBe(true);
+    for (const page of cleanBriefV3.pages) {
+      const path = page.slug === "home" || page.slug === "index" ? "/" : `/${page.slug}`;
+      expect(prompt.system).toContain(path);
+    }
+    for (const requirement of cleanBriefV3.requirements) expect(prompt.system).toContain(requirement.id);
   });
 
   it("keeps multi-skill guidance deterministic and identity-ready for every semantic role", () => {

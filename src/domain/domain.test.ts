@@ -31,14 +31,14 @@ describe("domain contracts", () => {
 
   it("requires approval and unresolved-item resolution", () => {
     const pending = requirements(false);
-    expect(() => transitionWorkflow("AWAITING_BRIEF_APPROVAL", "AWAITING_DESIGN_SELECTION", { requirements: pending, requirementsChecksum: "a".repeat(64) })).toThrowError(DomainError);
+    expect(() => transitionWorkflow("AWAITING_BRIEF_APPROVAL", "AWAITING_PLANNING_GENERATION", { requirements: pending, requirementsChecksum: "a".repeat(64) })).toThrowError(DomainError);
     const blocked = RequirementSpecificationSchema.parse({ ...requirements(true), unresolvedItems: [{ id: id(), description: "Need legal fact", blocking: true }] });
     expect(() => transitionWorkflow("CLARIFYING", "AWAITING_BRIEF_APPROVAL", { requirements: blocked })).toThrowError(/Blocking/);
   });
 
   it("enforces requirement checksums and exactly three unique directions", () => {
     const req = requirements(true);
-    expect(() => transitionWorkflow("AWAITING_BRIEF_APPROVAL", "AWAITING_DESIGN_SELECTION", { requirements: req, requirementsChecksum: "b".repeat(64) })).toThrowError(/checksum/i);
+    expect(() => transitionWorkflow("AWAITING_BRIEF_APPROVAL", "AWAITING_PLANNING_GENERATION", { requirements: req, requirementsChecksum: "b".repeat(64) })).toThrowError(/checksum/i);
     const dirs = [direction(), direction(), direction()];
     const set = DesignDirectionSetSchema.parse({ ...base("design-directions"), setId: id(), directions: dirs, generatedAt: "2026-01-01T00:00:00.000Z", generatedBy: "system", readyForSelection: true });
     expect(set.directions).toHaveLength(3);

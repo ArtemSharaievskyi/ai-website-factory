@@ -509,7 +509,7 @@ function validateCurrentness(input: { brief: CanonicalBriefV3; planning: Plannin
   if (planning.accepted || currentness.planning.accepted) blockers.push("RECONCILIATION_PLANNING_ALREADY_ACCEPTED");
   if (planning.accepted !== currentness.planning.accepted) blockers.push("RECONCILIATION_ACCEPTANCE_TOKEN_INVALID");
   if (currentness.historicalDeltaAvailable) blockers.push("RECONCILIATION_HISTORICAL_DELTA_PREFERRED");
-  if (currentness.workflowState !== "AWAITING_DESIGN_SELECTION") blockers.push("RECONCILIATION_WORKFLOW_STATE_INVALID");
+  if (currentness.workflowState !== "AWAITING_PLANNING_APPROVAL" && currentness.workflowState !== "AWAITING_DESIGN_SELECTION") blockers.push("RECONCILIATION_WORKFLOW_STATE_INVALID");
   if (!allCoreContractChecksPass(core)) blockers.push("RECONCILIATION_CORE_CONTRACT_INVALID");
   if (currentness.projectId !== planning.projectId || currentness.projectVersion !== planning.projectVersion) blockers.push("RECONCILIATION_PROJECT_BINDING_INVALID");
   if (currentness.planning.approvedBriefChecksum !== planning.approvedBriefChecksum) blockers.push("RECONCILIATION_PLANNING_BRIEF_BINDING_INVALID");

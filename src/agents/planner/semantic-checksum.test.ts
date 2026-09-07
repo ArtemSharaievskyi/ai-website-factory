@@ -20,7 +20,7 @@ function planningPackage() {
     approvedBriefChecksum: canonicalBriefChecksum(brief),
     originalPromptReference: "synthetic-checksum-prompt",
     clarificationEvidenceReferences: [],
-    currentWorkflowState: "AWAITING_DESIGN_SELECTION",
+    currentWorkflowState: "AWAITING_PLANNING_GENERATION",
     existingDecisions: [],
     suppliedFiles: [],
     allowedSkills: [],

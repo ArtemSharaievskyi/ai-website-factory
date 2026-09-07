@@ -63,7 +63,7 @@ function plannerInput(brief: CanonicalBriefV3, projectId: string): PlannerAgentI
     approvedBriefChecksum: canonicalBriefChecksum(brief),
     originalPromptReference: "synthetic-acceptance-evidence",
     clarificationEvidenceReferences: [],
-    currentWorkflowState: "AWAITING_DESIGN_SELECTION",
+    currentWorkflowState: "AWAITING_PLANNING_GENERATION",
     existingDecisions: [],
     suppliedFiles: [],
     allowedSkills: [],
@@ -196,11 +196,11 @@ describe("host-owned Planning Acceptance evidence projection", () => {
     const accounting = accountingFor(brief, fixture.candidate);
     const briefDocument = createBriefV3Document({ projectId, projectVersion: 1, brief, createdAt: timestamp, updatedAt: timestamp });
     const approvedBrief = BriefV3DocumentSchema.parse({ ...briefDocument, approval: { approved: true, approvedAt: timestamp, approvedBy: "synthetic-user", approvedCanonicalChecksum: briefDocument.briefChecksum } });
-    const project = FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: projectId, slug: "synthetic-acceptance-projection", origin: "SYNTHETIC", siteLanguage: "en", originalPrompt: "Synthetic acceptance projection fixture.", currentVersion: 1, workflowState: "AWAITING_DESIGN_SELECTION" });
+    const project = FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: projectId, slug: "synthetic-acceptance-projection", origin: "SYNTHETIC", siteLanguage: "en", originalPrompt: "Synthetic acceptance projection fixture.", currentVersion: 1, workflowState: "AWAITING_PLANNING_APPROVAL" });
     const database = new InMemoryPersistenceDatabase();
     await new ProjectRepository(database).create(project);
     const versionId = randomUUID();
-    await new ProjectVersionRepository(database).create({ id: versionId, projectId, versionNumber: 1, state: "AWAITING_DESIGN_SELECTION", memoryRootPath: null, requirementsChecksum: approvedBrief.briefChecksum, selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
+    await new ProjectVersionRepository(database).create({ id: versionId, projectId, versionNumber: 1, state: "AWAITING_PLANNING_APPROVAL", memoryRootPath: null, requirementsChecksum: approvedBrief.briefChecksum, selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
     const documents = new DocumentRepository(database);
     await documents.save(approvedBrief);
     await documents.save(fixture.candidate);
@@ -219,7 +219,7 @@ describe("host-owned Planning Acceptance evidence projection", () => {
       versionId,
       recoveryReason: "UNRECOVERABLE_CURRENT_PLANNING_STATE" as const,
       sourceHead: "a".repeat(40),
-      currentness: { projectId, projectVersion: 1, projectRowVersion: 1, projectVersionRowVersion: 1, workflowState: "AWAITING_DESIGN_SELECTION" as const, briefRowVersion: 1, briefSemanticChecksum: approvedBrief.briefChecksum, briefDocumentChecksum: checksumPersistedDocument(approvedBrief), planningRowVersion: 1, planningSemanticChecksum: planningSemanticChecksum(fixture.candidate), planningDocumentChecksum: planningDocumentChecksum(fixture.candidate), planningSemanticChecksumPolicy: fixture.candidate.semanticChecksumPolicyVersion!, planningApprovedBriefChecksum: fixture.candidate.approvedBriefChecksum, planningAccepted: false as const },
+      currentness: { projectId, projectVersion: 1, projectRowVersion: 1, projectVersionRowVersion: 1, workflowState: "AWAITING_PLANNING_APPROVAL" as const, briefRowVersion: 1, briefSemanticChecksum: approvedBrief.briefChecksum, briefDocumentChecksum: checksumPersistedDocument(approvedBrief), planningRowVersion: 1, planningSemanticChecksum: planningSemanticChecksum(fixture.candidate), planningDocumentChecksum: planningDocumentChecksum(fixture.candidate), planningSemanticChecksumPolicy: fixture.candidate.semanticChecksumPolicyVersion!, planningApprovedBriefChecksum: fixture.candidate.approvedBriefChecksum, planningAccepted: false as const },
       briefChecksum: approvedBrief.briefChecksum,
       routePolicy: brief.decisions.routePolicy.mode,
       decisions: brief.decisions,

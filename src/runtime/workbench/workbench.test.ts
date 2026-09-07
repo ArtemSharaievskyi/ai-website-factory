@@ -106,7 +106,7 @@ describe("Factory Workbench projection and boundary", () => {
     const readyAgain = await app.handle({ action: "status", projectId });
     if (!readyAgain.project || !readyAgain.brief) throw new Error("fixture Brief was not ready");
     const approved = await app.handle({ action: "approve-brief", projectId, briefChecksum: readyAgain.brief.checksum, expectedRowVersion: readyAgain.project.rowVersion });
-    expect(approved.project?.workflowState).toBe("AWAITING_DESIGN_SELECTION");
+    expect(approved.project?.workflowState).toBe("AWAITING_PLANNING_GENERATION");
   });
 
   it("projects pilot-shaped legal placeholders as Brief-ready without changing workflow state", async () => {

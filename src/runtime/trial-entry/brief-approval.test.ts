@@ -42,7 +42,7 @@ describe("host-owned V3 Brief approval", () => {
     const before = await f.app.handle({ action: "status", projectId: f.projectId });
     expect(before.status.allowedActions).toEqual(["APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES"]);
     const approved = await f.app.handle({ action: "approve-brief", projectId: f.projectId, briefChecksum: f.document.briefChecksum, expectedRowVersion: before.project!.rowVersion });
-    expect(approved.project?.workflowState).toBe("AWAITING_DESIGN_SELECTION");
+    expect(approved.project?.workflowState).toBe("AWAITING_PLANNING_GENERATION");
     expect(approved.brief?.approved).toBe(true);
     const state = await f.database.transaction(async (tx) => ({
       project: await tx.getProject(f.projectId),
@@ -53,7 +53,7 @@ describe("host-owned V3 Brief approval", () => {
       history: await tx.listBriefRevisionHistory(f.projectId, 1),
     }));
     const persisted = BriefV3DocumentSchema.parse((await new DocumentRepository(f.database).get(f.projectId, 1, "brief-v3")));
-    expect(state.project?.workflow_state).toBe("AWAITING_DESIGN_SELECTION");
+    expect(state.project?.workflow_state).toBe("AWAITING_PLANNING_GENERATION");
     expect(state.project?.row_version).toBe(2);
     expect(state.version?.rowVersion).toBe(1);
     expect(persisted.approval?.approved).toBe(true);
@@ -62,7 +62,7 @@ describe("host-owned V3 Brief approval", () => {
     expect(persisted.briefChecksum).toBe(f.document.briefChecksum);
     expect(state.document?.checksum).not.toBe(checksumPersistedDocument(f.document));
     expect(state.events).toHaveLength(1);
-    expect(state.events[0]).toMatchObject({ fromState: "CLARIFYING", toState: "AWAITING_DESIGN_SELECTION" });
+    expect(state.events[0]).toMatchObject({ fromState: "CLARIFYING", toState: "AWAITING_PLANNING_GENERATION" });
     expect(state.decisions).toHaveLength(1);
     expect(state.decisions[0]?.category).toBe("brief-approval");
     expect(state.history).toHaveLength(0);
@@ -74,8 +74,8 @@ describe("host-owned V3 Brief approval", () => {
   });
 
   it("requires the host approval context for the direct V3 workflow transition", () => {
-    expect(() => transitionWorkflow("CLARIFYING", "AWAITING_DESIGN_SELECTION")).toThrow(/approved current Brief/i);
-    expect(transitionWorkflow("CLARIFYING", "AWAITING_DESIGN_SELECTION", { briefApproval: { approved: true, canonicalChecksum: "a".repeat(64) } })).toBe("AWAITING_DESIGN_SELECTION");
+    expect(() => transitionWorkflow("CLARIFYING", "AWAITING_PLANNING_GENERATION")).toThrow(/approved current Brief/i);
+    expect(transitionWorkflow("CLARIFYING", "AWAITING_PLANNING_GENERATION", { briefApproval: { approved: true, canonicalChecksum: "a".repeat(64) } })).toBe("AWAITING_PLANNING_GENERATION");
   });
 
   it("keeps repeated approval idempotent and non-duplicating", async () => {
@@ -139,7 +139,7 @@ describe("host-owned V3 Brief approval", () => {
     const first = await f.entry.approveBrief({ projectId: f.projectId, briefChecksum: f.document.briefChecksum, expectedRowVersion: 1 });
     const reconstructed = new TrialEntryService({ database: f.database, createLeadAgent: () => { throw new Error("LEAD_APPROVAL_PATH_REACHED"); } });
     const status = await reconstructed.status(f.projectId);
-    expect(status.workflowState).toBe("AWAITING_DESIGN_SELECTION");
+    expect(status.workflowState).toBe("AWAITING_PLANNING_GENERATION");
     expect(status.brief).toMatchObject({ approved: true, checksum: f.document.briefChecksum });
     const replay = await reconstructed.approveBrief({ projectId: f.projectId, briefChecksum: f.document.briefChecksum, expectedRowVersion: 1 });
     expect(replay).toEqual(first);

@@ -250,7 +250,7 @@ export type PlanningRecoveryProviderAttemptStartCurrentness = {
   projectVersion: number;
   projectRowVersion: number;
   projectVersionRowVersion: number;
-  workflowState: "AWAITING_DESIGN_SELECTION";
+  workflowState: "AWAITING_PLANNING_APPROVAL" | "AWAITING_DESIGN_SELECTION";
   briefRowVersion: number;
   briefSemanticChecksum: string;
   briefDocumentChecksum: string;

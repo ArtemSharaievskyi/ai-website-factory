@@ -65,7 +65,7 @@ const plannerInput = (value: RequirementSpecification): PlannerAgentInput => ({
   approvedBriefChecksum: checksumPersistedDocument(value),
   originalPromptReference: "synthetic-prompt.md",
   clarificationEvidenceReferences: ["synthetic-clarification-log.json"],
-  currentWorkflowState: "AWAITING_DESIGN_SELECTION",
+  currentWorkflowState: "AWAITING_PLANNING_APPROVAL",
   existingDecisions: [],
   suppliedFiles: [],
   allowedSkills: [],

@@ -79,8 +79,25 @@ import {
   type PlanningBriefDelta,
 } from "./changeset";
 import { type PlanningRefreshDiagnosticAttempt } from "./refresh-diagnostics";
+import type { TransitionContext } from "@/domain/workflow/engine";
+import { canonicalRequirementEntries } from "@/domain/requirements/v3/identity";
 
 const now = () => new Date().toISOString();
+
+export function plannerAuthorityFor(brief: z.infer<typeof BriefV3DocumentSchema>["brief"]) {
+  const routeManifest = createCanonicalPlanningRouteManifest(brief);
+  const planningManifest = createPlanningOwnedRequirementManifest(brief);
+  const requiredIds = new Set(planningManifest.requirements.map((entry) => entry.requirementId));
+  const requirementLedger = canonicalRequirementEntries(brief).map((entry) => ({ requirementId: entry.id, statement: entry.statement, category: entry.category, planningCoverageType: requiredIds.has(entry.id) ? "REQUIRED_PLANNING_COVERAGE" as const : "NON_PLANNING_OWNED" as const }));
+  const requirementIds = requirementLedger.map((entry) => entry.requirementId).sort();
+  return {
+    routePolicy: routeManifest.routePolicy,
+    allowedRoutes: routeManifest.routes.map((route) => ({ routeId: route.routeId, pageId: route.pageId, path: route.path, purpose: route.pagePurpose })),
+    requirementLedger,
+    allowedCanonicalRequirementIds: requirementIds,
+    requiredCanonicalRequirementIds: [...requiredIds].sort(),
+  };
+}
 
 function architectureReviewDomains(review: ArchitectureReviewResult): PlanningRefreshDomain[] {
   const domains = new Set<PlanningRefreshDomain>(["traceability"]);
@@ -313,10 +330,11 @@ export class PlannerArchitectService {
   }
   async planApprovedProject(rawInput: PlannerAgentInput) {
     const input = this.parseInput(rawInput);
-    if (input.currentWorkflowState !== "AWAITING_DESIGN_SELECTION")
+    const legacyPlanningRefresh = input.currentWorkflowState === "AWAITING_DESIGN_SELECTION";
+    if (input.currentWorkflowState !== "AWAITING_PLANNING_GENERATION" && !legacyPlanningRefresh)
       throw new PlannerError(
         "PLANNER_WORKFLOW_STATE_INVALID",
-        "Planning starts only while awaiting design selection.",
+        "Planning starts only while the approved Brief is awaiting Planning generation.",
       );
     const currentCanonical = await this.validateCurrentCanonicalBrief(input);
     const brief = this.validateBrief(input, currentCanonical);
@@ -326,10 +344,10 @@ export class PlannerArchitectService {
         "PROJECT_VERSION_MISMATCH",
         "The Planner project version does not match the approved Brief.",
       );
-    if (project.project.workflowState !== "AWAITING_DESIGN_SELECTION")
+    if (project.project.workflowState !== "AWAITING_PLANNING_GENERATION" && !(legacyPlanningRefresh && project.project.workflowState === "AWAITING_DESIGN_SELECTION"))
       throw new PlannerError(
         "PLANNER_WORKFLOW_STATE_INVALID",
-        "Planning starts only while awaiting design selection.",
+        "Planning starts only while the approved Brief is awaiting Planning generation.",
       );
     if (project.rowVersion !== input.expectedRowVersion)
       throw new PlannerError(
@@ -349,6 +367,11 @@ export class PlannerArchitectService {
     // a trusted refresh baseline. It must never be silently reinterpreted as
     // an initial generation request or used as a refresh base.
     const currentPlanningPackage = persistedPlanningPackage;
+    if (legacyPlanningRefresh && !persistedPlanningPackage)
+      throw new PlannerError(
+        "PLANNER_WORKFLOW_STATE_INVALID",
+        "The former design-selection state cannot start Planning without a persisted Planning package.",
+      );
     if (persistedPlanningPackage && currentCanonical) {
       try {
         if (/legacy(?:[-_ ]?v?1)/i.test(JSON.stringify(persistedPlanningPackage)))
@@ -427,6 +450,10 @@ export class PlannerArchitectService {
       role: "planner-architect",
       taskType: "product-scope",
     });
+    const plannerInput = PlannerAgentInputSchema.parse({
+      ...input,
+      ...(currentCanonical ? { plannerAuthority: plannerAuthorityFor(currentCanonical.brief) } : {}),
+    });
     let planningPackage: PlanningPackage;
     try {
       const documentationExcerpts =
@@ -449,7 +476,7 @@ export class PlannerArchitectService {
       await this.validateCurrentCanonicalBrief(input);
       planningPackage = PlanningPackageSchema.parse({
         ...PlanningPackageSchema.parse(await this.provider.plan(
-          { ...input, approvedBrief: brief, ...(currentCanonical ? { canonicalBrief: currentCanonical.brief } : {}), documentationExcerpts },
+          { ...plannerInput, approvedBrief: brief, ...(currentCanonical ? { canonicalBrief: currentCanonical.brief } : {}), documentationExcerpts },
           skillSelection?.contexts,
           skillSelection?.identityChecksum,
         )),
@@ -473,7 +500,7 @@ export class PlannerArchitectService {
     }
     const currentAfterProvider = await this.validateCurrentCanonicalBrief(input);
     const projectAfterProvider = await this.projects.getWithVersion(input.projectId);
-    if (!projectAfterProvider || projectAfterProvider.rowVersion !== input.expectedRowVersion || projectAfterProvider.project.workflowState !== "AWAITING_DESIGN_SELECTION")
+    if (!projectAfterProvider || projectAfterProvider.rowVersion !== input.expectedRowVersion || projectAfterProvider.project.workflowState !== "AWAITING_PLANNING_GENERATION")
       throw new PlannerError("PLANNING_STALE", "The project changed while the Planner was running.");
     if (currentAfterProvider?.briefChecksum !== currentCanonical?.briefChecksum)
       throw new PlannerError("PLANNING_STALE", "The approved CanonicalBriefV3 changed while the Planner was running.");
@@ -485,7 +512,7 @@ export class PlannerArchitectService {
     if (planningAfterProvider?.rowVersion !== existingPlanning?.rowVersion || planningAfterProvider?.checksum !== existingPlanning?.checksum)
       throw new PlannerError("PLANNING_STALE", "The current PlanningPackage changed while the Planner was running.");
     planningPackage = this.admitPlanningCandidate({
-      plannerInput: input,
+      plannerInput,
       canonicalBrief: currentAfterProvider?.brief,
       candidate: planningPackage,
       current: currentPlanningPackage,
@@ -503,7 +530,13 @@ export class PlannerArchitectService {
       );
     await this.persistPackage(planningPackage, input.idempotencyKey, existingPlanning, {
       rowVersion: input.expectedRowVersion,
-      workflowState: "AWAITING_DESIGN_SELECTION",
+      workflowState: "AWAITING_PLANNING_GENERATION",
+    }, {
+      targetState: "AWAITING_PLANNING_APPROVAL",
+      actor: "planner-architect",
+      reason: "Planning candidate persisted; explicit user Planning approval is required.",
+      idempotencyKey: `${input.idempotencyKey}:planning-approval`,
+      context: { requirements: brief },
     });
     this.inputKeys.set(input.idempotencyKey, requestHash);
     if (skillSelection)
@@ -917,10 +950,10 @@ export class PlannerArchitectService {
     });
     const committed = await this.dependencies.database.transaction(async (tx) => {
       const current = await tx.getProject(input.projectId);
-      if (!current || current.current_version !== input.projectVersion || current.workflow_state !== "AWAITING_DESIGN_SELECTION")
+      if (!current || current.current_version !== input.projectVersion || current.workflow_state !== "AWAITING_PLANNING_APPROVAL")
         throw new PlannerError(
           "PLANNER_WORKFLOW_STATE_INVALID",
-          "Planning acceptance is only available while awaiting design selection.",
+          "Planning acceptance is only available while awaiting explicit Planning approval.",
         );
       if (current.row_version !== input.expectedRowVersion)
         throw new PlannerError("PLANNING_STALE", "The project row version is stale.");
@@ -1016,7 +1049,7 @@ export class PlannerArchitectService {
       const transition = await transitionWorkflowInTransaction(tx, {
         projectId: input.projectId,
         projectVersion: input.projectVersion,
-        expectedState: "AWAITING_DESIGN_SELECTION",
+        expectedState: "AWAITING_PLANNING_APPROVAL",
         expectedRowVersion: input.expectedRowVersion,
         targetState: "ARCHITECTURE_REVIEW",
         actor: input.acceptedBy,
@@ -1099,7 +1132,7 @@ export class PlannerArchitectService {
       );
     const parsed = this.parseInput({
       ...plannerInput,
-      currentWorkflowState: "AWAITING_DESIGN_SELECTION",
+      currentWorkflowState: "ARCHITECTURE_REVIEW",
     });
     const currentCanonical = await this.validateCurrentCanonicalBrief(parsed);
     const brief = this.validateBrief(parsed, currentCanonical);
@@ -1335,10 +1368,11 @@ export class PlannerArchitectService {
         rowVersion: current.rowVersion,
         workflowState: "ARCHITECTURE_REVIEW",
       }, {
-        targetState: "AWAITING_DESIGN_SELECTION",
+        targetState: "AWAITING_PLANNING_APPROVAL",
         actor: "planner-architect",
-        reason: `Architecture findings corrected in bounded cycle ${cycle + 1}. Planning Acceptance must run again.`,
+        reason: `Architecture findings corrected in bounded cycle ${cycle + 1}. Explicit Planning approval must run again.`,
         idempotencyKey: `${input.idempotencyKey}:planning-correction`,
+        context: { requirements: brief },
       });
     } catch (error) {
       await this.recordRefreshFailure({
@@ -1359,7 +1393,7 @@ export class PlannerArchitectService {
     return {
       package: admittedNext,
       planningChecksum: planningDocumentChecksum(admittedNext),
-      projectState: "AWAITING_DESIGN_SELECTION" as const,
+      projectState: "AWAITING_PLANNING_APPROVAL" as const,
       rowVersion: transition!.rowVersion,
       correctionCycle: cycle + 1,
       approvedBrief: brief,
@@ -1375,8 +1409,8 @@ export class PlannerArchitectService {
     packageValue: PlanningPackage,
     idempotencyKey: string,
     currentPlanning?: { rowVersion: number; checksum: string } | null,
-    currentProject?: { rowVersion: number; workflowState: "AWAITING_DESIGN_SELECTION" | "ARCHITECTURE_REVIEW" },
-    workflowTransition?: { targetState: "AWAITING_DESIGN_SELECTION"; actor: string; reason: string; idempotencyKey: string },
+    currentProject?: { rowVersion: number; workflowState: "AWAITING_PLANNING_GENERATION" | "AWAITING_PLANNING_APPROVAL" | "AWAITING_DESIGN_SELECTION" | "ARCHITECTURE_REVIEW" },
+    workflowTransition?: { targetState: "AWAITING_PLANNING_APPROVAL" | "AWAITING_DESIGN_SELECTION"; actor: string; reason: string; idempotencyKey: string; context?: TransitionContext },
   ) {
     const transition = await this.dependencies.database.transaction(async (tx) => {
       if (currentProject) {
@@ -1432,6 +1466,7 @@ export class PlannerArchitectService {
           targetState: workflowTransition.targetState,
           actor: workflowTransition.actor,
           reason: workflowTransition.reason,
+          context: workflowTransition.context,
           idempotencyKey: workflowTransition.idempotencyKey,
         });
       }

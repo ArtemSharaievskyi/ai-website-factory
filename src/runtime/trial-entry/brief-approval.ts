@@ -53,7 +53,7 @@ const BriefApprovalInputSchema = z.object({
 export type BriefApprovalResult = {
   projectId: string;
   projectVersion: number;
-  projectState: "AWAITING_DESIGN_SELECTION";
+  projectState: "AWAITING_PLANNING_GENERATION";
   rowVersion: number;
   briefChecksum: string;
   documentChecksum: string;
@@ -147,8 +147,8 @@ export class BriefApprovalService {
           ...(request.approvalNote ? { approvalNote: request.approvalNote } : {}),
         },
       });
-      transitionWorkflow(project.workflow_state, "AWAITING_DESIGN_SELECTION", { briefApproval: { approved: true, canonicalChecksum: token.briefChecksum } });
-      const updatedProject = await tx.updateProjectState({ id: project.id, expectedState: project.workflow_state, expectedRowVersion: project.row_version, state: "AWAITING_DESIGN_SELECTION", updatedAt: approvedAt });
+      transitionWorkflow(project.workflow_state, "AWAITING_PLANNING_GENERATION", { briefApproval: { approved: true, canonicalChecksum: token.briefChecksum } });
+      const updatedProject = await tx.updateProjectState({ id: project.id, expectedState: project.workflow_state, expectedRowVersion: project.row_version, state: "AWAITING_PLANNING_GENERATION", updatedAt: approvedAt });
       const saved = await tx.saveDocumentCAS({ row: mapDocumentToRow(approvedDocument), expectedRowVersion: row.documentType === "brief-v3" ? row.rowVersion : null, expectedChecksum: row.documentType === "brief-v3" ? row.checksum : null });
       for (const lineage of migrationLineage) await tx.appendRequirementIdentityLineage({ ...lineage, createdAt: approvedAt });
       const decision = DecisionRecordSchema.parse({
@@ -165,8 +165,8 @@ export class BriefApprovalService {
         userApprovalStatus: "not-required",
       });
       await tx.appendDecision(project.id, request.projectVersion, decision);
-      await tx.appendWorkflowEvent(newWorkflowEvent(project.id, request.projectVersion, project.workflow_state, "AWAITING_DESIGN_SELECTION", request.approvedBy, "User approved the current CanonicalBriefV3.", operationKey));
-      const result: BriefApprovalResult = { projectId: project.id, projectVersion: request.projectVersion, projectState: "AWAITING_DESIGN_SELECTION", rowVersion: updatedProject.row_version, briefChecksum: token.briefChecksum, documentChecksum: saved.checksum, approved: true, projectionStatus: this.options.projection ? "SYNCED" : "UNAVAILABLE" };
+      await tx.appendWorkflowEvent(newWorkflowEvent(project.id, request.projectVersion, project.workflow_state, "AWAITING_PLANNING_GENERATION", request.approvedBy, "User approved the current CanonicalBriefV3; Planning generation is now eligible.", operationKey));
+      const result: BriefApprovalResult = { projectId: project.id, projectVersion: request.projectVersion, projectState: "AWAITING_PLANNING_GENERATION", rowVersion: updatedProject.row_version, briefChecksum: token.briefChecksum, documentChecksum: saved.checksum, approved: true, projectionStatus: this.options.projection ? "SYNCED" : "UNAVAILABLE" };
       await tx.completeOperation({ operation, key: operationKey, payloadHash, result });
       return { result, document: approvedDocument, replay: false };
     });

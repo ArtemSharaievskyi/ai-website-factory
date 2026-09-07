@@ -123,7 +123,7 @@ const RecoveryCurrentnessSchema = z.object({
   projectVersion: z.number().int().positive(),
   projectRowVersion: z.number().int().positive(),
   projectVersionRowVersion: z.number().int().positive(),
-  workflowState: z.literal("AWAITING_DESIGN_SELECTION"),
+  workflowState: z.union([z.literal("AWAITING_PLANNING_APPROVAL"), z.literal("AWAITING_DESIGN_SELECTION")]),
   briefRowVersion: z.number().int().positive(),
   briefSemanticChecksum: Sha256Schema,
   briefDocumentChecksum: Sha256Schema,

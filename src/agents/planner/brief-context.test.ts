@@ -69,7 +69,7 @@ const input = (brief: CanonicalBriefV3) => PlannerAgentInputSchema.parse({
   approvedBriefChecksum: "a".repeat(64),
   originalPromptReference: "original-prompt.md",
   clarificationEvidenceReferences: [],
-  currentWorkflowState: "AWAITING_DESIGN_SELECTION",
+  currentWorkflowState: "AWAITING_PLANNING_GENERATION",
   existingDecisions: [],
   suppliedFiles: [],
   allowedSkills: [],
@@ -161,14 +161,14 @@ describe("canonical Brief to Planner boundary", () => {
       origin: "USER",
       originalPrompt: "Synthetic service planning boundary fixture.",
       currentVersion: 1,
-      workflowState: "AWAITING_DESIGN_SELECTION",
+      workflowState: "AWAITING_PLANNING_GENERATION",
     });
     await new ProjectRepository(database).create(project);
     await new ProjectVersionRepository(database).create({
       id: "00000000-0000-4000-8000-000000000001",
       projectId,
       versionNumber: 1,
-      state: "AWAITING_DESIGN_SELECTION",
+      state: "AWAITING_PLANNING_GENERATION",
       memoryRootPath: null,
       requirementsChecksum: null,
       selectedDesignChecksum: null,
