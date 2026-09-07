@@ -30,9 +30,17 @@ export function rolePrompt(role: keyof typeof PROMPT_VERSIONS, input: unknown, c
   const languagePolicy = operatorLanguage || siteLanguage ? ` The canonical language authority is separate: communicate Factory/operator summaries, explanations, and clarification text in operatorLanguage=${operatorLanguage ?? "en"}; generate customer-facing website content in siteLanguage=${siteLanguage ?? "UNRESOLVED"}. Do not independently redetect or switch either language. Preserve stable English internal identifiers.` : "";
   const leadPolicy = role === "lead" ? " The canonical input contains host-resolved operatorLanguage and siteLanguage. Communicate every Factory/operator clarification question and explanation in operatorLanguage. Treat siteLanguage as a separate customer-website requirement only. Use the bounded languageObservation fields for semantic observations when requested, but never decide or overwrite the final host-owned language fields. Ask about language only when the canonical language resolution is unresolved or ambiguous; never emit a universal website-language question for an inherited or explicit site language. Clarification questions may ask only for missing user or project/business requirements. Do not ask or emit blockers for Factory workflow actions or gates such as Brief approval, planning acceptance, design selection, implementation start, runtime/QA completion, release eligibility, or tool prerequisites; those are handled by their canonical stages." : "";
   const canonicalBriefRecord = inputRecord.canonicalBrief && typeof inputRecord.canonicalBrief === "object" ? inputRecord.canonicalBrief as Record<string, unknown> : {};
-  const canonicalRequirementIds = Array.isArray(canonicalBriefRecord.requirements)
-    ? canonicalBriefRecord.requirements.flatMap((entry) => entry && typeof entry === "object" && typeof (entry as Record<string, unknown>).id === "string" ? [(entry as Record<string, string>).id] : [])
+  const requirementIds = (value: unknown) => Array.isArray(value)
+    ? value.flatMap((entry) => entry && typeof entry === "object" && typeof (entry as Record<string, unknown>).id === "string" ? [(entry as Record<string, string>).id] : [])
     : [];
+  const canonicalDecisions = canonicalBriefRecord.decisions && typeof canonicalBriefRecord.decisions === "object" ? canonicalBriefRecord.decisions as Record<string, unknown> : {};
+  const canonicalForm = canonicalDecisions.form && typeof canonicalDecisions.form === "object" ? canonicalDecisions.form as Record<string, unknown> : {};
+  const canonicalSeo = canonicalBriefRecord.seo && typeof canonicalBriefRecord.seo === "object" ? canonicalBriefRecord.seo as Record<string, unknown> : {};
+  const canonicalRequirementIds = [...new Set([
+    ...requirementIds(canonicalBriefRecord.requirements),
+    ...requirementIds(canonicalForm.interactionStates),
+    ...requirementIds(canonicalSeo.locationTargeting),
+  ])];
   const plannerTraceabilityPolicy = role === "planner" && canonicalRequirementIds.length > 0
     ? ` When canonicalBrief is supplied, every requirementReferences value and every traceability.requirementReferences value must be an exact member of this host-issued canonical requirement ID allowlist: ${canonicalRequirementIds.join(", ")}. Never invent, transform, hash, prefix, or copy requirement IDs from the compatibility or legacy Brief. Do not emit any REQUIREMENT:v3-* value unless that exact value appears in this allowlist. The host will reject references outside this closed set.`
     : "";
