@@ -307,6 +307,18 @@ describe("production AI provider boundary", () => {
     expect(result.architecture.backendPriority).toEqual([]);
     expect(result.forms.forms[0]?.submissionMechanism).toBe("client-only");
   });
+  it("constrains initial Planner traceability to the supplied canonical requirement ID allowlist", async () => {
+    const fixture = noBackendPlannerTransport();
+    let sent: StructuredRequest<unknown> | undefined;
+    const client = new OpenAiStructuredClient(config, { executor: async <T>(request: StructuredRequest<T>) => { sent = request as StructuredRequest<unknown>; return { value: fixture.transport as T, requestId: "req_planner_traceability_allowlist" }; } });
+    await new OpenAiPlannerProvider(client).plan({ ...fixture.input, canonicalBrief: cleanBriefV3 });
+    const firstCanonicalRequirementId = cleanBriefV3.requirements[0]!.id;
+    expect(sent?.promptVersion).toBe("planner.v2");
+    expect(sent?.system).toContain("host-issued canonical requirement ID allowlist");
+    expect(sent?.system).toContain(firstCanonicalRequirementId);
+    expect(sent?.system).toContain("Do not emit any REQUIREMENT:v3-* value unless that exact value appears in this allowlist");
+    expect(sent?.retryPolicy).toEqual({ maxRetries: 0, corrections: 0 });
+  });
   it("uses a strict Design transport schema without weakening the canonical direction set", () => {
     expect(() => zodResponseFormat(DesignDirectionStructuredOutputSchema, "design-direction-set")).not.toThrow();
   });

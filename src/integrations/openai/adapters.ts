@@ -1526,6 +1526,7 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
       schema: PlanningPackageStructuredOutputSchema,
       schemaName: "planning-package",
       idempotencyKey: `${input.idempotencyKey}:${skillContextIdentity}`,
+      retryPolicy: { maxRetries: 0, corrections: 0 },
     });
     return normalizePlanningPackage(
       result.value,

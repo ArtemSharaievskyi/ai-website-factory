@@ -40,7 +40,7 @@ export const plannerAgentDefinition = definition({
   allowedTools: ["openai-generation", "context7-read"], allowedSkillIds: ["project-data-model-planning", "technical-risk-planning"],
   contextPolicy: { version: "planner-context-v1", allowedCategories: ["PROJECT_BRIEF", "CLARIFICATION_SESSION", "PLANNING_PACKAGE", "PREVIOUS_FINDINGS"], maxBytes: 120000, maxItems: 80 },
   inputContract: { schemaId: "planner.input", version: "1" }, outputContract: { schemaId: "planner.output", version: "1" },
-  promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "planner.v1", policyVersions: { context: "planner-context-v1", execution: "planner-execution-v1" },
+  promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "planner.v2", policyVersions: { context: "planner-context-v1", execution: "planner-execution-v1" },
   executionPolicy: { aiGenerationAllowed: true, retryClass: "bounded-provider", cancellationSupported: false, concurrencyClass: "single-flight", requiresExplicitApprovalBeforeTransition: true }, readOnly: false,
 });
 export const designAgentDefinition = definition({
