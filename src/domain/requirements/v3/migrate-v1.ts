@@ -14,7 +14,7 @@ const strings = (brief: RequirementSpecification, field: keyof RequirementSpecif
 
 const imageStrategyFromV1 = (brief: RequirementSpecification): CanonicalBriefV3["scope"]["images"] => {
   if (!brief.imagesRequired) {
-    if (brief.imageSourceDecision !== "pending") throw new BriefV3MigrationAmbiguityError("imagesRequired/imageSourceDecision", "imagesRequired=false conflicts with an explicit image source decision");
+    if (brief.imageSourceDecision !== "pending" && brief.imageSourceDecision !== "placeholders") throw new BriefV3MigrationAmbiguityError("imagesRequired/imageSourceDecision", "imagesRequired=false conflicts with an explicit image source decision");
     return { required: false, sourceStrategy: "NONE" };
   }
   return {
@@ -113,9 +113,8 @@ function formFromV1(brief: RequirementSpecification): CanonicalBriefV3["decision
     return emptyFormBehaviorState();
   }
   const transmissionMode = brief.emailDecision === "needed" ? "EMAIL" : brief.emailDecision === "not-needed" ? "NONE" : "UNRESOLVED";
-  const persistenceMode = brief.storageDecision === "needed" ? "DATABASE" : brief.storageDecision === "not-needed" ? "NONE" : "UNRESOLVED";
+  const persistenceMode = brief.supabaseRequirements.length > 0 || brief.storageDecision === "needed" ? "DATABASE" : brief.storageDecision === "not-needed" ? "NONE" : "UNRESOLVED";
   const serverProcessingMode = serverProcessingModeFromV1(brief);
-  if (brief.storageDecision === "not-needed" && brief.supabaseRequirements.length) throw new BriefV3MigrationAmbiguityError("storageDecision/supabaseRequirements", "storage is marked not-needed while legacy database requirements are present");
   return {
     ...unresolvedFormBehaviorState({
       transmissionMode,
@@ -188,11 +187,10 @@ function finalizeV1Migration(canonical: CanonicalBriefV3, scope: { projectId: st
 
 export function migrateV1RecordToCanonicalBriefV3WithLineage(brief: RequirementSpecification): CanonicalizedLegacyBriefV3 {
   rejectConflictingLegacyCollections(brief);
-  if (brief.storageDecision === "not-needed" && brief.supabaseRequirements.length) throw new BriefV3MigrationAmbiguityError("storageDecision/supabaseRequirements", "storage is marked not-needed while legacy database requirements are present");
   if ((brief.pages.length > 1 && hasSinglePageConstraint(brief.technicalConstraints)) || (brief.pages.length <= 1 && hasMultiPageConstraint(brief.technicalConstraints))) {
     throw new BriefV3MigrationAmbiguityError("pages/technicalConstraints", "legacy route representations disagree");
   }
-  const databaseMode = brief.storageDecision === "needed" ? (brief.supabaseRequirements.length ? "SUPABASE" : "OTHER") : brief.storageDecision === "not-needed" ? "NONE" : "UNRESOLVED";
+  const databaseMode = brief.supabaseRequirements.length > 0 ? "SUPABASE" : brief.storageDecision === "needed" ? "OTHER" : brief.storageDecision === "not-needed" ? "NONE" : "UNRESOLVED";
   const authMode = brief.authenticationDecision === "no-authentication-guest-first" ? "NONE" : brief.authenticationDecision === "authentication-required" ? "REQUIRED" : "UNRESOLVED";
   const routePolicy = brief.pages.length > 1 ? "MULTI_PAGE" : brief.pages.length === 1 ? "SINGLE_PAGE" : "UNRESOLVED";
   const sourceBrand = valueText(brief.suppliedBrandInformation);

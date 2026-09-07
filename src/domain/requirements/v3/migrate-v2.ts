@@ -68,7 +68,7 @@ function checkLegacyDecisionConflicts(brief: ProjectBriefV2, form: FormBehaviorS
   if (brief.emailDecision === "needed" && form.transmissionMode === "NONE") throw new BriefV3MigrationAmbiguityError("emailDecision", "legacy needed conflicts with typed NONE transmission");
   if (brief.emailDecision === "not-needed" && form.transmissionMode === "EMAIL") throw new BriefV3MigrationAmbiguityError("emailDecision", "legacy not-needed conflicts with typed EMAIL transmission");
   if (brief.storageDecision === "needed" && form.persistenceMode === "NONE") throw new BriefV3MigrationAmbiguityError("storageDecision", "legacy needed conflicts with typed NONE persistence");
-  if (brief.storageDecision === "not-needed" && form.persistenceMode !== "NONE" && form.persistenceMode !== "UNRESOLVED") throw new BriefV3MigrationAmbiguityError("storageDecision", "legacy not-needed conflicts with typed persistence");
+  if (brief.storageDecision === "not-needed" && brief.supabaseRequirements.length === 0 && form.persistenceMode !== "NONE" && form.persistenceMode !== "UNRESOLVED") throw new BriefV3MigrationAmbiguityError("storageDecision", "legacy not-needed conflicts with typed persistence");
   if (brief.formBehaviorRequirements.formPresent === false && brief.forms.length > 0) throw new BriefV3MigrationAmbiguityError("forms/formBehaviorRequirements", "legacy forms conflict with typed formPresent=false");
 }
 
@@ -136,7 +136,6 @@ function finalizeV2Migration(canonical: CanonicalBriefV3, scope: { projectId: st
 
 export function migrateV2RecordToCanonicalBriefV3WithLineage(brief: ProjectBriefV2): CanonicalizedLegacyBriefV3 {
   rejectConflictingV2Collections(brief);
-  if (brief.storageDecision === "not-needed" && brief.supabaseRequirements.length) throw new BriefV3MigrationAmbiguityError("storageDecision/supabaseRequirements", "storage is marked not-needed while legacy database requirements are present");
   const baseInput = { ...brief, prohibitedRequirements: undefined };
   const base = migrateV1RecordToCanonicalBriefV3(RequirementSpecificationSchema.parse(baseInput));
   const form = formFromV2(brief);

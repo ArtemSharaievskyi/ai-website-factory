@@ -24,6 +24,7 @@ import {
   validateCanonicalBriefV3,
 } from ".";
 import { ambiguousV2Brief, cleanBriefV3, cleanFormRevisionChangeSet, conflictingChangeSet, expectedNormalizedBrief, expectedV1Migration, expectedV2Migration, multiDomainChangeSet, pilotShapedV1Brief, representativeV1Brief, representativeV2Brief } from "./fixtures";
+import { RequirementSpecificationSchema } from "../schema";
 
 const passedGroups = new Set<string>();
 let generatedPropertyCases = 0;
@@ -304,6 +305,24 @@ describe("Brief Revision V3 certification", () => {
     expect(migrated.legal).toEqual({ placeholderPolicy: "USE_EXPLICIT_PLACEHOLDERS", inventedFactsPolicy: "FORBIDDEN" });
     expect(migrated.unresolved).toHaveLength(1);
     expect(stableSerialize(pilotShapedV1Brief)).toBe(sourceBefore);
+  });
+
+  it("keeps explicit database requirements independent from legacy file-storage decisions", () => {
+    const fullStackLegacy = RequirementSpecificationSchema.parse({
+      ...representativeV1Brief,
+      imagesRequired: false,
+      imageSourceDecision: "placeholders",
+      forms: ["Service request form."],
+      backendRequirements: ["Use approved server boundaries for service requests."],
+      supabaseRequirements: ["Persist service requests in Supabase PostgreSQL."],
+      authenticationDecision: "authentication-required",
+      storageDecision: "not-needed",
+    });
+    const migrated = migrateV1ToCanonicalBriefV3(fullStackLegacy);
+    expect(migrated.decisions.database.mode).toBe("SUPABASE");
+    expect(migrated.decisions.form).toMatchObject({ persistenceMode: "DATABASE", serverProcessingMode: "SERVER" });
+    expect(migrated.decisions.auth.mode).toBe("REQUIRED");
+    expect(migrated.scope.images).toEqual({ required: false, sourceStrategy: "NONE" });
   });
 
   it("keeps pilot-shaped V1 migration deterministic and fails closed on ambiguous structured markers", () => {
