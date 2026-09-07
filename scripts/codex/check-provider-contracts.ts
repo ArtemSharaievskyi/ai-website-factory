@@ -6,8 +6,8 @@ import {
   DesignDirectionStructuredOutputSchema,
   ImplementationChangeProposalStructuredOutputSchema,
   OrchestrationPlanSchema,
-  PlanningPackageStructuredOutputSchema,
   PlanningRecoveryProviderSchemaDefinitions,
+  createTokenizedPlanningProviderWireSchema,
   createPlanningRecoveryProviderWireSchema,
 } from "@/integrations/openai/adapters";
 import { ProviderBriefChangeSetSchema } from "@/integrations/openai-v3/changeset";
@@ -31,7 +31,7 @@ const builders: Record<string, Builder> = {
   "clarification-plan": () => buildProductionResponseFormat(ClarificationPlanProviderOutputSchema, "clarification-plan"),
   "project-brief": () => buildProductionResponseFormat(BriefDraftStructuredOutputSchema, "brief-draft"),
   "brief-revision-v3": () => buildProductionResponseFormat(ProviderBriefChangeSetSchema, "brief-revision-v3"),
-  "planning-package": () => buildProductionResponseFormat(PlanningPackageStructuredOutputSchema, "planning-package"),
+  "planning-package": () => buildProductionResponseFormat(createTokenizedPlanningProviderWireSchema(), "planning-package-v3"),
   "planning-recovery-package": () => buildProductionResponseFormat(createPlanningRecoveryProviderWireSchema(recoveryContractProbeManifest as never), "planning-recovery-package", { schemaDefinitions: PlanningRecoveryProviderSchemaDefinitions }),
   "planning-change-set": () => buildProductionResponseFormat(PlanningChangeSetProviderOutputSchema, "planning-change-set"),
   "design-direction-set": () => buildProductionResponseFormat(DesignDirectionStructuredOutputSchema, "design-direction-set"),

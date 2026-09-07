@@ -26,6 +26,7 @@ const envelopeKeys = new Set([
   "accepted",
   "acceptance",
   "semanticChecksumPolicyVersion",
+  "providerContractVersion",
 ]);
 
 /**

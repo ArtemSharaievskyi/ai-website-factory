@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { renderApprovedProceduralGuidance, rolePrompt } from "./prompts";
 import { cleanBriefV3 } from "@/domain/requirements/v3/fixtures";
-import { plannerAuthorityFor } from "@/agents/planner/service";
+import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
+import { createPlannerReferenceTable, plannerProviderReferenceProtocol } from "@/agents/planner/reference-table";
 
 describe("approved procedural prompt guidance", () => {
   it("renders multiple procedures with checksums and non-authority boundaries", () => {
@@ -26,18 +27,15 @@ describe("approved procedural prompt guidance", () => {
     expect(prompt.system).toContain("supplied accepted Planning asset evidence");
   });
 
-  it("binds Planner generation to the canonical page and requirement allowlists", () => {
-    const plannerAuthority = plannerAuthorityFor(cleanBriefV3);
-    const prompt = rolePrompt("planner", { canonicalBrief: cleanBriefV3, plannerAuthority });
-    expect(prompt.system).toContain("only allowed sitemap/page paths");
-    expect(prompt.system).toContain("Complete coverage is required for every host-issued canonical requirement ID");
-    expect(plannerAuthority.requirementLedger).toHaveLength(cleanBriefV3.requirements.length);
-    expect(plannerAuthority.requirementLedger.every((entry) => entry.statement && entry.category && entry.planningCoverageType)).toBe(true);
-    for (const page of cleanBriefV3.pages) {
-      const path = page.slug === "home" || page.slug === "index" ? "/" : `/${page.slug}`;
-      expect(prompt.system).toContain(path);
-    }
-    for (const requirement of cleanBriefV3.requirements) expect(prompt.system).toContain(requirement.id);
+  it("binds Planner generation to opaque host-issued requirement, page, and route tokens", () => {
+    const table = createPlannerReferenceTable({ projectId: "11111111-1111-4111-8111-111111111111", projectVersion: 1, approvedBriefChecksum: canonicalBriefChecksum(cleanBriefV3), idempotencyKey: "synthetic-token-prompt", expectedRowVersion: 1, canonicalBrief: cleanBriefV3 });
+    const prompt = rolePrompt("planner", { approvedBrief: { operatorLanguage: "en", localization: { defaultLocale: "en" } }, plannerReferenceProtocol: plannerProviderReferenceProtocol(table) });
+    expect(prompt.promptVersion).toBe("planner.v3");
+    expect(prompt.system).toContain("host-issued and opaque");
+    expect(prompt.system).toContain("REQ_001");
+    expect(prompt.system).toContain("PAGE_001");
+    expect(prompt.system).toContain("ROUTE_001");
+    for (const requirement of cleanBriefV3.requirements) expect(prompt.system).not.toContain(requirement.id);
   });
 
   it("keeps multi-skill guidance deterministic and identity-ready for every semantic role", () => {

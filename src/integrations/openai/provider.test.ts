@@ -5,7 +5,7 @@ import { buildProductionResponseFormat, OpenAiStructuredClient, parseProviderWir
 import { AiProviderError } from "./errors";
 import { FifoConcurrencyLimiter } from "./limiter";
 import { zodResponseFormat } from "openai/helpers/zod";
-import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, OpenAiLeadProvider, OpenAiPlannerProvider, PlanningPackageStructuredOutputSchema, PlanningRecoveryProviderSchemaDefinitions, createPlanningRecoveryProviderWireSchema, isWorkflowApprovalBlocker } from "./adapters";
+import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, OpenAiLeadProvider, OpenAiPlannerProvider, PlannerReferenceBindingError, PlanningPackageStructuredOutputSchema, PlanningRecoveryProviderSchemaDefinitions, createPlanningRecoveryProviderWireSchema, createTokenizedPlanningProviderWireSchema, isWorkflowApprovalBlocker } from "./adapters";
 import { readAiProviderConfig } from "./config";
 import { ArchitectureReviewProviderOutputSchema, CodeIntegrationReviewProviderOutputSchema, ContractAuditProviderOutputSchema, SecurityReviewProviderOutputSchema, TestQualityReviewProviderOutputSchema } from "@/domain/review/schema";
 import { analyzePromptDeterministically } from "@/agents/lead/deterministic";
@@ -16,7 +16,9 @@ import { emptyBriefV2Fields } from "@/domain/requirements/brief";
 import { buildPlanningPackage } from "@/agents/planner/deterministic";
 import { cleanBriefV3 } from "@/domain/requirements/v3/fixtures";
 import { CanonicalBriefV3Schema } from "@/domain/requirements/v3/schema";
+import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { createCanonicalPlanningRouteManifest, createPlanningOwnedRequirementManifest, createPlanningTargetCatalog } from "@/agents/planner/recovery-manifests";
+import { createPlannerReferenceTable } from "@/agents/planner/reference-table";
 
 const config = { apiKey: "test", model: "test-model", modelLabel: "GPT-5.6 Luna", maxRetries: 1, maxConcurrentRequests: 1 };
 const schema = z.object({ ok: z.boolean(), summary: z.string() }).strict();
@@ -147,6 +149,83 @@ function recoveryNormalizationFixture() {
       currentPlanningEvidence: { structuralSummary: { routeCount: 2, pageCount: 2, formCount: 1, assetCount: 0, dependencyCount: 1, structuralChecksum: "a".repeat(64) } },
       outputPolicy: { schemaVersion: 1, maxBytes: 512_000, maxEstimatedTokens: 64_000, complete: true, truncation: "REJECT" },
     },
+  };
+}
+
+function tokenizedPlannerFixture() {
+  const recovery = recoveryNormalizationFixture();
+  const canonicalBrief = recovery.input.canonicalBrief;
+  const baseInput = recovery.input.plannerInput;
+  const approvedBriefChecksum = canonicalBriefChecksum(canonicalBrief);
+  const table = createPlannerReferenceTable({
+    projectId: baseInput.projectId,
+    projectVersion: baseInput.projectVersion,
+    approvedBriefChecksum,
+    idempotencyKey: baseInput.idempotencyKey,
+    expectedRowVersion: baseInput.expectedRowVersion,
+    canonicalBrief,
+  });
+  type JsonObject = Record<string, unknown>;
+  const transport = JSON.parse(JSON.stringify(recovery.transport)) as JsonObject;
+  const routeByRecoveryHandle = new Map(createCanonicalPlanningRouteManifest(canonicalBrief).routes.map((route) => [route.routeHandle, route]));
+  const routeByRecoveryPageHandle = new Map(createCanonicalPlanningRouteManifest(canonicalBrief).routes.map((route) => [route.pageHandle, route]));
+  const routeTokenByPath = new Map(table.routes.map((route) => [route.path, route.token]));
+  const pageTokenByPath = new Map(table.pages.map((page) => [page.path, page.token]));
+  const requirementTokenById = new Map(table.requirements.map((entry) => [entry.canonicalRequirementId, entry.token]));
+  const requirementIdByRecoveryHandle = new Map(createPlanningOwnedRequirementManifest(canonicalBrief).requirements.map((entry) => [entry.requirementHandle, entry.requirementId]));
+  const tokenForRouteHandle = (handle: unknown) => {
+    const route = routeByRecoveryHandle.get(String(handle));
+    return route ? routeTokenByPath.get(route.path)! : routeTokenByPath.get(String(handle))!;
+  };
+  const tokenForPageHandle = (handle: unknown) => {
+    const route = routeByRecoveryPageHandle.get(String(handle));
+    return route ? pageTokenByPath.get(route.path)! : pageTokenByPath.get(String(handle))!;
+  };
+  const tokenizeReferences = (value: unknown, key = ""): unknown => {
+    if (key === "requirementReferences" && Array.isArray(value)) return value.map((reference) => requirementTokenById.get(requirementIdByRecoveryHandle.get(String(reference)) ?? String(reference)) ?? table.requirements[0]!.token);
+    if (Array.isArray(value)) return value.map((entry) => tokenizeReferences(entry));
+    if (!value || typeof value !== "object") return value;
+    return Object.fromEntries(Object.entries(value as JsonObject).map(([childKey, child]) => [childKey, tokenizeReferences(child, childKey)]));
+  };
+  const tokenized = tokenizeReferences(transport) as JsonObject;
+  const sitemap = tokenized.sitemap as JsonObject;
+  sitemap.routes = (sitemap.routes as JsonObject[]).map((route) => {
+    const routeToken = tokenForRouteHandle(route.routeHandle);
+    const pageToken = tokenForPageHandle(route.pageHandle);
+    const fields = Object.fromEntries(Object.entries(route).filter(([key]) => !["routeHandle", "pageHandle", "parentPageHandle", "path"].includes(key)));
+    return { ...fields, routeToken, pageToken };
+  });
+  const pages = tokenized.pages as JsonObject;
+  pages.pages = (pages.pages as JsonObject[]).map((page) => {
+    const fields = Object.fromEntries(Object.entries(page).filter(([key]) => !["pageHandle", "routeHandle"].includes(key)));
+    return { ...fields, pageToken: tokenForPageHandle(page.pageHandle), routeToken: tokenForRouteHandle(page.routeHandle) };
+  });
+  const navigation = tokenized.navigation as JsonObject;
+  for (const key of ["primary", "secondary", "footer", "contextual", "protected", "routeReferences"])
+    navigation[key] = (navigation[key] as unknown[]).map(tokenForRouteHandle);
+  const userFlows = tokenized.userFlows as JsonObject;
+  userFlows.flows = (userFlows.flows as JsonObject[]).map((flow) => {
+    const { startRouteHandle, ...fields } = flow;
+    return { ...fields, startRouteToken: tokenForRouteHandle(startRouteHandle), steps: (flow.steps as JsonObject[]).map((step) => { const { routeHandle, ...stepFields } = step; return { ...stepFields, routeToken: routeHandle === null ? null : tokenForRouteHandle(routeHandle) }; }) };
+  });
+  const forms = tokenized.forms as JsonObject;
+  forms.forms = (forms.forms as JsonObject[]).map((form) => { const { routeHandle, ...fields } = form; return { ...fields, routeToken: tokenForRouteHandle(routeHandle) }; });
+  const architecture = tokenized.architecture as JsonObject;
+  architecture.routes = (architecture.routes as JsonObject[]).map((route) => ({ routeToken: tokenForRouteHandle(route.routeHandle), responsibility: route.responsibility }));
+  const toRouteTokens = (value: unknown) => Array.isArray(value) ? value.map((entry) => routeTokenByPath.get(String(entry)) ?? tokenForRouteHandle(entry)) : [];
+  const authentication = tokenized.authentication as JsonObject;
+  authentication.protectedRoutes = toRouteTokens(authentication.protectedRoutes);
+  const administration = tokenized.administration as JsonObject;
+  administration.protectedRoutes = toRouteTokens(administration.protectedRoutes);
+  const accounting = tokenized.requirementAccounting as JsonObject;
+  delete tokenized.requirementAccounting;
+  tokenized.requirementCoverage = table.requirements.filter((entry) => entry.mandatory).map((entry) => ({ requirementToken: entry.token, planningElementIds: ["traceability"], semanticEvidence: `The plan records ${entry.token} in canonical traceability and the host resolves it exactly.` }));
+  void accounting;
+  createTokenizedPlanningProviderWireSchema().parse(tokenized);
+  return {
+    input: { ...baseInput, canonicalBrief, approvedBriefChecksum, plannerReferenceTable: table },
+    table,
+    transport: tokenized,
   };
 }
 
@@ -307,17 +386,52 @@ describe("production AI provider boundary", () => {
     expect(result.architecture.backendPriority).toEqual([]);
     expect(result.forms.forms[0]?.submissionMechanism).toBe("client-only");
   });
-  it("constrains initial Planner traceability to the supplied canonical requirement ID allowlist", async () => {
-    const fixture = noBackendPlannerTransport();
+  it("uses token-only initial Planner references and resolves them to host-owned canonical identities", async () => {
+    const fixture = tokenizedPlannerFixture();
     let sent: StructuredRequest<unknown> | undefined;
     const client = new OpenAiStructuredClient(config, { executor: async <T>(request: StructuredRequest<T>) => { sent = request as StructuredRequest<unknown>; return { value: fixture.transport as T, requestId: "req_planner_traceability_allowlist" }; } });
-    await new OpenAiPlannerProvider(client).plan({ ...fixture.input, canonicalBrief: cleanBriefV3 });
-    const firstCanonicalRequirementId = cleanBriefV3.requirements[0]!.id;
-    expect(sent?.promptVersion).toBe("planner.v2");
-    expect(sent?.system).toContain("host-issued canonical requirement ID allowlist");
-    expect(sent?.system).toContain(firstCanonicalRequirementId);
-    expect(sent?.system).toContain("Do not emit any REQUIREMENT:v3-* value unless that exact value appears in this allowlist");
+    const result = await new OpenAiPlannerProvider(client).plan(fixture.input);
+    const firstCanonicalRequirementId = fixture.table.requirements[0]!.canonicalRequirementId;
+    expect(sent?.promptVersion).toBe("planner.v3");
+    expect(sent?.schemaName).toBe("planning-package-v3");
+    expect(sent?.system).toContain("REQ_001");
+    expect(sent?.system).toContain("host-issued and opaque");
+    expect(sent?.system).not.toContain(firstCanonicalRequirementId);
+    expect(sent?.user).not.toContain(firstCanonicalRequirementId);
+    expect(result.providerContractVersion).toBe("planner.v3");
+    expect(JSON.stringify(result)).toContain(firstCanonicalRequirementId);
+    expect(result.sitemap.routes[0]?.id).toBe(fixture.table.routes[0]?.canonicalRouteId);
+    expect(result.sitemap.routes[0]?.path).toBe(fixture.table.routes[0]?.path);
+    expect(result.pages.pages[0]?.id).toBe(fixture.table.pages[0]?.planningPageId);
     expect(sent?.retryPolicy).toEqual({ maxRetries: 0, corrections: 0 });
+  });
+  it("rejects unknown, mutated, missing, duplicate, and canonical-like Planner tokens without repair", async () => {
+    const fixture = tokenizedPlannerFixture();
+    const planner = (transport: Record<string, unknown>) => new OpenAiPlannerProvider(new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: transport as T, requestId: "req_token_rejection" }) })).plan(fixture.input);
+    const unknown = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
+    ((unknown.requirementCoverage as Record<string, unknown>[])[0]!).requirementToken = "REQ_999";
+    await expect(planner(unknown)).rejects.toMatchObject({ code: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE" } satisfies Partial<PlannerReferenceBindingError>);
+    const mutated = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
+    ((mutated.requirementCoverage as Record<string, unknown>[])[0]!).requirementToken = "REQ_0011";
+    await expect(planner(mutated)).rejects.toMatchObject({ code: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE" } satisfies Partial<PlannerReferenceBindingError>);
+    const missing = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
+    (missing.requirementCoverage as unknown[]).pop();
+    await expect(planner(missing)).rejects.toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_MISSING" } satisfies Partial<PlannerReferenceBindingError>);
+    const duplicate = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
+    (duplicate.requirementCoverage as unknown[]).push((duplicate.requirementCoverage as unknown[])[0]);
+    await expect(planner(duplicate)).rejects.toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_DUPLICATE" } satisfies Partial<PlannerReferenceBindingError>);
+    const unknownRoute = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
+    const routes = (unknownRoute.sitemap as Record<string, unknown>).routes as Array<Record<string, unknown>>;
+    routes[0]!.routeToken = "ROUTE_999";
+    await expect(planner(unknownRoute)).rejects.toMatchObject({ code: "PLANNING_ROUTE_POLICY_MISMATCH" } satisfies Partial<PlannerReferenceBindingError>);
+    const unknownPage = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
+    const pages = (unknownPage.pages as Record<string, unknown>).pages as Array<Record<string, unknown>>;
+    pages[0]!.pageToken = "PAGE_999";
+    await expect(planner(unknownPage)).rejects.toMatchObject({ code: "PLANNING_ROUTE_POLICY_MISMATCH" } satisfies Partial<PlannerReferenceBindingError>);
+    const canonicalLike = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
+    const profile = canonicalLike.profile as Record<string, unknown>;
+    profile.requirementReferences = ["REQUIREMENT:v3-2298ba13cee1b3b171dc97890232a392cffc8f31001e4b517157231e4b5171572318ff875b99"];
+    await expect(planner(canonicalLike)).rejects.toMatchObject({ code: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE" } satisfies Partial<PlannerReferenceBindingError>);
   });
   it("uses a strict Design transport schema without weakening the canonical direction set", () => {
     expect(() => zodResponseFormat(DesignDirectionStructuredOutputSchema, "design-direction-set")).not.toThrow();

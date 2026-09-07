@@ -43,7 +43,7 @@ import {
   type PlannerSkillSelectionPort,
 } from "./ports";
 import { requestPlannerDocumentation } from "../../integrations/context7/planner";
-import { isPlaceholderImageApprovalBlocker } from "../../integrations/openai/adapters";
+import { isPlaceholderImageApprovalBlocker, PlannerReferenceBindingError } from "../../integrations/openai/adapters";
 import { plannerAgentDefinition } from "@/agents/catalog";
 import {
   ArchitectureReviewResultSchema,
@@ -81,6 +81,7 @@ import {
 import { type PlanningRefreshDiagnosticAttempt } from "./refresh-diagnostics";
 import type { TransitionContext } from "@/domain/workflow/engine";
 import { canonicalRequirementEntries } from "@/domain/requirements/v3/identity";
+import { assertPlannerReferenceTableCurrent, createPlannerReferenceTable, PlannerReferenceTableError } from "./reference-table";
 
 const now = () => new Date().toISOString();
 
@@ -338,6 +339,22 @@ export class PlannerArchitectService {
       );
     const currentCanonical = await this.validateCurrentCanonicalBrief(input);
     const brief = this.validateBrief(input, currentCanonical);
+    if (input.plannerReferenceTable && currentCanonical) {
+      try {
+        assertPlannerReferenceTableCurrent(input.plannerReferenceTable, {
+          projectId: input.projectId,
+          projectVersion: input.projectVersion,
+          approvedBriefChecksum: input.approvedBriefChecksum,
+          idempotencyKey: input.idempotencyKey,
+          expectedRowVersion: input.expectedRowVersion,
+          canonicalBrief: currentCanonical.brief,
+        });
+      } catch (error) {
+        if (error instanceof PlannerReferenceTableError)
+          throw new PlannerError("PLANNING_STALE", "The Planner reference table is not current for the approved Brief.", error);
+        throw error;
+      }
+    }
     const project = await this.projects.getWithVersion(input.projectId);
     if (!project || project.project.currentVersion !== input.projectVersion)
       throw new PlannerError(
@@ -450,9 +467,30 @@ export class PlannerArchitectService {
       role: "planner-architect",
       taskType: "product-scope",
     });
+    const currentBeforeProvider = await this.validateCurrentCanonicalBrief(input);
+    const plannerReferenceTable = currentBeforeProvider
+      ? createPlannerReferenceTable({
+          projectId: input.projectId,
+          projectVersion: input.projectVersion,
+          approvedBriefChecksum: input.approvedBriefChecksum,
+          idempotencyKey: input.idempotencyKey,
+          expectedRowVersion: input.expectedRowVersion,
+          canonicalBrief: currentBeforeProvider.brief,
+        })
+      : undefined;
+    if (plannerReferenceTable && currentBeforeProvider)
+      assertPlannerReferenceTableCurrent(plannerReferenceTable, {
+        projectId: input.projectId,
+        projectVersion: input.projectVersion,
+        approvedBriefChecksum: input.approvedBriefChecksum,
+        idempotencyKey: input.idempotencyKey,
+        expectedRowVersion: input.expectedRowVersion,
+        canonicalBrief: currentBeforeProvider.brief,
+      });
     const plannerInput = PlannerAgentInputSchema.parse({
       ...input,
       ...(currentCanonical ? { plannerAuthority: plannerAuthorityFor(currentCanonical.brief) } : {}),
+      ...(plannerReferenceTable ? { plannerReferenceTable } : {}),
     });
     let planningPackage: PlanningPackage;
     try {
@@ -473,7 +511,16 @@ export class PlannerArchitectService {
           : [];
       // Re-check the host-owned currentness token immediately before provider
       // spend; skill/context preparation may have overlapped a Brief update.
-      await this.validateCurrentCanonicalBrief(input);
+      const currentAtSpend = await this.validateCurrentCanonicalBrief(input);
+      if (plannerReferenceTable && currentAtSpend)
+        assertPlannerReferenceTableCurrent(plannerReferenceTable, {
+          projectId: input.projectId,
+          projectVersion: input.projectVersion,
+          approvedBriefChecksum: input.approvedBriefChecksum,
+          idempotencyKey: input.idempotencyKey,
+          expectedRowVersion: input.expectedRowVersion,
+          canonicalBrief: currentAtSpend.brief,
+        });
       planningPackage = PlanningPackageSchema.parse({
         ...PlanningPackageSchema.parse(await this.provider.plan(
           { ...plannerInput, approvedBrief: brief, ...(currentCanonical ? { canonicalBrief: currentCanonical.brief } : {}), documentationExcerpts },
@@ -486,6 +533,12 @@ export class PlannerArchitectService {
       });
     } catch (error) {
       if (error instanceof PlannerError) throw error;
+      if (error instanceof PlannerReferenceBindingError)
+        throw new PlannerError(
+          "PLANNING_PACKAGE_INVALID",
+          `Planner output failed deterministic token admission: ${error.code}:${error.fieldPath}.`,
+          new PlanningAdmissionError(error.code, error.fieldPath),
+        );
       if (error instanceof z.ZodError)
         throw new PlannerError(
           "PLANNING_PACKAGE_INVALID",

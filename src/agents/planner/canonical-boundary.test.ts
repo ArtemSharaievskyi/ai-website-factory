@@ -14,6 +14,7 @@ import { createBriefV3Document, BriefV3DocumentSchema } from "@/persistence/data
 import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
+import { createPlannerReferenceTable } from "./reference-table";
 
 const timestamp = "2026-01-01T00:00:00.000Z";
 const serviceScope = [
@@ -96,5 +97,14 @@ describe("production-shaped Planner canonical boundary", () => {
     await expect(service.planApprovedProject(fixture.input)).rejects.toMatchObject({ code: "BRIEF_CHECKSUM_MISMATCH" });
     expect(calls.count).toBe(0);
     expect(checksumPersistedDocument(changedBrief)).toHaveLength(64);
+  });
+
+  it("rejects a stale host-issued Planner reference table before the provider boundary", async () => {
+    const fixture = await seed();
+    const calls = { count: 0 };
+    const staleTable = createPlannerReferenceTable({ projectId: fixture.projectId, projectVersion: 1, approvedBriefChecksum: fixture.input.approvedBriefChecksum, idempotencyKey: "different-planner-operation", expectedRowVersion: 1, canonicalBrief: fixture.brief });
+    const service = new PlannerArchitectService({ database: fixture.database, memory: new FakePlannerMemoryPort(), provider: countingProvider(calls) });
+    await expect(service.planApprovedProject({ ...fixture.input, plannerReferenceTable: staleTable })).rejects.toMatchObject({ code: "PLANNING_STALE" });
+    expect(calls.count).toBe(0);
   });
 });
