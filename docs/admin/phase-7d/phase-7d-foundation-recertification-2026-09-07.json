@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "documentType": "phase-7d-foundation-recertification",
+  "phaseId": "PHASE_7D",
+  "recertificationId": "phase-7d-foundation-recertification-2026-09-07",
+  "status": "COMPLETE",
+  "verifiedOn": "2026-09-07",
+  "historicalEvidence": {
+    "sourceEvidence": "docs/admin/phase-7d/phase-7d-controlled-ast-aware-patching-result-2026-08-12.json",
+    "candidateId": "phase-7d-controlled-ast-patching-2026-08-12",
+    "candidateChecksum": "1e0c5050ea0110f2f8fec874b1d6e2c323dff8cde1941611a25b9577873e4132",
+    "backendChecksum": "b56033b92e5a6c6266663093c4580cd8d428e847599e308ba407e4cdf9021e60",
+    "immutable": true
+  },
+  "currentArtifact": {
+    "verifiedAgainstCommit": "62b7d6b5118f7b402c4dd6f5440608bd659eb8ac",
+    "candidateChecksum": "621a96dcdfd0737cc73923e9582bdf2b47c67a7b43ae309f85f7db893de11916",
+    "backendChecksum": "f60c4dba12478bc770c08d04de9ed178e33d575832922722516f538a82db82fe",
+    "checksumMethod": "SHA-256 of JSON.stringify of the ordered [{relativePath,checksum}] manifest",
+    "currentMismatchCount": 0
+  },
+  "semanticDeltas": [
+    {
+      "relativePath": "src/agents/implementation/backend.ts",
+      "classification": "AUTHORIZED_FOUNDATION_DELTA",
+      "authorizingCommits": ["62b7d6b5118f7b402c4dd6f5440608bd659eb8ac"],
+      "oldChecksum": "b56033b92e5a6c6266663093c4580cd8d428e847599e308ba407e4cdf9021e60",
+      "newChecksum": "f60c4dba12478bc770c08d04de9ed178e33d575832922722516f538a82db82fe",
+      "sourceChange": "Backend environment-reference validation now recognizes the canonical architecture.environmentVariables, architecture.environment.variables, and top-level environment.variables planning shapes.",
+      "behavioralConsequence": "Valid declared environment references are accepted across the persisted planning shapes; undeclared process.env references remain rejected.",
+      "focusedTests": ["src/agents/implementation/backend.test.ts"],
+      "runtimeEvidence": ["npm run generated:runtime-smoke", "npm run database:smoke", "npm test"]
+    }
+  ],
+  "authorizingCommits": ["62b7d6b5118f7b402c4dd6f5440608bd659eb8ac"],
+  "historicalEvidencePreserved": true,
+  "oldChecksumRejectedByCurrentManifest": true,
+  "newChecksumAcceptedByCurrentManifest": true,
+  "unauthorizedFutureChecksumGuarded": true,
+  "providerCallsDuringRecertification": 0,
+  "customerStateMutated": false,
+  "releaseOrDeploymentExecuted": false
+}

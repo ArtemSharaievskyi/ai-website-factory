@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "documentType": "first-pilot-state-recertification",
+  "recertificationId": "first-pilot-state-recertification-2026-09-07",
+  "status": "COMPLETE",
+  "historicalEvidence": {
+    "sourceEvidence": "docs/admin/phase-9/first-pilot-baseline-2026-09-03.json",
+    "registeredShapeSource": "src/agents/planner/recovery-pilot-shape.test.ts",
+    "workflowState": "AWAITING_DESIGN_SELECTION",
+    "projectVersion": 1,
+    "rowVersion": 15,
+    "planningEvidenceRowVersion": 10,
+    "immutable": true
+  },
+  "currentPersistedShape": {
+    "verifiedOn": "2026-09-07",
+    "workflowState": "IMPLEMENTING",
+    "projectVersion": 1,
+    "projectRowVersion": 23,
+    "projectVersionState": "DRAFT",
+    "projectVersionRowVersion": 4,
+    "taskGraphRowVersion": 834,
+    "taskGraphCheckpoint": "validation-started",
+    "fullExecutionState": "VALIDATING",
+    "releaseEligible": true,
+    "publication": "DEFERRED",
+    "prepareRelease": { "status": "ready", "attempt": 0, "executed": false }
+  },
+  "canonicalBindings": {
+    "briefSemanticChecksum": "60552d996de42aaaa38a41dd994f0d173a197af6e3e70b3220d297da922f87f8",
+    "briefDocumentChecksum": "9c8c684ee214c6b5a061aea91e289bb646cbc656d5583d6dffe8fce078ab5cd7",
+    "planningChecksum": "194ceed1a4d81583e484dd44ab899f39cc34d7ff540e040ecfd41bbd536ce8a3",
+    "architectureChecksum": "385dc8fa5c58f79d1ea080ff79d9f114d65996b280b210166c3e4ebc8bfc9dbc",
+    "selectedDesignChecksum": "d46fd6f208417246b6bbf0425b2c37df2364948677d26272ceb53582ada37ce6",
+    "selectedDesignDirection": "B",
+    "taskGraphDocumentChecksum": "dc758c6efdf823f8ebb7e9ee4be65189b076f3a8f607c520951990b3b391303c",
+    "taskGraphChecksum": "008a20945ab27c86343f3cc3bab5824f65d61213353cb2100aa5c610704db32f",
+    "executionBoundGraphChecksum": "63d281d4eb5e50c4fb5f4158563c06a13bf8650e1d698f8a24e72ddda1546765"
+  },
+  "productInvariants": {
+    "briefUnchanged": true,
+    "planningUnchanged": true,
+    "architectureUnchanged": true,
+    "selectedDesignUnchanged": true,
+    "routes": 11,
+    "services": 31,
+    "moebeltransportPresent": true,
+    "databaseDecision": "NONE",
+    "backendDecision": "NONE",
+    "authDecision": "NONE",
+    "clientOnlyForm": true,
+    "releaseEligible": true,
+    "publication": "DEFERRED",
+    "prepareReleaseExecuted": false
+  },
+  "transitionAudit": {
+    "persistedWorkflowEventCount": 22,
+    "authorizedTransitionCount": 22,
+    "unauthorizedTransitionCount": 0,
+    "unknownTransitionCount": 0,
+    "classification": "AUTHORIZED_PROTECTED_STATE_ADVANCE"
+  },
+  "providerCallsDuringRecertification": 0,
+  "pilotSourceOrContentMutation": false,
+  "pilotCanonicalMutation": false,
+  "releaseOrDeploymentExecuted": false
+}
