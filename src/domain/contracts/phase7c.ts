@@ -1,12 +1,17 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
-import { DEPENDENCY_AUTHORITY_POLICY_VERSION, decideDependency, getDependencyCatalogEntry, type DependencyAuthorityContext } from "@/dependencies/authority";
+import { DEPENDENCY_AUTHORITY_POLICY_VERSION, decideDependency, getDependencyCatalogEntry, parseDependencySpec, type DependencyAuthorityContext } from "@/dependencies/authority";
 import { DocumentBaseSchema, IsoDateTimeSchema, NonEmptyStringSchema, ProjectVersionSchema, UuidSchema } from "@/domain/shared/schemas";
 import { stableValue } from "@/persistence/database/serialization";
 
 export const PHASE_7C_SCHEMA_VERSION = 1 as const;
 export const PHASE_7C_POLICY_VERSION = "phase-7c-contracts-v1";
 export const HashSchema = z.string().regex(/^[a-f0-9]{64}$/);
+
+const deterministicTaskContractId = (taskId: string) => {
+  const bytes = createHash("sha256").update(`phase-7c-task-contract:${taskId}`).digest("hex");
+  return `${bytes.slice(0, 8)}-${bytes.slice(8, 12)}-4${bytes.slice(13, 16)}-8${bytes.slice(17, 20)}-${bytes.slice(20, 32)}`;
+};
 
 export const ContractReferenceSchema = z.object({ id: NonEmptyStringSchema, checksum: HashSchema }).strict();
 export type ContractReference = z.infer<typeof ContractReferenceSchema>;
@@ -343,13 +348,24 @@ export function validateDependencyProposal(value: unknown, authorityContext: Dep
   return proposal;
 }
 
+function dependencyAuthorityContextFromProposal(proposal: DependencyProposal): DependencyAuthorityContext {
+  return {
+    plannedDependencies: proposal.dependencies.map((dependency) => ({
+      name: `${dependency.packageName}@${dependency.versionSpec}`,
+      runtime: dependency.section === "dependencies" ? "runtime" as const : "dev",
+      required: dependency.required,
+    })),
+  };
+}
+
 export function validatePhase7CContractPackage(value: unknown, authorityContext: DependencyAuthorityContext = {}): Phase7CContractPackage {
   const pkg = Phase7CContractPackageSchema.parse(value);
   assertNoPhase7CSecrets(pkg);
   const decision = validateDatabaseDecision(pkg.databaseDecision);
   pkg.dataContracts.forEach(validateDataContract);
   pkg.taskContracts.forEach(validateTaskContract);
-  validateDependencyProposal(pkg.dependencyProposal, authorityContext, pkg.status !== "APPROVED");
+  const resolvedAuthorityContext = authorityContext.plannedDependencies === undefined ? dependencyAuthorityContextFromProposal(pkg.dependencyProposal) : authorityContext;
+  validateDependencyProposal(pkg.dependencyProposal, resolvedAuthorityContext, pkg.status !== "APPROVED");
   if (pkg.planningAcceptance.databaseDecisionRef.id !== decision.databaseDecisionId || pkg.planningAcceptance.databaseDecisionRef.checksum !== decision.checksum) throw new Phase7CContractError("PLANNING_ACCEPTANCE_STALE", "Planning Acceptance is not bound to the current DatabaseDecision.");
   if (pkg.planningAcceptance.checksum !== checksumPlanningAcceptance(pkg.planningAcceptance) || pkg.planningAcceptance.currentness.status !== "CURRENT" || pkg.planningAcceptance.currentness.derivedFromChecksum !== pkg.planningAcceptance.checksum) throw new Phase7CContractError("PLANNING_ACCEPTANCE_STALE", "Planning Acceptance checksum or currentness is stale.");
   if (pkg.currentness.status !== "CURRENT" || pkg.currentness.derivedFromChecksum !== pkg.planningChecksum) throw new Phase7CContractError("CONTRACT_PACKAGE_STALE", "Phase 7C contract package is stale.");
@@ -467,7 +483,7 @@ export function createTaskContract(input: { taskContractId?: string; taskId: str
 
 export function bindTaskContractsToPackage(pkg: Phase7CContractPackage, tasks: ReadonlyArray<{ id: string; projectId: string; projectVersion: number; taskType: string; implementationDomain?: "FRONTEND" | "BACKEND" | "DATABASE"; specialistProfileId?: "frontend-implementation" | "backend-implementation" | "database-implementation"; requirementReferences?: string[]; planningReferences?: string[]; requiredCapabilities?: string[]; allowedTools: string[]; allowedSkills: string[]; fileScopes: string[]; expectedArtifactTypes?: string[]; acceptanceCriteria?: string[]; dependencies: string[]; selectedDesignReferences?: string[] }>) {
   const existing = new Map(pkg.taskContracts.map((contract) => [contract.taskId, contract]));
-  const contracts = tasks.map((task) => existing.get(task.id) ?? createTaskContract({ taskId: task.id, projectId: task.projectId, projectVersion: task.projectVersion, createdAt: pkg.updatedAt, taskType: task.taskType, ...(task.implementationDomain ? { implementationDomain: task.implementationDomain } : {}), ...(task.specialistProfileId ? { specialistProfileId: task.specialistProfileId } : {}), requirementReferences: task.requirementReferences ?? [], planningReferences: task.planningReferences ?? [], capabilityIds: task.requiredCapabilities ?? [], allowedTools: task.allowedTools, allowedSkillIds: task.allowedSkills, fileScopes: task.fileScopes, ownedArtifactTypes: task.expectedArtifactTypes ?? [], inputDataContractIds: task.taskType.includes("database") || task.taskType === "implement-rls-policy" ? pkg.dataContracts.map((contract) => contract.dataContractId) : [], outputDataContractIds: task.taskType.includes("database") || task.taskType === "implement-rls-policy" ? pkg.dataContracts.map((contract) => contract.dataContractId) : [], ...(task.taskType.includes("database") || task.taskType === "implement-rls-policy" ? { databaseDecisionRef: { id: pkg.databaseDecision.databaseDecisionId, checksum: pkg.databaseDecision.checksum } } : {}), dependencyProposalRef: { id: pkg.dependencyProposal.dependencyProposalId, checksum: pkg.dependencyProposal.checksum }, selectedDesignReferences: task.selectedDesignReferences ?? [], acceptanceCriteria: task.acceptanceCriteria?.length ? task.acceptanceCriteria : ["Output matches the approved TaskContract."], validationRequirements: ["Deterministic validation evidence is required."], dependencyTaskIds: task.dependencies }));
+  const contracts = tasks.map((task) => existing.get(task.id) ?? createTaskContract({ taskContractId: deterministicTaskContractId(task.id), taskId: task.id, projectId: task.projectId, projectVersion: task.projectVersion, createdAt: pkg.updatedAt, taskType: task.taskType, ...(task.implementationDomain ? { implementationDomain: task.implementationDomain } : {}), ...(task.specialistProfileId ? { specialistProfileId: task.specialistProfileId } : {}), requirementReferences: task.requirementReferences ?? [], planningReferences: task.planningReferences ?? [], capabilityIds: task.requiredCapabilities ?? [], allowedTools: task.allowedTools, allowedSkillIds: task.allowedSkills, fileScopes: task.fileScopes, ownedArtifactTypes: task.expectedArtifactTypes ?? [], inputDataContractIds: task.taskType.includes("database") || task.taskType === "implement-rls-policy" ? pkg.dataContracts.map((contract) => contract.dataContractId) : [], outputDataContractIds: task.taskType.includes("database") || task.taskType === "implement-rls-policy" ? pkg.dataContracts.map((contract) => contract.dataContractId) : [], ...(task.taskType.includes("database") || task.taskType === "implement-rls-policy" ? { databaseDecisionRef: { id: pkg.databaseDecision.databaseDecisionId, checksum: pkg.databaseDecision.checksum } } : {}), dependencyProposalRef: { id: pkg.dependencyProposal.dependencyProposalId, checksum: pkg.dependencyProposal.checksum }, selectedDesignReferences: task.selectedDesignReferences ?? [], acceptanceCriteria: task.acceptanceCriteria?.length ? task.acceptanceCriteria : ["Output matches the approved TaskContract."], validationRequirements: ["Deterministic validation evidence is required."], dependencyTaskIds: task.dependencies }));
   return Phase7CContractPackageSchema.parse({ ...pkg, taskContracts: contracts, updatedAt: pkg.updatedAt });
 }
 
@@ -475,7 +491,7 @@ export function approveDependencyProposal(proposal: DependencyProposal, input: {
   const dependencies = proposal.dependencies.map((dependency) => dependency.approvalRequired ? { ...dependency, approvalStatus: "APPROVED" as const, approvedBy: input.actorId, approvedAt: input.approvedAt } : dependency);
   const base: Omit<DependencyProposal, "checksum"> = { ...proposal, dependencies, currentness: { ...proposal.currentness, status: "CURRENT", checkedAt: input.approvedAt, derivedFromChecksum: "0".repeat(64) } };
   const checksum = checksumDependencyProposal(base);
-  return validateDependencyProposal({ ...base, checksum, currentness: { ...base.currentness, derivedFromChecksum: checksum } }, { plannedDependencies: proposal.dependencies.map((dependency) => ({ name: dependency.packageName, runtime: dependency.section === "dependencies" ? "runtime" as const : "dev" as const, required: dependency.required })) });
+  return validateDependencyProposal({ ...base, checksum, currentness: { ...base.currentness, derivedFromChecksum: checksum } }, dependencyAuthorityContextFromProposal(proposal));
 }
 
 export function createPlanningAcceptance(input: { planningAcceptanceId?: string; projectId: string; projectVersion: number; planningChecksum: string; databaseDecision: DatabaseDecision; dependencyProposal: DependencyProposal; architectureChecksum: string; designChecksum: string; createdAt: string }) {
@@ -495,14 +511,14 @@ export function buildPhase7CContractPackage(input: { projectId: string; projectV
   const databaseDecision = input.databaseDecision ?? createDatabaseDecisionProposal({ databaseDecisionId: randomUUID(), projectId: input.projectId, projectVersion: input.projectVersion, createdAt: input.createdAt, planningChecksum: input.planningChecksum, recommendation: input.planning.dataModel.entities.length ? "REQUIRED" : "NOT_REQUIRED", rationale: input.planning.dataModel.entities.length ? "The approved data model contains persistent entities; the user must approve a database mode." : "The approved planning package contains no persistent entities; the user must explicitly approve NONE.", authRequired: input.planning.authentication.required, storageRequired: input.planning.storage.decision === "supabase-storage", dataContractIds: entityIds });
   const decisionRef = { id: databaseDecision.databaseDecisionId, checksum: databaseDecision.checksum };
   const dataContracts = input.dataContracts ?? input.planning.dataModel.entities.map((entity, index) => createDataContract({ dataContractId: entityIds[index], projectId: input.projectId, projectVersion: input.projectVersion, createdAt: input.createdAt, name: entity.name, requirementReferences: entity.requirementReferences, fields: entity.fields.map((field) => ({ fieldId: field.name.replace(/[^A-Za-z0-9_]/g, "_").replace(/^[^a-z]/, "field_"), type: field.type, required: field.required, sensitivity: field.public ? "PUBLIC" as const : "CONFIDENTIAL" as const })), persistence: "DATABASE_PERSISTED", databaseDecisionRef: decisionRef, databaseEntity: entity.name, validationRules: ["Strict schema validation before persistence"], trustBoundary: "SERVER" }));
-  const dependencyProposal = input.dependencyProposal ?? buildDependencyProposal({ dependencyProposalId: randomUUID(), projectId: input.projectId, projectVersion: input.projectVersion, createdAt: input.createdAt, planningChecksum: input.planningChecksum, dependencies: input.planning.dependencies.dependencies.map((dependency) => ({ packageName: dependency.name, versionSpec: getDependencyCatalogEntry(dependency.name)?.allowedVersionSpec ?? "*", section: dependency.runtime === "runtime" ? "dependencies" as const : "devDependencies" as const, required: dependency.required, requirementReferences: dependency.requirementReferences, rationale: dependency.purpose })) }, { projectId: input.projectId, projectVersion: input.projectVersion, planningChecksum: input.planningChecksum, plannedDependencies: input.planning.dependencies.dependencies.map((dependency) => ({ name: dependency.name, runtime: dependency.runtime, required: dependency.required })) });
+  const dependencyProposal = input.dependencyProposal ?? buildDependencyProposal({ dependencyProposalId: randomUUID(), projectId: input.projectId, projectVersion: input.projectVersion, createdAt: input.createdAt, planningChecksum: input.planningChecksum, dependencies: input.planning.dependencies.dependencies.map((dependency) => { const parsed = parseDependencySpec(dependency.name); return { packageName: parsed.packageName, versionSpec: parsed.versionSpec ?? getDependencyCatalogEntry(parsed.packageName)?.allowedVersionSpec ?? "*", section: dependency.runtime === "runtime" ? "dependencies" as const : "devDependencies" as const, required: dependency.required, requirementReferences: dependency.requirementReferences, rationale: dependency.purpose }; }) }, { projectId: input.projectId, projectVersion: input.projectVersion, planningChecksum: input.planningChecksum, plannedDependencies: input.planning.dependencies.dependencies.map((dependency) => ({ name: dependency.name, runtime: dependency.runtime, required: dependency.required })) });
   const planningAcceptance = createPlanningAcceptance({ projectId: input.projectId, projectVersion: input.projectVersion, planningChecksum: input.planningChecksum, databaseDecision, dependencyProposal, architectureChecksum: input.architectureChecksum, designChecksum: input.designChecksum, createdAt: input.createdAt });
   const base = { schemaVersion: PHASE_7C_SCHEMA_VERSION, documentType: "phase-7c-contract-package" as const, projectId: input.projectId, projectVersion: input.projectVersion, createdAt: input.createdAt, updatedAt: input.createdAt, phaseId: "PHASE_7C" as const, contractPolicyVersion: PHASE_7C_POLICY_VERSION, approvedBriefChecksum: input.approvedBriefChecksum, planningChecksum: input.planningChecksum, architectureChecksum: input.architectureChecksum, designChecksum: input.designChecksum, status: "PENDING_USER_APPROVAL" as const, databaseDecision, dataContracts, taskContracts: [] as TaskContract[], dependencyProposal, planningAcceptance, safeEnvironmentMetadata: databaseDecision.connectionRequirements, traceability: dataContracts.flatMap((contract) => contract.requirementReferences.map((requirementReference) => ({ requirementReference, planningReference: `data:${contract.name}`, taskContractId: "00000000-0000-4000-8000-000000000000", dataContractIds: [contract.dataContractId], artifactPaths: [], validationIds: ["validate-contracts"] }))), architectureAccepted: false, contractAuditAccepted: false, designSelected: false, currentness: { status: "CURRENT" as const, derivedFromChecksum: input.planningChecksum, checkedAt: input.createdAt } };
   return Phase7CContractPackageSchema.parse(base);
 }
 
 export function approvePhase7CContractPackage(pkg: Phase7CContractPackage, input: { actorId: string; approvedAt: string }) {
-  const dependencyProposal = validateDependencyProposal(pkg.dependencyProposal, { plannedDependencies: pkg.dependencyProposal.dependencies.map((dependency) => ({ name: dependency.packageName, runtime: dependency.section === "dependencies" ? "runtime" as const : "dev", required: dependency.required })) });
+  const dependencyProposal = validateDependencyProposal(pkg.dependencyProposal, dependencyAuthorityContextFromProposal(pkg.dependencyProposal));
   const databaseDecision = validateDatabaseDecision(pkg.databaseDecision);
   const planningAcceptance = approvePlanningAcceptance(pkg.planningAcceptance, input);
   return validatePhase7CContractPackage({ ...pkg, status: "APPROVED", databaseDecision, dependencyProposal, planningAcceptance, updatedAt: input.approvedAt });

@@ -66,7 +66,7 @@ export const APPROVED_OPTIONAL_DESIGN_DEPENDENCIES = {
 } as const;
 
 export const APPROVED_OPTIONAL_SUPABASE_DEPENDENCIES = {
-  "@supabase/supabase-js": "2.112.4",
+  "@supabase/supabase-js": "2.114.0",
   "@supabase/ssr": "0.12.6",
 } as const;
 

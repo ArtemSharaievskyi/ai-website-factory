@@ -126,7 +126,7 @@ describe("canonical Brief to Planner boundary", () => {
     });
     const planning = buildPlanningPackage(input(brief));
     expect(planning.supabase).toMatchObject({ postgres: true, auth: false });
-    expect(planning.dependencies.dependencies.map((dependency) => dependency.name)).toEqual(["zod@^4.4.3", "@supabase/supabase-js@2.112.4"]);
+    expect(planning.dependencies.dependencies.map((dependency) => dependency.name)).toEqual(["zod@^4.4.3", "@supabase/supabase-js@2.114.0"]);
     expect(validatePlanningDependencies(planning).every((decision) => decision.approved)).toBe(true);
   });
 
@@ -135,7 +135,7 @@ describe("canonical Brief to Planner boundary", () => {
     const brief = CanonicalBriefV3Schema.parse({ ...base, decisions: { ...base.decisions, auth: { mode: "REQUIRED" as const } } });
     const planning = buildPlanningPackage(input(brief));
     expect(planning.supabase).toMatchObject({ postgres: false, auth: true });
-    expect(planning.dependencies.dependencies.map((dependency) => dependency.name)).toEqual(["zod@^4.4.3", "@supabase/supabase-js@2.112.4", "@supabase/ssr@0.12.6"]);
+    expect(planning.dependencies.dependencies.map((dependency) => dependency.name)).toEqual(["zod@^4.4.3", "@supabase/supabase-js@2.114.0", "@supabase/ssr@0.12.6"]);
   });
 
   it("carries the full canonical Brief on the typed Planner input", () => {

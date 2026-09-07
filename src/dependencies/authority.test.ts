@@ -70,12 +70,12 @@ describe("dependency authority", () => {
   });
 
   it("authorizes pinned Supabase runtime packages only with current plan intent and an owning task", () => {
-    const plannedDependencies = [{ name: "@supabase/supabase-js@2.112.4", runtime: "runtime" as const, required: true }];
-    expect(decideDependency({ operation: "ADD", packageName: "@supabase/supabase-js", versionSpec: "2.112.4", dependencySection: "dependencies", context: { plannedDependencies, taskType: "implement-authentication" } }).code).toBe("APPROVED");
-    expect(decideDependency({ operation: "ADD", packageName: "@supabase/supabase-js", versionSpec: "2.112.4", dependencySection: "dependencies", context: { plannedDependencies, taskType: "implement-page" } }).code).toBe("CAPABILITY_NOT_ALLOWED");
+    const plannedDependencies = [{ name: "@supabase/supabase-js@2.114.0", runtime: "runtime" as const, required: true }];
+    expect(decideDependency({ operation: "ADD", packageName: "@supabase/supabase-js", versionSpec: "2.114.0", dependencySection: "dependencies", context: { plannedDependencies, taskType: "implement-authentication" } }).code).toBe("APPROVED");
+    expect(decideDependency({ operation: "ADD", packageName: "@supabase/supabase-js", versionSpec: "2.114.0", dependencySection: "dependencies", context: { plannedDependencies, taskType: "implement-page" } }).code).toBe("CAPABILITY_NOT_ALLOWED");
     expect(decideDependency({ operation: "ADD", packageName: "@supabase/ssr", versionSpec: "0.12.6", dependencySection: "dependencies", context: { taskType: "implement-authentication" } }).code).toBe("NOT_IN_PROJECT_PLAN");
     expect(validateDependencyPlan([{ name: "@supabase/supabase-js", runtime: "runtime", required: true }]).decisions[0].code).toBe("VERSION_NOT_APPROVED");
-    expect(validateDependencyPlan([{ name: "@supabase/supabase-js@2.112.4", runtime: "runtime", required: true }]).valid).toBe(true);
+    expect(validateDependencyPlan([{ name: "@supabase/supabase-js@2.114.0", runtime: "runtime", required: true }]).valid).toBe(true);
   });
 
   it("parses scoped and unscoped package specs without discarding versions", () => {
@@ -93,9 +93,9 @@ describe("dependency authority", () => {
     expect(validateDependencyReferences(["zod@^4.4.2"], plan).decisions[0].code).toBe("VERSION_NOT_APPROVED");
     expect(validateDependencyReferences(["next@16.2.12"], plan).decisions[0].code).toBe("NOT_IN_PROJECT_PLAN");
     expect(validateDependencyReferences(["unknown-package@1.0.0"], plan).decisions[0].code).toBe("PACKAGE_NOT_APPROVED");
-    const supabasePlan = [{ name: "@supabase/supabase-js@2.112.4", runtime: "runtime" as const, required: true }];
+    const supabasePlan = [{ name: "@supabase/supabase-js@2.114.0", runtime: "runtime" as const, required: true }];
     expect(validateDependencyReferences(["@supabase/supabase-js"], supabasePlan).decisions[0].code).toBe("VERSION_NOT_APPROVED");
-    expect(validateDependencyReferences(["@supabase/supabase-js@2.112.4"], supabasePlan).valid).toBe(true);
+    expect(validateDependencyReferences(["@supabase/supabase-js@2.114.0"], supabasePlan).valid).toBe(true);
   });
 
   it("matches only npm root direct declarations while ignoring transitive packages", () => {

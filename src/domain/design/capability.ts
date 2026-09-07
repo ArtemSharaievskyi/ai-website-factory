@@ -226,14 +226,14 @@ export const DesignDependencyAmendmentSchema = DocumentBaseSchema.extend({
 export type DesignDependencyAmendment = z.infer<typeof DesignDependencyAmendmentSchema>;
 
 export function buildDesignDependencyAmendment(input: { amendmentId: string; projectId: string; projectVersion: number; directionId: string; reason: string; requestedBy: string; requestedAt: string }, authorityContext: DependencyAuthorityContext = {}) {
-  const authority = decideDependency({ operation: "ADD", packageName: "motion", versionSpec: "12.43.0", dependencySection: "dependencies", context: { ...authorityContext, plannedDependencies: authorityContext.plannedDependencies ?? [{ name: "motion", runtime: "runtime", required: true }] } });
+  const authority = decideDependency({ operation: "ADD", packageName: "motion", versionSpec: "12.43.0", dependencySection: "dependencies", context: { ...authorityContext, plannedDependencies: authorityContext.plannedDependencies ?? [{ name: "motion@12.43.0", runtime: "runtime", required: true }] } });
   if (!authority.approved) throw new Error(`UNAPPROVED_DESIGN_DEPENDENCY:${authority.code}`);
   const base = { schemaVersion: 1 as const, documentType: "design-dependency-amendment" as const, projectId: input.projectId, projectVersion: input.projectVersion, createdAt: input.requestedAt, updatedAt: input.requestedAt, amendmentId: input.amendmentId, directionId: input.directionId, packageName: "motion" as const, versionSpec: "12.43.0" as const, section: "dependencies" as const, authorityCode: authority.code as "APPROVED", status: "PROPOSED" as const, reason: input.reason, requestedBy: input.requestedBy, requestedAt: input.requestedAt };
   return DesignDependencyAmendmentSchema.parse({ ...base, checksum: stableDesignChecksum(base) });
 }
 
 export function approveDesignDependencyAmendment(amendment: DesignDependencyAmendment, input: { approvedBy: string; approvedAt: string }, authorityContext: DependencyAuthorityContext = {}) {
-  const authority = decideDependency({ operation: "ADD", packageName: amendment.packageName, versionSpec: amendment.versionSpec, dependencySection: amendment.section, context: { ...authorityContext, plannedDependencies: authorityContext.plannedDependencies ?? [{ name: "motion", runtime: "runtime", required: true }] } });
+  const authority = decideDependency({ operation: "ADD", packageName: amendment.packageName, versionSpec: amendment.versionSpec, dependencySection: amendment.section, context: { ...authorityContext, plannedDependencies: authorityContext.plannedDependencies ?? [{ name: "motion@12.43.0", runtime: "runtime", required: true }] } });
   if (!authority.approved) throw new Error(`UNAPPROVED_DESIGN_DEPENDENCY:${authority.code}`);
   const base = { ...amendment, updatedAt: input.approvedAt, status: "USER_APPROVED" as const, approvedBy: input.approvedBy, approvedAt: input.approvedAt };
   return DesignDependencyAmendmentSchema.parse({ ...base, checksum: stableDesignChecksum(base) });

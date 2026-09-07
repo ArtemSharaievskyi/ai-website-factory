@@ -336,6 +336,13 @@ export class SkillRegistry {
         "SKILL_SOURCE_INVALID",
         "Internal skills cannot carry external provenance fields.",
       );
+    try {
+      const entry = await lstat(path.join(source, "SKILL.md"));
+      if (!entry.isFile() || entry.isSymbolicLink()) throw new SkillError("SKILL_SOURCE_INVALID", "Skill import requires a regular root SKILL.md file.");
+    } catch (error) {
+      if (error instanceof SkillError) throw error;
+      throw new SkillError("SKILL_SOURCE_INVALID", "Skill import requires a regular root SKILL.md file.", undefined, error);
+    }
     const files = await this.scan(source);
     const manifestFiles = files.map(
       ({ relativePath, sha256, byteSize, kind, executable }) => ({

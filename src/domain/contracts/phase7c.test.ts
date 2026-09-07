@@ -4,6 +4,8 @@ import {
   Phase7CContractError,
   approveDatabaseDecision,
   approveDependencyProposal,
+  approvePhase7CContractPackage,
+  bindTaskContractsToPackage,
   approvePlanningAcceptance,
   buildDependencyProposal,
   buildPhase7CContractPackage,
@@ -118,6 +120,48 @@ describe("Phase 7C typed contracts", () => {
     expect(proposal.dependencies[0]?.class).toBe("FOUNDATION_DEPENDENCY");
     expect(proposal.dependencies[0]?.approvalStatus).toBe("NOT_REQUIRED");
     expect(approveDependencyProposal(proposal, { actorId: "user-1", approvedAt: now }).checksum).toBe(proposal.checksum);
+  });
+
+  it("parses planner package specifications when building the dependency proposal", () => {
+    const pending = buildPhase7CContractPackage({
+      projectId,
+      projectVersion: 1,
+      createdAt: now,
+      approvedBriefChecksum: checksum,
+      planningChecksum: checksum,
+      architectureChecksum: "b".repeat(64),
+      designChecksum: "c".repeat(64),
+      planning: { ...planning, dependencies: { dependencies: [{ ...planning.dependencies.dependencies[0]!, name: "zod@^4.4.3" }] } },
+    });
+    expect(pending.dependencyProposal.dependencies[0]?.packageName).toBe("zod");
+    expect(pending.dependencyProposal.dependencies[0]?.versionSpec).toBe("^4.4.3");
+  });
+
+  it("keeps an approved optional dependency valid across the Phase 7C package boundary", () => {
+    const pending = buildPhase7CContractPackage({
+      projectId,
+      projectVersion: 1,
+      createdAt: now,
+      approvedBriefChecksum: checksum,
+      planningChecksum: checksum,
+      architectureChecksum: "b".repeat(64),
+      designChecksum: "c".repeat(64),
+      planning: { ...planning, authentication: { required: true }, dependencies: { dependencies: [
+        { ...planning.dependencies.dependencies[0]!, name: "zod@^4.4.3" },
+        { name: "@supabase/supabase-js@2.114.0", runtime: "runtime" as const, required: true, requirementReferences: ["brief:supabaseRequirements"], purpose: "Approved Supabase runtime" },
+      ] } },
+    });
+    const approvedDependencies = approveDependencyProposal(pending.dependencyProposal, { actorId: "user-1", approvedAt: now });
+    const approved = approvePhase7CContractPackage({ ...pending, dependencyProposal: approvedDependencies }, { actorId: "user-1", approvedAt: now });
+    expect(validatePhase7CContractPackage(approved).dependencyProposal.dependencies[1]?.approvalStatus).toBe("APPROVED");
+  });
+
+  it("binds the same task identity to the same TaskContract across repeated graph construction", () => {
+    const pending = buildPhase7CContractPackage({ projectId, projectVersion: 1, createdAt: now, approvedBriefChecksum: checksum, planningChecksum: checksum, architectureChecksum: "b".repeat(64), designChecksum: "c".repeat(64), planning });
+    const task = { id: taskId, projectId, projectVersion: 1, taskType: "prepare-workspace", allowedTools: ["filesystem-read"], allowedSkills: [], fileScopes: ["src/**"], expectedArtifactTypes: ["workspace-reservation"], dependencies: [] };
+    const first = bindTaskContractsToPackage(pending, [task]);
+    const second = bindTaskContractsToPackage(pending, [task]);
+    expect(second.taskContracts[0]).toEqual(first.taskContracts[0]);
   });
 
   it("requires explicit planning acceptance and supports a stable persistence round trip", () => {

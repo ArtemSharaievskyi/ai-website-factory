@@ -220,7 +220,7 @@ export class ProfessionalDesignCapabilityPipeline {
 
     const dependencyDirectionIds = directions.filter((direction) => direction.professionalDesign?.motion.suitability === "MOTION").map((direction) => direction.id);
     if (dependencyDirectionIds.length) {
-      const decision = decideDependency({ operation: "ADD", packageName: "motion", versionSpec: "12.43.0", dependencySection: "dependencies", context: { plannedDependencies: [{ name: "motion", runtime: "runtime", required: true }] } });
+      const decision = decideDependency({ operation: "ADD", packageName: "motion", versionSpec: "12.43.0", dependencySection: "dependencies", context: { plannedDependencies: [{ name: "motion@12.43.0", runtime: "runtime", required: true }] } });
       if (!decision.approved) throw new Error(`UNAPPROVED_DESIGN_DEPENDENCY:${decision.code}`);
     }
     const readiness = validateExactThreeDesignCapabilities(directions, { approvedDependencies: input.approvedDependencies, requireLiveEvidence: true });

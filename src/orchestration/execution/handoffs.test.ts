@@ -39,4 +39,23 @@ describe("production domain handoffs", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it("refreshes currentness after an authorized downstream task while keeping the handoff checksum-bound", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "factory-handoff-refresh-"));
+    try {
+      await mkdir(path.join(root, "supabase", "migrations"), { recursive: true });
+      await writeFile(path.join(root, "supabase", "migrations", "20260905000000_schema.sql"), "create table example (id uuid primary key);\n");
+      const databaseTask = task("DATABASE");
+      const backendTask = task("BACKEND", [databaseTask.id]);
+      const graph = TaskGraphSchema.parse({ schemaVersion: 1, documentType: "task-graph", projectId: databaseTask.projectId, projectVersion: 1, createdAt: time, updatedAt: time, tasks: [databaseTask, backendTask], sourceDocumentChecksums: { architecture: hash("a") }, graphChecksum: hash("b") });
+      const database = new InMemoryPersistenceDatabase();
+      const service = new ProductionHandoffService(database, root);
+      await service.persistAfterTask(graph, databaseTask, execution(databaseTask.id), {});
+      await writeFile(path.join(root, "supabase", "migrations", "20260905000000_schema.sql"), "create table authorized_change (id uuid primary key);\n");
+      await service.persistAfterTask(graph, databaseTask, execution(databaseTask.id), {});
+      await expect(service.loadForTask(graph, backendTask)).resolves.toMatchObject({ database: { currentness: { workspaceChecksum: await workspaceSourceChecksum(root) } } });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

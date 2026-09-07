@@ -1161,7 +1161,7 @@ export class DesignAgentService {
     const direction = set.directions.find((candidate) => candidate.id === input.directionId);
     if (!direction) throw new DesignError("DESIGN_DIRECTION_NOT_FOUND", "The dependency amendment must reference a current direction.");
     if (direction.professionalDesign?.motion.suitability !== "MOTION") throw new DesignError("MOTION_STRATEGY_MISMATCH", "The selected direction does not request Motion.");
-    const amendment = buildDesignDependencyAmendment({ amendmentId: randomUUID(), projectId: input.projectId, projectVersion: input.projectVersion, directionId: input.directionId, reason: input.reason, requestedBy: input.requestedBy, requestedAt: input.requestedAt ?? now() }, { projectId: input.projectId, projectVersion: input.projectVersion, plannedDependencies: [{ name: "motion", runtime: "runtime", required: true }] });
+    const amendment = buildDesignDependencyAmendment({ amendmentId: randomUUID(), projectId: input.projectId, projectVersion: input.projectVersion, directionId: input.directionId, reason: input.reason, requestedBy: input.requestedBy, requestedAt: input.requestedAt ?? now() }, { projectId: input.projectId, projectVersion: input.projectVersion, plannedDependencies: [{ name: "motion@12.43.0", runtime: "runtime", required: true }] });
     await this.documents.save(amendment, `design-dependency-amendment-${input.projectId}-${input.projectVersion}`);
     await this.dependencies.memory.writeSnapshot(input.projectId, input.projectVersion, { "design-dependency-amendment.json": amendment });
     return amendment;
@@ -1169,7 +1169,7 @@ export class DesignAgentService {
   async approveDesignDependencyAmendment(input: { projectId: string; projectVersion: number; approvedBy: string; approvedAt?: string }) {
     const current = await this.documents.get(input.projectId, input.projectVersion, "design-dependency-amendment");
     if (!current || current.documentType !== "design-dependency-amendment") throw new DesignError("UNAPPROVED_DESIGN_DEPENDENCY", "No proposed design dependency amendment is available.");
-    const amendment = approveDesignDependencyAmendment(DesignDependencyAmendmentSchema.parse(current), { approvedBy: input.approvedBy, approvedAt: input.approvedAt ?? now() }, { projectId: input.projectId, projectVersion: input.projectVersion, plannedDependencies: [{ name: "motion", runtime: "runtime", required: true }] });
+    const amendment = approveDesignDependencyAmendment(DesignDependencyAmendmentSchema.parse(current), { approvedBy: input.approvedBy, approvedAt: input.approvedAt ?? now() }, { projectId: input.projectId, projectVersion: input.projectVersion, plannedDependencies: [{ name: "motion@12.43.0", runtime: "runtime", required: true }] });
     await this.documents.save(amendment, `design-dependency-amendment-approved-${amendment.amendmentId}`);
     await this.dependencies.memory.writeSnapshot(input.projectId, input.projectVersion, { "design-dependency-amendment.json": amendment });
     return amendment;

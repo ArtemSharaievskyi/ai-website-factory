@@ -130,6 +130,24 @@ export class ProductionHandoffService {
       const document = { ...base, checksum: checksumBackendImplementationContract(base) };
       await this.saveCurrent(document);
     }
+    await this.refreshWorkspaceCurrentness(graph, currentness.workspaceChecksum);
+  }
+
+  private async refreshWorkspaceCurrentness(graph: TaskGraph, workspaceChecksum: string) {
+    const timestamp = new Date().toISOString();
+    const database = await this.documents.get(graph.projectId, graph.projectVersion, "database-implementation-contract");
+    let databaseChecksum = database?.documentType === "database-implementation-contract" ? database.checksum : undefined;
+    if (database?.documentType === "database-implementation-contract" && database.currentness.workspaceChecksum !== workspaceChecksum) {
+      const base = { ...database, updatedAt: timestamp, currentness: { ...database.currentness, workspaceChecksum } };
+      const refreshed = { ...base, checksum: checksumDatabaseImplementationContract(base) };
+      await this.saveCurrent(refreshed);
+      databaseChecksum = refreshed.checksum;
+    }
+    const backend = await this.documents.get(graph.projectId, graph.projectVersion, "backend-implementation-contract");
+    if (backend?.documentType === "backend-implementation-contract" && (backend.currentness.workspaceChecksum !== workspaceChecksum || (databaseChecksum !== undefined && backend.databaseContractChecksum !== databaseChecksum))) {
+      const base = { ...backend, updatedAt: timestamp, ...(databaseChecksum ? { databaseContractChecksum: databaseChecksum } : {}), currentness: { ...backend.currentness, workspaceChecksum, ...(databaseChecksum ? { databaseContractChecksum: databaseChecksum } : {}) } };
+      await this.saveCurrent({ ...base, checksum: checksumBackendImplementationContract(base) });
+    }
   }
 
   async recordTelemetry(graph: TaskGraph, task: AgentTask, run: ImplementationExecutionRun, context: { contextBytes: number; skillsBytes: number; canonicalSliceBytes: number; contractBytes: number }) {

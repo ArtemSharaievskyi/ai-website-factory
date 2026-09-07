@@ -33,13 +33,15 @@ export function foundationPackageJson(optional: readonly { packageName: string; 
   return JSON.stringify({ name: "generated-project", version: "0.1.0", private: true, packageManager: "npm", dependencies, devDependencies, scripts: FOUNDATION_PACKAGE_POLICY.scripts }, null, 2) + "\n";
 }
 
-export const FOUNDATION_REQUIRED_ARTIFACTS = ["package.json", "package-lock.json", "eslint.config.mjs", "next.config.mjs"] as const;
+export const FOUNDATION_REQUIRED_ARTIFACTS = ["package.json", "package-lock.json", "eslint.config.mjs", "next.config.mjs", "tsconfig.json"] as const;
 export const FOUNDATION_ESLINT_CONFIG_PATH = "eslint.config.mjs";
 export const FOUNDATION_NEXT_CONFIG_PATH = "next.config.mjs";
+export const FOUNDATION_TSCONFIG_PATH = "tsconfig.json";
 export const FOUNDATION_NEXT_CONFIG = `const nextConfig = { turbopack: { root: process.cwd() } };
 
 export default nextConfig;
 `;
+export const FOUNDATION_TSCONFIG = JSON.stringify({ compilerOptions: { target: "ES2017", lib: ["dom", "dom.iterable", "esnext"], allowJs: true, skipLibCheck: true, strict: true, noEmit: true, esModuleInterop: true, module: "esnext", moduleResolution: "bundler", resolveJsonModule: true, isolatedModules: true, jsx: "preserve", incremental: true, plugins: [{ name: "next" }], paths: { "@/*": ["./src/*"] } }, include: ["next-env.d.ts", ".next/types/**/*.ts", "**/*.ts", "**/*.tsx"], exclude: ["node_modules"] }, null, 2) + "\n";
 export const FOUNDATION_ESLINT_CONFIG = `import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 

@@ -9,6 +9,8 @@ import { TaskGraphSchema } from "@/domain/tasks/schema";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { TaskGraphExecutionRunSchema } from "./contracts";
 import { ProductionExecutionStateAdapter, ProductionTaskExecutorAdapter, boundRuntimeDiagnosticReferences, formatUnresolvedRepairSummary } from "./production-adapters";
+import { assertGeneratedPackageManifest, GENERATED_BASELINE_DEPENDENCIES, GENERATED_BASELINE_DEV_DEPENDENCIES } from "@/dependencies/authority";
+import { dependencyContextFor } from "./production-adapters";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
 const timestamp = "2026-01-01T00:00:00.000Z";
@@ -17,6 +19,11 @@ function runFor(snapshot: { graph: ReturnType<typeof graph> }, status: "validati
 
 describe("production FullTaskGraph adapters", () => {
   it("bounds runtime diagnostic traceability without changing canonical task references", () => { const references = Array.from({ length: 241 }, (_, index) => `requirement:${index}`); expect(boundRuntimeDiagnosticReferences(references)).toEqual(references.slice(0, 20)); expect(references).toHaveLength(241); });
+  it("does not apply implementation capability gates while validating an approved optional dependency", () => {
+    const context = dependencyContextFor({ projectId, projectVersion: 1, task: { taskType: "validate-lint" } } as never, { dependencies: { dependencies: [{ name: "@supabase/ssr@0.12.6", runtime: "runtime", required: true }] } } as never, null);
+    expect(context.taskType).toBeUndefined();
+    expect(() => assertGeneratedPackageManifest({ dependencies: { ...GENERATED_BASELINE_DEPENDENCIES, "@supabase/ssr": "0.12.6" }, devDependencies: GENERATED_BASELINE_DEV_DEPENDENCIES }, context)).not.toThrow();
+  });
   it("loads canonical graph/workflow state and persists bounded execution summaries", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "factory-execution-adapter-")); const db = new InMemoryPersistenceDatabase();
     const project = FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: projectId, slug: "adapter-fixture", originalPrompt: "fixture", currentVersion: 1, workflowState: "IMPLEMENTING" });
@@ -27,6 +34,12 @@ describe("production FullTaskGraph adapters", () => {
   });
   it("exposes only Factory-owned executor routes and handles policy validation", async () => {
     const adapter = new ProductionTaskExecutorAdapter(new InMemoryPersistenceDatabase(), { projectId, projectVersion: 1, workspacePath: "C:\\generated\\fixture", generatedProjectsRoot: "C:\\generated", workspaceReservationId: "reservation", sourceDocumentChecksums: {}, toolPolicyVersion: "tools-v1", orchestrationPolicyVersion: "orchestrator-v1" }, {} as never, {} as never, {} as never); const outcome = await adapter.dispatch({ runId: "55555555-5555-4555-8555-555555555555", projectId, projectVersion: 1, task: { id: "66666666-6666-4666-8666-666666666666", projectId, projectVersion: 1, role: "qa-release", taskType: "validate-security", title: "Security", objective: "Validate security.", inputs: [], expectedOutputs: [], allowedSkills: [], allowedTools: [], fileScopes: [], dependencies: [], status: "ready", attempt: 0, maxAttempts: 1, createdAt: timestamp }, graph: graph(), signal: new AbortController().signal }); expect(outcome.status).toBe("passed");
+  });
+  it("dispatches generated database behavior tests through the implementation boundary", async () => {
+    const adapter = new ProductionTaskExecutorAdapter(new InMemoryPersistenceDatabase(), { projectId, projectVersion: 1, workspacePath: "C:\\generated\\fixture", generatedProjectsRoot: "C:\\generated", workspaceReservationId: "reservation", sourceDocumentChecksums: {}, toolPolicyVersion: "tools-v1", orchestrationPolicyVersion: "orchestrator-v1" }, {} as never, {} as never, {} as never);
+    (adapter as unknown as { implementationTask: (input: { task: { id: string } }) => Promise<unknown> }).implementationTask = async (input) => ({ taskId: input.task.id, status: "passed", classification: "retryable-task", repairable: false });
+    const outcome = await adapter.dispatch({ runId: "55555555-5555-4555-8555-555555555555", projectId, projectVersion: 1, task: { id: "77777777-7777-4777-8777-777777777777", projectId, projectVersion: 1, role: "implementation", taskType: "write-database-tests", title: "Database tests", objective: "Write approved database behavior tests.", inputs: [], expectedOutputs: [], allowedSkills: [], allowedTools: [], fileScopes: ["supabase/tests/**"], dependencies: [], status: "ready", attempt: 0, maxAttempts: 1, createdAt: timestamp }, graph: graph(), signal: new AbortController().signal });
+    expect(outcome.status).toBe("passed");
   });
   it("preserves run-level non-targetable failure attribution without inventing repair scope", () => { const failedTask = graph().tasks[0]!; const summary = formatUnresolvedRepairSummary({ failedTask, failure: { safeFailureCode: "QA_BROWSER_LAUNCH_FAILED", safeFailureSummary: "The browser launch failed safely.", diagnostics: [] }, resolution: { targetable: false, code: "REPAIR_TARGET_NOT_FOUND", reason: "The validation result contains no bounded file or route reference.", diagnostics: [] } }); expect(summary).toContain("failureCode=QA_BROWSER_LAUNCH_FAILED"); expect(summary).toContain("failureSummary=The browser launch failed safely."); expect(summary).toContain("diagnostics=0"); expect(summary).toContain("files=none"); expect(summary).not.toContain("*"); });
 });

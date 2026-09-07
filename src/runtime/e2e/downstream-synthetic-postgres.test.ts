@@ -221,7 +221,7 @@ describePostgres("synthetic downstream lifecycle on real Postgres", () => {
     expect(formScenario).toMatchObject({ formSubmissionMechanism: "client-only", requiresDatabaseFixture: false, ownershipCandidates: ["implement-form"] });
     const checksums = { brief: checksumPersistedDocument(brief), planning: checksumPersistedDocument(planning), design: checksumPersistedDocument(selected.selectedDesign) };
     expect(() => validateQaReadiness({ projectId: brief.projectId, projectVersion: 1, workspacePath: "C:\\synthetic-root\\staging", generatedProjectsRoot: "C:\\synthetic-root", mutable: true, runtimeValidation: { overallStatus: "passed", validationRunId: id(), packageChecksum: "a".repeat(64), lockfileChecksum: "b".repeat(64) }, task: { ...qaTask, status: "ready", allowedTools: [...qaTask.allowedTools, "Playwright-functional"] }, expectedBriefChecksum: checksums.brief, expectedPlanningChecksum: checksums.planning, expectedDesignChecksum: checksums.design, actualBriefChecksum: "c".repeat(64), actualPlanningChecksum: checksums.planning, actualDesignChecksum: checksums.design, blockingImplementationTask: false, fixturesAvailable: true })).toThrow(/Approved QA inputs are stale/);
-  });
+  }, 30_000);
 });
 
 if (!databaseUrl) console.log("SYNTHETIC DOWNSTREAM POSTGRES LIFECYCLE: SKIPPED (DATABASE_URL unavailable)");
