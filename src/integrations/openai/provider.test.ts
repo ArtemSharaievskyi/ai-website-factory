@@ -22,6 +22,27 @@ import { createPlannerReferenceTable } from "@/agents/planner/reference-table";
 
 const config = { apiKey: "test", model: "test-model", modelLabel: "GPT-5.6 Luna", maxRetries: 1, maxConcurrentRequests: 1 };
 const schema = z.object({ ok: z.boolean(), summary: z.string() }).strict();
+const plannerCoverageElementByCategory: Record<string, string> = {
+  ACCEPTANCE: "testStrategy",
+  ADMINISTRATION: "administration",
+  AUDIENCE: "profile",
+  BACKEND: "architecture",
+  BUSINESS_GOAL: "productScope",
+  CONTENT: "content",
+  DATABASE: "dataModel",
+  DECISION: "architecture",
+  DEFERRED_INTEGRATION: "dependencies",
+  EXCLUSION: "security",
+  FEATURE: "productScope",
+  FORM: "forms",
+  FORM_INTERACTION: "forms",
+  LEGAL_CONSTRAINT: "security",
+  PROHIBITED: "security",
+  SEO: "sitemap",
+  TECHNICAL: "architecture",
+  USER_ROLE: "authentication",
+  UX_RESPONSIVE: "pages",
+};
 const hostOwnedPaths = (value: unknown, path = "root", includeDocumentMetadata = false): string[] => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return [];
   const node = value as { properties?: Record<string, unknown>; items?: unknown; anyOf?: unknown[]; oneOf?: unknown[] };
@@ -65,12 +86,12 @@ const noBackendPlannerTransport = () => {
   return { brief, input, transport };
 };
 
-function recoveryNormalizationFixture() {
+function recoveryNormalizationFixture(canonicalBriefOverride?: z.infer<typeof CanonicalBriefV3Schema>) {
   const base = noBackendPlannerTransport();
-  const canonicalBrief = CanonicalBriefV3Schema.parse({
+  const canonicalBrief = canonicalBriefOverride ?? CanonicalBriefV3Schema.parse({
     ...cleanBriefV3,
     pages: [...cleanBriefV3.pages, { id: "PAGE:contact", slug: "contact", purpose: "Provide the synthetic contact interaction.", sourceRefs: ["fixture:contact"] }],
-    decisions: { ...cleanBriefV3.decisions, routePolicy: { mode: "MULTI_PAGE" } },
+    decisions: { ...cleanBriefV3.decisions, routePolicy: { mode: "MULTI_PAGE" }, form: { ...cleanBriefV3.decisions.form, interactionStates: [] } },
   });
   const routeManifest = createCanonicalPlanningRouteManifest(canonicalBrief);
   const requirementManifest = createPlanningOwnedRequirementManifest(canonicalBrief);
@@ -152,8 +173,8 @@ function recoveryNormalizationFixture() {
   };
 }
 
-function tokenizedPlannerFixture() {
-  const recovery = recoveryNormalizationFixture();
+function tokenizedPlannerFixture(canonicalBriefOverride?: z.infer<typeof CanonicalBriefV3Schema>) {
+  const recovery = recoveryNormalizationFixture(canonicalBriefOverride);
   const canonicalBrief = recovery.input.canonicalBrief;
   const baseInput = recovery.input.plannerInput;
   const approvedBriefChecksum = canonicalBriefChecksum(canonicalBrief);
@@ -217,16 +238,44 @@ function tokenizedPlannerFixture() {
   authentication.protectedRoutes = toRouteTokens(authentication.protectedRoutes);
   const administration = tokenized.administration as JsonObject;
   administration.protectedRoutes = toRouteTokens(administration.protectedRoutes);
-  const accounting = tokenized.requirementAccounting as JsonObject;
   delete tokenized.requirementAccounting;
-  tokenized.requirementCoverage = table.requirements.filter((entry) => entry.mandatory).map((entry) => ({ requirementToken: entry.token, planningElementIds: ["traceability"], semanticEvidence: `The plan records ${entry.token} in canonical traceability and the host resolves it exactly.` }));
-  void accounting;
-  createTokenizedPlanningProviderWireSchema().parse(tokenized);
+  tokenized.coverageByRequirement = Object.fromEntries(table.requirements.filter((entry) => entry.mandatory).map((entry) => {
+    const planningElementId = plannerCoverageElementByCategory[entry.category] ?? "traceability";
+    return [entry.token, { planningElementIds: [planningElementId], semanticEvidence: `The plan records ${entry.token} in the ${planningElementId} responsibility and the host resolves it exactly.` }];
+  }));
+  createTokenizedPlanningProviderWireSchema(table).parse(tokenized);
   return {
     input: { ...baseInput, canonicalBrief, approvedBriefChecksum, plannerReferenceTable: table },
     table,
     transport: tokenized,
   };
+}
+
+function exact87CanonicalBrief() {
+  return CanonicalBriefV3Schema.parse({
+    ...cleanBriefV3,
+    pages: [...cleanBriefV3.pages, { id: "PAGE:contact-exact-coverage", slug: "contact", purpose: "Provide the synthetic contact interaction.", sourceRefs: ["fixture:exact-coverage:contact"] }],
+    decisions: { ...cleanBriefV3.decisions, routePolicy: { mode: "MULTI_PAGE" } },
+    requirements: Array.from({ length: 87 }, (_, index) => ({
+      id: `REQUIREMENT:synthetic-exact-coverage-${String(index + 1).padStart(3, "0")}`,
+      category: "FEATURE" as const,
+      statement: `Preserve synthetic mandatory Planning responsibility ${index + 1}.`,
+      sourceRefs: [`fixture:exact-coverage:${index + 1}`],
+    })),
+    seo: { ...cleanBriefV3.seo, locationTargeting: [] },
+  });
+}
+
+function exact87ReferenceTable() {
+  const canonicalBrief = exact87CanonicalBrief();
+  return createPlannerReferenceTable({
+    projectId: "22222222-2222-4222-8222-222222222222",
+    projectVersion: 1,
+    approvedBriefChecksum: canonicalBriefChecksum(canonicalBrief),
+    idempotencyKey: "synthetic-exact-87-coverage",
+    expectedRowVersion: 1,
+    canonicalBrief,
+  });
 }
 
 describe("production AI provider boundary", () => {
@@ -392,34 +441,88 @@ describe("production AI provider boundary", () => {
     const client = new OpenAiStructuredClient(config, { executor: async <T>(request: StructuredRequest<T>) => { sent = request as StructuredRequest<unknown>; return { value: fixture.transport as T, requestId: "req_planner_traceability_allowlist" }; } });
     const result = await new OpenAiPlannerProvider(client).plan(fixture.input);
     const firstCanonicalRequirementId = fixture.table.requirements[0]!.canonicalRequirementId;
-    expect(sent?.promptVersion).toBe("planner.v3");
-    expect(sent?.schemaName).toBe("planning-package-v3");
+    expect(sent?.promptVersion).toBe("planner.v4");
+    expect(sent?.schemaName).toBe("planning-package-v4");
     expect(sent?.system).toContain("REQ_001");
     expect(sent?.system).toContain("host-issued and opaque");
     expect(sent?.system).not.toContain(firstCanonicalRequirementId);
     expect(sent?.user).not.toContain(firstCanonicalRequirementId);
-    expect(result.providerContractVersion).toBe("planner.v3");
+    expect(result.providerContractVersion).toBe("planner.v4");
     expect(JSON.stringify(result)).toContain(firstCanonicalRequirementId);
     expect(result.sitemap.routes[0]?.id).toBe(fixture.table.routes[0]?.canonicalRouteId);
     expect(result.sitemap.routes[0]?.path).toBe(fixture.table.routes[0]?.path);
     expect(result.pages.pages[0]?.id).toBe(fixture.table.pages[0]?.planningPageId);
     expect(sent?.retryPolicy).toEqual({ maxRetries: 0, corrections: 0 });
   });
-  it("rejects unknown, mutated, missing, duplicate, and canonical-like Planner tokens without repair", async () => {
+  it("generates exact host-owned required coverage slots for the current reference table", () => {
+    const fixture = tokenizedPlannerFixture();
+    const response = zodResponseFormat(createTokenizedPlanningProviderWireSchema(fixture.table), "planning-package-v4") as unknown as { json_schema: { schema: { properties: Record<string, { properties?: Record<string, unknown>; required?: string[]; additionalProperties?: boolean }> } } };
+    const coverage = response.json_schema.schema.properties.coverageByRequirement;
+    const requiredTokens = fixture.table.requirements.filter((entry) => entry.mandatory).map((entry) => entry.token);
+    expect(Object.keys(coverage?.properties ?? {})).toEqual(requiredTokens);
+    expect(coverage?.required).toEqual(requiredTokens);
+    expect(coverage?.additionalProperties).toBe(false);
+  });
+  it("requires REQ_087 in the exact 87-requirement structured-output contract and rejects its empty value", async () => {
+    const table = exact87ReferenceTable();
+    const requiredTokens = table.requirements.filter((entry) => entry.mandatory).map((entry) => entry.token);
+    const response = zodResponseFormat(createTokenizedPlanningProviderWireSchema(table), "planning-package-v4") as unknown as { json_schema: { schema: { properties: Record<string, { properties?: Record<string, unknown>; required?: string[]; additionalProperties?: boolean }> } } };
+    const coverage = response.json_schema.schema.properties.coverageByRequirement;
+    expect(requiredTokens).toHaveLength(87);
+    expect(requiredTokens.at(-1)).toBe("REQ_087");
+    expect(coverage?.required).toEqual(requiredTokens);
+    expect(coverage?.properties).toHaveProperty("REQ_087");
+    const fixture = tokenizedPlannerFixture(exact87CanonicalBrief());
+    const empty = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
+    ((empty.coverageByRequirement as Record<string, Record<string, unknown>>).REQ_087!).planningElementIds = [];
+    const planner = new OpenAiPlannerProvider(new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: empty as T, requestId: "req_exact_87_empty_coverage" }) }));
+    await expect(planner.plan(fixture.input)).rejects.toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID" } satisfies Partial<PlannerReferenceBindingError>);
+  });
+  it("rejects unknown, mutated, missing, empty, duplicate, and invalid Planner coverage without repair", async () => {
     const fixture = tokenizedPlannerFixture();
     const planner = (transport: Record<string, unknown>) => new OpenAiPlannerProvider(new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: transport as T, requestId: "req_token_rejection" }) })).plan(fixture.input);
+    const coverageKeys = () => Object.keys((fixture.transport.coverageByRequirement ?? {}) as Record<string, unknown>);
     const unknown = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
-    ((unknown.requirementCoverage as Record<string, unknown>[])[0]!).requirementToken = "REQ_999";
+    const unknownCoverage = unknown.coverageByRequirement as Record<string, unknown>;
+    unknownCoverage.REQ_999 = unknownCoverage[coverageKeys()[0]!]!;
     await expect(planner(unknown)).rejects.toMatchObject({ code: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE" } satisfies Partial<PlannerReferenceBindingError>);
     const mutated = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
-    ((mutated.requirementCoverage as Record<string, unknown>[])[0]!).requirementToken = "REQ_0011";
+    const mutatedCoverage = mutated.coverageByRequirement as Record<string, unknown>;
+    mutatedCoverage.REQ_0011 = mutatedCoverage[coverageKeys()[0]!]!;
+    delete mutatedCoverage[coverageKeys()[0]!];
     await expect(planner(mutated)).rejects.toMatchObject({ code: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE" } satisfies Partial<PlannerReferenceBindingError>);
     const missing = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
-    (missing.requirementCoverage as unknown[]).pop();
+    const missingCoverage = missing.coverageByRequirement as Record<string, unknown>;
+    delete missingCoverage[coverageKeys().at(-1)!];
     await expect(planner(missing)).rejects.toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_MISSING" } satisfies Partial<PlannerReferenceBindingError>);
+    const empty = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
+    const emptyCoverage = empty.coverageByRequirement as Record<string, Record<string, unknown>>;
+    emptyCoverage[coverageKeys()[0]!]!.planningElementIds = [];
+    await expect(planner(empty)).rejects.toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID" } satisfies Partial<PlannerReferenceBindingError>);
     const duplicate = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
-    (duplicate.requirementCoverage as unknown[]).push((duplicate.requirementCoverage as unknown[])[0]);
-    await expect(planner(duplicate)).rejects.toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_DUPLICATE" } satisfies Partial<PlannerReferenceBindingError>);
+    duplicate.coverageByRequirement = [
+      { requirementToken: coverageKeys()[0], planningElementIds: ["traceability"], semanticEvidence: "duplicate" },
+      { requirementToken: coverageKeys()[0], planningElementIds: ["traceability"], semanticEvidence: "duplicate" },
+    ];
+    expect(createTokenizedPlanningProviderWireSchema(fixture.table).safeParse(duplicate).success).toBe(false);
+    await expect(planner(duplicate)).rejects.toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID" } satisfies Partial<PlannerReferenceBindingError>);
+    const illegalSlot = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
+    const illegalCoverage = illegalSlot.coverageByRequirement as Record<string, unknown>;
+    illegalCoverage.REQ_999 = illegalCoverage[coverageKeys()[0]!]!;
+    expect(createTokenizedPlanningProviderWireSchema(fixture.table).safeParse(illegalSlot).success).toBe(false);
+    await expect(planner(illegalSlot)).rejects.toMatchObject({ code: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE" } satisfies Partial<PlannerReferenceBindingError>);
+    const invalidElement = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
+    const invalidElementCoverage = invalidElement.coverageByRequirement as Record<string, Record<string, unknown>>;
+    for (const token of coverageKeys()) invalidElementCoverage[token]!.planningElementIds = ["not-a-planning-element"];
+    await expect(planner(invalidElement)).rejects.toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID" } satisfies Partial<PlannerReferenceBindingError>);
+    const genericCatchall = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
+    const genericCoverage = genericCatchall.coverageByRequirement as Record<string, Record<string, unknown>>;
+    for (const token of coverageKeys()) genericCoverage[token]!.planningElementIds = ["traceability"];
+    await expect(planner(genericCatchall)).rejects.toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID" } satisfies Partial<PlannerReferenceBindingError>);
+    const placeholderEvidence = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
+    const placeholderCoverage = placeholderEvidence.coverageByRequirement as Record<string, Record<string, unknown>>;
+    placeholderCoverage[coverageKeys()[0]!]!.semanticEvidence = "covered";
+    await expect(planner(placeholderEvidence)).rejects.toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID" } satisfies Partial<PlannerReferenceBindingError>);
     const unknownRoute = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
     const routes = (unknownRoute.sitemap as Record<string, unknown>).routes as Array<Record<string, unknown>>;
     routes[0]!.routeToken = "ROUTE_999";

@@ -10,6 +10,9 @@ import {
   createTokenizedPlanningProviderWireSchema,
   createPlanningRecoveryProviderWireSchema,
 } from "@/integrations/openai/adapters";
+import { createPlannerReferenceTable } from "@/agents/planner/reference-table";
+import { cleanBriefV3 } from "@/domain/requirements/v3/fixtures";
+import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { ProviderBriefChangeSetSchema } from "@/integrations/openai-v3/changeset";
 import { PlanningChangeSetProviderOutputSchema } from "@/agents/planner/changeset";
 import { ClarificationPlanProviderOutputSchema, LeadAnalysisProviderOutputSchema } from "@/agents/lead/contracts";
@@ -22,6 +25,14 @@ type Builder = () => unknown;
 const recoveryContractProbeManifest = {
   requirements: Array.from({ length: 118 }, (_, index) => ({ requirementHandle: `planning-requirement:R${String(index).padStart(3, "0")}` })),
 };
+const plannerContractProbeReferenceTable = createPlannerReferenceTable({
+  projectId: "11111111-1111-4111-8111-111111111111",
+  projectVersion: 1,
+  approvedBriefChecksum: canonicalBriefChecksum(cleanBriefV3),
+  idempotencyKey: "codex-provider-contract-probe",
+  expectedRowVersion: 1,
+  canonicalBrief: cleanBriefV3,
+});
 export type ProviderContractFailure = { guardId: "provider-contracts"; key: string; id: string; schemaName: string; code: string; fingerprint: string; triggerPathPrefixes: string[]; affectedPathPrefixes?: string[] };
 export type ProviderContractResult = { id: string; schemaName: string; passed: boolean; code: string };
 export type ProviderContractGuardResult = { passed: boolean; results: ProviderContractResult[]; failures: ProviderContractFailure[]; knownProductDefects: string[] };
@@ -31,7 +42,7 @@ const builders: Record<string, Builder> = {
   "clarification-plan": () => buildProductionResponseFormat(ClarificationPlanProviderOutputSchema, "clarification-plan"),
   "project-brief": () => buildProductionResponseFormat(BriefDraftStructuredOutputSchema, "brief-draft"),
   "brief-revision-v3": () => buildProductionResponseFormat(ProviderBriefChangeSetSchema, "brief-revision-v3"),
-  "planning-package": () => buildProductionResponseFormat(createTokenizedPlanningProviderWireSchema(), "planning-package-v3"),
+  "planning-package": () => buildProductionResponseFormat(createTokenizedPlanningProviderWireSchema(plannerContractProbeReferenceTable), "planning-package-v4"),
   "planning-recovery-package": () => buildProductionResponseFormat(createPlanningRecoveryProviderWireSchema(recoveryContractProbeManifest as never), "planning-recovery-package", { schemaDefinitions: PlanningRecoveryProviderSchemaDefinitions }),
   "planning-change-set": () => buildProductionResponseFormat(PlanningChangeSetProviderOutputSchema, "planning-change-set"),
   "design-direction-set": () => buildProductionResponseFormat(DesignDirectionStructuredOutputSchema, "design-direction-set"),

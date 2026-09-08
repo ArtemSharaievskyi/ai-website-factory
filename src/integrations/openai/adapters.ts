@@ -12,6 +12,7 @@ import {
   type LeadAgentAnalysis,
   type LeadAnalysisProviderOutput,
 } from "@/agents/lead/contracts";
+import type { RequirementCategory } from "@/domain/requirements/v3/schema";
 import type { PlannerArchitectureProvider } from "@/agents/planner/ports";
 import type { PlanningRecoveryProviderInput, PlanningRecoveryProviderResult } from "@/agents/planner/recovery";
 import {
@@ -28,6 +29,7 @@ import {
   PlannerRequirementToken,
   PlannerRouteToken,
   plannerProviderReferenceProtocol,
+  PlannerReferenceTableSchema,
   type PlannerReferenceTable,
 } from "@/agents/planner/reference-table";
 import { isClientOnlyFormBrief, isNoBackendBrief } from "@/agents/planner/deterministic";
@@ -653,14 +655,14 @@ export const PlanningPackageStructuredOutputSchema =
   });
 
 /**
- * Initial Planning provider protocol v3.  The model receives and returns only
+ * Current Planning provider protocol v4.  The model receives and returns only
  * host-issued short tokens; canonical IDs are never transport identities.
  * Dynamic token enums were intentionally not used: exact host lookup below is
  * the shared deterministic authority that preserves stable semantic failure
  * codes for malformed, stale, or hallucinated tokens.
  */
 export class PlannerReferenceBindingError extends Error {
-  constructor(readonly code: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE" | "PLANNING_REQUIREMENT_COVERAGE_MISSING" | "PLANNING_REQUIREMENT_COVERAGE_DUPLICATE" | "PLANNING_ROUTE_POLICY_MISMATCH", readonly fieldPath: string) {
+  constructor(readonly code: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE" | "PLANNING_REQUIREMENT_COVERAGE_MISSING" | "PLANNING_REQUIREMENT_COVERAGE_DUPLICATE" | "PLANNING_REQUIREMENT_COVERAGE_INVALID" | "PLANNING_ROUTE_POLICY_MISMATCH", readonly fieldPath: string) {
     super(`${code}:${fieldPath}`);
     this.name = "PlannerReferenceBindingError";
   }
@@ -792,15 +794,21 @@ const StrictTokenAssetManifestSchema = z.object({
   entries: z.array(z.object({ ...AssetManifestEntrySchema.shape, consistencyGroup: NonEmptyStringSchema.nullable() }).strict()),
 }).strict();
 const StrictTokenTestStrategySchema = z.object({ ...withoutProviderDocumentMetadata(PlanningPackageStructuredOutputSchema.shape.testStrategy.shape) }).strict();
-const PlannerRequirementCoverageEntrySchema = z.object({
-  requirementToken: PlannerRequirementToken,
+export const PlannerRequirementCoverageValueSchema = z.object({
   planningElementIds: z.array(NonEmptyStringSchema).min(1).max(32),
   semanticEvidence: NonEmptyStringSchema.max(2000),
 }).strict();
 
-export function createTokenizedPlanningProviderWireSchema() {
+function createMandatoryPlannerCoverageSchema(table: PlannerReferenceTable) {
+  const shape: Record<string, typeof PlannerRequirementCoverageValueSchema> = {};
+  for (const entry of table.requirements.filter((candidate) => candidate.mandatory)) shape[entry.token] = PlannerRequirementCoverageValueSchema;
+  return z.object(shape).strict();
+}
+
+export function createTokenizedPlanningProviderWireSchema(referenceTable: PlannerReferenceTable) {
+  const table = PlannerReferenceTableSchema.parse(referenceTable);
   return PlanningPackageStructuredOutputSchema.omit({ createdAt: true, updatedAt: true }).extend({
-    requirementCoverage: z.array(PlannerRequirementCoverageEntrySchema).max(512),
+    coverageByRequirement: createMandatoryPlannerCoverageSchema(table),
     profile: StrictTokenProfileSchema,
     databaseRecommendation: StrictTokenDatabaseRecommendationSchema,
     productScope: StrictTokenProductScopeSchema,
@@ -853,18 +861,73 @@ function requirePlannerPage(pages: ReadonlyMap<string, PlannerReferenceTable["pa
   return page;
 }
 
-function validatePlannerRequirementCoverage(value: unknown, table: PlannerReferenceTable) {
-  const entries = Array.isArray(value) ? value : [];
+const PLANNING_ELEMENT_SECTION_IDS = [
+  "profile", "productScope", "sitemap", "navigation", "pages", "userFlows", "forms", "dataModel", "authentication", "supabase", "email", "storage", "administration", "content", "assets", "architecture", "environment", "dependencies", "testStrategy", "security", "traceability",
+] as const;
+
+const PLANNER_COVERAGE_SECTIONS_BY_CATEGORY: Partial<Record<RequirementCategory, readonly string[]>> = {
+  ACCEPTANCE: ["productScope", "testStrategy", "traceability"],
+  ADMINISTRATION: ["administration", "authentication", "pages"],
+  AUDIENCE: ["profile", "productScope", "pages"],
+  BACKEND: ["architecture", "dataModel", "supabase"],
+  BUSINESS_GOAL: ["profile", "productScope"],
+  CONTENT: ["content", "pages"],
+  DATABASE: ["dataModel", "supabase", "architecture"],
+  DECISION: ["productScope", "architecture", "traceability"],
+  DEFERRED_INTEGRATION: ["dependencies", "email", "storage", "supabase"],
+  EXCLUSION: ["productScope", "architecture", "security"],
+  FEATURE: ["productScope", "pages", "userFlows", "forms", "dataModel", "architecture"],
+  FORM: ["forms", "pages", "userFlows"],
+  FORM_INTERACTION: ["forms", "userFlows", "pages"],
+  LEGAL_CONSTRAINT: ["productScope", "security", "testStrategy"],
+  PROHIBITED: ["security", "architecture", "productScope"],
+  SEO: ["sitemap", "pages", "content"],
+  TECHNICAL: ["architecture", "environment", "dependencies", "testStrategy", "security"],
+  USER_ROLE: ["authentication", "administration", "profile"],
+  UX_RESPONSIVE: ["pages", "navigation"],
+};
+const PLANNER_ROUTE_PAGE_CATEGORIES = new Set<RequirementCategory>(["ACCEPTANCE", "ADMINISTRATION", "AUDIENCE", "CONTENT", "FEATURE", "FORM", "FORM_INTERACTION", "SEO", "USER_ROLE", "UX_RESPONSIVE"]);
+const PLANNER_PLACEHOLDER_SEMANTIC_EVIDENCE = new Set(["covered", "implemented", "handled", "see plan", "same as requirement"]);
+
+function normalizedPlannerCoverageEvidence(value: string) {
+  return value.trim().toLocaleLowerCase("en").replace(/[.!?,;:]+$/g, "").replace(/\s+/g, " ");
+}
+
+function planningElementIds(value: unknown) {
+  const ids = new Set<string>(PLANNING_ELEMENT_SECTION_IDS);
+  const visit = (node: unknown) => {
+    if (Array.isArray(node)) { node.forEach((child) => visit(child)); return; }
+    if (!node || typeof node !== "object") return;
+    for (const [childKey, child] of Object.entries(node as Record<string, unknown>)) {
+      if (["id", "routeToken", "pageToken"].includes(childKey) && typeof child === "string") ids.add(child);
+      visit(child);
+    }
+  };
+  visit(value);
+  return ids;
+}
+
+function validatePlannerRequirementCoverage(value: unknown, table: PlannerReferenceTable, providerValue: unknown) {
+  const coverage = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
   const requirements = new Map(table.requirements.map((entry) => [entry.token, entry]));
-  const seen = new Set<string>();
-  for (const [index, entry] of entries.entries()) {
-    const token = entry && typeof entry === "object" && typeof (entry as Record<string, unknown>).requirementToken === "string" ? (entry as Record<string, string>).requirementToken : "";
-    if (!requirements.has(token)) throw new PlannerReferenceBindingError("PLANNING_TRACEABILITY_UNKNOWN_REFERENCE", `requirementCoverage[${index}].requirementToken`);
-    if (seen.has(token)) throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_DUPLICATE", `requirementCoverage[${index}].requirementToken`);
-    seen.add(token);
+  const required = table.requirements.filter((entry) => entry.mandatory);
+  const candidateElementIds = planningElementIds(providerValue);
+  const hasCompatiblePlanningElement = (entry: PlannerReferenceTable["requirements"][number], ids: readonly string[]) => {
+    const sections = PLANNER_COVERAGE_SECTIONS_BY_CATEGORY[entry.category] ?? ["traceability"];
+    return ids.some((id) => sections.includes(id) || (PLANNER_ROUTE_PAGE_CATEGORIES.has(entry.category) && /^(?:PAGE|ROUTE)_\d{3,}$/.test(id)));
+  };
+  if (!coverage) throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", "coverageByRequirement");
+  for (const token of Object.keys(coverage)) {
+    const entry = requirements.get(token);
+    if (!entry || !entry.mandatory) throw new PlannerReferenceBindingError("PLANNING_TRACEABILITY_UNKNOWN_REFERENCE", `coverageByRequirement.${token}`);
   }
-  for (const required of table.requirements.filter((entry) => entry.mandatory))
-    if (!seen.has(required.token)) throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_MISSING", required.token);
+  for (const entry of required) {
+    if (!Object.prototype.hasOwnProperty.call(coverage, entry.token)) throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_MISSING", entry.token);
+    const parsed = PlannerRequirementCoverageValueSchema.safeParse(coverage[entry.token]);
+    if (!parsed.success || parsed.data.planningElementIds.some((id) => !candidateElementIds.has(id)) || !hasCompatiblePlanningElement(entry, parsed.success ? parsed.data.planningElementIds : []) || (parsed.success && PLANNER_PLACEHOLDER_SEMANTIC_EVIDENCE.has(normalizedPlannerCoverageEvidence(parsed.data.semanticEvidence))))
+      throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", `coverageByRequirement.${entry.token}`);
+  }
+  return coverage;
 }
 
 export function normalizeTokenizedPlanningPackage(
@@ -873,7 +936,7 @@ export function normalizeTokenizedPlanningPackage(
   approvedBrief: PlannerBriefNormalizationInput,
   table: PlannerReferenceTable,
 ): PlanningPackage {
-  validatePlannerRequirementCoverage(value.requirementCoverage, table);
+  validatePlannerRequirementCoverage(value.coverageByRequirement, table, value);
   const requirements = new Map(table.requirements.map((entry) => [entry.token, entry.canonicalRequirementId]));
   const routes = new Map(table.routes.map((entry) => [entry.token, entry]));
   const pages = new Map(table.pages.map((entry) => [entry.token, entry]));
@@ -914,8 +977,8 @@ export function normalizeTokenizedPlanningPackage(
     administration: { ...bound.administration, protectedRoutes: bindRouteTokens(bound.administration.protectedRoutes, "administration.protectedRoutes") },
     architecture: { ...bound.architecture, routes: bound.architecture.routes.map((route, index) => ({ responsibility: route.responsibility, path: requirePlannerRoute(routes, route.routeToken, `architecture.routes[${index}].routeToken`).path })) },
   }, new Date().toISOString()) as z.infer<typeof PlanningPackageStructuredOutputSchema>;
-  const { requirementCoverage, ...packageValue } = normalized as typeof normalized & { requirementCoverage?: unknown };
-  void requirementCoverage;
+  const { coverageByRequirement, ...packageValue } = normalized as typeof normalized & { coverageByRequirement?: unknown };
+  void coverageByRequirement;
   return PlanningPackageSchema.parse({ ...normalizePlanningPackage(packageValue, host, approvedBrief), providerContractVersion: PLANNER_PROVIDER_CONTRACT_VERSION });
 }
 
@@ -1821,14 +1884,14 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
     const dependencyInstruction = `Generated-project direct dependency authority is host-owned. You may express only a project DependencyPlan using this bounded catalog: ${dependencyCatalogPromptContext()}. Do not invent package names, versions, package sources, or package managers; the host validates and owns the resulting manifest.`;
     const formInstruction = `Form behavior authority: when the approved Brief's formBehaviorRequirements explicitly says formPresent=true, successUx=SIMULATED, dataTransmission=NONE, persistence=NONE, and thirdParty=NONE, every matching form must use submissionMechanism=client-only. Do not reopen that decision as pending-decision, server-action, or route-handler, and do not add database, email, external-provider, authentication, or server-boundary work for that form. The host will deterministically normalize and validate this boundary.`;
     const schema = referenceTable
-      ? createTokenizedPlanningProviderWireSchema()
+      ? createTokenizedPlanningProviderWireSchema(referenceTable)
       : PlanningPackageStructuredOutputSchema;
     const result = await this.ai.request<z.infer<typeof schema>>({
       ...prompt,
       system: `${prompt.system}\n${languageInstruction}\n${dependencyInstruction}\n${formInstruction}`,
       role: "planner",
       schema,
-      schemaName: referenceTable ? "planning-package-v3" : "planning-package",
+      schemaName: referenceTable ? "planning-package-v4" : "planning-package",
       idempotencyKey: `${input.idempotencyKey}:${skillContextIdentity}`,
       retryPolicy: { maxRetries: 0, corrections: 0 },
     });

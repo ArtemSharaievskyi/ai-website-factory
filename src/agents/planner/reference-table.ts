@@ -12,7 +12,9 @@ const PlannerRouteTokenSchema = z.string().regex(/^ROUTE_\d{3,}$/);
 const RoutePathSchema = z.string().regex(/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/);
 const ChecksumSchema = z.string().regex(/^[a-f0-9]{64}$/);
 
-export const PLANNER_PROVIDER_CONTRACT_VERSION = "planner.v3" as const;
+/** Current token protocol. planner.v3 remains readable in persisted history. */
+export const PLANNER_PROVIDER_CONTRACT_VERSION = "planner.v4" as const;
+export const PLANNER_LEGACY_PROVIDER_CONTRACT_VERSION = "planner.v3" as const;
 
 export const PlannerReferenceTableRequirementSchema = z.object({
   token: PlannerRequirementTokenSchema,
@@ -75,7 +77,13 @@ export const PlannerProviderReferenceProtocolSchema = z.object({
   pages: z.array(z.object({ token: PlannerPageTokenSchema, path: RoutePathSchema, purpose: NonEmptyStringSchema.max(2000) }).strict()).min(1).max(256),
   routes: z.array(z.object({ token: PlannerRouteTokenSchema, pageToken: PlannerPageTokenSchema, path: RoutePathSchema, purpose: NonEmptyStringSchema.max(2000) }).strict()).min(1).max(256),
   requiredRequirementTokens: z.array(PlannerRequirementTokenSchema).max(512),
-}).strict();
+}).strict().superRefine((value, context) => {
+  const mandatory = value.requirements.filter((entry) => entry.mandatory).map((entry) => entry.token);
+  if (new Set(value.requiredRequirementTokens).size !== value.requiredRequirementTokens.length)
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["requiredRequirementTokens"], message: "Required Planner requirement tokens must be unique." });
+  if (value.requiredRequirementTokens.length !== mandatory.length || value.requiredRequirementTokens.some((token) => !mandatory.includes(token)))
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["requiredRequirementTokens"], message: "Required Planner requirement tokens must exactly match the mandatory reference-table set." });
+});
 export type PlannerProviderReferenceProtocol = z.infer<typeof PlannerProviderReferenceProtocolSchema>;
 
 export class PlannerReferenceTableError extends Error {
