@@ -1,0 +1,108 @@
+import { z } from "zod";
+import type { RequirementSpecification } from "@/domain/requirements/schema";
+import type { CanonicalBriefV3 } from "@/domain/requirements/v3/schema";
+import { NonEmptyStringSchema } from "@/domain/shared/schemas";
+import {
+  PlannerCoverageDomainSchema,
+  PlannerCoverageElementKindSchema,
+  type PlannerCoverageDomain,
+} from "./coverage-contract";
+import {
+  PlannerPageToken,
+  PlannerReferenceTableSchema,
+  PlannerRouteToken,
+  type PlannerReferenceTable,
+} from "./reference-table";
+
+/**
+ * Stage contracts are provider proposals, not canonical Planning documents.
+ * The decomposition provider never receives or returns a requirement
+ * coverage object and never owns a globally referenced Planning identity.
+ */
+export const PLANNER_DECOMPOSITION_CONTRACT_VERSION = "planner.decomposition.v1" as const;
+export const PLANNER_COVERAGE_CONTRACT_VERSION = "planner.coverage.v1" as const;
+export const STAGED_PLANNER_PIPELINE_VERSION = "planner.staged.v1" as const;
+
+const ProposalIndexSchema = z.number().int().nonnegative().max(255);
+
+export const PlanningElementProposalSchema = z.object({
+  kind: PlannerCoverageElementKindSchema,
+  domain: PlannerCoverageDomainSchema,
+  title: NonEmptyStringSchema.max(240),
+  description: NonEmptyStringSchema.max(2000),
+  pageTokens: z.array(PlannerPageToken).max(32).nullable(),
+  routeTokens: z.array(PlannerRouteToken).max(32).nullable(),
+  /** Stage-1 local proposal indexes are resolved to PE_* by the host. */
+  dependencies: z.array(ProposalIndexSchema).max(32).nullable(),
+  negativeEvidence: z.boolean().nullable(),
+  negativeOnly: z.boolean().nullable(),
+}).strict();
+export type PlanningElementProposal = z.infer<typeof PlanningElementProposalSchema>;
+
+export const PlanningDecompositionProviderOutputSchema = z.object({
+  schemaVersion: z.literal(1),
+  providerContractVersion: z.literal(PLANNER_DECOMPOSITION_CONTRACT_VERSION),
+  complete: z.literal(true),
+  elements: z.array(PlanningElementProposalSchema).min(1).max(256),
+}).strict();
+export type PlanningDecompositionProviderOutput = z.infer<typeof PlanningDecompositionProviderOutputSchema>;
+
+export const PlanningElementSchema = z.object({
+  elementId: z.string().regex(/^PE_\d{3}$/),
+  kind: PlannerCoverageElementKindSchema,
+  domain: PlannerCoverageDomainSchema,
+  title: NonEmptyStringSchema.max(240),
+  description: NonEmptyStringSchema.max(2000),
+  pageTokens: z.array(PlannerPageToken).max(32),
+  routeTokens: z.array(PlannerRouteToken).max(32),
+  dependencies: z.array(z.string().regex(/^PE_\d{3}$/)).max(32),
+  negativeEvidence: z.boolean(),
+  negativeOnly: z.boolean(),
+}).strict();
+export type PlanningElement = z.infer<typeof PlanningElementSchema>;
+
+export const PlanningElementGraphEdgeSchema = z.object({
+  from: z.string().regex(/^PE_\d{3}$/),
+  to: z.string().regex(/^PE_\d{3}$/),
+  relation: z.literal("DEPENDS_ON"),
+}).strict();
+export type PlanningElementGraphEdge = z.infer<typeof PlanningElementGraphEdgeSchema>;
+
+export const PlanningElementGraphSchema = z.object({
+  schemaVersion: z.literal(1),
+  elements: z.array(PlanningElementSchema).min(1).max(256),
+  edges: z.array(PlanningElementGraphEdgeSchema).max(8192),
+}).strict();
+export type PlanningElementGraph = z.infer<typeof PlanningElementGraphSchema>;
+
+export const PlanningCoverageValueSchema = z.object({
+  planningElementIds: z.array(z.string().regex(/^PE_\d{3}$/)).min(1).max(32),
+  semanticEvidence: NonEmptyStringSchema.max(2000),
+}).strict();
+
+export function createPlanningCoverageProviderWireSchema(table: PlannerReferenceTable) {
+  const parsed = PlannerReferenceTableSchema.parse(table);
+  const shape: Record<string, typeof PlanningCoverageValueSchema> = {};
+  for (const requirement of parsed.requirements.filter((entry) => entry.mandatory))
+    shape[requirement.token] = PlanningCoverageValueSchema;
+  return z.object({
+    schemaVersion: z.literal(1),
+    providerContractVersion: z.literal(PLANNER_COVERAGE_CONTRACT_VERSION),
+    complete: z.literal(true),
+    coverageByRequirement: z.object(shape).strict(),
+  }).strict();
+}
+export type PlanningCoverageProviderOutput = z.infer<ReturnType<typeof createPlanningCoverageProviderWireSchema>>;
+
+export type PlannerDecompositionProviderInput = {
+  approvedBrief: RequirementSpecification;
+  plannerReferenceTable: PlannerReferenceTable;
+  canonicalBrief?: CanonicalBriefV3;
+  requiredDomains: readonly PlannerCoverageDomain[];
+};
+
+export type PlannerCoverageProviderInput = {
+  plannerReferenceTable: PlannerReferenceTable;
+  elements: readonly PlanningElement[];
+  graph: PlanningElementGraph;
+};

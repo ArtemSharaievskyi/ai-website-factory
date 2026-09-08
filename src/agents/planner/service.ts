@@ -82,6 +82,15 @@ import { type PlanningRefreshDiagnosticAttempt } from "./refresh-diagnostics";
 import type { TransitionContext } from "@/domain/workflow/engine";
 import { canonicalRequirementEntries } from "@/domain/requirements/v3/identity";
 import { assertPlannerReferenceTableCurrent, createPlannerReferenceTable, PlannerReferenceTableError } from "./reference-table";
+import {
+  admitPlanningCoverage,
+  admitPlanningDecomposition,
+  assembleStagedPlanningCandidate,
+  finalizePlanningElementGraph,
+  requiredPlannerDecompositionDomains,
+  StagedPlanningAdmissionError,
+} from "./staged-admission";
+import type { PlannerDecompositionProviderInput } from "./staged-contracts";
 
 const now = () => new Date().toISOString();
 
@@ -329,6 +338,127 @@ export class PlannerArchitectService {
       );
     return admission.candidate;
   }
+  private async runStagedPlanning(input: {
+    plannerInput: PlannerAgentInput;
+    brief: z.infer<typeof RequirementSpecificationSchema>;
+    canonicalBrief?: z.infer<typeof BriefV3DocumentSchema>["brief"];
+    plannerReferenceTable: NonNullable<PlannerAgentInput["plannerReferenceTable"]>;
+    currentPlanning?: PlanningPackage;
+    existingPlanning?: { rowVersion: number; checksum: string };
+    skillSelection?: AgentSkillSelection;
+  }) {
+    if (!this.provider.decompose || !this.provider.assignCoverage)
+      throw new PlannerError("PLANNING_PACKAGE_INVALID", "The staged Planner provider is incomplete.");
+    const table = input.plannerReferenceTable;
+    const currentness = async () => {
+      let currentBrief;
+      try {
+        currentBrief = await this.validateCurrentCanonicalBrief(input.plannerInput);
+      } catch (error) {
+        if (error instanceof PlannerError && error.code === "BRIEF_CHECKSUM_MISMATCH")
+          throw new PlannerError("PLANNING_STALE", "The approved Brief changed between staged Planner phases.", error);
+        throw error;
+      }
+      const project = await this.projects.getWithVersion(input.plannerInput.projectId);
+      const planning = await this.documents.getWithMetadata(input.plannerInput.projectId, input.plannerInput.projectVersion, "planning-package");
+      if (
+        !project
+        || project.project.currentVersion !== input.plannerInput.projectVersion
+        || project.rowVersion !== input.plannerInput.expectedRowVersion
+        || project.project.workflowState !== "AWAITING_PLANNING_GENERATION"
+        || (currentBrief ? canonicalBriefChecksum(currentBrief.brief) : undefined) !== (input.canonicalBrief ? canonicalBriefChecksum(input.canonicalBrief) : undefined)
+        || planning?.rowVersion !== input.existingPlanning?.rowVersion
+        || planning?.checksum !== input.existingPlanning?.checksum
+      ) throw new PlannerError("PLANNING_STALE", "The project or approved Brief changed between staged Planner phases.");
+      try {
+        assertPlannerReferenceTableCurrent(table, {
+          projectId: input.plannerInput.projectId,
+          projectVersion: input.plannerInput.projectVersion,
+          approvedBriefChecksum: input.plannerInput.approvedBriefChecksum,
+          idempotencyKey: input.plannerInput.idempotencyKey,
+          expectedRowVersion: input.plannerInput.expectedRowVersion,
+          canonicalBrief: currentBrief?.brief ?? input.canonicalBrief!,
+        });
+      } catch (error) {
+        if (error instanceof PlannerReferenceTableError)
+          throw new PlannerError("PLANNING_STALE", "The Planner reference table changed between staged Planner phases.", error);
+        throw error;
+      }
+    };
+    const decompositionInput: PlannerDecompositionProviderInput = {
+      approvedBrief: input.brief,
+      plannerReferenceTable: table,
+      ...(input.canonicalBrief ? { canonicalBrief: input.canonicalBrief } : {}),
+      requiredDomains: requiredPlannerDecompositionDomains({ brief: input.brief, canonicalBrief: input.canonicalBrief }),
+    };
+    let decompositionOutput;
+    try {
+      decompositionOutput = await this.provider.decompose(
+        decompositionInput,
+        input.skillSelection?.contexts,
+        input.skillSelection?.identityChecksum,
+      );
+    } catch (error) {
+      if (error instanceof PlannerError) throw error;
+      throw new PlannerError("PLANNER_PROVIDER_FAILED", "The staged Planner decomposition provider failed.", error);
+    }
+    let elements;
+    try {
+      elements = admitPlanningDecomposition({ output: decompositionOutput, table, brief: input.brief, canonicalBrief: input.canonicalBrief });
+    } catch (error) {
+      if (error instanceof StagedPlanningAdmissionError)
+        throw new PlannerError("PLANNING_PACKAGE_INVALID", "Staged Planner decomposition failed deterministic admission.", error);
+      throw error;
+    }
+    let graph;
+    try {
+      graph = finalizePlanningElementGraph(elements);
+    } catch (error) {
+      if (error instanceof StagedPlanningAdmissionError)
+        throw new PlannerError("PLANNING_PACKAGE_INVALID", "Staged Planner element graph failed deterministic admission.", error);
+      throw error;
+    }
+    const decompositionStageChecksum = checksumPersistedDocument({ elements, graph });
+    await currentness();
+    let coverageOutput;
+    try {
+      coverageOutput = await this.provider.assignCoverage(
+        { plannerReferenceTable: table, elements, graph },
+        input.skillSelection?.contexts,
+        input.skillSelection?.identityChecksum,
+      );
+    } catch (error) {
+      if (error instanceof PlannerError) throw error;
+      throw new PlannerError("PLANNER_PROVIDER_FAILED", "The staged Planner coverage provider failed.", error);
+    }
+    if (checksumPersistedDocument({ elements, graph }) !== decompositionStageChecksum)
+      throw new PlannerError("PLANNING_STALE", "The admitted staged decomposition changed before coverage admission.");
+    let coverage;
+    try {
+      coverage = admitPlanningCoverage({ output: coverageOutput, table, elements });
+    } catch (error) {
+      if (error instanceof PlannerReferenceBindingError)
+        throw new PlannerError(
+          "PLANNING_PACKAGE_INVALID",
+          `Staged Planner coverage failed deterministic admission: ${error.code}:${error.fieldPath}.`,
+          new PlanningAdmissionError(error.code, error.fieldPath, error.reasonCode),
+        );
+      if (error instanceof StagedPlanningAdmissionError)
+        throw new PlannerError("PLANNING_PACKAGE_INVALID", "Staged Planner coverage failed deterministic admission.", error);
+      throw error;
+    }
+    await currentness();
+    const candidate = assembleStagedPlanningCandidate({
+      plannerInput: input.plannerInput,
+      brief: input.brief,
+      ...(input.canonicalBrief ? { canonicalBrief: input.canonicalBrief } : {}),
+      plannerReferenceTable: table,
+      elements,
+      graph,
+      coverage,
+    });
+    return PlanningPackageSchema.parse(candidate);
+  }
   async planApprovedProject(rawInput: PlannerAgentInput) {
     const input = this.parseInput(rawInput);
     const legacyPlanningRefresh = input.currentWorkflowState === "AWAITING_DESIGN_SELECTION";
@@ -521,16 +651,30 @@ export class PlannerArchitectService {
           expectedRowVersion: input.expectedRowVersion,
           canonicalBrief: currentAtSpend.brief,
         });
-      planningPackage = PlanningPackageSchema.parse({
-        ...PlanningPackageSchema.parse(await this.provider.plan(
-          { ...plannerInput, approvedBrief: brief, ...(currentCanonical ? { canonicalBrief: currentCanonical.brief } : {}), documentationExcerpts },
-          skillSelection?.contexts,
-          skillSelection?.identityChecksum,
-        )),
-        // The checksum policy is host-owned metadata; provider output cannot
-        // select or downgrade the semantic checksum authority.
-        semanticChecksumPolicyVersion: CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY,
-      });
+      if (this.provider.decompose && this.provider.assignCoverage) {
+        if (!plannerReferenceTable || !currentCanonical)
+          throw new PlannerError("PLANNING_PACKAGE_INVALID", "Staged Planning requires a current CanonicalBriefV3 reference table.");
+        planningPackage = await this.runStagedPlanning({
+          plannerInput,
+          brief,
+          ...(currentCanonical ? { canonicalBrief: currentCanonical.brief } : {}),
+          plannerReferenceTable: plannerReferenceTable!,
+          currentPlanning: currentPlanningPackage,
+          ...(existingPlanning ? { existingPlanning } : {}),
+          skillSelection,
+        });
+      } else {
+        planningPackage = PlanningPackageSchema.parse({
+          ...PlanningPackageSchema.parse(await this.provider.plan(
+            { ...plannerInput, approvedBrief: brief, ...(currentCanonical ? { canonicalBrief: currentCanonical.brief } : {}), documentationExcerpts },
+            skillSelection?.contexts,
+            skillSelection?.identityChecksum,
+          )),
+          // The checksum policy is host-owned metadata; provider output cannot
+          // select or downgrade the semantic checksum authority.
+          semanticChecksumPolicyVersion: CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY,
+        });
+      }
     } catch (error) {
       if (error instanceof PlannerError) throw error;
       if (error instanceof PlannerReferenceBindingError)

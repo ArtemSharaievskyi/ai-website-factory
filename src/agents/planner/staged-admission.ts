@@ -1,0 +1,394 @@
+import { z } from "zod";
+import { createHash } from "node:crypto";
+import type { RequirementSpecification } from "@/domain/requirements/schema";
+import type { CanonicalBriefV3 } from "@/domain/requirements/v3/schema";
+import { buildPlanningPackage } from "./deterministic";
+import { checksumPersistedDocument } from "@/persistence/database/serialization";
+import {
+  type PlannerCoverageDomain,
+  type PlannerCoverageElementKind,
+} from "./coverage-contract";
+import {
+  PlannerReferenceTableSchema,
+  type PlannerReferenceTable,
+} from "./reference-table";
+import {
+  PlanningDecompositionProviderOutputSchema,
+  PlanningElementGraphSchema,
+  PlanningElementSchema,
+  STAGED_PLANNER_PIPELINE_VERSION,
+  createPlanningCoverageProviderWireSchema,
+  type PlanningDecompositionProviderOutput,
+  type PlanningElement,
+  type PlanningElementGraph,
+  type PlanningElementProposal,
+  type PlanningCoverageProviderOutput,
+} from "./staged-contracts";
+import { PlanningPackageSchema, type PlannerAgentInput, type PlanningPackage } from "./contracts";
+import {
+  PlannerReferenceBindingError,
+  validatePlannerRequirementCoverage,
+  type PlannerCoverageElementDescriptor,
+} from "@/integrations/openai/adapters";
+
+const KIND_DOMAINS: Record<PlannerCoverageElementKind, readonly PlannerCoverageDomain[]> = {
+  PROFILE: ["FRONTEND", "LIFECYCLE"],
+  PRODUCT_SCOPE: ["FRONTEND", "BACKEND", "DATABASE", "LIFECYCLE"],
+  ROUTE: ["FRONTEND", "LIFECYCLE"],
+  PAGE: ["FRONTEND"],
+  NAVIGATION: ["FRONTEND"],
+  USER_FLOW: ["FRONTEND", "BACKEND", "LIFECYCLE"],
+  FORM: ["FRONTEND", "BACKEND"],
+  DATABASE_MODEL: ["DATABASE", "BACKEND"],
+  AUTHENTICATION: ["BACKEND", "SECURITY"],
+  SUPABASE: ["BACKEND", "DATABASE", "SECURITY", "INTEGRATION"],
+  EMAIL: ["BACKEND", "INTEGRATION"],
+  STORAGE: ["BACKEND", "DATABASE", "INTEGRATION"],
+  ADMINISTRATION: ["FRONTEND", "BACKEND", "SECURITY"],
+  CONTENT: ["FRONTEND"],
+  ASSET: ["FRONTEND"],
+  ARCHITECTURE: ["FRONTEND", "BACKEND", "DATABASE", "INTEGRATION", "LIFECYCLE"],
+  ENVIRONMENT: ["BACKEND", "INTEGRATION", "SECURITY"],
+  DEPENDENCY: ["BACKEND", "INTEGRATION"],
+  TEST_STRATEGY: ["QA"],
+  SECURITY: ["SECURITY"],
+  TRACEABILITY: ["QA", "LIFECYCLE"],
+};
+
+const GENERIC_ELEMENT_TEXT = /^(?:same as (?:the )?brief|see (?:the )?plan|covered|handled|implemented)$/i;
+
+export type StagedPlannerFailureCode =
+  | "PLANNING_DECOMPOSITION_INVALID"
+  | "PLANNING_DECOMPOSITION_ROUTE_UNKNOWN"
+  | "PLANNING_DECOMPOSITION_DUPLICATE"
+  | "PLANNING_DECOMPOSITION_PATHOLOGY"
+  | "PLANNING_DECOMPOSITION_DOMAIN_MISSING"
+  | "PLANNING_GRAPH_INVALID"
+  | "PLANNING_GRAPH_CYCLE"
+  | "PLANNING_GRAPH_DOMAIN_INVERSION"
+  | "PLANNING_COVERAGE_INVALID";
+
+export class StagedPlanningAdmissionError extends Error {
+  constructor(
+    readonly code: StagedPlannerFailureCode,
+    readonly fieldPath: string,
+    readonly reasonCode?: string,
+  ) {
+    super(`${code}:${fieldPath}`);
+    this.name = "StagedPlanningAdmissionError";
+  }
+}
+
+const normalized = (value: string) => value.normalize("NFKD").toLocaleLowerCase("en").replace(/[^a-z0-9]+/g, " ").trim();
+
+function requiredDomains(brief: RequirementSpecification, canonicalBrief?: CanonicalBriefV3): PlannerCoverageDomain[] {
+  const required = new Set<PlannerCoverageDomain>(["FRONTEND"]);
+  const canonicalStateful = canonicalBrief && (
+    canonicalBrief.decisions.database.mode !== "NONE"
+    || canonicalBrief.decisions.auth.mode === "REQUIRED"
+    || canonicalBrief.decisions.form.persistenceMode === "DATABASE"
+    || canonicalBrief.decisions.form.serverProcessingMode === "SERVER"
+  );
+  const stateful = Boolean(
+    canonicalStateful
+    || brief.backendRequirements.length
+    || brief.supabaseRequirements.length
+    || brief.authenticationDecision === "authentication-required"
+    || brief.protectedFunctionalityRequired
+    || brief.storageDecision === "needed"
+    || brief.emailDecision === "needed"
+    || brief.administrationDecision === "needed"
+    || brief.formBehaviorRequirements?.persistence === "DATABASE"
+    || brief.formBehaviorRequirements?.dataTransmission !== "NONE",
+  );
+  if (stateful) required.add("BACKEND");
+  if (canonicalStateful || brief.supabaseRequirements.length || brief.formBehaviorRequirements?.persistence === "DATABASE") required.add("DATABASE");
+  if (brief.authenticationDecision === "authentication-required" || brief.protectedFunctionalityRequired || canonicalBrief?.decisions.auth.mode === "REQUIRED") required.add("SECURITY");
+  return [...required].sort();
+}
+
+export function requiredPlannerDecompositionDomains(input: { brief: RequirementSpecification; canonicalBrief?: CanonicalBriefV3 }) {
+  return requiredDomains(input.brief, input.canonicalBrief);
+}
+
+function validateProposalReferences(proposal: PlanningElementProposal, table: PlannerReferenceTable, index: number) {
+  const pages = new Set(table.pages.map((entry) => entry.token));
+  const routes = new Map(table.routes.map((entry) => [entry.token, entry]));
+  for (const pageToken of proposal.pageTokens ?? []) {
+    if (!pages.has(pageToken)) throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_ROUTE_UNKNOWN", `elements[${index}].pageTokens`, pageToken);
+  }
+  for (const routeToken of proposal.routeTokens ?? []) {
+    const route = routes.get(routeToken);
+    if (!route) throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_ROUTE_UNKNOWN", `elements[${index}].routeTokens`, routeToken);
+    if ((proposal.pageTokens ?? []).length > 0 && !proposal.pageTokens!.includes(route.pageToken))
+      throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_ROUTE_UNKNOWN", `elements[${index}].pageTokens`, route.pageToken);
+  }
+}
+
+function hasRequiredPageOrRoute(proposal: PlanningElementProposal, table: PlannerReferenceTable) {
+  const requiredPageTokens = new Set(table.pages.map((entry) => entry.token));
+  const requiredRouteTokens = new Set(table.routes.map((entry) => entry.token));
+  return (proposal.pageTokens ?? []).some((token) => requiredPageTokens.has(token))
+    || (proposal.routeTokens ?? []).some((token) => requiredRouteTokens.has(token));
+}
+
+/** Deterministically admits semantic proposals and assigns all PE_* identity. */
+export function admitPlanningDecomposition(input: {
+  output: unknown;
+  table: PlannerReferenceTable;
+  brief: RequirementSpecification;
+  canonicalBrief?: CanonicalBriefV3;
+}): PlanningElement[] {
+  const table = PlannerReferenceTableSchema.parse(input.table);
+  let parsed: PlanningDecompositionProviderOutput;
+  try {
+    parsed = PlanningDecompositionProviderOutputSchema.parse(input.output);
+  } catch {
+    throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_INVALID", "decomposition");
+  }
+  const signatures = new Set<string>();
+  const elements: PlanningElement[] = [];
+  const seenKinds = new Set<PlannerCoverageElementKind>();
+  const seenDomains = new Set<PlannerCoverageDomain>();
+  for (const [index, proposal] of parsed.elements.entries()) {
+    if (!KIND_DOMAINS[proposal.kind].includes(proposal.domain))
+      throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_INVALID", `elements[${index}].domain`, "PLANNING_DECOMPOSITION_KIND_DOMAIN_MISMATCH");
+    if (GENERIC_ELEMENT_TEXT.test(proposal.title.trim()) || GENERIC_ELEMENT_TEXT.test(proposal.description.trim()))
+      throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_PATHOLOGY", `elements[${index}].description`, "PLANNING_DECOMPOSITION_GENERIC_ELEMENT");
+    validateProposalReferences(proposal, table, index);
+    const signature = [proposal.kind, proposal.domain, normalized(proposal.title), normalized(proposal.description), ...(proposal.pageTokens ?? []), ...(proposal.routeTokens ?? [])].join("|");
+    if (signatures.has(signature)) throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_DUPLICATE", `elements[${index}]`);
+    signatures.add(signature);
+    seenKinds.add(proposal.kind);
+    seenDomains.add(proposal.domain);
+    const elementId = `PE_${String(index + 1).padStart(3, "0")}`;
+    elements.push(PlanningElementSchema.parse({
+      elementId,
+      kind: proposal.kind,
+      domain: proposal.domain,
+      title: proposal.title,
+      description: proposal.description,
+      pageTokens: [...new Set(proposal.pageTokens ?? [])],
+      routeTokens: [...new Set(proposal.routeTokens ?? [])],
+      dependencies: [],
+      negativeEvidence: proposal.negativeEvidence ?? false,
+      negativeOnly: proposal.negativeOnly ?? false,
+    }));
+  }
+  if (!seenKinds.has("PRODUCT_SCOPE") || !seenKinds.has("PAGE") && !seenKinds.has("ROUTE") || !parsed.elements.some((proposal) => hasRequiredPageOrRoute(proposal, table)))
+    throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_INVALID", "elements", "PLANNING_DECOMPOSITION_MINIMUM_ELEMENTS");
+  for (const domain of requiredDomains(input.brief, input.canonicalBrief)) {
+    if (!seenDomains.has(domain)) throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_DOMAIN_MISSING", "elements", domain);
+  }
+  const pageTokens = new Set(elements.flatMap((element) => element.pageTokens));
+  const routeTokens = new Set(elements.flatMap((element) => element.routeTokens));
+  if (table.pages.some((page) => !pageTokens.has(page.token)))
+    throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_ROUTE_UNKNOWN", "elements", "PLANNING_DECOMPOSITION_CANONICAL_PAGE_MISSING");
+  if (table.routes.some((route) => !routeTokens.has(route.token)))
+    throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_ROUTE_UNKNOWN", "elements", "PLANNING_DECOMPOSITION_CANONICAL_ROUTE_MISSING");
+  const byIndex = new Map(parsed.elements.map((_, index) => [index, elements[index]!.elementId]));
+  for (const [index, proposal] of parsed.elements.entries()) {
+    const dependencies = [...new Set(proposal.dependencies ?? [])];
+    if (dependencies.some((dependency) => dependency === index || !byIndex.has(dependency)))
+      throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_INVALID", `elements[${index}].dependencies`, "PLANNING_DECOMPOSITION_DEPENDENCY_INDEX_INVALID");
+    elements[index]!.dependencies = dependencies.map((dependency) => byIndex.get(dependency)!).sort();
+  }
+  return elements.map((element) => PlanningElementSchema.parse(element));
+}
+
+const forbiddenInversion: ReadonlySet<string> = new Set([
+  "DATABASE>FRONTEND",
+  "AUTHENTICATION>FRONTEND",
+  "SECURITY>QA",
+]);
+
+function dependencyCycle(elements: readonly PlanningElement[]) {
+  const graph = new Map(elements.map((element) => [element.elementId, element.dependencies]));
+  const active = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (id: string): boolean => {
+    if (active.has(id)) return true;
+    if (visited.has(id)) return false;
+    active.add(id);
+    for (const dependency of graph.get(id) ?? []) if (visit(dependency)) return true;
+    active.delete(id);
+    visited.add(id);
+    return false;
+  };
+  return elements.some((element) => visit(element.elementId));
+}
+
+/** Stage 2 is deterministic: PE identity and graph integrity need no model call. */
+export function finalizePlanningElementGraph(elements: readonly PlanningElement[]): PlanningElementGraph {
+  const parsed = z.array(PlanningElementSchema).min(1).max(256).safeParse(elements);
+  if (!parsed.success) throw new StagedPlanningAdmissionError("PLANNING_GRAPH_INVALID", "elements");
+  const ids = new Set(parsed.data.map((element) => element.elementId));
+  if (ids.size !== parsed.data.length) throw new StagedPlanningAdmissionError("PLANNING_GRAPH_INVALID", "elements", "PLANNING_GRAPH_DUPLICATE_ELEMENT_ID");
+  const edges = parsed.data.flatMap((element) => element.dependencies.map((dependency) => {
+    if (!ids.has(dependency)) throw new StagedPlanningAdmissionError("PLANNING_GRAPH_INVALID", `elements.${element.elementId}.dependencies`, dependency);
+    const target = parsed.data.find((candidate) => candidate.elementId === dependency)!;
+    if (forbiddenInversion.has(`${element.domain}>${target.domain}`))
+      throw new StagedPlanningAdmissionError("PLANNING_GRAPH_DOMAIN_INVERSION", `edges.${element.elementId}.${dependency}`);
+    return { from: element.elementId, to: dependency, relation: "DEPENDS_ON" as const };
+  }));
+  if (new Set(edges.map((edge) => `${edge.from}>${edge.to}`)).size !== edges.length)
+    throw new StagedPlanningAdmissionError("PLANNING_GRAPH_INVALID", "edges", "PLANNING_GRAPH_DUPLICATE_EDGE");
+  if (dependencyCycle(parsed.data)) throw new StagedPlanningAdmissionError("PLANNING_GRAPH_CYCLE", "edges");
+  return PlanningElementGraphSchema.parse({ schemaVersion: 1, elements: parsed.data, edges });
+}
+
+function descriptorFor(element: PlanningElement): PlannerCoverageElementDescriptor {
+  return {
+    kind: element.kind,
+    domains: [element.domain],
+    ...(element.pageTokens[0] ? { pageToken: element.pageTokens[0] } : {}),
+    ...(element.routeTokens[0] ? { routeToken: element.routeTokens[0] } : {}),
+    ...(element.pageTokens.length > 0 ? { pageTokens: element.pageTokens } : {}),
+    ...(element.routeTokens.length > 0 ? { routeTokens: element.routeTokens } : {}),
+    negativeEvidence: element.negativeEvidence,
+    negativeOnly: element.negativeOnly,
+  };
+}
+
+function stagedDecisionId(requirementId: string, token: string) {
+  const digest = createHash("sha256").update(`staged-coverage:${token}:${requirementId}`).digest("hex");
+  const bytes = Buffer.from(digest.slice(0, 32), "hex");
+  bytes[6] = (bytes[6]! & 15) | 64;
+  bytes[8] = (bytes[8]! & 63) | 128;
+  return `${bytes.toString("hex").slice(0, 8)}-${bytes.toString("hex").slice(8, 12)}-${bytes.toString("hex").slice(12, 16)}-${bytes.toString("hex").slice(16, 20)}-${bytes.toString("hex").slice(20)}`;
+}
+
+function materializeStagedCoverage(candidate: PlanningPackage, coverage: PlanningCoverageProviderOutput, table: PlannerReferenceTable): PlanningPackage {
+  const requirements = new Map(table.requirements.map((entry) => [entry.token, entry]));
+  const positiveEvidence: string[] = [];
+  const negativeEvidence: string[] = [];
+  const stagedTraceability = Object.entries(coverage.coverageByRequirement).map(([token, entry]) => {
+    const requirement = requirements.get(token)!;
+    const target = requirement.coverageConstraints.positiveRequirement ? positiveEvidence : negativeEvidence;
+    target.push(entry.semanticEvidence);
+    return {
+      decisionId: stagedDecisionId(requirement.canonicalRequirementId, token),
+      category: "staged-coverage",
+      requirementReferences: [requirement.canonicalRequirementId],
+      systemConstraintReferences: [`PLANNER_STAGED_COVERAGE:${token}`],
+      rationale: entry.semanticEvidence,
+      confidence: "high" as const,
+      userConfirmationRequired: false,
+    };
+  });
+  return {
+    ...candidate,
+    productScope: {
+      ...candidate.productScope,
+      inScopeCapabilities: [...candidate.productScope.inScopeCapabilities, ...positiveEvidence],
+      outOfScopeCapabilities: [...candidate.productScope.outOfScopeCapabilities, ...negativeEvidence],
+    },
+    traceability: [...candidate.traceability, ...stagedTraceability],
+  };
+}
+
+/**
+ * Stage 3 admits only exact mandatory REQ keys and host-issued PE tokens. The
+ * v5 semantic validator remains the sole typed coverage authority.
+ */
+export function admitPlanningCoverage(input: {
+  output: unknown;
+  table: PlannerReferenceTable;
+  elements: readonly PlanningElement[];
+}): PlanningCoverageProviderOutput {
+  const table = PlannerReferenceTableSchema.parse(input.table);
+  const rawCoverage = input.output && typeof input.output === "object" && !Array.isArray(input.output)
+    ? (input.output as Record<string, unknown>).coverageByRequirement
+    : undefined;
+  if (rawCoverage && typeof rawCoverage === "object" && !Array.isArray(rawCoverage)) {
+    const required = table.requirements.filter((entry) => entry.mandatory).map((entry) => entry.token);
+    const requiredSet = new Set(required);
+    for (const token of Object.keys(rawCoverage))
+      if (!requiredSet.has(token)) throw new PlannerReferenceBindingError("PLANNING_TRACEABILITY_UNKNOWN_REFERENCE", `coverageByRequirement.${token}`);
+    for (const token of required)
+      if (!Object.prototype.hasOwnProperty.call(rawCoverage, token)) throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_MISSING", token, "PLANNING_COVERAGE_REQUIREMENT_MISSING");
+  }
+  const schema = createPlanningCoverageProviderWireSchema(table);
+  let parsed: PlanningCoverageProviderOutput;
+  try {
+    parsed = schema.parse(input.output);
+  } catch {
+    throw new StagedPlanningAdmissionError("PLANNING_COVERAGE_INVALID", "coverageByRequirement", "PLANNING_COVERAGE_SCHEMA_INVALID");
+  }
+  const index = new Map(input.elements.map((element) => [element.elementId, descriptorFor(element)]));
+  try {
+    validatePlannerRequirementCoverage(parsed.coverageByRequirement, table, {}, index);
+  } catch (error) {
+    if (error instanceof PlannerReferenceBindingError) throw error;
+    throw error;
+  }
+  return parsed;
+}
+
+/**
+ * Host assembly deliberately happens after both stage admissions. The
+ * deterministic package builder supplies the complete existing canonical
+ * Planning shape; staged PE/REQ relationships remain operation-local and are
+ * never persisted as provider-owned identity.
+ */
+export function assembleStagedPlanningCandidate(input: {
+  plannerInput: PlannerAgentInput;
+  brief: RequirementSpecification;
+  canonicalBrief?: CanonicalBriefV3;
+  plannerReferenceTable: PlannerReferenceTable;
+  elements: readonly PlanningElement[];
+  graph: PlanningElementGraph;
+  coverage: PlanningCoverageProviderOutput;
+}): PlanningPackage {
+  const positiveElementEvidence = input.elements.filter((element) => !element.negativeOnly).map((element) => `${element.elementId}: ${element.title} — ${element.description}`);
+  const negativeElementEvidence = input.elements.filter((element) => element.negativeOnly).map((element) => `${element.elementId}: ${element.title} — ${element.description}`);
+  const graphEvidence = input.graph.edges.map((edge) => `${edge.from} depends on ${edge.to}`);
+  const base = buildPlanningPackage({ ...input.plannerInput, approvedBrief: input.brief, ...(input.canonicalBrief ? { canonicalBrief: input.canonicalBrief } : {}) });
+  const candidate = {
+    ...base,
+    planningPipelineVersion: STAGED_PLANNER_PIPELINE_VERSION,
+    productScope: {
+      ...base.productScope,
+      inScopeCapabilities: [
+        ...base.productScope.inScopeCapabilities,
+        ...positiveElementEvidence,
+      ],
+      outOfScopeCapabilities: [...base.productScope.outOfScopeCapabilities, ...negativeElementEvidence],
+    },
+  };
+  candidate.architecture = {
+    ...candidate.architecture,
+    componentBoundaries: [...candidate.architecture.componentBoundaries, ...graphEvidence],
+  };
+  const admittedGraph = finalizePlanningElementGraph(input.elements);
+  if (checksumPersistedDocument(admittedGraph) !== checksumPersistedDocument(input.graph))
+    throw new StagedPlanningAdmissionError("PLANNING_GRAPH_INVALID", "graph", "PLANNING_GRAPH_NOT_CURRENT");
+  const admittedCoverage = admitPlanningCoverage({ output: input.coverage, table: input.plannerReferenceTable, elements: input.elements });
+  return PlanningPackageSchema.parse(materializeStagedCoverage(candidate, admittedCoverage, input.plannerReferenceTable));
+}
+
+export function stagedCoverageReferenceCount(output: PlanningCoverageProviderOutput) {
+  return Object.values(output.coverageByRequirement).reduce((count, entry) => count + entry.planningElementIds.length, 0);
+}
+
+export function stagedElementDescriptorIndex(elements: readonly PlanningElement[]) {
+  return new Map(elements.map((element) => [element.elementId, descriptorFor(element)]));
+}
+
+export function stagedProviderContractMetrics(input: {
+  monolithicInput: unknown;
+  decompositionInput: unknown;
+  coverageInput: unknown;
+  table: PlannerReferenceTable;
+}) {
+  const bytes = (value: unknown) => Buffer.byteLength(JSON.stringify(value), "utf8");
+  const monolithicBytes = bytes(input.monolithicInput);
+  const decompositionBytes = bytes(input.decompositionInput);
+  const coverageBytes = bytes(input.coverageInput);
+  return {
+    monolithic: { bytes: monolithicBytes, estimatedTokens: Math.ceil(monolithicBytes / 4) },
+    decomposition: { bytes: decompositionBytes, estimatedTokens: Math.ceil(decompositionBytes / 4), referenceBytes: bytes({ pages: input.table.pages, routes: input.table.routes }) },
+    coverage: { bytes: coverageBytes, estimatedTokens: Math.ceil(coverageBytes / 4), referenceBytes: bytes({ requirements: input.table.requirements.filter((entry) => entry.mandatory) }) },
+    largestStage: Math.max(decompositionBytes, coverageBytes) === decompositionBytes ? "decomposition" as const : "coverage" as const,
+  };
+}
