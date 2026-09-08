@@ -5,7 +5,7 @@ import { buildProductionResponseFormat, OpenAiStructuredClient, parseProviderWir
 import { AiProviderError } from "./errors";
 import { FifoConcurrencyLimiter } from "./limiter";
 import { zodResponseFormat } from "openai/helpers/zod";
-import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, OpenAiLeadProvider, OpenAiPlannerProvider, PlannerReferenceBindingError, PlanningPackageStructuredOutputSchema, PlanningRecoveryProviderSchemaDefinitions, createPlanningRecoveryProviderWireSchema, createTokenizedPlanningProviderWireSchema, isWorkflowApprovalBlocker } from "./adapters";
+import { BriefDraftStructuredOutputSchema, DesignDirectionStructuredOutputSchema, ImplementationChangeProposalStructuredOutputSchema, OpenAiImplementationProvider, OpenAiLeadProvider, OpenAiPlannerProvider, PlannerReferenceBindingError, PlanningPackageStructuredOutputSchema, PlanningRecoveryProviderSchemaDefinitions, createPlanningRecoveryProviderWireSchema, createTokenizedPlanningProviderWireSchema, isWorkflowApprovalBlocker, normalizeTokenizedPlanningPackage, plannerProviderPromptInput, validatePlannerRequirementCoverage } from "./adapters";
 import { readAiProviderConfig } from "./config";
 import { ArchitectureReviewProviderOutputSchema, CodeIntegrationReviewProviderOutputSchema, ContractAuditProviderOutputSchema, SecurityReviewProviderOutputSchema, TestQualityReviewProviderOutputSchema } from "@/domain/review/schema";
 import { analyzePromptDeterministically } from "@/agents/lead/deterministic";
@@ -13,12 +13,13 @@ import { ClarificationPlanProviderOutputSchema, LeadAnalysisProviderOutputSchema
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
 import { emptyBriefV2Fields } from "@/domain/requirements/brief";
-import { buildPlanningPackage } from "@/agents/planner/deterministic";
+import { buildPlanningPackage, validatePlanningAdmission } from "@/agents/planner/deterministic";
+import { canonicalBriefToPlannerBrief } from "@/agents/planner/brief-context";
 import { cleanBriefV3 } from "@/domain/requirements/v3/fixtures";
 import { CanonicalBriefV3Schema } from "@/domain/requirements/v3/schema";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { createCanonicalPlanningRouteManifest, createPlanningOwnedRequirementManifest, createPlanningTargetCatalog } from "@/agents/planner/recovery-manifests";
-import { createPlannerReferenceTable } from "@/agents/planner/reference-table";
+import { createPlannerReferenceTable, measurePlannerProviderInput } from "@/agents/planner/reference-table";
 
 const config = { apiKey: "test", model: "test-model", modelLabel: "GPT-5.6 Luna", maxRetries: 1, maxConcurrentRequests: 1 };
 const schema = z.object({ ok: z.boolean(), summary: z.string() }).strict();
@@ -27,17 +28,18 @@ const plannerCoverageElementByCategory: Record<string, string> = {
   ADMINISTRATION: "administration",
   AUDIENCE: "profile",
   BACKEND: "architecture",
+  BRAND_FACT: "profile",
   BUSINESS_GOAL: "productScope",
   CONTENT: "content",
   DATABASE: "dataModel",
   DECISION: "architecture",
   DEFERRED_INTEGRATION: "dependencies",
-  EXCLUSION: "security",
+  EXCLUSION: "productScope",
   FEATURE: "productScope",
   FORM: "forms",
   FORM_INTERACTION: "forms",
   LEGAL_CONSTRAINT: "security",
-  PROHIBITED: "security",
+  PROHIBITED: "productScope",
   SEO: "sitemap",
   TECHNICAL: "architecture",
   USER_ROLE: "authentication",
@@ -67,7 +69,7 @@ const noBackendPlannerTransport = () => {
   });
   const input = { projectId, projectVersion: 1, approvedBrief: brief, approvedBriefChecksum: checksumPersistedDocument(brief), originalPromptReference: "original-prompt.md", clarificationEvidenceReferences: [], currentWorkflowState: "AWAITING_DESIGN_SELECTION" as const, existingDecisions: [], suppliedFiles: [], allowedSkills: [], idempotencyKey: "provider-no-backend", expectedRowVersion: 1 };
   const canonical = buildPlanningPackage(input);
-  const stripIdentity = (value: unknown): unknown => Array.isArray(value) ? value.map(stripIdentity) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value as Record<string, unknown>).filter(([key, nested]) => key !== "projectId" && key !== "projectVersion" && key !== "semanticChecksumPolicyVersion" && key !== "approvedBriefChecksum" && key !== "accepted" && key !== "acceptance" && key !== "decisionId" && nested !== undefined).map(([key, nested]) => [key, stripIdentity(nested)])) : value;
+  const stripIdentity = (value: unknown): unknown => Array.isArray(value) ? value.map(stripIdentity) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value as Record<string, unknown>).filter(([key, nested]) => key !== "projectId" && key !== "projectVersion" && key !== "semanticChecksumPolicyVersion" && key !== "approvedBriefChecksum" && key !== "accepted" && key !== "acceptance" && key !== "decisionId" && key !== "routePolicy" && nested !== undefined).map(([key, nested]) => [key, stripIdentity(nested)])) : value;
   const transport = JSON.parse(JSON.stringify(stripIdentity(canonical))) as Record<string, unknown>;
   transport.databaseRecommendation = null;
   const architecture = transport.architecture as Record<string, unknown>;
@@ -86,6 +88,27 @@ const noBackendPlannerTransport = () => {
   return { brief, input, transport };
 };
 
+function tokenizablePlannerTransport(canonical: ReturnType<typeof buildPlanningPackage>) {
+  const stripIdentity = (value: unknown): unknown => Array.isArray(value) ? value.map(stripIdentity) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value as Record<string, unknown>).filter(([key, nested]) => key !== "projectId" && key !== "projectVersion" && key !== "semanticChecksumPolicyVersion" && key !== "approvedBriefChecksum" && key !== "accepted" && key !== "acceptance" && key !== "decisionId" && key !== "routePolicy" && nested !== undefined).map(([key, nested]) => [key, stripIdentity(nested)])) : value;
+  const transport = JSON.parse(JSON.stringify(stripIdentity(canonical))) as Record<string, unknown>;
+  transport.databaseRecommendation = null;
+  const architecture = transport.architecture as Record<string, unknown>;
+  architecture.backendPriority = ["server-actions", "route-handlers", "supabase-services"];
+  architecture.npmScripts = Object.entries(canonical.architecture.npmScripts).map(([name, command]) => ({ name, command }));
+  for (const key of ["productScope", "sitemap", "navigation", "pages", "userFlows", "forms", "dataModel", "authentication", "supabase", "email", "storage", "administration", "traceability"]) {
+    const node = transport[key];
+    if (Array.isArray(node)) transport[key] = node.map((entry) => ({ ...(entry as Record<string, unknown>), unresolvedDependency: null }));
+    else if (node && typeof node === "object" && Array.isArray((node as Record<string, unknown>).traceability)) (node as Record<string, unknown>).traceability = ((node as Record<string, unknown>).traceability as unknown[]).map((entry) => ({ ...(entry as Record<string, unknown>), unresolvedDependency: null }));
+  }
+  const sitemap = transport.sitemap as Record<string, unknown>;
+  sitemap.routes = (sitemap.routes as Array<Record<string, unknown>>).map((route) => ({ ...route, primaryCta: route.primaryCta ?? null, parentId: route.parentId ?? null }));
+  const userFlows = transport.userFlows as Record<string, unknown>;
+  userFlows.flows = (userFlows.flows as Array<Record<string, unknown>>).map((flow) => ({ ...flow, steps: (flow.steps as Array<Record<string, unknown>>).map((step) => ({ ...step, routeId: step.routeId ?? null, decision: step.decision ?? null })) }));
+  const assets = transport.assets as Record<string, unknown>;
+  assets.entries = (assets.entries as Array<Record<string, unknown>>).map((entry) => ({ ...entry, consistencyGroup: entry.consistencyGroup ?? null }));
+  return PlanningPackageStructuredOutputSchema.parse(transport);
+}
+
 function recoveryNormalizationFixture(canonicalBriefOverride?: z.infer<typeof CanonicalBriefV3Schema>) {
   const base = noBackendPlannerTransport();
   const canonicalBrief = canonicalBriefOverride ?? CanonicalBriefV3Schema.parse({
@@ -93,6 +116,14 @@ function recoveryNormalizationFixture(canonicalBriefOverride?: z.infer<typeof Ca
     pages: [...cleanBriefV3.pages, { id: "PAGE:contact", slug: "contact", purpose: "Provide the synthetic contact interaction.", sourceRefs: ["fixture:contact"] }],
     decisions: { ...cleanBriefV3.decisions, routePolicy: { mode: "MULTI_PAGE" }, form: { ...cleanBriefV3.decisions.form, interactionStates: [] } },
   });
+  const sourceTransport = canonicalBriefOverride
+    ? tokenizablePlannerTransport(buildPlanningPackage({
+        ...base.input,
+        approvedBrief: { ...canonicalBriefToPlannerBrief(canonicalBrief, base.input.approvedBrief), administrationDecision: "not-needed" },
+        canonicalBrief: undefined,
+        approvedBriefChecksum: canonicalBriefChecksum(canonicalBrief),
+      }))
+    : base.transport;
   const routeManifest = createCanonicalPlanningRouteManifest(canonicalBrief);
   const requirementManifest = createPlanningOwnedRequirementManifest(canonicalBrief);
   const targetCatalog = createPlanningTargetCatalog(routeManifest);
@@ -110,7 +141,7 @@ function recoveryNormalizationFixture(canonicalBriefOverride?: z.infer<typeof Ca
     : value && typeof value === "object"
       ? Object.fromEntries(Object.entries(value as JsonObject).filter(([key]) => key !== "createdAt" && key !== "updatedAt").map(([key, child]) => [key, removeProviderDocumentMetadata(child)]))
       : value;
-  const transport = removeProviderDocumentMetadata(handleizeReferences(JSON.parse(JSON.stringify(base.transport)))) as JsonObject;
+  const transport = removeProviderDocumentMetadata(handleizeReferences(JSON.parse(JSON.stringify(sourceTransport)))) as JsonObject;
   const sitemap = transport.sitemap as JsonObject;
   const routeRows = sitemap.routes as JsonObject[];
   const legacyRouteIds = new Map(routeRows.map((route, index) => [String(route.id), routeManifest.routes[index]! ]));
@@ -203,7 +234,12 @@ function tokenizedPlannerFixture(canonicalBriefOverride?: z.infer<typeof Canonic
     return route ? pageTokenByPath.get(route.path)! : pageTokenByPath.get(String(handle))!;
   };
   const tokenizeReferences = (value: unknown, key = ""): unknown => {
-    if (key === "requirementReferences" && Array.isArray(value)) return value.map((reference) => requirementTokenById.get(requirementIdByRecoveryHandle.get(String(reference)) ?? String(reference)) ?? table.requirements[0]!.token);
+    if (key === "requirementReferences" && Array.isArray(value)) return value.map((reference) => {
+      const requirementId = requirementIdByRecoveryHandle.get(String(reference)) ?? String(reference);
+      const requirementToken = requirementTokenById.get(requirementId);
+      if (!requirementToken) throw new Error("Synthetic Planner fixture contains an unmapped requirement reference.");
+      return requirementToken;
+    });
     if (Array.isArray(value)) return value.map((entry) => tokenizeReferences(entry));
     if (!value || typeof value !== "object") return value;
     return Object.fromEntries(Object.entries(value as JsonObject).map(([childKey, child]) => [childKey, tokenizeReferences(child, childKey)]));
@@ -277,6 +313,33 @@ function exact87ReferenceTable() {
     canonicalBrief,
   });
 }
+
+const syntheticCoverageCategories = [
+  "ACCEPTANCE", "ADMINISTRATION", "AUDIENCE", "BACKEND", "BRAND_FACT", "BUSINESS_GOAL", "CONTENT", "DATABASE", "DECISION", "DEFERRED_INTEGRATION", "EXCLUSION", "FEATURE", "FORM", "FORM_INTERACTION", "PROHIBITED", "SEO", "TECHNICAL", "USER_ROLE", "UX_RESPONSIVE",
+] as const;
+
+function synthetic117CanonicalBrief() {
+  return CanonicalBriefV3Schema.parse({
+    ...cleanBriefV3,
+    pages: [...cleanBriefV3.pages, { id: "PAGE:synthetic-secondary", slug: "secondary", purpose: "Provide the synthetic secondary page.", sourceRefs: ["fixture:semantic-coverage:secondary-page"] }],
+    requirements: Array.from({ length: 117 }, (_, index) => ({
+      id: `REQUIREMENT:synthetic-coverage-${String(index + 1).padStart(3, "0")}`,
+      category: syntheticCoverageCategories[index % syntheticCoverageCategories.length]!,
+      statement: `Synthetic mandatory Planning responsibility ${index + 1}.`,
+      sourceRefs: [`fixture:semantic-coverage:${index + 1}`],
+    })),
+  });
+}
+
+function syntheticCoverageCandidate() {
+  return {
+    profile: {}, productScope: {}, sitemap: { routes: [{ routeToken: "ROUTE_001", pageToken: "PAGE_001" }] }, navigation: {}, pages: { pages: [{ pageToken: "PAGE_001", routeToken: "ROUTE_001" }] }, userFlows: { flows: [{ id: "synthetic-flow" }] }, forms: { forms: [{ id: "synthetic-form" }] }, dataModel: { entities: [{ id: "synthetic-entity" }] }, authentication: {}, supabase: {}, email: {}, storage: {}, administration: {}, content: {}, assets: { entries: [] }, architecture: {}, environment: {}, dependencies: {}, testStrategy: {}, security: {}, traceability: [],
+  };
+}
+
+const coverageSectionByKind: Record<string, string> = {
+  PROFILE: "profile", PRODUCT_SCOPE: "productScope", ROUTE: "sitemap", PAGE: "pages", NAVIGATION: "navigation", USER_FLOW: "userFlows", FORM: "forms", DATABASE_MODEL: "dataModel", AUTHENTICATION: "authentication", SUPABASE: "supabase", EMAIL: "email", STORAGE: "storage", ADMINISTRATION: "administration", CONTENT: "content", ASSET: "assets", ARCHITECTURE: "architecture", ENVIRONMENT: "environment", DEPENDENCY: "dependencies", TEST_STRATEGY: "testStrategy", SECURITY: "security", TRACEABILITY: "traceability",
+};
 
 describe("production AI provider boundary", () => {
   it("constructs every reviewer strict transport schema with required nullable metadata", () => {
@@ -441,13 +504,13 @@ describe("production AI provider boundary", () => {
     const client = new OpenAiStructuredClient(config, { executor: async <T>(request: StructuredRequest<T>) => { sent = request as StructuredRequest<unknown>; return { value: fixture.transport as T, requestId: "req_planner_traceability_allowlist" }; } });
     const result = await new OpenAiPlannerProvider(client).plan(fixture.input);
     const firstCanonicalRequirementId = fixture.table.requirements[0]!.canonicalRequirementId;
-    expect(sent?.promptVersion).toBe("planner.v4");
-    expect(sent?.schemaName).toBe("planning-package-v4");
+    expect(sent?.promptVersion).toBe("planner.v5");
+    expect(sent?.schemaName).toBe("planning-package-v5");
     expect(sent?.system).toContain("REQ_001");
     expect(sent?.system).toContain("host-issued and opaque");
     expect(sent?.system).not.toContain(firstCanonicalRequirementId);
     expect(sent?.user).not.toContain(firstCanonicalRequirementId);
-    expect(result.providerContractVersion).toBe("planner.v4");
+    expect(result.providerContractVersion).toBe("planner.v5");
     expect(JSON.stringify(result)).toContain(firstCanonicalRequirementId);
     expect(result.sitemap.routes[0]?.id).toBe(fixture.table.routes[0]?.canonicalRouteId);
     expect(result.sitemap.routes[0]?.path).toBe(fixture.table.routes[0]?.path);
@@ -456,7 +519,7 @@ describe("production AI provider boundary", () => {
   });
   it("generates exact host-owned required coverage slots for the current reference table", () => {
     const fixture = tokenizedPlannerFixture();
-    const response = zodResponseFormat(createTokenizedPlanningProviderWireSchema(fixture.table), "planning-package-v4") as unknown as { json_schema: { schema: { properties: Record<string, { properties?: Record<string, unknown>; required?: string[]; additionalProperties?: boolean }> } } };
+    const response = zodResponseFormat(createTokenizedPlanningProviderWireSchema(fixture.table), "planning-package-v5") as unknown as { json_schema: { schema: { properties: Record<string, { properties?: Record<string, unknown>; required?: string[]; additionalProperties?: boolean }> } } };
     const coverage = response.json_schema.schema.properties.coverageByRequirement;
     const requiredTokens = fixture.table.requirements.filter((entry) => entry.mandatory).map((entry) => entry.token);
     expect(Object.keys(coverage?.properties ?? {})).toEqual(requiredTokens);
@@ -466,7 +529,7 @@ describe("production AI provider boundary", () => {
   it("requires REQ_087 in the exact 87-requirement structured-output contract and rejects its empty value", async () => {
     const table = exact87ReferenceTable();
     const requiredTokens = table.requirements.filter((entry) => entry.mandatory).map((entry) => entry.token);
-    const response = zodResponseFormat(createTokenizedPlanningProviderWireSchema(table), "planning-package-v4") as unknown as { json_schema: { schema: { properties: Record<string, { properties?: Record<string, unknown>; required?: string[]; additionalProperties?: boolean }> } } };
+    const response = zodResponseFormat(createTokenizedPlanningProviderWireSchema(table), "planning-package-v5") as unknown as { json_schema: { schema: { properties: Record<string, { properties?: Record<string, unknown>; required?: string[]; additionalProperties?: boolean }> } } };
     const coverage = response.json_schema.schema.properties.coverageByRequirement;
     expect(requiredTokens).toHaveLength(87);
     expect(requiredTokens.at(-1)).toBe("REQ_087");
@@ -477,6 +540,89 @@ describe("production AI provider boundary", () => {
     ((empty.coverageByRequirement as Record<string, Record<string, unknown>>).REQ_087!).planningElementIds = [];
     const planner = new OpenAiPlannerProvider(new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: empty as T, requestId: "req_exact_87_empty_coverage" }) }));
     await expect(planner.plan(fixture.input)).rejects.toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID" } satisfies Partial<PlannerReferenceBindingError>);
+  });
+  it("admits a synthetic complete 117/117 coverage candidate through the strict wire and normalization boundary", () => {
+    const brief = synthetic117CanonicalBrief();
+    const fixture = tokenizedPlannerFixture(brief);
+    const required = fixture.table.requirements.filter((entry) => entry.mandatory);
+    const wire = createTokenizedPlanningProviderWireSchema(fixture.table).parse(fixture.transport);
+    const normalized = normalizeTokenizedPlanningPackage(wire, { projectId: fixture.input.projectId, projectVersion: fixture.input.projectVersion, approvedBriefChecksum: fixture.input.approvedBriefChecksum }, fixture.input.approvedBrief, fixture.table);
+    expect(required).toHaveLength(117);
+    expect(new Set(required.map((entry) => entry.category))).toEqual(new Set(syntheticCoverageCategories));
+    const metrics = measurePlannerProviderInput(fixture.table, plannerProviderPromptInput(fixture.input, fixture.table));
+    expect(metrics.coverageSchemaBytes).toBeGreaterThan(metrics.requirementSemanticsBytes);
+    expect(metrics.totalPlannerInputBytes).toBeLessThan(384_000);
+    expect(metrics.estimatedInputTokens).toBe(Math.ceil(metrics.totalPlannerInputBytes / 4));
+    expect(validatePlanningAdmission(normalized).ready).toBe(true);
+  });
+  it("gives REQ_001 precise semantic admission reasons without changing the stable outer guard", () => {
+    const brief = CanonicalBriefV3Schema.parse({ ...cleanBriefV3, requirements: [{ id: "REQUIREMENT:synthetic-feature", category: "FEATURE", statement: "Provide the synthetic request feature.", sourceRefs: ["fixture:req-001"] }] });
+    const table = createPlannerReferenceTable({ projectId: "44444444-4444-4444-8444-444444444444", projectVersion: 1, approvedBriefChecksum: canonicalBriefChecksum(brief), idempotencyKey: "synthetic-req-001", expectedRowVersion: 1, canonicalBrief: brief });
+    const valid = { REQ_001: { planningElementIds: ["productScope"], semanticEvidence: "The product scope records the approved synthetic request feature." } };
+    expect(() => validatePlannerRequirementCoverage(valid, table, syntheticCoverageCandidate())).not.toThrow();
+    const wrongDomainTable = { ...table, requirements: table.requirements.map((entry) => ({ ...entry, coverageConstraints: { ...entry.coverageConstraints, allowedDomains: ["QA"] as const, allowedElementKinds: ["PRODUCT_SCOPE"] as const } })) } as typeof table;
+    expect(() => validatePlannerRequirementCoverage(valid, wrongDomainTable, syntheticCoverageCandidate())).toThrowError(expect.objectContaining({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_DOMAIN_INCOMPATIBLE" }));
+    expect(() => validatePlannerRequirementCoverage({ REQ_001: { planningElementIds: ["testStrategy"], semanticEvidence: "The test strategy records the approved synthetic request feature." } }, table, syntheticCoverageCandidate())).toThrowError(expect.objectContaining({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_KIND_INCOMPATIBLE" }));
+    const negativeOnlyCandidate = { ...syntheticCoverageCandidate(), productScope: { inScopeCapabilities: [], outOfScopeCapabilities: ["Synthetic feature"] } };
+    expect(() => validatePlannerRequirementCoverage(valid, table, negativeOnlyCandidate)).toThrowError(expect.objectContaining({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_EXCLUSION_CANNOT_SATISFY" }));
+    const collidingIdCandidate = { ...syntheticCoverageCandidate(), forms: { forms: [{ id: "productScope" }] } };
+    expect(() => validatePlannerRequirementCoverage(valid, table, collidingIdCandidate)).toThrowError(expect.objectContaining({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_ELEMENT_ID_COLLISION" }));
+    expect(() => validatePlannerRequirementCoverage({ REQ_001: { planningElementIds: ["productScope"], semanticEvidence: "covered" } }, table, syntheticCoverageCandidate())).toThrowError(expect.objectContaining({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_PLACEHOLDER_EVIDENCE" }));
+    try {
+      validatePlannerRequirementCoverage({ REQ_001: { planningElementIds: ["traceability"], semanticEvidence: "The feature is covered by the plan." } }, table, syntheticCoverageCandidate());
+      throw new Error("expected semantic admission failure");
+    } catch (error) {
+      expect(error).toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_GENERIC_CATCH_ALL", fieldPath: "coverageByRequirement.REQ_001" });
+    }
+  });
+  it("rejects cross-domain and cross-kind coverage rather than accepting a shared catch-all", () => {
+    const brief = CanonicalBriefV3Schema.parse({ ...cleanBriefV3, requirements: [
+      { id: "REQUIREMENT:synthetic-form", category: "FORM", statement: "Provide the synthetic request form.", sourceRefs: ["fixture:form"] },
+      { id: "REQUIREMENT:synthetic-database", category: "DATABASE", statement: "Persist synthetic request records.", sourceRefs: ["fixture:database"] },
+      { id: "REQUIREMENT:synthetic-technical", category: "TECHNICAL", statement: "Use the approved synthetic runtime boundary.", sourceRefs: ["fixture:technical"] },
+    ] });
+    const table = createPlannerReferenceTable({ projectId: "55555555-5555-4555-8555-555555555555", projectVersion: 1, approvedBriefChecksum: canonicalBriefChecksum(brief), idempotencyKey: "synthetic-cross-domain", expectedRowVersion: 1, canonicalBrief: brief });
+    const candidate = syntheticCoverageCandidate();
+    const baselineCoverage = Object.fromEntries(table.requirements.filter((entry) => entry.mandatory).map((entry) => [entry.token, { planningElementIds: [coverageSectionByKind[entry.coverageConstraints.allowedElementKinds[0]!]!], semanticEvidence: `Synthetic evidence for ${entry.token}.` }]));
+    const expectReason = (token: string, planningElementId: string, reasonCode: string, candidateTable = table, candidateCoverage = baselineCoverage) => {
+      try {
+        validatePlannerRequirementCoverage({ ...candidateCoverage, [token]: { planningElementIds: [planningElementId], semanticEvidence: `Synthetic evidence for ${token}.` } }, candidateTable, candidate);
+        throw new Error("expected semantic admission failure");
+      } catch (error) {
+        expect(error).toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode });
+      }
+    };
+    expectReason("REQ_001", "forms", "PLANNING_COVERAGE_KIND_INCOMPATIBLE");
+    expectReason("REQ_002", "dataModel", "PLANNING_COVERAGE_KIND_INCOMPATIBLE");
+    expectReason("REQ_003", "content", "PLANNING_COVERAGE_KIND_INCOMPATIBLE");
+    const domainOnlyConstraint = { ...table, requirements: table.requirements.map((entry) => entry.token === "REQ_002" ? { ...entry, coverageConstraints: { ...entry.coverageConstraints, allowedDomains: ["DATABASE"] as const, allowedElementKinds: ["FORM"] as const } } : entry) } as unknown as typeof table;
+    expectReason("REQ_002", "forms", "PLANNING_COVERAGE_DOMAIN_INCOMPATIBLE", domainOnlyConstraint, baselineCoverage);
+  });
+  it("requires structured negative evidence for exclusions and prohibitions", () => {
+    const brief = CanonicalBriefV3Schema.parse({ ...cleanBriefV3, requirements: [
+      { id: "REQUIREMENT:synthetic-exclusion", category: "EXCLUSION", statement: "Exclude the synthetic capability.", sourceRefs: ["fixture:exclusion"] },
+      { id: "REQUIREMENT:synthetic-prohibition", category: "PROHIBITED", statement: "Prohibit the synthetic infrastructure.", sourceRefs: ["fixture:prohibition"] },
+    ] });
+    const table = createPlannerReferenceTable({ projectId: "77777777-7777-4777-8777-777777777777", projectVersion: 1, approvedBriefChecksum: canonicalBriefChecksum(brief), idempotencyKey: "synthetic-negative-evidence", expectedRowVersion: 1, canonicalBrief: brief });
+    const entries = table.requirements.filter((entry) => entry.mandatory);
+    expect(entries.map((entry) => entry.coverageConstraints.negativeEvidenceRequired)).toEqual([true, true]);
+    const validCoverage = { REQ_001: { planningElementIds: ["productScope"], semanticEvidence: "The product scope records the excluded capability outside the approved scope." }, REQ_002: { planningElementIds: ["architecture"], semanticEvidence: "The architecture records the prohibited infrastructure in rejectedInfrastructure." } };
+    const validCandidate = { ...syntheticCoverageCandidate(), productScope: { inScopeCapabilities: ["Synthetic approved capability"], outOfScopeCapabilities: ["Synthetic excluded capability"] }, architecture: { rejectedInfrastructure: ["Synthetic prohibited infrastructure"] } };
+    expect(() => validatePlannerRequirementCoverage(validCoverage, table, validCandidate)).not.toThrow();
+    expect(() => validatePlannerRequirementCoverage(validCoverage, table, syntheticCoverageCandidate())).toThrowError(expect.objectContaining({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_NEGATIVE_EVIDENCE_MISSING" }));
+    const exclusionOnly = { REQ_001: validCoverage.REQ_001 };
+    const exclusionTable = { ...table, requirements: [table.requirements.find((entry) => entry.canonicalRequirementId === "REQUIREMENT:synthetic-exclusion")!] } as typeof table;
+    expect(() => validatePlannerRequirementCoverage(exclusionOnly, exclusionTable, { ...syntheticCoverageCandidate(), productScope: { inScopeCapabilities: ["Synthetic approved capability"], outOfScopeCapabilities: ["Synthetic excluded capability"] } })).not.toThrow();
+    const prohibitionTable = { ...table, requirements: [table.requirements.find((entry) => entry.canonicalRequirementId === "REQUIREMENT:synthetic-prohibition")!] } as typeof table;
+    expect(() => validatePlannerRequirementCoverage({ REQ_002: validCoverage.REQ_002 }, prohibitionTable, { ...syntheticCoverageCandidate(), architecture: { rejectedInfrastructure: ["Synthetic prohibited infrastructure"] } })).not.toThrow();
+  });
+  it("enforces exact host page and route binding constraints", () => {
+    const brief = CanonicalBriefV3Schema.parse({ ...cleanBriefV3, requirements: [{ id: "REQUIREMENT:synthetic-route-bound", category: "FEATURE", statement: "Bind the synthetic feature to its approved route.", sourceRefs: ["fixture:route-bound"] }], pages: [...cleanBriefV3.pages, { id: "PAGE:synthetic-secondary", slug: "secondary", purpose: "Provide the synthetic secondary page.", sourceRefs: ["fixture:secondary-page"] }] });
+    const table = createPlannerReferenceTable({ projectId: "66666666-6666-4666-8666-666666666666", projectVersion: 1, approvedBriefChecksum: canonicalBriefChecksum(brief), idempotencyKey: "synthetic-route-binding", expectedRowVersion: 1, canonicalBrief: brief });
+    const pageRestrictedTable = { ...table, requirements: table.requirements.map((entry) => ({ ...entry, coverageConstraints: { ...entry.coverageConstraints, requiredPageTokens: [], allowedPageTokens: ["PAGE_002"] } })) } as typeof table;
+    expect(() => validatePlannerRequirementCoverage({ REQ_001: { planningElementIds: ["PAGE_001"], semanticEvidence: "The approved feature page is the bounded Planning target." } }, pageRestrictedTable, syntheticCoverageCandidate())).toThrowError(expect.objectContaining({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_PAGE_BINDING_MISMATCH" }));
+    const routeRestrictedTable = { ...table, requirements: table.requirements.map((entry) => ({ ...entry, coverageConstraints: { ...entry.coverageConstraints, requiredRouteTokens: [], allowedRouteTokens: ["ROUTE_002"] } })) } as typeof table;
+    expect(() => validatePlannerRequirementCoverage({ REQ_001: { planningElementIds: ["ROUTE_001"], semanticEvidence: "The approved feature route is the bounded Planning target." } }, routeRestrictedTable, syntheticCoverageCandidate())).toThrowError(expect.objectContaining({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_ROUTE_BINDING_MISMATCH" }));
   });
   it("rejects unknown, mutated, missing, empty, duplicate, and invalid Planner coverage without repair", async () => {
     const fixture = tokenizedPlannerFixture();
@@ -514,15 +660,20 @@ describe("production AI provider boundary", () => {
     const invalidElement = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
     const invalidElementCoverage = invalidElement.coverageByRequirement as Record<string, Record<string, unknown>>;
     for (const token of coverageKeys()) invalidElementCoverage[token]!.planningElementIds = ["not-a-planning-element"];
-    await expect(planner(invalidElement)).rejects.toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID" } satisfies Partial<PlannerReferenceBindingError>);
+    await expect(planner(invalidElement)).rejects.toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_ELEMENT_NOT_FOUND" } satisfies Partial<PlannerReferenceBindingError>);
+    const collidingElement = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
+    const collidingForms = collidingElement.forms as Record<string, unknown>;
+    ((collidingForms.forms as Array<Record<string, unknown>>)[0]!).id = "productScope";
+    expect(createTokenizedPlanningProviderWireSchema(fixture.table).safeParse(collidingElement).success).toBe(true);
+    await expect(planner(collidingElement)).rejects.toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_ELEMENT_ID_COLLISION" } satisfies Partial<PlannerReferenceBindingError>);
     const genericCatchall = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
     const genericCoverage = genericCatchall.coverageByRequirement as Record<string, Record<string, unknown>>;
     for (const token of coverageKeys()) genericCoverage[token]!.planningElementIds = ["traceability"];
-    await expect(planner(genericCatchall)).rejects.toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID" } satisfies Partial<PlannerReferenceBindingError>);
+    await expect(planner(genericCatchall)).rejects.toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_GENERIC_CATCH_ALL" } satisfies Partial<PlannerReferenceBindingError>);
     const placeholderEvidence = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
     const placeholderCoverage = placeholderEvidence.coverageByRequirement as Record<string, Record<string, unknown>>;
     placeholderCoverage[coverageKeys()[0]!]!.semanticEvidence = "covered";
-    await expect(planner(placeholderEvidence)).rejects.toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID" } satisfies Partial<PlannerReferenceBindingError>);
+    await expect(planner(placeholderEvidence)).rejects.toMatchObject({ code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_PLACEHOLDER_EVIDENCE" } satisfies Partial<PlannerReferenceBindingError>);
     const unknownRoute = JSON.parse(JSON.stringify(fixture.transport)) as Record<string, unknown>;
     const routes = (unknownRoute.sitemap as Record<string, unknown>).routes as Array<Record<string, unknown>>;
     routes[0]!.routeToken = "ROUTE_999";

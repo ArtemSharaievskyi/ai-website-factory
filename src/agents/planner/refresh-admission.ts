@@ -96,7 +96,7 @@ export type PlanningRefreshAdmission = {
 };
 
 export class PlanningAdmissionError extends Error {
-  constructor(readonly code: string, readonly reference?: string) {
+  constructor(readonly code: string, readonly reference?: string, readonly reasonCode?: string) {
     super(reference ? `${code}:${reference}` : code);
     this.name = "PlanningAdmissionError";
   }

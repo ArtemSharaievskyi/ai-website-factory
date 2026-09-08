@@ -12,7 +12,6 @@ import {
   type LeadAgentAnalysis,
   type LeadAnalysisProviderOutput,
 } from "@/agents/lead/contracts";
-import type { RequirementCategory } from "@/domain/requirements/v3/schema";
 import type { PlannerArchitectureProvider } from "@/agents/planner/ports";
 import type { PlanningRecoveryProviderInput, PlanningRecoveryProviderResult } from "@/agents/planner/recovery";
 import {
@@ -20,6 +19,7 @@ import {
   PlanningRecoverySemanticAccountingEntrySchema,
   PlanningRequirementDispositionSchema,
   PlanningTargetHandleRefSchema,
+  PlanningTargetSectionSchema,
   type CanonicalPlanningRouteManifest,
   type PlanningOwnedRequirementManifest,
 } from "@/agents/planner/recovery-manifests";
@@ -32,6 +32,10 @@ import {
   PlannerReferenceTableSchema,
   type PlannerReferenceTable,
 } from "@/agents/planner/reference-table";
+import {
+  type PlannerCoverageDomain,
+  type PlannerCoverageElementKind,
+} from "@/agents/planner/coverage-contract";
 import { isClientOnlyFormBrief, isNoBackendBrief } from "@/agents/planner/deterministic";
 import { PlanningChangeSetProviderOutputSchema, type PlannerRefreshProviderInput, type PlanningChangeSetProviderOutput } from "@/agents/planner/changeset";
 import {
@@ -655,14 +659,33 @@ export const PlanningPackageStructuredOutputSchema =
   });
 
 /**
- * Current Planning provider protocol v4.  The model receives and returns only
+ * Current Planning provider protocol v5.  The model receives and returns only
  * host-issued short tokens; canonical IDs are never transport identities.
  * Dynamic token enums were intentionally not used: exact host lookup below is
  * the shared deterministic authority that preserves stable semantic failure
  * codes for malformed, stale, or hallucinated tokens.
  */
+export type PlannerCoverageReasonCode =
+  | "PLANNING_COVERAGE_EMPTY"
+  | "PLANNING_COVERAGE_SHAPE_INVALID"
+  | "PLANNING_COVERAGE_ELEMENT_NOT_FOUND"
+  | "PLANNING_COVERAGE_KIND_INCOMPATIBLE"
+  | "PLANNING_COVERAGE_DOMAIN_INCOMPATIBLE"
+  | "PLANNING_COVERAGE_PAGE_BINDING_MISMATCH"
+  | "PLANNING_COVERAGE_ROUTE_BINDING_MISMATCH"
+  | "PLANNING_COVERAGE_PLACEHOLDER_EVIDENCE"
+  | "PLANNING_COVERAGE_GENERIC_CATCH_ALL"
+  | "PLANNING_COVERAGE_EXCLUSION_CANNOT_SATISFY"
+  | "PLANNING_COVERAGE_NEGATIVE_EVIDENCE_MISSING"
+  | "PLANNING_COVERAGE_ELEMENT_ID_COLLISION"
+  | "PLANNING_COVERAGE_REQUIREMENT_MISSING";
+
 export class PlannerReferenceBindingError extends Error {
-  constructor(readonly code: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE" | "PLANNING_REQUIREMENT_COVERAGE_MISSING" | "PLANNING_REQUIREMENT_COVERAGE_DUPLICATE" | "PLANNING_REQUIREMENT_COVERAGE_INVALID" | "PLANNING_ROUTE_POLICY_MISMATCH", readonly fieldPath: string) {
+  constructor(
+    readonly code: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE" | "PLANNING_REQUIREMENT_COVERAGE_MISSING" | "PLANNING_REQUIREMENT_COVERAGE_DUPLICATE" | "PLANNING_REQUIREMENT_COVERAGE_INVALID" | "PLANNING_ROUTE_POLICY_MISMATCH",
+    readonly fieldPath: string,
+    readonly reasonCode?: PlannerCoverageReasonCode,
+  ) {
     super(`${code}:${fieldPath}`);
     this.name = "PlannerReferenceBindingError";
   }
@@ -861,71 +884,145 @@ function requirePlannerPage(pages: ReadonlyMap<string, PlannerReferenceTable["pa
   return page;
 }
 
-const PLANNING_ELEMENT_SECTION_IDS = [
-  "profile", "productScope", "sitemap", "navigation", "pages", "userFlows", "forms", "dataModel", "authentication", "supabase", "email", "storage", "administration", "content", "assets", "architecture", "environment", "dependencies", "testStrategy", "security", "traceability",
-] as const;
-
-const PLANNER_COVERAGE_SECTIONS_BY_CATEGORY: Partial<Record<RequirementCategory, readonly string[]>> = {
-  ACCEPTANCE: ["productScope", "testStrategy", "traceability"],
-  ADMINISTRATION: ["administration", "authentication", "pages"],
-  AUDIENCE: ["profile", "productScope", "pages"],
-  BACKEND: ["architecture", "dataModel", "supabase"],
-  BUSINESS_GOAL: ["profile", "productScope"],
-  CONTENT: ["content", "pages"],
-  DATABASE: ["dataModel", "supabase", "architecture"],
-  DECISION: ["productScope", "architecture", "traceability"],
-  DEFERRED_INTEGRATION: ["dependencies", "email", "storage", "supabase"],
-  EXCLUSION: ["productScope", "architecture", "security"],
-  FEATURE: ["productScope", "pages", "userFlows", "forms", "dataModel", "architecture"],
-  FORM: ["forms", "pages", "userFlows"],
-  FORM_INTERACTION: ["forms", "userFlows", "pages"],
-  LEGAL_CONSTRAINT: ["productScope", "security", "testStrategy"],
-  PROHIBITED: ["security", "architecture", "productScope"],
-  SEO: ["sitemap", "pages", "content"],
-  TECHNICAL: ["architecture", "environment", "dependencies", "testStrategy", "security"],
-  USER_ROLE: ["authentication", "administration", "profile"],
-  UX_RESPONSIVE: ["pages", "navigation"],
-};
-const PLANNER_ROUTE_PAGE_CATEGORIES = new Set<RequirementCategory>(["ACCEPTANCE", "ADMINISTRATION", "AUDIENCE", "CONTENT", "FEATURE", "FORM", "FORM_INTERACTION", "SEO", "USER_ROLE", "UX_RESPONSIVE"]);
 const PLANNER_PLACEHOLDER_SEMANTIC_EVIDENCE = new Set(["covered", "implemented", "handled", "see plan", "same as requirement"]);
 
 function normalizedPlannerCoverageEvidence(value: string) {
   return value.trim().toLocaleLowerCase("en").replace(/[.!?,;:]+$/g, "").replace(/\s+/g, " ");
 }
 
-function planningElementIds(value: unknown) {
-  const ids = new Set<string>(PLANNING_ELEMENT_SECTION_IDS);
-  const visit = (node: unknown) => {
-    if (Array.isArray(node)) { node.forEach((child) => visit(child)); return; }
+type PlannerElementDescriptor = {
+  kind: PlannerCoverageElementKind;
+  domains: readonly PlannerCoverageDomain[];
+  pageToken?: string;
+  routeToken?: string;
+  negativeOnly?: boolean;
+  negativeEvidence?: boolean;
+};
+
+const sectionDescriptor = (kind: PlannerCoverageElementKind, domains: readonly PlannerCoverageDomain[]): PlannerElementDescriptor => ({ kind, domains });
+const PLANNER_ELEMENT_SECTION_DESCRIPTORS = {
+  profile: sectionDescriptor("PROFILE", ["FRONTEND", "LIFECYCLE"]),
+  productScope: sectionDescriptor("PRODUCT_SCOPE", ["FRONTEND", "BACKEND", "DATABASE", "LIFECYCLE"]),
+  sitemap: sectionDescriptor("ROUTE", ["FRONTEND", "LIFECYCLE"]),
+  navigation: sectionDescriptor("NAVIGATION", ["FRONTEND"]),
+  pages: sectionDescriptor("PAGE", ["FRONTEND"]),
+  userFlows: sectionDescriptor("USER_FLOW", ["FRONTEND", "BACKEND", "LIFECYCLE"]),
+  forms: sectionDescriptor("FORM", ["FRONTEND", "BACKEND"]),
+  dataModel: sectionDescriptor("DATABASE_MODEL", ["DATABASE", "BACKEND"]),
+  authentication: sectionDescriptor("AUTHENTICATION", ["BACKEND", "SECURITY"]),
+  supabase: sectionDescriptor("SUPABASE", ["BACKEND", "DATABASE", "SECURITY", "INTEGRATION"]),
+  email: sectionDescriptor("EMAIL", ["BACKEND", "INTEGRATION"]),
+  storage: sectionDescriptor("STORAGE", ["BACKEND", "DATABASE", "INTEGRATION"]),
+  administration: sectionDescriptor("ADMINISTRATION", ["FRONTEND", "BACKEND", "SECURITY"]),
+  content: sectionDescriptor("CONTENT", ["FRONTEND"]),
+  assets: sectionDescriptor("ASSET", ["FRONTEND"]),
+  architecture: sectionDescriptor("ARCHITECTURE", ["FRONTEND", "BACKEND", "DATABASE", "INTEGRATION", "LIFECYCLE"]),
+  environment: sectionDescriptor("ENVIRONMENT", ["BACKEND", "INTEGRATION", "SECURITY"]),
+  dependencies: sectionDescriptor("DEPENDENCY", ["BACKEND", "INTEGRATION"]),
+  testStrategy: sectionDescriptor("TEST_STRATEGY", ["QA"]),
+  security: sectionDescriptor("SECURITY", ["SECURITY"]),
+  traceability: sectionDescriptor("TRACEABILITY", ["QA", "LIFECYCLE"]),
+} as const satisfies Record<z.infer<typeof PlanningTargetSectionSchema>, PlannerElementDescriptor>;
+
+function plannerElementDescriptors(value: unknown) {
+  const descriptors = new Map<string, PlannerElementDescriptor>();
+  const collisions = new Set<string>();
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { descriptors, collisions };
+  const root = value as Record<string, unknown>;
+  for (const [section, descriptor] of Object.entries(PLANNER_ELEMENT_SECTION_DESCRIPTORS)) {
+    if (Object.prototype.hasOwnProperty.call(root, section)) {
+      const productScope = section === "productScope" && root.productScope && typeof root.productScope === "object" && !Array.isArray(root.productScope) ? root.productScope as Record<string, unknown> : undefined;
+      const inScope = productScope?.inScopeCapabilities;
+      const outOfScope = productScope?.outOfScopeCapabilities;
+      const architecture = section === "architecture" && root.architecture && typeof root.architecture === "object" && !Array.isArray(root.architecture) ? root.architecture as Record<string, unknown> : undefined;
+      const rejectedInfrastructure = architecture?.rejectedInfrastructure;
+      descriptors.set(section, section === "productScope" && Array.isArray(outOfScope) && outOfScope.length > 0
+        ? { ...descriptor, negativeEvidence: true, ...(Array.isArray(inScope) && inScope.length === 0 ? { negativeOnly: true } : {}) }
+        : section === "architecture" && Array.isArray(rejectedInfrastructure) && rejectedInfrastructure.length > 0
+          ? { ...descriptor, negativeEvidence: true }
+          : descriptor);
+    }
+  }
+  const add = (id: string, descriptor: PlannerElementDescriptor, repeatedReference = false) => {
+    const existing = descriptors.get(id);
+    if (!existing) descriptors.set(id, descriptor);
+    else if (!repeatedReference || existing.kind !== descriptor.kind || existing.pageToken !== descriptor.pageToken || existing.routeToken !== descriptor.routeToken) collisions.add(id);
+  };
+  const visit = (node: unknown, path: readonly string[]) => {
+    if (Array.isArray(node)) { node.forEach((child) => visit(child, path)); return; }
     if (!node || typeof node !== "object") return;
     for (const [childKey, child] of Object.entries(node as Record<string, unknown>)) {
-      if (["id", "routeToken", "pageToken"].includes(childKey) && typeof child === "string") ids.add(child);
-      visit(child);
+      const childPath = [...path, childKey];
+      if (typeof child === "string" && childKey === "routeToken") add(child, { kind: "ROUTE", domains: ["FRONTEND", "LIFECYCLE"], routeToken: child }, true);
+      if (typeof child === "string" && childKey === "pageToken") add(child, { kind: "PAGE", domains: ["FRONTEND"], pageToken: child }, true);
+      if (typeof child === "string" && childKey === "id") {
+        const nestedKind: PlannerCoverageElementKind | undefined =
+          path[0] === "sitemap" && path.includes("routes") ? "ROUTE" :
+          path[0] === "pages" && path.includes("pages") ? "PAGE" :
+          path[0] === "userFlows" && path.includes("flows") ? "USER_FLOW" :
+          path[0] === "forms" && path.includes("forms") ? "FORM" :
+          path[0] === "dataModel" && path.includes("entities") ? "DATABASE_MODEL" :
+          path[0] === "assets" && path.includes("entries") ? "ASSET" : undefined;
+        if (nestedKind) add(child, { kind: nestedKind, domains: nestedKind === "DATABASE_MODEL" ? ["DATABASE", "BACKEND"] : nestedKind === "USER_FLOW" ? ["FRONTEND", "BACKEND", "LIFECYCLE"] : nestedKind === "ASSET" ? ["FRONTEND"] : ["FRONTEND", "BACKEND"] });
+      }
+      visit(child, childPath);
     }
   };
-  visit(value);
-  return ids;
+  visit(value, []);
+  return { descriptors, collisions };
 }
 
-function validatePlannerRequirementCoverage(value: unknown, table: PlannerReferenceTable, providerValue: unknown) {
+export function validatePlannerRequirementCoverage(value: unknown, table: PlannerReferenceTable, providerValue: unknown) {
   const coverage = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
   const requirements = new Map(table.requirements.map((entry) => [entry.token, entry]));
   const required = table.requirements.filter((entry) => entry.mandatory);
-  const candidateElementIds = planningElementIds(providerValue);
-  const hasCompatiblePlanningElement = (entry: PlannerReferenceTable["requirements"][number], ids: readonly string[]) => {
-    const sections = PLANNER_COVERAGE_SECTIONS_BY_CATEGORY[entry.category] ?? ["traceability"];
-    return ids.some((id) => sections.includes(id) || (PLANNER_ROUTE_PAGE_CATEGORIES.has(entry.category) && /^(?:PAGE|ROUTE)_\d{3,}$/.test(id)));
-  };
-  if (!coverage) throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", "coverageByRequirement");
+  const candidateIndex = plannerElementDescriptors(providerValue);
+  const candidateElements = candidateIndex.descriptors;
+  if (!coverage) throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", "coverageByRequirement", "PLANNING_COVERAGE_EMPTY");
   for (const token of Object.keys(coverage)) {
     const entry = requirements.get(token);
     if (!entry || !entry.mandatory) throw new PlannerReferenceBindingError("PLANNING_TRACEABILITY_UNKNOWN_REFERENCE", `coverageByRequirement.${token}`);
   }
+  if (candidateIndex.collisions.size > 0)
+    throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", "coverageByRequirement", "PLANNING_COVERAGE_ELEMENT_ID_COLLISION");
   for (const entry of required) {
-    if (!Object.prototype.hasOwnProperty.call(coverage, entry.token)) throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_MISSING", entry.token);
+    const fieldPath = `coverageByRequirement.${entry.token}`;
+    if (!Object.prototype.hasOwnProperty.call(coverage, entry.token)) throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_MISSING", entry.token, "PLANNING_COVERAGE_REQUIREMENT_MISSING");
     const parsed = PlannerRequirementCoverageValueSchema.safeParse(coverage[entry.token]);
-    if (!parsed.success || parsed.data.planningElementIds.some((id) => !candidateElementIds.has(id)) || !hasCompatiblePlanningElement(entry, parsed.success ? parsed.data.planningElementIds : []) || (parsed.success && PLANNER_PLACEHOLDER_SEMANTIC_EVIDENCE.has(normalizedPlannerCoverageEvidence(parsed.data.semanticEvidence))))
-      throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", `coverageByRequirement.${entry.token}`);
+    if (!parsed.success) {
+      const raw = coverage[entry.token];
+      const rawIds = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>).planningElementIds : undefined;
+      const reason = Array.isArray(rawIds) && rawIds.length === 0 ? "PLANNING_COVERAGE_EMPTY" : "PLANNING_COVERAGE_SHAPE_INVALID";
+      throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, reason);
+    }
+    const constraints = entry.coverageConstraints;
+    if (new Set(parsed.data.planningElementIds).size < constraints.minimumCoverageTargets)
+      throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_EMPTY");
+    if (parsed.data.planningElementIds.some((id) => !candidateElements.has(id)))
+      throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_ELEMENT_NOT_FOUND");
+    if (constraints.positiveRequirement && parsed.data.planningElementIds.length === 1 && parsed.data.planningElementIds[0] === "traceability")
+      throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_GENERIC_CATCH_ALL");
+    for (const id of parsed.data.planningElementIds) {
+      const descriptor = candidateElements.get(id)!;
+      if (!constraints.allowedElementKinds.includes(descriptor.kind))
+        throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_KIND_INCOMPATIBLE");
+      if (!descriptor.domains.some((domain) => constraints.allowedDomains.includes(domain)))
+        throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_DOMAIN_INCOMPATIBLE");
+      if (descriptor.pageToken && !constraints.allowedPageTokens.includes(descriptor.pageToken))
+        throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_PAGE_BINDING_MISMATCH");
+      if (descriptor.routeToken && !constraints.allowedRouteTokens.includes(descriptor.routeToken))
+        throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_ROUTE_BINDING_MISMATCH");
+      if (constraints.positiveRequirement && descriptor.negativeOnly)
+        throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_EXCLUSION_CANNOT_SATISFY");
+      if (constraints.negativeEvidenceRequired && !descriptor.negativeEvidence)
+        throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_NEGATIVE_EVIDENCE_MISSING");
+    }
+    if (constraints.requiredPageTokens.some((token) => !parsed.data.planningElementIds.includes(token)))
+      throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_PAGE_BINDING_MISMATCH");
+    if (constraints.requiredRouteTokens.some((token) => !parsed.data.planningElementIds.includes(token)))
+      throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_ROUTE_BINDING_MISMATCH");
+    if (PLANNER_PLACEHOLDER_SEMANTIC_EVIDENCE.has(normalizedPlannerCoverageEvidence(parsed.data.semanticEvidence)))
+      throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_PLACEHOLDER_EVIDENCE");
   }
   return coverage;
 }
@@ -1891,7 +1988,7 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
       system: `${prompt.system}\n${languageInstruction}\n${dependencyInstruction}\n${formInstruction}`,
       role: "planner",
       schema,
-      schemaName: referenceTable ? "planning-package-v4" : "planning-package",
+      schemaName: referenceTable ? "planning-package-v5" : "planning-package",
       idempotencyKey: `${input.idempotencyKey}:${skillContextIdentity}`,
       retryPolicy: { maxRetries: 0, corrections: 0 },
     });

@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { buildPlanningPackage, planningSemanticChecksum } from "./deterministic";
-import { admitPlanningRefresh } from "./refresh-admission";
+import { admitPlanningRefresh, PlanningAdmissionError } from "./refresh-admission";
 import { PlannerArchitectService } from "./service";
+import { PlannerError, serializePlannerError } from "./errors";
 import { PlanningPackageSchema, type PlannerAgentInput, type PlanningPackage } from "./contracts";
 import type { PlannerArchitectureProvider } from "./ports";
 import { FakePlannerMemoryPort } from "./memory";
@@ -105,6 +106,10 @@ function admitted(packageValue: PlanningPackage, input: PlannerAgentInput, curre
 }
 
 describe("host-owned Planning refresh admission", () => {
+  it("serializes a precise coverage reason without changing the stable outer Planner error", () => {
+    const error = new PlannerError("PLANNING_PACKAGE_INVALID", "Planner output failed deterministic token admission.", new PlanningAdmissionError("PLANNING_REQUIREMENT_COVERAGE_INVALID", "coverageByRequirement.REQ_001", "PLANNING_COVERAGE_KIND_INCOMPATIBLE"));
+    expect(serializePlannerError(error)).toEqual({ code: "PLANNING_PACKAGE_INVALID", message: "Planner output failed deterministic token admission.", reasonCode: "PLANNING_COVERAGE_KIND_INCOMPATIBLE" });
+  });
   it("admits a complete current V3 plan and stamps lifecycle fields", () => {
     const fixture = packageFor(fixtureBrief());
     const result = admitted(fixture.packageValue, fixture.input);

@@ -30,11 +30,15 @@ describe("approved procedural prompt guidance", () => {
   it("binds Planner generation to opaque host-issued requirement, page, and route tokens", () => {
     const table = createPlannerReferenceTable({ projectId: "11111111-1111-4111-8111-111111111111", projectVersion: 1, approvedBriefChecksum: canonicalBriefChecksum(cleanBriefV3), idempotencyKey: "synthetic-token-prompt", expectedRowVersion: 1, canonicalBrief: cleanBriefV3 });
     const prompt = rolePrompt("planner", { approvedBrief: { operatorLanguage: "en", localization: { defaultLocale: "en" } }, plannerReferenceProtocol: plannerProviderReferenceProtocol(table) });
-    expect(prompt.promptVersion).toBe("planner.v4");
+    expect(prompt.promptVersion).toBe("planner.v5");
     expect(prompt.system).toContain("host-issued and opaque");
     expect(prompt.system).toContain("REQ_001");
     expect(prompt.system).toContain("PAGE_001");
     expect(prompt.system).toContain("ROUTE_001");
+    expect(prompt.system).toContain("elementKinds=");
+    expect(prompt.system).toContain("domains=");
+    expect(prompt.system).toContain("negativeEvidenceRequired=");
+    expect(prompt.system).toContain("generic catch-all");
     for (const requirement of cleanBriefV3.requirements) expect(prompt.system).not.toContain(requirement.id);
   });
 

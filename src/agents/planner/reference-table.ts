@@ -5,6 +5,7 @@ import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { NonEmptyStringSchema } from "@/domain/shared/schemas";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { createCanonicalPlanningRouteManifest, createPlanningOwnedRequirementManifest } from "./recovery-manifests";
+import { createPlannerRequirementCoverageConstraint, PlannerRequirementCoverageConstraintSchema } from "./coverage-contract";
 
 const PlannerRequirementTokenSchema = z.string().regex(/^REQ_\d{3,}$/);
 const PlannerPageTokenSchema = z.string().regex(/^PAGE_\d{3,}$/);
@@ -12,9 +13,10 @@ const PlannerRouteTokenSchema = z.string().regex(/^ROUTE_\d{3,}$/);
 const RoutePathSchema = z.string().regex(/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/);
 const ChecksumSchema = z.string().regex(/^[a-f0-9]{64}$/);
 
-/** Current token protocol. planner.v3 remains readable in persisted history. */
-export const PLANNER_PROVIDER_CONTRACT_VERSION = "planner.v4" as const;
+/** Current token protocol. planner.v3 and planner.v4 remain readable in persisted history. */
+export const PLANNER_PROVIDER_CONTRACT_VERSION = "planner.v5" as const;
 export const PLANNER_LEGACY_PROVIDER_CONTRACT_VERSION = "planner.v3" as const;
+export const PLANNER_PREVIOUS_PROVIDER_CONTRACT_VERSION = "planner.v4" as const;
 
 export const PlannerReferenceTableRequirementSchema = z.object({
   token: PlannerRequirementTokenSchema,
@@ -22,6 +24,7 @@ export const PlannerReferenceTableRequirementSchema = z.object({
   summary: NonEmptyStringSchema.max(4000),
   category: RequirementCategorySchema,
   mandatory: z.boolean(),
+  coverageConstraints: PlannerRequirementCoverageConstraintSchema,
 }).strict();
 
 export const PlannerReferenceTablePageSchema = z.object({
@@ -73,7 +76,7 @@ export type PlannerReferenceTable = z.infer<typeof PlannerReferenceTableSchema>;
 
 export const PlannerProviderReferenceProtocolSchema = z.object({
   protocolVersion: z.literal(PLANNER_PROVIDER_CONTRACT_VERSION),
-  requirements: z.array(z.object({ token: PlannerRequirementTokenSchema, summary: NonEmptyStringSchema.max(4000), category: RequirementCategorySchema, mandatory: z.boolean() }).strict()).min(1).max(512),
+  requirements: z.array(z.object({ token: PlannerRequirementTokenSchema, summary: NonEmptyStringSchema.max(4000), category: RequirementCategorySchema, mandatory: z.boolean(), coverageConstraints: PlannerRequirementCoverageConstraintSchema }).strict()).min(1).max(512),
   pages: z.array(z.object({ token: PlannerPageTokenSchema, path: RoutePathSchema, purpose: NonEmptyStringSchema.max(2000) }).strict()).min(1).max(256),
   routes: z.array(z.object({ token: PlannerRouteTokenSchema, pageToken: PlannerPageTokenSchema, path: RoutePathSchema, purpose: NonEmptyStringSchema.max(2000) }).strict()).min(1).max(256),
   requiredRequirementTokens: z.array(PlannerRequirementTokenSchema).max(512),
@@ -106,17 +109,31 @@ export function createPlannerReferenceTable(input: {
   const brief = CanonicalBriefV3Schema.parse(input.canonicalBrief);
   if (canonicalBriefChecksum(brief) !== input.approvedBriefChecksum)
     throw new PlannerReferenceTableError("PLANNER_REFERENCE_TABLE_INVALID");
-  const planningRequirements = new Set(createPlanningOwnedRequirementManifest(brief).requirements.map((entry) => entry.requirementId));
-  const requirements = canonicalRequirementEntries(brief)
-    .slice()
-    .sort((left, right) => left.id.localeCompare(right.id))
-    .map((entry, index) => ({ token: token("REQ", index), canonicalRequirementId: entry.id, summary: entry.statement, category: entry.category, mandatory: planningRequirements.has(entry.id) }));
   const manifestRoutes = createCanonicalPlanningRouteManifest(brief).routes
     .slice()
     .sort((left, right) => left.path.localeCompare(right.path) || left.pageId.localeCompare(right.pageId));
   const pages = manifestRoutes.map((route, index) => ({ token: token("PAGE", index), canonicalPageId: route.pageId, planningPageId: route.planningPageId, path: route.path, purpose: route.pagePurpose }));
   const pageTokenById = new Map(pages.map((page) => [page.canonicalPageId, page.token]));
   const routes = manifestRoutes.map((route, index) => ({ token: token("ROUTE", index), canonicalRouteId: route.routeId, pageToken: pageTokenById.get(route.pageId)!, canonicalPageId: route.pageId, parentPageId: route.parentPageId, path: route.path, purpose: route.pagePurpose }));
+  const allPageTokens = pages.map((page) => page.token);
+  const allRouteTokens = routes.map((route) => route.token);
+  const planningRequirements = new Set(createPlanningOwnedRequirementManifest(brief).requirements.map((entry) => entry.requirementId));
+  const requirements = canonicalRequirementEntries(brief)
+    .slice()
+    .sort((left, right) => left.id.localeCompare(right.id))
+    .map((entry, index) => {
+      const relatedRoutes = manifestRoutes.filter((route) => [route.requirementIds, route.navigation.requirementIds, route.seo.requirementIds].some((ids) => ids.includes(entry.id)));
+      const requiredRouteTokens = relatedRoutes.map((route) => routes.find((candidate) => candidate.canonicalRouteId === route.routeId)!.token);
+      const requiredPageTokens = [...new Set(relatedRoutes.map((route) => pageTokenById.get(route.pageId)!))];
+      return {
+        token: token("REQ", index),
+        canonicalRequirementId: entry.id,
+        summary: entry.statement,
+        category: entry.category,
+        mandatory: planningRequirements.has(entry.id),
+        coverageConstraints: createPlannerRequirementCoverageConstraint({ category: entry.category, allPageTokens, allRouteTokens, requiredPageTokens, requiredRouteTokens }),
+      };
+    });
   const operationChecksum = checksumPersistedDocument({ idempotencyKey: input.idempotencyKey, expectedRowVersion: input.expectedRowVersion });
   const payload = {
     schemaVersion: 1 as const,
@@ -147,11 +164,35 @@ export function plannerProviderReferenceProtocol(table: PlannerReferenceTable): 
   const parsed = PlannerReferenceTableSchema.parse(table);
   return PlannerProviderReferenceProtocolSchema.parse({
     protocolVersion: PLANNER_PROVIDER_CONTRACT_VERSION,
-    requirements: parsed.requirements.map(({ token: requirementToken, summary, category, mandatory }) => ({ token: requirementToken, summary, category, mandatory })),
+    requirements: parsed.requirements.map(({ token: requirementToken, summary, category, mandatory, coverageConstraints }) => ({ token: requirementToken, summary, category, mandatory, coverageConstraints })),
     pages: parsed.pages.map(({ token: pageToken, path, purpose }) => ({ token: pageToken, path, purpose })),
     routes: parsed.routes.map(({ token: routeToken, pageToken, path, purpose }) => ({ token: routeToken, pageToken, path, purpose })),
     requiredRequirementTokens: parsed.requirements.filter((entry) => entry.mandatory).map((entry) => entry.token),
   });
+}
+
+/**
+ * Read-only budget evidence for the complete provider input. The caller
+ * supplies the exact redacted input assembled for the provider; the host table
+ * may contain canonical identities, but the measured provider payload does
+ * not.
+ */
+export function measurePlannerProviderInput(table: PlannerReferenceTable, providerInput: unknown) {
+  const parsed = PlannerReferenceTableSchema.parse(table);
+  const protocol = plannerProviderReferenceProtocol(parsed);
+  const bytes = (value: unknown) => Buffer.byteLength(JSON.stringify(value), "utf8");
+  const requirementSemantics = parsed.requirements.map(({ token, summary, category, mandatory }) => ({ token, summary, category, mandatory }));
+  const coverageSchema = parsed.requirements.map(({ token, coverageConstraints }) => ({ token, coverageConstraints }));
+  const referenceProtocolBytes = bytes(protocol);
+  const totalPlannerInputBytes = bytes(providerInput);
+  return {
+    referenceTableBytes: bytes(parsed),
+    referenceProtocolBytes,
+    coverageSchemaBytes: bytes(coverageSchema),
+    requirementSemanticsBytes: bytes(requirementSemantics),
+    totalPlannerInputBytes,
+    estimatedInputTokens: Math.ceil(totalPlannerInputBytes / 4),
+  } as const;
 }
 
 export const PlannerRequirementToken = PlannerRequirementTokenSchema;

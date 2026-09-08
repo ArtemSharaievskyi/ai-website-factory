@@ -126,7 +126,7 @@ function refreshFailureCode(error: unknown): string {
   if (error instanceof PlanningAdmissionError) return error.code;
   if (error instanceof PersistenceError) return error.code;
   if (error instanceof PlannerError) {
-    if (error.cause instanceof PlanningAdmissionError) return error.cause.code;
+    if (error.cause instanceof PlanningAdmissionError) return error.cause.reasonCode ?? error.cause.code;
     if (error.cause && typeof error.cause === "object" && "blockers" in error.cause && Array.isArray(error.cause.blockers)) {
       const blockerCode = error.cause.blockers.map(boundedFailureCode).find(Boolean);
       if (blockerCode) return blockerCode;
@@ -537,7 +537,7 @@ export class PlannerArchitectService {
         throw new PlannerError(
           "PLANNING_PACKAGE_INVALID",
           `Planner output failed deterministic token admission: ${error.code}:${error.fieldPath}.`,
-          new PlanningAdmissionError(error.code, error.fieldPath),
+          new PlanningAdmissionError(error.code, error.fieldPath, error.reasonCode),
         );
       if (error instanceof z.ZodError)
         throw new PlannerError(
