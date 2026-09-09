@@ -1,13 +1,16 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { WorkbenchRequestSchema, WORKBENCH_REQUEST_BYTES } from "@/runtime/workbench/contracts";
 import { WorkbenchActionError } from "@/runtime/workbench/application";
 import { safeUnknownRespondArrayFieldPaths, workbenchFailureResponse, WorkbenchRequestValidationError, type WorkbenchDiagnosticContext } from "@/runtime/workbench/diagnostics";
 import { getProductionWorkbench } from "@/runtime/workbench/production";
+import { withWorkbenchOperationContext } from "@/runtime/workbench/operation-context";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  let diagnosticContext: WorkbenchDiagnosticContext = {};
+  const correlationId = randomUUID();
+  let diagnosticContext: WorkbenchDiagnosticContext = { correlationId };
   try {
     const contentLength = Number(request.headers.get("content-length") ?? 0);
     if (contentLength > WORKBENCH_REQUEST_BYTES + 8192) throw new WorkbenchActionError("WORKBENCH_REQUEST_TOO_LARGE", "The request is too large.");
@@ -15,6 +18,7 @@ export async function POST(request: Request) {
     if (typeof body === "object" && body !== null) {
       const candidate = body as Record<string, unknown>;
       diagnosticContext = {
+        correlationId,
         ...(typeof candidate.action === "string" ? { action: candidate.action } : {}),
         ...(typeof candidate.projectId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate.projectId) ? { projectId: candidate.projectId } : {}),
       };
@@ -23,10 +27,11 @@ export async function POST(request: Request) {
     if (!parsedResult.success) throw new WorkbenchRequestValidationError(parsedResult.error, safeUnknownRespondArrayFieldPaths(body), typeof body === "object" && body !== null && typeof (body as Record<string, unknown>).action === "string" ? (body as Record<string, unknown>).action as string : undefined);
     const parsed = parsedResult.data;
     diagnosticContext = {
+      correlationId,
       action: parsed.action,
       ...(parsed.action !== "list" && parsed.action !== "create" ? { projectId: parsed.projectId } : {}),
     };
-    const result = await getProductionWorkbench().handle(parsed);
+    const result = await withWorkbenchOperationContext({ correlationId }, () => getProductionWorkbench().handle(parsed));
     return NextResponse.json({ ok: true, data: result }, { status: 200, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const failure = workbenchFailureResponse(error, diagnosticContext);

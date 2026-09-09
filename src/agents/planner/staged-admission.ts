@@ -73,10 +73,17 @@ export class StagedPlanningAdmissionError extends Error {
     readonly code: StagedPlannerFailureCode,
     readonly fieldPath: string,
     readonly reasonCode?: string,
+    safeToken?: string,
   ) {
     super(`${code}:${fieldPath}`);
     this.name = "StagedPlanningAdmissionError";
+    this.safeToken = typeof safeToken === "string" && /^(?:REQ|PE|PAGE|ROUTE)_\d{3,}$/.test(safeToken)
+      ? safeToken
+      : typeof reasonCode === "string" && /^(?:REQ|PE|PAGE|ROUTE)_\d{3,}$/.test(reasonCode)
+        ? reasonCode
+        : undefined;
   }
+  readonly safeToken?: string;
 }
 
 const normalized = (value: string) => value.normalize("NFKD").toLocaleLowerCase("en").replace(/[^a-z0-9]+/g, " ").trim();
@@ -304,7 +311,7 @@ export function admitPlanningCoverage(input: {
     const required = table.requirements.filter((entry) => entry.mandatory).map((entry) => entry.token);
     const requiredSet = new Set(required);
     for (const token of Object.keys(rawCoverage))
-      if (!requiredSet.has(token)) throw new PlannerReferenceBindingError("PLANNING_TRACEABILITY_UNKNOWN_REFERENCE", `coverageByRequirement.${token}`);
+      if (!requiredSet.has(token)) throw new PlannerReferenceBindingError("PLANNING_TRACEABILITY_UNKNOWN_REFERENCE", `coverageByRequirement.${token}`, undefined, token);
     for (const token of required)
       if (!Object.prototype.hasOwnProperty.call(rawCoverage, token)) throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_MISSING", token, "PLANNING_COVERAGE_REQUIREMENT_MISSING");
   }

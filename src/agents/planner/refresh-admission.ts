@@ -96,10 +96,12 @@ export type PlanningRefreshAdmission = {
 };
 
 export class PlanningAdmissionError extends Error {
-  constructor(readonly code: string, readonly reference?: string, readonly reasonCode?: string) {
+  constructor(readonly code: string, readonly reference?: string, readonly reasonCode?: string, safeToken?: string) {
     super(reference ? `${code}:${reference}` : code);
     this.name = "PlanningAdmissionError";
+    this.safeToken = typeof safeToken === "string" && /^(?:REQ|PE|PAGE|ROUTE)_\d{3,}$/.test(safeToken) ? safeToken : undefined;
   }
+  readonly safeToken?: string;
 }
 
 /** Requirements owned by a later lifecycle stage are not silently treated as Planning loss. */

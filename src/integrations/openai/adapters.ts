@@ -69,7 +69,7 @@ import { ImplementationChangeProposalSchema } from "@/agents/implementation/cont
 import { OpenAiStructuredClient, buildProductionResponseFormat, type StructuredSchemaDefinition } from "./client";
 import { AiProviderError } from "./errors";
 import { boundedRolePrompt as rolePrompt } from "@/runtime/context/bridge";
-import type { ProviderDiagnostic, ProviderUsageSink } from "./usage";
+import type { ProviderDiagnostic, ProviderInvocationContext, ProviderUsageSink } from "./usage";
 import type { OrchestrationPlanningProvider } from "@/orchestration/orchestrator/service";
 import {
   ArchitectureReviewProviderOutputSchema,
@@ -693,10 +693,13 @@ export class PlannerReferenceBindingError extends Error {
     readonly code: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE" | "PLANNING_REQUIREMENT_COVERAGE_MISSING" | "PLANNING_REQUIREMENT_COVERAGE_DUPLICATE" | "PLANNING_REQUIREMENT_COVERAGE_INVALID" | "PLANNING_ROUTE_POLICY_MISMATCH",
     readonly fieldPath: string,
     readonly reasonCode?: PlannerCoverageReasonCode,
+    safeToken?: string,
   ) {
     super(`${code}:${fieldPath}`);
     this.name = "PlannerReferenceBindingError";
+    this.safeToken = typeof safeToken === "string" && /^(?:REQ|PE|PAGE|ROUTE)_\d{3,}$/.test(safeToken) ? safeToken : undefined;
   }
+  readonly safeToken?: string;
 }
 
 const TokenRequirementReferencesSchema = z.array(PlannerRequirementToken).min(1).max(64);
@@ -874,7 +877,7 @@ function bindPlannerRequirementReferences(value: unknown, requirements: Readonly
     if (key !== "requirementReferences" || !Array.isArray(child)) return [key, bindPlannerRequirementReferences(child, requirements, `${fieldPath}.${key}`)];
     return [key, child.map((reference, index) => {
       if (typeof reference !== "string" || !requirements.has(reference))
-        throw new PlannerReferenceBindingError("PLANNING_TRACEABILITY_UNKNOWN_REFERENCE", `${fieldPath}.${key}[${index}]`);
+        throw new PlannerReferenceBindingError("PLANNING_TRACEABILITY_UNKNOWN_REFERENCE", `${fieldPath}.${key}[${index}]`, undefined, typeof reference === "string" ? reference : undefined);
       return requirements.get(reference)!;
     })];
   }));
@@ -882,13 +885,13 @@ function bindPlannerRequirementReferences(value: unknown, requirements: Readonly
 
 function requirePlannerRoute(routes: ReadonlyMap<string, PlannerReferenceTable["routes"][number]>, token: string, fieldPath: string) {
   const route = routes.get(token);
-  if (!route) throw new PlannerReferenceBindingError("PLANNING_ROUTE_POLICY_MISMATCH", fieldPath);
+  if (!route) throw new PlannerReferenceBindingError("PLANNING_ROUTE_POLICY_MISMATCH", fieldPath, undefined, token);
   return route;
 }
 
 function requirePlannerPage(pages: ReadonlyMap<string, PlannerReferenceTable["pages"][number]>, token: string, fieldPath: string) {
   const page = pages.get(token);
-  if (!page) throw new PlannerReferenceBindingError("PLANNING_ROUTE_POLICY_MISMATCH", fieldPath);
+  if (!page) throw new PlannerReferenceBindingError("PLANNING_ROUTE_POLICY_MISMATCH", fieldPath, undefined, token);
   return page;
 }
 
@@ -998,13 +1001,13 @@ export function validatePlannerRequirementCoverage(
   if (!coverage) throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", "coverageByRequirement", "PLANNING_COVERAGE_EMPTY");
   for (const token of Object.keys(coverage)) {
     const entry = requirements.get(token);
-    if (!entry || !entry.mandatory) throw new PlannerReferenceBindingError("PLANNING_TRACEABILITY_UNKNOWN_REFERENCE", `coverageByRequirement.${token}`);
+    if (!entry || !entry.mandatory) throw new PlannerReferenceBindingError("PLANNING_TRACEABILITY_UNKNOWN_REFERENCE", `coverageByRequirement.${token}`, undefined, token);
   }
   if (candidateIndex.collisions.size > 0)
     throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", "coverageByRequirement", "PLANNING_COVERAGE_ELEMENT_ID_COLLISION");
   for (const entry of required) {
     const fieldPath = `coverageByRequirement.${entry.token}`;
-    if (!Object.prototype.hasOwnProperty.call(coverage, entry.token)) throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_MISSING", entry.token, "PLANNING_COVERAGE_REQUIREMENT_MISSING");
+    if (!Object.prototype.hasOwnProperty.call(coverage, entry.token)) throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_MISSING", entry.token, "PLANNING_COVERAGE_REQUIREMENT_MISSING", entry.token);
     const parsed = PlannerRequirementCoverageValueSchema.safeParse(coverage[entry.token]);
     if (!parsed.success) {
       const raw = coverage[entry.token];
@@ -1015,8 +1018,10 @@ export function validatePlannerRequirementCoverage(
     const constraints = entry.coverageConstraints;
     if (new Set(parsed.data.planningElementIds).size < constraints.minimumCoverageTargets)
       throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_EMPTY");
-    if (parsed.data.planningElementIds.some((id) => !candidateElements.has(id)))
-      throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_ELEMENT_NOT_FOUND");
+    if (parsed.data.planningElementIds.some((id) => !candidateElements.has(id))) {
+      const missingId = parsed.data.planningElementIds.find((id) => !candidateElements.has(id));
+      throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_ELEMENT_NOT_FOUND", missingId);
+    }
     if (constraints.positiveRequirement && parsed.data.planningElementIds.length === 1 && (parsed.data.planningElementIds[0] === "traceability" || hostElementIndex && candidateElements.get(parsed.data.planningElementIds[0])?.kind === "TRACEABILITY"))
       throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_GENERIC_CATCH_ALL");
     for (const id of parsed.data.planningElementIds) {
@@ -2020,6 +2025,23 @@ function stagedCoveragePromptInput(input: PlannerCoverageProviderInput) {
   };
 }
 
+function stagedProviderNormalizationFailure(error: unknown, diagnostic: ProviderDiagnostic | undefined, schemaName: string): never {
+  throw new AiProviderError("AI_OUTPUT_DOMAIN_INVALID", "Staged Planner provider output failed strict host-side normalization.", error, {
+    ...diagnostic,
+    stage: "domain_validation",
+    outputStage: "TRANSPORT_SCHEMA_VALIDATION_FAILED",
+    requestAttempted: diagnostic?.requestAttempted ?? true,
+    apiResponseReceived: diagnostic?.apiResponseReceived ?? true,
+    responseReceived: diagnostic?.responseReceived ?? true,
+    outputComplete: diagnostic?.outputComplete ?? true,
+    schemaName,
+    issueCode: zodIssueCode(error),
+    fieldPath: zodIssuePaths(error)?.[0],
+    issueCount: zodIssueCount(error),
+    domainValidationIssuePaths: zodIssuePaths(error),
+  });
+}
+
 export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
   constructor(private readonly ai: OpenAiStructuredClient) {}
   preflightPlanRecovery(input: Pick<PlanningRecoveryProviderInput, "planningRequirementManifest">): void {
@@ -2030,6 +2052,7 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
     input: PlannerDecompositionProviderInput,
     approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
     skillContextIdentity = "none",
+    providerInvocation?: ProviderInvocationContext,
   ): Promise<PlanningDecompositionProviderOutput> {
     const prompt = rolePrompt("planner", stagedDecompositionPromptInput(input), false, approvedSkills);
     const system = `${prompt.system} This is Stage 1 of staged Planning. Return only semantic decomposition proposals. Do not return requirementReferences, coverageByRequirement, canonical IDs, project IDs, checksums, approvals, routes outside the supplied host authority, or final PE_* identities. Return null for absent pageTokens, routeTokens, dependencies, negativeEvidence, or negativeOnly. Dependencies, if supplied, must be zero-based proposal indexes within this response and are resolved by the host. Use meaningful non-generic descriptions and represent the required domains explicitly. The host owns all identity, currentness, canonical references, and final Planning assembly.`;
@@ -2041,13 +2064,17 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
       schemaName: "planning-decomposition-v1",
       idempotencyKey: `${input.plannerReferenceTable.operationChecksum}:${skillContextIdentity}:decomposition`,
       retryPolicy: { maxRetries: 0, corrections: 0 },
+      ...(providerInvocation ? { providerInvocation } : {}),
     });
-    return PlanningDecompositionProviderOutputSchema.parse(result.value);
+    const parsed = PlanningDecompositionProviderOutputSchema.safeParse(result.value);
+    if (!parsed.success) stagedProviderNormalizationFailure(parsed.error, result.diagnostic, "planning-decomposition-v1");
+    return parsed.data;
   }
   async assignCoverage(
     input: PlannerCoverageProviderInput,
     approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
     skillContextIdentity = "none",
+    providerInvocation?: ProviderInvocationContext,
   ): Promise<PlanningCoverageProviderOutput> {
     const table = PlannerReferenceTableSchema.parse(input.plannerReferenceTable);
     const schema = createPlanningCoverageProviderWireSchema(table);
@@ -2061,8 +2088,11 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
       schemaName: "planning-coverage-v1",
       idempotencyKey: `${table.operationChecksum}:${skillContextIdentity}:coverage`,
       retryPolicy: { maxRetries: 0, corrections: 0 },
+      ...(providerInvocation ? { providerInvocation } : {}),
     });
-    return schema.parse(result.value);
+    const parsed = schema.safeParse(result.value);
+    if (!parsed.success) stagedProviderNormalizationFailure(parsed.error, result.diagnostic, "planning-coverage-v1");
+    return parsed.data;
   }
   async plan(
     input: Parameters<PlannerArchitectureProvider["plan"]>[0],

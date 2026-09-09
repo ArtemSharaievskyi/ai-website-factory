@@ -6,14 +6,14 @@ import { AiProviderError, isAiProviderError } from "./errors";
 import { createProviderFailureDiagnostic } from "./failure-diagnostics";
 import { FifoConcurrencyLimiter } from "./limiter";
 import { DEFAULT_AI_MAX_COMPLETION_TOKENS, type AiProviderConfig } from "./config";
-import type { ProviderDiagnostic, ProviderEventSink, ProviderOutputStage, ProviderUsage, ProviderUsageSink } from "./usage";
+import type { ProviderDiagnostic, ProviderEventSink, ProviderInvocationContext, ProviderOutputStage, ProviderUsage, ProviderUsageSink } from "./usage";
 import type { ContextBundle } from "@/runtime/context";
 import { createInvocationFingerprint, createInvocationUsageRecord } from "@/runtime/context/telemetry";
 import { createHash, randomUUID } from "node:crypto";
 import { StructuredOutputPreflightError, assertStructuredOutputPreflight } from "./schema-preflight";
 
 export type StructuredSchemaDefinition = Parameters<typeof zodResponseFormat>[0];
-export type StructuredRequest<T> = { role: string; promptVersion: string; system: string; user: string; schemaName: string; schema: ZodType<T>; schemaDefinitions?: Record<string, StructuredSchemaDefinition>; signal?: AbortSignal; idempotencyKey?: string; contextBundle?: ContextBundle; promptPrefixChecksum?: string; promptPrefixBytes?: number; maxCompletionTokens?: number; retryPolicy?: { maxRetries: number; corrections: number }; parseStrategy?: "sdk" | "manual" };
+export type StructuredRequest<T> = { role: string; promptVersion: string; system: string; user: string; schemaName: string; schema: ZodType<T>; schemaDefinitions?: Record<string, StructuredSchemaDefinition>; signal?: AbortSignal; idempotencyKey?: string; contextBundle?: ContextBundle; promptPrefixChecksum?: string; promptPrefixBytes?: number; maxCompletionTokens?: number; retryPolicy?: { maxRetries: number; corrections: number }; parseStrategy?: "sdk" | "manual"; providerInvocation?: ProviderInvocationContext };
 export type StructuredResponse<T> = { value: T; usage: ProviderUsage; requestId: string; diagnostic?: ProviderDiagnostic };
 export type ProviderTransportResult = { requestId: string; inputTokens?: number; cachedInputTokens?: number; outputTokens?: number; diagnostic: ProviderDiagnostic };
 export type ProviderRawStructuredResult = ProviderTransportResult & { content: string };
@@ -136,7 +136,8 @@ export class OpenAiStructuredClient {
     const maxCorrections = request.retryPolicy?.corrections ?? 0;
     const startedAt = new Date().toISOString();
     const started = Date.now();
-    this.eventSink?.({ type: "request.started", provider: "openai", model: this.config.model, role: request.role, promptVersion: request.promptVersion, startedAt });
+    const operationEvent = request.providerInvocation ? { operationId: request.providerInvocation.operationId, correlationId: request.providerInvocation.correlationId, operationStage: request.providerInvocation.stage } : {};
+    this.eventSink?.({ type: "request.started", provider: "openai", model: this.config.model, role: request.role, promptVersion: request.promptVersion, startedAt, ...operationEvent });
     try {
       while (true) {
         if (request.signal?.aborted) throw new AiProviderError("AI_REQUEST_CANCELLED", "AI request was cancelled.", undefined, { stage: "request_construction", requestAttempted: false, apiResponseReceived: false, responseReceived: false, outputComplete: false, schemaName: request.schemaName });
@@ -149,7 +150,7 @@ export class OpenAiStructuredClient {
             ? await manualExecutor(request, this.client, this.config, correction, captureResponse)
             : await this.executor(request, this.client, this.config, correction);
           const usage = capturedUsage ?? await this.recordUsage(request, result, retries, correction);
-          this.eventSink?.({ type: "request.completed", provider: "openai", model: this.config.model, role: request.role, promptVersion: request.promptVersion, requestId: result.requestId, retryCount: retries, startedAt, completedAt: new Date().toISOString(), elapsedMs: Date.now() - started, diagnostic: result.diagnostic });
+          this.eventSink?.({ type: "request.completed", provider: "openai", model: this.config.model, role: request.role, promptVersion: request.promptVersion, requestId: result.requestId, retryCount: retries, startedAt, completedAt: new Date().toISOString(), elapsedMs: Date.now() - started, diagnostic: result.diagnostic, ...operationEvent });
           return { value: result.value, usage, requestId: result.requestId, diagnostic: result.diagnostic };
         } catch (error) {
           const mapped = mapError(error, request.schemaName, true, this.config.model);
@@ -162,7 +163,7 @@ export class OpenAiStructuredClient {
             continue;
           }
           const finalError = retries ? new AiProviderError("AI_RETRY_EXHAUSTED", "AI provider retries were exhausted.", mapped, mapped.diagnostic) : mapped;
-          this.eventSink?.({ type: "request.failed", provider: "openai", model: this.config.model, role: request.role, promptVersion: request.promptVersion, code: finalError.code, retryCount: retries, startedAt, completedAt: new Date().toISOString(), elapsedMs: Date.now() - started, diagnostic: finalError.diagnostic });
+          this.eventSink?.({ type: "request.failed", provider: "openai", model: this.config.model, role: request.role, promptVersion: request.promptVersion, code: finalError.code, retryCount: retries, startedAt, completedAt: new Date().toISOString(), elapsedMs: Date.now() - started, diagnostic: finalError.diagnostic, ...operationEvent });
           throw finalError;
         }
       }

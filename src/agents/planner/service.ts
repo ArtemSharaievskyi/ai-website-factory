@@ -14,7 +14,7 @@ import {
 } from "@/persistence/database/repositories";
 import { mapRowToDocument, type DocumentRow } from "@/persistence/database/mapping";
 import type { PersistenceDatabase, PersistenceTransaction } from "@/persistence/database/types";
-import { PlannerError } from "./errors";
+import { PlannerError, type PlannerErrorCode } from "./errors";
 import { PersistenceError } from "@/persistence/database/errors";
 import {
   buildPlanningPackage,
@@ -82,6 +82,8 @@ import { type PlanningRefreshDiagnosticAttempt } from "./refresh-diagnostics";
 import type { TransitionContext } from "@/domain/workflow/engine";
 import { canonicalRequirementEntries } from "@/domain/requirements/v3/identity";
 import { assertPlannerReferenceTableCurrent, createPlannerReferenceTable, PlannerReferenceTableError } from "./reference-table";
+import { isAiProviderError } from "@/integrations/openai/errors";
+import type { ProviderDiagnostic } from "@/integrations/openai/usage";
 import {
   admitPlanningCoverage,
   admitPlanningDecomposition,
@@ -91,6 +93,11 @@ import {
   StagedPlanningAdmissionError,
 } from "./staged-admission";
 import type { PlannerDecompositionProviderInput } from "./staged-contracts";
+import {
+  StagedPlanningOperationTelemetry,
+  type StagedPlanningFailureClass,
+  type StagedPlanningStage,
+} from "./staged-failures";
 
 const now = () => new Date().toISOString();
 
@@ -129,6 +136,84 @@ function boundedFailureCode(value: unknown): string | undefined {
   if (!text) return undefined;
   const code = text.split(":", 1)[0];
   return /^(?:BRIEF|PLANNING|PLANNER|PROJECT|PERSISTENCE)_[A-Z0-9_]+$/.test(code) ? code : undefined;
+}
+
+function nestedProviderDiagnostic(error: unknown, depth = 0): ProviderDiagnostic | undefined {
+  if (depth > 5 || !error || typeof error !== "object") return undefined;
+  if (isAiProviderError(error)) return error.diagnostic;
+  return "cause" in error ? nestedProviderDiagnostic(error.cause, depth + 1) : undefined;
+}
+
+function nestedZodError(error: unknown, depth = 0): z.ZodError | undefined {
+  if (depth > 5 || !error || typeof error !== "object") return undefined;
+  if (error instanceof z.ZodError) return error;
+  return "cause" in error ? nestedZodError(error.cause, depth + 1) : undefined;
+}
+
+function stagedProviderParseStage(error: unknown, providerStage: "DECOMPOSITION" | "COVERAGE"): StagedPlanningStage {
+  const diagnostic = nestedProviderDiagnostic(error);
+  const parsed = error instanceof z.ZodError || diagnostic?.stage === "structured_parse" || diagnostic?.stage === "domain_validation" || diagnostic?.outputStage === "STRUCTURED_OUTPUT_PARSE_FAILED" || diagnostic?.outputStage === "TRANSPORT_SCHEMA_VALIDATION_FAILED";
+  return parsed ? `${providerStage}_PARSE` : `${providerStage}_PROVIDER`;
+}
+
+function safeStagedReasonCode(error: unknown, depth = 0): string | undefined {
+  if (depth > 6 || !error || typeof error !== "object") return undefined;
+  const value = error as Record<string, unknown>;
+  if (typeof value.reasonCode === "string" && /^PLANNING_[A-Z0-9_]+$/.test(value.reasonCode)) return value.reasonCode;
+  if (isAiProviderError(error)) return error.code;
+  if ("cause" in value) {
+    const nested = safeStagedReasonCode(value.cause, depth + 1);
+    if (nested) return nested;
+  }
+  if (typeof value.code === "string" && /^PLANNING_(?:DECOMPOSITION|GRAPH|COVERAGE|ROUTE|TRACEABILITY|REQUIREMENT)/.test(value.code)) return value.code;
+  return undefined;
+}
+
+function safeStagedToken(error: unknown, depth = 0): string | undefined {
+  if (depth > 6 || !error || typeof error !== "object") return undefined;
+  const value = error as Record<string, unknown>;
+  const token = [value.safeToken, value.reference, value.fieldPath, value.reasonCode].find((candidate) => typeof candidate === "string" && /(?:^|[^A-Z0-9])(?:REQ|PE|PAGE|ROUTE)_\d{3,}(?:$|[^A-Z0-9])/.test(candidate as string));
+  if (typeof token === "string") return token.match(/(?:REQ|PE|PAGE|ROUTE)_\d{3,}/)?.[0];
+  if ("cause" in value) return safeStagedToken(value.cause, depth + 1);
+  return undefined;
+}
+
+function nestedFailureCode(error: unknown, depth = 0): string | undefined {
+  if (depth > 6 || !error || typeof error !== "object") return undefined;
+  const value = error as Record<string, unknown>;
+  if (typeof value.code === "string" && value.code !== "PLANNING_PACKAGE_INVALID") return value.code;
+  return "cause" in value ? nestedFailureCode(value.cause, depth + 1) : undefined;
+}
+
+function stagedFailureClass(stage: StagedPlanningStage, error: unknown): StagedPlanningFailureClass {
+  if (stage === "PERSISTENCE" || stage === "LIFECYCLE_TRANSITION") return "RUNTIME_PERSISTENCE_FAILURE";
+  if (error instanceof PlannerError && error.code === "PLANNING_STALE") return "STAGED_CURRENTNESS_FAILURE";
+  if (stage === "DECOMPOSITION_PROVIDER" || stage === "COVERAGE_PROVIDER" || stage === "DECOMPOSITION_PARSE" || stage === "COVERAGE_PARSE") {
+    const diagnostic = nestedProviderDiagnostic(error);
+    const reasonCode = safeStagedReasonCode(error);
+    if (nestedZodError(error) || reasonCode === "PLANNING_DECOMPOSITION_INVALID" && stage === "DECOMPOSITION_PARSE" || reasonCode === "PLANNING_COVERAGE_SCHEMA_INVALID" && stage === "COVERAGE_PARSE") return "PROVIDER_STRUCTURED_OUTPUT_FAILURE";
+    if (diagnostic?.stage === "request_construction") return "PROVIDER_SCHEMA_ADHERENCE_FAILURE";
+    if (diagnostic?.stage === "structured_parse" || diagnostic?.stage === "domain_validation" || diagnostic?.outputStage === "STRUCTURED_OUTPUT_PARSE_FAILED" || diagnostic?.outputStage === "TRANSPORT_SCHEMA_VALIDATION_FAILED") return "PROVIDER_STRUCTURED_OUTPUT_FAILURE";
+    return "PROVIDER_TRANSPORT_FAILURE";
+  }
+  if (stage === "DECOMPOSITION_ADMISSION") return nestedFailureCode(error) === "PLANNING_DECOMPOSITION_ROUTE_UNKNOWN" ? "STAGED_REFERENTIAL_INTEGRITY_FAILURE" : "STAGED_DECOMPOSITION_FAILURE";
+  if (stage === "GRAPH_ASSEMBLY" || stage === "GRAPH_ADMISSION") return "STAGED_REFERENTIAL_INTEGRITY_FAILURE";
+  if (stage === "COVERAGE_ADMISSION") {
+    const code = nestedFailureCode(error);
+    if (code === "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE" || code === "PLANNING_ROUTE_POLICY_MISMATCH") return "STAGED_REFERENTIAL_INTEGRITY_FAILURE";
+    return "STAGED_COVERAGE_FAILURE";
+  }
+  if (stage === "FINAL_ASSEMBLY") return "STAGED_FINAL_ASSEMBLY_FAILURE";
+  if (stage === "FINAL_ADMISSION") return "STAGED_FINAL_ASSEMBLY_FAILURE";
+  return "FACTORY_PROTOCOL_DEFECT";
+}
+
+function stagedOuterCode(stage: StagedPlanningStage, error: unknown): PlannerErrorCode {
+  if (stage === "PERSISTENCE") return "PLANNING_PERSISTENCE_FAILED";
+  if (stage === "LIFECYCLE_TRANSITION") return "PLANNING_LIFECYCLE_TRANSITION_FAILED";
+  if (error instanceof PlannerError && error.code === "PLANNING_STALE") return "PLANNING_STALE";
+  if (stage === "DECOMPOSITION_PROVIDER" || stage === "DECOMPOSITION_PARSE" || stage === "COVERAGE_PROVIDER" || stage === "COVERAGE_PARSE") return "PLANNER_PROVIDER_FAILED";
+  return "PLANNING_PACKAGE_INVALID";
 }
 
 function refreshFailureCode(error: unknown): string {
@@ -346,10 +431,13 @@ export class PlannerArchitectService {
     currentPlanning?: PlanningPackage;
     existingPlanning?: { rowVersion: number; checksum: string };
     skillSelection?: AgentSkillSelection;
+    telemetry?: StagedPlanningOperationTelemetry;
+    correlationId?: string;
   }) {
     if (!this.provider.decompose || !this.provider.assignCoverage)
       throw new PlannerError("PLANNING_PACKAGE_INVALID", "The staged Planner provider is incomplete.");
     const table = input.plannerReferenceTable;
+    input.telemetry?.enter("PREFLIGHT");
     const currentness = async () => {
       let currentBrief;
       try {
@@ -392,62 +480,86 @@ export class PlannerArchitectService {
       requiredDomains: requiredPlannerDecompositionDomains({ brief: input.brief, canonicalBrief: input.canonicalBrief }),
     };
     let decompositionOutput;
+    input.telemetry?.enter("DECOMPOSITION_PROVIDER");
+    const decompositionCall = input.telemetry?.beginProvider("decomposition", "planning-decomposition-v1");
     try {
       decompositionOutput = await this.provider.decompose(
         decompositionInput,
         input.skillSelection?.contexts,
         input.skillSelection?.identityChecksum,
+        input.correlationId ? { operationId: input.plannerInput.idempotencyKey, correlationId: input.correlationId, stage: "decomposition" } : undefined,
       );
+      if (decompositionCall) input.telemetry?.providerSucceeded(decompositionCall);
     } catch (error) {
+      if (decompositionCall) input.telemetry?.providerFailed(decompositionCall, error);
+      input.telemetry?.enter(stagedProviderParseStage(error, "DECOMPOSITION"));
       if (error instanceof PlannerError) throw error;
       throw new PlannerError("PLANNER_PROVIDER_FAILED", "The staged Planner decomposition provider failed.", error);
     }
     let elements;
+    input.telemetry?.enter("DECOMPOSITION_PARSE");
     try {
       elements = admitPlanningDecomposition({ output: decompositionOutput, table, brief: input.brief, canonicalBrief: input.canonicalBrief });
     } catch (error) {
+      input.telemetry?.enter(error instanceof StagedPlanningAdmissionError && error.fieldPath === "decomposition" ? "DECOMPOSITION_PARSE" : "DECOMPOSITION_ADMISSION");
       if (error instanceof StagedPlanningAdmissionError)
         throw new PlannerError("PLANNING_PACKAGE_INVALID", "Staged Planner decomposition failed deterministic admission.", error);
       throw error;
     }
+    input.telemetry?.semanticAdmissionPassed("decomposition");
+    input.telemetry?.enter("PE_ASSIGNMENT");
     let graph;
+    input.telemetry?.enter("GRAPH_ASSEMBLY");
     try {
       graph = finalizePlanningElementGraph(elements);
     } catch (error) {
+      input.telemetry?.enter("GRAPH_ADMISSION");
       if (error instanceof StagedPlanningAdmissionError)
         throw new PlannerError("PLANNING_PACKAGE_INVALID", "Staged Planner element graph failed deterministic admission.", error);
       throw error;
     }
+    input.telemetry?.enter("GRAPH_ADMISSION");
     const decompositionStageChecksum = checksumPersistedDocument({ elements, graph });
     await currentness();
     let coverageOutput;
+    input.telemetry?.enter("COVERAGE_PROVIDER");
+    const coverageCall = input.telemetry?.beginProvider("coverage", "planning-coverage-v1");
     try {
       coverageOutput = await this.provider.assignCoverage(
         { plannerReferenceTable: table, elements, graph },
         input.skillSelection?.contexts,
         input.skillSelection?.identityChecksum,
+        input.correlationId ? { operationId: input.plannerInput.idempotencyKey, correlationId: input.correlationId, stage: "coverage" } : undefined,
       );
+      if (coverageCall) input.telemetry?.providerSucceeded(coverageCall);
     } catch (error) {
+      if (coverageCall) input.telemetry?.providerFailed(coverageCall, error);
+      input.telemetry?.enter(stagedProviderParseStage(error, "COVERAGE"));
       if (error instanceof PlannerError) throw error;
       throw new PlannerError("PLANNER_PROVIDER_FAILED", "The staged Planner coverage provider failed.", error);
     }
     if (checksumPersistedDocument({ elements, graph }) !== decompositionStageChecksum)
       throw new PlannerError("PLANNING_STALE", "The admitted staged decomposition changed before coverage admission.");
     let coverage;
+    input.telemetry?.enter("COVERAGE_PARSE");
     try {
       coverage = admitPlanningCoverage({ output: coverageOutput, table, elements });
     } catch (error) {
+      input.telemetry?.enter(error instanceof PlannerReferenceBindingError ? "COVERAGE_ADMISSION" : error instanceof StagedPlanningAdmissionError && error.reasonCode !== "PLANNING_COVERAGE_SCHEMA_INVALID" ? "COVERAGE_ADMISSION" : "COVERAGE_PARSE");
       if (error instanceof PlannerReferenceBindingError)
         throw new PlannerError(
           "PLANNING_PACKAGE_INVALID",
           `Staged Planner coverage failed deterministic admission: ${error.code}:${error.fieldPath}.`,
-          new PlanningAdmissionError(error.code, error.fieldPath, error.reasonCode),
+            new PlanningAdmissionError(error.code, error.fieldPath, error.reasonCode, error.safeToken),
         );
       if (error instanceof StagedPlanningAdmissionError)
         throw new PlannerError("PLANNING_PACKAGE_INVALID", "Staged Planner coverage failed deterministic admission.", error);
       throw error;
     }
+    input.telemetry?.semanticAdmissionPassed("coverage");
+    input.telemetry?.enter("COVERAGE_ADMISSION");
     await currentness();
+    input.telemetry?.enter("FINAL_ASSEMBLY");
     const candidate = assembleStagedPlanningCandidate({
       plannerInput: input.plannerInput,
       brief: input.brief,
@@ -457,9 +569,11 @@ export class PlannerArchitectService {
       graph,
       coverage,
     });
-    return PlanningPackageSchema.parse(candidate);
+    const parsedCandidate = PlanningPackageSchema.parse(candidate);
+    input.telemetry?.enter("FINAL_ADMISSION");
+    return parsedCandidate;
   }
-  async planApprovedProject(rawInput: PlannerAgentInput) {
+  async planApprovedProject(rawInput: PlannerAgentInput, executionContext: { correlationId?: string } = {}) {
     const input = this.parseInput(rawInput);
     const legacyPlanningRefresh = input.currentWorkflowState === "AWAITING_DESIGN_SELECTION";
     if (input.currentWorkflowState !== "AWAITING_PLANNING_GENERATION" && !legacyPlanningRefresh)
@@ -617,12 +731,23 @@ export class PlannerArchitectService {
         expectedRowVersion: input.expectedRowVersion,
         canonicalBrief: currentBeforeProvider.brief,
       });
+    const stagedTelemetry = this.provider.decompose && this.provider.assignCoverage && plannerReferenceTable
+      ? new StagedPlanningOperationTelemetry({
+          operationId: input.idempotencyKey,
+          operationChecksum: plannerReferenceTable.operationChecksum,
+          correlationId: executionContext.correlationId ?? randomUUID(),
+          projectId: input.projectId,
+          briefChecksum: input.approvedBriefChecksum,
+        })
+      : undefined;
+    stagedTelemetry?.enter("PREFLIGHT");
     const plannerInput = PlannerAgentInputSchema.parse({
       ...input,
       ...(currentCanonical ? { plannerAuthority: plannerAuthorityFor(currentCanonical.brief) } : {}),
       ...(plannerReferenceTable ? { plannerReferenceTable } : {}),
     });
     let planningPackage: PlanningPackage;
+    try {
     try {
       const documentationExcerpts =
         input.allowedTools?.includes("Context7-read") &&
@@ -662,6 +787,8 @@ export class PlannerArchitectService {
           currentPlanning: currentPlanningPackage,
           ...(existingPlanning ? { existingPlanning } : {}),
           skillSelection,
+          telemetry: stagedTelemetry,
+          ...(stagedTelemetry ? { correlationId: stagedTelemetry.correlationId } : {}),
         });
       } else {
         planningPackage = PlanningPackageSchema.parse({
@@ -678,11 +805,11 @@ export class PlannerArchitectService {
     } catch (error) {
       if (error instanceof PlannerError) throw error;
       if (error instanceof PlannerReferenceBindingError)
-        throw new PlannerError(
-          "PLANNING_PACKAGE_INVALID",
-          `Planner output failed deterministic token admission: ${error.code}:${error.fieldPath}.`,
-          new PlanningAdmissionError(error.code, error.fieldPath, error.reasonCode),
-        );
+          throw new PlannerError(
+            "PLANNING_PACKAGE_INVALID",
+            `Planner output failed deterministic token admission: ${error.code}:${error.fieldPath}.`,
+            new PlanningAdmissionError(error.code, error.fieldPath, error.reasonCode, error.safeToken),
+          );
       if (error instanceof z.ZodError)
         throw new PlannerError(
           "PLANNING_PACKAGE_INVALID",
@@ -695,6 +822,7 @@ export class PlannerArchitectService {
         error,
       );
     }
+    stagedTelemetry?.enter("FINAL_ADMISSION");
     const currentAfterProvider = await this.validateCurrentCanonicalBrief(input);
     const projectAfterProvider = await this.projects.getWithVersion(input.projectId);
     if (!projectAfterProvider || projectAfterProvider.rowVersion !== input.expectedRowVersion || projectAfterProvider.project.workflowState !== "AWAITING_PLANNING_GENERATION")
@@ -725,6 +853,7 @@ export class PlannerArchitectService {
         "PLANNING_PACKAGE_INVALID",
         `Planner output violated approved form behavior: ${contractIssues.join(", ")}.`,
       );
+    stagedTelemetry?.enter("PERSISTENCE");
     await this.persistPackage(planningPackage, input.idempotencyKey, existingPlanning, {
       rowVersion: input.expectedRowVersion,
       workflowState: "AWAITING_PLANNING_GENERATION",
@@ -734,7 +863,8 @@ export class PlannerArchitectService {
       reason: "Planning candidate persisted; explicit user Planning approval is required.",
       idempotencyKey: `${input.idempotencyKey}:planning-approval`,
       context: { requirements: brief },
-    });
+    }, stagedTelemetry);
+    stagedTelemetry?.succeed();
     this.inputKeys.set(input.idempotencyKey, requestHash);
     if (skillSelection)
       this.skillSelections.set(
@@ -746,6 +876,21 @@ export class PlannerArchitectService {
       planningPackage,
     );
     return planningPackage;
+    } catch (error) {
+      if (stagedTelemetry) {
+        const stage = stagedTelemetry.currentStage;
+        throw stagedTelemetry.fail({
+          stage,
+          outerCode: stagedOuterCode(stage, error),
+          failureClass: stagedFailureClass(stage, error),
+          ...(safeStagedReasonCode(error) ? { reasonCode: safeStagedReasonCode(error) } : {}),
+          ...(safeStagedToken(error) ? { safeToken: safeStagedToken(error) } : {}),
+          message: "Staged Planning failed safely; the project was not changed.",
+          cause: error,
+        });
+      }
+      throw error;
+    }
   }
   private async refreshPlanningPackageInternal(input: {
     input: PlannerAgentInput;
@@ -1608,7 +1753,9 @@ export class PlannerArchitectService {
     currentPlanning?: { rowVersion: number; checksum: string } | null,
     currentProject?: { rowVersion: number; workflowState: "AWAITING_PLANNING_GENERATION" | "AWAITING_PLANNING_APPROVAL" | "AWAITING_DESIGN_SELECTION" | "ARCHITECTURE_REVIEW" },
     workflowTransition?: { targetState: "AWAITING_PLANNING_APPROVAL" | "AWAITING_DESIGN_SELECTION"; actor: string; reason: string; idempotencyKey: string; context?: TransitionContext },
+    operationTelemetry?: StagedPlanningOperationTelemetry,
   ) {
+    operationTelemetry?.enter("PERSISTENCE");
     const transition = await this.dependencies.database.transaction(async (tx) => {
       if (currentProject) {
         const project = await tx.getProject(packageValue.projectId);
@@ -1653,6 +1800,7 @@ export class PlannerArchitectService {
         }
       }
       if (workflowTransition) {
+        operationTelemetry?.enter("LIFECYCLE_TRANSITION");
         if (!currentProject)
           throw new PersistenceError("PERSISTENCE_CONFLICT", "A workflow transition requires a project currentness token.");
         return transitionWorkflowInTransaction(tx, {
@@ -1669,6 +1817,8 @@ export class PlannerArchitectService {
       }
       return undefined;
     });
+    operationTelemetry?.markCanonicalPlanningPersisted();
+    if (workflowTransition) operationTelemetry?.markLifecycleMutated();
     await this.dependencies.memory.writeSnapshot(
       packageValue.projectId,
       packageValue.projectVersion,

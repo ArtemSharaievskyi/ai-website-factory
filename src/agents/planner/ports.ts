@@ -5,12 +5,13 @@ import type { Context7DocumentationPort, DocumentationExcerpt } from "../../inte
 import type { ApprovedProceduralSkillContext } from "@/skills/runtime/resolver";
 import type { PlanningRecoveryProviderInput, PlanningRecoveryProviderResult } from "./recovery";
 import type { PlannerCoverageProviderInput, PlanningCoverageProviderOutput, PlannerDecompositionProviderInput, PlanningDecompositionProviderOutput } from "./staged-contracts";
+import type { ProviderInvocationContext } from "@/integrations/openai/usage";
 
 export interface PlannerArchitectureProvider {
   plan(input: PlannerAgentInput & { documentationExcerpts?: DocumentationExcerpt[] }, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string): Promise<PlanningPackage>;
   /** New generation path. Both methods are bounded provider calls with no retry/correction/fallback. */
-  decompose?(input: PlannerDecompositionProviderInput, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string): Promise<PlanningDecompositionProviderOutput>;
-  assignCoverage?(input: PlannerCoverageProviderInput, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string): Promise<PlanningCoverageProviderOutput>;
+  decompose?(input: PlannerDecompositionProviderInput, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string, providerInvocation?: ProviderInvocationContext): Promise<PlanningDecompositionProviderOutput>;
+  assignCoverage?(input: PlannerCoverageProviderInput, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string, providerInvocation?: ProviderInvocationContext): Promise<PlanningCoverageProviderOutput>;
   preflightPlanRecovery?(input: Pick<PlanningRecoveryProviderInput, "planningRequirementManifest">): void;
   planRecovery?(input: PlanningRecoveryProviderInput, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string): Promise<PlanningRecoveryProviderResult>;
   proposeChangeSet?(input: PlannerRefreshProviderInput, approvedSkills?: readonly ApprovedProceduralSkillContext[], skillContextIdentity?: string): Promise<PlanningChangeSetProviderOutput>;

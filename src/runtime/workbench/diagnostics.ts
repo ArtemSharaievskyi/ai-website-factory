@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { isAiProviderError } from "@/integrations/openai/errors";
+import { isAiProviderError, type AiProviderError } from "@/integrations/openai/errors";
 import { PROVIDER_OUTPUT_STAGES, type ProviderDiagnostic, type ProviderOutputStage } from "@/integrations/openai/usage";
+import { isStagedPlanningFailure, StagedPlanningFailureClassSchema, StagedPlanningOperationSummarySchema, StagedPlanningStageSchema, type StagedPlanningFailureClass, type StagedPlanningOperationSummary, type StagedPlanningStage } from "@/agents/planner/staged-failures";
 
 export const WorkbenchErrorCategorySchema = z.enum([
   "VALIDATION",
@@ -54,6 +55,13 @@ export const WorkbenchErrorResponseSchema = z
     fieldPath: z.string().regex(/^[A-Za-z][A-Za-z0-9_.\[\]]*$/).optional(),
     expectedShape: z.string().min(1).max(160).optional(),
     validationIssues: z.array(z.object({ path: z.string().regex(/^[A-Za-z][A-Za-z0-9_.\[\]]*$/), issueCode: z.string().regex(/^[A-Z][A-Z0-9_]+$/), expectedShape: z.string().min(1).max(160) }).strict()).max(5).optional(),
+    failureClass: StagedPlanningFailureClassSchema.optional(),
+    stage: StagedPlanningStageSchema.optional(),
+    reasonCode: z.string().regex(/^[A-Z][A-Z0-9_]+$/).optional(),
+    safeToken: z.string().regex(/^(?:REQ|PE|PAGE|ROUTE)_\d{3,}$/).max(32).optional(),
+    providerRequestCountExact: z.boolean().optional(),
+    providerRequestCount: z.number().int().nonnegative().optional(),
+    internalClassification: z.literal("UNEXPECTED_EXCEPTION").optional(),
   })
   .strict();
 export type WorkbenchErrorResponse = z.infer<typeof WorkbenchErrorResponseSchema>;
@@ -63,6 +71,7 @@ export type WorkbenchDiagnosticContext = {
   projectId?: string;
   workflowState?: string;
   operation?: WorkbenchOperation;
+  correlationId?: string;
 };
 
 type SafeValidationProjection = {
@@ -78,6 +87,7 @@ export type WorkbenchErrorProjection = WorkbenchErrorResponse & {
   subsystem: WorkbenchSubsystem;
   errorClass: string;
   providerDiagnostic?: SafeProviderDiagnostic;
+  stagedOperation?: StagedPlanningOperationSummary;
 };
 
 type SafeProviderDiagnostic = {
@@ -125,6 +135,14 @@ export type WorkbenchDiagnosticEvent = {
   outputTokens?: number;
   maxCompletionTokens?: number;
   providerIssueCount?: number;
+  failureClass?: StagedPlanningFailureClass;
+  stage?: StagedPlanningStage;
+  reasonCode?: string;
+  safeToken?: string;
+  providerRequestCountExact?: boolean;
+  providerRequestCount?: number;
+  internalClassification?: "UNEXPECTED_EXCEPTION";
+  stagedOperation?: StagedPlanningOperationSummary;
 };
 
 const CONFLICT_CODES = new Set([
@@ -162,6 +180,8 @@ const CONFLICT_CODES = new Set([
   "PERSISTENCE_CONFLICT",
   "IDEMPOTENCY_CONFLICT",
   "AI_IDEMPOTENCY_CONFLICT",
+  "PLANNING_STALE",
+  "PLANNER_WORKFLOW_STATE_INVALID",
 ]);
 
 const NOT_FOUND_CODES = new Set([
@@ -202,6 +222,7 @@ const VALIDATION_CODES = new Set([
   "SCHEMA_VERSION_MISMATCH",
   "INTEGRITY_CHECK_FAILED",
   "RELEASE_INVALID",
+  "PLANNING_PACKAGE_INVALID",
 ]);
 
 const PROVIDER_CODES = new Set([
@@ -228,6 +249,8 @@ const PROVIDER_CODES = new Set([
   "AI_REQUEST_CANCELLED",
   "AI_CONCURRENCY_LIMIT_REACHED",
   "TRIAL_ENTRY_AI_NOT_CONFIGURED",
+  "PLANNER_PROVIDER_FAILED",
+  "PLANNER_PROVIDER_TIMEOUT",
 ]);
 
 const PERSISTENCE_CODES = new Set([
@@ -236,6 +259,8 @@ const PERSISTENCE_CODES = new Set([
   "PERSISTENCE_DATABASE_URL_INVALID",
   "PERSISTENCE_CONFIGURATION_INVALID",
   "PERSISTENCE_UNSUPPORTED",
+  "PLANNING_PERSISTENCE_FAILED",
+  "PLANNING_LIFECYCLE_TRANSITION_FAILED",
 ]);
 
 const SAFE_ERROR_CLASSES = new Set([
@@ -248,6 +273,7 @@ const SAFE_ERROR_CLASSES = new Set([
   "WorkbenchActionError",
   "WorkbenchRequestValidationError",
   "ZodError",
+  "StagedPlanningFailure",
 ]);
 
 export class WorkbenchRequestValidationError extends Error {
@@ -312,9 +338,16 @@ function providerStatus(code: string) {
   return { httpStatus: 503, recoverable: true };
 }
 
+function nestedAiProviderError(error: unknown, depth = 0): AiProviderError | undefined {
+  if (depth > 6 || !error || typeof error !== "object") return undefined;
+  if (isAiProviderError(error)) return error;
+  return "cause" in error ? nestedAiProviderError(error.cause, depth + 1) : undefined;
+}
+
 function safeProviderDiagnostic(error: unknown): SafeProviderDiagnostic | undefined {
-  const diagnostic: ProviderDiagnostic | undefined = isAiProviderError(error)
-    ? error.diagnostic
+  const nestedProviderError = nestedAiProviderError(error);
+  const diagnostic: ProviderDiagnostic | undefined = nestedProviderError
+    ? nestedProviderError.diagnostic
     : error && typeof error === "object" && "details" in error && error.details && typeof error.details === "object"
       ? {
           stage: "provider_normalization",
@@ -404,7 +437,36 @@ function safeValidationProjection(error: unknown): SafeValidationProjection {
   };
 }
 
+function stagedFailureProjection(error: unknown): Omit<WorkbenchErrorProjection, "ok" | "code" | "correlationId" | "operation"> | undefined {
+  if (!isStagedPlanningFailure(error)) return undefined;
+  const operation = StagedPlanningOperationSummarySchema.parse(error.details.operation);
+  const providerFailure = ["PROVIDER_SCHEMA_ADHERENCE_FAILURE", "PROVIDER_STRUCTURED_OUTPUT_FAILURE", "PROVIDER_TRANSPORT_FAILURE"].includes(error.details.failureClass);
+  const currentnessFailure = error.details.failureClass === "STAGED_CURRENTNESS_FAILURE";
+  const persistenceFailure = error.details.failureClass === "RUNTIME_PERSISTENCE_FAILURE";
+  const status = persistenceFailure ? 503 : currentnessFailure ? 409 : providerFailure ? (error.details.failureClass === "PROVIDER_TRANSPORT_FAILURE" ? 503 : 502) : 422;
+  const category = persistenceFailure ? "PERSISTENCE" as const : currentnessFailure ? "WORKFLOW_CONFLICT" as const : providerFailure ? "PROVIDER" as const : "VALIDATION" as const;
+  const subsystem = persistenceFailure ? "PERSISTENCE" as const : providerFailure ? "PROVIDER" as const : "WORKBENCH_APPLICATION" as const;
+  return {
+    error: "Staged Planning could not be completed. The project was not changed.",
+    httpStatus: status,
+    recoverable: currentnessFailure || error.details.failureClass === "PROVIDER_TRANSPORT_FAILURE",
+    category,
+    subsystem,
+    errorClass: errorClass(error),
+    failureClass: error.details.failureClass,
+    stage: error.details.stage,
+    ...(error.details.reasonCode ? { reasonCode: error.details.reasonCode } : {}),
+    ...(error.details.safeToken ? { safeToken: error.details.safeToken } : {}),
+    providerRequestCountExact: error.details.providerRequestCountExact,
+    providerRequestCount: error.details.providerRequestCount,
+    stagedOperation: operation,
+    ...(safeProviderDiagnostic(error) ? { providerDiagnostic: safeProviderDiagnostic(error) } : {}),
+  };
+}
+
 function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProjection, "ok" | "code" | "correlationId" | "operation"> {
+  const staged = stagedFailureProjection(error);
+  if (staged) return staged;
   if (code === "WORKBENCH_REQUEST_TOO_LARGE") return { error: "The request is too large.", httpStatus: 413, recoverable: false, category: "VALIDATION", subsystem: "ROUTE", errorClass: errorClass(error) };
   if (code === "WORKBENCH_REQUEST_INVALID") {
     const validation = safeValidationProjection(error);
@@ -422,18 +484,19 @@ function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProject
   }
   if (PERSISTENCE_CODES.has(code)) return { error: "The project could not be saved safely. The project was not changed.", httpStatus: 503, recoverable: true, category: "PERSISTENCE", subsystem: "PERSISTENCE", errorClass: errorClass(error) };
   if (VALIDATION_CODES.has(code)) return { error: "The request could not be completed because its workflow data was invalid.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: code.startsWith("PERSISTENCE_") ? "PERSISTENCE" : code.startsWith("LEAD_") ? "LEAD" : code.startsWith("INITIAL_") ? "ROUTE" : "TRIAL_ENTRY", errorClass: errorClass(error) };
-  return { error: "We couldn't complete this request. The project was not changed.", httpStatus: 500, recoverable: false, category: "INTERNAL", subsystem: "ROUTE", errorClass: errorClass(error) };
+  return { error: "We couldn't complete this request. The project was not changed.", httpStatus: 500, recoverable: false, category: "INTERNAL", subsystem: "ROUTE", errorClass: errorClass(error), internalClassification: "UNEXPECTED_EXCEPTION" };
 }
 
 export function normalizeWorkbenchError(error: unknown, context: WorkbenchDiagnosticContext = {}): WorkbenchErrorProjection {
   const code = error instanceof WorkbenchRequestValidationError || error instanceof z.ZodError ? "WORKBENCH_REQUEST_INVALID" : codeOf(error);
-  const knownCode = code && (CONFLICT_CODES.has(code) || NOT_FOUND_CODES.has(code) || VALIDATION_CODES.has(code) || PROVIDER_CODES.has(code) || PERSISTENCE_CODES.has(code) || code === "WORKBENCH_REQUEST_INVALID" || code === "WORKBENCH_REQUEST_TOO_LARGE" || code === "WORKBENCH_ADVANCED_RUNTIME_UNAVAILABLE") ? code : undefined;
+  const knownCode = code && (CONFLICT_CODES.has(code) || NOT_FOUND_CODES.has(code) || VALIDATION_CODES.has(code) || PROVIDER_CODES.has(code) || PERSISTENCE_CODES.has(code) || code === "WORKBENCH_REQUEST_INVALID" || code === "WORKBENCH_REQUEST_TOO_LARGE" || code === "WORKBENCH_ADVANCED_RUNTIME_UNAVAILABLE" || isStagedPlanningFailure(error)) ? code : undefined;
   const projection = definitionFor(knownCode ?? "WORKBENCH_INTERNAL_ERROR", error);
   const operation = context.operation ?? operationForAction(context.action);
+  const errorCorrelationId = isStagedPlanningFailure(error) ? error.details.operation.correlationId : undefined;
   return {
     ok: false,
     code: knownCode ?? "WORKBENCH_INTERNAL_ERROR",
-    correlationId: randomUUID(),
+    correlationId: context.correlationId && z.string().uuid().safeParse(context.correlationId).success ? context.correlationId : errorCorrelationId ?? randomUUID(),
     operation,
     ...projection,
   };
@@ -452,6 +515,17 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     subsystem: projection.subsystem,
     errorClass: projection.errorClass,
     recoverable: projection.recoverable,
+    ...(projection.failureClass ? { failureClass: projection.failureClass } : {}),
+    ...(projection.stage ? { stage: projection.stage } : {}),
+    ...(projection.reasonCode ? { reasonCode: projection.reasonCode } : {}),
+    ...(projection.safeToken ? { safeToken: projection.safeToken } : {}),
+    ...(projection.providerRequestCountExact !== undefined ? { providerRequestCountExact: projection.providerRequestCountExact } : {}),
+    ...(projection.providerRequestCount !== undefined ? { providerRequestCount: projection.providerRequestCount } : {}),
+    ...(projection.internalClassification ? { internalClassification: projection.internalClassification } : {}),
+    ...(projection.stagedOperation ? {
+      stagedOperation: projection.stagedOperation,
+      projectId: projection.stagedOperation.projectId,
+    } : {}),
     ...(projection.validationStage ? { validationStage: projection.validationStage } : {}),
     ...(projection.issueCode ? { issueCode: projection.issueCode } : {}),
     ...(projection.fieldPath ? { fieldPath: projection.fieldPath } : {}),
@@ -506,6 +580,13 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     ...(projection.fieldPath ? { fieldPath: projection.fieldPath } : {}),
     ...(projection.expectedShape ? { expectedShape: projection.expectedShape } : {}),
     ...(projection.validationIssues ? { validationIssues: projection.validationIssues } : {}),
+    ...(projection.failureClass ? { failureClass: projection.failureClass } : {}),
+    ...(projection.stage ? { stage: projection.stage } : {}),
+    ...(projection.reasonCode ? { reasonCode: projection.reasonCode } : {}),
+    ...(projection.safeToken ? { safeToken: projection.safeToken } : {}),
+    ...(projection.providerRequestCountExact !== undefined ? { providerRequestCountExact: projection.providerRequestCountExact } : {}),
+    ...(projection.providerRequestCount !== undefined ? { providerRequestCount: projection.providerRequestCount } : {}),
+    ...(projection.internalClassification ? { internalClassification: projection.internalClassification } : {}),
   });
   return { response, status: projection.httpStatus };
 }

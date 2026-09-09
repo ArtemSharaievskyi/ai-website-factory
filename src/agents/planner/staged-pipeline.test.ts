@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { emptyBriefV2Fields } from "@/domain/requirements/brief";
 import { RequirementSpecificationSchema, type RequirementSpecification } from "@/domain/requirements/schema";
 import { CanonicalBriefV3Schema, type CanonicalBriefV3 } from "@/domain/requirements/v3/schema";
@@ -20,9 +20,13 @@ import { PlannerArchitectService } from "./service";
 import { FakePlannerMemoryPort } from "./memory";
 import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
 import { ProjectRepository, ProjectVersionRepository, DocumentRepository } from "@/persistence/database/repositories";
+import type { PersistenceDatabase, PersistenceTransaction } from "@/persistence/database/types";
 import { createBriefV3Document, BriefV3DocumentSchema } from "@/persistence/database/brief-revision-v3-contracts";
 import { FactoryProjectSchema } from "@/domain/project/schema";
 import type { PlannerArchitectureProvider } from "./ports";
+import { AiProviderError } from "@/integrations/openai/errors";
+import { clearStagedPlanningOperations, getStagedPlanningOperations, isStagedPlanningFailure, StagedPlanningOperationTelemetry } from "./staged-failures";
+import { workbenchFailureResponse } from "@/runtime/workbench/diagnostics";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
 
@@ -157,7 +161,31 @@ function expectFailure(action: () => unknown, expected: Record<string, unknown>)
   expect(failure).toMatchObject(expected);
 }
 
+async function stagedService(provider: PlannerArchitectureProvider, memory: FakePlannerMemoryPort = new FakePlannerMemoryPort()) {
+  const canonicalBrief = portalBrief();
+  const approvedBrief = portalV1Brief();
+  const database = new InMemoryPersistenceDatabase();
+  const timestamp = "2026-01-01T00:00:00.000Z";
+  await new ProjectRepository(database).create(FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: projectId, slug: "staged-observability", originalPrompt: "Synthetic staged observability fixture.", currentVersion: 1, workflowState: "AWAITING_PLANNING_GENERATION" }));
+  await new ProjectVersionRepository(database).create({ id: "66666666-6666-4666-8666-666666666666", projectId, versionNumber: 1, state: "AWAITING_PLANNING_GENERATION", memoryRootPath: null, requirementsChecksum: canonicalBriefChecksum(canonicalBrief), selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
+  const document = createBriefV3Document({ projectId, projectVersion: 1, brief: canonicalBrief, createdAt: timestamp, updatedAt: timestamp });
+  await new DocumentRepository(database).save(BriefV3DocumentSchema.parse({ ...document, approval: { approved: true, approvedAt: timestamp, approvedBy: "synthetic-user", approvedCanonicalChecksum: document.briefChecksum } }));
+  return { database, service: new PlannerArchitectService({ database, memory, provider }), input: portalInput(approvedBrief, canonicalBrief) };
+}
+
+function failingPlanningDatabase(inner: InMemoryPersistenceDatabase): PersistenceDatabase {
+  return {
+    transaction: <T>(work: (transaction: PersistenceTransaction) => Promise<T>) => inner.transaction((transaction) => work(new Proxy(transaction, {
+      get(target, property, receiver) {
+        if (["saveDocument", "saveDocumentCAS", "updateProjectState"].includes(String(property))) return async () => { throw new Error("DATABASE_URL=private"); };
+        return Reflect.get(target, property, receiver);
+      },
+    })) as Promise<T>),
+  };
+}
+
 describe("staged Planner pipeline", () => {
+  beforeEach(() => clearStagedPlanningOperations());
   it("assigns opaque PE identity only after valid decomposition admission", () => {
     const { brief, table, output } = portalDecomposition();
     const elements = admitPlanningDecomposition({ output, table, brief: portalV1Brief(), canonicalBrief: brief });
@@ -312,5 +340,141 @@ describe("staged Planner pipeline", () => {
     expect(current?.rowVersion).toBe(1);
     expect(await new DocumentRepository(database).get(projectId, 1, "planning-package")).toBeNull();
     expect(coverageCalls).toBe(0);
+  });
+
+  it("records one correlated decomposition transport failure and preserves it through Workbench", async () => {
+    const correlationId = "22222222-2222-4222-8222-222222222222";
+    const { service, input, database } = await stagedService({
+      async plan() { throw new Error("legacy path must not be called"); },
+      async decompose() {
+        throw new AiProviderError("AI_NETWORK_ERROR", "private transport detail", undefined, { stage: "api_request", requestAttempted: true, apiResponseReceived: false, responseReceived: false, schemaName: "planning-decomposition-v1" });
+      },
+      async assignCoverage() { throw new Error("coverage must not be reached"); },
+    });
+    let failure: unknown;
+    try { await service.planApprovedProject(input, { correlationId }); } catch (error) { failure = error; }
+    expect(isStagedPlanningFailure(failure)).toBe(true);
+    const stagedFailure = failure! as { details: { stage: string; failureClass: string; reasonCode?: string; providerRequestCount: number; operation: { correlationId: string; providerCallsTotal: number; providerCallsByStage: { decomposition: { attempted: number; started: number; failed: number }; coverage: { attempted: number } }; canonicalPlanningPersisted: boolean; lifecycleMutated: boolean } } };
+    expect(stagedFailure.details).toMatchObject({ stage: "DECOMPOSITION_PROVIDER", failureClass: "PROVIDER_TRANSPORT_FAILURE", reasonCode: "AI_NETWORK_ERROR", providerRequestCount: 1 });
+    expect(stagedFailure.details.operation).toMatchObject({ correlationId, providerCallsTotal: 1, providerCallsByStage: { decomposition: { attempted: 1, started: 1, failed: 1 }, coverage: { attempted: 0 } }, canonicalPlanningPersisted: false, lifecycleMutated: false });
+    expect(getStagedPlanningOperations().at(-1)).toMatchObject({ correlationId, stageFailed: "DECOMPOSITION_PROVIDER", providerCallsTotal: 1 });
+    const response = workbenchFailureResponse(failure, { action: "approve-planning", projectId, correlationId });
+    expect(response).toMatchObject({ status: 503, response: { code: "PLANNER_PROVIDER_FAILED", failureClass: "PROVIDER_TRANSPORT_FAILURE", stage: "DECOMPOSITION_PROVIDER", reasonCode: "AI_NETWORK_ERROR", providerRequestCount: 1, correlationId } });
+    expect(JSON.stringify(response)).not.toContain("private transport detail");
+    expect(await new DocumentRepository(database).get(projectId, 1, "planning-package")).toBeNull();
+  });
+
+  it("does not fabricate a provider attempt when an uninstrumented failure crosses the provider boundary", async () => {
+    const { service, input } = await stagedService({
+      async plan() { throw new Error("legacy path must not be called"); },
+      async decompose() {
+        throw new Error("un-instrumented provider failure");
+      },
+      async assignCoverage() { throw new Error("coverage must not be reached"); },
+    });
+    await expect(service.planApprovedProject(input)).rejects.toMatchObject({ details: {
+      stage: "DECOMPOSITION_PROVIDER",
+      failureClass: "PROVIDER_TRANSPORT_FAILURE",
+      providerRequestCountExact: false,
+      providerRequestCount: 0,
+      operation: {
+        providerRequestCountExact: false,
+        providerRequestAttempted: false,
+        providerRequestCount: 0,
+        providerCallsTotal: 0,
+        providerCallsByStage: { decomposition: { attempted: 0, started: 0, responseReceived: 0, failed: 1 } },
+      },
+    } });
+  });
+
+  it("attributes provider structured-output failure to decomposition parsing", async () => {
+    const { service, input } = await stagedService({
+      async plan() { throw new Error("legacy path must not be called"); },
+      async decompose() {
+        throw new AiProviderError("AI_OUTPUT_DOMAIN_INVALID", "private schema detail", undefined, { stage: "domain_validation", outputStage: "TRANSPORT_SCHEMA_VALIDATION_FAILED", requestAttempted: true, apiResponseReceived: true, responseReceived: true, schemaName: "planning-decomposition-v1", issueCode: "INVALID_TYPE", fieldPath: "elements[0].title" });
+      },
+      async assignCoverage() { throw new Error("coverage must not be reached"); },
+    });
+    await expect(service.planApprovedProject(input)).rejects.toMatchObject({ details: { stage: "DECOMPOSITION_PARSE", failureClass: "PROVIDER_STRUCTURED_OUTPUT_FAILURE", operation: { providerRequestCount: 1, providerCallsByStage: { decomposition: { attempted: 1, responseReceived: 1, structuredParsePassed: 0, failed: 1 } } } } });
+  });
+
+  it("stops after deterministic decomposition admission and retains the offending route token", async () => {
+    const { service, input } = await stagedService({
+      async plan() { throw new Error("legacy path must not be called"); },
+      async decompose() { const output = portalDecomposition().output; return { ...output, elements: output.elements.map((element, index) => index === 1 ? { ...element, routeTokens: ["ROUTE_999"] } : element) }; },
+      async assignCoverage() { throw new Error("coverage must not be reached"); },
+    });
+    await expect(service.planApprovedProject(input)).rejects.toMatchObject({ details: { stage: "DECOMPOSITION_ADMISSION", failureClass: "STAGED_REFERENTIAL_INTEGRITY_FAILURE", reasonCode: "PLANNING_DECOMPOSITION_ROUTE_UNKNOWN", safeToken: "ROUTE_999", operation: { providerRequestCount: 1, providerCallsByStage: { coverage: { attempted: 0 } } } } });
+  });
+
+  it("classifies non-referential decomposition admission failures separately", async () => {
+    const { service, input } = await stagedService({
+      async plan() { throw new Error("legacy path must not be called"); },
+      async decompose() { const output = portalDecomposition().output; return { ...output, elements: output.elements.slice(0, 1) }; },
+      async assignCoverage() { throw new Error("coverage must not be reached"); },
+    });
+    await expect(service.planApprovedProject(input)).rejects.toMatchObject({ details: { stage: "DECOMPOSITION_ADMISSION", failureClass: "STAGED_DECOMPOSITION_FAILURE", reasonCode: "PLANNING_DECOMPOSITION_MINIMUM_ELEMENTS", operation: { providerRequestCount: 1, providerCallsByStage: { coverage: { attempted: 0 } } } } });
+  });
+
+  it("attributes deterministic graph cycles without making a coverage provider call", async () => {
+    const { service, input } = await stagedService({
+      async plan() { throw new Error("legacy path must not be called"); },
+      async decompose() { const output = portalDecomposition().output; return { ...output, elements: output.elements.map((element, index) => index === 0 ? { ...element, dependencies: [1] } : index === 1 ? { ...element, dependencies: [0] } : element) }; },
+      async assignCoverage() { throw new Error("coverage must not be reached"); },
+    });
+    await expect(service.planApprovedProject(input)).rejects.toMatchObject({ details: { stage: "GRAPH_ADMISSION", failureClass: "STAGED_REFERENTIAL_INTEGRITY_FAILURE", reasonCode: "PLANNING_GRAPH_CYCLE", operation: { providerRequestCount: 1, providerCallsByStage: { coverage: { attempted: 0 } } } } });
+  });
+
+  it("records a nonexistent coverage PE as a bounded coverage failure", async () => {
+    const { service, input } = await stagedService({
+      async plan() { throw new Error("legacy path must not be called"); },
+      async decompose() { return portalDecomposition().output; },
+      async assignCoverage(stageInput) { const valid = validCoverage(stageInput.plannerReferenceTable); return { ...valid, coverageByRequirement: { ...valid.coverageByRequirement, REQ_001: { planningElementIds: ["PE_999"], semanticEvidence: "A substantive synthetic target." } } }; },
+    });
+    await expect(service.planApprovedProject(input)).rejects.toMatchObject({ details: { stage: "COVERAGE_ADMISSION", failureClass: "STAGED_COVERAGE_FAILURE", reasonCode: "PLANNING_COVERAGE_ELEMENT_NOT_FOUND", safeToken: "PE_999", providerRequestCount: 2, operation: { providerCallsTotal: 2, providerCallsByStage: { decomposition: { attempted: 1, semanticAdmissionPassed: 1 }, coverage: { attempted: 1, completed: 1, semanticAdmissionPassed: 0 } } } } });
+  });
+
+  it("records a coverage provider transport failure with exact staged accounting", async () => {
+    const { service, input } = await stagedService({
+      async plan() { throw new Error("legacy path must not be called"); },
+      async decompose() { return portalDecomposition().output; },
+      async assignCoverage() {
+        throw new AiProviderError("AI_NETWORK_ERROR", "private coverage transport detail", undefined, { stage: "api_request", requestAttempted: true, apiResponseReceived: false, responseReceived: false, schemaName: "planning-coverage-v1" });
+      },
+    });
+    await expect(service.planApprovedProject(input)).rejects.toMatchObject({ details: { stage: "COVERAGE_PROVIDER", failureClass: "PROVIDER_TRANSPORT_FAILURE", reasonCode: "AI_NETWORK_ERROR", providerRequestCount: 2, operation: { providerCallsTotal: 2, providerCallsByStage: { decomposition: { attempted: 1, completed: 1 }, coverage: { attempted: 1, started: 1, responseReceived: 0, structuredParsePassed: 0, failed: 1 } } } } });
+  });
+
+  it("keeps internal staged boundaries typed and telemetry reads non-mutating", () => {
+    const identity = { operationId: "synthetic-telemetry", operationChecksum: "c".repeat(64), correlationId: "55555555-5555-4555-8555-555555555555", projectId, briefChecksum: "d".repeat(64) };
+    const assignmentTelemetry = new StagedPlanningOperationTelemetry(identity);
+    assignmentTelemetry.enter("PE_ASSIGNMENT");
+    const assignmentFailure = assignmentTelemetry.fail({ stage: "PE_ASSIGNMENT", outerCode: "PLANNING_PACKAGE_INVALID", failureClass: "FACTORY_PROTOCOL_DEFECT", reasonCode: "PLANNING_PE_ASSIGNMENT_FAILED", message: "private internal detail" });
+    expect(assignmentFailure.details).toMatchObject({ stage: "PE_ASSIGNMENT", failureClass: "FACTORY_PROTOCOL_DEFECT", providerRequestCount: 0 });
+
+    const finalTelemetry = new StagedPlanningOperationTelemetry({ ...identity, operationId: "synthetic-final-assembly", correlationId: "66666666-6666-4666-8666-666666666666" });
+    const finalFailure = finalTelemetry.fail({ stage: "FINAL_ASSEMBLY", outerCode: "PLANNING_PACKAGE_INVALID", failureClass: "STAGED_FINAL_ASSEMBLY_FAILURE", reasonCode: "PLANNING_FINAL_ASSEMBLY_FAILED", message: "private assembly detail" });
+    expect(finalFailure.details.stage).toBe("FINAL_ASSEMBLY");
+
+    const firstRead = getStagedPlanningOperations();
+    expect(firstRead).toHaveLength(2);
+    firstRead[0]!.providerCallsByStage.decomposition.attempted = 99;
+    const secondRead = getStagedPlanningOperations();
+    expect(secondRead[0]!.providerCallsByStage.decomposition.attempted).toBe(0);
+    expect(getStagedPlanningOperations()).toHaveLength(2);
+  });
+
+  it("records persistence failure without reporting a canonical Planning write", async () => {
+    const inner = new InMemoryPersistenceDatabase();
+    const canonicalBrief = portalBrief();
+    const approvedBrief = portalV1Brief();
+    const timestamp = "2026-01-01T00:00:00.000Z";
+    await new ProjectRepository(inner).create(FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: projectId, slug: "staged-persistence-failure", originalPrompt: "Synthetic persistence failure fixture.", currentVersion: 1, workflowState: "AWAITING_PLANNING_GENERATION" }));
+    await new ProjectVersionRepository(inner).create({ id: "77777777-7777-4777-8777-777777777777", projectId, versionNumber: 1, state: "AWAITING_PLANNING_GENERATION", memoryRootPath: null, requirementsChecksum: canonicalBriefChecksum(canonicalBrief), selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
+    const document = createBriefV3Document({ projectId, projectVersion: 1, brief: canonicalBrief, createdAt: timestamp, updatedAt: timestamp });
+    await new DocumentRepository(inner).save(BriefV3DocumentSchema.parse({ ...document, approval: { approved: true, approvedAt: timestamp, approvedBy: "synthetic-user", approvedCanonicalChecksum: document.briefChecksum } }));
+    const service = new PlannerArchitectService({ database: failingPlanningDatabase(inner), memory: new FakePlannerMemoryPort(), provider: { async plan() { throw new Error("legacy path must not be called"); }, async decompose() { return portalDecomposition().output; }, async assignCoverage(stageInput) { return validCoverage(stageInput.plannerReferenceTable); } } });
+    await expect(service.planApprovedProject(portalInput(approvedBrief, canonicalBrief))).rejects.toMatchObject({ details: { stage: "PERSISTENCE", failureClass: "RUNTIME_PERSISTENCE_FAILURE", providerRequestCount: 2, operation: { canonicalPlanningPersisted: false, lifecycleMutated: false } } });
+    expect(await new DocumentRepository(inner).get(projectId, 1, "planning-package")).toBeNull();
   });
 });

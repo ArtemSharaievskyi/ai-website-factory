@@ -36,6 +36,7 @@ import { executorCapabilitiesForTasks } from "@/orchestration/execution/capabili
 import { canonicalBriefToPlannerBrief } from "@/agents/planner/brief-context";
 import { admitPlanningRefresh, PlanningAdmissionError } from "@/agents/planner/refresh-admission";
 import { CONTRACT_AUDIT_PROMPT_VERSION } from "@/agents/reviewers/contracts/contracts";
+import { currentWorkbenchOperationContext } from "./operation-context";
 
 const list = (values: string[] | undefined, limit = 12) => (values ?? []).slice(0, limit).map((value) => value.slice(0, 500));
 const statements = (values: unknown, limit = 16): string[] => {
@@ -325,7 +326,7 @@ export class WorkbenchApplication {
     const decisions = await new DecisionRepository(this.dependencies.database).list(projectId, version);
     const approvedBriefChecksum = briefV3.briefChecksum;
     if (current.project.workflowState === "AWAITING_PLANNING_GENERATION") {
-      await scope.planner.planApprovedProject({ projectId, projectVersion: version, approvedBrief: brief, canonicalBrief: briefV3.brief, approvedBriefChecksum, originalPromptReference: "original-prompt.md", clarificationEvidenceReferences: ["clarification-log.json"], currentWorkflowState: "AWAITING_PLANNING_GENERATION", existingDecisions: decisions, suppliedFiles: [], allowedSkills: [], idempotencyKey: `workbench-planning:${projectId}`, expectedRowVersion: current.rowVersion });
+      await scope.planner.planApprovedProject({ projectId, projectVersion: version, approvedBrief: brief, canonicalBrief: briefV3.brief, approvedBriefChecksum, originalPromptReference: "original-prompt.md", clarificationEvidenceReferences: ["clarification-log.json"], currentWorkflowState: "AWAITING_PLANNING_GENERATION", existingDecisions: decisions, suppliedFiles: [], allowedSkills: [], idempotencyKey: `workbench-planning:${projectId}`, expectedRowVersion: current.rowVersion }, { correlationId: currentWorkbenchOperationContext()?.correlationId });
       return;
     }
     if (current.project.workflowState !== "AWAITING_PLANNING_APPROVAL") throw new WorkbenchActionError("PLANNING_WORKFLOW_INVALID", "Planning can only be generated or explicitly approved from its canonical lifecycle states.");

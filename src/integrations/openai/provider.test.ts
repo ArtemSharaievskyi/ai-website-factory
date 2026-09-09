@@ -20,6 +20,7 @@ import { CanonicalBriefV3Schema } from "@/domain/requirements/v3/schema";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { createCanonicalPlanningRouteManifest, createPlanningOwnedRequirementManifest, createPlanningTargetCatalog } from "@/agents/planner/recovery-manifests";
 import { createPlannerReferenceTable, measurePlannerProviderInput } from "@/agents/planner/reference-table";
+import type { SafeProviderEvent } from "./usage";
 
 const config = { apiKey: "test", model: "test-model", modelLabel: "GPT-5.6 Luna", maxRetries: 1, maxConcurrentRequests: 1 };
 const schema = z.object({ ok: z.boolean(), summary: z.string() }).strict();
@@ -892,6 +893,31 @@ describe("production AI provider boundary", () => {
   });
 
   it("accepts only injected, schema-valid structured output and records safe usage", async () => { const usage = vi.fn(); const client = new OpenAiStructuredClient(config, { executor: async <T>() => ({ value: { ok: true, summary: "bounded" } as T, requestId: "req_1", inputTokens: 4, cachedInputTokens: 1, outputTokens: 3 }), usageSink: usage }); const result = await client.request(request); expect(result.value).toEqual({ ok: true, summary: "bounded" }); expect(usage).toHaveBeenCalledWith(expect.objectContaining({ inputTokens: 4, cachedInputTokens: 1, outputTokens: 3, promptVersion: "test.v1" })); });
+  it("propagates the staged operation identity through every provider event", async () => {
+    const events: SafeProviderEvent[] = [];
+    const invocation = { operationId: "staged-operation", correlationId: "44444444-4444-4444-8444-444444444444", stage: "decomposition" as const };
+    const client = new OpenAiStructuredClient(config, { eventSink: (event) => events.push(event), executor: validExecutor });
+    await client.request({ ...request, idempotencyKey: "staged-operation-request", retryPolicy: { maxRetries: 0, corrections: 0 }, providerInvocation: invocation });
+    expect(events).toHaveLength(2);
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "request.started", operationId: invocation.operationId, correlationId: invocation.correlationId, operationStage: "decomposition" }),
+      expect.objectContaining({ type: "request.completed", operationId: invocation.operationId, correlationId: invocation.correlationId, operationStage: "decomposition" }),
+    ]));
+  });
+  it("preserves the provider response boundary when staged normalization rejects executor output", async () => {
+    const fixture = tokenizedPlannerFixture();
+    const client = new OpenAiStructuredClient(config, {
+      executor: async <T>() => ({
+        value: { schemaVersion: 1, providerContractVersion: "planner.decomposition.v1", complete: true, elements: [{ kind: "PAGE" }] } as T,
+        requestId: "req_staged_normalization",
+        diagnostic: { stage: "api_response", requestAttempted: true, apiResponseReceived: true, responseReceived: true, outputComplete: true, schemaName: "planning-decomposition-v1" },
+      }),
+    });
+    await expect(new OpenAiPlannerProvider(client).decompose({ approvedBrief: fixture.input.approvedBrief, plannerReferenceTable: fixture.table, requiredDomains: ["FRONTEND"] })).rejects.toMatchObject({
+      code: "AI_OUTPUT_DOMAIN_INVALID",
+      diagnostic: { stage: "domain_validation", outputStage: "TRANSPORT_SCHEMA_VALIDATION_FAILED", requestAttempted: true, apiResponseReceived: true, responseReceived: true, schemaName: "planning-decomposition-v1" },
+    });
+  });
   it("retries one transient failure and does not expose raw provider data", async () => { let calls = 0; const client = new OpenAiStructuredClient(config, { executor: async <T>() => { calls++; if (calls === 1) throw Object.assign(new Error("temporary"), { status: 503 }); return { value: { ok: true, summary: "recovered" } as T, requestId: "req_2" }; } }); await expect(client.request({ ...request, idempotencyKey: "retry" })).resolves.toMatchObject({ value: { ok: true } }); expect(calls).toBe(2); });
   it("honors the recovery request boundary with zero retries and zero corrections", async () => {
     let calls = 0;

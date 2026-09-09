@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkbenchActionError } from "@/runtime/workbench/application";
 import { WorkbenchErrorResponseSchema, clearWorkbenchDiagnosticEvents, getWorkbenchDiagnosticEvents } from "@/runtime/workbench/diagnostics";
 import { MAX_BRIEF_REVISION_INSTRUCTION_BYTES } from "@/runtime/workbench/contracts";
+import { StagedPlanningOperationTelemetry } from "@/agents/planner/staged-failures";
 
 const { mockWorkbench } = vi.hoisted(() => ({ mockWorkbench: { handle: vi.fn() } }));
 
@@ -37,6 +38,8 @@ describe("Workbench route safe failure projection", () => {
     expect(body.validationStage).toBe("REQUEST_SCHEMA");
     expect(body.fieldPath).toBe("projectId");
     expect(body.validationIssues?.length).toBeLessThanOrEqual(5);
+    expect(body.correlationId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(getWorkbenchDiagnosticEvents().at(-1)?.correlationId).toBe(body.correlationId);
     expect(mockWorkbench.handle).not.toHaveBeenCalled();
   });
 
@@ -111,7 +114,20 @@ describe("Workbench route safe failure projection", () => {
     const response = await POST(request({ action: "respond", projectId: "00000000-0000-4000-8000-000000000000", answers: [{ questionId: "00000000-0000-4000-8000-000000000001", answer: "Synthetic" }] }));
     const body = WorkbenchErrorResponseSchema.parse(await response.json());
     expect(response.status).toBe(500);
-    expect(body).toMatchObject({ code: "WORKBENCH_INTERNAL_ERROR", category: "INTERNAL", operation: "ANSWER_LEAD_CLARIFICATIONS" });
+    expect(body).toMatchObject({ code: "WORKBENCH_INTERNAL_ERROR", category: "INTERNAL", operation: "ANSWER_LEAD_CLARIFICATIONS", internalClassification: "UNEXPECTED_EXCEPTION" });
     expect(JSON.stringify(body)).not.toContain("private provider response");
+    expect(getWorkbenchDiagnosticEvents().at(-1)).toMatchObject({ internalClassification: "UNEXPECTED_EXCEPTION", correlationId: body.correlationId });
+  });
+
+  it("preserves a known staged Planner failure at the production route boundary", async () => {
+    const telemetry = new StagedPlanningOperationTelemetry({ operationId: "route-regression", operationChecksum: "a".repeat(64), correlationId: "33333333-3333-4333-8333-333333333333", projectId: validRespondPayload.projectId, briefChecksum: "b".repeat(64) });
+    const error = telemetry.fail({ stage: "COVERAGE_ADMISSION", outerCode: "PLANNING_PACKAGE_INVALID", failureClass: "STAGED_COVERAGE_FAILURE", reasonCode: "PLANNING_COVERAGE_ELEMENT_NOT_FOUND", safeToken: "PE_999", message: "private staged failure", cause: new Error("raw provider JSON and DATABASE_URL=secret") });
+    mockWorkbench.handle.mockRejectedValue(error);
+    const response = await POST(request({ action: "approve-planning", projectId: validRespondPayload.projectId }));
+    const body = WorkbenchErrorResponseSchema.parse(await response.json());
+    expect(response.status).toBe(422);
+    expect(body).toMatchObject({ code: "PLANNING_PACKAGE_INVALID", category: "VALIDATION", failureClass: "STAGED_COVERAGE_FAILURE", stage: "COVERAGE_ADMISSION", reasonCode: "PLANNING_COVERAGE_ELEMENT_NOT_FOUND", safeToken: "PE_999", providerRequestCount: 0 });
+    expect(getWorkbenchDiagnosticEvents().at(-1)?.correlationId).toBe(body.correlationId);
+    expect(JSON.stringify(body)).not.toMatch(/raw provider JSON|DATABASE_URL=secret/);
   });
 });
