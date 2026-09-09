@@ -192,6 +192,16 @@ export class StagedPlanningOperationTelemetry {
     this.providerCalls[stage].semanticAdmissionPassed += 1;
   }
 
+  /** Replace in-memory counters with the durable host ledger when present. */
+  syncProviderAccounting(snapshot: {
+    providerCallsTotal: number;
+    providerCallsByStage: Record<StagedPlanningProviderStage, StagedPlanningProviderCallCounters>;
+  }) {
+    this.providerCalls.decomposition = { ...snapshot.providerCallsByStage.decomposition };
+    this.providerCalls.coverage = { ...snapshot.providerCallsByStage.coverage };
+    this.providerRequestCountExact = true;
+  }
+
   markCanonicalPlanningPersisted() {
     this.canonicalPlanningPersisted = true;
   }

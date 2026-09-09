@@ -83,7 +83,7 @@ import type { TransitionContext } from "@/domain/workflow/engine";
 import { canonicalRequirementEntries } from "@/domain/requirements/v3/identity";
 import { assertPlannerReferenceTableCurrent, createPlannerReferenceTable, PlannerReferenceTableError } from "./reference-table";
 import { isAiProviderError } from "@/integrations/openai/errors";
-import type { ProviderDiagnostic } from "@/integrations/openai/usage";
+import type { ProviderDiagnostic, ProviderInvocationLedgerHandle, ProviderInvocationLedgerPort } from "@/integrations/openai/usage";
 import {
   admitPlanningCoverage,
   admitPlanningDecomposition,
@@ -229,6 +229,12 @@ function refreshFailureCode(error: unknown): string {
     return nestedCode ?? error.code;
   }
   return boundedFailureCode(error) ?? "PLANNING_REFRESH_FAILED";
+}
+
+function isCommitOutcomeAmbiguous(error: unknown, depth = 0): boolean {
+  if (depth > 6 || !error || typeof error !== "object") return false;
+  const value = error as { code?: unknown; cause?: unknown };
+  return value.code === "PERSISTENCE_COMMIT_AMBIGUOUS" || isCommitOutcomeAmbiguous(value.cause, depth + 1);
 }
 
 export type PlannerServiceDependencies = {
@@ -433,10 +439,15 @@ export class PlannerArchitectService {
     skillSelection?: AgentSkillSelection;
     telemetry?: StagedPlanningOperationTelemetry;
     correlationId?: string;
+    providerInvocationLedger?: ProviderInvocationLedgerPort;
+    setStage?: (stage: "PREFLIGHT" | "DECOMPOSITION" | "GRAPH" | "COVERAGE" | "FINAL_ASSEMBLY") => void | Promise<void>;
   }) {
     if (!this.provider.decompose || !this.provider.assignCoverage)
       throw new PlannerError("PLANNING_PACKAGE_INVALID", "The staged Planner provider is incomplete.");
+    if (input.providerInvocationLedger && !input.correlationId)
+      throw new PlannerError("PLANNING_PACKAGE_INVALID", "Staged Planner provider identity is incomplete.");
     const table = input.plannerReferenceTable;
+    await input.setStage?.("PREFLIGHT");
     input.telemetry?.enter("PREFLIGHT");
     const currentness = async () => {
       let currentBrief;
@@ -480,18 +491,27 @@ export class PlannerArchitectService {
       requiredDomains: requiredPlannerDecompositionDomains({ brief: input.brief, canonicalBrief: input.canonicalBrief }),
     };
     let decompositionOutput;
+    await input.setStage?.("DECOMPOSITION");
     input.telemetry?.enter("DECOMPOSITION_PROVIDER");
     const decompositionCall = input.telemetry?.beginProvider("decomposition", "planning-decomposition-v1");
+    const decompositionInvocation: ProviderInvocationLedgerHandle | undefined = input.providerInvocationLedger
+      ? await input.providerInvocationLedger.reserveInvocation({ stage: "decomposition", providerContract: "planning-decomposition-v1" })
+      : undefined;
     try {
       decompositionOutput = await this.provider.decompose(
         decompositionInput,
         input.skillSelection?.contexts,
         input.skillSelection?.identityChecksum,
-        input.correlationId ? { operationId: input.plannerInput.idempotencyKey, correlationId: input.correlationId, stage: "decomposition" } : undefined,
+        input.correlationId ? { operationId: input.plannerInput.idempotencyKey, correlationId: input.correlationId, stage: "decomposition", ...(input.providerInvocationLedger ? { ledger: input.providerInvocationLedger } : {}), ...(decompositionInvocation ? { invocation: decompositionInvocation } : {}) } : undefined,
       );
+      await decompositionInvocation?.responseReceived();
+      await decompositionInvocation?.parsePassed();
       if (decompositionCall) input.telemetry?.providerSucceeded(decompositionCall);
+      if (input.providerInvocationLedger) input.telemetry?.syncProviderAccounting(input.providerInvocationLedger.snapshot());
     } catch (error) {
+      await decompositionInvocation?.failed().catch(() => undefined);
       if (decompositionCall) input.telemetry?.providerFailed(decompositionCall, error);
+      if (input.providerInvocationLedger) input.telemetry?.syncProviderAccounting(input.providerInvocationLedger.snapshot());
       input.telemetry?.enter(stagedProviderParseStage(error, "DECOMPOSITION"));
       if (error instanceof PlannerError) throw error;
       throw new PlannerError("PLANNER_PROVIDER_FAILED", "The staged Planner decomposition provider failed.", error);
@@ -507,7 +527,10 @@ export class PlannerArchitectService {
       throw error;
     }
     input.telemetry?.semanticAdmissionPassed("decomposition");
+    await decompositionInvocation?.admissionPassed();
+    if (input.providerInvocationLedger) input.telemetry?.syncProviderAccounting(input.providerInvocationLedger.snapshot());
     input.telemetry?.enter("PE_ASSIGNMENT");
+    await input.setStage?.("GRAPH");
     let graph;
     input.telemetry?.enter("GRAPH_ASSEMBLY");
     try {
@@ -522,18 +545,27 @@ export class PlannerArchitectService {
     const decompositionStageChecksum = checksumPersistedDocument({ elements, graph });
     await currentness();
     let coverageOutput;
+    await input.setStage?.("COVERAGE");
     input.telemetry?.enter("COVERAGE_PROVIDER");
     const coverageCall = input.telemetry?.beginProvider("coverage", "planning-coverage-v1");
+    const coverageInvocation: ProviderInvocationLedgerHandle | undefined = input.providerInvocationLedger
+      ? await input.providerInvocationLedger.reserveInvocation({ stage: "coverage", providerContract: "planning-coverage-v1" })
+      : undefined;
     try {
       coverageOutput = await this.provider.assignCoverage(
         { plannerReferenceTable: table, elements, graph },
         input.skillSelection?.contexts,
         input.skillSelection?.identityChecksum,
-        input.correlationId ? { operationId: input.plannerInput.idempotencyKey, correlationId: input.correlationId, stage: "coverage" } : undefined,
+        input.correlationId ? { operationId: input.plannerInput.idempotencyKey, correlationId: input.correlationId, stage: "coverage", ...(input.providerInvocationLedger ? { ledger: input.providerInvocationLedger } : {}), ...(coverageInvocation ? { invocation: coverageInvocation } : {}) } : undefined,
       );
+      await coverageInvocation?.responseReceived();
+      await coverageInvocation?.parsePassed();
       if (coverageCall) input.telemetry?.providerSucceeded(coverageCall);
+      if (input.providerInvocationLedger) input.telemetry?.syncProviderAccounting(input.providerInvocationLedger.snapshot());
     } catch (error) {
+      await coverageInvocation?.failed().catch(() => undefined);
       if (coverageCall) input.telemetry?.providerFailed(coverageCall, error);
+      if (input.providerInvocationLedger) input.telemetry?.syncProviderAccounting(input.providerInvocationLedger.snapshot());
       input.telemetry?.enter(stagedProviderParseStage(error, "COVERAGE"));
       if (error instanceof PlannerError) throw error;
       throw new PlannerError("PLANNER_PROVIDER_FAILED", "The staged Planner coverage provider failed.", error);
@@ -557,8 +589,11 @@ export class PlannerArchitectService {
       throw error;
     }
     input.telemetry?.semanticAdmissionPassed("coverage");
+    await coverageInvocation?.admissionPassed();
+    if (input.providerInvocationLedger) input.telemetry?.syncProviderAccounting(input.providerInvocationLedger.snapshot());
     input.telemetry?.enter("COVERAGE_ADMISSION");
     await currentness();
+    await input.setStage?.("FINAL_ASSEMBLY");
     input.telemetry?.enter("FINAL_ASSEMBLY");
     const candidate = assembleStagedPlanningCandidate({
       plannerInput: input.plannerInput,
@@ -573,7 +608,8 @@ export class PlannerArchitectService {
     input.telemetry?.enter("FINAL_ADMISSION");
     return parsedCandidate;
   }
-  async planApprovedProject(rawInput: PlannerAgentInput, executionContext: { correlationId?: string } = {}) {
+  async planApprovedProject(rawInput: PlannerAgentInput, executionContext: { correlationId?: string; providerInvocationLedger?: ProviderInvocationLedgerPort; setStage?: (stage: "OPERATION_INITIALIZATION" | "PREFLIGHT" | "DECOMPOSITION" | "GRAPH" | "COVERAGE" | "FINAL_ASSEMBLY" | "PERSISTENCE" | "LIFECYCLE_TRANSITION") => void | Promise<void>; markMutationCommitted?: () => void | Promise<void> } = {}) {
+    await executionContext.setStage?.("OPERATION_INITIALIZATION");
     const input = this.parseInput(rawInput);
     const legacyPlanningRefresh = input.currentWorkflowState === "AWAITING_DESIGN_SELECTION";
     if (input.currentWorkflowState !== "AWAITING_PLANNING_GENERATION" && !legacyPlanningRefresh)
@@ -581,6 +617,9 @@ export class PlannerArchitectService {
         "PLANNER_WORKFLOW_STATE_INVALID",
         "Planning starts only while the approved Brief is awaiting Planning generation.",
       );
+    if (executionContext.providerInvocationLedger && (!this.provider.decompose || !this.provider.assignCoverage))
+      throw new PlannerError("PLANNING_PACKAGE_INVALID", "Durable staged Planning requires both provider stages.");
+    await executionContext.setStage?.("PREFLIGHT");
     const currentCanonical = await this.validateCurrentCanonicalBrief(input);
     const brief = this.validateBrief(input, currentCanonical);
     if (input.plannerReferenceTable && currentCanonical) {
@@ -789,6 +828,8 @@ export class PlannerArchitectService {
           skillSelection,
           telemetry: stagedTelemetry,
           ...(stagedTelemetry ? { correlationId: stagedTelemetry.correlationId } : {}),
+          ...(executionContext.providerInvocationLedger ? { providerInvocationLedger: executionContext.providerInvocationLedger } : {}),
+          ...(executionContext.setStage ? { setStage: executionContext.setStage } : {}),
         });
       } else {
         planningPackage = PlanningPackageSchema.parse({
@@ -853,6 +894,7 @@ export class PlannerArchitectService {
         "PLANNING_PACKAGE_INVALID",
         `Planner output violated approved form behavior: ${contractIssues.join(", ")}.`,
       );
+    await executionContext.setStage?.("PERSISTENCE");
     stagedTelemetry?.enter("PERSISTENCE");
     await this.persistPackage(planningPackage, input.idempotencyKey, existingPlanning, {
       rowVersion: input.expectedRowVersion,
@@ -863,7 +905,7 @@ export class PlannerArchitectService {
       reason: "Planning candidate persisted; explicit user Planning approval is required.",
       idempotencyKey: `${input.idempotencyKey}:planning-approval`,
       context: { requirements: brief },
-    }, stagedTelemetry);
+    }, stagedTelemetry, executionContext.markMutationCommitted);
     stagedTelemetry?.succeed();
     this.inputKeys.set(input.idempotencyKey, requestHash);
     if (skillSelection)
@@ -1754,9 +1796,12 @@ export class PlannerArchitectService {
     currentProject?: { rowVersion: number; workflowState: "AWAITING_PLANNING_GENERATION" | "AWAITING_PLANNING_APPROVAL" | "AWAITING_DESIGN_SELECTION" | "ARCHITECTURE_REVIEW" },
     workflowTransition?: { targetState: "AWAITING_PLANNING_APPROVAL" | "AWAITING_DESIGN_SELECTION"; actor: string; reason: string; idempotencyKey: string; context?: TransitionContext },
     operationTelemetry?: StagedPlanningOperationTelemetry,
+    onMutationCommitted?: () => void | Promise<void>,
   ) {
     operationTelemetry?.enter("PERSISTENCE");
-    const transition = await this.dependencies.database.transaction(async (tx) => {
+    let transition;
+    try {
+      transition = await this.dependencies.database.transaction(async (tx) => {
       if (currentProject) {
         const project = await tx.getProject(packageValue.projectId);
         if (!project || project.current_version !== packageValue.projectVersion || project.row_version !== currentProject.rowVersion || project.workflow_state !== currentProject.workflowState)
@@ -1816,9 +1861,18 @@ export class PlannerArchitectService {
         });
       }
       return undefined;
-    });
+      });
+    } catch (error) {
+      if (isCommitOutcomeAmbiguous(error)) {
+        operationTelemetry?.markCanonicalPlanningPersisted();
+        if (workflowTransition) operationTelemetry?.markLifecycleMutated();
+        try { await onMutationCommitted?.(); } catch { /* preserve the original ambiguity */ }
+      }
+      throw error;
+    }
     operationTelemetry?.markCanonicalPlanningPersisted();
     if (workflowTransition) operationTelemetry?.markLifecycleMutated();
+    await onMutationCommitted?.();
     await this.dependencies.memory.writeSnapshot(
       packageValue.projectId,
       packageValue.projectVersion,

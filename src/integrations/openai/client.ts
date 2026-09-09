@@ -132,28 +132,46 @@ export class OpenAiStructuredClient {
     let retries = 0;
     let correction = false;
     let capturedUsage: ProviderUsage | undefined;
-    const maxRetries = request.retryPolicy?.maxRetries ?? this.config.maxRetries;
-    const maxCorrections = request.retryPolicy?.corrections ?? 0;
+    // A durable Workbench ledger owns the single provider budget. The
+    // canonical staged Planner contract has no retry/correction/fallback
+    // authority, even if a caller accidentally supplies a looser policy.
+    const maxRetries = request.providerInvocation?.ledger ? 0 : request.retryPolicy?.maxRetries ?? this.config.maxRetries;
+    const maxCorrections = request.providerInvocation?.ledger ? 0 : request.retryPolicy?.corrections ?? 0;
     const startedAt = new Date().toISOString();
     const started = Date.now();
     const operationEvent = request.providerInvocation ? { operationId: request.providerInvocation.operationId, correlationId: request.providerInvocation.correlationId, operationStage: request.providerInvocation.stage } : {};
+    let suppliedInvocation = request.providerInvocation?.invocation;
     this.eventSink?.({ type: "request.started", provider: "openai", model: this.config.model, role: request.role, promptVersion: request.promptVersion, startedAt, ...operationEvent });
     try {
       while (true) {
+        let invocation = suppliedInvocation;
+        suppliedInvocation = undefined;
         if (request.signal?.aborted) throw new AiProviderError("AI_REQUEST_CANCELLED", "AI request was cancelled.", undefined, { stage: "request_construction", requestAttempted: false, apiResponseReceived: false, responseReceived: false, outputComplete: false, schemaName: request.schemaName });
         try {
+          if (!invocation && request.providerInvocation?.ledger)
+            invocation = await request.providerInvocation.ledger.reserveInvocation({ stage: request.providerInvocation.stage, providerContract: request.schemaName });
           this.assertContextCapacity(request);
+          // Build the exact production response format before consuming the
+          // irreversible provider budget. The executor builds the same format
+          // for the SDK call, but this preflight keeps schema failures at zero
+          // transport calls.
+          buildProductionResponseFormat(request.schema, request.schemaName, { schemaDefinitions: request.schemaDefinitions });
+          await invocation?.beforeTransport();
           const captureResponse: ProviderResponseCapture = async (response) => {
             if (!capturedUsage) capturedUsage = await this.recordUsage(request, response, retries, correction);
           };
           const result = request.parseStrategy === "manual" && !this.executorInjected
             ? await manualExecutor(request, this.client, this.config, correction, captureResponse)
             : await this.executor(request, this.client, this.config, correction);
+          await invocation?.responseReceived();
+          await invocation?.parsePassed();
           const usage = capturedUsage ?? await this.recordUsage(request, result, retries, correction);
           this.eventSink?.({ type: "request.completed", provider: "openai", model: this.config.model, role: request.role, promptVersion: request.promptVersion, requestId: result.requestId, retryCount: retries, startedAt, completedAt: new Date().toISOString(), elapsedMs: Date.now() - started, diagnostic: result.diagnostic, ...operationEvent });
           return { value: result.value, usage, requestId: result.requestId, diagnostic: result.diagnostic };
         } catch (error) {
           const mapped = mapError(error, request.schemaName, true, this.config.model);
+          if (invocation && (mapped.diagnostic?.responseReceived || mapped.diagnostic?.apiResponseReceived)) await invocation.responseReceived().catch(() => undefined);
+          if (invocation) await invocation.failed().catch(() => undefined);
           if (mapped.code === "AI_OUTPUT_SCHEMA_MISMATCH" && !correction && maxCorrections > 0) {
             correction = true;
             continue;

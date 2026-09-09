@@ -59,7 +59,21 @@ export type ProviderDiagnostic = {
   contextCapacity?: { budgetProfile: string; requestBytes: number; requestTokens: number; totalBytesWithReserve: number; totalTokensWithReserve: number; maxBytes: number; maxTokens: number; canonicalRequirementBytes: number; supportingContextBytes: number };
 };
 export type ProviderInvocationStage = "decomposition" | "coverage";
-export type ProviderInvocationContext = { operationId: string; correlationId: string; stage: ProviderInvocationStage };
+export type ProviderInvocationLedgerState = "RESERVED" | "ATTEMPTING" | "TRANSPORT_STARTED" | "RESPONSE_RECEIVED" | "PARSE_PASSED" | "ADMISSION_PASSED" | "FAILED";
+export type ProviderInvocationLedgerHandle = {
+  stage: ProviderInvocationStage;
+  providerContract: string;
+  beforeTransport(): Promise<void>;
+  responseReceived(): Promise<void>;
+  parsePassed(): Promise<void>;
+  admissionPassed(): Promise<void>;
+  failed(): Promise<void>;
+};
+export type ProviderInvocationLedgerPort = {
+  reserveInvocation(input: { stage: ProviderInvocationStage; providerContract: string }): Promise<ProviderInvocationLedgerHandle>;
+  snapshot(): { providerCallsTotal: number; providerCallsByStage: Record<ProviderInvocationStage, { attempted: number; started: number; responseReceived: number; structuredParsePassed: number; semanticAdmissionPassed: number; completed: number; failed: number }>; providerInvocationState?: ProviderInvocationLedgerState };
+};
+export type ProviderInvocationContext = { operationId: string; correlationId: string; stage: ProviderInvocationStage; ledger?: ProviderInvocationLedgerPort; invocation?: ProviderInvocationLedgerHandle };
 export type SafeProviderEvent = { type: "request.started" | "request.completed" | "request.failed"; provider: string; model: string; role: string; promptVersion: string; requestId?: string; code?: string; retryCount?: number; startedAt?: string; completedAt?: string; elapsedMs?: number; diagnostic?: ProviderDiagnostic; operationId?: string; correlationId?: string; operationStage?: ProviderInvocationStage };
 export type ProviderEventSink = (event: SafeProviderEvent) => void;
 export type ProviderUsageSink = (usage: ProviderUsage) => void | Promise<void>;

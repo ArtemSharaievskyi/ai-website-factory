@@ -102,9 +102,11 @@ export interface PersistenceTransaction {
   listDecisions(projectId: string, version: number): Promise<DecisionRecord[]>;
   appendWorkflowEvent(event: WorkflowEvent): Promise<WorkflowEvent>;
   saveCost(record: CostRecord): Promise<CostRecord>;
-  reserveOperation(input: { operation: string; key: string; payloadHash: string }): Promise<OperationReservation>;
-  completeOperation(input: { operation: string; key: string; payloadHash: string; result: unknown }): Promise<void>;
-  failOperation(input: { operation: string; key: string; payloadHash: string }): Promise<void>;
+  reserveOperation(input: { operation: string; key: string; payloadHash: string; initialResult?: unknown }): Promise<OperationReservation>;
+  getOperation(input: { operation: string; key: string; payloadHash?: string }): Promise<{ status: OperationStatus; payloadHash: string; result?: unknown } | null>;
+  updateOperationResult(input: { operation: string; key: string; payloadHash: string; result: unknown; leaseId?: string }): Promise<void>;
+  completeOperation(input: { operation: string; key: string; payloadHash: string; result: unknown; leaseId?: string }): Promise<void>;
+  failOperation(input: { operation: string; key: string; payloadHash: string; result?: unknown; leaseId?: string }): Promise<void>;
   getBriefRevisionAttempt(input: { operationKind: string; operationKey: string; payloadHash?: string }): Promise<BriefRevisionAttemptRow | null>;
   listBriefRevisionAttempts(projectId: string, projectVersion: number): Promise<BriefRevisionAttemptRow[]>;
   getBriefRevisionHistory(attemptId: string): Promise<BriefRevisionHistoryRow | null>;

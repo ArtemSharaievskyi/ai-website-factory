@@ -6,7 +6,7 @@ import { PersistenceError, type PersistenceDiagnostic } from "./errors";
 import { mapRowToDocument, type DocumentRow } from "./mapping";
 import { canonicalBriefChecksumForDocument } from "./brief-revision-v3-contracts";
 import { appendBriefRevisionFailureDiagnostic, normalizeBriefRevisionFailureDiagnostics } from "./brief-revision-failure-diagnostics";
-import type { BriefRevisionAtomicCommitInput, BriefRevisionAtomicCommitResult, BriefRevisionAttemptClaim, BriefRevisionAttemptRow, BriefRevisionAttemptStatus, BriefRevisionAttemptTransition, BriefRevisionProjectionClaim, BriefRevisionProjectionRow, BriefRevisionProjectionStatus, OperationReservation, PersistenceDatabase, PersistenceTransaction, ProjectAssetRow, ProjectRow, ProjectVersionRow, WorkflowEvent, CostRecord, PlanningRecoveryEvidenceRow, RequirementIdentityLineageRow, RequirementIdentityMigrationRow } from "./types";
+import type { BriefRevisionAtomicCommitInput, BriefRevisionAtomicCommitResult, BriefRevisionAttemptClaim, BriefRevisionAttemptRow, BriefRevisionAttemptStatus, BriefRevisionAttemptTransition, BriefRevisionProjectionClaim, BriefRevisionProjectionRow, BriefRevisionProjectionStatus, OperationReservation, OperationStatus, PersistenceDatabase, PersistenceTransaction, ProjectAssetRow, ProjectRow, ProjectVersionRow, WorkflowEvent, CostRecord, PlanningRecoveryEvidenceRow, RequirementIdentityLineageRow, RequirementIdentityMigrationRow } from "./types";
 import { DecisionRecordSchema, type DecisionRecord } from "@/domain/workflow/decision";
 import { RequirementIdentityLineageRecordSchema, RequirementIdentityMigrationRecordSchema } from "@/domain/requirements/v3/identity";
 import { stableSerialize } from "@/domain/requirements/v3/serialization";
@@ -214,22 +214,37 @@ class PostgresTransaction implements PersistenceTransaction {
   async listDecisions(projectId: string, version: number) { const result = await this.query<Record<string, unknown>>("SELECT id, timestamp, actor_type AS \"actorType\", actor_identifier AS \"actorIdentifier\", category, decision, rationale, affected_documents AS \"affectedDocuments\", requirement_change AS \"requirementChange\", user_approval_required AS \"userApprovalRequired\", user_approval_status AS \"userApprovalStatus\", supersedes_decision_id AS \"supersedesDecisionId\" FROM decision_records WHERE project_id=$1 AND project_version=$2 ORDER BY timestamp, id", [projectId, version]); return result.rows.map(normalizeDecisionRecord); }
   async appendWorkflowEvent(event: WorkflowEvent) { await this.query("INSERT INTO workflow_events (id, project_id, project_version, from_state, to_state, actor, reason, created_at, idempotency_key, revision_attempt_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)", [event.id, event.projectId, event.projectVersion, event.fromState, event.toState, event.actor, event.reason, event.createdAt, event.idempotencyKey ?? null, event.revisionAttemptId ?? null], { stage: "workflow-event-write", operation: "appendWorkflowEvent", table: "workflow_events" }); return event; }
   async saveCost(record: CostRecord) { await this.query("INSERT INTO cost_records (id, project_id, project_version, role, task_id, provider, model, input_tokens, cached_input_tokens, output_tokens, estimated_cost, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)", [record.id, record.projectId, record.projectVersion, record.role, record.taskId ?? null, record.provider, record.model, record.inputTokens, record.cachedInputTokens, record.outputTokens, record.estimatedCost, record.createdAt]); return record; }
-  async reserveOperation(input: { operation: string; key: string; payloadHash: string }): Promise<OperationReservation> {
-    const inserted = await this.query("INSERT INTO idempotency_records (operation, idempotency_key, payload_hash, result) VALUES ($1, $2, $3, $4) ON CONFLICT (operation, idempotency_key) DO NOTHING RETURNING operation", [input.operation, input.key, input.payloadHash, { status: "IN_PROGRESS" }]);
+  async reserveOperation(input: { operation: string; key: string; payloadHash: string; initialResult?: unknown }): Promise<OperationReservation> {
+    const inserted = await this.query("INSERT INTO idempotency_records (operation, idempotency_key, payload_hash, result) VALUES ($1, $2, $3, $4) ON CONFLICT (operation, idempotency_key) DO NOTHING RETURNING operation", [input.operation, input.key, input.payloadHash, { status: "IN_PROGRESS", ...(input.initialResult === undefined ? {} : { result: input.initialResult }) }]);
     if (inserted.rows.length) return { status: "NEW", key: input.key };
     const existing = value<{ payload_hash: string; result: { status?: string; result?: unknown } }>(await this.query("SELECT payload_hash, result FROM idempotency_records WHERE operation = $1 AND idempotency_key = $2 FOR UPDATE", [input.operation, input.key]));
     if (!existing || existing.payload_hash !== input.payloadHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key was already used with a different payload.");
     if (existing.result.status === "IN_PROGRESS") return { status: "IN_PROGRESS", key: input.key };
     if (existing.result.status === "SUCCEEDED") return { status: "SUCCEEDED", key: input.key, result: existing.result.result };
-    await this.query("UPDATE idempotency_records SET result = $1 WHERE operation = $2 AND idempotency_key = $3", [{ status: "IN_PROGRESS" }, input.operation, input.key]);
+    await this.query("UPDATE idempotency_records SET result = $1 WHERE operation = $2 AND idempotency_key = $3", [{ status: "IN_PROGRESS", ...(input.initialResult === undefined ? {} : { result: input.initialResult }) }, input.operation, input.key]);
     return { status: "NEW", key: input.key };
   }
-  async completeOperation(input: { operation: string; key: string; payloadHash: string; result: unknown }) {
-    const updated = await this.query("UPDATE idempotency_records SET result = $1 WHERE operation = $2 AND idempotency_key = $3 AND payload_hash = $4", [{ status: "SUCCEEDED", result: input.result }, input.operation, input.key, input.payloadHash]);
+  async getOperation(input: { operation: string; key: string; payloadHash?: string }) {
+    const existing = value<{ payload_hash: string; result: { status?: string; result?: unknown } }>(await this.query("SELECT payload_hash, result FROM idempotency_records WHERE operation = $1 AND idempotency_key = $2", [input.operation, input.key]));
+    if (!existing) return null;
+    if (input.payloadHash && existing.payload_hash !== input.payloadHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key was already used with a different payload.");
+    const status = existing.result.status;
+    if (status !== "IN_PROGRESS" && status !== "SUCCEEDED" && status !== "FAILED") throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "The operation state is invalid.");
+    return { status: status as OperationStatus, payloadHash: existing.payload_hash, ...(existing.result.result === undefined ? {} : { result: existing.result.result }) };
+  }
+  async updateOperationResult(input: { operation: string; key: string; payloadHash: string; result: unknown; leaseId?: string }) {
+    const leaseClause = input.leaseId === undefined ? "" : " AND result->'result'->>'attemptId' = $5";
+    const updated = await this.query(`UPDATE idempotency_records SET result = $1 WHERE operation = $2 AND idempotency_key = $3 AND payload_hash = $4 AND result->>'status' = 'IN_PROGRESS'${leaseClause}`, [{ status: "IN_PROGRESS", result: input.result }, input.operation, input.key, input.payloadHash, ...(input.leaseId === undefined ? [] : [input.leaseId])]);
     if (!updated.rowCount) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key is not current.");
   }
-  async failOperation(input: { operation: string; key: string; payloadHash: string }) {
-    const updated = await this.query("UPDATE idempotency_records SET result = $1 WHERE operation = $2 AND idempotency_key = $3 AND payload_hash = $4", [{ status: "FAILED" }, input.operation, input.key, input.payloadHash]);
+  async completeOperation(input: { operation: string; key: string; payloadHash: string; result: unknown; leaseId?: string }) {
+    const leaseClause = input.leaseId === undefined ? "" : " AND result->'result'->>'attemptId' = $5";
+    const updated = await this.query(`UPDATE idempotency_records SET result = $1 WHERE operation = $2 AND idempotency_key = $3 AND payload_hash = $4 AND result->>'status' = 'IN_PROGRESS'${leaseClause}`, [{ status: "SUCCEEDED", result: input.result }, input.operation, input.key, input.payloadHash, ...(input.leaseId === undefined ? [] : [input.leaseId])]);
+    if (!updated.rowCount) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key is not current.");
+  }
+  async failOperation(input: { operation: string; key: string; payloadHash: string; result?: unknown; leaseId?: string }) {
+    const leaseClause = input.leaseId === undefined ? "" : " AND result->'result'->>'attemptId' = $5";
+    const updated = await this.query(`UPDATE idempotency_records SET result = $1 WHERE operation = $2 AND idempotency_key = $3 AND payload_hash = $4 AND result->>'status' = 'IN_PROGRESS'${leaseClause}`, [{ status: "FAILED", ...(input.result === undefined ? {} : { result: input.result }) }, input.operation, input.key, input.payloadHash, ...(input.leaseId === undefined ? [] : [input.leaseId])]);
     if (!updated.rowCount) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key is not current.");
   }
   private async readBriefRevisionAttempt(input: { operationKind: string; operationKey: string; forUpdate?: boolean }) {

@@ -2,7 +2,10 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { isAiProviderError, type AiProviderError } from "@/integrations/openai/errors";
 import { PROVIDER_OUTPUT_STAGES, type ProviderDiagnostic, type ProviderOutputStage } from "@/integrations/openai/usage";
-import { isStagedPlanningFailure, StagedPlanningFailureClassSchema, StagedPlanningOperationSummarySchema, StagedPlanningStageSchema, type StagedPlanningFailureClass, type StagedPlanningOperationSummary, type StagedPlanningStage } from "@/agents/planner/staged-failures";
+import { isStagedPlanningFailure, StagedPlanningFailureClassSchema, StagedPlanningOperationSummarySchema, StagedPlanningStageSchema, type StagedPlanningOperationSummary, type StagedPlanningStage } from "@/agents/planner/staged-failures";
+import { isWorkbenchOperationFailure, type WorkbenchOperationFailure } from "./operation-context";
+import { WORKBENCH_OPERATION_STAGES, type WorkbenchOperationStage } from "./operation-context";
+import { safeOperationFingerprint } from "./operation-ledger";
 
 export const WorkbenchErrorCategorySchema = z.enum([
   "VALIDATION",
@@ -31,6 +34,13 @@ export const WorkbenchOperationSchema = z.enum([
 ]);
 export type WorkbenchOperation = z.infer<typeof WorkbenchOperationSchema>;
 
+const WorkbenchOperationStageSchema = z.enum(WORKBENCH_OPERATION_STAGES);
+const WorkbenchFailureClassSchema = z.union([StagedPlanningFailureClassSchema, z.enum(["UNEXPECTED_EXCEPTION", "KNOWN_WORKFLOW_FAILURE"])]);
+export const WorkbenchProviderCallCountersSchema = z.object({ attempted: z.number().int().nonnegative(), started: z.number().int().nonnegative(), responseReceived: z.number().int().nonnegative(), structuredParsePassed: z.number().int().nonnegative(), semanticAdmissionPassed: z.number().int().nonnegative(), completed: z.number().int().nonnegative(), failed: z.number().int().nonnegative() }).strict();
+const WorkbenchProviderCallsByStageSchema = z.object({ decomposition: WorkbenchProviderCallCountersSchema, coverage: WorkbenchProviderCallCountersSchema }).strict();
+const SafeOperationIdSchema = z.string().min(1).max(256).regex(/^[A-Za-z0-9][A-Za-z0-9:_./-]*$/);
+const SafeFingerprintSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9]{0,63}@[A-Z_]+:[a-f0-9]{16}$/);
+
 export const WorkbenchSubsystemSchema = z.enum([
   "ROUTE",
   "WORKBENCH_APPLICATION",
@@ -55,13 +65,27 @@ export const WorkbenchErrorResponseSchema = z
     fieldPath: z.string().regex(/^[A-Za-z][A-Za-z0-9_.\[\]]*$/).optional(),
     expectedShape: z.string().min(1).max(160).optional(),
     validationIssues: z.array(z.object({ path: z.string().regex(/^[A-Za-z][A-Za-z0-9_.\[\]]*$/), issueCode: z.string().regex(/^[A-Z][A-Z0-9_]+$/), expectedShape: z.string().min(1).max(160) }).strict()).max(5).optional(),
-    failureClass: StagedPlanningFailureClassSchema.optional(),
-    stage: StagedPlanningStageSchema.optional(),
+    operationId: SafeOperationIdSchema.optional(),
+    operationKind: z.string().regex(/^[A-Z][A-Z0-9_]{1,80}$/).optional(),
+    projectId: z.string().uuid().optional(),
+    phase: z.literal("PLANNING").optional(),
+    operationStage: WorkbenchOperationStageSchema.optional(),
+    failureClass: WorkbenchFailureClassSchema.optional(),
+    stage: z.union([StagedPlanningStageSchema, WorkbenchOperationStageSchema]).optional(),
+    outerCode: z.string().regex(/^[A-Z][A-Z0-9_]+$/).optional(),
     reasonCode: z.string().regex(/^[A-Z][A-Z0-9_]+$/).optional(),
     safeToken: z.string().regex(/^(?:REQ|PE|PAGE|ROUTE)_\d{3,}$/).max(32).optional(),
+    safeErrorFingerprint: SafeFingerprintSchema.optional(),
+    providerContract: z.string().regex(/^[a-z0-9-]{1,100}$/).optional(),
+    providerCallsTotal: z.number().int().nonnegative().optional(),
+    providerCallsByStage: WorkbenchProviderCallsByStageSchema.optional(),
+    providerInvocationState: z.enum(["RESERVED", "ATTEMPTING", "TRANSPORT_STARTED", "RESPONSE_RECEIVED", "PARSE_PASSED", "ADMISSION_PASSED", "FAILED"]).optional(),
+    canonicalPlanningPersisted: z.boolean().optional(),
+    lifecycleMutated: z.boolean().optional(),
     providerRequestCountExact: z.boolean().optional(),
     providerRequestCount: z.number().int().nonnegative().optional(),
     internalClassification: z.literal("UNEXPECTED_EXCEPTION").optional(),
+    stagedOperation: StagedPlanningOperationSummarySchema.optional(),
   })
   .strict();
 export type WorkbenchErrorResponse = z.infer<typeof WorkbenchErrorResponseSchema>;
@@ -112,6 +136,10 @@ export type WorkbenchDiagnosticEvent = {
   correlationId: string;
   operation: WorkbenchOperation;
   projectId?: string;
+  operationId?: string;
+  operationKind?: string;
+  phase?: "PLANNING";
+  operationStage?: WorkbenchOperationStage;
   workflowState?: string;
   code: string;
   category: WorkbenchErrorCategory;
@@ -135,10 +163,18 @@ export type WorkbenchDiagnosticEvent = {
   outputTokens?: number;
   maxCompletionTokens?: number;
   providerIssueCount?: number;
-  failureClass?: StagedPlanningFailureClass;
-  stage?: StagedPlanningStage;
+  failureClass?: z.infer<typeof WorkbenchFailureClassSchema>;
+  stage?: StagedPlanningStage | WorkbenchOperationStage;
+  outerCode?: string;
   reasonCode?: string;
   safeToken?: string;
+  safeErrorFingerprint?: string;
+  providerContract?: string;
+  providerCallsTotal?: number;
+  providerCallsByStage?: z.infer<typeof WorkbenchProviderCallsByStageSchema>;
+  providerInvocationState?: string;
+  canonicalPlanningPersisted?: boolean;
+  lifecycleMutated?: boolean;
   providerRequestCountExact?: boolean;
   providerRequestCount?: number;
   internalClassification?: "UNEXPECTED_EXCEPTION";
@@ -146,6 +182,8 @@ export type WorkbenchDiagnosticEvent = {
 };
 
 const CONFLICT_CODES = new Set([
+  "WORKBENCH_OPERATION_IN_PROGRESS",
+  "WORKBENCH_OPERATION_REPLAY",
   "WORKBENCH_ACTION_NOT_AVAILABLE",
   "PLANNING_UPSTREAM_MISSING",
   "PLANNING_NOT_READY",
@@ -259,6 +297,7 @@ const PERSISTENCE_CODES = new Set([
   "PERSISTENCE_DATABASE_URL_INVALID",
   "PERSISTENCE_CONFIGURATION_INVALID",
   "PERSISTENCE_UNSUPPORTED",
+  "PERSISTENCE_COMMIT_AMBIGUOUS",
   "PLANNING_PERSISTENCE_FAILED",
   "PLANNING_LIFECYCLE_TRANSITION_FAILED",
 ]);
@@ -271,6 +310,7 @@ const SAFE_ERROR_CLASSES = new Set([
   "PersistenceConfigurationError",
   "PersistenceError",
   "WorkbenchActionError",
+  "WorkbenchOperationFailure",
   "WorkbenchRequestValidationError",
   "ZodError",
   "StagedPlanningFailure",
@@ -464,6 +504,38 @@ function stagedFailureProjection(error: unknown): Omit<WorkbenchErrorProjection,
   };
 }
 
+function operationFailureProjection(error: WorkbenchOperationFailure): Omit<WorkbenchErrorProjection, "ok" | "code" | "correlationId" | "operation"> {
+  const details = error.details;
+  const cause = error.cause;
+  const staged = stagedFailureProjection(cause);
+  const base = staged ?? definitionFor(details.outerCode, cause);
+  return {
+    ...base,
+    error: details.canonicalPlanningPersisted || details.lifecycleMutated ? error.message : base.error,
+    errorClass: errorClass(cause),
+    operationId: details.operationId,
+    operationKind: details.operationKind,
+    projectId: details.projectId,
+    phase: details.phase,
+    operationStage: details.operationStage,
+    failureClass: staged?.failureClass ?? details.failureClass as WorkbenchErrorProjection["failureClass"],
+    stage: staged?.stage ?? details.operationStage,
+    outerCode: details.outerCode,
+    safeErrorFingerprint: details.safeErrorFingerprint,
+    providerCallsTotal: details.providerCallsTotal,
+    providerCallsByStage: details.providerCallsByStage as WorkbenchErrorProjection["providerCallsByStage"],
+    providerRequestCountExact: true,
+    providerRequestCount: details.providerCallsTotal,
+    ...(details.providerContract ? { providerContract: details.providerContract } : {}),
+    ...(details.providerInvocationState ? { providerInvocationState: details.providerInvocationState } : {}),
+    canonicalPlanningPersisted: details.canonicalPlanningPersisted,
+    lifecycleMutated: details.lifecycleMutated,
+    ...(details.reasonCode ? { reasonCode: details.reasonCode } : {}),
+    internalClassification: details.internalClassification,
+    ...(staged?.stagedOperation ? { stagedOperation: staged.stagedOperation } : {}),
+  };
+}
+
 function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProjection, "ok" | "code" | "correlationId" | "operation"> {
   const staged = stagedFailureProjection(error);
   if (staged) return staged;
@@ -482,12 +554,23 @@ function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProject
     const status = providerStatus(code);
     return { error: "The Lead service could not complete this request. The project was not changed.", ...status, category: "PROVIDER", subsystem: "PROVIDER", errorClass: errorClass(error), ...(safeProviderDiagnostic(error) ? { providerDiagnostic: safeProviderDiagnostic(error) } : {}) };
   }
+  if (code === "PERSISTENCE_COMMIT_AMBIGUOUS") return { error: "The database commit outcome could not be confirmed. Inspect the current project state before retrying.", httpStatus: 503, recoverable: true, category: "PERSISTENCE", subsystem: "PERSISTENCE", errorClass: errorClass(error) };
   if (PERSISTENCE_CODES.has(code)) return { error: "The project could not be saved safely. The project was not changed.", httpStatus: 503, recoverable: true, category: "PERSISTENCE", subsystem: "PERSISTENCE", errorClass: errorClass(error) };
   if (VALIDATION_CODES.has(code)) return { error: "The request could not be completed because its workflow data was invalid.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: code.startsWith("PERSISTENCE_") ? "PERSISTENCE" : code.startsWith("LEAD_") ? "LEAD" : code.startsWith("INITIAL_") ? "ROUTE" : "TRIAL_ENTRY", errorClass: errorClass(error) };
   return { error: "We couldn't complete this request. The project was not changed.", httpStatus: 500, recoverable: false, category: "INTERNAL", subsystem: "ROUTE", errorClass: errorClass(error), internalClassification: "UNEXPECTED_EXCEPTION" };
 }
 
 export function normalizeWorkbenchError(error: unknown, context: WorkbenchDiagnosticContext = {}): WorkbenchErrorProjection {
+  if (isWorkbenchOperationFailure(error)) {
+    const operationProjection = operationFailureProjection(error);
+    return {
+      ok: false,
+      code: error.details.outerCode,
+      correlationId: context.correlationId && z.string().uuid().safeParse(context.correlationId).success ? context.correlationId : error.details.correlationId,
+      operation: context.operation ?? operationForAction(context.action),
+      ...operationProjection,
+    };
+  }
   const code = error instanceof WorkbenchRequestValidationError || error instanceof z.ZodError ? "WORKBENCH_REQUEST_INVALID" : codeOf(error);
   const knownCode = code && (CONFLICT_CODES.has(code) || NOT_FOUND_CODES.has(code) || VALIDATION_CODES.has(code) || PROVIDER_CODES.has(code) || PERSISTENCE_CODES.has(code) || code === "WORKBENCH_REQUEST_INVALID" || code === "WORKBENCH_REQUEST_TOO_LARGE" || code === "WORKBENCH_ADVANCED_RUNTIME_UNAVAILABLE" || isStagedPlanningFailure(error)) ? code : undefined;
   const projection = definitionFor(knownCode ?? "WORKBENCH_INTERNAL_ERROR", error);
@@ -509,6 +592,10 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     correlationId: projection.correlationId,
     operation: projection.operation,
     ...(context.projectId ? { projectId: context.projectId } : {}),
+    ...(projection.operationId ? { operationId: projection.operationId } : {}),
+    ...(projection.operationKind ? { operationKind: projection.operationKind } : {}),
+    ...(projection.phase ? { phase: projection.phase } : {}),
+    ...(projection.operationStage ? { operationStage: projection.operationStage } : {}),
     ...(context.workflowState ? { workflowState: context.workflowState } : {}),
     code: projection.code,
     category: projection.category,
@@ -517,8 +604,16 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     recoverable: projection.recoverable,
     ...(projection.failureClass ? { failureClass: projection.failureClass } : {}),
     ...(projection.stage ? { stage: projection.stage } : {}),
+    ...(projection.outerCode ? { outerCode: projection.outerCode } : {}),
     ...(projection.reasonCode ? { reasonCode: projection.reasonCode } : {}),
     ...(projection.safeToken ? { safeToken: projection.safeToken } : {}),
+    ...(projection.safeErrorFingerprint ? { safeErrorFingerprint: projection.safeErrorFingerprint } : {}),
+    ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
+    ...(projection.providerCallsTotal !== undefined ? { providerCallsTotal: projection.providerCallsTotal } : {}),
+    ...(projection.providerCallsByStage ? { providerCallsByStage: projection.providerCallsByStage } : {}),
+    ...(projection.providerInvocationState ? { providerInvocationState: projection.providerInvocationState } : {}),
+    ...(projection.canonicalPlanningPersisted !== undefined ? { canonicalPlanningPersisted: projection.canonicalPlanningPersisted } : {}),
+    ...(projection.lifecycleMutated !== undefined ? { lifecycleMutated: projection.lifecycleMutated } : {}),
     ...(projection.providerRequestCountExact !== undefined ? { providerRequestCountExact: projection.providerRequestCountExact } : {}),
     ...(projection.providerRequestCount !== undefined ? { providerRequestCount: projection.providerRequestCount } : {}),
     ...(projection.internalClassification ? { internalClassification: projection.internalClassification } : {}),
@@ -565,9 +660,26 @@ export function clearWorkbenchDiagnosticEvents() {
 }
 
 export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagnosticContext = {}) {
-  const projection = normalizeWorkbenchError(error, context);
-  emitWorkbenchDiagnostic(diagnosticEventFor(projection, context));
-  const response = WorkbenchErrorResponseSchema.parse({
+  let projection: WorkbenchErrorProjection;
+  try {
+    projection = normalizeWorkbenchError(error, context);
+  } catch {
+    projection = {
+      ok: false,
+      error: "We couldn't complete this request. The project was not changed.",
+      code: "WORKBENCH_INTERNAL_ERROR",
+      correlationId: context.correlationId && z.string().uuid().safeParse(context.correlationId).success ? context.correlationId : randomUUID(),
+      operation: context.operation ?? operationForAction(context.action),
+      recoverable: false,
+      category: "INTERNAL",
+      subsystem: "ROUTE",
+      errorClass: "UnknownError",
+      internalClassification: "UNEXPECTED_EXCEPTION",
+      httpStatus: 500,
+    };
+  }
+  try { emitWorkbenchDiagnostic(diagnosticEventFor(projection, context)); } catch { /* diagnostics are best effort and never change the response */ }
+  const responseInput = {
     ok: projection.ok,
     error: projection.error,
     code: projection.code,
@@ -580,13 +692,63 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     ...(projection.fieldPath ? { fieldPath: projection.fieldPath } : {}),
     ...(projection.expectedShape ? { expectedShape: projection.expectedShape } : {}),
     ...(projection.validationIssues ? { validationIssues: projection.validationIssues } : {}),
+    ...(projection.operationId ? { operationId: projection.operationId } : {}),
+    ...(projection.operationKind ? { operationKind: projection.operationKind } : {}),
+    ...(projection.projectId ? { projectId: projection.projectId } : {}),
+    ...(projection.phase ? { phase: projection.phase } : {}),
+    ...(projection.operationStage ? { operationStage: projection.operationStage } : {}),
     ...(projection.failureClass ? { failureClass: projection.failureClass } : {}),
     ...(projection.stage ? { stage: projection.stage } : {}),
+    ...(projection.outerCode ? { outerCode: projection.outerCode } : {}),
     ...(projection.reasonCode ? { reasonCode: projection.reasonCode } : {}),
     ...(projection.safeToken ? { safeToken: projection.safeToken } : {}),
+    ...(projection.safeErrorFingerprint ? { safeErrorFingerprint: projection.safeErrorFingerprint } : {}),
+    ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
+    ...(projection.providerCallsTotal !== undefined ? { providerCallsTotal: projection.providerCallsTotal } : {}),
+    ...(projection.providerCallsByStage ? { providerCallsByStage: projection.providerCallsByStage } : {}),
+    ...(projection.providerInvocationState ? { providerInvocationState: projection.providerInvocationState } : {}),
+    ...(projection.canonicalPlanningPersisted !== undefined ? { canonicalPlanningPersisted: projection.canonicalPlanningPersisted } : {}),
+    ...(projection.lifecycleMutated !== undefined ? { lifecycleMutated: projection.lifecycleMutated } : {}),
     ...(projection.providerRequestCountExact !== undefined ? { providerRequestCountExact: projection.providerRequestCountExact } : {}),
     ...(projection.providerRequestCount !== undefined ? { providerRequestCount: projection.providerRequestCount } : {}),
     ...(projection.internalClassification ? { internalClassification: projection.internalClassification } : {}),
-  });
-  return { response, status: projection.httpStatus };
+    ...(projection.stagedOperation ? { stagedOperation: projection.stagedOperation } : {}),
+  };
+  let response: WorkbenchErrorResponse;
+  try {
+    response = WorkbenchErrorResponseSchema.parse(responseInput);
+  } catch {
+    const safeCorrelationId = z.string().uuid().safeParse(projection.correlationId).success ? projection.correlationId : randomUUID();
+    const safeOperation = WorkbenchOperationSchema.safeParse(projection.operation).success ? projection.operation : "WORKBENCH_REQUEST";
+    const safeProjectId = projection.projectId && z.string().uuid().safeParse(projection.projectId).success ? projection.projectId : undefined;
+    const safeProviderState = ["RESERVED", "ATTEMPTING", "TRANSPORT_STARTED", "RESPONSE_RECEIVED", "PARSE_PASSED", "ADMISSION_PASSED", "FAILED"].includes(projection.providerInvocationState ?? "") ? projection.providerInvocationState : undefined;
+    const safeProviderCallsTotal = typeof projection.providerCallsTotal === "number" && Number.isInteger(projection.providerCallsTotal) && projection.providerCallsTotal >= 0 ? projection.providerCallsTotal : undefined;
+    const mutationReached = projection.canonicalPlanningPersisted === true || projection.lifecycleMutated === true;
+    const fallback: Record<string, unknown> = {
+      ok: false,
+      error: mutationReached ? "The operation reached a mutation boundary; inspect the current project state before retrying." : "We couldn't complete this request. The project was not changed.",
+      code: "WORKBENCH_INTERNAL_ERROR",
+      correlationId: safeCorrelationId,
+      operation: safeOperation,
+      recoverable: false,
+      category: "INTERNAL" as const,
+      operationStage: "RESPONSE_SERIALIZATION" as const,
+      stage: "RESPONSE_SERIALIZATION" as const,
+      failureClass: "UNEXPECTED_EXCEPTION" as const,
+      outerCode: "WORKBENCH_INTERNAL_ERROR",
+      safeErrorFingerprint: safeOperationFingerprint(error, "RESPONSE_SERIALIZATION"),
+      internalClassification: "UNEXPECTED_EXCEPTION" as const,
+    };
+    if (projection.operationId && SafeOperationIdSchema.safeParse(projection.operationId).success) fallback.operationId = projection.operationId;
+    if (projection.operationKind && /^[A-Z][A-Z0-9_]{1,80}$/.test(projection.operationKind)) fallback.operationKind = projection.operationKind;
+    if (safeProjectId) fallback.projectId = safeProjectId;
+    if (projection.phase === "PLANNING") fallback.phase = projection.phase;
+    if (projection.providerCallsByStage && WorkbenchProviderCallsByStageSchema.safeParse(projection.providerCallsByStage).success) fallback.providerCallsByStage = projection.providerCallsByStage;
+    if (safeProviderCallsTotal !== undefined) fallback.providerCallsTotal = safeProviderCallsTotal;
+    if (safeProviderState) fallback.providerInvocationState = safeProviderState;
+    if (typeof projection.canonicalPlanningPersisted === "boolean") fallback.canonicalPlanningPersisted = projection.canonicalPlanningPersisted;
+    if (typeof projection.lifecycleMutated === "boolean") fallback.lifecycleMutated = projection.lifecycleMutated;
+    response = WorkbenchErrorResponseSchema.parse(Object.fromEntries(Object.entries(fallback).filter(([, value]) => value !== undefined)));
+  }
+  return { response, status: response.code === "WORKBENCH_INTERNAL_ERROR" && response.stage === "RESPONSE_SERIALIZATION" ? 500 : projection.httpStatus };
 }

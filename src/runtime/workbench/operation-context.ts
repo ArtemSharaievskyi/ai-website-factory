@@ -1,7 +1,74 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import type { ProviderInvocationLedgerPort, ProviderInvocationLedgerState } from "@/integrations/openai/usage";
+
+export const WORKBENCH_OPERATION_STAGES = [
+  "WORKBENCH_DISPATCH",
+  "OPERATION_INITIALIZATION",
+  "PREFLIGHT",
+  "DECOMPOSITION",
+  "GRAPH",
+  "COVERAGE",
+  "FINAL_ASSEMBLY",
+  "PERSISTENCE",
+  "LIFECYCLE_TRANSITION",
+  "RESPONSE_SERIALIZATION",
+] as const;
+export type WorkbenchOperationStage = (typeof WORKBENCH_OPERATION_STAGES)[number];
+
+export type WorkbenchOperationFailureDetails = {
+  correlationId: string;
+  operationId: string;
+  operationKind: string;
+  projectId: string;
+  phase: "PLANNING";
+  operationStage: WorkbenchOperationStage;
+  failureClass: string;
+  outerCode: string;
+  reasonCode?: string;
+  safeErrorFingerprint: string;
+  providerContract?: string;
+  providerCallsTotal: number;
+  providerCallsByStage: Record<string, {
+    attempted: number;
+    started: number;
+    responseReceived: number;
+    structuredParsePassed: number;
+    semanticAdmissionPassed: number;
+    completed: number;
+    failed: number;
+  }>;
+  providerInvocationState?: ProviderInvocationLedgerState;
+  canonicalPlanningPersisted: boolean;
+  lifecycleMutated: boolean;
+  stagedStage?: string;
+  stagedOperation?: unknown;
+  internalClassification?: "UNEXPECTED_EXCEPTION";
+};
+
+export class WorkbenchOperationFailure extends Error {
+  readonly code: string;
+  constructor(readonly details: WorkbenchOperationFailureDetails, message = "The Workbench operation failed safely.", cause?: unknown) {
+    super(message, { cause });
+    this.name = "WorkbenchOperationFailure";
+    this.code = details.outerCode;
+  }
+}
+
+export function isWorkbenchOperationFailure(error: unknown): error is WorkbenchOperationFailure {
+  return error instanceof WorkbenchOperationFailure;
+}
 
 export type WorkbenchOperationContext = {
   correlationId: string;
+  operationId?: string;
+  operationKind?: string;
+  projectId?: string;
+  phase?: "PLANNING";
+  stage?: WorkbenchOperationStage;
+  providerInvocationLedger?: ProviderInvocationLedgerPort;
+  bindCurrentness?: (input: { projectVersion: number; rowVersion: number; briefChecksum: string }) => void | Promise<void>;
+  setStage?: (stage: WorkbenchOperationStage) => void | Promise<void>;
+  markMutationCommitted?: () => void | Promise<void>;
 };
 
 const operationContext = new AsyncLocalStorage<WorkbenchOperationContext>();

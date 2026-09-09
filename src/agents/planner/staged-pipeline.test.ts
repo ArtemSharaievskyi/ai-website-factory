@@ -27,6 +27,7 @@ import type { PlannerArchitectureProvider } from "./ports";
 import { AiProviderError } from "@/integrations/openai/errors";
 import { clearStagedPlanningOperations, getStagedPlanningOperations, isStagedPlanningFailure, StagedPlanningOperationTelemetry } from "./staged-failures";
 import { workbenchFailureResponse } from "@/runtime/workbench/diagnostics";
+import { WorkbenchOperationLedger } from "@/runtime/workbench/operation-ledger";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
 
@@ -192,6 +193,31 @@ describe("staged Planner pipeline", () => {
     expect(elements.map((element) => element.elementId)).toContain("PE_001");
     expect(elements).toHaveLength(16);
     expect(elements.every((element) => !Object.hasOwn(element, "requirementReferences"))).toBe(true);
+  });
+
+  it("bridges a raw decomposition provider fault to the durable outer ledger", async () => {
+    const provider: PlannerArchitectureProvider = {
+      plan: async () => { throw new Error("legacy provider must not run"); },
+      decompose: async (_input, _skills, _identity, providerInvocation) => { await providerInvocation?.invocation?.beforeTransport(); throw new Error("PRIVATE_PROVIDER_PAYLOAD"); },
+      assignCoverage: async () => { throw new Error("coverage must not run"); },
+    };
+    const fixture = await stagedService(provider);
+    const correlationId = "50505050-5050-4550-8550-505050505050";
+    const ledger = new WorkbenchOperationLedger(fixture.database, projectId, "workbench-planning:11111111-1111-4111-8111-111111111111", correlationId);
+    await ledger.bindCurrentness({ projectVersion: 1, rowVersion: 1, briefChecksum: canonicalBriefChecksum(fixture.input.canonicalBrief) });
+    await ledger.reserve();
+    await expect(fixture.service.planApprovedProject(fixture.input, { correlationId, providerInvocationLedger: ledger })).rejects.toMatchObject({ code: "PLANNER_PROVIDER_FAILED" });
+    expect(ledger.snapshot()).toMatchObject({ providerCallsTotal: 1, providerCallsByStage: { decomposition: { attempted: 1, started: 1, responseReceived: 0, failed: 1 }, coverage: { attempted: 0 } } });
+  });
+
+  it("does not bypass a durable staged operation through the legacy monolithic provider", async () => {
+    const fixture = await stagedService({ plan: async () => { throw new Error("legacy provider must not run"); } });
+    const correlationId = "51515151-5151-4515-8515-515151515151";
+    const ledger = new WorkbenchOperationLedger(fixture.database, projectId, `workbench-planning:${projectId}`, correlationId);
+    await ledger.bindCurrentness({ projectVersion: 1, rowVersion: 1, briefChecksum: canonicalBriefChecksum(fixture.input.canonicalBrief) });
+    await ledger.reserve();
+    await expect(fixture.service.planApprovedProject(fixture.input, { correlationId, providerInvocationLedger: ledger })).rejects.toMatchObject({ code: "PLANNING_PACKAGE_INVALID" });
+    expect(ledger.snapshot().providerCallsTotal).toBe(0);
   });
 
   it("rejects unknown page/route tokens before PE assignment", () => {
@@ -361,6 +387,44 @@ describe("staged Planner pipeline", () => {
     const response = workbenchFailureResponse(failure, { action: "approve-planning", projectId, correlationId });
     expect(response).toMatchObject({ status: 503, response: { code: "PLANNER_PROVIDER_FAILED", failureClass: "PROVIDER_TRANSPORT_FAILURE", stage: "DECOMPOSITION_PROVIDER", reasonCode: "AI_NETWORK_ERROR", providerRequestCount: 1, correlationId } });
     expect(JSON.stringify(response)).not.toContain("private transport detail");
+    expect(await new DocumentRepository(database).get(projectId, 1, "planning-package")).toBeNull();
+  });
+
+  it("preserves the canonical unknown-reference guard through durable Workbench accounting", async () => {
+    const { table, output } = portalDecomposition();
+    const valid = validCoverage(table);
+    const invalid = {
+      ...valid,
+      coverageByRequirement: {
+        ...valid.coverageByRequirement,
+        "REQUIREMENT:not-canonical": valid.coverageByRequirement.REQ_001,
+      },
+    };
+    const { service, input, database } = await stagedService({
+      async plan() { throw new Error("legacy path must not be called"); },
+      async decompose(_input, _skills, _identity, providerInvocation) {
+        await providerInvocation?.invocation?.beforeTransport();
+        return output;
+      },
+      async assignCoverage(_input, _skills, _identity, providerInvocation) {
+        await providerInvocation?.invocation?.beforeTransport();
+        return invalid;
+      },
+    });
+    const correlationId = "23232323-2323-4232-8232-232323232323";
+    const ledger = new WorkbenchOperationLedger(database, projectId, `workbench-planning:${projectId}`, correlationId);
+    await ledger.bindCurrentness({ projectVersion: 1, rowVersion: 1, briefChecksum: canonicalBriefChecksum(input.canonicalBrief) });
+    await ledger.reserve();
+    let failure: unknown;
+    try {
+      await service.planApprovedProject(input, { correlationId, providerInvocationLedger: ledger });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toMatchObject({ details: { reasonCode: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE", operation: { providerCallsTotal: 2, providerCallsByStage: { decomposition: { attempted: 1 }, coverage: { attempted: 1 } }, canonicalPlanningPersisted: false, lifecycleMutated: false } } });
+    const outerFailure = await ledger.fail(failure);
+    const response = workbenchFailureResponse(outerFailure, { action: "approve-planning", projectId, correlationId });
+    expect(response.response).toMatchObject({ code: "PLANNING_PACKAGE_INVALID", reasonCode: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE", providerRequestCount: 2, canonicalPlanningPersisted: false, lifecycleMutated: false });
     expect(await new DocumentRepository(database).get(projectId, 1, "planning-package")).toBeNull();
   });
 
