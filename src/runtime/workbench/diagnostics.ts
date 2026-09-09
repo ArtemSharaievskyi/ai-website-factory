@@ -4,6 +4,7 @@ import { isAiProviderError, type AiProviderError } from "@/integrations/openai/e
 import { PROVIDER_OUTPUT_STAGES, type ProviderDiagnostic, type ProviderOutputStage } from "@/integrations/openai/usage";
 import { isStagedPlanningFailure, StagedPlanningFailureClassSchema, StagedPlanningOperationSummarySchema, StagedPlanningStageSchema, type StagedPlanningOperationSummary, type StagedPlanningStage } from "@/agents/planner/staged-failures";
 import { PlannerDecompositionKindDomainDiagnosticsSchema, type PlannerDecompositionKindDomainDiagnostics } from "@/agents/planner/coverage-contract";
+import { PlanningGraphCycleDiagnosticsSchema, type PlanningGraphCycleDiagnostics } from "@/agents/planner/staged-contracts";
 import { isWorkbenchOperationFailure, type WorkbenchOperationFailure } from "./operation-context";
 import { WORKBENCH_OPERATION_STAGES, type WorkbenchOperationStage } from "./operation-context";
 import { safeOperationFingerprint } from "./operation-ledger";
@@ -77,6 +78,7 @@ export const WorkbenchErrorResponseSchema = z
     reasonCode: z.string().regex(/^[A-Z][A-Z0-9_]+$/).optional(),
     safeToken: z.string().regex(/^(?:REQ|PE|PAGE|ROUTE)_\d{3,}$/).max(32).optional(),
     kindDomainDiagnostics: PlannerDecompositionKindDomainDiagnosticsSchema.optional(),
+    graphCycleDiagnostics: PlanningGraphCycleDiagnosticsSchema.optional(),
     safeErrorFingerprint: SafeFingerprintSchema.optional(),
     providerContract: z.string().regex(/^[a-z0-9-]{1,100}$/).optional(),
     providerCallsTotal: z.number().int().nonnegative().optional(),
@@ -115,6 +117,7 @@ export type WorkbenchErrorProjection = WorkbenchErrorResponse & {
   providerDiagnostic?: SafeProviderDiagnostic;
   stagedOperation?: StagedPlanningOperationSummary;
   kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
+  graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
 };
 
 type SafeProviderDiagnostic = {
@@ -172,6 +175,7 @@ export type WorkbenchDiagnosticEvent = {
   reasonCode?: string;
   safeToken?: string;
   kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
+  graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
   safeErrorFingerprint?: string;
   providerContract?: string;
   providerCallsTotal?: number;
@@ -502,6 +506,7 @@ function stagedFailureProjection(error: unknown): Omit<WorkbenchErrorProjection,
     ...(error.details.reasonCode ? { reasonCode: error.details.reasonCode } : {}),
     ...(error.details.safeToken ? { safeToken: error.details.safeToken } : {}),
     ...(error.details.kindDomainDiagnostics ? { kindDomainDiagnostics: error.details.kindDomainDiagnostics } : {}),
+    ...(error.details.graphCycleDiagnostics ? { graphCycleDiagnostics: error.details.graphCycleDiagnostics } : {}),
     providerRequestCountExact: error.details.providerRequestCountExact,
     providerRequestCount: error.details.providerRequestCount,
     stagedOperation: operation,
@@ -613,6 +618,7 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     ...(projection.reasonCode ? { reasonCode: projection.reasonCode } : {}),
     ...(projection.safeToken ? { safeToken: projection.safeToken } : {}),
     ...(projection.kindDomainDiagnostics ? { kindDomainDiagnostics: projection.kindDomainDiagnostics } : {}),
+    ...(projection.graphCycleDiagnostics ? { graphCycleDiagnostics: projection.graphCycleDiagnostics } : {}),
     ...(projection.safeErrorFingerprint ? { safeErrorFingerprint: projection.safeErrorFingerprint } : {}),
     ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
     ...(projection.providerCallsTotal !== undefined ? { providerCallsTotal: projection.providerCallsTotal } : {}),
@@ -709,6 +715,7 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     ...(projection.reasonCode ? { reasonCode: projection.reasonCode } : {}),
     ...(projection.safeToken ? { safeToken: projection.safeToken } : {}),
     ...(projection.kindDomainDiagnostics ? { kindDomainDiagnostics: projection.kindDomainDiagnostics } : {}),
+    ...(projection.graphCycleDiagnostics ? { graphCycleDiagnostics: projection.graphCycleDiagnostics } : {}),
     ...(projection.safeErrorFingerprint ? { safeErrorFingerprint: projection.safeErrorFingerprint } : {}),
     ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
     ...(projection.providerCallsTotal !== undefined ? { providerCallsTotal: projection.providerCallsTotal } : {}),

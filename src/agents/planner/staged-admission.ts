@@ -26,6 +26,7 @@ import {
   type PlanningElementGraph,
   type PlanningElementProposal,
   type PlanningCoverageProviderOutput,
+  type PlanningGraphCycleDiagnostics,
 } from "./staged-contracts";
 import { PlanningPackageSchema, type PlannerAgentInput, type PlanningPackage } from "./contracts";
 import {
@@ -54,6 +55,7 @@ export class StagedPlanningAdmissionError extends Error {
     readonly reasonCode?: string,
     safeToken?: string,
     readonly kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics,
+    readonly graphCycleDiagnostics?: PlanningGraphCycleDiagnostics,
   ) {
     super(`${code}:${fieldPath}`);
     this.name = "StagedPlanningAdmissionError";
@@ -70,6 +72,12 @@ export function stagedPlanningAdmissionDiagnostics(error: unknown, depth = 0): P
   if (depth > 6 || !error || typeof error !== "object") return undefined;
   if (error instanceof StagedPlanningAdmissionError) return error.kindDomainDiagnostics;
   return "cause" in error ? stagedPlanningAdmissionDiagnostics(error.cause, depth + 1) : undefined;
+}
+
+export function stagedPlanningGraphCycleDiagnostics(error: unknown, depth = 0): PlanningGraphCycleDiagnostics | undefined {
+  if (depth > 6 || !error || typeof error !== "object") return undefined;
+  if (error instanceof StagedPlanningAdmissionError) return error.graphCycleDiagnostics;
+  return "cause" in error ? stagedPlanningGraphCycleDiagnostics(error.cause, depth + 1) : undefined;
 }
 
 const normalized = (value: string) => value.normalize("NFKD").toLocaleLowerCase("en").replace(/[^a-z0-9]+/g, " ").trim();
@@ -207,6 +215,16 @@ export function admitPlanningDecompositionSemantics(input: {
       throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_INVALID", `elements[${index}].dependencies`, "PLANNING_DECOMPOSITION_DEPENDENCY_INDEX_INVALID");
     elements[index]!.dependencies = dependencies.map((dependency) => byIndex.get(dependency)!).sort();
   }
+  const cycleDiagnostics = planningElementGraphCycleDiagnostics(elements);
+  if (cycleDiagnostics)
+    throw new StagedPlanningAdmissionError(
+      "PLANNING_DECOMPOSITION_INVALID",
+      "elements.dependencies",
+      "PLANNING_GRAPH_CYCLE",
+      undefined,
+      undefined,
+      cycleDiagnostics,
+    );
   return elements.map((element) => PlanningElementSchema.parse(element));
 }
 
@@ -216,20 +234,55 @@ const forbiddenInversion: ReadonlySet<string> = new Set([
   "SECURITY>QA",
 ]);
 
-function dependencyCycle(elements: readonly PlanningElement[]) {
+export function planningElementGraphCycleDiagnostics(elements: readonly PlanningElement[]): PlanningGraphCycleDiagnostics | undefined {
   const graph = new Map(elements.map((element) => [element.elementId, element.dependencies]));
+  const byId = new Map(elements.map((element) => [element.elementId, element]));
   const active = new Set<string>();
+  const activeIndex = new Map<string, number>();
   const visited = new Set<string>();
-  const visit = (id: string): boolean => {
-    if (active.has(id)) return true;
-    if (visited.has(id)) return false;
+  const stack: string[] = [];
+  const visit = (id: string): string[] | undefined => {
+    const cycleStart = activeIndex.get(id);
+    if (cycleStart !== undefined) return stack.slice(cycleStart);
+    if (visited.has(id)) return undefined;
     active.add(id);
-    for (const dependency of graph.get(id) ?? []) if (visit(dependency)) return true;
+    activeIndex.set(id, stack.length);
+    stack.push(id);
+    for (const dependency of [...(graph.get(id) ?? [])].sort()) {
+      const cycle = visit(dependency);
+      if (cycle) return cycle;
+    }
+    stack.pop();
+    activeIndex.delete(id);
     active.delete(id);
     visited.add(id);
-    return false;
+    return undefined;
   };
-  return elements.some((element) => visit(element.elementId));
+  for (const id of [...graph.keys()].sort()) {
+    const cycle = visit(id);
+    if (!cycle) continue;
+    const cycleEdges = cycle.map((fromPE, index) => {
+      const toPE = cycle[(index + 1) % cycle.length]!;
+      const from = byId.get(fromPE)!;
+      const to = byId.get(toPE)!;
+      return {
+        fromPE,
+        toPE,
+        relationshipType: "DEPENDS_ON" as const,
+        source: "PROVIDER_DECLARED" as const,
+        fromDomain: from.domain,
+        fromKind: from.kind,
+        toDomain: to.domain,
+        toKind: to.kind,
+      };
+    });
+    return {
+      cycleLength: cycle.length,
+      cyclePeTokens: cycle,
+      cycleEdges,
+    };
+  }
+  return undefined;
 }
 
 /** Stage 2 is deterministic: PE identity and graph integrity need no model call. */
@@ -247,7 +300,9 @@ export function finalizePlanningElementGraph(elements: readonly PlanningElement[
   }));
   if (new Set(edges.map((edge) => `${edge.from}>${edge.to}`)).size !== edges.length)
     throw new StagedPlanningAdmissionError("PLANNING_GRAPH_INVALID", "edges", "PLANNING_GRAPH_DUPLICATE_EDGE");
-  if (dependencyCycle(parsed.data)) throw new StagedPlanningAdmissionError("PLANNING_GRAPH_CYCLE", "edges");
+  const cycleDiagnostics = planningElementGraphCycleDiagnostics(parsed.data);
+  if (cycleDiagnostics)
+    throw new StagedPlanningAdmissionError("PLANNING_GRAPH_CYCLE", "edges", "PLANNING_GRAPH_CYCLE", undefined, undefined, cycleDiagnostics);
   return PlanningElementGraphSchema.parse({ schemaVersion: 1, elements: parsed.data, edges });
 }
 

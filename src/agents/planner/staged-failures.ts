@@ -3,6 +3,7 @@ import type { ProviderDiagnostic } from "@/integrations/openai/usage";
 import { PlannerError, type PlannerErrorCode } from "./errors";
 import { z } from "zod";
 import { PlannerDecompositionKindDomainDiagnosticsSchema, type PlannerDecompositionKindDomainDiagnostics } from "./coverage-contract";
+import { PlanningGraphCycleDiagnosticsSchema, type PlanningGraphCycleDiagnostics } from "./staged-contracts";
 
 export const StagedPlanningStageSchema = z.enum([
   "PREFLIGHT",
@@ -78,6 +79,7 @@ export const StagedPlanningOperationSummarySchema = z.object({
   safeToken: SafeOpaqueTokenSchema.nullable(),
   providerContract: z.string().regex(/^[a-z0-9-]{1,100}$/).nullable(),
   kindDomainDiagnostics: PlannerDecompositionKindDomainDiagnosticsSchema.optional(),
+  graphCycleDiagnostics: PlanningGraphCycleDiagnosticsSchema.optional(),
 }).strict();
 export type StagedPlanningOperationSummary = z.infer<typeof StagedPlanningOperationSummarySchema>;
 
@@ -88,6 +90,7 @@ export type StagedPlanningFailureDetails = {
   reasonCode?: string;
   safeToken?: string;
   kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
+  graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
   providerContract?: string;
   providerRequestCountExact: boolean;
   providerRequestAttempted: boolean;
@@ -220,6 +223,7 @@ export class StagedPlanningOperationTelemetry {
     reasonCode?: string;
     safeToken?: string;
     kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
+    graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
   }): StagedPlanningOperationSummary {
     const providerCallsByStage = {
       decomposition: { ...this.providerCalls.decomposition },
@@ -247,6 +251,7 @@ export class StagedPlanningOperationTelemetry {
       safeToken: input.safeToken ? safeOpaqueToken(input.safeToken) ?? null : null,
       providerContract: this.providerContract,
       ...(input.kindDomainDiagnostics ? { kindDomainDiagnostics: input.kindDomainDiagnostics } : {}),
+      ...(input.graphCycleDiagnostics ? { graphCycleDiagnostics: input.graphCycleDiagnostics } : {}),
     });
   }
 
@@ -265,14 +270,15 @@ export class StagedPlanningOperationTelemetry {
     reasonCode?: string;
     safeToken?: string;
     kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
+    graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
     message: string;
     cause?: unknown;
   }) {
     this.stageFailed = input.stage;
     this.stageReached = input.stage;
     const summary = this.recorded
-      ? this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, reasonCode: input.reasonCode, safeToken: input.safeToken, kindDomainDiagnostics: input.kindDomainDiagnostics })
-      : this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, reasonCode: input.reasonCode, safeToken: input.safeToken, kindDomainDiagnostics: input.kindDomainDiagnostics });
+      ? this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, reasonCode: input.reasonCode, safeToken: input.safeToken, kindDomainDiagnostics: input.kindDomainDiagnostics, graphCycleDiagnostics: input.graphCycleDiagnostics })
+      : this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, reasonCode: input.reasonCode, safeToken: input.safeToken, kindDomainDiagnostics: input.kindDomainDiagnostics, graphCycleDiagnostics: input.graphCycleDiagnostics });
     if (!this.recorded) {
       this.recorded = true;
       recordStagedPlanningOperation(summary);
@@ -284,6 +290,7 @@ export class StagedPlanningOperationTelemetry {
       ...(input.reasonCode ? { reasonCode: input.reasonCode } : {}),
       ...(safeOpaqueToken(input.safeToken) ? { safeToken: safeOpaqueToken(input.safeToken) } : {}),
       ...(input.kindDomainDiagnostics ? { kindDomainDiagnostics: input.kindDomainDiagnostics } : {}),
+      ...(input.graphCycleDiagnostics ? { graphCycleDiagnostics: input.graphCycleDiagnostics } : {}),
       ...(this.providerContract ? { providerContract: this.providerContract } : {}),
       providerRequestCountExact: summary.providerRequestCountExact,
       providerRequestAttempted: summary.providerRequestAttempted,

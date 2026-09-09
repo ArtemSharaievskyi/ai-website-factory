@@ -92,6 +92,7 @@ import {
   requiredPlannerDecompositionDomains,
   StagedPlanningAdmissionError,
   stagedPlanningAdmissionDiagnostics,
+  stagedPlanningGraphCycleDiagnostics,
 } from "./staged-admission";
 import { PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME, type PlannerDecompositionProviderInput } from "./staged-contracts";
 import {
@@ -929,6 +930,7 @@ export class PlannerArchitectService {
           ...(safeStagedReasonCode(error) ? { reasonCode: safeStagedReasonCode(error) } : {}),
           ...(safeStagedToken(error) ? { safeToken: safeStagedToken(error) } : {}),
           ...(stagedPlanningAdmissionDiagnostics(error) ? { kindDomainDiagnostics: stagedPlanningAdmissionDiagnostics(error) } : {}),
+          ...(stagedPlanningGraphCycleDiagnostics(error) ? { graphCycleDiagnostics: stagedPlanningGraphCycleDiagnostics(error) } : {}),
           message: "Staged Planning failed safely; the project was not changed.",
           cause: error,
         });

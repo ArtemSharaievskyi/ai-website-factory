@@ -12,6 +12,7 @@ import {
   admitPlanningDecompositionSemantics,
   assembleStagedPlanningCandidate,
   finalizePlanningElementGraph,
+  planningElementGraphCycleDiagnostics,
   requiredPlannerDecompositionDomains,
   stagedProviderContractMetrics,
 } from "./staged-admission";
@@ -20,6 +21,7 @@ import {
   PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME,
   PlanningDecompositionProviderOutputSchema,
   PlanningDecompositionProviderOutputV1Schema,
+  PlanningElementGraphSchema,
 } from "./staged-contracts";
 import {
   PLANNER_ELEMENT_KINDS_BY_DOMAIN,
@@ -344,6 +346,53 @@ describe("staged Planner pipeline", () => {
     expectFailure(() => finalizePlanningElementGraph(cyclic), { code: "PLANNING_GRAPH_CYCLE" });
   });
 
+  it("reports deterministic minimal safe diagnostics for self, two-node, and three-node cycles", () => {
+    const { brief, table, output } = portalDecomposition();
+    const elements = admitPlanningDecomposition({ output, table, brief: portalV1Brief(), canonicalBrief: brief });
+    const twoNode = elements.map((element) => ({
+      ...element,
+      dependencies: element.elementId === "PE_001" ? ["PE_002"] : element.elementId === "PE_002" ? ["PE_001"] : element.dependencies,
+    }));
+    expect(planningElementGraphCycleDiagnostics(twoNode)).toMatchObject({
+      cycleLength: 2,
+      cyclePeTokens: ["PE_001", "PE_002"],
+      cycleEdges: [
+        { fromPE: "PE_001", toPE: "PE_002", relationshipType: "DEPENDS_ON", source: "PROVIDER_DECLARED", fromDomain: "FRONTEND", fromKind: "PRODUCT_SCOPE", toDomain: "FRONTEND", toKind: "PAGE" },
+        { fromPE: "PE_002", toPE: "PE_001", relationshipType: "DEPENDS_ON", source: "PROVIDER_DECLARED", fromDomain: "FRONTEND", fromKind: "PAGE", toDomain: "FRONTEND", toKind: "PRODUCT_SCOPE" },
+      ],
+    });
+    expect(() => finalizePlanningElementGraph(twoNode)).toThrow(/PLANNING_GRAPH_CYCLE/);
+
+    const threeNode = elements.map((element) => ({
+      ...element,
+      dependencies: element.elementId === "PE_001" ? ["PE_002"] : element.elementId === "PE_002" ? ["PE_003"] : element.elementId === "PE_003" ? ["PE_001"] : [],
+    }));
+    expect(planningElementGraphCycleDiagnostics(threeNode)).toMatchObject({ cycleLength: 3, cyclePeTokens: ["PE_001", "PE_002", "PE_003"] });
+    expect(() => finalizePlanningElementGraph(threeNode)).toThrow(/PLANNING_GRAPH_CYCLE/);
+
+    const selfCycle = elements.map((element) => ({ ...element, dependencies: element.elementId === "PE_001" ? ["PE_001"] : [] }));
+    expect(planningElementGraphCycleDiagnostics(selfCycle)).toMatchObject({ cycleLength: 1, cyclePeTokens: ["PE_001"], cycleEdges: [{ fromPE: "PE_001", toPE: "PE_001" }] });
+    expect(() => finalizePlanningElementGraph(selfCycle)).toThrow(/PLANNING_GRAPH_CYCLE/);
+  });
+
+  it("accepts shared dependency DAGs and keeps associations outside the dependency edge contract", () => {
+    const { brief, table, output } = portalDecomposition();
+    const elements = admitPlanningDecomposition({ output, table, brief: portalV1Brief(), canonicalBrief: brief });
+    const shared = elements.map((element) => ({
+      ...element,
+      dependencies: element.elementId === "PE_002" || element.elementId === "PE_003"
+        ? ["PE_001"]
+        : element.elementId === "PE_004" ? ["PE_002", "PE_003"] : [],
+    }));
+    const graph = finalizePlanningElementGraph(shared);
+    expect(planningElementGraphCycleDiagnostics(shared)).toBeUndefined();
+    expect(graph.edges.every((edge) => edge.relation === "DEPENDS_ON")).toBe(true);
+    expect(PlanningElementGraphSchema.safeParse({
+      ...graph,
+      edges: [...graph.edges, { from: "PE_002", to: "PE_003", relation: "INTEGRATES_WITH" }],
+    }).success).toBe(false);
+  });
+
   it("admits exact 117/117 host-issued coverage and rejects a nonexistent PE", () => {
     const { brief, table, output } = portalDecomposition();
     const elements = admitPlanningDecomposition({ output, table, brief: portalV1Brief(), canonicalBrief: brief });
@@ -537,7 +586,13 @@ describe("staged Planner pipeline", () => {
       },
       async assignCoverage() { throw new Error("coverage must not be reached"); },
     });
-    await expect(service.planApprovedProject(input)).rejects.toMatchObject({ details: {
+    let failure: unknown;
+    try {
+      await service.planApprovedProject(input);
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toMatchObject({ details: {
       stage: "DECOMPOSITION_PROVIDER",
       failureClass: "PROVIDER_TRANSPORT_FAILURE",
       providerRequestCountExact: false,
@@ -581,13 +636,37 @@ describe("staged Planner pipeline", () => {
     await expect(service.planApprovedProject(input)).rejects.toMatchObject({ details: { stage: "DECOMPOSITION_ADMISSION", failureClass: "STAGED_DECOMPOSITION_FAILURE", reasonCode: "PLANNING_DECOMPOSITION_MINIMUM_ELEMENTS", operation: { providerRequestCount: 1, providerCallsByStage: { coverage: { attempted: 0 } } } } });
   });
 
-  it("attributes deterministic graph cycles without making a coverage provider call", async () => {
+  it("rejects provider-declared dependency cycles before Coverage and retains graph diagnostics", async () => {
     const { service, input } = await stagedService({
       async plan() { throw new Error("legacy path must not be called"); },
       async decompose() { const output = portalDecomposition().output; return { ...output, elements: output.elements.map((element, index) => index === 0 ? { ...element, dependencies: [1] } : index === 1 ? { ...element, dependencies: [0] } : element) }; },
       async assignCoverage() { throw new Error("coverage must not be reached"); },
     });
-    await expect(service.planApprovedProject(input)).rejects.toMatchObject({ details: { stage: "GRAPH_ADMISSION", failureClass: "STAGED_REFERENTIAL_INTEGRITY_FAILURE", reasonCode: "PLANNING_GRAPH_CYCLE", operation: { providerRequestCount: 1, providerCallsByStage: { coverage: { attempted: 0 } } } } });
+    let failure: unknown;
+    try {
+      await service.planApprovedProject(input);
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toMatchObject({ details: {
+      stage: "DECOMPOSITION_ADMISSION",
+      failureClass: "STAGED_DECOMPOSITION_FAILURE",
+      reasonCode: "PLANNING_GRAPH_CYCLE",
+      graphCycleDiagnostics: {
+        cycleLength: 2,
+        cyclePeTokens: ["PE_001", "PE_002"],
+        cycleEdges: [
+          { fromPE: "PE_001", toPE: "PE_002", relationshipType: "DEPENDS_ON", source: "PROVIDER_DECLARED" },
+          { fromPE: "PE_002", toPE: "PE_001", relationshipType: "DEPENDS_ON", source: "PROVIDER_DECLARED" },
+        ],
+      },
+      operation: { providerRequestCount: 1, providerCallsByStage: { decomposition: { attempted: 1 }, coverage: { attempted: 0 } } },
+    } });
+    const response = workbenchFailureResponse(failure, { action: "approve-planning", projectId, correlationId: "77777777-7777-4777-8777-777777777777" });
+    expect(response.response).toMatchObject({
+      reasonCode: "PLANNING_GRAPH_CYCLE",
+      graphCycleDiagnostics: { cycleLength: 2, cyclePeTokens: ["PE_001", "PE_002"] },
+    });
   });
 
   it("records a nonexistent coverage PE as a bounded coverage failure", async () => {

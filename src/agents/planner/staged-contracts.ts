@@ -93,6 +93,31 @@ export const PlanningElementSchema = z.object({
 }).strict();
 export type PlanningElement = z.infer<typeof PlanningElementSchema>;
 
+/** Safe, bounded evidence for a rejected directed dependency cycle. */
+export const PlanningGraphCycleEdgeSchema = z.object({
+  fromPE: z.string().regex(/^PE_\d{3}$/),
+  toPE: z.string().regex(/^PE_\d{3}$/),
+  relationshipType: z.literal("DEPENDS_ON"),
+  source: z.literal("PROVIDER_DECLARED"),
+  fromDomain: PlannerCoverageDomainSchema,
+  fromKind: PlannerCoverageElementKindSchema,
+  toDomain: PlannerCoverageDomainSchema,
+  toKind: PlannerCoverageElementKindSchema,
+}).strict();
+export type PlanningGraphCycleEdge = z.infer<typeof PlanningGraphCycleEdgeSchema>;
+
+export const PlanningGraphCycleDiagnosticsSchema = z.object({
+  cycleLength: z.number().int().min(1).max(256),
+  cyclePeTokens: z.array(z.string().regex(/^PE_\d{3}$/)).min(1).max(256),
+  cycleEdges: z.array(PlanningGraphCycleEdgeSchema).min(1).max(256),
+}).strict().superRefine((value, context) => {
+  if (value.cyclePeTokens.length !== value.cycleLength)
+    context.addIssue({ code: "custom", path: ["cyclePeTokens"], message: "Cycle token count must equal cycleLength." });
+  if (value.cycleEdges.length !== value.cycleLength)
+    context.addIssue({ code: "custom", path: ["cycleEdges"], message: "Cycle edge count must equal cycleLength." });
+});
+export type PlanningGraphCycleDiagnostics = z.infer<typeof PlanningGraphCycleDiagnosticsSchema>;
+
 export const PlanningElementGraphEdgeSchema = z.object({
   from: z.string().regex(/^PE_\d{3}$/),
   to: z.string().regex(/^PE_\d{3}$/),
