@@ -3,9 +3,11 @@ import type { RequirementSpecification } from "@/domain/requirements/schema";
 import type { CanonicalBriefV3 } from "@/domain/requirements/v3/schema";
 import { NonEmptyStringSchema } from "@/domain/shared/schemas";
 import {
+  PLANNER_ELEMENT_KINDS_BY_DOMAIN,
   PlannerCoverageDomainSchema,
   PlannerCoverageElementKindSchema,
   type PlannerCoverageDomain,
+  type PlannerCoverageElementKind,
 } from "./coverage-contract";
 import {
   PlannerPageToken,
@@ -19,15 +21,15 @@ import {
  * The decomposition provider never receives or returns a requirement
  * coverage object and never owns a globally referenced Planning identity.
  */
-export const PLANNER_DECOMPOSITION_CONTRACT_VERSION = "planner.decomposition.v1" as const;
+export const PLANNER_DECOMPOSITION_LEGACY_CONTRACT_VERSION = "planner.decomposition.v1" as const;
+export const PLANNER_DECOMPOSITION_CONTRACT_VERSION = "planner.decomposition.v2" as const;
+export const PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME = "planning-decomposition-v2" as const;
 export const PLANNER_COVERAGE_CONTRACT_VERSION = "planner.coverage.v1" as const;
 export const STAGED_PLANNER_PIPELINE_VERSION = "planner.staged.v1" as const;
 
 const ProposalIndexSchema = z.number().int().nonnegative().max(255);
 
-export const PlanningElementProposalSchema = z.object({
-  kind: PlannerCoverageElementKindSchema,
-  domain: PlannerCoverageDomainSchema,
+const PlanningElementProposalFields = {
   title: NonEmptyStringSchema.max(240),
   description: NonEmptyStringSchema.max(2000),
   pageTokens: z.array(PlannerPageToken).max(32).nullable(),
@@ -36,8 +38,38 @@ export const PlanningElementProposalSchema = z.object({
   dependencies: z.array(ProposalIndexSchema).max(32).nullable(),
   negativeEvidence: z.boolean().nullable(),
   negativeOnly: z.boolean().nullable(),
-}).strict();
+} as const;
+
+function kindEnumForDomain(domain: PlannerCoverageDomain) {
+  const kinds = PLANNER_ELEMENT_KINDS_BY_DOMAIN[domain];
+  return z.enum(kinds as unknown as [PlannerCoverageElementKind, ...PlannerCoverageElementKind[]]);
+}
+
+const PlanningElementProposalVariants = PlannerCoverageDomainSchema.options.map((domain) => z.object({
+  ...PlanningElementProposalFields,
+  domain: z.literal(domain),
+  kind: kindEnumForDomain(domain),
+}).strict());
+
+export const PlanningElementProposalSchema = z.discriminatedUnion(
+  "domain",
+  PlanningElementProposalVariants as [typeof PlanningElementProposalVariants[number], ...typeof PlanningElementProposalVariants[number][]],
+);
 export type PlanningElementProposal = z.infer<typeof PlanningElementProposalSchema>;
+
+/** Historical v1 wire reader. It is never used for new provider requests. */
+export const PlanningElementProposalV1Schema = z.object({
+  kind: PlannerCoverageElementKindSchema,
+  domain: PlannerCoverageDomainSchema,
+  ...PlanningElementProposalFields,
+}).strict();
+export const PlanningDecompositionProviderOutputV1Schema = z.object({
+  schemaVersion: z.literal(1),
+  providerContractVersion: z.literal(PLANNER_DECOMPOSITION_LEGACY_CONTRACT_VERSION),
+  complete: z.literal(true),
+  elements: z.array(PlanningElementProposalV1Schema).min(1).max(256),
+}).strict();
+export type PlanningDecompositionProviderOutputV1 = z.infer<typeof PlanningDecompositionProviderOutputV1Schema>;
 
 export const PlanningDecompositionProviderOutputSchema = z.object({
   schemaVersion: z.literal(1),

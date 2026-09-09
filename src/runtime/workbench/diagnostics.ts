@@ -3,6 +3,7 @@ import { z } from "zod";
 import { isAiProviderError, type AiProviderError } from "@/integrations/openai/errors";
 import { PROVIDER_OUTPUT_STAGES, type ProviderDiagnostic, type ProviderOutputStage } from "@/integrations/openai/usage";
 import { isStagedPlanningFailure, StagedPlanningFailureClassSchema, StagedPlanningOperationSummarySchema, StagedPlanningStageSchema, type StagedPlanningOperationSummary, type StagedPlanningStage } from "@/agents/planner/staged-failures";
+import { PlannerDecompositionKindDomainDiagnosticsSchema, type PlannerDecompositionKindDomainDiagnostics } from "@/agents/planner/coverage-contract";
 import { isWorkbenchOperationFailure, type WorkbenchOperationFailure } from "./operation-context";
 import { WORKBENCH_OPERATION_STAGES, type WorkbenchOperationStage } from "./operation-context";
 import { safeOperationFingerprint } from "./operation-ledger";
@@ -75,6 +76,7 @@ export const WorkbenchErrorResponseSchema = z
     outerCode: z.string().regex(/^[A-Z][A-Z0-9_]+$/).optional(),
     reasonCode: z.string().regex(/^[A-Z][A-Z0-9_]+$/).optional(),
     safeToken: z.string().regex(/^(?:REQ|PE|PAGE|ROUTE)_\d{3,}$/).max(32).optional(),
+    kindDomainDiagnostics: PlannerDecompositionKindDomainDiagnosticsSchema.optional(),
     safeErrorFingerprint: SafeFingerprintSchema.optional(),
     providerContract: z.string().regex(/^[a-z0-9-]{1,100}$/).optional(),
     providerCallsTotal: z.number().int().nonnegative().optional(),
@@ -112,6 +114,7 @@ export type WorkbenchErrorProjection = WorkbenchErrorResponse & {
   errorClass: string;
   providerDiagnostic?: SafeProviderDiagnostic;
   stagedOperation?: StagedPlanningOperationSummary;
+  kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
 };
 
 type SafeProviderDiagnostic = {
@@ -168,6 +171,7 @@ export type WorkbenchDiagnosticEvent = {
   outerCode?: string;
   reasonCode?: string;
   safeToken?: string;
+  kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
   safeErrorFingerprint?: string;
   providerContract?: string;
   providerCallsTotal?: number;
@@ -497,6 +501,7 @@ function stagedFailureProjection(error: unknown): Omit<WorkbenchErrorProjection,
     stage: error.details.stage,
     ...(error.details.reasonCode ? { reasonCode: error.details.reasonCode } : {}),
     ...(error.details.safeToken ? { safeToken: error.details.safeToken } : {}),
+    ...(error.details.kindDomainDiagnostics ? { kindDomainDiagnostics: error.details.kindDomainDiagnostics } : {}),
     providerRequestCountExact: error.details.providerRequestCountExact,
     providerRequestCount: error.details.providerRequestCount,
     stagedOperation: operation,
@@ -607,6 +612,7 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     ...(projection.outerCode ? { outerCode: projection.outerCode } : {}),
     ...(projection.reasonCode ? { reasonCode: projection.reasonCode } : {}),
     ...(projection.safeToken ? { safeToken: projection.safeToken } : {}),
+    ...(projection.kindDomainDiagnostics ? { kindDomainDiagnostics: projection.kindDomainDiagnostics } : {}),
     ...(projection.safeErrorFingerprint ? { safeErrorFingerprint: projection.safeErrorFingerprint } : {}),
     ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
     ...(projection.providerCallsTotal !== undefined ? { providerCallsTotal: projection.providerCallsTotal } : {}),
@@ -702,6 +708,7 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     ...(projection.outerCode ? { outerCode: projection.outerCode } : {}),
     ...(projection.reasonCode ? { reasonCode: projection.reasonCode } : {}),
     ...(projection.safeToken ? { safeToken: projection.safeToken } : {}),
+    ...(projection.kindDomainDiagnostics ? { kindDomainDiagnostics: projection.kindDomainDiagnostics } : {}),
     ...(projection.safeErrorFingerprint ? { safeErrorFingerprint: projection.safeErrorFingerprint } : {}),
     ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
     ...(projection.providerCallsTotal !== undefined ? { providerCallsTotal: projection.providerCallsTotal } : {}),

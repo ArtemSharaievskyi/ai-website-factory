@@ -20,6 +20,8 @@ import { CanonicalBriefV3Schema } from "@/domain/requirements/v3/schema";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { createCanonicalPlanningRouteManifest, createPlanningOwnedRequirementManifest, createPlanningTargetCatalog } from "@/agents/planner/recovery-manifests";
 import { createPlannerReferenceTable, measurePlannerProviderInput } from "@/agents/planner/reference-table";
+import { PLANNER_DECOMPOSITION_CONTRACT_VERSION, PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME, PlanningDecompositionProviderOutputSchema } from "@/agents/planner/staged-contracts";
+import { PLANNER_ELEMENT_KINDS_BY_DOMAIN, PlannerCoverageDomainSchema } from "@/agents/planner/coverage-contract";
 import type { SafeProviderEvent } from "./usage";
 
 const config = { apiKey: "test", model: "test-model", modelLabel: "GPT-5.6 Luna", maxRetries: 1, maxConcurrentRequests: 1 };
@@ -908,15 +910,31 @@ describe("production AI provider boundary", () => {
     const fixture = tokenizedPlannerFixture();
     const client = new OpenAiStructuredClient(config, {
       executor: async <T>() => ({
-        value: { schemaVersion: 1, providerContractVersion: "planner.decomposition.v1", complete: true, elements: [{ kind: "PAGE" }] } as T,
+        value: { schemaVersion: 1, providerContractVersion: PLANNER_DECOMPOSITION_CONTRACT_VERSION, complete: true, elements: [{ kind: "PAGE" }] } as T,
         requestId: "req_staged_normalization",
-        diagnostic: { stage: "api_response", requestAttempted: true, apiResponseReceived: true, responseReceived: true, outputComplete: true, schemaName: "planning-decomposition-v1" },
+        diagnostic: { stage: "api_response", requestAttempted: true, apiResponseReceived: true, responseReceived: true, outputComplete: true, schemaName: PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME },
       }),
     });
     await expect(new OpenAiPlannerProvider(client).decompose({ approvedBrief: fixture.input.approvedBrief, plannerReferenceTable: fixture.table, requiredDomains: ["FRONTEND"] })).rejects.toMatchObject({
       code: "AI_OUTPUT_DOMAIN_INVALID",
-      diagnostic: { stage: "domain_validation", outputStage: "TRANSPORT_SCHEMA_VALIDATION_FAILED", requestAttempted: true, apiResponseReceived: true, responseReceived: true, schemaName: "planning-decomposition-v1" },
+      diagnostic: { stage: "domain_validation", outputStage: "TRANSPORT_SCHEMA_VALIDATION_FAILED", requestAttempted: true, apiResponseReceived: true, responseReceived: true, schemaName: PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME },
     });
+  });
+  it("builds the production decomposition schema from the shared kind/domain authority", async () => {
+    type SchemaVariant = { properties: { domain: { const: string }; kind: { enum: string[] } } };
+    type DecompositionSchema = { properties: { elements: { items: { anyOf: SchemaVariant[] } } } };
+    const responseFormat = buildProductionResponseFormat(PlanningDecompositionProviderOutputSchema, PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME) as unknown as { json_schema: { schema: DecompositionSchema } };
+    const variants = responseFormat.json_schema.schema.properties.elements.items.anyOf;
+    expect(variants).toHaveLength(PlannerCoverageDomainSchema.options.length);
+    for (const variant of variants) expect(variant.properties.kind.enum).toEqual(PLANNER_ELEMENT_KINDS_BY_DOMAIN[variant.properties.domain.const as keyof typeof PLANNER_ELEMENT_KINDS_BY_DOMAIN]);
+
+    const fixture = tokenizedPlannerFixture();
+    const invalid = { schemaVersion: 1, providerContractVersion: PLANNER_DECOMPOSITION_CONTRACT_VERSION, complete: true, elements: [{ kind: "DATABASE_MODEL", domain: "FRONTEND", title: "Invalid typed pair", description: "This pair is rejected before deterministic admission.", pageTokens: null, routeTokens: null, dependencies: null, negativeEvidence: null, negativeOnly: null }] };
+    expect(PlanningDecompositionProviderOutputSchema.safeParse(invalid).success).toBe(false);
+    let sentSchemaName: string | undefined;
+    const client = new OpenAiStructuredClient(config, { executor: async <T>(request: StructuredRequest<T>) => { sentSchemaName = request.schemaName; return { value: invalid as T, requestId: "req_decomposition_schema_guard" }; } });
+    await expect(new OpenAiPlannerProvider(client).decompose({ approvedBrief: fixture.input.approvedBrief, plannerReferenceTable: fixture.table, requiredDomains: ["FRONTEND"] })).rejects.toMatchObject({ code: "AI_OUTPUT_DOMAIN_INVALID" });
+    expect(sentSchemaName).toBe(PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME);
   });
   it("retries one transient failure and does not expose raw provider data", async () => { let calls = 0; const client = new OpenAiStructuredClient(config, { executor: async <T>() => { calls++; if (calls === 1) throw Object.assign(new Error("temporary"), { status: 503 }); return { value: { ok: true, summary: "recovered" } as T, requestId: "req_2" }; } }); await expect(client.request({ ...request, idempotencyKey: "retry" })).resolves.toMatchObject({ value: { ok: true } }); expect(calls).toBe(2); });
   it("honors the recovery request boundary with zero retries and zero corrections", async () => {

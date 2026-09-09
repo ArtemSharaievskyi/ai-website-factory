@@ -5,8 +5,11 @@ import type { CanonicalBriefV3 } from "@/domain/requirements/v3/schema";
 import { buildPlanningPackage } from "./deterministic";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import {
+  PLANNER_ELEMENT_KINDS_BY_DOMAIN,
+  isPlannerElementKindAllowedInDomain,
   type PlannerCoverageDomain,
   type PlannerCoverageElementKind,
+  type PlannerDecompositionKindDomainDiagnostics,
 } from "./coverage-contract";
 import {
   PlannerReferenceTableSchema,
@@ -31,30 +34,6 @@ import {
   type PlannerCoverageElementDescriptor,
 } from "@/integrations/openai/adapters";
 
-const KIND_DOMAINS: Record<PlannerCoverageElementKind, readonly PlannerCoverageDomain[]> = {
-  PROFILE: ["FRONTEND", "LIFECYCLE"],
-  PRODUCT_SCOPE: ["FRONTEND", "BACKEND", "DATABASE", "LIFECYCLE"],
-  ROUTE: ["FRONTEND", "LIFECYCLE"],
-  PAGE: ["FRONTEND"],
-  NAVIGATION: ["FRONTEND"],
-  USER_FLOW: ["FRONTEND", "BACKEND", "LIFECYCLE"],
-  FORM: ["FRONTEND", "BACKEND"],
-  DATABASE_MODEL: ["DATABASE", "BACKEND"],
-  AUTHENTICATION: ["BACKEND", "SECURITY"],
-  SUPABASE: ["BACKEND", "DATABASE", "SECURITY", "INTEGRATION"],
-  EMAIL: ["BACKEND", "INTEGRATION"],
-  STORAGE: ["BACKEND", "DATABASE", "INTEGRATION"],
-  ADMINISTRATION: ["FRONTEND", "BACKEND", "SECURITY"],
-  CONTENT: ["FRONTEND"],
-  ASSET: ["FRONTEND"],
-  ARCHITECTURE: ["FRONTEND", "BACKEND", "DATABASE", "INTEGRATION", "LIFECYCLE"],
-  ENVIRONMENT: ["BACKEND", "INTEGRATION", "SECURITY"],
-  DEPENDENCY: ["BACKEND", "INTEGRATION"],
-  TEST_STRATEGY: ["QA"],
-  SECURITY: ["SECURITY"],
-  TRACEABILITY: ["QA", "LIFECYCLE"],
-};
-
 const GENERIC_ELEMENT_TEXT = /^(?:same as (?:the )?brief|see (?:the )?plan|covered|handled|implemented)$/i;
 
 export type StagedPlannerFailureCode =
@@ -74,6 +53,7 @@ export class StagedPlanningAdmissionError extends Error {
     readonly fieldPath: string,
     readonly reasonCode?: string,
     safeToken?: string,
+    readonly kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics,
   ) {
     super(`${code}:${fieldPath}`);
     this.name = "StagedPlanningAdmissionError";
@@ -84,6 +64,12 @@ export class StagedPlanningAdmissionError extends Error {
         : undefined;
   }
   readonly safeToken?: string;
+}
+
+export function stagedPlanningAdmissionDiagnostics(error: unknown, depth = 0): PlannerDecompositionKindDomainDiagnostics | undefined {
+  if (depth > 6 || !error || typeof error !== "object") return undefined;
+  if (error instanceof StagedPlanningAdmissionError) return error.kindDomainDiagnostics;
+  return "cause" in error ? stagedPlanningAdmissionDiagnostics(error.cause, depth + 1) : undefined;
 }
 
 const normalized = (value: string) => value.normalize("NFKD").toLocaleLowerCase("en").replace(/[^a-z0-9]+/g, " ").trim();
@@ -146,20 +132,41 @@ export function admitPlanningDecomposition(input: {
   brief: RequirementSpecification;
   canonicalBrief?: CanonicalBriefV3;
 }): PlanningElement[] {
-  const table = PlannerReferenceTableSchema.parse(input.table);
   let parsed: PlanningDecompositionProviderOutput;
   try {
     parsed = PlanningDecompositionProviderOutputSchema.parse(input.output);
   } catch {
     throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_INVALID", "decomposition");
   }
+  return admitPlanningDecompositionSemantics({ ...input, output: parsed });
+}
+
+/**
+ * Host semantic admission after the provider wire boundary. This separate
+ * entry point keeps the deterministic guard directly testable even when a
+ * typed proposal is supplied by an internal caller.
+ */
+export function admitPlanningDecompositionSemantics(input: {
+  output: PlanningDecompositionProviderOutput;
+  table: PlannerReferenceTable;
+  brief: RequirementSpecification;
+  canonicalBrief?: CanonicalBriefV3;
+}): PlanningElement[] {
+  const table = PlannerReferenceTableSchema.parse(input.table);
+  const parsed = input.output;
   const signatures = new Set<string>();
   const elements: PlanningElement[] = [];
   const seenKinds = new Set<PlannerCoverageElementKind>();
   const seenDomains = new Set<PlannerCoverageDomain>();
   for (const [index, proposal] of parsed.elements.entries()) {
-    if (!KIND_DOMAINS[proposal.kind].includes(proposal.domain))
-      throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_INVALID", `elements[${index}].domain`, "PLANNING_DECOMPOSITION_KIND_DOMAIN_MISMATCH");
+    if (!isPlannerElementKindAllowedInDomain(proposal.kind, proposal.domain))
+      throw new StagedPlanningAdmissionError(
+        "PLANNING_DECOMPOSITION_INVALID",
+        `elements[${index}].domain`,
+        "PLANNING_DECOMPOSITION_KIND_DOMAIN_MISMATCH",
+        undefined,
+        { actualDomain: proposal.domain, actualKind: proposal.kind, allowedKindsForDomain: [...PLANNER_ELEMENT_KINDS_BY_DOMAIN[proposal.domain]], elementIndex: index },
+      );
     if (GENERIC_ELEMENT_TEXT.test(proposal.title.trim()) || GENERIC_ELEMENT_TEXT.test(proposal.description.trim()))
       throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_PATHOLOGY", `elements[${index}].description`, "PLANNING_DECOMPOSITION_GENERIC_ELEMENT");
     validateProposalReferences(proposal, table, index);

@@ -33,6 +33,8 @@ import {
   type PlannerReferenceTable,
 } from "@/agents/planner/reference-table";
 import {
+  plannerElementKindsForDomain,
+  PlannerCoverageDomainSchema,
   type PlannerCoverageDomain,
   type PlannerCoverageElementKind,
 } from "@/agents/planner/coverage-contract";
@@ -48,6 +50,7 @@ import {
 } from "@/agents/planner/contracts";
 import {
   createPlanningCoverageProviderWireSchema,
+  PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME,
   PlanningDecompositionProviderOutputSchema,
   type PlannerCoverageProviderInput,
   type PlannerDecompositionProviderInput,
@@ -2007,6 +2010,9 @@ function stagedDecompositionPromptInput(input: PlannerDecompositionProviderInput
     stage: "PLANNING_DECOMPOSITION",
     approvedBrief: stagedProviderSafeBrief(input.approvedBrief),
     requiredDomains: input.requiredDomains,
+    kindDomainAuthority: Object.fromEntries(
+      PlannerCoverageDomainSchema.options.map((domain) => [domain, plannerElementKindsForDomain(domain)]),
+    ),
     pageAuthority: table.pages.map(({ token, path, purpose }) => ({ token, path, purpose })),
     routeAuthority: table.routes.map(({ token, pageToken, path, purpose }) => ({ token, pageToken, path, purpose })),
     outputPolicy: { complete: true, maxElements: 256, identity: "host-assigned PE_*", coverage: "omitted in this stage" },
@@ -2061,13 +2067,13 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
       system,
       role: "planner",
       schema: PlanningDecompositionProviderOutputSchema,
-      schemaName: "planning-decomposition-v1",
+      schemaName: PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME,
       idempotencyKey: `${input.plannerReferenceTable.operationChecksum}:${skillContextIdentity}:decomposition`,
       retryPolicy: { maxRetries: 0, corrections: 0 },
       ...(providerInvocation ? { providerInvocation } : {}),
     });
     const parsed = PlanningDecompositionProviderOutputSchema.safeParse(result.value);
-    if (!parsed.success) stagedProviderNormalizationFailure(parsed.error, result.diagnostic, "planning-decomposition-v1");
+    if (!parsed.success) stagedProviderNormalizationFailure(parsed.error, result.diagnostic, PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME);
     return parsed.data;
   }
   async assignCoverage(

@@ -2,6 +2,7 @@ import { isAiProviderError } from "@/integrations/openai/errors";
 import type { ProviderDiagnostic } from "@/integrations/openai/usage";
 import { PlannerError, type PlannerErrorCode } from "./errors";
 import { z } from "zod";
+import { PlannerDecompositionKindDomainDiagnosticsSchema, type PlannerDecompositionKindDomainDiagnostics } from "./coverage-contract";
 
 export const StagedPlanningStageSchema = z.enum([
   "PREFLIGHT",
@@ -76,6 +77,7 @@ export const StagedPlanningOperationSummarySchema = z.object({
   reasonCode: z.string().regex(/^[A-Z][A-Z0-9_]+$/).nullable(),
   safeToken: SafeOpaqueTokenSchema.nullable(),
   providerContract: z.string().regex(/^[a-z0-9-]{1,100}$/).nullable(),
+  kindDomainDiagnostics: PlannerDecompositionKindDomainDiagnosticsSchema.optional(),
 }).strict();
 export type StagedPlanningOperationSummary = z.infer<typeof StagedPlanningOperationSummarySchema>;
 
@@ -85,6 +87,7 @@ export type StagedPlanningFailureDetails = {
   outerCode: PlannerErrorCode;
   reasonCode?: string;
   safeToken?: string;
+  kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
   providerContract?: string;
   providerRequestCountExact: boolean;
   providerRequestAttempted: boolean;
@@ -216,6 +219,7 @@ export class StagedPlanningOperationTelemetry {
     failureClass: StagedPlanningFailureClass | null;
     reasonCode?: string;
     safeToken?: string;
+    kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
   }): StagedPlanningOperationSummary {
     const providerCallsByStage = {
       decomposition: { ...this.providerCalls.decomposition },
@@ -242,6 +246,7 @@ export class StagedPlanningOperationTelemetry {
       reasonCode: input.reasonCode ?? null,
       safeToken: input.safeToken ? safeOpaqueToken(input.safeToken) ?? null : null,
       providerContract: this.providerContract,
+      ...(input.kindDomainDiagnostics ? { kindDomainDiagnostics: input.kindDomainDiagnostics } : {}),
     });
   }
 
@@ -259,14 +264,15 @@ export class StagedPlanningOperationTelemetry {
     failureClass: StagedPlanningFailureClass;
     reasonCode?: string;
     safeToken?: string;
+    kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
     message: string;
     cause?: unknown;
   }) {
     this.stageFailed = input.stage;
     this.stageReached = input.stage;
     const summary = this.recorded
-      ? this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, reasonCode: input.reasonCode, safeToken: input.safeToken })
-      : this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, reasonCode: input.reasonCode, safeToken: input.safeToken });
+      ? this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, reasonCode: input.reasonCode, safeToken: input.safeToken, kindDomainDiagnostics: input.kindDomainDiagnostics })
+      : this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, reasonCode: input.reasonCode, safeToken: input.safeToken, kindDomainDiagnostics: input.kindDomainDiagnostics });
     if (!this.recorded) {
       this.recorded = true;
       recordStagedPlanningOperation(summary);
@@ -277,6 +283,7 @@ export class StagedPlanningOperationTelemetry {
       outerCode: input.outerCode,
       ...(input.reasonCode ? { reasonCode: input.reasonCode } : {}),
       ...(safeOpaqueToken(input.safeToken) ? { safeToken: safeOpaqueToken(input.safeToken) } : {}),
+      ...(input.kindDomainDiagnostics ? { kindDomainDiagnostics: input.kindDomainDiagnostics } : {}),
       ...(this.providerContract ? { providerContract: this.providerContract } : {}),
       providerRequestCountExact: summary.providerRequestCountExact,
       providerRequestAttempted: summary.providerRequestAttempted,

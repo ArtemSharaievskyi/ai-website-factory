@@ -9,12 +9,24 @@ import { createPlannerReferenceTable } from "./reference-table";
 import {
   admitPlanningCoverage,
   admitPlanningDecomposition,
+  admitPlanningDecompositionSemantics,
   assembleStagedPlanningCandidate,
   finalizePlanningElementGraph,
   requiredPlannerDecompositionDomains,
   stagedProviderContractMetrics,
 } from "./staged-admission";
-import { PlanningDecompositionProviderOutputSchema } from "./staged-contracts";
+import {
+  PLANNER_DECOMPOSITION_CONTRACT_VERSION,
+  PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME,
+  PlanningDecompositionProviderOutputSchema,
+  PlanningDecompositionProviderOutputV1Schema,
+} from "./staged-contracts";
+import {
+  PLANNER_ELEMENT_KINDS_BY_DOMAIN,
+  PLANNER_ELEMENT_KIND_DOMAINS,
+  PlannerCoverageDomainSchema,
+  PlannerCoverageElementKindSchema,
+} from "./coverage-contract";
 import { PlannerReferenceBindingError } from "@/integrations/openai/adapters";
 import { PlannerArchitectService } from "./service";
 import { FakePlannerMemoryPort } from "./memory";
@@ -141,7 +153,7 @@ function portalDecomposition() {
     { kind: "TEST_STRATEGY" as const, domain: "QA" as const, title: "Portal quality gates", description: "Covers authenticated submission, status transitions, history visibility, and safe failure behavior." },
     { kind: "TRACEABILITY" as const, domain: "LIFECYCLE" as const, title: "Requirement evidence ledger", description: "Records host-bound evidence for each approved Planning requirement without replacing substantive targets." },
   ];
-  return { brief, table, output: PlanningDecompositionProviderOutputSchema.parse({ schemaVersion: 1, providerContractVersion: "planner.decomposition.v1", complete: true, elements: elements.map((element) => ({ pageTokens: null, routeTokens: null, dependencies: null, negativeEvidence: null, negativeOnly: null, ...element })) }) };
+  return { brief, table, output: PlanningDecompositionProviderOutputSchema.parse({ schemaVersion: 1, providerContractVersion: PLANNER_DECOMPOSITION_CONTRACT_VERSION, complete: true, elements: elements.map((element) => ({ pageTokens: null, routeTokens: null, dependencies: null, negativeEvidence: null, negativeOnly: null, ...element })) }) };
 }
 
 function validCoverage(table: ReturnType<typeof portalTable>["table"], elementId = "PE_001") {
@@ -187,6 +199,95 @@ function failingPlanningDatabase(inner: InMemoryPersistenceDatabase): Persistenc
 
 describe("staged Planner pipeline", () => {
   beforeEach(() => clearStagedPlanningOperations());
+  it("certifies every compatibility pair from the single authority and rejects every other pair at the wire boundary", () => {
+    const { brief, table, output } = portalDecomposition();
+    const proposalFields = {
+      title: "Synthetic compatibility target",
+      description: "Represents one allowed typed decomposition target for the synthetic portal.",
+      pageTokens: null,
+      routeTokens: null,
+      dependencies: null,
+      negativeEvidence: null,
+      negativeOnly: null,
+    };
+    let allowedPairs = 0;
+    for (const domain of PlannerCoverageDomainSchema.options) {
+      for (const kind of PLANNER_ELEMENT_KINDS_BY_DOMAIN[domain]) {
+        allowedPairs += 1;
+        const candidate = { ...output, elements: [...output.elements, { ...proposalFields, kind, domain, title: `Allowed ${domain} ${kind}` }] };
+        expect(PlanningDecompositionProviderOutputSchema.safeParse(candidate).success).toBe(true);
+        expect(() => admitPlanningDecomposition({ output: candidate, table, brief: portalV1Brief(), canonicalBrief: brief })).not.toThrow();
+      }
+    }
+    expect(allowedPairs).toBe(Object.values(PLANNER_ELEMENT_KIND_DOMAINS).flat().length);
+    for (const domain of PlannerCoverageDomainSchema.options) {
+      for (const kind of PlannerCoverageElementKindSchema.options) {
+        if (PLANNER_ELEMENT_KINDS_BY_DOMAIN[domain].includes(kind)) continue;
+        const candidate = { ...output, elements: [{ ...proposalFields, kind, domain }] };
+        expect(PlanningDecompositionProviderOutputSchema.safeParse(candidate).success).toBe(false);
+      }
+    }
+  });
+
+  it("keeps historical v1 decomposition evidence readable without using its broad wire contract for new requests", () => {
+    const historical = {
+      schemaVersion: 1 as const,
+      providerContractVersion: "planner.decomposition.v1" as const,
+      complete: true as const,
+      elements: [{
+        kind: "DATABASE_MODEL" as const,
+        domain: "FRONTEND" as const,
+        title: "Historical invalid pair",
+        description: "A historical v1 proposal retained for evidence readability.",
+        pageTokens: null,
+        routeTokens: null,
+        dependencies: null,
+        negativeEvidence: null,
+        negativeOnly: null,
+      }],
+    };
+    expect(PlanningDecompositionProviderOutputV1Schema.parse(historical).providerContractVersion).toBe("planner.decomposition.v1");
+    expect(PlanningDecompositionProviderOutputSchema.safeParse({ ...historical, providerContractVersion: PLANNER_DECOMPOSITION_CONTRACT_VERSION }).success).toBe(false);
+  });
+
+  it("retains the deterministic mismatch guard for an internal typed bypass and emits only bounded enum diagnostics", () => {
+    const { brief, table, output } = portalDecomposition();
+    const invalid = { ...output, elements: output.elements.map((element, index) => index === 0 ? { ...element, kind: "DATABASE_MODEL" as const, domain: "FRONTEND" as const } : element) };
+    expectFailure(() => admitPlanningDecompositionSemantics({ output: invalid as never, table, brief: portalV1Brief(), canonicalBrief: brief }), {
+      reasonCode: "PLANNING_DECOMPOSITION_KIND_DOMAIN_MISMATCH",
+      kindDomainDiagnostics: {
+        actualDomain: "FRONTEND",
+        actualKind: "DATABASE_MODEL",
+        allowedKindsForDomain: PLANNER_ELEMENT_KINDS_BY_DOMAIN.FRONTEND,
+        elementIndex: 0,
+      },
+    });
+  });
+
+  it("projects kind/domain diagnostics through the staged failure envelope without provider prose", () => {
+    const telemetry = new StagedPlanningOperationTelemetry({
+      operationId: `workbench-planning:${projectId}`,
+      operationChecksum: "a".repeat(64),
+      correlationId: "66666666-6666-4666-8666-666666666666",
+      projectId,
+      briefChecksum: "b".repeat(64),
+    });
+    telemetry.enter("DECOMPOSITION_ADMISSION");
+    telemetry.beginProvider("decomposition", PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME);
+    telemetry.providerSucceeded({ stage: "decomposition", providerContract: PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME });
+    const failure = telemetry.fail({
+      stage: "DECOMPOSITION_ADMISSION",
+      outerCode: "PLANNING_PACKAGE_INVALID",
+      failureClass: "STAGED_DECOMPOSITION_FAILURE",
+      reasonCode: "PLANNING_DECOMPOSITION_KIND_DOMAIN_MISMATCH",
+      kindDomainDiagnostics: { actualDomain: "FRONTEND", actualKind: "DATABASE_MODEL", allowedKindsForDomain: [...PLANNER_ELEMENT_KINDS_BY_DOMAIN.FRONTEND], elementIndex: 7 },
+      message: "private title and description must not escape",
+    });
+    const response = workbenchFailureResponse(failure, { action: "approve-planning", projectId, correlationId: "66666666-6666-4666-8666-666666666666" });
+    expect(response.response).toMatchObject({ reasonCode: "PLANNING_DECOMPOSITION_KIND_DOMAIN_MISMATCH", kindDomainDiagnostics: { actualDomain: "FRONTEND", actualKind: "DATABASE_MODEL", allowedKindsForDomain: [...PLANNER_ELEMENT_KINDS_BY_DOMAIN.FRONTEND], elementIndex: 7 } });
+    expect(JSON.stringify(response)).not.toContain("private title and description");
+  });
+
   it("assigns opaque PE identity only after valid decomposition admission", () => {
     const { brief, table, output } = portalDecomposition();
     const elements = admitPlanningDecomposition({ output, table, brief: portalV1Brief(), canonicalBrief: brief });
@@ -331,7 +432,7 @@ describe("staged Planner pipeline", () => {
         await new DocumentRepository(database).save(BriefV3DocumentSchema.parse({ ...changedDocument, approval: { approved: true, approvedAt: timestamp, approvedBy: "synthetic-user", approvedCanonicalChecksum: changedDocument.briefChecksum } }));
         const page = stageInput.plannerReferenceTable.pages[0]!;
         const route = stageInput.plannerReferenceTable.routes[0]!;
-        return { schemaVersion: 1, providerContractVersion: "planner.decomposition.v1", complete: true, elements: [
+        return { schemaVersion: 1, providerContractVersion: PLANNER_DECOMPOSITION_CONTRACT_VERSION, complete: true, elements: [
           { kind: "PRODUCT_SCOPE", domain: "FRONTEND", title: "Synthetic scope", description: "Defines the approved synthetic portal scope.", pageTokens: null, routeTokens: null, dependencies: null, negativeEvidence: null, negativeOnly: null },
           { kind: "PAGE", domain: "FRONTEND", title: "Synthetic page", description: "Presents the approved synthetic portal page.", pageTokens: [page.token], routeTokens: [route.token], dependencies: null, negativeEvidence: null, negativeOnly: null },
         ] };
@@ -373,7 +474,7 @@ describe("staged Planner pipeline", () => {
     const { service, input, database } = await stagedService({
       async plan() { throw new Error("legacy path must not be called"); },
       async decompose() {
-        throw new AiProviderError("AI_NETWORK_ERROR", "private transport detail", undefined, { stage: "api_request", requestAttempted: true, apiResponseReceived: false, responseReceived: false, schemaName: "planning-decomposition-v1" });
+        throw new AiProviderError("AI_NETWORK_ERROR", "private transport detail", undefined, { stage: "api_request", requestAttempted: true, apiResponseReceived: false, responseReceived: false, schemaName: PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME });
       },
       async assignCoverage() { throw new Error("coverage must not be reached"); },
     });
@@ -455,7 +556,7 @@ describe("staged Planner pipeline", () => {
     const { service, input } = await stagedService({
       async plan() { throw new Error("legacy path must not be called"); },
       async decompose() {
-        throw new AiProviderError("AI_OUTPUT_DOMAIN_INVALID", "private schema detail", undefined, { stage: "domain_validation", outputStage: "TRANSPORT_SCHEMA_VALIDATION_FAILED", requestAttempted: true, apiResponseReceived: true, responseReceived: true, schemaName: "planning-decomposition-v1", issueCode: "INVALID_TYPE", fieldPath: "elements[0].title" });
+        throw new AiProviderError("AI_OUTPUT_DOMAIN_INVALID", "private schema detail", undefined, { stage: "domain_validation", outputStage: "TRANSPORT_SCHEMA_VALIDATION_FAILED", requestAttempted: true, apiResponseReceived: true, responseReceived: true, schemaName: PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME, issueCode: "INVALID_TYPE", fieldPath: "elements[0].title" });
       },
       async assignCoverage() { throw new Error("coverage must not be reached"); },
     });

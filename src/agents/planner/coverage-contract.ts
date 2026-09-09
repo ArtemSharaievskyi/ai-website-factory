@@ -42,6 +42,58 @@ export const PlannerCoverageElementKindSchema = z.enum([
 ]);
 export type PlannerCoverageElementKind = z.infer<typeof PlannerCoverageElementKindSchema>;
 
+/**
+ * The single kind x domain compatibility authority for Planning
+ * decomposition.  Provider wire variants and deterministic host admission
+ * both derive from this declaration; do not maintain a second matrix.
+ */
+export const PLANNER_ELEMENT_KIND_DOMAINS = {
+  PROFILE: ["FRONTEND", "LIFECYCLE"],
+  PRODUCT_SCOPE: ["FRONTEND", "BACKEND", "DATABASE", "LIFECYCLE"],
+  ROUTE: ["FRONTEND", "LIFECYCLE"],
+  PAGE: ["FRONTEND"],
+  NAVIGATION: ["FRONTEND"],
+  USER_FLOW: ["FRONTEND", "BACKEND", "LIFECYCLE"],
+  FORM: ["FRONTEND", "BACKEND"],
+  DATABASE_MODEL: ["DATABASE", "BACKEND"],
+  AUTHENTICATION: ["BACKEND", "SECURITY"],
+  SUPABASE: ["BACKEND", "DATABASE", "SECURITY", "INTEGRATION"],
+  EMAIL: ["BACKEND", "INTEGRATION"],
+  STORAGE: ["BACKEND", "DATABASE", "INTEGRATION"],
+  ADMINISTRATION: ["FRONTEND", "BACKEND", "SECURITY"],
+  CONTENT: ["FRONTEND"],
+  ASSET: ["FRONTEND"],
+  ARCHITECTURE: ["FRONTEND", "BACKEND", "DATABASE", "INTEGRATION", "LIFECYCLE"],
+  ENVIRONMENT: ["BACKEND", "INTEGRATION", "SECURITY"],
+  DEPENDENCY: ["BACKEND", "INTEGRATION"],
+  TEST_STRATEGY: ["QA"],
+  SECURITY: ["SECURITY"],
+  TRACEABILITY: ["QA", "LIFECYCLE"],
+} as const satisfies Record<PlannerCoverageElementKind, readonly PlannerCoverageDomain[]>;
+
+export const PLANNER_ELEMENT_KINDS_BY_DOMAIN: Record<PlannerCoverageDomain, readonly PlannerCoverageElementKind[]> = Object.fromEntries(
+  PlannerCoverageDomainSchema.options.map((domain) => [
+    domain,
+    PlannerCoverageElementKindSchema.options.filter((kind) => (PLANNER_ELEMENT_KIND_DOMAINS[kind] as readonly PlannerCoverageDomain[]).includes(domain)),
+  ]),
+) as unknown as Record<PlannerCoverageDomain, readonly PlannerCoverageElementKind[]>;
+
+export function plannerElementKindsForDomain(domain: PlannerCoverageDomain) {
+  return PLANNER_ELEMENT_KINDS_BY_DOMAIN[domain];
+}
+
+export function isPlannerElementKindAllowedInDomain(kind: PlannerCoverageElementKind, domain: PlannerCoverageDomain) {
+  return (PLANNER_ELEMENT_KIND_DOMAINS[kind] as readonly PlannerCoverageDomain[]).includes(domain);
+}
+
+export const PlannerDecompositionKindDomainDiagnosticsSchema = z.object({
+  actualDomain: PlannerCoverageDomainSchema,
+  actualKind: PlannerCoverageElementKindSchema,
+  allowedKindsForDomain: z.array(PlannerCoverageElementKindSchema).min(1).max(21),
+  elementIndex: z.number().int().min(0).max(255).optional(),
+}).strict();
+export type PlannerDecompositionKindDomainDiagnostics = z.infer<typeof PlannerDecompositionKindDomainDiagnosticsSchema>;
+
 export const PlannerRequirementCoverageConstraintSchema = z.object({
   allowedDomains: z.array(PlannerCoverageDomainSchema).min(1).max(7),
   allowedElementKinds: z.array(PlannerCoverageElementKindSchema).min(1).max(21),

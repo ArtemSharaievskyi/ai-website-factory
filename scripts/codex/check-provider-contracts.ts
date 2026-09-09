@@ -10,7 +10,7 @@ import {
   createTokenizedPlanningProviderWireSchema,
   createPlanningRecoveryProviderWireSchema,
 } from "@/integrations/openai/adapters";
-import { createPlanningCoverageProviderWireSchema, PlanningDecompositionProviderOutputSchema } from "@/agents/planner/staged-contracts";
+import { createPlanningCoverageProviderWireSchema, PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME, PlanningDecompositionProviderOutputSchema } from "@/agents/planner/staged-contracts";
 import { createPlannerReferenceTable } from "@/agents/planner/reference-table";
 import { cleanBriefV3 } from "@/domain/requirements/v3/fixtures";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
@@ -44,7 +44,7 @@ const builders: Record<string, Builder> = {
   "project-brief": () => buildProductionResponseFormat(BriefDraftStructuredOutputSchema, "brief-draft"),
   "brief-revision-v3": () => buildProductionResponseFormat(ProviderBriefChangeSetSchema, "brief-revision-v3"),
   "planning-package": () => buildProductionResponseFormat(createTokenizedPlanningProviderWireSchema(plannerContractProbeReferenceTable), "planning-package-v5"),
-  "planning-decomposition": () => buildProductionResponseFormat(PlanningDecompositionProviderOutputSchema, "planning-decomposition-v1"),
+  "planning-decomposition": () => buildProductionResponseFormat(PlanningDecompositionProviderOutputSchema, PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME),
   "planning-coverage": () => buildProductionResponseFormat(createPlanningCoverageProviderWireSchema(plannerContractProbeReferenceTable), "planning-coverage-v1"),
   "planning-recovery-package": () => buildProductionResponseFormat(createPlanningRecoveryProviderWireSchema(recoveryContractProbeManifest as never), "planning-recovery-package", { schemaDefinitions: PlanningRecoveryProviderSchemaDefinitions }),
   "planning-change-set": () => buildProductionResponseFormat(PlanningChangeSetProviderOutputSchema, "planning-change-set"),

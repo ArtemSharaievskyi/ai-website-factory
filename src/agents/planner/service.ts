@@ -91,8 +91,9 @@ import {
   finalizePlanningElementGraph,
   requiredPlannerDecompositionDomains,
   StagedPlanningAdmissionError,
+  stagedPlanningAdmissionDiagnostics,
 } from "./staged-admission";
-import type { PlannerDecompositionProviderInput } from "./staged-contracts";
+import { PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME, type PlannerDecompositionProviderInput } from "./staged-contracts";
 import {
   StagedPlanningOperationTelemetry,
   type StagedPlanningFailureClass,
@@ -493,9 +494,9 @@ export class PlannerArchitectService {
     let decompositionOutput;
     await input.setStage?.("DECOMPOSITION");
     input.telemetry?.enter("DECOMPOSITION_PROVIDER");
-    const decompositionCall = input.telemetry?.beginProvider("decomposition", "planning-decomposition-v1");
+    const decompositionCall = input.telemetry?.beginProvider("decomposition", PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME);
     const decompositionInvocation: ProviderInvocationLedgerHandle | undefined = input.providerInvocationLedger
-      ? await input.providerInvocationLedger.reserveInvocation({ stage: "decomposition", providerContract: "planning-decomposition-v1" })
+      ? await input.providerInvocationLedger.reserveInvocation({ stage: "decomposition", providerContract: PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME })
       : undefined;
     try {
       decompositionOutput = await this.provider.decompose(
@@ -927,6 +928,7 @@ export class PlannerArchitectService {
           failureClass: stagedFailureClass(stage, error),
           ...(safeStagedReasonCode(error) ? { reasonCode: safeStagedReasonCode(error) } : {}),
           ...(safeStagedToken(error) ? { safeToken: safeStagedToken(error) } : {}),
+          ...(stagedPlanningAdmissionDiagnostics(error) ? { kindDomainDiagnostics: stagedPlanningAdmissionDiagnostics(error) } : {}),
           message: "Staged Planning failed safely; the project was not changed.",
           cause: error,
         });
