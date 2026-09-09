@@ -34,7 +34,12 @@ import {
 } from "@/agents/planner/reference-table";
 import {
   plannerElementKindsForDomain,
+  plannerCoverageCompatibility,
   PlannerCoverageDomainSchema,
+  PlannerCoverageDiagnosticsSchema,
+  type PlannerCoverageDiagnostics,
+  type PlannerCoverageStaticFailureReasonCode,
+  type PlannerCoverageElementDescriptor as SharedPlannerCoverageElementDescriptor,
   type PlannerCoverageDomain,
   type PlannerCoverageElementKind,
 } from "@/agents/planner/coverage-contract";
@@ -50,6 +55,8 @@ import {
 } from "@/agents/planner/contracts";
 import {
   createPlanningCoverageProviderWireSchema,
+  normalizePlanningCoverageProviderOutput,
+  PLANNING_COVERAGE_PROVIDER_SCHEMA_NAME,
   PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME,
   PlanningDecompositionProviderOutputSchema,
   type PlannerCoverageProviderInput,
@@ -689,7 +696,9 @@ export type PlannerCoverageReasonCode =
   | "PLANNING_COVERAGE_EXCLUSION_CANNOT_SATISFY"
   | "PLANNING_COVERAGE_NEGATIVE_EVIDENCE_MISSING"
   | "PLANNING_COVERAGE_ELEMENT_ID_COLLISION"
-  | "PLANNING_COVERAGE_REQUIREMENT_MISSING";
+  | "PLANNING_COVERAGE_REQUIREMENT_MISSING"
+  | "PLANNING_COVERAGE_NO_ADMISSIBLE_TARGETS"
+  | "PLANNING_COVERAGE_TARGET_NOT_ADMISSIBLE";
 
 export class PlannerReferenceBindingError extends Error {
   constructor(
@@ -697,6 +706,7 @@ export class PlannerReferenceBindingError extends Error {
     readonly fieldPath: string,
     readonly reasonCode?: PlannerCoverageReasonCode,
     safeToken?: string,
+    readonly coverageDiagnostics?: PlannerCoverageDiagnostics,
   ) {
     super(`${code}:${fieldPath}`);
     this.name = "PlannerReferenceBindingError";
@@ -904,16 +914,52 @@ function normalizedPlannerCoverageEvidence(value: string) {
   return value.trim().toLocaleLowerCase("en").replace(/[.!?,;:]+$/g, "").replace(/\s+/g, " ");
 }
 
-export type PlannerCoverageElementDescriptor = {
-  kind: PlannerCoverageElementKind;
-  domains: readonly PlannerCoverageDomain[];
-  pageToken?: string;
-  routeToken?: string;
-  pageTokens?: readonly string[];
-  routeTokens?: readonly string[];
-  negativeOnly?: boolean;
-  negativeEvidence?: boolean;
-};
+function plannerCoverageDiagnostics(input: {
+  requirement: PlannerReferenceTable["requirements"][number];
+  reasonCode: PlannerCoverageStaticFailureReasonCode;
+  candidateElements: ReadonlyMap<string, PlannerCoverageElementDescriptor>;
+  planningElementToken?: string;
+  descriptor?: PlannerCoverageElementDescriptor;
+}) {
+  const admissibleTargetCount = [...input.candidateElements.values()]
+    .filter((descriptor) => plannerCoverageCompatibility(input.requirement.coverageConstraints, descriptor).compatible)
+    .length;
+  return PlannerCoverageDiagnosticsSchema.parse({
+    requirementToken: input.requirement.token,
+    requirementCategory: input.requirement.category,
+    ...(input.planningElementToken ? { planningElementToken: input.planningElementToken } : {}),
+    ...(input.descriptor?.domains[0] ? { actualDomain: input.descriptor.domains[0] } : {}),
+    ...(input.descriptor?.kind ? { actualKind: input.descriptor.kind } : {}),
+    allowedDomains: input.requirement.coverageConstraints.allowedDomains,
+    allowedKinds: input.requirement.coverageConstraints.allowedElementKinds,
+    requiredPageTokens: input.requirement.coverageConstraints.requiredPageTokens,
+    allowedPageTokens: input.requirement.coverageConstraints.allowedPageTokens,
+    requiredRouteTokens: input.requirement.coverageConstraints.requiredRouteTokens,
+    allowedRouteTokens: input.requirement.coverageConstraints.allowedRouteTokens,
+    admissibleTargetCount,
+    minimumCoverageTargets: input.requirement.coverageConstraints.minimumCoverageTargets,
+    reasonCode: input.reasonCode,
+  });
+}
+
+function plannerCoverageBindingError(input: {
+  requirement: PlannerReferenceTable["requirements"][number];
+  fieldPath: string;
+  reasonCode: PlannerCoverageStaticFailureReasonCode;
+  candidateElements: ReadonlyMap<string, PlannerCoverageElementDescriptor>;
+  planningElementToken?: string;
+  descriptor?: PlannerCoverageElementDescriptor;
+}) {
+  return new PlannerReferenceBindingError(
+    "PLANNING_REQUIREMENT_COVERAGE_INVALID",
+    input.fieldPath,
+    input.reasonCode,
+    input.planningElementToken,
+    plannerCoverageDiagnostics(input),
+  );
+}
+
+export type PlannerCoverageElementDescriptor = SharedPlannerCoverageElementDescriptor;
 
 const sectionDescriptor = (kind: PlannerCoverageElementKind, domains: readonly PlannerCoverageDomain[]): PlannerCoverageElementDescriptor => ({ kind, domains });
 const PLANNER_ELEMENT_SECTION_DESCRIPTORS = {
@@ -1016,44 +1062,33 @@ export function validatePlannerRequirementCoverage(
       const raw = coverage[entry.token];
       const rawIds = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>).planningElementIds : undefined;
       const reason = Array.isArray(rawIds) && rawIds.length === 0 ? "PLANNING_COVERAGE_EMPTY" : "PLANNING_COVERAGE_SHAPE_INVALID";
+      if (reason === "PLANNING_COVERAGE_EMPTY")
+        throw plannerCoverageBindingError({ requirement: entry, fieldPath, reasonCode: reason, candidateElements });
       throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, reason);
     }
     const constraints = entry.coverageConstraints;
     if (new Set(parsed.data.planningElementIds).size < constraints.minimumCoverageTargets)
-      throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_EMPTY");
+      throw plannerCoverageBindingError({ requirement: entry, fieldPath, reasonCode: "PLANNING_COVERAGE_EMPTY", candidateElements });
     if (parsed.data.planningElementIds.some((id) => !candidateElements.has(id))) {
       const missingId = parsed.data.planningElementIds.find((id) => !candidateElements.has(id));
-      throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_ELEMENT_NOT_FOUND", missingId);
+      throw plannerCoverageBindingError({ requirement: entry, fieldPath, reasonCode: "PLANNING_COVERAGE_ELEMENT_NOT_FOUND", candidateElements, planningElementToken: missingId });
     }
     if (constraints.positiveRequirement && parsed.data.planningElementIds.length === 1 && (parsed.data.planningElementIds[0] === "traceability" || hostElementIndex && candidateElements.get(parsed.data.planningElementIds[0])?.kind === "TRACEABILITY"))
       throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_GENERIC_CATCH_ALL");
     for (const id of parsed.data.planningElementIds) {
       const descriptor = candidateElements.get(id)!;
-      if (!constraints.allowedElementKinds.includes(descriptor.kind))
-        throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_KIND_INCOMPATIBLE");
-      if (!descriptor.domains.some((domain) => constraints.allowedDomains.includes(domain)))
-        throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_DOMAIN_INCOMPATIBLE");
-      if (descriptor.pageToken && !constraints.allowedPageTokens.includes(descriptor.pageToken))
-        throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_PAGE_BINDING_MISMATCH");
-      if (descriptor.routeToken && !constraints.allowedRouteTokens.includes(descriptor.routeToken))
-        throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_ROUTE_BINDING_MISMATCH");
-      if (descriptor.pageTokens?.some((token) => !constraints.allowedPageTokens.includes(token)))
-        throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_PAGE_BINDING_MISMATCH");
-      if (descriptor.routeTokens?.some((token) => !constraints.allowedRouteTokens.includes(token)))
-        throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_ROUTE_BINDING_MISMATCH");
-      if (constraints.positiveRequirement && descriptor.negativeOnly)
-        throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_EXCLUSION_CANNOT_SATISFY");
-      if (constraints.negativeEvidenceRequired && !descriptor.negativeEvidence)
-        throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_NEGATIVE_EVIDENCE_MISSING");
+      const compatibility = plannerCoverageCompatibility(constraints, descriptor);
+      if (!compatibility.compatible)
+        throw plannerCoverageBindingError({ requirement: entry, fieldPath, reasonCode: compatibility.reasonCode, candidateElements, planningElementToken: id, descriptor });
     }
     if (constraints.requiredPageTokens.some((token) => hostElementIndex
       ? !parsed.data.planningElementIds.some((id) => candidateElements.get(id)?.pageToken === token || candidateElements.get(id)?.pageTokens?.includes(token))
       : !parsed.data.planningElementIds.includes(token)))
-      throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_PAGE_BINDING_MISMATCH");
+      throw plannerCoverageBindingError({ requirement: entry, fieldPath, reasonCode: "PLANNING_COVERAGE_PAGE_BINDING_MISMATCH", candidateElements });
     if (constraints.requiredRouteTokens.some((token) => hostElementIndex
       ? !parsed.data.planningElementIds.some((id) => candidateElements.get(id)?.routeToken === token || candidateElements.get(id)?.routeTokens?.includes(token))
       : !parsed.data.planningElementIds.includes(token)))
-      throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_ROUTE_BINDING_MISMATCH");
+      throw plannerCoverageBindingError({ requirement: entry, fieldPath, reasonCode: "PLANNING_COVERAGE_ROUTE_BINDING_MISMATCH", candidateElements });
     if (PLANNER_PLACEHOLDER_SEMANTIC_EVIDENCE.has(normalizedPlannerCoverageEvidence(parsed.data.semanticEvidence)))
       throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_INVALID", fieldPath, "PLANNING_COVERAGE_PLACEHOLDER_EVIDENCE");
   }
@@ -2025,6 +2060,7 @@ function stagedCoveragePromptInput(input: PlannerCoverageProviderInput) {
     stage: "PLANNING_REQUIREMENT_COVERAGE",
     requirements: table.requirements.filter((entry) => entry.mandatory).map(({ token, summary, category, coverageConstraints }) => ({ token, summary, category, coverageConstraints })),
     requiredRequirementTokens: table.requirements.filter((entry) => entry.mandatory).map((entry) => entry.token),
+    admissibleCoverageTargetsByRequirement: input.admissibleCoverageTargetsByRequirement,
     planningElements: input.elements.map(({ elementId, kind, domain, title, description, pageTokens, routeTokens }) => ({ elementId, kind, domain, title, description, pageTokens, routeTokens })),
     graph: input.graph.edges,
     outputPolicy: { complete: true, mappingOnly: true, noNewElements: true, noNewRoutes: true, noNewDependencies: true },
@@ -2083,22 +2119,25 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
     providerInvocation?: ProviderInvocationContext,
   ): Promise<PlanningCoverageProviderOutput> {
     const table = PlannerReferenceTableSchema.parse(input.plannerReferenceTable);
-    const schema = createPlanningCoverageProviderWireSchema(table);
+    const schema = createPlanningCoverageProviderWireSchema(table, input.admissibleCoverageTargetsByRequirement);
     const prompt = rolePrompt("planner", stagedCoveragePromptInput(input), false, approvedSkills);
-    const system = `${prompt.system} This is Stage 3 of staged Planning. Return only the exact coverageByRequirement mapping. Use every mandatory REQ token exactly once and only host-issued PE_* tokens supplied in planningElements. Do not create elements, routes, pages, dependencies, canonical IDs, project IDs, checksums, or any other fields. Semantic evidence must explain the actual treatment; generic catch-all evidence is invalid. The host will run the existing deterministic v5 semantic coverage validator.`;
-    const result = await this.ai.request<PlanningCoverageProviderOutput>({
+    const system = `${prompt.system} This is Stage 3 of staged Planning. Return only the exact coverageByRequirement mapping. Use every mandatory REQ token exactly once. For each REQ slot, return planningElementRefs as explicit zero-based positions in that slot's ordered host-derived admissibleCoverageTargetsByRequirement list; a position outside that list is invalid even when the corresponding PE exists elsewhere in planningElements. The host resolves each returned position to the exact PE token before semantic admission. Do not create elements, routes, pages, dependencies, canonical IDs, project IDs, checksums, or any other fields. Semantic evidence must explain the actual treatment; generic catch-all evidence is invalid. The host will run the existing deterministic semantic coverage validator as defense in depth.`;
+    const result = await this.ai.request<unknown>({
       ...prompt,
       system,
       role: "planner",
       schema,
-      schemaName: "planning-coverage-v1",
+      schemaName: PLANNING_COVERAGE_PROVIDER_SCHEMA_NAME,
       idempotencyKey: `${table.operationChecksum}:${skillContextIdentity}:coverage`,
       retryPolicy: { maxRetries: 0, corrections: 0 },
       ...(providerInvocation ? { providerInvocation } : {}),
     });
-    const parsed = schema.safeParse(result.value);
-    if (!parsed.success) stagedProviderNormalizationFailure(parsed.error, result.diagnostic, "planning-coverage-v1");
-    return parsed.data;
+    try {
+      return normalizePlanningCoverageProviderOutput(result.value, table, input.admissibleCoverageTargetsByRequirement);
+    } catch (error) {
+      if (error instanceof z.ZodError) stagedProviderNormalizationFailure(error, result.diagnostic, PLANNING_COVERAGE_PROVIDER_SCHEMA_NAME);
+      throw error;
+    }
   }
   async plan(
     input: Parameters<PlannerArchitectureProvider["plan"]>[0],

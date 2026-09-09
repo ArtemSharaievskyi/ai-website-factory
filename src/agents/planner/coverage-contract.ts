@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { RequirementCategory } from "@/domain/requirements/v3/schema";
+import { RequirementCategorySchema, type RequirementCategory } from "@/domain/requirements/v3/schema";
 
 /**
  * The coverage contract is a typed view of the canonical requirement
@@ -41,6 +41,62 @@ export const PlannerCoverageElementKindSchema = z.enum([
   "TRACEABILITY",
 ]);
 export type PlannerCoverageElementKind = z.infer<typeof PlannerCoverageElementKindSchema>;
+
+export const PLANNER_COVERAGE_CONTRACT_VERSION = "planner.coverage.v2" as const;
+export const PLANNER_COVERAGE_LEGACY_CONTRACT_VERSION = "planner.coverage.v1" as const;
+
+const PlannerRequirementTokenSchema = z.string().regex(/^REQ_\d{3,}$/);
+const PlannerElementTokenSchema = z.string().regex(/^PE_\d{3}$/);
+const PlannerCoverageDiagnosticElementTokenSchema = z.string().min(1).max(160).regex(/^[A-Za-z][A-Za-z0-9:_./-]*$/);
+const ChecksumSchema = z.string().regex(/^[a-f0-9]{64}$/);
+
+/**
+ * These are the deterministic coverage reason codes which can be decided
+ * from typed requirement constraints and typed PE metadata.  Semantic
+ * evidence reasons are deliberately kept in host admission.
+ */
+export const PlannerCoverageStaticFailureReasonCodeSchema = z.enum([
+  "PLANNING_COVERAGE_EMPTY",
+  "PLANNING_COVERAGE_ELEMENT_NOT_FOUND",
+  "PLANNING_COVERAGE_KIND_INCOMPATIBLE",
+  "PLANNING_COVERAGE_DOMAIN_INCOMPATIBLE",
+  "PLANNING_COVERAGE_PAGE_BINDING_MISMATCH",
+  "PLANNING_COVERAGE_ROUTE_BINDING_MISMATCH",
+  "PLANNING_COVERAGE_EXCLUSION_CANNOT_SATISFY",
+  "PLANNING_COVERAGE_NEGATIVE_EVIDENCE_MISSING",
+  "PLANNING_COVERAGE_NO_ADMISSIBLE_TARGETS",
+  "PLANNING_COVERAGE_TARGET_NOT_ADMISSIBLE",
+]);
+export type PlannerCoverageStaticFailureReasonCode = z.infer<typeof PlannerCoverageStaticFailureReasonCodeSchema>;
+
+export const PlannerCoverageDiagnosticsSchema = z.object({
+  requirementToken: PlannerRequirementTokenSchema,
+  requirementCategory: RequirementCategorySchema,
+  planningElementToken: PlannerCoverageDiagnosticElementTokenSchema.optional(),
+  actualDomain: PlannerCoverageDomainSchema.optional(),
+  actualKind: PlannerCoverageElementKindSchema.optional(),
+  allowedDomains: z.array(PlannerCoverageDomainSchema).min(1).max(7),
+  allowedKinds: z.array(PlannerCoverageElementKindSchema).min(1).max(21),
+  requiredPageTokens: z.array(z.string().regex(/^PAGE_\d{3,}$/)).max(256),
+  allowedPageTokens: z.array(z.string().regex(/^PAGE_\d{3,}$/)).max(256),
+  requiredRouteTokens: z.array(z.string().regex(/^ROUTE_\d{3,}$/)).max(256),
+  allowedRouteTokens: z.array(z.string().regex(/^ROUTE_\d{3,}$/)).max(256),
+  admissibleTargetCount: z.number().int().nonnegative().max(256),
+  minimumCoverageTargets: z.number().int().min(1).max(32),
+  reasonCode: PlannerCoverageStaticFailureReasonCodeSchema,
+}).strict();
+export type PlannerCoverageDiagnostics = z.infer<typeof PlannerCoverageDiagnosticsSchema>;
+
+export type PlannerCoverageElementDescriptor = {
+  kind: PlannerCoverageElementKind;
+  domains: readonly PlannerCoverageDomain[];
+  pageToken?: string;
+  routeToken?: string;
+  pageTokens?: readonly string[];
+  routeTokens?: readonly string[];
+  negativeOnly?: boolean;
+  negativeEvidence?: boolean;
+};
 
 /**
  * The single kind x domain compatibility authority for Planning
@@ -106,6 +162,32 @@ export const PlannerRequirementCoverageConstraintSchema = z.object({
   minimumCoverageTargets: z.number().int().min(1).max(32),
 }).strict();
 export type PlannerRequirementCoverageConstraint = z.infer<typeof PlannerRequirementCoverageConstraintSchema>;
+
+export const PlannerCoverageTargetBindingSchema = z.object({
+  projectId: z.string().uuid(),
+  projectVersion: z.number().int().positive(),
+  expectedRowVersion: z.number().int().positive(),
+  approvedBriefChecksum: ChecksumSchema,
+  referenceTableChecksum: ChecksumSchema,
+  planningElementsChecksum: ChecksumSchema,
+  graphChecksum: ChecksumSchema,
+  coverageOperationId: z.string().min(1).max(256).regex(/^[A-Za-z0-9][A-Za-z0-9:_./-]*$/),
+  operationChecksum: ChecksumSchema,
+  contractVersion: z.literal(PLANNER_COVERAGE_CONTRACT_VERSION),
+}).strict();
+export type PlannerCoverageTargetBinding = z.infer<typeof PlannerCoverageTargetBindingSchema>;
+
+export const AdmissibleCoverageTargetsByRequirementSchema = z.record(
+  PlannerRequirementTokenSchema,
+  z.array(PlannerElementTokenSchema).max(256),
+);
+export type AdmissibleCoverageTargetsByRequirement = z.infer<typeof AdmissibleCoverageTargetsByRequirementSchema>;
+
+export const PlannerCoverageTargetTableSchema = z.object({
+  binding: PlannerCoverageTargetBindingSchema,
+  admissibleCoverageTargetsByRequirement: AdmissibleCoverageTargetsByRequirementSchema,
+}).strict();
+export type PlannerCoverageTargetTable = z.infer<typeof PlannerCoverageTargetTableSchema>;
 
 type CoverageDefinition = {
   allowedDomains: readonly PlannerCoverageDomain[];
@@ -184,4 +266,36 @@ export function createPlannerRequirementCoverageConstraint(input: {
     negativeEvidenceRequired: base.negativeEvidenceRequired,
     minimumCoverageTargets: 1,
   });
+}
+
+/**
+ * The one metadata-only Coverage compatibility authority.  Target derivation
+ * and host admission must both use this function; semantic evidence is not
+ * reduced to a wire-schema predicate.
+ */
+export function plannerCoverageCompatibility(
+  constraints: PlannerRequirementCoverageConstraint,
+  descriptor: PlannerCoverageElementDescriptor,
+): { compatible: true } | { compatible: false; reasonCode: PlannerCoverageStaticFailureReasonCode } {
+  if (!constraints.allowedElementKinds.includes(descriptor.kind))
+    return { compatible: false, reasonCode: "PLANNING_COVERAGE_KIND_INCOMPATIBLE" };
+  if (!descriptor.domains.some((domain) => constraints.allowedDomains.includes(domain)))
+    return { compatible: false, reasonCode: "PLANNING_COVERAGE_DOMAIN_INCOMPATIBLE" };
+  if (descriptor.pageToken && !constraints.allowedPageTokens.includes(descriptor.pageToken))
+    return { compatible: false, reasonCode: "PLANNING_COVERAGE_PAGE_BINDING_MISMATCH" };
+  if (descriptor.routeToken && !constraints.allowedRouteTokens.includes(descriptor.routeToken))
+    return { compatible: false, reasonCode: "PLANNING_COVERAGE_ROUTE_BINDING_MISMATCH" };
+  if (descriptor.pageTokens?.some((token) => !constraints.allowedPageTokens.includes(token)))
+    return { compatible: false, reasonCode: "PLANNING_COVERAGE_PAGE_BINDING_MISMATCH" };
+  if (descriptor.routeTokens?.some((token) => !constraints.allowedRouteTokens.includes(token)))
+    return { compatible: false, reasonCode: "PLANNING_COVERAGE_ROUTE_BINDING_MISMATCH" };
+  if (constraints.positiveRequirement && descriptor.negativeOnly)
+    return { compatible: false, reasonCode: "PLANNING_COVERAGE_EXCLUSION_CANNOT_SATISFY" };
+  if (constraints.negativeEvidenceRequired && !descriptor.negativeEvidence)
+    return { compatible: false, reasonCode: "PLANNING_COVERAGE_NEGATIVE_EVIDENCE_MISSING" };
+  if (constraints.requiredPageTokens.some((token) => !(descriptor.pageToken === token || descriptor.pageTokens?.includes(token))))
+    return { compatible: false, reasonCode: "PLANNING_COVERAGE_PAGE_BINDING_MISMATCH" };
+  if (constraints.requiredRouteTokens.some((token) => !(descriptor.routeToken === token || descriptor.routeTokens?.includes(token))))
+    return { compatible: false, reasonCode: "PLANNING_COVERAGE_ROUTE_BINDING_MISMATCH" };
+  return { compatible: true };
 }

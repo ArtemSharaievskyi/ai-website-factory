@@ -3,6 +3,7 @@ import { CanonicalBriefV3Schema, type CanonicalBriefV3, type CanonicalRequiremen
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { PlanningPackageSchema, type PlanningPackage } from "./contracts";
 import { CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY } from "./semantic-checksum";
+import type { PlannerCoverageDiagnostics } from "./coverage-contract";
 import {
   bindPlanningRecoverySemanticAccounting,
   canonicalPagePath,
@@ -96,7 +97,7 @@ export type PlanningRefreshAdmission = {
 };
 
 export class PlanningAdmissionError extends Error {
-  constructor(readonly code: string, readonly reference?: string, readonly reasonCode?: string, safeToken?: string) {
+  constructor(readonly code: string, readonly reference?: string, readonly reasonCode?: string, safeToken?: string, readonly coverageDiagnostics?: PlannerCoverageDiagnostics) {
     super(reference ? `${code}:${reference}` : code);
     this.name = "PlanningAdmissionError";
     this.safeToken = typeof safeToken === "string" && /^(?:REQ|PE|PAGE|ROUTE)_\d{3,}$/.test(safeToken) ? safeToken : undefined;

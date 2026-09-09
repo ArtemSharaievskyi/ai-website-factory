@@ -3,7 +3,7 @@ import { z } from "zod";
 import { isAiProviderError, type AiProviderError } from "@/integrations/openai/errors";
 import { PROVIDER_OUTPUT_STAGES, type ProviderDiagnostic, type ProviderOutputStage } from "@/integrations/openai/usage";
 import { isStagedPlanningFailure, StagedPlanningFailureClassSchema, StagedPlanningOperationSummarySchema, StagedPlanningStageSchema, type StagedPlanningOperationSummary, type StagedPlanningStage } from "@/agents/planner/staged-failures";
-import { PlannerDecompositionKindDomainDiagnosticsSchema, type PlannerDecompositionKindDomainDiagnostics } from "@/agents/planner/coverage-contract";
+import { PlannerCoverageDiagnosticsSchema, PlannerDecompositionKindDomainDiagnosticsSchema, type PlannerCoverageDiagnostics, type PlannerDecompositionKindDomainDiagnostics } from "@/agents/planner/coverage-contract";
 import { PlanningGraphCycleDiagnosticsSchema, type PlanningGraphCycleDiagnostics } from "@/agents/planner/staged-contracts";
 import { isWorkbenchOperationFailure, type WorkbenchOperationFailure } from "./operation-context";
 import { WORKBENCH_OPERATION_STAGES, type WorkbenchOperationStage } from "./operation-context";
@@ -79,6 +79,7 @@ export const WorkbenchErrorResponseSchema = z
     safeToken: z.string().regex(/^(?:REQ|PE|PAGE|ROUTE)_\d{3,}$/).max(32).optional(),
     kindDomainDiagnostics: PlannerDecompositionKindDomainDiagnosticsSchema.optional(),
     graphCycleDiagnostics: PlanningGraphCycleDiagnosticsSchema.optional(),
+    coverageDiagnostics: PlannerCoverageDiagnosticsSchema.optional(),
     safeErrorFingerprint: SafeFingerprintSchema.optional(),
     providerContract: z.string().regex(/^[a-z0-9-]{1,100}$/).optional(),
     providerCallsTotal: z.number().int().nonnegative().optional(),
@@ -118,6 +119,7 @@ export type WorkbenchErrorProjection = WorkbenchErrorResponse & {
   stagedOperation?: StagedPlanningOperationSummary;
   kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
   graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
+  coverageDiagnostics?: PlannerCoverageDiagnostics;
 };
 
 type SafeProviderDiagnostic = {
@@ -176,6 +178,7 @@ export type WorkbenchDiagnosticEvent = {
   safeToken?: string;
   kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
   graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
+  coverageDiagnostics?: PlannerCoverageDiagnostics;
   safeErrorFingerprint?: string;
   providerContract?: string;
   providerCallsTotal?: number;
@@ -507,6 +510,7 @@ function stagedFailureProjection(error: unknown): Omit<WorkbenchErrorProjection,
     ...(error.details.safeToken ? { safeToken: error.details.safeToken } : {}),
     ...(error.details.kindDomainDiagnostics ? { kindDomainDiagnostics: error.details.kindDomainDiagnostics } : {}),
     ...(error.details.graphCycleDiagnostics ? { graphCycleDiagnostics: error.details.graphCycleDiagnostics } : {}),
+    ...(error.details.coverageDiagnostics ? { coverageDiagnostics: error.details.coverageDiagnostics } : {}),
     providerRequestCountExact: error.details.providerRequestCountExact,
     providerRequestCount: error.details.providerRequestCount,
     stagedOperation: operation,
@@ -619,6 +623,7 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     ...(projection.safeToken ? { safeToken: projection.safeToken } : {}),
     ...(projection.kindDomainDiagnostics ? { kindDomainDiagnostics: projection.kindDomainDiagnostics } : {}),
     ...(projection.graphCycleDiagnostics ? { graphCycleDiagnostics: projection.graphCycleDiagnostics } : {}),
+    ...(projection.coverageDiagnostics ? { coverageDiagnostics: projection.coverageDiagnostics } : {}),
     ...(projection.safeErrorFingerprint ? { safeErrorFingerprint: projection.safeErrorFingerprint } : {}),
     ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
     ...(projection.providerCallsTotal !== undefined ? { providerCallsTotal: projection.providerCallsTotal } : {}),
@@ -716,6 +721,7 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     ...(projection.safeToken ? { safeToken: projection.safeToken } : {}),
     ...(projection.kindDomainDiagnostics ? { kindDomainDiagnostics: projection.kindDomainDiagnostics } : {}),
     ...(projection.graphCycleDiagnostics ? { graphCycleDiagnostics: projection.graphCycleDiagnostics } : {}),
+    ...(projection.coverageDiagnostics ? { coverageDiagnostics: projection.coverageDiagnostics } : {}),
     ...(projection.safeErrorFingerprint ? { safeErrorFingerprint: projection.safeErrorFingerprint } : {}),
     ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
     ...(projection.providerCallsTotal !== undefined ? { providerCallsTotal: projection.providerCallsTotal } : {}),

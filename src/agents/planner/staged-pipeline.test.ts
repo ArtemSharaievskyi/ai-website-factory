@@ -10,18 +10,29 @@ import {
   admitPlanningCoverage,
   admitPlanningDecomposition,
   admitPlanningDecompositionSemantics,
+  assertAdmissibleCoverageTargetCounts,
+  assertAdmissibleCoverageTargetTableCurrent,
   assembleStagedPlanningCandidate,
+  createAdmissibleCoverageTargetTable,
+  deriveAdmissibleCoverageTargets,
   finalizePlanningElementGraph,
   planningElementGraphCycleDiagnostics,
   requiredPlannerDecompositionDomains,
+  stagedElementDescriptorIndex,
   stagedProviderContractMetrics,
 } from "./staged-admission";
 import {
   PLANNER_DECOMPOSITION_CONTRACT_VERSION,
   PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME,
+  PLANNER_COVERAGE_CONTRACT_VERSION,
+  normalizePlanningCoverageProviderOutput,
+  createPlanningCoverageProviderWireSchemaV1,
   PlanningDecompositionProviderOutputSchema,
   PlanningDecompositionProviderOutputV1Schema,
+  type PlanningElement,
+  type PlanningElementGraph,
   PlanningElementGraphSchema,
+  createPlanningCoverageProviderWireSchema,
 } from "./staged-contracts";
 import {
   PLANNER_ELEMENT_KINDS_BY_DOMAIN,
@@ -29,7 +40,8 @@ import {
   PlannerCoverageDomainSchema,
   PlannerCoverageElementKindSchema,
 } from "./coverage-contract";
-import { PlannerReferenceBindingError } from "@/integrations/openai/adapters";
+import { checksumPersistedDocument } from "@/persistence/database/serialization";
+import { PlannerReferenceBindingError, validatePlannerRequirementCoverage } from "@/integrations/openai/adapters";
 import { PlannerArchitectService } from "./service";
 import { FakePlannerMemoryPort } from "./memory";
 import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
@@ -42,6 +54,7 @@ import { AiProviderError } from "@/integrations/openai/errors";
 import { clearStagedPlanningOperations, getStagedPlanningOperations, isStagedPlanningFailure, StagedPlanningOperationTelemetry } from "./staged-failures";
 import { workbenchFailureResponse } from "@/runtime/workbench/diagnostics";
 import { WorkbenchOperationLedger } from "@/runtime/workbench/operation-ledger";
+import { buildProductionResponseFormat } from "@/integrations/openai/client";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
 
@@ -163,7 +176,51 @@ function validCoverage(table: ReturnType<typeof portalTable>["table"], elementId
     planningElementIds: [elementId],
     semanticEvidence: `This host-issued decomposition target implements: ${entry.summary}`,
   }]));
-  return { schemaVersion: 1 as const, providerContractVersion: "planner.coverage.v1" as const, complete: true as const, coverageByRequirement };
+  return { schemaVersion: 1 as const, providerContractVersion: "planner.coverage.v2" as const, complete: true as const, coverageByRequirement };
+}
+
+function coverageForTargets(table: ReturnType<typeof portalTable>["table"], targets: Record<string, readonly string[]>) {
+  return {
+    schemaVersion: 1 as const,
+    providerContractVersion: PLANNER_COVERAGE_CONTRACT_VERSION,
+    complete: true as const,
+    coverageByRequirement: Object.fromEntries(table.requirements.filter((entry) => entry.mandatory).map((entry) => [entry.token, {
+      planningElementIds: [targets[entry.token]![0]!],
+      semanticEvidence: `This host-issued target substantively treats ${entry.token}.`,
+    }])),
+  };
+}
+
+function wireCoverageForTargets(table: ReturnType<typeof portalTable>["table"], targets: Record<string, readonly string[]>) {
+  return {
+    schemaVersion: 1 as const,
+    providerContractVersion: PLANNER_COVERAGE_CONTRACT_VERSION,
+    complete: true as const,
+    coverageByRequirement: Object.fromEntries(table.requirements.filter((entry) => entry.mandatory).map((entry) => [entry.token, {
+      planningElementRefs: [targets[entry.token]!.indexOf(targets[entry.token]![0]!)],
+      semanticEvidence: `This host-issued target substantively treats ${entry.token}.`,
+    }])),
+  };
+}
+
+function portalTargetTable(table: ReturnType<typeof portalTable>["table"], elements: readonly PlanningElement[], graph: PlanningElementGraph) {
+  return createAdmissibleCoverageTargetTable({
+    table,
+    elements,
+    graph,
+    binding: {
+      projectId,
+      projectVersion: 1,
+      expectedRowVersion: 1,
+      approvedBriefChecksum: table.approvedBriefChecksum,
+      referenceTableChecksum: table.referenceTableChecksum,
+      planningElementsChecksum: checksumPersistedDocument(elements),
+      graphChecksum: checksumPersistedDocument(graph),
+      coverageOperationId: table.operationChecksum,
+      operationChecksum: table.operationChecksum,
+      contractVersion: PLANNER_COVERAGE_CONTRACT_VERSION,
+    },
+  });
 }
 
 function expectFailure(action: () => unknown, expected: Record<string, unknown>) {
@@ -399,13 +456,109 @@ describe("staged Planner pipeline", () => {
     expect(table.requirements.filter((entry) => entry.mandatory)).toHaveLength(117);
     const coverage = validCoverage(table);
     expect(Object.keys(admitPlanningCoverage({ output: coverage, table, elements }).coverageByRequirement)).toHaveLength(117);
-    expectFailure(() => admitPlanningCoverage({ output: { ...coverage, coverageByRequirement: { ...coverage.coverageByRequirement, REQ_001: { planningElementIds: ["PE_999"], semanticEvidence: "A substantive but unbound target." } } }, table, elements }), { code: "PLANNING_REQUIREMENT_COVERAGE_INVALID" });
+    expectFailure(() => admitPlanningCoverage({ output: { ...coverage, coverageByRequirement: { ...coverage.coverageByRequirement, REQ_001: { planningElementIds: ["PE_999"], semanticEvidence: "A substantive but unbound target." } } }, table, elements }), { code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_ELEMENT_NOT_FOUND" });
     try {
-      admitPlanningCoverage({ output: { ...coverage, coverageByRequirement: { ...coverage.coverageByRequirement, REQ_001: { planningElementIds: ["PE_999"], semanticEvidence: "A substantive but unbound target." } } }, table, elements });
+      validatePlannerRequirementCoverage({ REQ_001: { planningElementIds: ["PE_999"], semanticEvidence: "A substantive but unbound target." } }, table, {}, stagedElementDescriptorIndex(elements));
     } catch (error) {
       expect(error).toBeInstanceOf(PlannerReferenceBindingError);
       expect((error as PlannerReferenceBindingError).reasonCode).toBe("PLANNING_COVERAGE_ELEMENT_NOT_FOUND");
     }
+  });
+
+  it("derives sufficient host-owned targets for every mandatory requirement and admits 117/117 through Coverage v2", () => {
+    const { brief, table, output } = portalDecomposition();
+    const elements = admitPlanningDecomposition({ output, table, brief: portalV1Brief(), canonicalBrief: brief });
+    const graph = finalizePlanningElementGraph(elements);
+    const targets = deriveAdmissibleCoverageTargets(table, elements);
+    const mandatory = table.requirements.filter((entry) => entry.mandatory);
+    const counts = mandatory.map((entry) => targets[entry.token]!.length);
+    expect(mandatory).toHaveLength(117);
+    expect(counts.every((count, index) => count >= mandatory[index]!.coverageConstraints.minimumCoverageTargets)).toBe(true);
+    expect(counts.filter((count) => count === 0)).toHaveLength(0);
+    expect(new Set(Object.keys(targets))).toEqual(new Set(mandatory.map((entry) => entry.token)));
+    const targetTable = portalTargetTable(table, elements, graph);
+    expect(() => assertAdmissibleCoverageTargetCounts({ table, targetTable })).not.toThrow();
+    const outputV2 = coverageForTargets(table, targets);
+    const wireOutputV2 = wireCoverageForTargets(table, targets);
+    const schema = createPlanningCoverageProviderWireSchema(table, targets);
+    expect(schema.safeParse(wireOutputV2).success).toBe(true);
+    expect(normalizePlanningCoverageProviderOutput(wireOutputV2, table, targets)).toEqual(outputV2);
+    const admitted = admitPlanningCoverage({ output: outputV2, table, elements, admissibleCoverageTargetsByRequirement: targets });
+    expect(Object.keys(admitted.coverageByRequirement)).toHaveLength(117);
+    expect(admitted.providerContractVersion).toBe(PLANNER_COVERAGE_CONTRACT_VERSION);
+    const narrowedTargets = { ...targets, REQ_001: targets.REQ_001!.slice(1) };
+    expectFailure(() => admitPlanningCoverage({ output: outputV2, table, elements, admissibleCoverageTargetsByRequirement: narrowedTargets }), { code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_TARGET_NOT_ADMISSIBLE" });
+    const redactedProviderInput = {
+      stage: "PLANNING_REQUIREMENT_COVERAGE",
+      requirements: mandatory.map(({ token, summary, category, coverageConstraints }) => ({ token, summary, category, coverageConstraints })),
+      requiredRequirementTokens: mandatory.map((entry) => entry.token),
+      admissibleCoverageTargetsByRequirement: targets,
+      planningElements: elements.map(({ elementId, kind, domain, title, description, pageTokens, routeTokens }) => ({ elementId, kind, domain, title, description, pageTokens, routeTokens })),
+      graph: graph.edges,
+    };
+    const v1SchemaBytes = Buffer.byteLength(JSON.stringify(buildProductionResponseFormat(createPlanningCoverageProviderWireSchemaV1(table), "planning-coverage-v1")), "utf8");
+    const v2SchemaBytes = Buffer.byteLength(JSON.stringify(buildProductionResponseFormat(schema, "planning-coverage-v2")), "utf8");
+    const providerInputBytes = Buffer.byteLength(JSON.stringify(redactedProviderInput), "utf8");
+    expect(v2SchemaBytes).toBeGreaterThan(v1SchemaBytes);
+    expect(providerInputBytes).toBeLessThan(384_000);
+  });
+
+  it("keeps historical Coverage v1 readable while rejecting its broad contract for current v2", () => {
+    const { table } = portalTable();
+    const historical = validCoverage(table);
+    const v1 = { ...historical, providerContractVersion: "planner.coverage.v1" as const };
+    expect(createPlanningCoverageProviderWireSchemaV1(table).safeParse(v1).success).toBe(true);
+    expect(createPlanningCoverageProviderWireSchema(table, Object.fromEntries(table.requirements.filter((entry) => entry.mandatory).map((entry) => [entry.token, ["PE_001"]]))).safeParse(v1).success).toBe(false);
+  });
+
+  it("rejects structurally incompatible v2 targets before host semantic admission", () => {
+    const { brief, table, output } = portalDecomposition();
+    const elements = admitPlanningDecomposition({ output, table, brief: portalV1Brief(), canonicalBrief: brief });
+    const targets = deriveAdmissibleCoverageTargets(table, elements);
+    const schema = createPlanningCoverageProviderWireSchema(table, targets);
+    const wire = wireCoverageForTargets(table, targets);
+    const rejectedIndex = (reference: number) => schema.safeParse({
+      ...wire,
+      coverageByRequirement: { ...wire.coverageByRequirement, REQ_001: { planningElementRefs: [reference], semanticEvidence: "A substantive synthetic target." } },
+    }).success;
+    expect(targets.REQ_001).not.toContain("PE_014");
+    expect(rejectedIndex(targets.REQ_001!.length)).toBe(false);
+    expect(schema.safeParse({ ...wire, coverageByRequirement: { ...wire.coverageByRequirement, REQ_001: { planningElementIds: ["PE_999"], semanticEvidence: "A substantive synthetic target." } } }).success).toBe(false);
+    const wrongDomainTable = { ...table, requirements: table.requirements.map((entry) => entry.token === "REQ_001" ? { ...entry, coverageConstraints: { ...entry.coverageConstraints, allowedDomains: ["DATABASE"] as const, allowedElementKinds: ["PRODUCT_SCOPE"] as const } } : entry) } as typeof table;
+    const domainElements = [...elements, { ...elements[0]!, elementId: "PE_017", domain: "DATABASE" as const }];
+    const domainTargets = deriveAdmissibleCoverageTargets(wrongDomainTable, domainElements);
+    const domainSchema = createPlanningCoverageProviderWireSchema(wrongDomainTable, domainTargets);
+    const domainValid = wireCoverageForTargets(wrongDomainTable, domainTargets);
+    expect(domainTargets.REQ_001).not.toContain("PE_001");
+    expect(domainSchema.safeParse({ ...domainValid, coverageByRequirement: { ...domainValid.coverageByRequirement, REQ_001: { planningElementRefs: [domainTargets.REQ_001!.length], semanticEvidence: "A substantive synthetic target." } } }).success).toBe(false);
+    const pageTable = { ...table, requirements: table.requirements.map((entry) => entry.token === "REQ_001" ? { ...entry, coverageConstraints: { ...entry.coverageConstraints, allowedDomains: ["FRONTEND"] as const, allowedElementKinds: ["PAGE"] as const, requiredPageTokens: ["PAGE_002"], allowedPageTokens: ["PAGE_002"] } } : entry) } as typeof table;
+    const pageTargets = deriveAdmissibleCoverageTargets(pageTable, elements);
+    const pageSchema = createPlanningCoverageProviderWireSchema(pageTable, pageTargets);
+    const pageValid = wireCoverageForTargets(pageTable, pageTargets);
+    expect(pageTargets.REQ_001).not.toContain("PE_002");
+    expect(pageSchema.safeParse({ ...pageValid, coverageByRequirement: { ...pageValid.coverageByRequirement, REQ_001: { planningElementRefs: [pageTargets.REQ_001!.length], semanticEvidence: "A substantive synthetic target." } } }).success).toBe(false);
+    const routeTable = { ...table, requirements: table.requirements.map((entry) => entry.token === "REQ_001" ? { ...entry, coverageConstraints: { ...entry.coverageConstraints, allowedDomains: ["FRONTEND"] as const, allowedElementKinds: ["PAGE"] as const, requiredRouteTokens: ["ROUTE_002"], allowedRouteTokens: ["ROUTE_002"] } } : entry) } as typeof table;
+    const routeTargets = deriveAdmissibleCoverageTargets(routeTable, elements);
+    const routeSchema = createPlanningCoverageProviderWireSchema(routeTable, routeTargets);
+    const routeValid = wireCoverageForTargets(routeTable, routeTargets);
+    expect(routeTargets.REQ_001).not.toContain("PE_002");
+    expect(routeSchema.safeParse({ ...routeValid, coverageByRequirement: { ...routeValid.coverageByRequirement, REQ_001: { planningElementRefs: [routeTargets.REQ_001!.length], semanticEvidence: "A substantive synthetic target." } } }).success).toBe(false);
+  });
+
+  it("retains host defense-in-depth diagnostics and rejects a stale target binding", () => {
+    const { brief, table, output } = portalDecomposition();
+    const elements = admitPlanningDecomposition({ output, table, brief: portalV1Brief(), canonicalBrief: brief });
+    const graph = finalizePlanningElementGraph(elements);
+    try {
+      validatePlannerRequirementCoverage({ REQ_001: { planningElementIds: ["PE_014"], semanticEvidence: "Wrong kind target." } }, table, {}, stagedElementDescriptorIndex(elements));
+      throw new Error("expected host admission failure");
+    } catch (error) {
+      expect(error).toMatchObject({ reasonCode: "PLANNING_COVERAGE_KIND_INCOMPATIBLE", coverageDiagnostics: { requirementToken: "REQ_001", actualKind: "SECURITY", admissibleTargetCount: expect.any(Number) } });
+    }
+    const targetTable = portalTargetTable(table, elements, graph);
+    expect(() => assertAdmissibleCoverageTargetTableCurrent({ targetTable, table, elements: elements.map((element) => element.elementId === "PE_001" ? { ...element, title: "Changed typed target" } : element), graph, binding: targetTable.binding })).toThrowError(expect.objectContaining({ reasonCode: "PLANNING_COVERAGE_TARGETS_NOT_CURRENT" }));
+    const impossible = { ...targetTable, admissibleCoverageTargetsByRequirement: { ...targetTable.admissibleCoverageTargetsByRequirement, REQ_001: [] } };
+    expect(() => assertAdmissibleCoverageTargetCounts({ table, targetTable: impossible })).toThrowError(expect.objectContaining({ reasonCode: "PLANNING_COVERAGE_NO_ADMISSIBLE_TARGETS" }));
   });
 
   it("keeps exact requirement-key guards and excludes final identity from decomposition wire", () => {
@@ -425,8 +578,9 @@ describe("staged Planner pipeline", () => {
     const { brief, table, output } = portalDecomposition();
     const elements = admitPlanningDecomposition({ output, table, brief: portalV1Brief(), canonicalBrief: brief });
     const valid = validCoverage(table);
-    expectFailure(() => admitPlanningCoverage({ output: { ...valid, coverageByRequirement: { ...valid.coverageByRequirement, REQ_001: { planningElementIds: ["PE_014"], semanticEvidence: "Wrong security target." } } }, table, elements }), { reasonCode: "PLANNING_COVERAGE_KIND_INCOMPATIBLE" });
-    expectFailure(() => admitPlanningCoverage({ output: { ...valid, coverageByRequirement: { ...valid.coverageByRequirement, REQ_001: { planningElementIds: ["PE_016"], semanticEvidence: "Traceability only." } } }, table, elements }), { reasonCode: "PLANNING_COVERAGE_GENERIC_CATCH_ALL" });
+    expectFailure(() => admitPlanningCoverage({ output: { ...valid, coverageByRequirement: { ...valid.coverageByRequirement, REQ_001: { planningElementIds: ["PE_014"], semanticEvidence: "Wrong security target." } } }, table, elements }), { code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_KIND_INCOMPATIBLE" });
+    expectFailure(() => validatePlannerRequirementCoverage({ REQ_001: { planningElementIds: ["PE_014"], semanticEvidence: "Wrong security target." } }, table, {}, stagedElementDescriptorIndex(elements)), { reasonCode: "PLANNING_COVERAGE_KIND_INCOMPATIBLE" });
+    expectFailure(() => validatePlannerRequirementCoverage({ REQ_001: { planningElementIds: ["PE_016"], semanticEvidence: "Traceability only." } }, table, {}, stagedElementDescriptorIndex(elements)), { reasonCode: "PLANNING_COVERAGE_GENERIC_CATCH_ALL" });
   });
 
   it("assembles only after staged gates and passes full canonical Planning admission", () => {
@@ -669,7 +823,7 @@ describe("staged Planner pipeline", () => {
     });
   });
 
-  it("records a nonexistent coverage PE as a bounded coverage failure", async () => {
+  it("rejects a nonexistent coverage PE at the v2 provider boundary", async () => {
     const { service, input } = await stagedService({
       async plan() { throw new Error("legacy path must not be called"); },
       async decompose() { return portalDecomposition().output; },
@@ -683,7 +837,7 @@ describe("staged Planner pipeline", () => {
       async plan() { throw new Error("legacy path must not be called"); },
       async decompose() { return portalDecomposition().output; },
       async assignCoverage() {
-        throw new AiProviderError("AI_NETWORK_ERROR", "private coverage transport detail", undefined, { stage: "api_request", requestAttempted: true, apiResponseReceived: false, responseReceived: false, schemaName: "planning-coverage-v1" });
+        throw new AiProviderError("AI_NETWORK_ERROR", "private coverage transport detail", undefined, { stage: "api_request", requestAttempted: true, apiResponseReceived: false, responseReceived: false, schemaName: "planning-coverage-v2" });
       },
     });
     await expect(service.planApprovedProject(input)).rejects.toMatchObject({ details: { stage: "COVERAGE_PROVIDER", failureClass: "PROVIDER_TRANSPORT_FAILURE", reasonCode: "AI_NETWORK_ERROR", providerRequestCount: 2, operation: { providerCallsTotal: 2, providerCallsByStage: { decomposition: { attempted: 1, completed: 1 }, coverage: { attempted: 1, started: 1, responseReceived: 0, structuredParsePassed: 0, failed: 1 } } } } });

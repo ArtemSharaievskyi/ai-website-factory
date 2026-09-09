@@ -88,13 +88,17 @@ import {
   admitPlanningCoverage,
   admitPlanningDecomposition,
   assembleStagedPlanningCandidate,
+  assertAdmissibleCoverageTargetCounts,
+  assertAdmissibleCoverageTargetTableCurrent,
+  createAdmissibleCoverageTargetTable,
   finalizePlanningElementGraph,
   requiredPlannerDecompositionDomains,
   StagedPlanningAdmissionError,
   stagedPlanningAdmissionDiagnostics,
+  stagedPlanningCoverageDiagnostics,
   stagedPlanningGraphCycleDiagnostics,
 } from "./staged-admission";
-import { PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME, type PlannerDecompositionProviderInput } from "./staged-contracts";
+import { PLANNER_COVERAGE_CONTRACT_VERSION, PLANNING_COVERAGE_PROVIDER_SCHEMA_NAME, PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME, type PlannerDecompositionProviderInput } from "./staged-contracts";
 import {
   StagedPlanningOperationTelemetry,
   type StagedPlanningFailureClass,
@@ -546,16 +550,43 @@ export class PlannerArchitectService {
     input.telemetry?.enter("GRAPH_ADMISSION");
     const decompositionStageChecksum = checksumPersistedDocument({ elements, graph });
     await currentness();
+    const coverageTargetTable = createAdmissibleCoverageTargetTable({
+      table,
+      elements,
+      graph,
+      binding: {
+        projectId: input.plannerInput.projectId,
+        projectVersion: input.plannerInput.projectVersion,
+        expectedRowVersion: input.plannerInput.expectedRowVersion,
+        approvedBriefChecksum: input.plannerInput.approvedBriefChecksum,
+        referenceTableChecksum: table.referenceTableChecksum,
+        planningElementsChecksum: checksumPersistedDocument(elements),
+        graphChecksum: checksumPersistedDocument(graph),
+        coverageOperationId: input.plannerInput.idempotencyKey,
+        operationChecksum: table.operationChecksum,
+        contractVersion: PLANNER_COVERAGE_CONTRACT_VERSION,
+      },
+    });
+    input.telemetry?.enter("COVERAGE_ADMISSION");
+    assertAdmissibleCoverageTargetCounts({ table, targetTable: coverageTargetTable });
+    await currentness();
+    assertAdmissibleCoverageTargetTableCurrent({
+      targetTable: coverageTargetTable,
+      table,
+      elements,
+      graph,
+      binding: coverageTargetTable.binding,
+    });
     let coverageOutput;
     await input.setStage?.("COVERAGE");
     input.telemetry?.enter("COVERAGE_PROVIDER");
-    const coverageCall = input.telemetry?.beginProvider("coverage", "planning-coverage-v1");
+    const coverageCall = input.telemetry?.beginProvider("coverage", PLANNING_COVERAGE_PROVIDER_SCHEMA_NAME);
     const coverageInvocation: ProviderInvocationLedgerHandle | undefined = input.providerInvocationLedger
-      ? await input.providerInvocationLedger.reserveInvocation({ stage: "coverage", providerContract: "planning-coverage-v1" })
+      ? await input.providerInvocationLedger.reserveInvocation({ stage: "coverage", providerContract: PLANNING_COVERAGE_PROVIDER_SCHEMA_NAME })
       : undefined;
     try {
       coverageOutput = await this.provider.assignCoverage(
-        { plannerReferenceTable: table, elements, graph },
+        { plannerReferenceTable: table, elements, graph, admissibleCoverageTargetsByRequirement: coverageTargetTable.admissibleCoverageTargetsByRequirement },
         input.skillSelection?.contexts,
         input.skillSelection?.identityChecksum,
         input.correlationId ? { operationId: input.plannerInput.idempotencyKey, correlationId: input.correlationId, stage: "coverage", ...(input.providerInvocationLedger ? { ledger: input.providerInvocationLedger } : {}), ...(coverageInvocation ? { invocation: coverageInvocation } : {}) } : undefined,
@@ -577,14 +608,14 @@ export class PlannerArchitectService {
     let coverage;
     input.telemetry?.enter("COVERAGE_PARSE");
     try {
-      coverage = admitPlanningCoverage({ output: coverageOutput, table, elements });
+      coverage = admitPlanningCoverage({ output: coverageOutput, table, elements, admissibleCoverageTargetsByRequirement: coverageTargetTable.admissibleCoverageTargetsByRequirement });
     } catch (error) {
       input.telemetry?.enter(error instanceof PlannerReferenceBindingError ? "COVERAGE_ADMISSION" : error instanceof StagedPlanningAdmissionError && error.reasonCode !== "PLANNING_COVERAGE_SCHEMA_INVALID" ? "COVERAGE_ADMISSION" : "COVERAGE_PARSE");
       if (error instanceof PlannerReferenceBindingError)
         throw new PlannerError(
           "PLANNING_PACKAGE_INVALID",
           `Staged Planner coverage failed deterministic admission: ${error.code}:${error.fieldPath}.`,
-            new PlanningAdmissionError(error.code, error.fieldPath, error.reasonCode, error.safeToken),
+            new PlanningAdmissionError(error.code, error.fieldPath, error.reasonCode, error.safeToken, error.coverageDiagnostics),
         );
       if (error instanceof StagedPlanningAdmissionError)
         throw new PlannerError("PLANNING_PACKAGE_INVALID", "Staged Planner coverage failed deterministic admission.", error);
@@ -605,6 +636,7 @@ export class PlannerArchitectService {
       elements,
       graph,
       coverage,
+      admissibleCoverageTargetsByRequirement: coverageTargetTable.admissibleCoverageTargetsByRequirement,
     });
     const parsedCandidate = PlanningPackageSchema.parse(candidate);
     input.telemetry?.enter("FINAL_ADMISSION");
@@ -930,6 +962,7 @@ export class PlannerArchitectService {
           ...(safeStagedReasonCode(error) ? { reasonCode: safeStagedReasonCode(error) } : {}),
           ...(safeStagedToken(error) ? { safeToken: safeStagedToken(error) } : {}),
           ...(stagedPlanningAdmissionDiagnostics(error) ? { kindDomainDiagnostics: stagedPlanningAdmissionDiagnostics(error) } : {}),
+          ...(stagedPlanningCoverageDiagnostics(error) ? { coverageDiagnostics: stagedPlanningCoverageDiagnostics(error) } : {}),
           ...(stagedPlanningGraphCycleDiagnostics(error) ? { graphCycleDiagnostics: stagedPlanningGraphCycleDiagnostics(error) } : {}),
           message: "Staged Planning failed safely; the project was not changed.",
           cause: error,

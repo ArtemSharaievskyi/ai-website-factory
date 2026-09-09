@@ -6,8 +6,12 @@ import {
   PLANNER_ELEMENT_KINDS_BY_DOMAIN,
   PlannerCoverageDomainSchema,
   PlannerCoverageElementKindSchema,
+  AdmissibleCoverageTargetsByRequirementSchema,
+  PLANNER_COVERAGE_CONTRACT_VERSION,
+  PLANNER_COVERAGE_LEGACY_CONTRACT_VERSION,
   type PlannerCoverageDomain,
   type PlannerCoverageElementKind,
+  type AdmissibleCoverageTargetsByRequirement,
 } from "./coverage-contract";
 import {
   PlannerPageToken,
@@ -15,6 +19,8 @@ import {
   PlannerRouteToken,
   type PlannerReferenceTable,
 } from "./reference-table";
+
+export { PLANNER_COVERAGE_CONTRACT_VERSION, PLANNER_COVERAGE_LEGACY_CONTRACT_VERSION } from "./coverage-contract";
 
 /**
  * Stage contracts are provider proposals, not canonical Planning documents.
@@ -24,7 +30,8 @@ import {
 export const PLANNER_DECOMPOSITION_LEGACY_CONTRACT_VERSION = "planner.decomposition.v1" as const;
 export const PLANNER_DECOMPOSITION_CONTRACT_VERSION = "planner.decomposition.v2" as const;
 export const PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME = "planning-decomposition-v2" as const;
-export const PLANNER_COVERAGE_CONTRACT_VERSION = "planner.coverage.v1" as const;
+export const PLANNING_COVERAGE_PROVIDER_SCHEMA_NAME = "planning-coverage-v2" as const;
+export const PLANNING_COVERAGE_PROVIDER_SCHEMA_NAME_V1 = "planning-coverage-v1" as const;
 export const STAGED_PLANNER_PIPELINE_VERSION = "planner.staged.v1" as const;
 
 const ProposalIndexSchema = z.number().int().nonnegative().max(255);
@@ -132,16 +139,61 @@ export const PlanningElementGraphSchema = z.object({
 }).strict();
 export type PlanningElementGraph = z.infer<typeof PlanningElementGraphSchema>;
 
-export const PlanningCoverageValueSchema = z.object({
+/** Historical v1 value reader. New requests use the per-REQ v2 value below. */
+export const PlanningCoverageValueV1Schema = z.object({
   planningElementIds: z.array(z.string().regex(/^PE_\d{3}$/)).min(1).max(32),
   semanticEvidence: NonEmptyStringSchema.max(2000),
 }).strict();
 
-export function createPlanningCoverageProviderWireSchema(table: PlannerReferenceTable) {
+/** @deprecated Use the explicit v1 reader when inspecting retained evidence. */
+export const PlanningCoverageValueSchema = PlanningCoverageValueV1Schema;
+
+const PlanningCoverageValueV2Schema = z.object({
+  planningElementIds: z.array(z.string().regex(/^PE_\d{3}$/)).min(1).max(32),
+  semanticEvidence: NonEmptyStringSchema.max(2000),
+}).strict();
+
+function planningCoverageWireValueSchema(targets: readonly string[], minimumCoverageTargets: number) {
+  if (targets.length === 0) throw new Error("PLANNING_COVERAGE_NO_ADMISSIBLE_TARGETS");
+  return z.object({
+    /** Ordered, host-issued, requirement-local target aliases. */
+    planningElementRefs: z.array(z.number().int().min(0).max(targets.length - 1)).min(minimumCoverageTargets).max(32),
+    semanticEvidence: NonEmptyStringSchema.max(2000),
+  }).strict();
+}
+
+/** Historical v1 wire reader; never use it for new staged provider requests. */
+export function createPlanningCoverageProviderWireSchemaV1(table: PlannerReferenceTable) {
   const parsed = PlannerReferenceTableSchema.parse(table);
-  const shape: Record<string, typeof PlanningCoverageValueSchema> = {};
+  const shape: Record<string, typeof PlanningCoverageValueV1Schema> = {};
   for (const requirement of parsed.requirements.filter((entry) => entry.mandatory))
-    shape[requirement.token] = PlanningCoverageValueSchema;
+    shape[requirement.token] = PlanningCoverageValueV1Schema;
+  return z.object({
+    schemaVersion: z.literal(1),
+    providerContractVersion: z.literal(PLANNER_COVERAGE_LEGACY_CONTRACT_VERSION),
+    complete: z.literal(true),
+    coverageByRequirement: z.object(shape).strict(),
+  }).strict();
+}
+
+/**
+ * Current v2 wire schema. Every mandatory REQ property has its own closed PE
+ * enum derived by the host from the current typed requirement constraints and
+ * admitted PE metadata.
+ */
+export function createPlanningCoverageProviderWireSchema(
+  table: PlannerReferenceTable,
+  admissibleCoverageTargetsByRequirement: AdmissibleCoverageTargetsByRequirement,
+) {
+  const parsed = PlannerReferenceTableSchema.parse(table);
+  const targets = AdmissibleCoverageTargetsByRequirementSchema.parse(admissibleCoverageTargetsByRequirement);
+  const mandatory = parsed.requirements.filter((entry) => entry.mandatory);
+  const mandatoryTokens = new Set(mandatory.map((entry) => entry.token));
+  if (Object.keys(targets).some((token) => !mandatoryTokens.has(token)) || mandatory.some((entry) => !Object.hasOwn(targets, entry.token)))
+    throw new Error("PLANNING_COVERAGE_TARGET_SET_INVALID");
+  const shape: Record<string, z.ZodTypeAny> = {};
+  for (const requirement of mandatory)
+    shape[requirement.token] = planningCoverageWireValueSchema(targets[requirement.token]!, requirement.coverageConstraints.minimumCoverageTargets);
   return z.object({
     schemaVersion: z.literal(1),
     providerContractVersion: z.literal(PLANNER_COVERAGE_CONTRACT_VERSION),
@@ -149,7 +201,39 @@ export function createPlanningCoverageProviderWireSchema(table: PlannerReference
     coverageByRequirement: z.object(shape).strict(),
   }).strict();
 }
-export type PlanningCoverageProviderOutput = z.infer<ReturnType<typeof createPlanningCoverageProviderWireSchema>>;
+export function createPlanningCoverageProviderOutputSchema(table: PlannerReferenceTable) {
+  const parsed = PlannerReferenceTableSchema.parse(table);
+  const shape: Record<string, typeof PlanningCoverageValueV2Schema> = {};
+  for (const requirement of parsed.requirements.filter((entry) => entry.mandatory))
+    shape[requirement.token] = PlanningCoverageValueV2Schema;
+  return z.object({
+    schemaVersion: z.literal(1),
+    providerContractVersion: z.literal(PLANNER_COVERAGE_CONTRACT_VERSION),
+    complete: z.literal(true),
+    coverageByRequirement: z.object(shape).strict(),
+  }).strict();
+}
+export type PlanningCoverageProviderOutput = z.infer<ReturnType<typeof createPlanningCoverageProviderOutputSchema>>;
+export type PlanningCoverageProviderOutputV1 = z.infer<ReturnType<typeof createPlanningCoverageProviderWireSchemaV1>>;
+
+export function normalizePlanningCoverageProviderOutput(
+  value: unknown,
+  table: PlannerReferenceTable,
+  admissibleCoverageTargetsByRequirement: AdmissibleCoverageTargetsByRequirement,
+): PlanningCoverageProviderOutput {
+  const parsedTable = PlannerReferenceTableSchema.parse(table);
+  const wire = createPlanningCoverageProviderWireSchema(parsedTable, admissibleCoverageTargetsByRequirement).parse(value);
+  return createPlanningCoverageProviderOutputSchema(parsedTable).parse({
+    ...wire,
+    coverageByRequirement: Object.fromEntries((Object.entries(wire.coverageByRequirement) as Array<[string, { planningElementRefs: number[]; semanticEvidence: string }]>).map(([requirementToken, entry]) => {
+      const targets = admissibleCoverageTargetsByRequirement[requirementToken]!;
+      return [requirementToken, {
+        planningElementIds: entry.planningElementRefs.map((reference) => targets[reference]!),
+        semanticEvidence: entry.semanticEvidence,
+      }];
+    })),
+  });
+}
 
 export type PlannerDecompositionProviderInput = {
   approvedBrief: RequirementSpecification;
@@ -162,4 +246,5 @@ export type PlannerCoverageProviderInput = {
   plannerReferenceTable: PlannerReferenceTable;
   elements: readonly PlanningElement[];
   graph: PlanningElementGraph;
+  admissibleCoverageTargetsByRequirement: AdmissibleCoverageTargetsByRequirement;
 };

@@ -7,8 +7,15 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import {
   PLANNER_ELEMENT_KINDS_BY_DOMAIN,
   isPlannerElementKindAllowedInDomain,
+  plannerCoverageCompatibility,
+  PlannerCoverageDiagnosticsSchema,
+  PlannerCoverageTargetTableSchema,
   type PlannerCoverageDomain,
   type PlannerCoverageElementKind,
+  type PlannerCoverageDiagnostics,
+  type PlannerCoverageTargetBinding,
+  type PlannerCoverageTargetTable,
+  type AdmissibleCoverageTargetsByRequirement,
   type PlannerDecompositionKindDomainDiagnostics,
 } from "./coverage-contract";
 import {
@@ -20,7 +27,7 @@ import {
   PlanningElementGraphSchema,
   PlanningElementSchema,
   STAGED_PLANNER_PIPELINE_VERSION,
-  createPlanningCoverageProviderWireSchema,
+  createPlanningCoverageProviderOutputSchema,
   type PlanningDecompositionProviderOutput,
   type PlanningElement,
   type PlanningElementGraph,
@@ -56,6 +63,7 @@ export class StagedPlanningAdmissionError extends Error {
     safeToken?: string,
     readonly kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics,
     readonly graphCycleDiagnostics?: PlanningGraphCycleDiagnostics,
+    readonly coverageDiagnostics?: PlannerCoverageDiagnostics,
   ) {
     super(`${code}:${fieldPath}`);
     this.name = "StagedPlanningAdmissionError";
@@ -78,6 +86,17 @@ export function stagedPlanningGraphCycleDiagnostics(error: unknown, depth = 0): 
   if (depth > 6 || !error || typeof error !== "object") return undefined;
   if (error instanceof StagedPlanningAdmissionError) return error.graphCycleDiagnostics;
   return "cause" in error ? stagedPlanningGraphCycleDiagnostics(error.cause, depth + 1) : undefined;
+}
+
+export function stagedPlanningCoverageDiagnostics(error: unknown, depth = 0): PlannerCoverageDiagnostics | undefined {
+  if (depth > 6 || !error || typeof error !== "object") return undefined;
+  if (error instanceof StagedPlanningAdmissionError) return error.coverageDiagnostics;
+  if (error instanceof PlannerReferenceBindingError) return error.coverageDiagnostics;
+  if ("coverageDiagnostics" in error) {
+    const parsed = PlannerCoverageDiagnosticsSchema.safeParse(error.coverageDiagnostics);
+    if (parsed.success) return parsed.data;
+  }
+  return "cause" in error ? stagedPlanningCoverageDiagnostics(error.cause, depth + 1) : undefined;
 }
 
 const normalized = (value: string) => value.normalize("NFKD").toLocaleLowerCase("en").replace(/[^a-z0-9]+/g, " ").trim();
@@ -319,6 +338,112 @@ function descriptorFor(element: PlanningElement): PlannerCoverageElementDescript
   };
 }
 
+/** Derive the current host-owned PE whitelist without using text similarity. */
+export function deriveAdmissibleCoverageTargets(
+  input: Pick<PlannerReferenceTable, "requirements">,
+  elements: readonly PlanningElement[],
+): AdmissibleCoverageTargetsByRequirement {
+  const index = new Map<string, PlannerCoverageElementDescriptor>();
+  for (const element of elements) {
+    if (index.has(element.elementId))
+      throw new StagedPlanningAdmissionError("PLANNING_COVERAGE_INVALID", "elements", "PLANNING_COVERAGE_ELEMENT_ID_COLLISION", element.elementId);
+    index.set(element.elementId, descriptorFor(element));
+  }
+  return Object.fromEntries(
+    input.requirements.filter((entry) => entry.mandatory).map((entry) => [
+      entry.token,
+      [...index.entries()]
+        .filter(([, descriptor]) => plannerCoverageCompatibility(entry.coverageConstraints, descriptor).compatible)
+        .map(([elementId]) => elementId)
+        .sort(),
+    ]),
+  );
+}
+
+export function createAdmissibleCoverageTargetTable(input: {
+  table: PlannerReferenceTable;
+  elements: readonly PlanningElement[];
+  graph: PlanningElementGraph;
+  binding: PlannerCoverageTargetBinding;
+}): PlannerCoverageTargetTable {
+  const table = PlannerReferenceTableSchema.parse(input.table);
+  const graph = PlanningElementGraphSchema.parse(input.graph);
+  const targetTable = PlannerCoverageTargetTableSchema.parse({
+    binding: input.binding,
+    admissibleCoverageTargetsByRequirement: deriveAdmissibleCoverageTargets(table, input.elements),
+  });
+  const expectedTokens = table.requirements.filter((entry) => entry.mandatory).map((entry) => entry.token);
+  const actualTokens = Object.keys(targetTable.admissibleCoverageTargetsByRequirement).sort();
+  if (actualTokens.length !== expectedTokens.length || actualTokens.some((token, index) => token !== [...expectedTokens].sort()[index]))
+    throw new StagedPlanningAdmissionError("PLANNING_COVERAGE_INVALID", "admissibleCoverageTargetsByRequirement", "PLANNING_COVERAGE_TARGET_SET_INVALID");
+  const expectedBinding = {
+    ...targetTable.binding,
+    projectId: table.projectId,
+    projectVersion: table.projectVersion,
+    approvedBriefChecksum: table.approvedBriefChecksum,
+    referenceTableChecksum: table.referenceTableChecksum,
+    planningElementsChecksum: checksumPersistedDocument(input.elements),
+    graphChecksum: checksumPersistedDocument(graph),
+    operationChecksum: table.operationChecksum,
+  };
+  if (checksumPersistedDocument(targetTable.binding) !== checksumPersistedDocument(expectedBinding))
+    throw new StagedPlanningAdmissionError("PLANNING_COVERAGE_INVALID", "admissibleCoverageTargetsByRequirement", "PLANNING_COVERAGE_TARGETS_NOT_CURRENT");
+  return targetTable;
+}
+
+export function assertAdmissibleCoverageTargetTableCurrent(input: {
+  targetTable: PlannerCoverageTargetTable;
+  table: PlannerReferenceTable;
+  elements: readonly PlanningElement[];
+  graph: PlanningElementGraph;
+  binding: PlannerCoverageTargetBinding;
+}) {
+  const expected = createAdmissibleCoverageTargetTable({
+    table: input.table,
+    elements: input.elements,
+    graph: input.graph,
+    binding: input.binding,
+  });
+  if (checksumPersistedDocument(input.targetTable) !== checksumPersistedDocument(expected))
+    throw new StagedPlanningAdmissionError("PLANNING_COVERAGE_INVALID", "admissibleCoverageTargetsByRequirement", "PLANNING_COVERAGE_TARGETS_NOT_CURRENT");
+  return expected;
+}
+
+export function assertAdmissibleCoverageTargetCounts(input: {
+  table: PlannerReferenceTable;
+  targetTable: PlannerCoverageTargetTable;
+}) {
+  const table = PlannerReferenceTableSchema.parse(input.table);
+  for (const requirement of table.requirements.filter((entry) => entry.mandatory)) {
+    const targetCount = input.targetTable.admissibleCoverageTargetsByRequirement[requirement.token]?.length ?? 0;
+    if (targetCount < requirement.coverageConstraints.minimumCoverageTargets) {
+      const diagnostics = PlannerCoverageDiagnosticsSchema.parse({
+        requirementToken: requirement.token,
+        requirementCategory: requirement.category,
+        allowedDomains: requirement.coverageConstraints.allowedDomains,
+        allowedKinds: requirement.coverageConstraints.allowedElementKinds,
+        requiredPageTokens: requirement.coverageConstraints.requiredPageTokens,
+        allowedPageTokens: requirement.coverageConstraints.allowedPageTokens,
+        requiredRouteTokens: requirement.coverageConstraints.requiredRouteTokens,
+        allowedRouteTokens: requirement.coverageConstraints.allowedRouteTokens,
+        admissibleTargetCount: targetCount,
+        minimumCoverageTargets: requirement.coverageConstraints.minimumCoverageTargets,
+        reasonCode: "PLANNING_COVERAGE_NO_ADMISSIBLE_TARGETS",
+      });
+      throw new StagedPlanningAdmissionError(
+        "PLANNING_COVERAGE_INVALID",
+        `admissibleCoverageTargetsByRequirement.${requirement.token}`,
+        "PLANNING_COVERAGE_NO_ADMISSIBLE_TARGETS",
+        requirement.token,
+        undefined,
+        undefined,
+        diagnostics,
+      );
+    }
+  }
+  return input.targetTable;
+}
+
 function stagedDecisionId(requirementId: string, token: string) {
   const digest = createHash("sha256").update(`staged-coverage:${token}:${requirementId}`).digest("hex");
   const bytes = Buffer.from(digest.slice(0, 32), "hex");
@@ -331,7 +456,7 @@ function materializeStagedCoverage(candidate: PlanningPackage, coverage: Plannin
   const requirements = new Map(table.requirements.map((entry) => [entry.token, entry]));
   const positiveEvidence: string[] = [];
   const negativeEvidence: string[] = [];
-  const stagedTraceability = Object.entries(coverage.coverageByRequirement).map(([token, entry]) => {
+  const stagedTraceability = (Object.entries(coverage.coverageByRequirement) as Array<[string, { semanticEvidence: string; planningElementIds: readonly string[] }]>).map(([token, entry]) => {
     const requirement = requirements.get(token)!;
     const target = requirement.coverageConstraints.positiveRequirement ? positiveEvidence : negativeEvidence;
     target.push(entry.semanticEvidence);
@@ -364,8 +489,10 @@ export function admitPlanningCoverage(input: {
   output: unknown;
   table: PlannerReferenceTable;
   elements: readonly PlanningElement[];
+  admissibleCoverageTargetsByRequirement?: AdmissibleCoverageTargetsByRequirement;
 }): PlanningCoverageProviderOutput {
   const table = PlannerReferenceTableSchema.parse(input.table);
+  const admissibleCoverageTargetsByRequirement = input.admissibleCoverageTargetsByRequirement ?? deriveAdmissibleCoverageTargets(table, input.elements);
   const rawCoverage = input.output && typeof input.output === "object" && !Array.isArray(input.output)
     ? (input.output as Record<string, unknown>).coverageByRequirement
     : undefined;
@@ -377,7 +504,7 @@ export function admitPlanningCoverage(input: {
     for (const token of required)
       if (!Object.prototype.hasOwnProperty.call(rawCoverage, token)) throw new PlannerReferenceBindingError("PLANNING_REQUIREMENT_COVERAGE_MISSING", token, "PLANNING_COVERAGE_REQUIREMENT_MISSING");
   }
-  const schema = createPlanningCoverageProviderWireSchema(table);
+  const schema = createPlanningCoverageProviderOutputSchema(table);
   let parsed: PlanningCoverageProviderOutput;
   try {
     parsed = schema.parse(input.output);
@@ -390,6 +517,37 @@ export function admitPlanningCoverage(input: {
   } catch (error) {
     if (error instanceof PlannerReferenceBindingError) throw error;
     throw error;
+  }
+  for (const [token, entry] of Object.entries(parsed.coverageByRequirement)) {
+    const requirement = table.requirements.find((candidate) => candidate.token === token)!;
+    const admissibleTargets = new Set(admissibleCoverageTargetsByRequirement[token] ?? []);
+    const nonAdmissibleTarget = entry.planningElementIds.find((elementId) => !admissibleTargets.has(elementId));
+    if (nonAdmissibleTarget) {
+      const descriptor = index.get(nonAdmissibleTarget);
+      const diagnostics = PlannerCoverageDiagnosticsSchema.parse({
+        requirementToken: requirement.token,
+        requirementCategory: requirement.category,
+        planningElementToken: nonAdmissibleTarget,
+        ...(descriptor?.domains[0] ? { actualDomain: descriptor.domains[0] } : {}),
+        ...(descriptor?.kind ? { actualKind: descriptor.kind } : {}),
+        allowedDomains: requirement.coverageConstraints.allowedDomains,
+        allowedKinds: requirement.coverageConstraints.allowedElementKinds,
+        requiredPageTokens: requirement.coverageConstraints.requiredPageTokens,
+        allowedPageTokens: requirement.coverageConstraints.allowedPageTokens,
+        requiredRouteTokens: requirement.coverageConstraints.requiredRouteTokens,
+        allowedRouteTokens: requirement.coverageConstraints.allowedRouteTokens,
+        admissibleTargetCount: admissibleTargets.size,
+        minimumCoverageTargets: requirement.coverageConstraints.minimumCoverageTargets,
+        reasonCode: "PLANNING_COVERAGE_TARGET_NOT_ADMISSIBLE",
+      });
+      throw new PlannerReferenceBindingError(
+        "PLANNING_REQUIREMENT_COVERAGE_INVALID",
+        `coverageByRequirement.${token}.planningElementIds`,
+        "PLANNING_COVERAGE_TARGET_NOT_ADMISSIBLE",
+        nonAdmissibleTarget,
+        diagnostics,
+      );
+    }
   }
   return parsed;
 }
@@ -408,6 +566,7 @@ export function assembleStagedPlanningCandidate(input: {
   elements: readonly PlanningElement[];
   graph: PlanningElementGraph;
   coverage: PlanningCoverageProviderOutput;
+  admissibleCoverageTargetsByRequirement?: AdmissibleCoverageTargetsByRequirement;
 }): PlanningPackage {
   const positiveElementEvidence = input.elements.filter((element) => !element.negativeOnly).map((element) => `${element.elementId}: ${element.title} — ${element.description}`);
   const negativeElementEvidence = input.elements.filter((element) => element.negativeOnly).map((element) => `${element.elementId}: ${element.title} — ${element.description}`);
@@ -432,12 +591,12 @@ export function assembleStagedPlanningCandidate(input: {
   const admittedGraph = finalizePlanningElementGraph(input.elements);
   if (checksumPersistedDocument(admittedGraph) !== checksumPersistedDocument(input.graph))
     throw new StagedPlanningAdmissionError("PLANNING_GRAPH_INVALID", "graph", "PLANNING_GRAPH_NOT_CURRENT");
-  const admittedCoverage = admitPlanningCoverage({ output: input.coverage, table: input.plannerReferenceTable, elements: input.elements });
+  const admittedCoverage = admitPlanningCoverage({ output: input.coverage, table: input.plannerReferenceTable, elements: input.elements, admissibleCoverageTargetsByRequirement: input.admissibleCoverageTargetsByRequirement });
   return PlanningPackageSchema.parse(materializeStagedCoverage(candidate, admittedCoverage, input.plannerReferenceTable));
 }
 
 export function stagedCoverageReferenceCount(output: PlanningCoverageProviderOutput) {
-  return Object.values(output.coverageByRequirement).reduce((count, entry) => count + entry.planningElementIds.length, 0);
+  return (Object.values(output.coverageByRequirement) as Array<{ planningElementIds: readonly string[] }>).reduce((count, entry) => count + entry.planningElementIds.length, 0);
 }
 
 export function stagedElementDescriptorIndex(elements: readonly PlanningElement[]) {

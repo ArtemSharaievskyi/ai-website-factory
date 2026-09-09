@@ -2,7 +2,7 @@ import { isAiProviderError } from "@/integrations/openai/errors";
 import type { ProviderDiagnostic } from "@/integrations/openai/usage";
 import { PlannerError, type PlannerErrorCode } from "./errors";
 import { z } from "zod";
-import { PlannerDecompositionKindDomainDiagnosticsSchema, type PlannerDecompositionKindDomainDiagnostics } from "./coverage-contract";
+import { PlannerCoverageDiagnosticsSchema, PlannerDecompositionKindDomainDiagnosticsSchema, type PlannerCoverageDiagnostics, type PlannerDecompositionKindDomainDiagnostics } from "./coverage-contract";
 import { PlanningGraphCycleDiagnosticsSchema, type PlanningGraphCycleDiagnostics } from "./staged-contracts";
 
 export const StagedPlanningStageSchema = z.enum([
@@ -80,6 +80,7 @@ export const StagedPlanningOperationSummarySchema = z.object({
   providerContract: z.string().regex(/^[a-z0-9-]{1,100}$/).nullable(),
   kindDomainDiagnostics: PlannerDecompositionKindDomainDiagnosticsSchema.optional(),
   graphCycleDiagnostics: PlanningGraphCycleDiagnosticsSchema.optional(),
+  coverageDiagnostics: PlannerCoverageDiagnosticsSchema.optional(),
 }).strict();
 export type StagedPlanningOperationSummary = z.infer<typeof StagedPlanningOperationSummarySchema>;
 
@@ -91,6 +92,7 @@ export type StagedPlanningFailureDetails = {
   safeToken?: string;
   kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
   graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
+  coverageDiagnostics?: PlannerCoverageDiagnostics;
   providerContract?: string;
   providerRequestCountExact: boolean;
   providerRequestAttempted: boolean;
@@ -224,6 +226,7 @@ export class StagedPlanningOperationTelemetry {
     safeToken?: string;
     kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
     graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
+    coverageDiagnostics?: PlannerCoverageDiagnostics;
   }): StagedPlanningOperationSummary {
     const providerCallsByStage = {
       decomposition: { ...this.providerCalls.decomposition },
@@ -252,6 +255,7 @@ export class StagedPlanningOperationTelemetry {
       providerContract: this.providerContract,
       ...(input.kindDomainDiagnostics ? { kindDomainDiagnostics: input.kindDomainDiagnostics } : {}),
       ...(input.graphCycleDiagnostics ? { graphCycleDiagnostics: input.graphCycleDiagnostics } : {}),
+      ...(input.coverageDiagnostics ? { coverageDiagnostics: input.coverageDiagnostics } : {}),
     });
   }
 
@@ -271,14 +275,15 @@ export class StagedPlanningOperationTelemetry {
     safeToken?: string;
     kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
     graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
+    coverageDiagnostics?: PlannerCoverageDiagnostics;
     message: string;
     cause?: unknown;
   }) {
     this.stageFailed = input.stage;
     this.stageReached = input.stage;
     const summary = this.recorded
-      ? this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, reasonCode: input.reasonCode, safeToken: input.safeToken, kindDomainDiagnostics: input.kindDomainDiagnostics, graphCycleDiagnostics: input.graphCycleDiagnostics })
-      : this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, reasonCode: input.reasonCode, safeToken: input.safeToken, kindDomainDiagnostics: input.kindDomainDiagnostics, graphCycleDiagnostics: input.graphCycleDiagnostics });
+      ? this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, reasonCode: input.reasonCode, safeToken: input.safeToken, kindDomainDiagnostics: input.kindDomainDiagnostics, graphCycleDiagnostics: input.graphCycleDiagnostics, coverageDiagnostics: input.coverageDiagnostics })
+      : this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, reasonCode: input.reasonCode, safeToken: input.safeToken, kindDomainDiagnostics: input.kindDomainDiagnostics, graphCycleDiagnostics: input.graphCycleDiagnostics, coverageDiagnostics: input.coverageDiagnostics });
     if (!this.recorded) {
       this.recorded = true;
       recordStagedPlanningOperation(summary);
@@ -291,6 +296,7 @@ export class StagedPlanningOperationTelemetry {
       ...(safeOpaqueToken(input.safeToken) ? { safeToken: safeOpaqueToken(input.safeToken) } : {}),
       ...(input.kindDomainDiagnostics ? { kindDomainDiagnostics: input.kindDomainDiagnostics } : {}),
       ...(input.graphCycleDiagnostics ? { graphCycleDiagnostics: input.graphCycleDiagnostics } : {}),
+      ...(input.coverageDiagnostics ? { coverageDiagnostics: input.coverageDiagnostics } : {}),
       ...(this.providerContract ? { providerContract: this.providerContract } : {}),
       providerRequestCountExact: summary.providerRequestCountExact,
       providerRequestAttempted: summary.providerRequestAttempted,
