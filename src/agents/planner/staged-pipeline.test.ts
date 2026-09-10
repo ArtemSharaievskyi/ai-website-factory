@@ -27,6 +27,8 @@ import {
   PLANNER_COVERAGE_CONTRACT_VERSION,
   normalizePlanningCoverageProviderOutput,
   createPlanningCoverageProviderWireSchemaV1,
+  createPlanningDecompositionProviderWireSchema,
+  normalizePlanningDecompositionProviderOutput,
   PlanningDecompositionProviderOutputSchema,
   PlanningDecompositionProviderOutputV1Schema,
   type PlanningElement,
@@ -40,6 +42,7 @@ import {
   PlannerCoverageDomainSchema,
   PlannerCoverageElementKindSchema,
 } from "./coverage-contract";
+import { createDecompositionMinimumContract } from "./decomposition-minimum";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { PlannerReferenceBindingError, validatePlannerRequirementCoverage } from "@/integrations/openai/adapters";
 import { PlannerArchitectService } from "./service";
@@ -168,7 +171,27 @@ function portalDecomposition() {
     { kind: "TEST_STRATEGY" as const, domain: "QA" as const, title: "Portal quality gates", description: "Covers authenticated submission, status transitions, history visibility, and safe failure behavior." },
     { kind: "TRACEABILITY" as const, domain: "LIFECYCLE" as const, title: "Requirement evidence ledger", description: "Records host-bound evidence for each approved Planning requirement without replacing substantive targets." },
   ];
-  return { brief, table, output: PlanningDecompositionProviderOutputSchema.parse({ schemaVersion: 1, providerContractVersion: PLANNER_DECOMPOSITION_CONTRACT_VERSION, complete: true, elements: elements.map((element) => ({ pageTokens: null, routeTokens: null, dependencies: null, negativeEvidence: null, negativeOnly: null, ...element })) }) };
+  const minimumContract = createDecompositionMinimumContract({ brief: portalV1Brief(), canonicalBrief: brief });
+  const proposals = elements.map((element) => ({ pageTokens: null, routeTokens: null, dependencies: null, negativeEvidence: null, negativeOnly: null, ...element }));
+  const flattened = ["FRONTEND", "BACKEND", "DATABASE", "SECURITY", "INTEGRATION", "LIFECYCLE", "QA"].flatMap((domain) => proposals.filter((element) => (element.domain as string) === domain));
+  const flattenedIndex = new Map(flattened.map((element, index) => [element, index]));
+  const normalizedDependencies = proposals.map((element) => ({
+    ...element,
+    dependencies: element.dependencies?.map((dependency) => flattenedIndex.get(proposals[dependency]!)).filter((dependency): dependency is number => dependency !== undefined) ?? null,
+  }));
+  const wire = {
+    schemaVersion: 1 as const,
+    providerContractVersion: PLANNER_DECOMPOSITION_CONTRACT_VERSION,
+    complete: true as const,
+    frontendElements: normalizedDependencies.filter((element) => element.domain === "FRONTEND"),
+    backendElements: normalizedDependencies.filter((element) => element.domain === "BACKEND"),
+    databaseElements: normalizedDependencies.filter((element) => element.domain === "DATABASE"),
+    integrationElements: normalizedDependencies.filter((element) => (element.domain as string) === "INTEGRATION"),
+    qaElements: normalizedDependencies.filter((element) => element.domain === "QA"),
+    securityElements: normalizedDependencies.filter((element) => element.domain === "SECURITY"),
+    lifecycleElements: normalizedDependencies.filter((element) => element.domain === "LIFECYCLE"),
+  };
+  return { brief, table, output: normalizePlanningDecompositionProviderOutput(createPlanningDecompositionProviderWireSchema(minimumContract).parse(wire), minimumContract) };
 }
 
 function validCoverage(table: ReturnType<typeof portalTable>["table"], elementId = "PE_001") {
@@ -580,7 +603,7 @@ describe("staged Planner pipeline", () => {
     const valid = validCoverage(table);
     expectFailure(() => admitPlanningCoverage({ output: { ...valid, coverageByRequirement: { ...valid.coverageByRequirement, REQ_001: { planningElementIds: ["PE_014"], semanticEvidence: "Wrong security target." } } }, table, elements }), { code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_KIND_INCOMPATIBLE" });
     expectFailure(() => validatePlannerRequirementCoverage({ REQ_001: { planningElementIds: ["PE_014"], semanticEvidence: "Wrong security target." } }, table, {}, stagedElementDescriptorIndex(elements)), { reasonCode: "PLANNING_COVERAGE_KIND_INCOMPATIBLE" });
-    expectFailure(() => validatePlannerRequirementCoverage({ REQ_001: { planningElementIds: ["PE_016"], semanticEvidence: "Traceability only." } }, table, {}, stagedElementDescriptorIndex(elements)), { reasonCode: "PLANNING_COVERAGE_GENERIC_CATCH_ALL" });
+    expectFailure(() => validatePlannerRequirementCoverage({ REQ_001: { planningElementIds: ["PE_015"], semanticEvidence: "Traceability only." } }, table, {}, stagedElementDescriptorIndex(elements)), { reasonCode: "PLANNING_COVERAGE_GENERIC_CATCH_ALL" });
   });
 
   it("assembles only after staged gates and passes full canonical Planning admission", () => {
@@ -787,7 +810,7 @@ describe("staged Planner pipeline", () => {
       async decompose() { const output = portalDecomposition().output; return { ...output, elements: output.elements.slice(0, 1) }; },
       async assignCoverage() { throw new Error("coverage must not be reached"); },
     });
-    await expect(service.planApprovedProject(input)).rejects.toMatchObject({ details: { stage: "DECOMPOSITION_ADMISSION", failureClass: "STAGED_DECOMPOSITION_FAILURE", reasonCode: "PLANNING_DECOMPOSITION_MINIMUM_ELEMENTS", operation: { providerRequestCount: 1, providerCallsByStage: { coverage: { attempted: 0 } } } } });
+    await expect(service.planApprovedProject(input)).rejects.toMatchObject({ details: { stage: "DECOMPOSITION_ADMISSION", failureClass: "STAGED_DECOMPOSITION_FAILURE", reasonCode: "PLANNING_DECOMPOSITION_MINIMUM_ELEMENTS", minimumDiagnostics: { actualElementCount: 1, minimumElementCount: 5, missingRequiredDomains: ["BACKEND", "DATABASE", "FRONTEND", "SECURITY"] }, operation: { providerRequestCount: 1, providerCallsByStage: { coverage: { attempted: 0 } } } } });
   });
 
   it("rejects provider-declared dependency cycles before Coverage and retains graph diagnostics", async () => {

@@ -5,6 +5,7 @@ import { PROVIDER_OUTPUT_STAGES, type ProviderDiagnostic, type ProviderOutputSta
 import { isStagedPlanningFailure, StagedPlanningFailureClassSchema, StagedPlanningOperationSummarySchema, StagedPlanningStageSchema, type StagedPlanningOperationSummary, type StagedPlanningStage } from "@/agents/planner/staged-failures";
 import { PlannerCoverageDiagnosticsSchema, PlannerDecompositionKindDomainDiagnosticsSchema, type PlannerCoverageDiagnostics, type PlannerDecompositionKindDomainDiagnostics } from "@/agents/planner/coverage-contract";
 import { PlanningGraphCycleDiagnosticsSchema, type PlanningGraphCycleDiagnostics } from "@/agents/planner/staged-contracts";
+import { DecompositionMinimumDiagnosticsSchema, type DecompositionMinimumDiagnostics } from "@/agents/planner/decomposition-minimum";
 import { isWorkbenchOperationFailure, type WorkbenchOperationFailure } from "./operation-context";
 import { WORKBENCH_OPERATION_STAGES, type WorkbenchOperationStage } from "./operation-context";
 import { safeOperationFingerprint } from "./operation-ledger";
@@ -78,6 +79,7 @@ export const WorkbenchErrorResponseSchema = z
     reasonCode: z.string().regex(/^[A-Z][A-Z0-9_]+$/).optional(),
     safeToken: z.string().regex(/^(?:REQ|PE|PAGE|ROUTE)_\d{3,}$/).max(32).optional(),
     kindDomainDiagnostics: PlannerDecompositionKindDomainDiagnosticsSchema.optional(),
+    minimumDiagnostics: DecompositionMinimumDiagnosticsSchema.optional(),
     graphCycleDiagnostics: PlanningGraphCycleDiagnosticsSchema.optional(),
     coverageDiagnostics: PlannerCoverageDiagnosticsSchema.optional(),
     safeErrorFingerprint: SafeFingerprintSchema.optional(),
@@ -118,6 +120,7 @@ export type WorkbenchErrorProjection = WorkbenchErrorResponse & {
   providerDiagnostic?: SafeProviderDiagnostic;
   stagedOperation?: StagedPlanningOperationSummary;
   kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
+  minimumDiagnostics?: DecompositionMinimumDiagnostics;
   graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
   coverageDiagnostics?: PlannerCoverageDiagnostics;
 };
@@ -177,6 +180,7 @@ export type WorkbenchDiagnosticEvent = {
   reasonCode?: string;
   safeToken?: string;
   kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
+  minimumDiagnostics?: DecompositionMinimumDiagnostics;
   graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
   coverageDiagnostics?: PlannerCoverageDiagnostics;
   safeErrorFingerprint?: string;
@@ -509,6 +513,7 @@ function stagedFailureProjection(error: unknown): Omit<WorkbenchErrorProjection,
     ...(error.details.reasonCode ? { reasonCode: error.details.reasonCode } : {}),
     ...(error.details.safeToken ? { safeToken: error.details.safeToken } : {}),
     ...(error.details.kindDomainDiagnostics ? { kindDomainDiagnostics: error.details.kindDomainDiagnostics } : {}),
+    ...(error.details.minimumDiagnostics ? { minimumDiagnostics: error.details.minimumDiagnostics } : {}),
     ...(error.details.graphCycleDiagnostics ? { graphCycleDiagnostics: error.details.graphCycleDiagnostics } : {}),
     ...(error.details.coverageDiagnostics ? { coverageDiagnostics: error.details.coverageDiagnostics } : {}),
     providerRequestCountExact: error.details.providerRequestCountExact,
@@ -622,6 +627,7 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     ...(projection.reasonCode ? { reasonCode: projection.reasonCode } : {}),
     ...(projection.safeToken ? { safeToken: projection.safeToken } : {}),
     ...(projection.kindDomainDiagnostics ? { kindDomainDiagnostics: projection.kindDomainDiagnostics } : {}),
+    ...(projection.minimumDiagnostics ? { minimumDiagnostics: projection.minimumDiagnostics } : {}),
     ...(projection.graphCycleDiagnostics ? { graphCycleDiagnostics: projection.graphCycleDiagnostics } : {}),
     ...(projection.coverageDiagnostics ? { coverageDiagnostics: projection.coverageDiagnostics } : {}),
     ...(projection.safeErrorFingerprint ? { safeErrorFingerprint: projection.safeErrorFingerprint } : {}),
@@ -720,6 +726,7 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     ...(projection.reasonCode ? { reasonCode: projection.reasonCode } : {}),
     ...(projection.safeToken ? { safeToken: projection.safeToken } : {}),
     ...(projection.kindDomainDiagnostics ? { kindDomainDiagnostics: projection.kindDomainDiagnostics } : {}),
+    ...(projection.minimumDiagnostics ? { minimumDiagnostics: projection.minimumDiagnostics } : {}),
     ...(projection.graphCycleDiagnostics ? { graphCycleDiagnostics: projection.graphCycleDiagnostics } : {}),
     ...(projection.coverageDiagnostics ? { coverageDiagnostics: projection.coverageDiagnostics } : {}),
     ...(projection.safeErrorFingerprint ? { safeErrorFingerprint: projection.safeErrorFingerprint } : {}),

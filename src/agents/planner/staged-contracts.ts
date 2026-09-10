@@ -19,6 +19,8 @@ import {
   PlannerRouteToken,
   type PlannerReferenceTable,
 } from "./reference-table";
+import type { DecompositionMinimumContract } from "./decomposition-minimum";
+import { validateDecompositionMinimumContract } from "./decomposition-minimum";
 
 export { PLANNER_COVERAGE_CONTRACT_VERSION, PLANNER_COVERAGE_LEGACY_CONTRACT_VERSION } from "./coverage-contract";
 
@@ -28,8 +30,9 @@ export { PLANNER_COVERAGE_CONTRACT_VERSION, PLANNER_COVERAGE_LEGACY_CONTRACT_VER
  * coverage object and never owns a globally referenced Planning identity.
  */
 export const PLANNER_DECOMPOSITION_LEGACY_CONTRACT_VERSION = "planner.decomposition.v1" as const;
-export const PLANNER_DECOMPOSITION_CONTRACT_VERSION = "planner.decomposition.v2" as const;
-export const PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME = "planning-decomposition-v2" as const;
+export const PLANNER_DECOMPOSITION_PREVIOUS_CONTRACT_VERSION = "planner.decomposition.v2" as const;
+export const PLANNER_DECOMPOSITION_CONTRACT_VERSION = "planner.decomposition.v3" as const;
+export const PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME = "planning-decomposition-v3" as const;
 export const PLANNING_COVERAGE_PROVIDER_SCHEMA_NAME = "planning-coverage-v2" as const;
 export const PLANNING_COVERAGE_PROVIDER_SCHEMA_NAME_V1 = "planning-coverage-v1" as const;
 export const STAGED_PLANNER_PIPELINE_VERSION = "planner.staged.v1" as const;
@@ -52,11 +55,15 @@ function kindEnumForDomain(domain: PlannerCoverageDomain) {
   return z.enum(kinds as unknown as [PlannerCoverageElementKind, ...PlannerCoverageElementKind[]]);
 }
 
-const PlanningElementProposalVariants = PlannerCoverageDomainSchema.options.map((domain) => z.object({
-  ...PlanningElementProposalFields,
-  domain: z.literal(domain),
-  kind: kindEnumForDomain(domain),
-}).strict());
+export function planningElementProposalSchemaForDomain(domain: PlannerCoverageDomain) {
+  return z.object({
+    ...PlanningElementProposalFields,
+    domain: z.literal(domain),
+    kind: kindEnumForDomain(domain),
+  }).strict();
+}
+
+const PlanningElementProposalVariants = PlannerCoverageDomainSchema.options.map(planningElementProposalSchemaForDomain);
 
 export const PlanningElementProposalSchema = z.discriminatedUnion(
   "domain",
@@ -78,13 +85,67 @@ export const PlanningDecompositionProviderOutputV1Schema = z.object({
 }).strict();
 export type PlanningDecompositionProviderOutputV1 = z.infer<typeof PlanningDecompositionProviderOutputV1Schema>;
 
-export const PlanningDecompositionProviderOutputSchema = z.object({
+/** Historical v2 wire reader. New provider requests use the bucketed v3 wire. */
+export const PlanningDecompositionProviderOutputV2Schema = z.object({
+  schemaVersion: z.literal(1),
+  providerContractVersion: z.literal(PLANNER_DECOMPOSITION_PREVIOUS_CONTRACT_VERSION),
+  complete: z.literal(true),
+  elements: z.array(PlanningElementProposalSchema).min(1).max(256),
+}).strict();
+export type PlanningDecompositionProviderOutputV2 = z.infer<typeof PlanningDecompositionProviderOutputV2Schema>;
+
+/**
+ * Normalized v3 output retained inside the staged pipeline. The provider wire
+ * shape is bucketed; this flat representation keeps PE assignment, graph
+ * assembly, and historical Planning semantics unchanged.
+ */
+export const PlanningDecompositionProviderOutputV3Schema = z.object({
   schemaVersion: z.literal(1),
   providerContractVersion: z.literal(PLANNER_DECOMPOSITION_CONTRACT_VERSION),
   complete: z.literal(true),
   elements: z.array(PlanningElementProposalSchema).min(1).max(256),
 }).strict();
-export type PlanningDecompositionProviderOutput = z.infer<typeof PlanningDecompositionProviderOutputSchema>;
+export type PlanningDecompositionProviderOutput = z.infer<typeof PlanningDecompositionProviderOutputV3Schema>;
+export const PlanningDecompositionProviderOutputSchema = PlanningDecompositionProviderOutputV3Schema;
+
+export const DECOMPOSITION_DOMAIN_BUCKET_BY_DOMAIN = {
+  FRONTEND: "frontendElements",
+  BACKEND: "backendElements",
+  DATABASE: "databaseElements",
+  INTEGRATION: "integrationElements",
+  QA: "qaElements",
+  SECURITY: "securityElements",
+  LIFECYCLE: "lifecycleElements",
+} as const satisfies Record<PlannerCoverageDomain, string>;
+export type DecompositionDomainBucket = typeof DECOMPOSITION_DOMAIN_BUCKET_BY_DOMAIN[PlannerCoverageDomain];
+/** Stable flattening order preserves deterministic dependency indexes and PE identity. */
+export const PLANNER_DECOMPOSITION_DOMAIN_ORDER = ["FRONTEND", "BACKEND", "DATABASE", "SECURITY", "INTEGRATION", "LIFECYCLE", "QA"] as const satisfies readonly PlannerCoverageDomain[];
+
+/** Current v3 provider wire schema. Domain cardinality is structurally enforced. */
+export function createPlanningDecompositionProviderWireSchema(minimum: DecompositionMinimumContract) {
+  const contract = validateDecompositionMinimumContract(minimum);
+  const shape: Record<string, z.ZodTypeAny> = {
+    schemaVersion: z.literal(1),
+    providerContractVersion: z.literal(PLANNER_DECOMPOSITION_CONTRACT_VERSION),
+    complete: z.literal(true),
+  };
+  for (const domain of PLANNER_DECOMPOSITION_DOMAIN_ORDER) {
+    const bucket = DECOMPOSITION_DOMAIN_BUCKET_BY_DOMAIN[domain];
+    shape[bucket] = z.array(planningElementProposalSchemaForDomain(domain))
+      .min(contract.minimumByDomain[domain])
+      .max(256);
+  }
+  return z.object(shape).strict();
+}
+
+export type PlanningDecompositionProviderWireOutput = z.infer<ReturnType<typeof createPlanningDecompositionProviderWireSchema>>;
+
+/** Flatten the host-defined bucket order into the existing staged proposal shape. */
+export function normalizePlanningDecompositionProviderOutput(value: unknown, minimum: DecompositionMinimumContract): PlanningDecompositionProviderOutput {
+  const parsed = createPlanningDecompositionProviderWireSchema(minimum).parse(value) as Record<DecompositionDomainBucket, PlanningElementProposal[]> & { schemaVersion: 1; providerContractVersion: typeof PLANNER_DECOMPOSITION_CONTRACT_VERSION; complete: true };
+  const elements = PLANNER_DECOMPOSITION_DOMAIN_ORDER.flatMap((domain) => parsed[DECOMPOSITION_DOMAIN_BUCKET_BY_DOMAIN[domain]]);
+  return PlanningDecompositionProviderOutputV3Schema.parse({ schemaVersion: parsed.schemaVersion, providerContractVersion: parsed.providerContractVersion, complete: parsed.complete, elements });
+}
 
 export const PlanningElementSchema = z.object({
   elementId: z.string().regex(/^PE_\d{3}$/),
@@ -239,7 +300,7 @@ export type PlannerDecompositionProviderInput = {
   approvedBrief: RequirementSpecification;
   plannerReferenceTable: PlannerReferenceTable;
   canonicalBrief?: CanonicalBriefV3;
-  requiredDomains: readonly PlannerCoverageDomain[];
+  minimumContract: DecompositionMinimumContract;
 };
 
 export type PlannerCoverageProviderInput = {

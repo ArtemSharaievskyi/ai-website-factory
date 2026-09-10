@@ -10,7 +10,6 @@ import {
   plannerCoverageCompatibility,
   PlannerCoverageDiagnosticsSchema,
   PlannerCoverageTargetTableSchema,
-  type PlannerCoverageDomain,
   type PlannerCoverageElementKind,
   type PlannerCoverageDiagnostics,
   type PlannerCoverageTargetBinding,
@@ -24,6 +23,7 @@ import {
 } from "./reference-table";
 import {
   PlanningDecompositionProviderOutputSchema,
+  PlanningDecompositionProviderOutputV2Schema,
   PlanningElementGraphSchema,
   PlanningElementSchema,
   STAGED_PLANNER_PIPELINE_VERSION,
@@ -35,6 +35,12 @@ import {
   type PlanningCoverageProviderOutput,
   type PlanningGraphCycleDiagnostics,
 } from "./staged-contracts";
+import {
+  createDecompositionMinimumContract,
+  decompositionMinimumSatisfied,
+  requiredDecompositionDomains,
+  type DecompositionMinimumDiagnostics,
+} from "./decomposition-minimum";
 import { PlanningPackageSchema, type PlannerAgentInput, type PlanningPackage } from "./contracts";
 import {
   PlannerReferenceBindingError,
@@ -64,6 +70,7 @@ export class StagedPlanningAdmissionError extends Error {
     readonly kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics,
     readonly graphCycleDiagnostics?: PlanningGraphCycleDiagnostics,
     readonly coverageDiagnostics?: PlannerCoverageDiagnostics,
+    readonly minimumDiagnostics?: DecompositionMinimumDiagnostics,
   ) {
     super(`${code}:${fieldPath}`);
     this.name = "StagedPlanningAdmissionError";
@@ -99,36 +106,16 @@ export function stagedPlanningCoverageDiagnostics(error: unknown, depth = 0): Pl
   return "cause" in error ? stagedPlanningCoverageDiagnostics(error.cause, depth + 1) : undefined;
 }
 
-const normalized = (value: string) => value.normalize("NFKD").toLocaleLowerCase("en").replace(/[^a-z0-9]+/g, " ").trim();
-
-function requiredDomains(brief: RequirementSpecification, canonicalBrief?: CanonicalBriefV3): PlannerCoverageDomain[] {
-  const required = new Set<PlannerCoverageDomain>(["FRONTEND"]);
-  const canonicalStateful = canonicalBrief && (
-    canonicalBrief.decisions.database.mode !== "NONE"
-    || canonicalBrief.decisions.auth.mode === "REQUIRED"
-    || canonicalBrief.decisions.form.persistenceMode === "DATABASE"
-    || canonicalBrief.decisions.form.serverProcessingMode === "SERVER"
-  );
-  const stateful = Boolean(
-    canonicalStateful
-    || brief.backendRequirements.length
-    || brief.supabaseRequirements.length
-    || brief.authenticationDecision === "authentication-required"
-    || brief.protectedFunctionalityRequired
-    || brief.storageDecision === "needed"
-    || brief.emailDecision === "needed"
-    || brief.administrationDecision === "needed"
-    || brief.formBehaviorRequirements?.persistence === "DATABASE"
-    || brief.formBehaviorRequirements?.dataTransmission !== "NONE",
-  );
-  if (stateful) required.add("BACKEND");
-  if (canonicalStateful || brief.supabaseRequirements.length || brief.formBehaviorRequirements?.persistence === "DATABASE") required.add("DATABASE");
-  if (brief.authenticationDecision === "authentication-required" || brief.protectedFunctionalityRequired || canonicalBrief?.decisions.auth.mode === "REQUIRED") required.add("SECURITY");
-  return [...required].sort();
+export function stagedPlanningMinimumDiagnostics(error: unknown, depth = 0): DecompositionMinimumDiagnostics | undefined {
+  if (depth > 6 || !error || typeof error !== "object") return undefined;
+  if (error instanceof StagedPlanningAdmissionError) return error.minimumDiagnostics;
+  return "cause" in error ? stagedPlanningMinimumDiagnostics(error.cause, depth + 1) : undefined;
 }
 
+const normalized = (value: string) => value.normalize("NFKD").toLocaleLowerCase("en").replace(/[^a-z0-9]+/g, " ").trim();
+
 export function requiredPlannerDecompositionDomains(input: { brief: RequirementSpecification; canonicalBrief?: CanonicalBriefV3 }) {
-  return requiredDomains(input.brief, input.canonicalBrief);
+  return requiredDecompositionDomains(input);
 }
 
 function validateProposalReferences(proposal: PlanningElementProposal, table: PlannerReferenceTable, index: number) {
@@ -163,7 +150,9 @@ export function admitPlanningDecomposition(input: {
   try {
     parsed = PlanningDecompositionProviderOutputSchema.parse(input.output);
   } catch {
-    throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_INVALID", "decomposition");
+    const historical = PlanningDecompositionProviderOutputV2Schema.safeParse(input.output);
+    if (!historical.success) throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_INVALID", "decomposition");
+    parsed = { ...historical.data, providerContractVersion: "planner.decomposition.v3" };
   }
   return admitPlanningDecompositionSemantics({ ...input, output: parsed });
 }
@@ -184,7 +173,6 @@ export function admitPlanningDecompositionSemantics(input: {
   const signatures = new Set<string>();
   const elements: PlanningElement[] = [];
   const seenKinds = new Set<PlannerCoverageElementKind>();
-  const seenDomains = new Set<PlannerCoverageDomain>();
   for (const [index, proposal] of parsed.elements.entries()) {
     if (!isPlannerElementKindAllowedInDomain(proposal.kind, proposal.domain))
       throw new StagedPlanningAdmissionError(
@@ -201,7 +189,6 @@ export function admitPlanningDecompositionSemantics(input: {
     if (signatures.has(signature)) throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_DUPLICATE", `elements[${index}]`);
     signatures.add(signature);
     seenKinds.add(proposal.kind);
-    seenDomains.add(proposal.domain);
     const elementId = `PE_${String(index + 1).padStart(3, "0")}`;
     elements.push(PlanningElementSchema.parse({
       elementId,
@@ -216,10 +203,22 @@ export function admitPlanningDecompositionSemantics(input: {
       negativeOnly: proposal.negativeOnly ?? false,
     }));
   }
-  if (!seenKinds.has("PRODUCT_SCOPE") || !seenKinds.has("PAGE") && !seenKinds.has("ROUTE") || !parsed.elements.some((proposal) => hasRequiredPageOrRoute(proposal, table)))
-    throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_INVALID", "elements", "PLANNING_DECOMPOSITION_MINIMUM_ELEMENTS");
-  for (const domain of requiredDomains(input.brief, input.canonicalBrief)) {
-    if (!seenDomains.has(domain)) throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_DOMAIN_MISSING", "elements", domain);
+  const minimumContract = createDecompositionMinimumContract({ brief: input.brief, canonicalBrief: input.canonicalBrief });
+  const hasPageOrRoute = seenKinds.has("PAGE") || seenKinds.has("ROUTE");
+  const hasRequiredPageOrRouteBinding = parsed.elements.some((proposal) => hasRequiredPageOrRoute(proposal, table));
+  const minimumResult = decompositionMinimumSatisfied({ elements, contract: minimumContract, hasPageOrRoute, hasRequiredPageOrRouteBinding });
+  const minimum = minimumResult.diagnostics;
+  if (!minimumResult.satisfied) {
+    const missingDomainOnly = minimum.missingRequiredDomains.some((domain) => minimum.actualCountByDomain[domain] === 0)
+      && minimum.actualElementCount >= minimum.minimumElementCount
+      && minimum.missingRequiredKinds.length === 0
+      && hasPageOrRoute
+      && hasRequiredPageOrRouteBinding;
+    if (missingDomainOnly) {
+      const missingDomain = minimum.missingRequiredDomains.find((domain) => minimum.actualCountByDomain[domain] === 0)!;
+      throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_DOMAIN_MISSING", "elements", missingDomain, undefined, undefined, undefined, undefined, minimum);
+    }
+    throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_INVALID", "elements", "PLANNING_DECOMPOSITION_MINIMUM_ELEMENTS", undefined, undefined, undefined, undefined, minimum);
   }
   const pageTokens = new Set(elements.flatMap((element) => element.pageTokens));
   const routeTokens = new Set(elements.flatMap((element) => element.routeTokens));

@@ -92,13 +92,14 @@ import {
   assertAdmissibleCoverageTargetTableCurrent,
   createAdmissibleCoverageTargetTable,
   finalizePlanningElementGraph,
-  requiredPlannerDecompositionDomains,
   StagedPlanningAdmissionError,
   stagedPlanningAdmissionDiagnostics,
+  stagedPlanningMinimumDiagnostics,
   stagedPlanningCoverageDiagnostics,
   stagedPlanningGraphCycleDiagnostics,
 } from "./staged-admission";
 import { PLANNER_COVERAGE_CONTRACT_VERSION, PLANNING_COVERAGE_PROVIDER_SCHEMA_NAME, PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME, type PlannerDecompositionProviderInput } from "./staged-contracts";
+import { createDecompositionMinimumContract } from "./decomposition-minimum";
 import {
   StagedPlanningOperationTelemetry,
   type StagedPlanningFailureClass,
@@ -494,7 +495,7 @@ export class PlannerArchitectService {
       approvedBrief: input.brief,
       plannerReferenceTable: table,
       ...(input.canonicalBrief ? { canonicalBrief: input.canonicalBrief } : {}),
-      requiredDomains: requiredPlannerDecompositionDomains({ brief: input.brief, canonicalBrief: input.canonicalBrief }),
+      minimumContract: createDecompositionMinimumContract({ brief: input.brief, canonicalBrief: input.canonicalBrief }),
     };
     let decompositionOutput;
     await input.setStage?.("DECOMPOSITION");
@@ -962,6 +963,7 @@ export class PlannerArchitectService {
           ...(safeStagedReasonCode(error) ? { reasonCode: safeStagedReasonCode(error) } : {}),
           ...(safeStagedToken(error) ? { safeToken: safeStagedToken(error) } : {}),
           ...(stagedPlanningAdmissionDiagnostics(error) ? { kindDomainDiagnostics: stagedPlanningAdmissionDiagnostics(error) } : {}),
+          ...(stagedPlanningMinimumDiagnostics(error) ? { minimumDiagnostics: stagedPlanningMinimumDiagnostics(error) } : {}),
           ...(stagedPlanningCoverageDiagnostics(error) ? { coverageDiagnostics: stagedPlanningCoverageDiagnostics(error) } : {}),
           ...(stagedPlanningGraphCycleDiagnostics(error) ? { graphCycleDiagnostics: stagedPlanningGraphCycleDiagnostics(error) } : {}),
           message: "Staged Planning failed safely; the project was not changed.",

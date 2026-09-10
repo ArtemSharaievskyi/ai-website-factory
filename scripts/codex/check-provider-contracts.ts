@@ -10,9 +10,11 @@ import {
   createTokenizedPlanningProviderWireSchema,
   createPlanningRecoveryProviderWireSchema,
 } from "@/integrations/openai/adapters";
-import { createPlanningCoverageProviderWireSchema, PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME, PLANNING_COVERAGE_PROVIDER_SCHEMA_NAME, PlanningDecompositionProviderOutputSchema } from "@/agents/planner/staged-contracts";
+import { createPlanningCoverageProviderWireSchema, createPlanningDecompositionProviderWireSchema, PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME, PLANNING_COVERAGE_PROVIDER_SCHEMA_NAME } from "@/agents/planner/staged-contracts";
+import { createDecompositionMinimumContract } from "@/agents/planner/decomposition-minimum";
 import { createPlannerReferenceTable } from "@/agents/planner/reference-table";
-import { cleanBriefV3 } from "@/domain/requirements/v3/fixtures";
+import { cleanBriefV3, representativeV1Brief } from "@/domain/requirements/v3/fixtures";
+import { migrateV1ToCanonicalBriefV3 } from "@/domain/requirements/v3/migrate-v1";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { ProviderBriefChangeSetSchema } from "@/integrations/openai-v3/changeset";
 import { PlanningChangeSetProviderOutputSchema } from "@/agents/planner/changeset";
@@ -34,6 +36,7 @@ const plannerContractProbeReferenceTable = createPlannerReferenceTable({
   expectedRowVersion: 1,
   canonicalBrief: cleanBriefV3,
 });
+const plannerDecompositionMinimumContract = createDecompositionMinimumContract({ brief: representativeV1Brief, canonicalBrief: migrateV1ToCanonicalBriefV3(representativeV1Brief) });
 export type ProviderContractFailure = { guardId: "provider-contracts"; key: string; id: string; schemaName: string; code: string; fingerprint: string; triggerPathPrefixes: string[]; affectedPathPrefixes?: string[] };
 export type ProviderContractResult = { id: string; schemaName: string; passed: boolean; code: string };
 export type ProviderContractGuardResult = { passed: boolean; results: ProviderContractResult[]; failures: ProviderContractFailure[]; knownProductDefects: string[] };
@@ -44,7 +47,7 @@ const builders: Record<string, Builder> = {
   "project-brief": () => buildProductionResponseFormat(BriefDraftStructuredOutputSchema, "brief-draft"),
   "brief-revision-v3": () => buildProductionResponseFormat(ProviderBriefChangeSetSchema, "brief-revision-v3"),
   "planning-package": () => buildProductionResponseFormat(createTokenizedPlanningProviderWireSchema(plannerContractProbeReferenceTable), "planning-package-v5"),
-  "planning-decomposition": () => buildProductionResponseFormat(PlanningDecompositionProviderOutputSchema, PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME),
+  "planning-decomposition": () => buildProductionResponseFormat(createPlanningDecompositionProviderWireSchema(plannerDecompositionMinimumContract), PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME),
   "planning-coverage": () => buildProductionResponseFormat(createPlanningCoverageProviderWireSchema(plannerContractProbeReferenceTable, Object.fromEntries(plannerContractProbeReferenceTable.requirements.filter((entry) => entry.mandatory).map((entry) => [entry.token, ["PE_001"]]))), PLANNING_COVERAGE_PROVIDER_SCHEMA_NAME),
   "planning-recovery-package": () => buildProductionResponseFormat(createPlanningRecoveryProviderWireSchema(recoveryContractProbeManifest as never), "planning-recovery-package", { schemaDefinitions: PlanningRecoveryProviderSchemaDefinitions }),
   "planning-change-set": () => buildProductionResponseFormat(PlanningChangeSetProviderOutputSchema, "planning-change-set"),

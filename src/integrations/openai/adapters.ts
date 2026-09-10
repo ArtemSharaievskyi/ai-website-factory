@@ -56,9 +56,11 @@ import {
 import {
   createPlanningCoverageProviderWireSchema,
   normalizePlanningCoverageProviderOutput,
+  createPlanningDecompositionProviderWireSchema,
+  normalizePlanningDecompositionProviderOutput,
   PLANNING_COVERAGE_PROVIDER_SCHEMA_NAME,
   PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME,
-  PlanningDecompositionProviderOutputSchema,
+  PLANNER_DECOMPOSITION_DOMAIN_ORDER,
   type PlannerCoverageProviderInput,
   type PlannerDecompositionProviderInput,
   type PlanningCoverageProviderOutput,
@@ -2044,7 +2046,8 @@ function stagedDecompositionPromptInput(input: PlannerDecompositionProviderInput
   return {
     stage: "PLANNING_DECOMPOSITION",
     approvedBrief: stagedProviderSafeBrief(input.approvedBrief),
-    requiredDomains: input.requiredDomains,
+    minimumContract: input.minimumContract,
+    domainBucketOrder: PLANNER_DECOMPOSITION_DOMAIN_ORDER,
     kindDomainAuthority: Object.fromEntries(
       PlannerCoverageDomainSchema.options.map((domain) => [domain, plannerElementKindsForDomain(domain)]),
     ),
@@ -2097,20 +2100,23 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
     providerInvocation?: ProviderInvocationContext,
   ): Promise<PlanningDecompositionProviderOutput> {
     const prompt = rolePrompt("planner", stagedDecompositionPromptInput(input), false, approvedSkills);
-    const system = `${prompt.system} This is Stage 1 of staged Planning. Return only semantic decomposition proposals. Do not return requirementReferences, coverageByRequirement, canonical IDs, project IDs, checksums, approvals, routes outside the supplied host authority, or final PE_* identities. Return null for absent pageTokens, routeTokens, dependencies, negativeEvidence, or negativeOnly. Dependencies, if supplied, must be zero-based proposal indexes within this response and are resolved by the host. A dependency means only strict implementation/planning precedence: A depends on B means A requires B and the edge is A -> B. Do not encode integrates-with, interacts-with, data-flow, frontend/backend pairing, security-applies-to, QA-validates, or any other association as a dependency. Do not declare self-dependencies or dependency cycles. Use meaningful non-generic descriptions and represent the required domains explicitly. The host owns all identity, currentness, canonical references, dependency admission, cycle detection, and final Planning assembly.`;
-    const result = await this.ai.request<PlanningDecompositionProviderOutput>({
+    const system = `${prompt.system} This is Stage 1 of staged Planning using the planner.decomposition.v3 contract. Return only semantic decomposition proposals in the required domain buckets: frontendElements, backendElements, databaseElements, securityElements, integrationElements, lifecycleElements, qaElements. Use the exact host-issued bucket order when interpreting zero-based dependency indexes: ${PLANNER_DECOMPOSITION_DOMAIN_ORDER.join(", ")}. Do not return requirementReferences, coverageByRequirement, canonical IDs, project IDs, checksums, approvals, routes outside the supplied host authority, or final PE_* identities. Return null for absent pageTokens, routeTokens, dependencies, negativeEvidence, or negativeOnly. Dependencies, if supplied, must be zero-based proposal indexes in that flattened bucket order and are resolved by the host. A dependency means only strict implementation/planning precedence: A depends on B means A requires B and the edge is A -> B. Do not encode integrates-with, interacts-with, data-flow, frontend/backend pairing, security-applies-to, QA-validates, or any other association as a dependency. Do not declare self-dependencies or dependency cycles. Use meaningful non-generic descriptions and represent the minimum contract with substantive responsibilities, never filler or duplicated elements. The host owns all identity, currentness, canonical references, dependency admission, cycle detection, and final Planning assembly.`;
+    const schema = createPlanningDecompositionProviderWireSchema(input.minimumContract);
+    const result = await this.ai.request<unknown>({
       ...prompt,
       system,
       role: "planner",
-      schema: PlanningDecompositionProviderOutputSchema,
+      schema,
       schemaName: PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME,
       idempotencyKey: `${input.plannerReferenceTable.operationChecksum}:${skillContextIdentity}:decomposition`,
       retryPolicy: { maxRetries: 0, corrections: 0 },
       ...(providerInvocation ? { providerInvocation } : {}),
     });
-    const parsed = PlanningDecompositionProviderOutputSchema.safeParse(result.value);
-    if (!parsed.success) stagedProviderNormalizationFailure(parsed.error, result.diagnostic, PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME);
-    return parsed.data;
+    try {
+      return normalizePlanningDecompositionProviderOutput(result.value, input.minimumContract);
+    } catch (error) {
+      stagedProviderNormalizationFailure(error, result.diagnostic, PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME);
+    }
   }
   async assignCoverage(
     input: PlannerCoverageProviderInput,
