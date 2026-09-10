@@ -14,6 +14,8 @@ import {
   assertAdmissibleCoverageTargetTableCurrent,
   assembleStagedPlanningCandidate,
   createAdmissibleCoverageTargetTable,
+  assertDecompositionCoverageRepresentability,
+  deriveCoverageRepresentabilityMetrics,
   deriveAdmissibleCoverageTargets,
   finalizePlanningElementGraph,
   planningElementGraphCycleDiagnostics,
@@ -43,6 +45,8 @@ import {
   PlannerCoverageElementKindSchema,
 } from "./coverage-contract";
 import { createDecompositionMinimumContract } from "./decomposition-minimum";
+import { deriveCoverageRepresentabilityPlan } from "./coverage-representability";
+import { CoverageRepresentabilityPlanSchema } from "./coverage-representability";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { PlannerReferenceBindingError, validatePlannerRequirementCoverage } from "@/integrations/openai/adapters";
 import { PlannerArchitectService } from "./service";
@@ -134,6 +138,32 @@ function portalV1Brief(): RequirementSpecification {
   });
 }
 
+function frontendOnlyBrief(): RequirementSpecification {
+  const v2 = emptyBriefV2Fields();
+  return RequirementSpecificationSchema.parse({
+    ...representativeV1Brief,
+    projectId,
+    projectVersion: 1,
+    protectedFunctionalityRequired: false,
+    backendRequirements: [],
+    supabaseRequirements: [],
+    authenticationDecision: "no-authentication-guest-first",
+    administrationDecision: "not-needed",
+    ...v2,
+    formBehaviorRequirements: {
+      ...v2.formBehaviorRequirements,
+      formPresent: false,
+      validation: "NOT_REQUIRED",
+      successUx: "SIMULATED",
+      dataTransmission: "NONE",
+      persistence: "NONE",
+      thirdParty: "NONE",
+      privacyCheckbox: "OPTIONAL",
+      interactionStates: [],
+    },
+  });
+}
+
 function portalInput(brief: RequirementSpecification, canonicalBrief: CanonicalBriefV3) {
   return {
     projectId,
@@ -152,13 +182,13 @@ function portalInput(brief: RequirementSpecification, canonicalBrief: CanonicalB
   };
 }
 
-function portalTable() {
-  const brief = portalBrief();
+function portalTable(canonicalBrief = portalBrief()) {
+  const brief = canonicalBrief;
   return { brief, table: createPlannerReferenceTable({ projectId, projectVersion: 1, approvedBriefChecksum: canonicalBriefChecksum(brief), idempotencyKey: "synthetic-staged-planner", expectedRowVersion: 1, canonicalBrief: brief }) };
 }
 
-function portalDecomposition() {
-  const { brief, table } = portalTable();
+function portalDecomposition(canonicalBrief = portalBrief()) {
+  const { brief, table } = portalTable(canonicalBrief);
   const elements = [
     { kind: "PRODUCT_SCOPE" as const, domain: "FRONTEND" as const, title: "Customer and staff request scope", description: "Defines the customer submission and staff review responsibilities for the portal." },
     ...table.pages.map((page, index) => ({ kind: "PAGE" as const, domain: "FRONTEND" as const, title: `${page.path} page responsibility`, description: `Presents the approved Service Request Portal ${page.path} experience to its authorized audience.`, pageTokens: [page.token], routeTokens: [table.routes[index]!.token], dependencies: index === 0 ? [] : [0] })),
@@ -173,9 +203,20 @@ function portalDecomposition() {
   ];
   const minimumContract = createDecompositionMinimumContract({ brief: portalV1Brief(), canonicalBrief: brief });
   const proposals = elements.map((element) => ({ pageTokens: null, routeTokens: null, dependencies: null, negativeEvidence: null, negativeOnly: null, ...element }));
-  const flattened = ["FRONTEND", "BACKEND", "DATABASE", "SECURITY", "INTEGRATION", "LIFECYCLE", "QA"].flatMap((domain) => proposals.filter((element) => (element.domain as string) === domain));
+  const coverageRepresentabilityPlan = deriveCoverageRepresentabilityPlan(table);
+  const anchors = coverageRepresentabilityPlan.anchors.map((anchor) => {
+    const obligation = coverageRepresentabilityPlan.obligations.find((candidate) => candidate.obligationToken === anchor.obligationToken)!;
+    const domain = obligation.allowedDomains.find((candidate) => obligation.allowedKinds.some((kind) => PLANNER_ELEMENT_KINDS_BY_DOMAIN[candidate].includes(kind)))!;
+    const kind = obligation.allowedKinds.find((candidate) => PLANNER_ELEMENT_KINDS_BY_DOMAIN[domain].includes(candidate))!;
+    return { kind, domain, title: `${anchor.anchorToken} substantive ${obligation.obligationToken}`, description: `Provides a substantive typed Planning target for ${obligation.requirementTokens.join(", ")}.`, pageTokens: obligation.requiredPageTokens.length ? [...obligation.requiredPageTokens] : null, routeTokens: obligation.requiredRouteTokens.length ? [...obligation.requiredRouteTokens] : null, dependencies: null, negativeEvidence: obligation.negativeEvidenceRequired ? true : null, negativeOnly: obligation.positiveRequirement ? false : null };
+  });
+  const allProposals = [...anchors, ...proposals];
+  const flattened = [
+    ...anchors,
+    ...["FRONTEND", "BACKEND", "DATABASE", "SECURITY", "INTEGRATION", "LIFECYCLE", "QA"].flatMap((domain) => proposals.filter((element) => (element.domain as string) === domain)),
+  ];
   const flattenedIndex = new Map(flattened.map((element, index) => [element, index]));
-  const normalizedDependencies = proposals.map((element) => ({
+  const normalizedDependencies = allProposals.map((element) => ({
     ...element,
     dependencies: element.dependencies?.map((dependency) => flattenedIndex.get(proposals[dependency]!)).filter((dependency): dependency is number => dependency !== undefined) ?? null,
   }));
@@ -183,15 +224,57 @@ function portalDecomposition() {
     schemaVersion: 1 as const,
     providerContractVersion: PLANNER_DECOMPOSITION_CONTRACT_VERSION,
     complete: true as const,
-    frontendElements: normalizedDependencies.filter((element) => element.domain === "FRONTEND"),
-    backendElements: normalizedDependencies.filter((element) => element.domain === "BACKEND"),
-    databaseElements: normalizedDependencies.filter((element) => element.domain === "DATABASE"),
-    integrationElements: normalizedDependencies.filter((element) => (element.domain as string) === "INTEGRATION"),
-    qaElements: normalizedDependencies.filter((element) => element.domain === "QA"),
-    securityElements: normalizedDependencies.filter((element) => element.domain === "SECURITY"),
-    lifecycleElements: normalizedDependencies.filter((element) => element.domain === "LIFECYCLE"),
+    anchors: Object.fromEntries(coverageRepresentabilityPlan.anchors.map((anchor, index) => [anchor.anchorToken, normalizedDependencies[index]!])),
+    frontendElements: normalizedDependencies.slice(anchors.length).filter((element) => element.domain === "FRONTEND"),
+    backendElements: normalizedDependencies.slice(anchors.length).filter((element) => element.domain === "BACKEND"),
+    databaseElements: normalizedDependencies.slice(anchors.length).filter((element) => element.domain === "DATABASE"),
+    integrationElements: normalizedDependencies.slice(anchors.length).filter((element) => (element.domain as string) === "INTEGRATION"),
+    qaElements: normalizedDependencies.slice(anchors.length).filter((element) => element.domain === "QA"),
+    securityElements: normalizedDependencies.slice(anchors.length).filter((element) => element.domain === "SECURITY"),
+    lifecycleElements: normalizedDependencies.slice(anchors.length).filter((element) => element.domain === "LIFECYCLE"),
   };
-  return { brief, table, output: normalizePlanningDecompositionProviderOutput(createPlanningDecompositionProviderWireSchema(minimumContract).parse(wire), minimumContract) };
+  return { brief, table, coverageRepresentabilityPlan, output: normalizePlanningDecompositionProviderOutput(createPlanningDecompositionProviderWireSchema(minimumContract, coverageRepresentabilityPlan).parse(wire), minimumContract, coverageRepresentabilityPlan) };
+}
+
+function portalBusinessGoalBrief() {
+  const brief = portalBrief();
+  return CanonicalBriefV3Schema.parse({
+    ...brief,
+    requirements: brief.requirements.map((requirement, index) => index === 1 ? { ...requirement, category: "BUSINESS_GOAL" as const } : requirement),
+  });
+}
+
+function representablePortalWire(table: ReturnType<typeof portalTable>["table"], plan: ReturnType<typeof deriveCoverageRepresentabilityPlan>) {
+  const anchorElements = plan.anchors.map((anchor) => {
+    const obligation = plan.obligations.find((candidate) => candidate.obligationToken === anchor.obligationToken)!;
+    const domain = obligation.allowedDomains.find((candidate) => obligation.allowedKinds.some((kind) => PLANNER_ELEMENT_KINDS_BY_DOMAIN[candidate].includes(kind)))!;
+    const kind = obligation.allowedKinds.find((candidate) => PLANNER_ELEMENT_KINDS_BY_DOMAIN[domain].includes(candidate))!;
+    return { kind, domain, title: `${anchor.anchorToken} substantive anchor`, description: `Meaningfully represents the structural obligation for ${obligation.requirementTokens.join(", ")}.`, pageTokens: obligation.requiredPageTokens.length ? [...obligation.requiredPageTokens] : null, routeTokens: obligation.requiredRouteTokens.length ? [...obligation.requiredRouteTokens] : null, dependencies: null, negativeEvidence: obligation.negativeEvidenceRequired ? true : null, negativeOnly: obligation.positiveRequirement ? false : null };
+  });
+  const proposal = (kind: PlanningElement["kind"], domain: PlanningElement["domain"], title: string, pageTokens: string[] | null = null, routeTokens: string[] | null = null) => ({ kind, domain, title, description: `Meaningfully represents the approved synthetic portal responsibility for ${title}.`, pageTokens, routeTokens, dependencies: null, negativeEvidence: null, negativeOnly: null });
+  const free = [
+    proposal("PRODUCT_SCOPE", "BACKEND", "Backend request scope"),
+    ...table.pages.map((page) => {
+      const routeToken = table.routes.find((route) => route.pageToken === page.token)?.token;
+      return proposal("PAGE", "FRONTEND", `${page.path} page`, [page.token], routeToken ? [routeToken] : null);
+    }),
+    proposal("ARCHITECTURE", "BACKEND", "Authenticated server boundary"),
+    proposal("DATABASE_MODEL", "DATABASE", "Request persistence model"),
+    proposal("AUTHENTICATION", "SECURITY", "Authenticated user boundary"),
+  ];
+  return {
+    schemaVersion: 1 as const,
+    providerContractVersion: PLANNER_DECOMPOSITION_CONTRACT_VERSION,
+    complete: true as const,
+    anchors: Object.fromEntries(plan.anchors.map((anchor, index) => [anchor.anchorToken, anchorElements[index]!])),
+    frontendElements: free.filter((element) => element.domain === "FRONTEND"),
+    backendElements: free.filter((element) => element.domain === "BACKEND"),
+    databaseElements: free.filter((element) => element.domain === "DATABASE"),
+    securityElements: free.filter((element) => element.domain === "SECURITY"),
+    integrationElements: [],
+    lifecycleElements: [],
+    qaElements: [],
+  };
 }
 
 function validCoverage(table: ReturnType<typeof portalTable>["table"], elementId = "PE_001") {
@@ -281,6 +364,99 @@ function failingPlanningDatabase(inner: InMemoryPersistenceDatabase): Persistenc
 
 describe("staged Planner pipeline", () => {
   beforeEach(() => clearStagedPlanningOperations());
+  it("derives deterministic grouped obligations and preserves target cardinality", () => {
+    const { table } = portalTable();
+    const plan = deriveCoverageRepresentabilityPlan(table);
+    expect(table.requirements.filter((entry) => entry.mandatory)).toHaveLength(117);
+    expect(plan.obligations).toHaveLength(1);
+    expect(plan.obligations[0]!.requirementTokens).toHaveLength(117);
+    expect(plan.anchors).toHaveLength(1);
+    expect(plan.obligations[0]!.minimumDistinctTargets).toBe(1);
+
+    const cardinalityTable = {
+      ...table,
+      requirements: table.requirements.map((entry) => entry.token === "REQ_001" ? { ...entry, coverageConstraints: { ...entry.coverageConstraints, minimumCoverageTargets: 2 as const } } : entry),
+    } as typeof table;
+    const cardinalityPlan = CoverageRepresentabilityPlanSchema.parse(deriveCoverageRepresentabilityPlan(cardinalityTable));
+    expect(cardinalityPlan.obligations).toHaveLength(2);
+    const cardinalityObligation = cardinalityPlan.obligations.find((obligation) => obligation.requirementTokens.includes("REQ_001"))!;
+    expect(cardinalityObligation.minimumDistinctTargets).toBe(2);
+    expect(cardinalityPlan.anchors.filter((anchor) => anchor.obligationToken === cardinalityObligation.obligationToken)).toHaveLength(2);
+    const cardinalityMinimum = createDecompositionMinimumContract({ brief: portalV1Brief(), canonicalBrief: portalBrief() });
+    const cardinalityWire = representablePortalWire(cardinalityTable, cardinalityPlan);
+    const cardinalityElements = admitPlanningDecomposition({
+      output: normalizePlanningDecompositionProviderOutput(cardinalityWire, cardinalityMinimum, cardinalityPlan),
+      table: cardinalityTable,
+      brief: portalV1Brief(),
+      canonicalBrief: portalBrief(),
+      coverageRepresentabilityPlan: cardinalityPlan,
+    });
+    const cardinalityTargets = deriveAdmissibleCoverageTargets(cardinalityTable, cardinalityElements);
+    expect(cardinalityTargets.REQ_001!.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("rejects the historical REQ_002 representability gap and requires a typed v4 anchor", () => {
+    const canonicalBrief = portalBusinessGoalBrief();
+    const { table } = portalTable(canonicalBrief);
+    const plan = deriveCoverageRepresentabilityPlan(table);
+    const minimum = createDecompositionMinimumContract({ brief: portalV1Brief(), canonicalBrief });
+    const currentWire = representablePortalWire(table, plan);
+    const historicalElements = [
+      ...currentWire.frontendElements,
+      ...currentWire.backendElements,
+      ...currentWire.databaseElements,
+      ...currentWire.securityElements,
+      ...currentWire.integrationElements,
+      ...currentWire.lifecycleElements,
+      ...currentWire.qaElements,
+    ];
+    const historical = { schemaVersion: 1 as const, providerContractVersion: "planner.decomposition.v3" as const, complete: true as const, elements: historicalElements };
+    const oldElements = admitPlanningDecomposition({ output: historical, table, brief: portalV1Brief(), canonicalBrief });
+    expect(oldElements.length).toBeGreaterThanOrEqual(minimum.minimumTotalElements);
+    const oldTargets = deriveAdmissibleCoverageTargets(table, oldElements);
+    expect(oldTargets.REQ_002).toEqual([]);
+    expectFailure(() => assertDecompositionCoverageRepresentability({ table, elements: oldElements, coverageRepresentabilityPlan: plan }), { reasonCode: "PLANNING_COVERAGE_NO_ADMISSIBLE_TARGETS", safeToken: "REQ_002", coverageDiagnostics: { requirementToken: "REQ_002", admissibleTargetCount: 0, minimumCoverageTargets: 1 } });
+
+    const schema = createPlanningDecompositionProviderWireSchema(minimum, plan);
+    expect(schema.safeParse(currentWire).success).toBe(true);
+    const missing = { ...currentWire, anchors: Object.fromEntries(Object.entries(currentWire.anchors).slice(1)) };
+    expect(schema.safeParse(missing).success).toBe(false);
+    const normalized = normalizePlanningDecompositionProviderOutput(schema.parse(currentWire), minimum, plan);
+    expect(() => admitPlanningDecomposition({ output: normalized, table, brief: portalV1Brief(), canonicalBrief, coverageRepresentabilityPlan: plan })).not.toThrow();
+    expect(() => assertDecompositionCoverageRepresentability({ table, elements: admitPlanningDecomposition({ output: normalized, table, brief: portalV1Brief(), canonicalBrief, coverageRepresentabilityPlan: plan }), coverageRepresentabilityPlan: plan })).not.toThrow();
+
+    const businessGoalAnchorIndex = plan.anchors.findIndex((anchor) => plan.obligations.find((obligation) => obligation.obligationToken === anchor.obligationToken)!.requirementTokens.includes("REQ_002"));
+    const wrong = { ...normalized, elements: normalized.elements.map((element, index) => index === businessGoalAnchorIndex ? { ...element, domain: "FRONTEND" as const, kind: "PAGE" as const } : element) };
+    expectFailure(() => admitPlanningDecomposition({ output: wrong as never, table, brief: portalV1Brief(), canonicalBrief, coverageRepresentabilityPlan: plan }), { reasonCode: "PLANNING_COVERAGE_REPRESENTABILITY_ANCHOR_INVALID", representabilityAnchorDiagnostics: { requirementTokens: ["REQ_002"] } });
+  });
+
+  it("certifies realistic 117/117 representability with measurable non-catch-all target breadth", () => {
+    const { brief, table, coverageRepresentabilityPlan: plan, output } = portalDecomposition();
+    const elements = admitPlanningDecomposition({ output, table, brief: portalV1Brief(), canonicalBrief: brief, coverageRepresentabilityPlan: plan });
+    expect(() => assertDecompositionCoverageRepresentability({ table, elements, coverageRepresentabilityPlan: plan })).not.toThrow();
+    const metrics = deriveCoverageRepresentabilityMetrics({ table, elements, coverageRepresentabilityPlan: plan });
+    expect(metrics).toMatchObject({ planningElementCount: elements.length, obligationCount: plan.obligations.length, anchorCount: plan.anchors.length, zeroTargetRequirements: [] });
+    expect(metrics.totalAdmissibleEdges).toBeGreaterThanOrEqual(117);
+    expect(metrics.minimumAdmissibleTargetCount).toBeGreaterThanOrEqual(1);
+    expect(metrics.maximumAdmissibleTargetCount).toBeGreaterThanOrEqual(metrics.minimumAdmissibleTargetCount);
+    expect(metrics.countByDomain.FRONTEND).toBeGreaterThan(0);
+    expect(metrics.countByDomain.BACKEND).toBeGreaterThan(0);
+    expect(metrics.countByDomain.DATABASE).toBeGreaterThan(0);
+    expect(metrics.countByDomain.SECURITY).toBeGreaterThan(0);
+  });
+
+  it("keeps frontend-only/no-database representability capability-driven", () => {
+    const canonicalBrief = cleanBriefV3;
+    const table = portalTable(canonicalBrief).table;
+    const minimum = createDecompositionMinimumContract({ brief: frontendOnlyBrief(), canonicalBrief });
+    const plan = deriveCoverageRepresentabilityPlan(table);
+    const wire = { ...representablePortalWire(table, plan), frontendElements: [{ kind: "PRODUCT_SCOPE" as const, domain: "FRONTEND" as const, title: "Frontend-only product scope", description: "Meaningfully represents the approved frontend-only product scope.", pageTokens: null, routeTokens: null, dependencies: null, negativeEvidence: null, negativeOnly: null }, ...representablePortalWire(table, plan).frontendElements], backendElements: [], databaseElements: [], securityElements: [], integrationElements: [], lifecycleElements: [], qaElements: [] };
+    expect(minimum.requiredDomains).toEqual(["FRONTEND"]);
+    expect(wire.databaseElements).toEqual([]);
+    expect(createPlanningDecompositionProviderWireSchema(minimum, plan).safeParse(wire).success).toBe(true);
+    expect(() => admitPlanningDecomposition({ output: normalizePlanningDecompositionProviderOutput(wire, minimum, plan), table, brief: frontendOnlyBrief(), canonicalBrief, coverageRepresentabilityPlan: plan })).not.toThrow();
+  });
+
   it("certifies every compatibility pair from the single authority and rejects every other pair at the wire boundary", () => {
     const { brief, table, output } = portalDecomposition();
     const proposalFields = {
@@ -374,7 +550,7 @@ describe("staged Planner pipeline", () => {
     const { brief, table, output } = portalDecomposition();
     const elements = admitPlanningDecomposition({ output, table, brief: portalV1Brief(), canonicalBrief: brief });
     expect(elements.map((element) => element.elementId)).toContain("PE_001");
-    expect(elements).toHaveLength(16);
+    expect(elements).toHaveLength(output.elements.length);
     expect(elements.every((element) => !Object.hasOwn(element, "requirementReferences"))).toBe(true);
   });
 
@@ -429,29 +605,32 @@ describe("staged Planner pipeline", () => {
   it("reports deterministic minimal safe diagnostics for self, two-node, and three-node cycles", () => {
     const { brief, table, output } = portalDecomposition();
     const elements = admitPlanningDecomposition({ output, table, brief: portalV1Brief(), canonicalBrief: brief });
+    const first = elements[0]!;
+    const second = elements[1]!;
+    const third = elements[2]!;
     const twoNode = elements.map((element) => ({
       ...element,
-      dependencies: element.elementId === "PE_001" ? ["PE_002"] : element.elementId === "PE_002" ? ["PE_001"] : element.dependencies,
+      dependencies: element.elementId === first.elementId ? [second.elementId] : element.elementId === second.elementId ? [first.elementId] : element.dependencies,
     }));
     expect(planningElementGraphCycleDiagnostics(twoNode)).toMatchObject({
       cycleLength: 2,
-      cyclePeTokens: ["PE_001", "PE_002"],
+      cyclePeTokens: [first.elementId, second.elementId],
       cycleEdges: [
-        { fromPE: "PE_001", toPE: "PE_002", relationshipType: "DEPENDS_ON", source: "PROVIDER_DECLARED", fromDomain: "FRONTEND", fromKind: "PRODUCT_SCOPE", toDomain: "FRONTEND", toKind: "PAGE" },
-        { fromPE: "PE_002", toPE: "PE_001", relationshipType: "DEPENDS_ON", source: "PROVIDER_DECLARED", fromDomain: "FRONTEND", fromKind: "PAGE", toDomain: "FRONTEND", toKind: "PRODUCT_SCOPE" },
+        { fromPE: first.elementId, toPE: second.elementId, relationshipType: "DEPENDS_ON", source: "PROVIDER_DECLARED", fromDomain: first.domain, fromKind: first.kind, toDomain: second.domain, toKind: second.kind },
+        { fromPE: second.elementId, toPE: first.elementId, relationshipType: "DEPENDS_ON", source: "PROVIDER_DECLARED", fromDomain: second.domain, fromKind: second.kind, toDomain: first.domain, toKind: first.kind },
       ],
     });
     expect(() => finalizePlanningElementGraph(twoNode)).toThrow(/PLANNING_GRAPH_CYCLE/);
 
     const threeNode = elements.map((element) => ({
       ...element,
-      dependencies: element.elementId === "PE_001" ? ["PE_002"] : element.elementId === "PE_002" ? ["PE_003"] : element.elementId === "PE_003" ? ["PE_001"] : [],
+      dependencies: element.elementId === first.elementId ? [second.elementId] : element.elementId === second.elementId ? [third.elementId] : element.elementId === third.elementId ? [first.elementId] : [],
     }));
-    expect(planningElementGraphCycleDiagnostics(threeNode)).toMatchObject({ cycleLength: 3, cyclePeTokens: ["PE_001", "PE_002", "PE_003"] });
+    expect(planningElementGraphCycleDiagnostics(threeNode)).toMatchObject({ cycleLength: 3, cyclePeTokens: [first.elementId, second.elementId, third.elementId] });
     expect(() => finalizePlanningElementGraph(threeNode)).toThrow(/PLANNING_GRAPH_CYCLE/);
 
-    const selfCycle = elements.map((element) => ({ ...element, dependencies: element.elementId === "PE_001" ? ["PE_001"] : [] }));
-    expect(planningElementGraphCycleDiagnostics(selfCycle)).toMatchObject({ cycleLength: 1, cyclePeTokens: ["PE_001"], cycleEdges: [{ fromPE: "PE_001", toPE: "PE_001" }] });
+    const selfCycle = elements.map((element) => ({ ...element, dependencies: element.elementId === first.elementId ? [first.elementId] : [] }));
+    expect(planningElementGraphCycleDiagnostics(selfCycle)).toMatchObject({ cycleLength: 1, cyclePeTokens: [first.elementId], cycleEdges: [{ fromPE: first.elementId, toPE: first.elementId }] });
     expect(() => finalizePlanningElementGraph(selfCycle)).toThrow(/PLANNING_GRAPH_CYCLE/);
   });
 
@@ -537,6 +716,7 @@ describe("staged Planner pipeline", () => {
   it("rejects structurally incompatible v2 targets before host semantic admission", () => {
     const { brief, table, output } = portalDecomposition();
     const elements = admitPlanningDecomposition({ output, table, brief: portalV1Brief(), canonicalBrief: brief });
+    const nonFrontendElement = elements.find((element) => element.kind === "SECURITY")!;
     const targets = deriveAdmissibleCoverageTargets(table, elements);
     const schema = createPlanningCoverageProviderWireSchema(table, targets);
     const wire = wireCoverageForTargets(table, targets);
@@ -544,15 +724,16 @@ describe("staged Planner pipeline", () => {
       ...wire,
       coverageByRequirement: { ...wire.coverageByRequirement, REQ_001: { planningElementRefs: [reference], semanticEvidence: "A substantive synthetic target." } },
     }).success;
-    expect(targets.REQ_001).not.toContain("PE_014");
+    expect(targets.REQ_001).not.toContain(nonFrontendElement.elementId);
     expect(rejectedIndex(targets.REQ_001!.length)).toBe(false);
     expect(schema.safeParse({ ...wire, coverageByRequirement: { ...wire.coverageByRequirement, REQ_001: { planningElementIds: ["PE_999"], semanticEvidence: "A substantive synthetic target." } } }).success).toBe(false);
     const wrongDomainTable = { ...table, requirements: table.requirements.map((entry) => entry.token === "REQ_001" ? { ...entry, coverageConstraints: { ...entry.coverageConstraints, allowedDomains: ["DATABASE"] as const, allowedElementKinds: ["PRODUCT_SCOPE"] as const } } : entry) } as typeof table;
-    const domainElements = [...elements, { ...elements[0]!, elementId: "PE_017", domain: "DATABASE" as const }];
+    const addedDomainElement = { ...elements[0]!, elementId: `PE_${String(elements.length + 1).padStart(3, "0")}`, domain: "DATABASE" as const, kind: "PRODUCT_SCOPE" as const };
+    const domainElements = [...elements, addedDomainElement];
     const domainTargets = deriveAdmissibleCoverageTargets(wrongDomainTable, domainElements);
     const domainSchema = createPlanningCoverageProviderWireSchema(wrongDomainTable, domainTargets);
     const domainValid = wireCoverageForTargets(wrongDomainTable, domainTargets);
-    expect(domainTargets.REQ_001).not.toContain("PE_001");
+    expect(domainTargets.REQ_001).toContain(addedDomainElement.elementId);
     expect(domainSchema.safeParse({ ...domainValid, coverageByRequirement: { ...domainValid.coverageByRequirement, REQ_001: { planningElementRefs: [domainTargets.REQ_001!.length], semanticEvidence: "A substantive synthetic target." } } }).success).toBe(false);
     const pageTable = { ...table, requirements: table.requirements.map((entry) => entry.token === "REQ_001" ? { ...entry, coverageConstraints: { ...entry.coverageConstraints, allowedDomains: ["FRONTEND"] as const, allowedElementKinds: ["PAGE"] as const, requiredPageTokens: ["PAGE_002"], allowedPageTokens: ["PAGE_002"] } } : entry) } as typeof table;
     const pageTargets = deriveAdmissibleCoverageTargets(pageTable, elements);
@@ -571,12 +752,13 @@ describe("staged Planner pipeline", () => {
   it("retains host defense-in-depth diagnostics and rejects a stale target binding", () => {
     const { brief, table, output } = portalDecomposition();
     const elements = admitPlanningDecomposition({ output, table, brief: portalV1Brief(), canonicalBrief: brief });
+    const securityElement = elements.find((element) => element.kind === "SECURITY")!;
     const graph = finalizePlanningElementGraph(elements);
     try {
-      validatePlannerRequirementCoverage({ REQ_001: { planningElementIds: ["PE_014"], semanticEvidence: "Wrong kind target." } }, table, {}, stagedElementDescriptorIndex(elements));
+      validatePlannerRequirementCoverage({ REQ_001: { planningElementIds: [securityElement.elementId], semanticEvidence: "Wrong kind target." } }, table, {}, stagedElementDescriptorIndex(elements));
       throw new Error("expected host admission failure");
     } catch (error) {
-      expect(error).toMatchObject({ reasonCode: "PLANNING_COVERAGE_KIND_INCOMPATIBLE", coverageDiagnostics: { requirementToken: "REQ_001", actualKind: "SECURITY", admissibleTargetCount: expect.any(Number) } });
+      expect(error).toMatchObject({ reasonCode: "PLANNING_COVERAGE_KIND_INCOMPATIBLE", coverageDiagnostics: { requirementToken: "REQ_001", actualKind: securityElement.kind, admissibleTargetCount: expect.any(Number) } });
     }
     const targetTable = portalTargetTable(table, elements, graph);
     expect(() => assertAdmissibleCoverageTargetTableCurrent({ targetTable, table, elements: elements.map((element) => element.elementId === "PE_001" ? { ...element, title: "Changed typed target" } : element), graph, binding: targetTable.binding })).toThrowError(expect.objectContaining({ reasonCode: "PLANNING_COVERAGE_TARGETS_NOT_CURRENT" }));
@@ -600,10 +782,12 @@ describe("staged Planner pipeline", () => {
   it("keeps semantic kind/domain and generic catch-all guards fail-closed", () => {
     const { brief, table, output } = portalDecomposition();
     const elements = admitPlanningDecomposition({ output, table, brief: portalV1Brief(), canonicalBrief: brief });
+    const securityElement = elements.find((element) => element.kind === "SECURITY")!;
+    const traceabilityElement = elements.find((element) => element.kind === "TRACEABILITY")!;
     const valid = validCoverage(table);
-    expectFailure(() => admitPlanningCoverage({ output: { ...valid, coverageByRequirement: { ...valid.coverageByRequirement, REQ_001: { planningElementIds: ["PE_014"], semanticEvidence: "Wrong security target." } } }, table, elements }), { code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_KIND_INCOMPATIBLE" });
-    expectFailure(() => validatePlannerRequirementCoverage({ REQ_001: { planningElementIds: ["PE_014"], semanticEvidence: "Wrong security target." } }, table, {}, stagedElementDescriptorIndex(elements)), { reasonCode: "PLANNING_COVERAGE_KIND_INCOMPATIBLE" });
-    expectFailure(() => validatePlannerRequirementCoverage({ REQ_001: { planningElementIds: ["PE_015"], semanticEvidence: "Traceability only." } }, table, {}, stagedElementDescriptorIndex(elements)), { reasonCode: "PLANNING_COVERAGE_GENERIC_CATCH_ALL" });
+    expectFailure(() => admitPlanningCoverage({ output: { ...valid, coverageByRequirement: { ...valid.coverageByRequirement, REQ_001: { planningElementIds: [securityElement.elementId], semanticEvidence: "Wrong security target." } } }, table, elements }), { code: "PLANNING_REQUIREMENT_COVERAGE_INVALID", reasonCode: "PLANNING_COVERAGE_KIND_INCOMPATIBLE" });
+    expectFailure(() => validatePlannerRequirementCoverage({ REQ_001: { planningElementIds: [securityElement.elementId], semanticEvidence: "Wrong security target." } }, table, {}, stagedElementDescriptorIndex(elements)), { reasonCode: "PLANNING_COVERAGE_KIND_INCOMPATIBLE" });
+    expectFailure(() => validatePlannerRequirementCoverage({ REQ_001: { planningElementIds: [traceabilityElement.elementId], semanticEvidence: "Traceability only." } }, table, {}, stagedElementDescriptorIndex(elements)), { reasonCode: "PLANNING_COVERAGE_GENERIC_CATCH_ALL" });
   });
 
   it("assembles only after staged gates and passes full canonical Planning admission", () => {
@@ -652,16 +836,18 @@ describe("staged Planner pipeline", () => {
     let coverageCalls = 0;
     const provider: PlannerArchitectureProvider = {
       async plan() { throw new Error("legacy path must not be called"); },
-      async decompose(stageInput) {
+      async decompose() {
         const changed = CanonicalBriefV3Schema.parse({ ...canonicalBrief, summary: "Changed after decomposition." });
         const changedDocument = createBriefV3Document({ projectId, projectVersion: 1, brief: changed, createdAt: timestamp, updatedAt: timestamp });
         await new DocumentRepository(database).save(BriefV3DocumentSchema.parse({ ...changedDocument, approval: { approved: true, approvedAt: timestamp, approvedBy: "synthetic-user", approvedCanonicalChecksum: changedDocument.briefChecksum } }));
-        const page = stageInput.plannerReferenceTable.pages[0]!;
-        const route = stageInput.plannerReferenceTable.routes[0]!;
-        return { schemaVersion: 1, providerContractVersion: PLANNER_DECOMPOSITION_CONTRACT_VERSION, complete: true, elements: [
-          { kind: "PRODUCT_SCOPE", domain: "FRONTEND", title: "Synthetic scope", description: "Defines the approved synthetic portal scope.", pageTokens: null, routeTokens: null, dependencies: null, negativeEvidence: null, negativeOnly: null },
-          { kind: "PAGE", domain: "FRONTEND", title: "Synthetic page", description: "Presents the approved synthetic portal page.", pageTokens: [page.token], routeTokens: [route.token], dependencies: null, negativeEvidence: null, negativeOnly: null },
-        ] };
+        const decomposition = portalDecomposition(canonicalBrief);
+        const pages = new Set(decomposition.table.pages.map((page) => page.token));
+        const routes = new Map(decomposition.table.routes.map((route) => [route.token, route.pageToken]));
+        return { ...decomposition.output, elements: decomposition.output.elements.map((element) => {
+          const pageTokens = (element.pageTokens ?? []).filter((token) => pages.has(token));
+          const routeTokens = (element.routeTokens ?? []).filter((token) => routes.has(token) && (pageTokens.length === 0 || pageTokens.includes(routes.get(token)!)));
+          return { ...element, pageTokens: pageTokens.length ? pageTokens : null, routeTokens: routeTokens.length ? routeTokens : null };
+        }) };
       },
       async assignCoverage() { coverageCalls += 1; throw new Error("coverage must not be reached"); },
     };
@@ -810,7 +996,7 @@ describe("staged Planner pipeline", () => {
       async decompose() { const output = portalDecomposition().output; return { ...output, elements: output.elements.slice(0, 1) }; },
       async assignCoverage() { throw new Error("coverage must not be reached"); },
     });
-    await expect(service.planApprovedProject(input)).rejects.toMatchObject({ details: { stage: "DECOMPOSITION_ADMISSION", failureClass: "STAGED_DECOMPOSITION_FAILURE", reasonCode: "PLANNING_DECOMPOSITION_MINIMUM_ELEMENTS", minimumDiagnostics: { actualElementCount: 1, minimumElementCount: 5, missingRequiredDomains: ["BACKEND", "DATABASE", "FRONTEND", "SECURITY"] }, operation: { providerRequestCount: 1, providerCallsByStage: { coverage: { attempted: 0 } } } } });
+    await expect(service.planApprovedProject(input)).rejects.toMatchObject({ details: { stage: "DECOMPOSITION_ADMISSION", failureClass: "STAGED_DECOMPOSITION_FAILURE", reasonCode: "PLANNING_DECOMPOSITION_MINIMUM_ELEMENTS", minimumDiagnostics: { actualElementCount: 1, minimumElementCount: 5 }, operation: { providerRequestCount: 1, providerCallsByStage: { coverage: { attempted: 0 } } } } });
   });
 
   it("rejects provider-declared dependency cycles before Coverage and retains graph diagnostics", async () => {

@@ -91,15 +91,18 @@ import {
   assertAdmissibleCoverageTargetCounts,
   assertAdmissibleCoverageTargetTableCurrent,
   createAdmissibleCoverageTargetTable,
+  assertDecompositionCoverageRepresentability,
   finalizePlanningElementGraph,
   StagedPlanningAdmissionError,
   stagedPlanningAdmissionDiagnostics,
   stagedPlanningMinimumDiagnostics,
   stagedPlanningCoverageDiagnostics,
+  stagedPlanningRepresentabilityDiagnostics,
   stagedPlanningGraphCycleDiagnostics,
 } from "./staged-admission";
 import { PLANNER_COVERAGE_CONTRACT_VERSION, PLANNING_COVERAGE_PROVIDER_SCHEMA_NAME, PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME, type PlannerDecompositionProviderInput } from "./staged-contracts";
 import { createDecompositionMinimumContract } from "./decomposition-minimum";
+import { deriveCoverageRepresentabilityPlan } from "./coverage-representability";
 import {
   StagedPlanningOperationTelemetry,
   type StagedPlanningFailureClass,
@@ -204,6 +207,7 @@ function stagedFailureClass(stage: StagedPlanningStage, error: unknown): StagedP
     return "PROVIDER_TRANSPORT_FAILURE";
   }
   if (stage === "DECOMPOSITION_ADMISSION") return nestedFailureCode(error) === "PLANNING_DECOMPOSITION_ROUTE_UNKNOWN" ? "STAGED_REFERENTIAL_INTEGRITY_FAILURE" : "STAGED_DECOMPOSITION_FAILURE";
+  if (stage === "DECOMPOSITION_REPRESENTABILITY") return "STAGED_COVERAGE_FAILURE";
   if (stage === "GRAPH_ASSEMBLY" || stage === "GRAPH_ADMISSION") return "STAGED_REFERENTIAL_INTEGRITY_FAILURE";
   if (stage === "COVERAGE_ADMISSION") {
     const code = nestedFailureCode(error);
@@ -496,6 +500,7 @@ export class PlannerArchitectService {
       plannerReferenceTable: table,
       ...(input.canonicalBrief ? { canonicalBrief: input.canonicalBrief } : {}),
       minimumContract: createDecompositionMinimumContract({ brief: input.brief, canonicalBrief: input.canonicalBrief }),
+      coverageRepresentabilityPlan: deriveCoverageRepresentabilityPlan(table),
     };
     let decompositionOutput;
     await input.setStage?.("DECOMPOSITION");
@@ -526,11 +531,19 @@ export class PlannerArchitectService {
     let elements;
     input.telemetry?.enter("DECOMPOSITION_PARSE");
     try {
-      elements = admitPlanningDecomposition({ output: decompositionOutput, table, brief: input.brief, canonicalBrief: input.canonicalBrief });
+      elements = admitPlanningDecomposition({ output: decompositionOutput, table, brief: input.brief, canonicalBrief: input.canonicalBrief, coverageRepresentabilityPlan: decompositionInput.coverageRepresentabilityPlan });
     } catch (error) {
       input.telemetry?.enter(error instanceof StagedPlanningAdmissionError && error.fieldPath === "decomposition" ? "DECOMPOSITION_PARSE" : "DECOMPOSITION_ADMISSION");
       if (error instanceof StagedPlanningAdmissionError)
         throw new PlannerError("PLANNING_PACKAGE_INVALID", "Staged Planner decomposition failed deterministic admission.", error);
+      throw error;
+    }
+    input.telemetry?.enter("DECOMPOSITION_REPRESENTABILITY");
+    try {
+      assertDecompositionCoverageRepresentability({ table, elements, coverageRepresentabilityPlan: decompositionInput.coverageRepresentabilityPlan });
+    } catch (error) {
+      if (error instanceof StagedPlanningAdmissionError)
+        throw new PlannerError("PLANNING_PACKAGE_INVALID", "Staged Planner decomposition cannot represent all mandatory Coverage obligations.", error);
       throw error;
     }
     input.telemetry?.semanticAdmissionPassed("decomposition");
@@ -966,6 +979,7 @@ export class PlannerArchitectService {
           ...(stagedPlanningMinimumDiagnostics(error) ? { minimumDiagnostics: stagedPlanningMinimumDiagnostics(error) } : {}),
           ...(stagedPlanningCoverageDiagnostics(error) ? { coverageDiagnostics: stagedPlanningCoverageDiagnostics(error) } : {}),
           ...(stagedPlanningGraphCycleDiagnostics(error) ? { graphCycleDiagnostics: stagedPlanningGraphCycleDiagnostics(error) } : {}),
+          ...(stagedPlanningRepresentabilityDiagnostics(error) ? { representabilityAnchorDiagnostics: stagedPlanningRepresentabilityDiagnostics(error) } : {}),
           message: "Staged Planning failed safely; the project was not changed.",
           cause: error,
         });

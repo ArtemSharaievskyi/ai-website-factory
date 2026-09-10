@@ -13,11 +13,14 @@ import {
   DECOMPOSITION_DOMAIN_BUCKET_BY_DOMAIN,
   PLANNER_DECOMPOSITION_CONTRACT_VERSION,
   PlanningDecompositionProviderOutputV2Schema,
+  createHistoricalPlanningDecompositionProviderWireSchemaV3,
+  normalizeHistoricalPlanningDecompositionProviderOutputV3,
   createPlanningDecompositionProviderWireSchema,
   normalizePlanningDecompositionProviderOutput,
   PlanningDecompositionProviderOutputSchema,
 } from "./staged-contracts";
 import { admitPlanningDecomposition, admitPlanningDecompositionSemantics, finalizePlanningElementGraph } from "./staged-admission";
+import { deriveCoverageRepresentabilityPlan, type CoverageRepresentabilityPlan } from "./coverage-representability";
 import { PLANNER_ELEMENT_KINDS_BY_DOMAIN, PlannerCoverageDomainSchema, PlannerCoverageElementKindSchema } from "./coverage-contract";
 import { OpenAiPlannerProvider } from "@/integrations/openai/adapters";
 import { OpenAiStructuredClient, buildProductionResponseFormat, type StructuredRequest } from "@/integrations/openai/client";
@@ -75,12 +78,23 @@ function proposal(kind: string, domain: string, title: string, pageTokens: strin
   return { kind, domain, title, description: `Meaningful synthetic responsibility for ${title}.`, pageTokens, routeTokens, dependencies: null, negativeEvidence: null, negativeOnly: null };
 }
 
+function anchorProposals(plan: CoverageRepresentabilityPlan) {
+  return Object.fromEntries(plan.anchors.map((anchor) => {
+    const obligation = plan.obligations.find((candidate) => candidate.obligationToken === anchor.obligationToken)!;
+    const domain = obligation.allowedDomains.find((candidate) => obligation.allowedKinds.some((kind) => PLANNER_ELEMENT_KINDS_BY_DOMAIN[candidate].includes(kind)))!;
+    const kind = obligation.allowedKinds.find((candidate) => PLANNER_ELEMENT_KINDS_BY_DOMAIN[domain].includes(candidate))!;
+    return [anchor.anchorToken, { ...proposal(kind, domain, `${anchor.anchorToken} substantive ${obligation.obligationToken}`, obligation.requiredPageTokens.length ? [...obligation.requiredPageTokens] : null, obligation.requiredRouteTokens.length ? [...obligation.requiredRouteTokens] : null), negativeEvidence: obligation.negativeEvidenceRequired ? true : null, negativeOnly: obligation.positiveRequirement ? false : null }];
+  }));
+}
+
 function exactFrontendWire(canonicalBrief = cleanBriefV3) {
   const table = tableFor(canonicalBrief);
+  const plan = deriveCoverageRepresentabilityPlan(table);
   return {
     schemaVersion: 1 as const,
     providerContractVersion: PLANNER_DECOMPOSITION_CONTRACT_VERSION,
     complete: true as const,
+    anchors: anchorProposals(plan),
     frontendElements: [
       proposal("PRODUCT_SCOPE", "FRONTEND", "Synthetic product scope"),
       proposal("PAGE", "FRONTEND", "Synthetic home page", [table.pages[0]!.token], [table.routes[0]!.token]),
@@ -134,12 +148,35 @@ describe("Planner decomposition minimum contract", () => {
     });
   });
 
+  it("keeps historical bucketed v3 evidence readable while reserving v4 for new requests", () => {
+    const canonicalBrief = cleanBriefV3;
+    const table = tableFor(canonicalBrief);
+    const minimum = createDecompositionMinimumContract({ brief: frontendLegacyBrief, canonicalBrief });
+    const current = exactFrontendWire(canonicalBrief);
+    const historical = {
+      schemaVersion: 1 as const,
+      providerContractVersion: "planner.decomposition.v3" as const,
+      complete: true as const,
+      frontendElements: current.frontendElements,
+      backendElements: [],
+      databaseElements: [],
+      integrationElements: [],
+      qaElements: [],
+      securityElements: [],
+      lifecycleElements: [],
+    };
+    const parsed = createHistoricalPlanningDecompositionProviderWireSchemaV3(minimum).parse(historical);
+    const normalized = normalizeHistoricalPlanningDecompositionProviderOutputV3(parsed, minimum);
+    expect(normalized.providerContractVersion).toBe("planner.decomposition.v3");
+    expect(admitPlanningDecomposition({ output: normalized, table, brief: frontendLegacyBrief, canonicalBrief })).toHaveLength(2);
+  });
+
   it("rejects below-minimum v3 wire output before normalization and still rejects a direct host bypass", () => {
     const canonicalBrief = cleanBriefV3;
     const table = tableFor(canonicalBrief);
     const minimum = createDecompositionMinimumContract({ brief: frontendLegacyBrief, canonicalBrief });
     const below = { ...exactFrontendWire(canonicalBrief), frontendElements: [proposal("PRODUCT_SCOPE", "FRONTEND", "Undersized scope")] };
-    expect(createPlanningDecompositionProviderWireSchema(minimum).safeParse(below).success).toBe(false);
+    expect(createPlanningDecompositionProviderWireSchema(minimum, deriveCoverageRepresentabilityPlan(table)).safeParse(below).success).toBe(false);
 
     const direct = PlanningDecompositionProviderOutputSchema.parse({
       schemaVersion: 1,
@@ -159,34 +196,34 @@ describe("Planner decomposition minimum contract", () => {
     const canonicalBrief = cleanBriefV3;
     const table = tableFor(canonicalBrief);
     const minimum = createDecompositionMinimumContract({ brief: frontendLegacyBrief, canonicalBrief });
-    const schema = createPlanningDecompositionProviderWireSchema(minimum);
+    const schema = createPlanningDecompositionProviderWireSchema(minimum, deriveCoverageRepresentabilityPlan(table));
     const exact = schema.parse(exactFrontendWire(canonicalBrief));
-    const normalizedExact = normalizePlanningDecompositionProviderOutput(exact, minimum);
-    expect(normalizedExact.elements).toHaveLength(2);
-    expect(admitPlanningDecomposition({ output: normalizedExact, table, brief: frontendLegacyBrief, canonicalBrief })).toHaveLength(2);
+    const normalizedExact = normalizePlanningDecompositionProviderOutput(exact, minimum, deriveCoverageRepresentabilityPlan(table));
+    expect(normalizedExact.elements).toHaveLength(2 + deriveCoverageRepresentabilityPlan(table).anchors.length);
+    expect(admitPlanningDecomposition({ output: normalizedExact, table, brief: frontendLegacyBrief, canonicalBrief })).toHaveLength(2 + deriveCoverageRepresentabilityPlan(table).anchors.length);
 
     const above = { ...exactFrontendWire(canonicalBrief), frontendElements: [...exactFrontendWire(canonicalBrief).frontendElements, proposal("CONTENT", "FRONTEND", "Additional content responsibility")] };
-    expect(() => admitPlanningDecomposition({ output: normalizePlanningDecompositionProviderOutput(schema.parse(above), minimum), table, brief: frontendLegacyBrief, canonicalBrief })).not.toThrow();
+    expect(() => admitPlanningDecomposition({ output: normalizePlanningDecompositionProviderOutput(schema.parse(above), minimum, deriveCoverageRepresentabilityPlan(table)), table, brief: frontendLegacyBrief, canonicalBrief })).not.toThrow();
   });
 
   it("enforces required domains structurally while allowing optional domains to remain empty", () => {
     const fullStack = statefulCanonicalBrief();
     const table = tableFor(fullStack);
     const minimum = createDecompositionMinimumContract({ brief: legacyBrief, canonicalBrief: fullStack });
-    const schema = createPlanningDecompositionProviderWireSchema(minimum);
+    const schema = createPlanningDecompositionProviderWireSchema(minimum, deriveCoverageRepresentabilityPlan(table));
     const missingBackend = { ...exactFullStackWire(fullStack), backendElements: [] };
     expect(schema.safeParse(missingBackend).success).toBe(false);
-    const exact = normalizePlanningDecompositionProviderOutput(schema.parse(exactFullStackWire(fullStack)), minimum);
-    expect(admitPlanningDecomposition({ output: exact, table, brief: legacyBrief, canonicalBrief: fullStack })).toHaveLength(5);
+    const exact = normalizePlanningDecompositionProviderOutput(schema.parse(exactFullStackWire(fullStack)), minimum, deriveCoverageRepresentabilityPlan(table));
+    expect(admitPlanningDecomposition({ output: exact, table, brief: legacyBrief, canonicalBrief: fullStack })).toHaveLength(5 + deriveCoverageRepresentabilityPlan(table).anchors.length);
 
     const frontendMinimum = createDecompositionMinimumContract({ brief: frontendLegacyBrief, canonicalBrief: cleanBriefV3 });
-    const frontendSchema = createPlanningDecompositionProviderWireSchema(frontendMinimum);
+    const frontendSchema = createPlanningDecompositionProviderWireSchema(frontendMinimum, deriveCoverageRepresentabilityPlan(tableFor(cleanBriefV3)));
     expect(frontendSchema.parse(exactFrontendWire(cleanBriefV3))).toEqual(expect.objectContaining({ backendElements: [], databaseElements: [], securityElements: [], qaElements: [], lifecycleElements: [], integrationElements: [] }));
   });
 
-  it("preserves the 47 allowed kind/domain pairs and rejects all 100 disallowed pairs at the v3 bucket boundary", () => {
+  it("preserves the 47 allowed kind/domain pairs and rejects all 100 disallowed pairs at the v4 bucket boundary", () => {
     const minimum = createDecompositionMinimumContract({ brief: frontendLegacyBrief, canonicalBrief: cleanBriefV3 });
-    const schema = createPlanningDecompositionProviderWireSchema(minimum);
+    const schema = createPlanningDecompositionProviderWireSchema(minimum, deriveCoverageRepresentabilityPlan(tableFor(cleanBriefV3)));
     const base = exactFrontendWire(cleanBriefV3);
     let allowed = 0;
     for (const domain of PlannerCoverageDomainSchema.options) {
@@ -211,7 +248,7 @@ describe("Planner decomposition minimum contract", () => {
     expect(rejected).toBe(100);
   });
 
-  it("emits bounded safe minimum diagnostics and keeps the provider adapter on v3", async () => {
+  it("emits bounded safe minimum diagnostics and keeps the provider adapter on v4", async () => {
     const canonicalBrief = cleanBriefV3;
     const table = tableFor(canonicalBrief);
     const minimum = createDecompositionMinimumContract({ brief: frontendLegacyBrief, canonicalBrief });
@@ -219,22 +256,35 @@ describe("Planner decomposition minimum contract", () => {
     const client = new OpenAiStructuredClient({ apiKey: "test", model: "test", modelLabel: "test", maxRetries: 0, maxConcurrentRequests: 1 }, {
       executor: async <T>(request: StructuredRequest<T>) => {
         sent = request as StructuredRequest<unknown>;
-        return { value: exactFrontendWire(canonicalBrief) as T, requestId: "req_decomposition_v3" };
+        return { value: exactFrontendWire(canonicalBrief) as T, requestId: "req_decomposition_v4" };
       },
     });
-    const output = await new OpenAiPlannerProvider(client).decompose({ approvedBrief: frontendLegacyBrief, plannerReferenceTable: table, canonicalBrief, minimumContract: minimum });
+    const output = await new OpenAiPlannerProvider(client).decompose({ approvedBrief: frontendLegacyBrief, plannerReferenceTable: table, canonicalBrief, minimumContract: minimum, coverageRepresentabilityPlan: deriveCoverageRepresentabilityPlan(table) });
     expect(output.providerContractVersion).toBe(PLANNER_DECOMPOSITION_CONTRACT_VERSION);
-    expect(output.elements).toHaveLength(2);
-    expect(sent?.schemaName).toBe("planning-decomposition-v3");
+    expect(output.elements).toHaveLength(2 + deriveCoverageRepresentabilityPlan(table).anchors.length);
+    expect(sent?.schemaName).toBe("planning-decomposition-v4");
     expect(sent?.system).toContain("minimum contract");
     expect(sent?.system).not.toContain("REQUIREMENT:");
     const response = buildProductionResponseFormat(sent!.schema, sent!.schemaName) as unknown as { json_schema: { schema: { properties: Record<string, { minItems?: number }> } } };
     expect(response.json_schema.schema.properties.frontendElements.minItems).toBe(2);
-    const v2SchemaBytes = Buffer.byteLength(JSON.stringify(buildProductionResponseFormat(PlanningDecompositionProviderOutputV2Schema, "planning-decomposition-v2")), "utf8");
-    const v3SchemaBytes = Buffer.byteLength(JSON.stringify(response), "utf8");
-    const redactedInputBytes = Buffer.byteLength(JSON.stringify({ approvedBrief: frontendLegacyBrief, minimumContract: minimum, domainBucketOrder: Object.keys(response.json_schema.schema.properties) }), "utf8");
-    expect(v3SchemaBytes).toBeGreaterThan(v2SchemaBytes);
-    expect(v3SchemaBytes).toBeLessThan(384_000);
+    const priorWire = {
+      schemaVersion: 1 as const,
+      providerContractVersion: "planner.decomposition.v3" as const,
+      complete: true as const,
+      frontendElements: exactFrontendWire(canonicalBrief).frontendElements,
+      backendElements: [],
+      databaseElements: [],
+      integrationElements: [],
+      qaElements: [],
+      securityElements: [],
+      lifecycleElements: [],
+    };
+    const priorSchemaBytes = Buffer.byteLength(JSON.stringify(buildProductionResponseFormat(createHistoricalPlanningDecompositionProviderWireSchemaV3(minimum), "planning-decomposition-v3")), "utf8");
+    const repairedSchemaBytes = Buffer.byteLength(JSON.stringify(response), "utf8");
+    const redactedInputBytes = Buffer.byteLength(JSON.stringify({ system: sent!.system, user: sent!.user }), "utf8");
+    expect(createHistoricalPlanningDecompositionProviderWireSchemaV3(minimum).safeParse(priorWire).success).toBe(true);
+    expect(repairedSchemaBytes).toBeGreaterThan(priorSchemaBytes);
+    expect(repairedSchemaBytes).toBeLessThan(384_000);
     expect(redactedInputBytes).toBeLessThan(384_000);
 
     const directFailure = (() => {
@@ -249,6 +299,6 @@ describe("Planner decomposition minimum contract", () => {
     expect(JSON.stringify((directFailure as { minimumDiagnostics?: unknown }).minimumDiagnostics)).not.toContain("Too small");
 
     const graph = finalizePlanningElementGraph(admitPlanningDecomposition({ output, table, brief: frontendLegacyBrief, canonicalBrief }));
-    expect(graph.elements).toHaveLength(2);
+    expect(graph.elements).toHaveLength(2 + deriveCoverageRepresentabilityPlan(table).anchors.length);
   });
 });

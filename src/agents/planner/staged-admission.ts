@@ -8,9 +8,12 @@ import {
   PLANNER_ELEMENT_KINDS_BY_DOMAIN,
   isPlannerElementKindAllowedInDomain,
   plannerCoverageCompatibility,
+  PlannerCoverageDomainSchema,
+  PlannerCoverageElementKindSchema,
   PlannerCoverageDiagnosticsSchema,
   PlannerCoverageTargetTableSchema,
   type PlannerCoverageElementKind,
+  type PlannerCoverageDomain,
   type PlannerCoverageDiagnostics,
   type PlannerCoverageTargetBinding,
   type PlannerCoverageTargetTable,
@@ -18,12 +21,26 @@ import {
   type PlannerDecompositionKindDomainDiagnostics,
 } from "./coverage-contract";
 import {
+  CoverageRepresentabilityAnchorDiagnosticsSchema,
+  CoverageRepresentabilityPlanSchema,
+  obligationAsCoverageConstraint,
+  obligationForAnchor,
+  type CoverageRepresentabilityAnchorDiagnostics,
+  type CoverageRepresentabilityPlan,
+  CoverageRepresentabilityMetricsSchema,
+  type CoverageRepresentabilityMetrics,
+} from "./coverage-representability";
+import {
   PlannerReferenceTableSchema,
   type PlannerReferenceTable,
 } from "./reference-table";
 import {
   PlanningDecompositionProviderOutputSchema,
+  PlanningDecompositionProviderOutputV1Schema,
+  PlanningDecompositionProviderOutputV3Schema,
   PlanningDecompositionProviderOutputV2Schema,
+  createHistoricalPlanningDecompositionProviderWireSchemaV3,
+  normalizeHistoricalPlanningDecompositionProviderOutputV3,
   PlanningElementGraphSchema,
   PlanningElementSchema,
   STAGED_PLANNER_PIPELINE_VERSION,
@@ -71,6 +88,7 @@ export class StagedPlanningAdmissionError extends Error {
     readonly graphCycleDiagnostics?: PlanningGraphCycleDiagnostics,
     readonly coverageDiagnostics?: PlannerCoverageDiagnostics,
     readonly minimumDiagnostics?: DecompositionMinimumDiagnostics,
+    readonly representabilityAnchorDiagnostics?: CoverageRepresentabilityAnchorDiagnostics,
   ) {
     super(`${code}:${fieldPath}`);
     this.name = "StagedPlanningAdmissionError";
@@ -104,6 +122,12 @@ export function stagedPlanningCoverageDiagnostics(error: unknown, depth = 0): Pl
     if (parsed.success) return parsed.data;
   }
   return "cause" in error ? stagedPlanningCoverageDiagnostics(error.cause, depth + 1) : undefined;
+}
+
+export function stagedPlanningRepresentabilityDiagnostics(error: unknown, depth = 0): CoverageRepresentabilityAnchorDiagnostics | undefined {
+  if (depth > 6 || !error || typeof error !== "object") return undefined;
+  if (error instanceof StagedPlanningAdmissionError) return error.representabilityAnchorDiagnostics;
+  return "cause" in error ? stagedPlanningRepresentabilityDiagnostics(error.cause, depth + 1) : undefined;
 }
 
 export function stagedPlanningMinimumDiagnostics(error: unknown, depth = 0): DecompositionMinimumDiagnostics | undefined {
@@ -145,14 +169,30 @@ export function admitPlanningDecomposition(input: {
   table: PlannerReferenceTable;
   brief: RequirementSpecification;
   canonicalBrief?: CanonicalBriefV3;
+  coverageRepresentabilityPlan?: CoverageRepresentabilityPlan;
 }): PlanningElement[] {
   let parsed: PlanningDecompositionProviderOutput;
   try {
     parsed = PlanningDecompositionProviderOutputSchema.parse(input.output);
   } catch {
-    const historical = PlanningDecompositionProviderOutputV2Schema.safeParse(input.output);
-    if (!historical.success) throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_INVALID", "decomposition");
-    parsed = { ...historical.data, providerContractVersion: "planner.decomposition.v3" };
+    const historicalV3 = PlanningDecompositionProviderOutputV3Schema.safeParse(input.output);
+    if (historicalV3.success) parsed = { ...historicalV3.data, providerContractVersion: "planner.decomposition.v4" };
+    else {
+      const minimum = createDecompositionMinimumContract({ brief: input.brief, canonicalBrief: input.canonicalBrief });
+      const historicalV3Wire = createHistoricalPlanningDecompositionProviderWireSchemaV3(minimum).safeParse(input.output);
+      if (historicalV3Wire.success) {
+        const normalizedV3 = normalizeHistoricalPlanningDecompositionProviderOutputV3(historicalV3Wire.data, minimum);
+        parsed = { ...normalizedV3, providerContractVersion: "planner.decomposition.v4" };
+      } else {
+        const historical = PlanningDecompositionProviderOutputV2Schema.safeParse(input.output);
+        if (historical.success) parsed = { ...historical.data, providerContractVersion: "planner.decomposition.v4" };
+        else {
+          const historicalV1 = PlanningDecompositionProviderOutputV1Schema.safeParse(input.output);
+          if (!historicalV1.success) throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_INVALID", "decomposition");
+          parsed = { ...historicalV1.data, providerContractVersion: "planner.decomposition.v4" };
+        }
+      }
+    }
   }
   return admitPlanningDecompositionSemantics({ ...input, output: parsed });
 }
@@ -167,9 +207,14 @@ export function admitPlanningDecompositionSemantics(input: {
   table: PlannerReferenceTable;
   brief: RequirementSpecification;
   canonicalBrief?: CanonicalBriefV3;
+  coverageRepresentabilityPlan?: CoverageRepresentabilityPlan;
 }): PlanningElement[] {
   const table = PlannerReferenceTableSchema.parse(input.table);
   const parsed = input.output;
+  const representabilityPlan = input.coverageRepresentabilityPlan
+    ? CoverageRepresentabilityPlanSchema.parse(input.coverageRepresentabilityPlan)
+    : undefined;
+  if (representabilityPlan) assertCoverageRepresentabilityAnchors({ parsed, table, plan: representabilityPlan });
   const signatures = new Set<string>();
   const elements: PlanningElement[] = [];
   const seenKinds = new Set<PlannerCoverageElementKind>();
@@ -244,6 +289,95 @@ export function admitPlanningDecompositionSemantics(input: {
       cycleDiagnostics,
     );
   return elements.map((element) => PlanningElementSchema.parse(element));
+}
+
+function proposalDescriptor(proposal: PlanningElementProposal): PlannerCoverageElementDescriptor {
+  return {
+    kind: proposal.kind,
+    domains: [proposal.domain],
+    ...(proposal.pageTokens?.[0] ? { pageToken: proposal.pageTokens[0] } : {}),
+    ...(proposal.routeTokens?.[0] ? { routeToken: proposal.routeTokens[0] } : {}),
+    ...(proposal.pageTokens?.length ? { pageTokens: proposal.pageTokens } : {}),
+    ...(proposal.routeTokens?.length ? { routeTokens: proposal.routeTokens } : {}),
+    negativeEvidence: proposal.negativeEvidence ?? false,
+    negativeOnly: proposal.negativeOnly ?? false,
+  };
+}
+
+function representabilityAnchorFailure(input: {
+  anchorToken: string;
+  obligationToken: string;
+  requirementTokens: readonly string[];
+  allowedDomains: readonly PlannerCoverageDomain[];
+  allowedKinds: readonly PlannerCoverageElementKind[];
+  minimumDistinctTargets: number;
+  reasonCode: "PLANNING_COVERAGE_REPRESENTABILITY_ANCHOR_MISSING" | "PLANNING_COVERAGE_REPRESENTABILITY_ANCHOR_INVALID";
+  actualDomain?: PlannerCoverageDomain;
+  actualKind?: PlannerCoverageElementKind;
+}): StagedPlanningAdmissionError {
+  const diagnostics = CoverageRepresentabilityAnchorDiagnosticsSchema.parse({
+    anchorToken: input.anchorToken,
+    obligationToken: input.obligationToken,
+    requirementTokens: input.requirementTokens,
+    ...(input.actualDomain ? { actualDomain: input.actualDomain } : {}),
+    ...(input.actualKind ? { actualKind: input.actualKind } : {}),
+    allowedDomains: input.allowedDomains,
+    allowedKinds: input.allowedKinds,
+    minimumDistinctTargets: input.minimumDistinctTargets,
+    reasonCode: input.reasonCode,
+  });
+  return new StagedPlanningAdmissionError(
+    "PLANNING_DECOMPOSITION_INVALID",
+    `anchors.${input.anchorToken}`,
+    input.reasonCode,
+    input.requirementTokens[0],
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    diagnostics,
+  );
+}
+
+/** Defense-in-depth anchor admission before PE identity and graph assembly. */
+function assertCoverageRepresentabilityAnchors(input: {
+  parsed: PlanningDecompositionProviderOutput;
+  table: PlannerReferenceTable;
+  plan: CoverageRepresentabilityPlan;
+}) {
+  const plan = CoverageRepresentabilityPlanSchema.parse(input.plan);
+  const requirements = new Map(input.table.requirements.map((entry) => [entry.token, entry]));
+  for (const [index, anchor] of plan.anchors.entries()) {
+    const obligation = obligationForAnchor(plan, anchor);
+    const proposal = input.parsed.elements[index];
+    if (!proposal) {
+      throw representabilityAnchorFailure({
+        anchorToken: anchor.anchorToken,
+        obligationToken: anchor.obligationToken,
+        requirementTokens: obligation.requirementTokens,
+        allowedDomains: obligation.allowedDomains,
+        allowedKinds: obligation.allowedKinds,
+        minimumDistinctTargets: obligation.minimumDistinctTargets,
+        reasonCode: "PLANNING_COVERAGE_REPRESENTABILITY_ANCHOR_MISSING",
+      });
+    }
+    const compatibility = plannerCoverageCompatibility(obligationAsCoverageConstraint(obligation), proposalDescriptor(proposal));
+    if (!compatibility.compatible) {
+      throw representabilityAnchorFailure({
+        anchorToken: anchor.anchorToken,
+        obligationToken: anchor.obligationToken,
+        requirementTokens: obligation.requirementTokens,
+        allowedDomains: obligation.allowedDomains,
+        allowedKinds: obligation.allowedKinds,
+        minimumDistinctTargets: obligation.minimumDistinctTargets,
+        reasonCode: "PLANNING_COVERAGE_REPRESENTABILITY_ANCHOR_INVALID",
+        actualDomain: proposal.domain,
+        actualKind: proposal.kind,
+      });
+    }
+    const representativeRequirement = requirements.get(obligation.requirementTokens[0]!);
+    if (!representativeRequirement) throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_INVALID", `anchors.${anchor.anchorToken}`, "PLANNING_COVERAGE_REPRESENTABILITY_REQUIREMENT_UNKNOWN");
+  }
 }
 
 const forbiddenInversion: ReadonlySet<string> = new Set([
@@ -359,6 +493,94 @@ export function deriveAdmissibleCoverageTargets(
   );
 }
 
+function assertCoverageTargetCounts(input: {
+  table: PlannerReferenceTable;
+  admissibleCoverageTargetsByRequirement: AdmissibleCoverageTargetsByRequirement;
+}) {
+  const table = PlannerReferenceTableSchema.parse(input.table);
+  for (const requirement of table.requirements.filter((entry) => entry.mandatory)) {
+    const targetCount = input.admissibleCoverageTargetsByRequirement[requirement.token]?.length ?? 0;
+    if (targetCount < requirement.coverageConstraints.minimumCoverageTargets) {
+      const diagnostics = PlannerCoverageDiagnosticsSchema.parse({
+        requirementToken: requirement.token,
+        requirementCategory: requirement.category,
+        allowedDomains: requirement.coverageConstraints.allowedDomains,
+        allowedKinds: requirement.coverageConstraints.allowedElementKinds,
+        requiredPageTokens: requirement.coverageConstraints.requiredPageTokens,
+        allowedPageTokens: requirement.coverageConstraints.allowedPageTokens,
+        requiredRouteTokens: requirement.coverageConstraints.requiredRouteTokens,
+        allowedRouteTokens: requirement.coverageConstraints.allowedRouteTokens,
+        admissibleTargetCount: targetCount,
+        minimumCoverageTargets: requirement.coverageConstraints.minimumCoverageTargets,
+        reasonCode: "PLANNING_COVERAGE_NO_ADMISSIBLE_TARGETS",
+      });
+      throw new StagedPlanningAdmissionError(
+        "PLANNING_COVERAGE_INVALID",
+        `admissibleCoverageTargetsByRequirement.${requirement.token}`,
+        "PLANNING_COVERAGE_NO_ADMISSIBLE_TARGETS",
+        requirement.token,
+        undefined,
+        undefined,
+        diagnostics,
+      );
+    }
+  }
+  return input.admissibleCoverageTargetsByRequirement;
+}
+
+/**
+ * Pre-graph representability gate. This is derived from the same static
+ * compatibility predicate as Coverage v2, so a provider cannot spend a
+ * Coverage request against an impossible PE universe.
+ */
+export function assertDecompositionCoverageRepresentability(input: {
+  table: PlannerReferenceTable;
+  elements: readonly PlanningElement[];
+  coverageRepresentabilityPlan: CoverageRepresentabilityPlan;
+}) {
+  const plan = CoverageRepresentabilityPlanSchema.parse(input.coverageRepresentabilityPlan);
+  const targets = deriveAdmissibleCoverageTargets(input.table, input.elements);
+  for (const obligation of plan.obligations) {
+    for (const requirementToken of obligation.requirementTokens) {
+      if (!Object.prototype.hasOwnProperty.call(targets, requirementToken))
+        throw new StagedPlanningAdmissionError("PLANNING_COVERAGE_INVALID", `admissibleCoverageTargetsByRequirement.${requirementToken}`, "PLANNING_COVERAGE_REPRESENTABILITY_REQUIREMENT_UNKNOWN", requirementToken);
+    }
+  }
+  return assertCoverageTargetCounts({ table: input.table, admissibleCoverageTargetsByRequirement: targets });
+}
+
+export function deriveCoverageRepresentabilityMetrics(input: {
+  table: PlannerReferenceTable;
+  elements: readonly PlanningElement[];
+  coverageRepresentabilityPlan: CoverageRepresentabilityPlan;
+}): CoverageRepresentabilityMetrics {
+  const plan = CoverageRepresentabilityPlanSchema.parse(input.coverageRepresentabilityPlan);
+  const table = PlannerReferenceTableSchema.parse(input.table);
+  const targets = deriveAdmissibleCoverageTargets(table, input.elements);
+  const mandatory = table.requirements.filter((entry) => entry.mandatory);
+  const targetCounts = mandatory.map((entry) => targets[entry.token]?.length ?? 0).sort((left, right) => left - right);
+  const countByDomain = Object.fromEntries(PlannerCoverageDomainSchema.options.map((domain) => [domain, input.elements.filter((element) => element.domain === domain).length]));
+  const countByKind = Object.fromEntries(PlannerCoverageElementKindSchema.options.map((kind) => [kind, input.elements.filter((element) => element.kind === kind).length]));
+  const average = targetCounts.length > 0 ? targetCounts.reduce((sum, count) => sum + count, 0) / targetCounts.length : 0;
+  const middle = Math.floor(targetCounts.length / 2);
+  const median = targetCounts.length === 0 ? 0 : targetCounts.length % 2 === 1 ? targetCounts[middle]! : (targetCounts[middle - 1]! + targetCounts[middle]!) / 2;
+  return CoverageRepresentabilityMetricsSchema.parse({
+    planningElementCount: input.elements.length,
+    obligationCount: plan.obligations.length,
+    anchorCount: plan.anchors.length,
+    countByDomain,
+    countByKind,
+    minimumAdmissibleTargetCount: targetCounts[0] ?? 0,
+    maximumAdmissibleTargetCount: targetCounts[targetCounts.length - 1] ?? 0,
+    averageAdmissibleTargetCount: average,
+    medianAdmissibleTargetCount: median,
+    totalAdmissibleEdges: targetCounts.reduce((sum, count) => sum + count, 0),
+    distinctTargetSetSignatureCount: new Set(mandatory.map((entry) => JSON.stringify(targets[entry.token] ?? []))).size,
+    requirementsAtMinimumBoundary: mandatory.filter((entry) => (targets[entry.token]?.length ?? 0) === entry.coverageConstraints.minimumCoverageTargets).map((entry) => entry.token).sort(),
+    zeroTargetRequirements: mandatory.filter((entry) => (targets[entry.token]?.length ?? 0) === 0).map((entry) => entry.token).sort(),
+  });
+}
+
 export function createAdmissibleCoverageTargetTable(input: {
   table: PlannerReferenceTable;
   elements: readonly PlanningElement[];
@@ -412,34 +634,7 @@ export function assertAdmissibleCoverageTargetCounts(input: {
   table: PlannerReferenceTable;
   targetTable: PlannerCoverageTargetTable;
 }) {
-  const table = PlannerReferenceTableSchema.parse(input.table);
-  for (const requirement of table.requirements.filter((entry) => entry.mandatory)) {
-    const targetCount = input.targetTable.admissibleCoverageTargetsByRequirement[requirement.token]?.length ?? 0;
-    if (targetCount < requirement.coverageConstraints.minimumCoverageTargets) {
-      const diagnostics = PlannerCoverageDiagnosticsSchema.parse({
-        requirementToken: requirement.token,
-        requirementCategory: requirement.category,
-        allowedDomains: requirement.coverageConstraints.allowedDomains,
-        allowedKinds: requirement.coverageConstraints.allowedElementKinds,
-        requiredPageTokens: requirement.coverageConstraints.requiredPageTokens,
-        allowedPageTokens: requirement.coverageConstraints.allowedPageTokens,
-        requiredRouteTokens: requirement.coverageConstraints.requiredRouteTokens,
-        allowedRouteTokens: requirement.coverageConstraints.allowedRouteTokens,
-        admissibleTargetCount: targetCount,
-        minimumCoverageTargets: requirement.coverageConstraints.minimumCoverageTargets,
-        reasonCode: "PLANNING_COVERAGE_NO_ADMISSIBLE_TARGETS",
-      });
-      throw new StagedPlanningAdmissionError(
-        "PLANNING_COVERAGE_INVALID",
-        `admissibleCoverageTargetsByRequirement.${requirement.token}`,
-        "PLANNING_COVERAGE_NO_ADMISSIBLE_TARGETS",
-        requirement.token,
-        undefined,
-        undefined,
-        diagnostics,
-      );
-    }
-  }
+  assertCoverageTargetCounts({ table: input.table, admissibleCoverageTargetsByRequirement: input.targetTable.admissibleCoverageTargetsByRequirement });
   return input.targetTable;
 }
 

@@ -20,6 +20,7 @@ import { CanonicalBriefV3Schema } from "@/domain/requirements/v3/schema";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { createCanonicalPlanningRouteManifest, createPlanningOwnedRequirementManifest, createPlanningTargetCatalog } from "@/agents/planner/recovery-manifests";
 import { createPlannerReferenceTable, measurePlannerProviderInput } from "@/agents/planner/reference-table";
+import { deriveCoverageRepresentabilityPlan } from "@/agents/planner/coverage-representability";
 import { PLANNER_DECOMPOSITION_CONTRACT_VERSION, PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME, PlanningDecompositionProviderOutputSchema } from "@/agents/planner/staged-contracts";
 import { createDecompositionMinimumContract } from "@/agents/planner/decomposition-minimum";
 import { PLANNER_ELEMENT_KINDS_BY_DOMAIN, PlannerCoverageDomainSchema } from "@/agents/planner/coverage-contract";
@@ -916,7 +917,7 @@ describe("production AI provider boundary", () => {
         diagnostic: { stage: "api_response", requestAttempted: true, apiResponseReceived: true, responseReceived: true, outputComplete: true, schemaName: PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME },
       }),
     });
-    await expect(new OpenAiPlannerProvider(client).decompose({ approvedBrief: fixture.input.approvedBrief, plannerReferenceTable: fixture.table, minimumContract: createDecompositionMinimumContract({ brief: fixture.input.approvedBrief, canonicalBrief: fixture.input.canonicalBrief }) })).rejects.toMatchObject({
+    await expect(new OpenAiPlannerProvider(client).decompose({ approvedBrief: fixture.input.approvedBrief, plannerReferenceTable: fixture.table, minimumContract: createDecompositionMinimumContract({ brief: fixture.input.approvedBrief, canonicalBrief: fixture.input.canonicalBrief }), coverageRepresentabilityPlan: deriveCoverageRepresentabilityPlan(fixture.table) })).rejects.toMatchObject({
       code: "AI_OUTPUT_DOMAIN_INVALID",
       diagnostic: { stage: "domain_validation", outputStage: "TRANSPORT_SCHEMA_VALIDATION_FAILED", requestAttempted: true, apiResponseReceived: true, responseReceived: true, schemaName: PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME },
     });
@@ -934,7 +935,7 @@ describe("production AI provider boundary", () => {
     expect(PlanningDecompositionProviderOutputSchema.safeParse(invalid).success).toBe(false);
     let sentSchemaName: string | undefined;
     const client = new OpenAiStructuredClient(config, { executor: async <T>(request: StructuredRequest<T>) => { sentSchemaName = request.schemaName; return { value: invalid as T, requestId: "req_decomposition_schema_guard" }; } });
-    await expect(new OpenAiPlannerProvider(client).decompose({ approvedBrief: fixture.input.approvedBrief, plannerReferenceTable: fixture.table, minimumContract: createDecompositionMinimumContract({ brief: fixture.input.approvedBrief, canonicalBrief: fixture.input.canonicalBrief }) })).rejects.toMatchObject({ code: "AI_OUTPUT_DOMAIN_INVALID" });
+    await expect(new OpenAiPlannerProvider(client).decompose({ approvedBrief: fixture.input.approvedBrief, plannerReferenceTable: fixture.table, minimumContract: createDecompositionMinimumContract({ brief: fixture.input.approvedBrief, canonicalBrief: fixture.input.canonicalBrief }), coverageRepresentabilityPlan: deriveCoverageRepresentabilityPlan(fixture.table) })).rejects.toMatchObject({ code: "AI_OUTPUT_DOMAIN_INVALID" });
     expect(sentSchemaName).toBe(PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME);
   });
   it("retries one transient failure and does not expose raw provider data", async () => { let calls = 0; const client = new OpenAiStructuredClient(config, { executor: async <T>() => { calls++; if (calls === 1) throw Object.assign(new Error("temporary"), { status: 503 }); return { value: { ok: true, summary: "recovered" } as T, requestId: "req_2" }; } }); await expect(client.request({ ...request, idempotencyKey: "retry" })).resolves.toMatchObject({ value: { ok: true } }); expect(calls).toBe(2); });

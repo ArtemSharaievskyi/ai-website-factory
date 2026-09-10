@@ -6,6 +6,7 @@ import { isStagedPlanningFailure, StagedPlanningFailureClassSchema, StagedPlanni
 import { PlannerCoverageDiagnosticsSchema, PlannerDecompositionKindDomainDiagnosticsSchema, type PlannerCoverageDiagnostics, type PlannerDecompositionKindDomainDiagnostics } from "@/agents/planner/coverage-contract";
 import { PlanningGraphCycleDiagnosticsSchema, type PlanningGraphCycleDiagnostics } from "@/agents/planner/staged-contracts";
 import { DecompositionMinimumDiagnosticsSchema, type DecompositionMinimumDiagnostics } from "@/agents/planner/decomposition-minimum";
+import { CoverageRepresentabilityAnchorDiagnosticsSchema, type CoverageRepresentabilityAnchorDiagnostics } from "@/agents/planner/coverage-representability";
 import { isWorkbenchOperationFailure, type WorkbenchOperationFailure } from "./operation-context";
 import { WORKBENCH_OPERATION_STAGES, type WorkbenchOperationStage } from "./operation-context";
 import { safeOperationFingerprint } from "./operation-ledger";
@@ -82,6 +83,7 @@ export const WorkbenchErrorResponseSchema = z
     minimumDiagnostics: DecompositionMinimumDiagnosticsSchema.optional(),
     graphCycleDiagnostics: PlanningGraphCycleDiagnosticsSchema.optional(),
     coverageDiagnostics: PlannerCoverageDiagnosticsSchema.optional(),
+    representabilityAnchorDiagnostics: CoverageRepresentabilityAnchorDiagnosticsSchema.optional(),
     safeErrorFingerprint: SafeFingerprintSchema.optional(),
     providerContract: z.string().regex(/^[a-z0-9-]{1,100}$/).optional(),
     providerCallsTotal: z.number().int().nonnegative().optional(),
@@ -123,6 +125,7 @@ export type WorkbenchErrorProjection = WorkbenchErrorResponse & {
   minimumDiagnostics?: DecompositionMinimumDiagnostics;
   graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
   coverageDiagnostics?: PlannerCoverageDiagnostics;
+  representabilityAnchorDiagnostics?: CoverageRepresentabilityAnchorDiagnostics;
 };
 
 type SafeProviderDiagnostic = {
@@ -516,6 +519,7 @@ function stagedFailureProjection(error: unknown): Omit<WorkbenchErrorProjection,
     ...(error.details.minimumDiagnostics ? { minimumDiagnostics: error.details.minimumDiagnostics } : {}),
     ...(error.details.graphCycleDiagnostics ? { graphCycleDiagnostics: error.details.graphCycleDiagnostics } : {}),
     ...(error.details.coverageDiagnostics ? { coverageDiagnostics: error.details.coverageDiagnostics } : {}),
+    ...(error.details.representabilityAnchorDiagnostics ? { representabilityAnchorDiagnostics: error.details.representabilityAnchorDiagnostics } : {}),
     providerRequestCountExact: error.details.providerRequestCountExact,
     providerRequestCount: error.details.providerRequestCount,
     stagedOperation: operation,
@@ -630,6 +634,7 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     ...(projection.minimumDiagnostics ? { minimumDiagnostics: projection.minimumDiagnostics } : {}),
     ...(projection.graphCycleDiagnostics ? { graphCycleDiagnostics: projection.graphCycleDiagnostics } : {}),
     ...(projection.coverageDiagnostics ? { coverageDiagnostics: projection.coverageDiagnostics } : {}),
+    ...(projection.representabilityAnchorDiagnostics ? { representabilityAnchorDiagnostics: projection.representabilityAnchorDiagnostics } : {}),
     ...(projection.safeErrorFingerprint ? { safeErrorFingerprint: projection.safeErrorFingerprint } : {}),
     ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
     ...(projection.providerCallsTotal !== undefined ? { providerCallsTotal: projection.providerCallsTotal } : {}),
@@ -729,6 +734,7 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     ...(projection.minimumDiagnostics ? { minimumDiagnostics: projection.minimumDiagnostics } : {}),
     ...(projection.graphCycleDiagnostics ? { graphCycleDiagnostics: projection.graphCycleDiagnostics } : {}),
     ...(projection.coverageDiagnostics ? { coverageDiagnostics: projection.coverageDiagnostics } : {}),
+    ...(projection.representabilityAnchorDiagnostics ? { representabilityAnchorDiagnostics: projection.representabilityAnchorDiagnostics } : {}),
     ...(projection.safeErrorFingerprint ? { safeErrorFingerprint: projection.safeErrorFingerprint } : {}),
     ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
     ...(projection.providerCallsTotal !== undefined ? { providerCallsTotal: projection.providerCallsTotal } : {}),

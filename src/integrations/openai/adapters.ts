@@ -2047,13 +2047,14 @@ function stagedDecompositionPromptInput(input: PlannerDecompositionProviderInput
     stage: "PLANNING_DECOMPOSITION",
     approvedBrief: stagedProviderSafeBrief(input.approvedBrief),
     minimumContract: input.minimumContract,
+    coverageRepresentability: input.coverageRepresentabilityPlan,
     domainBucketOrder: PLANNER_DECOMPOSITION_DOMAIN_ORDER,
     kindDomainAuthority: Object.fromEntries(
       PlannerCoverageDomainSchema.options.map((domain) => [domain, plannerElementKindsForDomain(domain)]),
     ),
     pageAuthority: table.pages.map(({ token, path, purpose }) => ({ token, path, purpose })),
     routeAuthority: table.routes.map(({ token, pageToken, path, purpose }) => ({ token, pageToken, path, purpose })),
-    outputPolicy: { complete: true, maxElements: 256, identity: "host-assigned PE_*", coverage: "omitted in this stage" },
+    outputPolicy: { complete: true, maxElements: 256, identity: "host-assigned PE_*", coverage: "omitted in this stage", anchors: "every host-issued anchor key is required and must be meaningful" },
   };
 }
 
@@ -2100,8 +2101,8 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
     providerInvocation?: ProviderInvocationContext,
   ): Promise<PlanningDecompositionProviderOutput> {
     const prompt = rolePrompt("planner", stagedDecompositionPromptInput(input), false, approvedSkills);
-    const system = `${prompt.system} This is Stage 1 of staged Planning using the planner.decomposition.v3 contract. Return only semantic decomposition proposals in the required domain buckets: frontendElements, backendElements, databaseElements, securityElements, integrationElements, lifecycleElements, qaElements. Use the exact host-issued bucket order when interpreting zero-based dependency indexes: ${PLANNER_DECOMPOSITION_DOMAIN_ORDER.join(", ")}. Do not return requirementReferences, coverageByRequirement, canonical IDs, project IDs, checksums, approvals, routes outside the supplied host authority, or final PE_* identities. Return null for absent pageTokens, routeTokens, dependencies, negativeEvidence, or negativeOnly. Dependencies, if supplied, must be zero-based proposal indexes in that flattened bucket order and are resolved by the host. A dependency means only strict implementation/planning precedence: A depends on B means A requires B and the edge is A -> B. Do not encode integrates-with, interacts-with, data-flow, frontend/backend pairing, security-applies-to, QA-validates, or any other association as a dependency. Do not declare self-dependencies or dependency cycles. Use meaningful non-generic descriptions and represent the minimum contract with substantive responsibilities, never filler or duplicated elements. The host owns all identity, currentness, canonical references, dependency admission, cycle detection, and final Planning assembly.`;
-    const schema = createPlanningDecompositionProviderWireSchema(input.minimumContract);
+    const system = `${prompt.system} This is Stage 1 of staged Planning using the planner.decomposition.v4 contract. Return only semantic decomposition proposals in the required host-issued anchors object and domain buckets: anchors, frontendElements, backendElements, databaseElements, securityElements, integrationElements, lifecycleElements, qaElements. Every supplied anchor key is required. Each anchor must be a meaningful typed element satisfying that anchor's supplied allowed domain, kind, page, route, polarity, and cardinality constraints; anchors are not PE identities. Flatten dependency indexes in this exact order: anchors in host-issued anchor order, then ${PLANNER_DECOMPOSITION_DOMAIN_ORDER.join(", ")}; the host assigns PE_* after admission. Do not return requirementReferences, coverageByRequirement, canonical IDs, project IDs, checksums, approvals, routes outside the supplied host authority, or final PE_* identities. Return null for absent pageTokens, routeTokens, dependencies, negativeEvidence, or negativeOnly when the typed anchor contract permits it. Dependencies, if supplied, must be zero-based proposal indexes in that flattened order and are resolved by the host. A dependency means only strict implementation/planning precedence: A depends on B means A requires B and the edge is A -> B. Do not encode integrates-with, interacts-with, data-flow, frontend/backend pairing, security-applies-to, QA-validates, or any other association as a dependency. Do not declare self-dependencies or dependency cycles. Use meaningful non-generic descriptions and represent the minimum contract with substantive responsibilities, never filler or duplicated elements. The host owns all identity, currentness, canonical references, dependency admission, cycle detection, representability admission, and final Planning assembly.`;
+    const schema = createPlanningDecompositionProviderWireSchema(input.minimumContract, input.coverageRepresentabilityPlan);
     const result = await this.ai.request<unknown>({
       ...prompt,
       system,
@@ -2113,7 +2114,7 @@ export class OpenAiPlannerProvider implements PlannerArchitectureProvider {
       ...(providerInvocation ? { providerInvocation } : {}),
     });
     try {
-      return normalizePlanningDecompositionProviderOutput(result.value, input.minimumContract);
+      return normalizePlanningDecompositionProviderOutput(result.value, input.minimumContract, input.coverageRepresentabilityPlan);
     } catch (error) {
       stagedProviderNormalizationFailure(error, result.diagnostic, PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME);
     }

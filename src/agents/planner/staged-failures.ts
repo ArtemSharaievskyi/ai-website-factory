@@ -5,12 +5,14 @@ import { z } from "zod";
 import { PlannerCoverageDiagnosticsSchema, PlannerDecompositionKindDomainDiagnosticsSchema, type PlannerCoverageDiagnostics, type PlannerDecompositionKindDomainDiagnostics } from "./coverage-contract";
 import { PlanningGraphCycleDiagnosticsSchema, type PlanningGraphCycleDiagnostics } from "./staged-contracts";
 import { DecompositionMinimumDiagnosticsSchema, type DecompositionMinimumDiagnostics } from "./decomposition-minimum";
+import { CoverageRepresentabilityAnchorDiagnosticsSchema, type CoverageRepresentabilityAnchorDiagnostics } from "./coverage-representability";
 
 export const StagedPlanningStageSchema = z.enum([
   "PREFLIGHT",
   "DECOMPOSITION_PROVIDER",
   "DECOMPOSITION_PARSE",
   "DECOMPOSITION_ADMISSION",
+  "DECOMPOSITION_REPRESENTABILITY",
   "PE_ASSIGNMENT",
   "GRAPH_ASSEMBLY",
   "GRAPH_ADMISSION",
@@ -83,6 +85,7 @@ export const StagedPlanningOperationSummarySchema = z.object({
   minimumDiagnostics: DecompositionMinimumDiagnosticsSchema.optional(),
   graphCycleDiagnostics: PlanningGraphCycleDiagnosticsSchema.optional(),
   coverageDiagnostics: PlannerCoverageDiagnosticsSchema.optional(),
+  representabilityAnchorDiagnostics: CoverageRepresentabilityAnchorDiagnosticsSchema.optional(),
 }).strict();
 export type StagedPlanningOperationSummary = z.infer<typeof StagedPlanningOperationSummarySchema>;
 
@@ -96,6 +99,7 @@ export type StagedPlanningFailureDetails = {
   minimumDiagnostics?: DecompositionMinimumDiagnostics;
   graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
   coverageDiagnostics?: PlannerCoverageDiagnostics;
+  representabilityAnchorDiagnostics?: CoverageRepresentabilityAnchorDiagnostics;
   providerContract?: string;
   providerRequestCountExact: boolean;
   providerRequestAttempted: boolean;
@@ -231,6 +235,7 @@ export class StagedPlanningOperationTelemetry {
     minimumDiagnostics?: DecompositionMinimumDiagnostics;
     graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
     coverageDiagnostics?: PlannerCoverageDiagnostics;
+    representabilityAnchorDiagnostics?: CoverageRepresentabilityAnchorDiagnostics;
   }): StagedPlanningOperationSummary {
     const providerCallsByStage = {
       decomposition: { ...this.providerCalls.decomposition },
@@ -261,6 +266,7 @@ export class StagedPlanningOperationTelemetry {
       ...(input.minimumDiagnostics ? { minimumDiagnostics: input.minimumDiagnostics } : {}),
       ...(input.graphCycleDiagnostics ? { graphCycleDiagnostics: input.graphCycleDiagnostics } : {}),
       ...(input.coverageDiagnostics ? { coverageDiagnostics: input.coverageDiagnostics } : {}),
+      ...(input.representabilityAnchorDiagnostics ? { representabilityAnchorDiagnostics: input.representabilityAnchorDiagnostics } : {}),
     });
   }
 
@@ -282,14 +288,15 @@ export class StagedPlanningOperationTelemetry {
     minimumDiagnostics?: DecompositionMinimumDiagnostics;
     graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
     coverageDiagnostics?: PlannerCoverageDiagnostics;
+    representabilityAnchorDiagnostics?: CoverageRepresentabilityAnchorDiagnostics;
     message: string;
     cause?: unknown;
   }) {
     this.stageFailed = input.stage;
     this.stageReached = input.stage;
     const summary = this.recorded
-      ? this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, reasonCode: input.reasonCode, safeToken: input.safeToken, kindDomainDiagnostics: input.kindDomainDiagnostics, minimumDiagnostics: input.minimumDiagnostics, graphCycleDiagnostics: input.graphCycleDiagnostics, coverageDiagnostics: input.coverageDiagnostics })
-      : this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, reasonCode: input.reasonCode, safeToken: input.safeToken, kindDomainDiagnostics: input.kindDomainDiagnostics, minimumDiagnostics: input.minimumDiagnostics, graphCycleDiagnostics: input.graphCycleDiagnostics, coverageDiagnostics: input.coverageDiagnostics });
+      ? this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, reasonCode: input.reasonCode, safeToken: input.safeToken, kindDomainDiagnostics: input.kindDomainDiagnostics, minimumDiagnostics: input.minimumDiagnostics, graphCycleDiagnostics: input.graphCycleDiagnostics, coverageDiagnostics: input.coverageDiagnostics, representabilityAnchorDiagnostics: input.representabilityAnchorDiagnostics })
+      : this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, reasonCode: input.reasonCode, safeToken: input.safeToken, kindDomainDiagnostics: input.kindDomainDiagnostics, minimumDiagnostics: input.minimumDiagnostics, graphCycleDiagnostics: input.graphCycleDiagnostics, coverageDiagnostics: input.coverageDiagnostics, representabilityAnchorDiagnostics: input.representabilityAnchorDiagnostics });
     if (!this.recorded) {
       this.recorded = true;
       recordStagedPlanningOperation(summary);
@@ -304,6 +311,7 @@ export class StagedPlanningOperationTelemetry {
       ...(input.minimumDiagnostics ? { minimumDiagnostics: input.minimumDiagnostics } : {}),
       ...(input.graphCycleDiagnostics ? { graphCycleDiagnostics: input.graphCycleDiagnostics } : {}),
       ...(input.coverageDiagnostics ? { coverageDiagnostics: input.coverageDiagnostics } : {}),
+      ...(input.representabilityAnchorDiagnostics ? { representabilityAnchorDiagnostics: input.representabilityAnchorDiagnostics } : {}),
       ...(this.providerContract ? { providerContract: this.providerContract } : {}),
       providerRequestCountExact: summary.providerRequestCountExact,
       providerRequestAttempted: summary.providerRequestAttempted,
