@@ -1,5 +1,5 @@
 import type { ApprovedProceduralSkillContext } from "@/skills/runtime/resolver";
-import { assemblePromptContext, contextBundleMetadata, extractContextIdentity, prepareRoleContext, renderContextItems } from "@/runtime/context";
+import { assemblePromptContext, contextBundleMetadata, extractContextIdentity, prepareRoleContext, renderContextItems } from "@/runtime/context/assembler";
 import { sliceApprovedSkill } from "@/runtime/context/slicing";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { buildDesignContext, designContextBudget } from "@/agents/design/context";

@@ -30,6 +30,21 @@ describe("runtime module boundaries", () => {
     await expect(readFile(path.resolve(__dirname, "workbench/production.ts"), "utf8")).resolves.toContain('import "server-only"');
   });
 
+  it("keeps compiler-backed helpers behind the production runtime boundary", async () => {
+    const bridge = await readFile(path.resolve(__dirname, "context/bridge.ts"), "utf8");
+    const production = await source("production-factory-runtime-core.ts");
+    const execution = await readFile(path.resolve(__dirname, "../orchestration/execution/production-adapters.ts"), "utf8");
+    const nextConfig = await readFile(path.resolve(__dirname, "../../next.config.ts"), "utf8");
+    expect(bridge).toContain('import { selectRelevantFiles, sourceContextCandidates');
+    const prompts = await readFile(path.resolve(__dirname, "../integrations/openai/prompts.ts"), "utf8");
+    expect(prompts).not.toContain('from "@/runtime/context"');
+    expect(production).toContain('import("@/agents/implementation/service")');
+    expect(production).toContain("import type {\n  ImplementationAgentService,");
+    expect(production).not.toContain("import {\n  ImplementationAgentService,");
+    expect(execution).toContain('import type { ImplementationAgentService }');
+    expect(nextConfig).toContain('transpilePackages: ["pg", "typescript"]');
+  });
+
   it("keeps all standalone Trial Entry commands on the Node-safe composition", async () => {
     const scripts = await Promise.all(["factory-new.ts", "factory-respond.ts", "factory-status.ts"].map((file) => readFile(path.resolve(__dirname, "../../scripts", file), "utf8")));
     for (const script of scripts) {

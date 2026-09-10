@@ -53,9 +53,9 @@ import {
   createProductionRepairer,
   type ProductionExecutionContext,
 } from "@/orchestration/execution/production-adapters";
-import {
+import type {
   ImplementationAgentService,
-  type ImplementationMemoryPort,
+  ImplementationMemoryPort,
 } from "@/agents/implementation/service";
 import type { FullExecutionPolicy } from "@/orchestration/execution/contracts";
 import type { PersistenceDatabase } from "@/persistence/database/types";
@@ -122,7 +122,7 @@ export type ProductionFactoryProjectScope = {
   securityReviewer: SecurityReviewOrchestrationService;
   testQualityReviewer?: TestQualityReviewOrchestrationService;
   orchestrator: OrchestratorService;
-  implementation: ImplementationAgentService;
+  implementation: Pick<ImplementationAgentService, "executeImplementationTask">;
   workspace: WorkspaceManager;
   runtimeValidator: GeneratedRuntimeValidator;
   functionalQa: FunctionalQaService;
@@ -489,34 +489,42 @@ export function createProductionFactoryRuntime(
             codebaseConfig,
           )
         : undefined;
-      const implementation = new ImplementationAgentService(database, {
-        provider: ai.implementation,
-        taskGraphOwner: "full-execution",
-        resolveSkills: resolveImplementationSkills,
-        memory: implementationMemory,
-        codebaseMemory: codebaseMemory
-          ? {
-              port: codebaseMemory,
-              scope: ({ projectId, projectVersion, stagingWorkspacePath }) => ({
-                projectId,
-                projectVersion,
-                workspacePath: stagingWorkspacePath,
-                generatedProjectsRoot:
-                  options.generatedProjectsRoot ?? workspaceRoot,
-                workspaceManagerReference: `${slug}:v${projectVersion}`,
-              }),
-            }
-          : undefined,
-        workspace: {
-          verifyStaging: (_projectId, version, reservationId, stagingPath) =>
-            workspace.verifyStagingWorkspace(
-              slug,
-              version,
-              reservationId,
-              stagingPath,
-            ),
+      let implementationService: Promise<ImplementationAgentService> | undefined;
+      const implementation: Pick<ImplementationAgentService, "executeImplementationTask"> = {
+        executeImplementationTask: (...args) => {
+          implementationService ??= import("@/agents/implementation/service").then(({ ImplementationAgentService: Service }) =>
+            new Service(database, {
+              provider: ai.implementation,
+              taskGraphOwner: "full-execution",
+              resolveSkills: resolveImplementationSkills,
+              memory: implementationMemory,
+              codebaseMemory: codebaseMemory
+                ? {
+                    port: codebaseMemory,
+                    scope: ({ projectId, projectVersion, stagingWorkspacePath }) => ({
+                      projectId,
+                      projectVersion,
+                      workspacePath: stagingWorkspacePath,
+                      generatedProjectsRoot:
+                        options.generatedProjectsRoot ?? workspaceRoot,
+                      workspaceManagerReference: `${slug}:v${projectVersion}`,
+                    }),
+                  }
+                : undefined,
+              workspace: {
+                verifyStaging: (_projectId, version, reservationId, stagingPath) =>
+                  workspace.verifyStagingWorkspace(
+                    slug,
+                    version,
+                    reservationId,
+                    stagingPath,
+                  ),
+              },
+            }),
+          );
+          return implementationService.then((service) => service.executeImplementationTask(...args));
         },
-      });
+      };
       const orchestratorMemory: OrchestratorMemoryPort = {
         writeSnapshot: (projectId, version, documents) =>
           sync.writeVersionSnapshot(projectId, version, documents),

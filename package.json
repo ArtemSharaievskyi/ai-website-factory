@@ -36,6 +36,7 @@
     "db:verify": "node scripts/db-verify.mjs",
     "db:test-integrity": "node scripts/migration-integrity-fixture.mjs",
     "db:smoke": "tsx scripts/db-smoke.ts",
+    "canonical:server-smoke": "tsx scripts/canonical-workbench-runtime-smoke.ts",
     "ai:smoke": "tsx scripts/ai-smoke.ts",
     "context7:smoke": "tsx scripts/context7-smoke.ts",
     "shadcn:smoke": "tsx scripts/shadcn-smoke.ts",
