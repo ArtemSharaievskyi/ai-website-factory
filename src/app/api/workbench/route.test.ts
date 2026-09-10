@@ -3,6 +3,7 @@ import { WorkbenchActionError } from "@/runtime/workbench/application";
 import { WorkbenchErrorResponseSchema, clearWorkbenchDiagnosticEvents, getWorkbenchDiagnosticEvents } from "@/runtime/workbench/diagnostics";
 import { MAX_BRIEF_REVISION_INSTRUCTION_BYTES } from "@/runtime/workbench/contracts";
 import { StagedPlanningOperationTelemetry } from "@/agents/planner/staged-failures";
+import { planningFinalAdmissionDiagnostics } from "@/agents/planner/final-admission-diagnostics";
 
 const { mockWorkbench } = vi.hoisted(() => ({ mockWorkbench: { handle: vi.fn() } }));
 
@@ -129,5 +130,17 @@ describe("Workbench route safe failure projection", () => {
     expect(body).toMatchObject({ code: "PLANNING_PACKAGE_INVALID", category: "VALIDATION", failureClass: "STAGED_COVERAGE_FAILURE", stage: "COVERAGE_ADMISSION", reasonCode: "PLANNING_COVERAGE_ELEMENT_NOT_FOUND", safeToken: "PE_999", providerRequestCount: 0 });
     expect(getWorkbenchDiagnosticEvents().at(-1)?.correlationId).toBe(body.correlationId);
     expect(JSON.stringify(body)).not.toMatch(/raw provider JSON|DATABASE_URL=secret/);
+  });
+
+  it("round-trips final-admission diagnostics through the HTTP boundary", async () => {
+    const telemetry = new StagedPlanningOperationTelemetry({ operationId: "route-final-admission", operationChecksum: "c".repeat(64), correlationId: "44444444-4444-4444-8444-444444444444", projectId: validRespondPayload.projectId, briefChecksum: "d".repeat(64) });
+    const finalAdmissionDiagnostics = planningFinalAdmissionDiagnostics({ boundary: "FINAL_ADMISSION", validator: "VALIDATE_PLANNING_ADMISSION", blockers: ["PLANNING_ROUTE_POLICY_MISMATCH"] });
+    const error = telemetry.fail({ stage: "FINAL_ADMISSION", boundary: "FINAL_ADMISSION", outerCode: "PLANNING_PACKAGE_INVALID", failureClass: "STAGED_FINAL_ASSEMBLY_FAILURE", reasonCode: finalAdmissionDiagnostics.primary.reasonCode, finalAdmissionDiagnostics, message: "private final admission detail", cause: new Error("raw provider payload") });
+    mockWorkbench.handle.mockRejectedValue(error);
+    const response = await POST(request({ action: "approve-planning", projectId: validRespondPayload.projectId }));
+    const body = WorkbenchErrorResponseSchema.parse(await response.json());
+    expect(response.status).toBe(422);
+    expect(body).toMatchObject({ code: "PLANNING_PACKAGE_INVALID", stage: "FINAL_ADMISSION", boundary: "FINAL_ADMISSION", reasonCode: "PLANNING_ROUTE_POLICY_MISMATCH", finalAdmissionDiagnostics: { primary: { validator: "VALIDATE_PLANNING_ADMISSION", category: "ROUTE" } } });
+    expect(JSON.stringify(body)).not.toMatch(/private final admission detail|raw provider payload/);
   });
 });

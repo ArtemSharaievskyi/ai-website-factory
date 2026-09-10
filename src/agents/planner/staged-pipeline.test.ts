@@ -881,6 +881,18 @@ describe("staged Planner pipeline", () => {
     expect(coverageCalls).toBe(0);
   });
 
+  it("admits a valid full candidate after both staged providers pass", async () => {
+    const { service, input, database } = await stagedService({
+      async plan() { throw new Error("legacy path must not be called"); },
+      async decompose() { return portalDecomposition().output; },
+      async assignCoverage(stageInput) { return validCoverage(stageInput.plannerReferenceTable); },
+    });
+    const result = await service.planApprovedProject(input);
+    expect(result.planningPipelineVersion).toBeDefined();
+    expect((await new DocumentRepository(database).get(projectId, 1, "planning-package"))).not.toBeNull();
+    expect((await new ProjectRepository(database).getWithVersion(projectId))?.project.workflowState).toBe("AWAITING_PLANNING_APPROVAL");
+  });
+
   it("records one correlated decomposition transport failure and preserves it through Workbench", async () => {
     const correlationId = "22222222-2222-4222-8222-222222222222";
     const { service, input, database } = await stagedService({

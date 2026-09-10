@@ -7,6 +7,7 @@ import { PlannerCoverageDiagnosticsSchema, PlannerDecompositionKindDomainDiagnos
 import { PlanningGraphCycleDiagnosticsSchema, type PlanningGraphCycleDiagnostics } from "@/agents/planner/staged-contracts";
 import { DecompositionMinimumDiagnosticsSchema, type DecompositionMinimumDiagnostics } from "@/agents/planner/decomposition-minimum";
 import { CoverageRepresentabilityAnchorDiagnosticsSchema, type CoverageRepresentabilityAnchorDiagnostics } from "@/agents/planner/coverage-representability";
+import { PlanningAdmissionBoundarySchema, PlanningFinalAdmissionDiagnosticsSchema, type PlanningAdmissionBoundary, type PlanningFinalAdmissionDiagnostics } from "@/agents/planner/final-admission-diagnostics";
 import { isWorkbenchOperationFailure, type WorkbenchOperationFailure } from "./operation-context";
 import { WORKBENCH_OPERATION_STAGES, type WorkbenchOperationStage } from "./operation-context";
 import { safeOperationFingerprint } from "./operation-ledger";
@@ -77,6 +78,7 @@ export const WorkbenchErrorResponseSchema = z
     failureClass: WorkbenchFailureClassSchema.optional(),
     stage: z.union([StagedPlanningStageSchema, WorkbenchOperationStageSchema]).optional(),
     outerCode: z.string().regex(/^[A-Z][A-Z0-9_]+$/).optional(),
+    boundary: PlanningAdmissionBoundarySchema.optional(),
     reasonCode: z.string().regex(/^[A-Z][A-Z0-9_]+$/).optional(),
     safeToken: z.string().regex(/^(?:REQ|PE|PAGE|ROUTE)_\d{3,}$/).max(32).optional(),
     kindDomainDiagnostics: PlannerDecompositionKindDomainDiagnosticsSchema.optional(),
@@ -84,6 +86,7 @@ export const WorkbenchErrorResponseSchema = z
     graphCycleDiagnostics: PlanningGraphCycleDiagnosticsSchema.optional(),
     coverageDiagnostics: PlannerCoverageDiagnosticsSchema.optional(),
     representabilityAnchorDiagnostics: CoverageRepresentabilityAnchorDiagnosticsSchema.optional(),
+    finalAdmissionDiagnostics: PlanningFinalAdmissionDiagnosticsSchema.optional(),
     safeErrorFingerprint: SafeFingerprintSchema.optional(),
     providerContract: z.string().regex(/^[a-z0-9-]{1,100}$/).optional(),
     providerCallsTotal: z.number().int().nonnegative().optional(),
@@ -126,6 +129,8 @@ export type WorkbenchErrorProjection = WorkbenchErrorResponse & {
   graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
   coverageDiagnostics?: PlannerCoverageDiagnostics;
   representabilityAnchorDiagnostics?: CoverageRepresentabilityAnchorDiagnostics;
+  boundary?: PlanningAdmissionBoundary;
+  finalAdmissionDiagnostics?: PlanningFinalAdmissionDiagnostics;
 };
 
 type SafeProviderDiagnostic = {
@@ -180,8 +185,10 @@ export type WorkbenchDiagnosticEvent = {
   failureClass?: z.infer<typeof WorkbenchFailureClassSchema>;
   stage?: StagedPlanningStage | WorkbenchOperationStage;
   outerCode?: string;
+  boundary?: PlanningAdmissionBoundary;
   reasonCode?: string;
   safeToken?: string;
+  finalAdmissionDiagnostics?: PlanningFinalAdmissionDiagnostics;
   kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
   minimumDiagnostics?: DecompositionMinimumDiagnostics;
   graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
@@ -513,6 +520,7 @@ function stagedFailureProjection(error: unknown): Omit<WorkbenchErrorProjection,
     errorClass: errorClass(error),
     failureClass: error.details.failureClass,
     stage: error.details.stage,
+    ...(error.details.boundary ? { boundary: error.details.boundary } : {}),
     ...(error.details.reasonCode ? { reasonCode: error.details.reasonCode } : {}),
     ...(error.details.safeToken ? { safeToken: error.details.safeToken } : {}),
     ...(error.details.kindDomainDiagnostics ? { kindDomainDiagnostics: error.details.kindDomainDiagnostics } : {}),
@@ -520,6 +528,7 @@ function stagedFailureProjection(error: unknown): Omit<WorkbenchErrorProjection,
     ...(error.details.graphCycleDiagnostics ? { graphCycleDiagnostics: error.details.graphCycleDiagnostics } : {}),
     ...(error.details.coverageDiagnostics ? { coverageDiagnostics: error.details.coverageDiagnostics } : {}),
     ...(error.details.representabilityAnchorDiagnostics ? { representabilityAnchorDiagnostics: error.details.representabilityAnchorDiagnostics } : {}),
+    ...(error.details.finalAdmissionDiagnostics ? { finalAdmissionDiagnostics: error.details.finalAdmissionDiagnostics } : {}),
     providerRequestCountExact: error.details.providerRequestCountExact,
     providerRequestCount: error.details.providerRequestCount,
     stagedOperation: operation,
@@ -544,6 +553,7 @@ function operationFailureProjection(error: WorkbenchOperationFailure): Omit<Work
     failureClass: staged?.failureClass ?? details.failureClass as WorkbenchErrorProjection["failureClass"],
     stage: staged?.stage ?? details.operationStage,
     outerCode: details.outerCode,
+    ...(details.boundary ? { boundary: details.boundary } : {}),
     safeErrorFingerprint: details.safeErrorFingerprint,
     providerCallsTotal: details.providerCallsTotal,
     providerCallsByStage: details.providerCallsByStage as WorkbenchErrorProjection["providerCallsByStage"],
@@ -554,6 +564,7 @@ function operationFailureProjection(error: WorkbenchOperationFailure): Omit<Work
     canonicalPlanningPersisted: details.canonicalPlanningPersisted,
     lifecycleMutated: details.lifecycleMutated,
     ...(details.reasonCode ? { reasonCode: details.reasonCode } : {}),
+    ...(details.finalAdmissionDiagnostics ? { finalAdmissionDiagnostics: details.finalAdmissionDiagnostics } : {}),
     internalClassification: details.internalClassification,
     ...(staged?.stagedOperation ? { stagedOperation: staged.stagedOperation } : {}),
   };
@@ -628,6 +639,7 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     ...(projection.failureClass ? { failureClass: projection.failureClass } : {}),
     ...(projection.stage ? { stage: projection.stage } : {}),
     ...(projection.outerCode ? { outerCode: projection.outerCode } : {}),
+    ...(projection.boundary ? { boundary: projection.boundary } : {}),
     ...(projection.reasonCode ? { reasonCode: projection.reasonCode } : {}),
     ...(projection.safeToken ? { safeToken: projection.safeToken } : {}),
     ...(projection.kindDomainDiagnostics ? { kindDomainDiagnostics: projection.kindDomainDiagnostics } : {}),
@@ -635,6 +647,7 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     ...(projection.graphCycleDiagnostics ? { graphCycleDiagnostics: projection.graphCycleDiagnostics } : {}),
     ...(projection.coverageDiagnostics ? { coverageDiagnostics: projection.coverageDiagnostics } : {}),
     ...(projection.representabilityAnchorDiagnostics ? { representabilityAnchorDiagnostics: projection.representabilityAnchorDiagnostics } : {}),
+    ...(projection.finalAdmissionDiagnostics ? { finalAdmissionDiagnostics: projection.finalAdmissionDiagnostics } : {}),
     ...(projection.safeErrorFingerprint ? { safeErrorFingerprint: projection.safeErrorFingerprint } : {}),
     ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
     ...(projection.providerCallsTotal !== undefined ? { providerCallsTotal: projection.providerCallsTotal } : {}),
@@ -728,6 +741,7 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     ...(projection.failureClass ? { failureClass: projection.failureClass } : {}),
     ...(projection.stage ? { stage: projection.stage } : {}),
     ...(projection.outerCode ? { outerCode: projection.outerCode } : {}),
+    ...(projection.boundary ? { boundary: projection.boundary } : {}),
     ...(projection.reasonCode ? { reasonCode: projection.reasonCode } : {}),
     ...(projection.safeToken ? { safeToken: projection.safeToken } : {}),
     ...(projection.kindDomainDiagnostics ? { kindDomainDiagnostics: projection.kindDomainDiagnostics } : {}),
@@ -735,6 +749,7 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     ...(projection.graphCycleDiagnostics ? { graphCycleDiagnostics: projection.graphCycleDiagnostics } : {}),
     ...(projection.coverageDiagnostics ? { coverageDiagnostics: projection.coverageDiagnostics } : {}),
     ...(projection.representabilityAnchorDiagnostics ? { representabilityAnchorDiagnostics: projection.representabilityAnchorDiagnostics } : {}),
+    ...(projection.finalAdmissionDiagnostics ? { finalAdmissionDiagnostics: projection.finalAdmissionDiagnostics } : {}),
     ...(projection.safeErrorFingerprint ? { safeErrorFingerprint: projection.safeErrorFingerprint } : {}),
     ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
     ...(projection.providerCallsTotal !== undefined ? { providerCallsTotal: projection.providerCallsTotal } : {}),

@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { ProviderInvocationLedgerPort, ProviderInvocationLedgerState } from "@/integrations/openai/usage";
+import type { PlanningAdmissionBoundary, PlanningFinalAdmissionDiagnostics } from "@/agents/planner/final-admission-diagnostics";
 
 export const WORKBENCH_OPERATION_STAGES = [
   "WORKBENCH_DISPATCH",
@@ -24,6 +25,7 @@ export type WorkbenchOperationFailureDetails = {
   operationStage: WorkbenchOperationStage;
   failureClass: string;
   outerCode: string;
+  boundary?: PlanningAdmissionBoundary;
   reasonCode?: string;
   safeErrorFingerprint: string;
   providerContract?: string;
@@ -41,6 +43,7 @@ export type WorkbenchOperationFailureDetails = {
   canonicalPlanningPersisted: boolean;
   lifecycleMutated: boolean;
   stagedStage?: string;
+  finalAdmissionDiagnostics?: PlanningFinalAdmissionDiagnostics;
   stagedOperation?: unknown;
   internalClassification?: "UNEXPECTED_EXCEPTION";
 };

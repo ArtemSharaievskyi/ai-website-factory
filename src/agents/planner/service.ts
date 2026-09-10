@@ -108,6 +108,11 @@ import {
   type StagedPlanningFailureClass,
   type StagedPlanningStage,
 } from "./staged-failures";
+import {
+  PlanningFinalAdmissionError,
+  planningFinalAdmissionDiagnostics,
+  planningFinalAdmissionDiagnosticsFromError,
+} from "./final-admission-diagnostics";
 
 const now = () => new Date().toISOString();
 
@@ -424,20 +429,24 @@ export class PlannerArchitectService {
         timestamp: now(),
       });
     } catch (error) {
-      if (error instanceof PlanningAdmissionError)
+      if (error instanceof PlanningAdmissionError) {
+        const diagnostics = planningFinalAdmissionDiagnosticsFromError({ error, boundary: "FINAL_ADMISSION", validator: "NORMALIZE_PLANNING_PACKAGE" });
         throw new PlannerError(
           "PLANNING_PACKAGE_INVALID",
-          `Planner output failed deterministic refresh admission: ${error.message}.`,
-          error,
+          "Planner output failed deterministic refresh admission.",
+          new PlanningFinalAdmissionError(diagnostics, [], "Planner output failed deterministic refresh admission.", error),
         );
+      }
       throw error;
     }
-    if (admission.blockers.length > 0)
+    if (admission.blockers.length > 0) {
+      const diagnostics = planningFinalAdmissionDiagnostics({ boundary: "FINAL_ADMISSION", validator: "ADMIT_PLANNING_REFRESH", blockers: admission.blockers });
       throw new PlannerError(
         "PLANNING_PACKAGE_INVALID",
-        `Planner output failed deterministic refresh admission: ${admission.blockers.slice(0, 8).join(", ")}.`,
-        admission,
+        "Planner output failed deterministic refresh admission.",
+        new PlanningFinalAdmissionError(diagnostics, admission.blockers, "Planner output failed deterministic refresh admission.", admission),
       );
+    }
     return admission.candidate;
   }
   private async runStagedPlanning(input: {
@@ -642,17 +651,27 @@ export class PlannerArchitectService {
     await currentness();
     await input.setStage?.("FINAL_ASSEMBLY");
     input.telemetry?.enter("FINAL_ASSEMBLY");
-    const candidate = assembleStagedPlanningCandidate({
-      plannerInput: input.plannerInput,
-      brief: input.brief,
-      ...(input.canonicalBrief ? { canonicalBrief: input.canonicalBrief } : {}),
-      plannerReferenceTable: table,
-      elements,
-      graph,
-      coverage,
-      admissibleCoverageTargetsByRequirement: coverageTargetTable.admissibleCoverageTargetsByRequirement,
-    });
-    const parsedCandidate = PlanningPackageSchema.parse(candidate);
+    let parsedCandidate: PlanningPackage;
+    try {
+      const candidate = assembleStagedPlanningCandidate({
+        plannerInput: input.plannerInput,
+        brief: input.brief,
+        ...(input.canonicalBrief ? { canonicalBrief: input.canonicalBrief } : {}),
+        plannerReferenceTable: table,
+        elements,
+        graph,
+        coverage,
+        admissibleCoverageTargetsByRequirement: coverageTargetTable.admissibleCoverageTargetsByRequirement,
+      });
+      parsedCandidate = PlanningPackageSchema.parse(candidate);
+    } catch (error) {
+      const diagnostics = planningFinalAdmissionDiagnosticsFromError({ error, boundary: "FINAL_ASSEMBLY", validator: "ASSEMBLE_STAGED_PLANNING_CANDIDATE" });
+      throw new PlannerError(
+        "PLANNING_PACKAGE_INVALID",
+        "Staged Planning final assembly failed deterministic admission.",
+        new PlanningFinalAdmissionError(diagnostics, [], "Staged Planning final assembly failed deterministic admission.", error),
+      );
+    }
     input.telemetry?.enter("FINAL_ADMISSION");
     return parsedCandidate;
   }
@@ -912,36 +931,50 @@ export class PlannerArchitectService {
       );
     }
     stagedTelemetry?.enter("FINAL_ADMISSION");
-    const currentAfterProvider = await this.validateCurrentCanonicalBrief(input);
-    const projectAfterProvider = await this.projects.getWithVersion(input.projectId);
-    if (!projectAfterProvider || projectAfterProvider.rowVersion !== input.expectedRowVersion || projectAfterProvider.project.workflowState !== "AWAITING_PLANNING_GENERATION")
-      throw new PlannerError("PLANNING_STALE", "The project changed while the Planner was running.");
-    if (currentAfterProvider?.briefChecksum !== currentCanonical?.briefChecksum)
-      throw new PlannerError("PLANNING_STALE", "The approved CanonicalBriefV3 changed while the Planner was running.");
-    const planningAfterProvider = await this.documents.getWithMetadata(
-      input.projectId,
-      input.projectVersion,
-      "planning-package",
-    );
-    if (planningAfterProvider?.rowVersion !== existingPlanning?.rowVersion || planningAfterProvider?.checksum !== existingPlanning?.checksum)
-      throw new PlannerError("PLANNING_STALE", "The current PlanningPackage changed while the Planner was running.");
+    let currentAfterProvider: Awaited<ReturnType<PlannerArchitectService["validateCurrentCanonicalBrief"]>>;
+    try {
+      currentAfterProvider = await this.validateCurrentCanonicalBrief(input);
+      const projectAfterProvider = await this.projects.getWithVersion(input.projectId);
+      if (!projectAfterProvider || projectAfterProvider.rowVersion !== input.expectedRowVersion || projectAfterProvider.project.workflowState !== "AWAITING_PLANNING_GENERATION")
+        throw new PlannerError("PLANNING_STALE", "The project changed while the Planner was running.");
+      if (currentAfterProvider?.briefChecksum !== currentCanonical?.briefChecksum)
+        throw new PlannerError("PLANNING_STALE", "The approved CanonicalBriefV3 changed while the Planner was running.");
+      const planningAfterProvider = await this.documents.getWithMetadata(
+        input.projectId,
+        input.projectVersion,
+        "planning-package",
+      );
+      if (planningAfterProvider?.rowVersion !== existingPlanning?.rowVersion || planningAfterProvider?.checksum !== existingPlanning?.checksum)
+        throw new PlannerError("PLANNING_STALE", "The current PlanningPackage changed while the Planner was running.");
+    } catch (error) {
+      const diagnostics = planningFinalAdmissionDiagnosticsFromError({ error, boundary: "FINAL_ADMISSION", validator: "FINAL_CURRENTNESS" });
+      const outerCode = error instanceof PlannerError ? error.code : "PLANNING_PACKAGE_INVALID";
+      throw new PlannerError(outerCode, "Staged Planning final currentness validation failed.", new PlanningFinalAdmissionError(diagnostics, [], "Staged Planning final currentness validation failed.", error));
+    }
     planningPackage = this.admitPlanningCandidate({
       plannerInput,
       canonicalBrief: currentAfterProvider?.brief,
       candidate: planningPackage,
       current: currentPlanningPackage,
     });
-    if (!validatePlanningAdmission(planningPackage).ready)
+    const admissionResult = validatePlanningAdmission(planningPackage);
+    if (!admissionResult.ready) {
+      const diagnostics = planningFinalAdmissionDiagnostics({ boundary: "FINAL_ADMISSION", validator: "VALIDATE_PLANNING_ADMISSION", blockers: admissionResult.blockers });
       throw new PlannerError(
         "PLANNING_PACKAGE_INVALID",
         "Planner output failed deterministic admission.",
+        new PlanningFinalAdmissionError(diagnostics, admissionResult.blockers),
       );
+    }
     const contractIssues = validatePlanningPackageAgainstBrief(brief, planningPackage);
-    if (contractIssues.length > 0)
+    if (contractIssues.length > 0) {
+      const diagnostics = planningFinalAdmissionDiagnostics({ boundary: "FINAL_ADMISSION", validator: "VALIDATE_PLANNING_PACKAGE_AGAINST_BRIEF", blockers: contractIssues });
       throw new PlannerError(
         "PLANNING_PACKAGE_INVALID",
-        `Planner output violated approved form behavior: ${contractIssues.join(", ")}.`,
+        "Planner output violated the approved Planning contract.",
+        new PlanningFinalAdmissionError(diagnostics, contractIssues),
       );
+    }
     await executionContext.setStage?.("PERSISTENCE");
     stagedTelemetry?.enter("PERSISTENCE");
     await this.persistPackage(planningPackage, input.idempotencyKey, existingPlanning, {
@@ -973,6 +1006,7 @@ export class PlannerArchitectService {
           stage,
           outerCode: stagedOuterCode(stage, error),
           failureClass: stagedFailureClass(stage, error),
+          ...(stage === "FINAL_ASSEMBLY" || stage === "FINAL_ADMISSION" ? { boundary: stage } : {}),
           ...(safeStagedReasonCode(error) ? { reasonCode: safeStagedReasonCode(error) } : {}),
           ...(safeStagedToken(error) ? { safeToken: safeStagedToken(error) } : {}),
           ...(stagedPlanningAdmissionDiagnostics(error) ? { kindDomainDiagnostics: stagedPlanningAdmissionDiagnostics(error) } : {}),
@@ -980,6 +1014,7 @@ export class PlannerArchitectService {
           ...(stagedPlanningCoverageDiagnostics(error) ? { coverageDiagnostics: stagedPlanningCoverageDiagnostics(error) } : {}),
           ...(stagedPlanningGraphCycleDiagnostics(error) ? { graphCycleDiagnostics: stagedPlanningGraphCycleDiagnostics(error) } : {}),
           ...(stagedPlanningRepresentabilityDiagnostics(error) ? { representabilityAnchorDiagnostics: stagedPlanningRepresentabilityDiagnostics(error) } : {}),
+          ...(stage === "FINAL_ASSEMBLY" || stage === "FINAL_ADMISSION" ? { finalAdmissionDiagnostics: planningFinalAdmissionDiagnosticsFromError({ error, boundary: stage, validator: stage === "FINAL_ASSEMBLY" ? "ASSEMBLE_STAGED_PLANNING_CANDIDATE" : "VALIDATE_PLANNING_ADMISSION" }) } : {}),
           message: "Staged Planning failed safely; the project was not changed.",
           cause: error,
         });

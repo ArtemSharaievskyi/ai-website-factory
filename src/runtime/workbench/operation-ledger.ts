@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import type { PersistenceDatabase, OperationReservation } from "@/persistence/database/types";
 import { isStagedPlanningFailure } from "@/agents/planner/staged-failures";
+import type { PlanningAdmissionBoundary, PlanningFinalAdmissionDiagnostics } from "@/agents/planner/final-admission-diagnostics";
 import type { ProviderInvocationLedgerHandle, ProviderInvocationLedgerPort, ProviderInvocationLedgerState, ProviderInvocationStage } from "@/integrations/openai/usage";
 import { WorkbenchOperationFailure, type WorkbenchOperationFailureDetails, type WorkbenchOperationStage } from "./operation-context";
 
@@ -35,7 +36,9 @@ type RecordState = {
   currentness?: { projectVersion: number; rowVersion: number; briefChecksum: string };
   failureClass: string | null;
   outerCode: string | null;
+  boundary: PlanningAdmissionBoundary | null;
   reasonCode: string | null;
+  finalAdmissionDiagnostics: PlanningFinalAdmissionDiagnostics | null;
   safeErrorFingerprint: string | null;
 };
 
@@ -58,7 +61,9 @@ const initialRecord = (operationId: string, projectId: string, correlationId: st
   lifecycleMutated: false,
   failureClass: null,
   outerCode: null,
+  boundary: null,
   reasonCode: null,
+  finalAdmissionDiagnostics: null,
   safeErrorFingerprint: null,
 });
 
@@ -76,9 +81,9 @@ const safeErrorClass = (error: unknown) => {
   return /^[A-Za-z][A-Za-z0-9]{0,63}$/.test(name) ? name : "UnknownError";
 };
 
-export const safeOperationFingerprint = (error: unknown, stage: WorkbenchOperationStage) => {
+export const safeOperationFingerprint = (error: unknown, stage: WorkbenchOperationStage, boundary?: PlanningAdmissionBoundary, reasonCode?: string) => {
   const category = safeCode(error)?.split("_", 1)[0] ?? "UNEXPECTED";
-  return `${safeErrorClass(error)}@${stage}:${createHash("sha256").update(`${safeErrorClass(error)}|${stage}|${category}`, "utf8").digest("hex").slice(0, 16)}`;
+  return `${safeErrorClass(error)}@${stage}:${createHash("sha256").update(`${safeErrorClass(error)}|${stage}|${category}|${boundary ?? ""}|${reasonCode ?? ""}`, "utf8").digest("hex").slice(0, 16)}`;
 };
 
 export class WorkbenchOperationConflict extends Error {
@@ -220,14 +225,18 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
     const outerCode = stagedFailure ? stagedFailure.details.outerCode : safeCode(error) ?? "WORKBENCH_INTERNAL_ERROR";
     const failureClass = stagedFailure ? stagedFailure.details.failureClass : safeCode(error) ? "KNOWN_WORKFLOW_FAILURE" : "UNEXPECTED_EXCEPTION";
     const reasonCode = stagedFailure ? stagedFailure.details.reasonCode : safeCode(error);
-    const safeErrorFingerprint = safeOperationFingerprint(error, operationStage);
+    const boundary = stagedFailure?.details.boundary ?? (stagedFailure?.details.stage === "FINAL_ASSEMBLY" || stagedFailure?.details.stage === "FINAL_ADMISSION" ? stagedFailure.details.stage : undefined);
+    const finalAdmissionDiagnostics = stagedFailure?.details.finalAdmissionDiagnostics;
+    const safeErrorFingerprint = safeOperationFingerprint(error, operationStage, boundary, finalAdmissionDiagnostics?.primary.reasonCode ?? reasonCode);
     this.record = {
       ...this.record,
       stage: operationStage,
       providerContract: stagedFailure ? stagedFailure.details.providerContract ?? this.record.providerContract : this.record.providerContract,
       failureClass,
       outerCode,
+      boundary: boundary ?? null,
       reasonCode: reasonCode ?? null,
+      finalAdmissionDiagnostics: finalAdmissionDiagnostics ?? null,
       safeErrorFingerprint,
       canonicalPlanningPersisted: this.record.canonicalPlanningPersisted || commitOutcomeAmbiguous,
       lifecycleMutated: this.record.lifecycleMutated || commitOutcomeAmbiguous,
@@ -241,7 +250,9 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
       operationStage,
       failureClass,
       outerCode,
+      ...(boundary ? { boundary } : {}),
       ...(reasonCode ? { reasonCode } : {}),
+      ...(finalAdmissionDiagnostics ? { finalAdmissionDiagnostics } : {}),
       safeErrorFingerprint,
       ...(this.record.providerContract ? { providerContract: this.record.providerContract } : {}),
       providerCallsTotal: this.record.providerCallsTotal,
