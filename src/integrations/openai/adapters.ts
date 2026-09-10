@@ -2457,6 +2457,7 @@ export class OpenAiArchitectureReviewerProvider implements ArchitectureReviewPro
     signal?: AbortSignal,
     approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
     skillContextIdentity = "none",
+    providerInvocation?: import("./usage").ProviderInvocationContext,
   ): Promise<ArchitectureReviewProviderOutput> {
     const prompt = rolePrompt(
       "architecture-reviewer",
@@ -2472,6 +2473,7 @@ export class OpenAiArchitectureReviewerProvider implements ArchitectureReviewPro
         schemaName: "architecture-review-result",
         signal,
         idempotencyKey: `${input.idempotencyKey}:${skillContextIdentity}`,
+        ...(providerInvocation ? { providerInvocation } : {}),
       })
     ).value as ArchitectureReviewProviderOutput;
   }

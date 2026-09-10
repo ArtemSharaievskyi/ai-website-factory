@@ -54,7 +54,7 @@ const initialRecord = (operationId: string, projectId: string, correlationId: st
   stage: "WORKBENCH_DISPATCH",
   providerContract: null,
   providerCallsTotal: 0,
-  providerCallsByStage: { decomposition: emptyCounters(), coverage: emptyCounters() },
+  providerCallsByStage: { decomposition: emptyCounters(), coverage: emptyCounters(), "architecture-review": emptyCounters() },
   providerInvocationState: null,
   providerInvocations: [],
   canonicalPlanningPersisted: false,

@@ -25,7 +25,7 @@ import {
 } from "./contracts";
 import { canonicalArchitectureEvidence } from "./deterministic";
 import { DeterministicArchitectureReviewProvider } from "./deterministic";
-import type { ArchitectureReviewProvider } from "./ports";
+import type { ArchitectureReviewExecutionContext, ArchitectureReviewProvider } from "./ports";
 import type { ReviewerSkillSelection } from "@/skills/runtime/resolver";
 import { readCanonicalReviewContext, type CanonicalReviewContext } from "./currentness";
 import {
@@ -105,6 +105,7 @@ export class ArchitectureReviewService {
   async reviewProposal(
     rawInput: ArchitectureReviewInput,
     signal?: AbortSignal,
+    executionContext: ArchitectureReviewExecutionContext = {},
   ): Promise<ArchitectureReviewProposal> {
     const input = this.parseAndPrecheck(rawInput);
     const evidenceCatalog = createReviewEvidenceCatalog({
@@ -174,14 +175,26 @@ export class ArchitectureReviewService {
         "ARCHITECTURE_REVIEW_WORKFLOW_INVALID",
         "Architecture review is only available in the ARCHITECTURE_REVIEW workflow stage.",
       );
+    await executionContext.setStage?.("PREFLIGHT");
+    const providerInvocation = executionContext.providerInvocationLedger
+      ? await executionContext.providerInvocationLedger.reserveInvocation({ stage: "architecture-review", providerContract: "architecture-review-result" })
+      : undefined;
     try {
+      await providerInvocation?.beforeTransport();
       const providerResult = await this.provider.review(
         providerInput,
         signal,
         skillSelection.contexts,
         skillSelection.identityChecksum,
+        executionContext.correlationId
+          ? { operationId: input.idempotencyKey, correlationId: executionContext.correlationId, stage: "architecture-review", ...(executionContext.providerInvocationLedger ? { ledger: executionContext.providerInvocationLedger } : {}), ...(providerInvocation ? { invocation: providerInvocation } : {}) }
+          : undefined,
       );
+      await providerInvocation?.responseReceived();
       const normalized = this.normalizeResult(providerResult, input, policyVersion, evidenceCatalog);
+      await providerInvocation?.parsePassed();
+      await providerInvocation?.admissionPassed();
+      await executionContext.setStage?.("PERSISTENCE");
       const proposal = {
         result: normalized.result,
         inputHash,
@@ -199,6 +212,7 @@ export class ArchitectureReviewService {
       this.idempotency.set(input.idempotencyKey, { inputHash, proposal });
       return proposal;
     } catch (error) {
+      await providerInvocation?.failed().catch(() => undefined);
       if (error instanceof ArchitectureReviewError) throw error;
       if (error instanceof z.ZodError)
         throw new ArchitectureReviewError(
@@ -217,8 +231,9 @@ export class ArchitectureReviewService {
   async review(
     rawInput: ArchitectureReviewInput,
     signal?: AbortSignal,
+    executionContext: ArchitectureReviewExecutionContext = {},
   ): Promise<ArchitectureReviewResult> {
-    return (await this.reviewProposal(rawInput, signal)).result;
+    return (await this.reviewProposal(rawInput, signal, executionContext)).result;
   }
 
   async getCurrentReview(

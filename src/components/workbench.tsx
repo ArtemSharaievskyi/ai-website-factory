@@ -290,6 +290,42 @@ function PlanningPendingCard({
   );
 }
 
+function ArchitectureReviewCard({
+  allowedActions,
+  onAction,
+  busy,
+}: {
+  allowedActions: WorkbenchAction[];
+  onAction: (action: WorkbenchAction) => void;
+  busy: boolean;
+}) {
+  return (
+    <section className="artifact-card" aria-labelledby="architecture-review-title">
+      <div className="card-eyebrow">ARCHITECTURE REVIEW</div>
+      <div className="card-heading-row">
+        <div>
+          <h2 id="architecture-review-title">Review the current architecture</h2>
+          <p className="card-summary">
+            The accepted Planning package and current technical architecture are ready for the read-only Architecture Reviewer.
+          </p>
+        </div>
+        <span className="badge">Next canonical step</span>
+      </div>
+      {allowedActions.includes("GENERATE_ARCHITECTURE_REVIEW") && (
+        <div className="card-actions">
+          <button
+            className="button button-primary"
+            onClick={() => onAction("GENERATE_ARCHITECTURE_REVIEW")}
+            disabled={busy}
+          >
+            Generate Architecture Review
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function DecisionCards({
   projection,
   onAction,
@@ -863,6 +899,11 @@ export function Workbench() {
         action: "approve-planning",
         projectId: projection.project.projectId,
       });
+    else if (value === "GENERATE_ARCHITECTURE_REVIEW")
+      void run({
+        action: "generate-architecture-review",
+        projectId: projection.project.projectId,
+      });
     else if (value === "DATABASE_DECISION")
       void run({
         action: "database-decision",
@@ -1106,6 +1147,13 @@ export function Workbench() {
                   busy={loading}
                 />
               )
+            )}
+            {projection.project.workflowState === "ARCHITECTURE_REVIEW" && (
+              <ArchitectureReviewCard
+                allowedActions={projection.status.allowedActions}
+                onAction={action}
+                busy={loading}
+              />
             )}
             <DecisionCards
               projection={projection}

@@ -58,7 +58,7 @@ export type ProviderDiagnostic = {
   zodIssuesBounded?: Array<{ path: string; code: string; expected?: string; received?: string; message: string }>;
   contextCapacity?: { budgetProfile: string; requestBytes: number; requestTokens: number; totalBytesWithReserve: number; totalTokensWithReserve: number; maxBytes: number; maxTokens: number; canonicalRequirementBytes: number; supportingContextBytes: number };
 };
-export type ProviderInvocationStage = "decomposition" | "coverage";
+export type ProviderInvocationStage = "decomposition" | "coverage" | "architecture-review";
 export type ProviderInvocationLedgerState = "RESERVED" | "ATTEMPTING" | "TRANSPORT_STARTED" | "RESPONSE_RECEIVED" | "PARSE_PASSED" | "ADMISSION_PASSED" | "FAILED";
 export type ProviderInvocationLedgerHandle = {
   stage: ProviderInvocationStage;

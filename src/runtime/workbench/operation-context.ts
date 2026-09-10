@@ -21,7 +21,7 @@ export type WorkbenchOperationFailureDetails = {
   operationId: string;
   operationKind: string;
   projectId: string;
-  phase: "PLANNING";
+  phase: "PLANNING" | "ARCHITECTURE_REVIEW";
   operationStage: WorkbenchOperationStage;
   failureClass: string;
   outerCode: string;
@@ -41,6 +41,7 @@ export type WorkbenchOperationFailureDetails = {
   }>;
   providerInvocationState?: ProviderInvocationLedgerState;
   canonicalPlanningPersisted: boolean;
+  canonicalArchitecturePersisted?: boolean;
   lifecycleMutated: boolean;
   stagedStage?: string;
   finalAdmissionDiagnostics?: PlanningFinalAdmissionDiagnostics;
@@ -66,7 +67,7 @@ export type WorkbenchOperationContext = {
   operationId?: string;
   operationKind?: string;
   projectId?: string;
-  phase?: "PLANNING";
+  phase?: "PLANNING" | "ARCHITECTURE_REVIEW";
   stage?: WorkbenchOperationStage;
   providerInvocationLedger?: ProviderInvocationLedgerPort;
   bindCurrentness?: (input: { projectVersion: number; rowVersion: number; briefChecksum: string }) => void | Promise<void>;

@@ -6,6 +6,9 @@ import type { WorkflowState } from "@/domain/workflow/engine";
 import { evaluatePlanningAcceptanceReadiness, planningDocumentChecksum } from "@/agents/planner/deterministic";
 import type { PlannerArchitectService } from "@/agents/planner/service";
 import type { ArchitectureReviewOrchestrationService } from "@/orchestration/architecture-review/service";
+import type { ArchitectureReviewInput } from "@/agents/reviewers/architecture/contracts";
+import { FACTORY_ARCHITECTURE_STACK } from "@/agents/reviewers/architecture/contracts";
+import { readCanonicalReviewContext } from "@/agents/reviewers/architecture/currentness";
 import type { DesignAgentService } from "@/agents/design/service";
 import type { OrchestratorService } from "@/orchestration/orchestrator/service";
 import type { ContractAuditOrchestrationService } from "@/orchestration/contract-audit/service";
@@ -39,6 +42,7 @@ import { admitPlanningRefresh, PlanningAdmissionError } from "@/agents/planner/r
 import { CONTRACT_AUDIT_PROMPT_VERSION } from "@/agents/reviewers/contracts/contracts";
 import { currentWorkbenchOperationContext, withWorkbenchOperationContext, type WorkbenchOperationContext } from "./operation-context";
 import { WorkbenchOperationConflict, WorkbenchOperationLedger } from "./operation-ledger";
+import { ArchitectureReviewOperationLedger } from "./architecture-operation-ledger";
 
 const list = (values: string[] | undefined, limit = 12) => (values ?? []).slice(0, limit).map((value) => value.slice(0, 500));
 const statements = (values: unknown, limit = 16): string[] => {
@@ -158,6 +162,8 @@ export class WorkbenchApplication {
       case "approve-planning":
         await this.approvePlanning(request.projectId);
         return this.project(request.projectId);
+      case "generate-architecture-review":
+        return this.generateArchitectureReview(request.projectId);
       case "request-planning-changes":
         await this.requestPlanningChanges(request.projectId, request.reason);
         return this.project(request.projectId);
@@ -280,6 +286,16 @@ export class WorkbenchApplication {
     const clarificationSession = clarification?.documentType === "clarification-log" ? clarification : undefined;
     const canRefreshClarifications = current.project.workflowState === "CLARIFYING" && Boolean(clarificationSession) && hasBlockingQuestions && clarificationSession?.answers.every((answer) => answer.status === "unresolved") === true && (clarificationSession?.clarificationVersion ?? 1) < 2;
     const briefReady = status.brief?.readyForApproval ?? false;
+    let canGenerateArchitectureReview = false;
+    if (current.project.workflowState === "ARCHITECTURE_REVIEW" && requirements?.documentType === "requirements" && briefV3 && planning?.documentType === "planning-package") {
+      try {
+        const input = this.architectureReviewInput(current.project.id, version, current.rowVersion, requirements, briefV3, planning);
+        const canonical = await this.dependencies.database.transaction((tx) => readCanonicalReviewContext(tx, input));
+        canGenerateArchitectureReview = canonical.reviewRow === null;
+      } catch {
+        canGenerateArchitectureReview = false;
+      }
+    }
     const allowedActions = actionsForWorkbenchState({
       workflowState: current.project.workflowState,
       hasBlockingQuestions,
@@ -288,6 +304,7 @@ export class WorkbenchApplication {
       hasPlanning: planning?.documentType === "planning-package",
       hasDesigns: directions?.documentType === "design-directions",
       canRefreshClarifications,
+      canGenerateArchitectureReview,
       implementationReady: current.project.workflowState === "READY_FOR_IMPLEMENTATION" &&
         contractPackage?.documentType === "phase-7c-contract-package" && contractPackage.status === "APPROVED" &&
         selected?.documentType === "selected-design" &&
@@ -394,6 +411,75 @@ export class WorkbenchApplication {
     const planning = await this.documents.get(projectId, current?.project.currentVersion ?? 1, "planning-package");
     if (!current || !planning || planning.documentType !== "planning-package") throw new WorkbenchActionError("PLANNING_NOT_READY", "No current planning package is available for revision.");
     await scope.planner.requestPlanningClarification({ projectId, projectVersion: current.project.currentVersion, blockers: [reason], requestedBy: "workbench-user", idempotencyKey: `workbench-planning-changes:${projectId}:${checksumPersistedDocument(reason)}` });
+  }
+
+  private architectureReviewInput(projectId: string, projectVersion: number, expectedRowVersion: number, persistedBrief: Extract<Awaited<ReturnType<DocumentRepository["get"]>>, { documentType: "requirements" }>, briefV3: BriefV3Document, planning: Extract<Awaited<ReturnType<DocumentRepository["get"]>>, { documentType: "planning-package" }>): ArchitectureReviewInput {
+    const approvedBrief = approvedBriefForDownstream(persistedBrief, briefV3);
+    return {
+      projectId,
+      projectVersion,
+      approvedBrief,
+      canonicalBrief: briefV3.brief,
+      approvedBriefChecksum: briefV3.briefChecksum,
+      acceptedPlanningPackage: planning,
+      acceptedPlanningChecksum: checksumPersistedDocument(planning),
+      factoryArchitecturePolicy: {
+        policyVersion: "factory-architecture-v1",
+        stack: [...FACTORY_ARCHITECTURE_STACK],
+        prohibitedTechnologies: ["redis", "nestjs"],
+        serverActionPreference: "preferred",
+        routeHandlerPreference: "second",
+        packageManager: "npm",
+      },
+      relevantProjectConstraints: approvedBrief.technicalConstraints.slice(0, 40),
+      idempotencyKey: `workbench-architecture-review:${projectId}`,
+      expectedRowVersion,
+    };
+  }
+
+  private async generateArchitectureReview(projectId: string) {
+    const current = await this.projects.getWithVersion(projectId);
+    if (!current) throw new WorkbenchActionError("PROJECT_NOT_FOUND", "We could not find that project.");
+    if (current.project.workflowState !== "ARCHITECTURE_REVIEW") throw new WorkbenchActionError("ARCHITECTURE_REVIEW_WORKFLOW_INVALID", "Architecture Review is only available from the canonical Architecture Review lifecycle stage.");
+    const version = current.project.currentVersion;
+    const persistedBrief = await this.documents.get(projectId, version, "requirements");
+    const briefV3Document = await this.documents.get(projectId, version, "brief-v3");
+    const planning = await this.documents.get(projectId, version, "planning-package");
+    const architectureReview = await this.documents.get(projectId, version, "architecture-review");
+    if (architectureReview) throw new WorkbenchActionError("ARCHITECTURE_REVIEW_ALREADY_EXISTS", "The current Architecture Review artifact already exists.");
+    if (!persistedBrief || persistedBrief.documentType !== "requirements" || !briefV3Document || briefV3Document.documentType !== "brief-v3" || !planning || planning.documentType !== "planning-package") throw new WorkbenchActionError("ARCHITECTURE_REVIEW_BLOCKED", "A current approved Brief and accepted Planning package are required before Architecture Review.");
+    const briefV3 = BriefV3DocumentSchema.parse(briefV3Document);
+    const input = this.architectureReviewInput(projectId, version, current.rowVersion, persistedBrief, briefV3, planning);
+    const canonical = await this.dependencies.database.transaction((tx) => readCanonicalReviewContext(tx, input));
+    if (canonical.reviewRow) throw new WorkbenchActionError("ARCHITECTURE_REVIEW_ALREADY_EXISTS", "The current Architecture Review artifact already exists.");
+    const scope = await this.scope(projectId);
+    const parent = currentWorkbenchOperationContext();
+    const correlationId = parent?.correlationId ?? randomUUID();
+    const ledger = new ArchitectureReviewOperationLedger(this.dependencies.database, input, correlationId);
+    let reserved = false;
+    try {
+      const reservation = await ledger.reserve();
+      reserved = reservation.status === "NEW";
+      await ledger.setStage("OPERATION_INITIALIZATION");
+      const context: WorkbenchOperationContext = {
+        correlationId,
+        operationId: input.idempotencyKey,
+        operationKind: "ARCHITECTURE_REVIEW",
+        projectId,
+        phase: "ARCHITECTURE_REVIEW",
+        stage: "OPERATION_INITIALIZATION",
+        providerInvocationLedger: ledger,
+        setStage: async (stage) => { context.stage = stage; await ledger.setStage(stage); },
+      };
+      return await withWorkbenchOperationContext(context, async () => {
+        await scope.architectureReviewer.reviewAndRoute(input, undefined, { correlationId: context.correlationId, providerInvocationLedger: ledger, setStage: context.setStage, markCanonicalPersisted: (lifecycleMutated) => ledger.markCanonicalArchitecturePersisted(lifecycleMutated) });
+        await ledger.complete();
+        return this.project(projectId);
+      });
+    } catch (error) {
+      if (!reserved && error instanceof WorkbenchOperationConflict) throw error;
+      throw await ledger.fail(error);
+    }
   }
 
   private async databaseDecision(projectId: string, mode: "NONE" | "SUPABASE_NEW" | "SUPABASE_EXISTING", reason?: string) {
@@ -532,5 +618,5 @@ export class WorkbenchApplication {
 }
 
 export const isWorkbenchAction = (value: string): value is WorkbenchAction => [
-  "ANSWER_LEAD_CLARIFICATIONS", "REFRESH_LEAD_CLARIFICATIONS", "APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES", "APPROVE_PLANNING", "REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL", "DESIGN_SELECTION", "START_IMPLEMENTATION",
+  "ANSWER_LEAD_CLARIFICATIONS", "REFRESH_LEAD_CLARIFICATIONS", "APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES", "APPROVE_PLANNING", "REQUEST_PLANNING_CHANGES", "GENERATE_ARCHITECTURE_REVIEW", "DATABASE_DECISION", "DEPENDENCY_APPROVAL", "DESIGN_SELECTION", "START_IMPLEMENTATION",
 ].includes(value);

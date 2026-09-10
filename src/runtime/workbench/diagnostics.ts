@@ -31,6 +31,7 @@ export const WorkbenchOperationSchema = z.enum([
   "REQUEST_BRIEF_CHANGES",
   "APPROVE_PLANNING",
   "REQUEST_PLANNING_CHANGES",
+  "GENERATE_ARCHITECTURE_REVIEW",
   "DATABASE_DECISION",
   "DEPENDENCY_APPROVAL",
   "DESIGN_SELECTION",
@@ -42,7 +43,10 @@ export type WorkbenchOperation = z.infer<typeof WorkbenchOperationSchema>;
 const WorkbenchOperationStageSchema = z.enum(WORKBENCH_OPERATION_STAGES);
 const WorkbenchFailureClassSchema = z.union([StagedPlanningFailureClassSchema, z.enum(["UNEXPECTED_EXCEPTION", "KNOWN_WORKFLOW_FAILURE"])]);
 export const WorkbenchProviderCallCountersSchema = z.object({ attempted: z.number().int().nonnegative(), started: z.number().int().nonnegative(), responseReceived: z.number().int().nonnegative(), structuredParsePassed: z.number().int().nonnegative(), semanticAdmissionPassed: z.number().int().nonnegative(), completed: z.number().int().nonnegative(), failed: z.number().int().nonnegative() }).strict();
-const WorkbenchProviderCallsByStageSchema = z.object({ decomposition: WorkbenchProviderCallCountersSchema, coverage: WorkbenchProviderCallCountersSchema }).strict();
+const WorkbenchProviderCallsByStageSchema = z.union([
+  z.object({ decomposition: WorkbenchProviderCallCountersSchema, coverage: WorkbenchProviderCallCountersSchema }).strict(),
+  z.object({ decomposition: WorkbenchProviderCallCountersSchema, coverage: WorkbenchProviderCallCountersSchema, "architecture-review": WorkbenchProviderCallCountersSchema }).strict(),
+]);
 const SafeOperationIdSchema = z.string().min(1).max(256).regex(/^[A-Za-z0-9][A-Za-z0-9:_./-]*$/);
 const SafeFingerprintSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9]{0,63}@[A-Z_]+:[a-f0-9]{16}$/);
 
@@ -73,7 +77,7 @@ export const WorkbenchErrorResponseSchema = z
     operationId: SafeOperationIdSchema.optional(),
     operationKind: z.string().regex(/^[A-Z][A-Z0-9_]{1,80}$/).optional(),
     projectId: z.string().uuid().optional(),
-    phase: z.literal("PLANNING").optional(),
+    phase: z.enum(["PLANNING", "ARCHITECTURE_REVIEW"]).optional(),
     operationStage: WorkbenchOperationStageSchema.optional(),
     failureClass: WorkbenchFailureClassSchema.optional(),
     stage: z.union([StagedPlanningStageSchema, WorkbenchOperationStageSchema]).optional(),
@@ -93,6 +97,7 @@ export const WorkbenchErrorResponseSchema = z
     providerCallsByStage: WorkbenchProviderCallsByStageSchema.optional(),
     providerInvocationState: z.enum(["RESERVED", "ATTEMPTING", "TRANSPORT_STARTED", "RESPONSE_RECEIVED", "PARSE_PASSED", "ADMISSION_PASSED", "FAILED"]).optional(),
     canonicalPlanningPersisted: z.boolean().optional(),
+    canonicalArchitecturePersisted: z.boolean().optional(),
     lifecycleMutated: z.boolean().optional(),
     providerRequestCountExact: z.boolean().optional(),
     providerRequestCount: z.number().int().nonnegative().optional(),
@@ -157,7 +162,7 @@ export type WorkbenchDiagnosticEvent = {
   projectId?: string;
   operationId?: string;
   operationKind?: string;
-  phase?: "PLANNING";
+  phase?: "PLANNING" | "ARCHITECTURE_REVIEW";
   operationStage?: WorkbenchOperationStage;
   workflowState?: string;
   code: string;
@@ -199,6 +204,7 @@ export type WorkbenchDiagnosticEvent = {
   providerCallsByStage?: z.infer<typeof WorkbenchProviderCallsByStageSchema>;
   providerInvocationState?: string;
   canonicalPlanningPersisted?: boolean;
+  canonicalArchitecturePersisted?: boolean;
   lifecycleMutated?: boolean;
   providerRequestCountExact?: boolean;
   providerRequestCount?: number;
@@ -245,6 +251,11 @@ const CONFLICT_CODES = new Set([
   "AI_IDEMPOTENCY_CONFLICT",
   "PLANNING_STALE",
   "PLANNER_WORKFLOW_STATE_INVALID",
+  "ARCHITECTURE_REVIEW_WORKFLOW_INVALID",
+  "ARCHITECTURE_REVIEW_STALE",
+  "ARCHITECTURE_REVIEW_IDEMPOTENCY_CONFLICT",
+  "ARCHITECTURE_REVIEW_EXHAUSTED",
+  "ARCHITECTURE_REVIEW_ALREADY_EXISTS",
 ]);
 
 const NOT_FOUND_CODES = new Set([
@@ -286,6 +297,9 @@ const VALIDATION_CODES = new Set([
   "INTEGRITY_CHECK_FAILED",
   "RELEASE_INVALID",
   "PLANNING_PACKAGE_INVALID",
+  "ARCHITECTURE_REVIEW_INPUT_INVALID",
+  "ARCHITECTURE_REVIEW_BLOCKED",
+  "ARCHITECTURE_REVIEW_CHANGES_REQUIRED",
 ]);
 
 const PROVIDER_CODES = new Set([
@@ -314,6 +328,8 @@ const PROVIDER_CODES = new Set([
   "TRIAL_ENTRY_AI_NOT_CONFIGURED",
   "PLANNER_PROVIDER_FAILED",
   "PLANNER_PROVIDER_TIMEOUT",
+  "ARCHITECTURE_REVIEW_PROVIDER_FAILED",
+  "ARCHITECTURE_REVIEW_OUTPUT_INVALID",
 ]);
 
 const PERSISTENCE_CODES = new Set([
@@ -325,6 +341,7 @@ const PERSISTENCE_CODES = new Set([
   "PERSISTENCE_COMMIT_AMBIGUOUS",
   "PLANNING_PERSISTENCE_FAILED",
   "PLANNING_LIFECYCLE_TRANSITION_FAILED",
+  "ARCHITECTURE_REVIEW_PROJECTION_FAILED",
 ]);
 
 const SAFE_ERROR_CLASSES = new Set([
@@ -336,6 +353,7 @@ const SAFE_ERROR_CLASSES = new Set([
   "PersistenceError",
   "WorkbenchActionError",
   "WorkbenchOperationFailure",
+  "ArchitectureReviewError",
   "WorkbenchRequestValidationError",
   "ZodError",
   "StagedPlanningFailure",
@@ -373,6 +391,7 @@ function operationForAction(action?: string): WorkbenchOperation {
     case "request-brief-changes": return "REQUEST_BRIEF_CHANGES";
     case "approve-planning": return "APPROVE_PLANNING";
     case "request-planning-changes": return "REQUEST_PLANNING_CHANGES";
+    case "generate-architecture-review": return "GENERATE_ARCHITECTURE_REVIEW";
     case "database-decision": return "DATABASE_DECISION";
     case "dependency-approval": return "DEPENDENCY_APPROVAL";
     case "design-selection": return "DESIGN_SELECTION";
@@ -543,7 +562,7 @@ function operationFailureProjection(error: WorkbenchOperationFailure): Omit<Work
   const base = staged ?? definitionFor(details.outerCode, cause);
   return {
     ...base,
-    error: details.canonicalPlanningPersisted || details.lifecycleMutated ? error.message : base.error,
+    error: details.canonicalPlanningPersisted || details.canonicalArchitecturePersisted || details.lifecycleMutated ? error.message : base.error,
     errorClass: errorClass(cause),
     operationId: details.operationId,
     operationKind: details.operationKind,
@@ -562,6 +581,7 @@ function operationFailureProjection(error: WorkbenchOperationFailure): Omit<Work
     ...(details.providerContract ? { providerContract: details.providerContract } : {}),
     ...(details.providerInvocationState ? { providerInvocationState: details.providerInvocationState } : {}),
     canonicalPlanningPersisted: details.canonicalPlanningPersisted,
+    ...(details.canonicalArchitecturePersisted !== undefined ? { canonicalArchitecturePersisted: details.canonicalArchitecturePersisted } : {}),
     lifecycleMutated: details.lifecycleMutated,
     ...(details.reasonCode ? { reasonCode: details.reasonCode } : {}),
     ...(details.finalAdmissionDiagnostics ? { finalAdmissionDiagnostics: details.finalAdmissionDiagnostics } : {}),
@@ -582,6 +602,10 @@ function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProject
   if (code === "LEAD_CLARIFICATION_LANGUAGE_INVALID") return { error: "Lead refresh output did not match the Factory operator language. The project was not changed.", httpStatus: 422, recoverable: true, category: "VALIDATION", subsystem: "LEAD", errorClass: errorClass(error) };
   if (code === "LEAD_ANALYSIS_INVALID") return { error: "Lead analysis did not match the current project contract. The project was not changed.", httpStatus: 422, recoverable: Boolean(safeValidationProjection(error).validationStage), category: "VALIDATION", subsystem: "LEAD", errorClass: errorClass(error), ...safeValidationProjection(error) };
   if (code === "WORKBENCH_ADVANCED_RUNTIME_UNAVAILABLE") return { error: "The workflow runtime is temporarily unavailable. The project was not changed.", httpStatus: 503, recoverable: true, category: "INTERNAL", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
+  if (["ARCHITECTURE_REVIEW_PROVIDER_FAILED", "ARCHITECTURE_REVIEW_OUTPUT_INVALID"].includes(code)) {
+    return { error: "The Architecture Review provider could not complete this request. The project was not changed.", httpStatus: code === "ARCHITECTURE_REVIEW_OUTPUT_INVALID" ? 502 : 503, recoverable: false, category: "PROVIDER", subsystem: "PROVIDER", errorClass: errorClass(error), ...(safeProviderDiagnostic(error) ? { providerDiagnostic: safeProviderDiagnostic(error) } : {}) };
+  }
+  if (["ARCHITECTURE_REVIEW_INPUT_INVALID", "ARCHITECTURE_REVIEW_BLOCKED", "ARCHITECTURE_REVIEW_CHANGES_REQUIRED"].includes(code)) return { error: "The current Architecture Review evidence did not satisfy the canonical review contract. The project was not changed.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
   if (NOT_FOUND_CODES.has(code)) return { error: "The requested project or workflow resource was not found.", httpStatus: 404, recoverable: false, category: "VALIDATION", subsystem: code === "PROJECT_NOT_FOUND" ? "WORKBENCH_APPLICATION" : code.startsWith("PERSISTENCE_") || code === "DOCUMENT_NOT_FOUND" ? "PERSISTENCE" : "TRIAL_ENTRY", errorClass: errorClass(error) };
   if (CONFLICT_CODES.has(code)) return { error: "The project changed or the requested workflow action is no longer current.", httpStatus: 409, recoverable: true, category: "WORKFLOW_CONFLICT", subsystem: code.startsWith("WORKBENCH_") ? "WORKBENCH_APPLICATION" : code.startsWith("PERSISTENCE_") || code === "IDEMPOTENCY_CONFLICT" ? "PERSISTENCE" : code.startsWith("AI_") ? "PROVIDER" : "TRIAL_ENTRY", errorClass: errorClass(error) };
   if (PROVIDER_CODES.has(code)) {
@@ -654,6 +678,7 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     ...(projection.providerCallsByStage ? { providerCallsByStage: projection.providerCallsByStage } : {}),
     ...(projection.providerInvocationState ? { providerInvocationState: projection.providerInvocationState } : {}),
     ...(projection.canonicalPlanningPersisted !== undefined ? { canonicalPlanningPersisted: projection.canonicalPlanningPersisted } : {}),
+    ...(projection.canonicalArchitecturePersisted !== undefined ? { canonicalArchitecturePersisted: projection.canonicalArchitecturePersisted } : {}),
     ...(projection.lifecycleMutated !== undefined ? { lifecycleMutated: projection.lifecycleMutated } : {}),
     ...(projection.providerRequestCountExact !== undefined ? { providerRequestCountExact: projection.providerRequestCountExact } : {}),
     ...(projection.providerRequestCount !== undefined ? { providerRequestCount: projection.providerRequestCount } : {}),
@@ -756,6 +781,7 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     ...(projection.providerCallsByStage ? { providerCallsByStage: projection.providerCallsByStage } : {}),
     ...(projection.providerInvocationState ? { providerInvocationState: projection.providerInvocationState } : {}),
     ...(projection.canonicalPlanningPersisted !== undefined ? { canonicalPlanningPersisted: projection.canonicalPlanningPersisted } : {}),
+    ...(projection.canonicalArchitecturePersisted !== undefined ? { canonicalArchitecturePersisted: projection.canonicalArchitecturePersisted } : {}),
     ...(projection.lifecycleMutated !== undefined ? { lifecycleMutated: projection.lifecycleMutated } : {}),
     ...(projection.providerRequestCountExact !== undefined ? { providerRequestCountExact: projection.providerRequestCountExact } : {}),
     ...(projection.providerRequestCount !== undefined ? { providerRequestCount: projection.providerRequestCount } : {}),
@@ -771,7 +797,7 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     const safeProjectId = projection.projectId && z.string().uuid().safeParse(projection.projectId).success ? projection.projectId : undefined;
     const safeProviderState = ["RESERVED", "ATTEMPTING", "TRANSPORT_STARTED", "RESPONSE_RECEIVED", "PARSE_PASSED", "ADMISSION_PASSED", "FAILED"].includes(projection.providerInvocationState ?? "") ? projection.providerInvocationState : undefined;
     const safeProviderCallsTotal = typeof projection.providerCallsTotal === "number" && Number.isInteger(projection.providerCallsTotal) && projection.providerCallsTotal >= 0 ? projection.providerCallsTotal : undefined;
-    const mutationReached = projection.canonicalPlanningPersisted === true || projection.lifecycleMutated === true;
+    const mutationReached = projection.canonicalPlanningPersisted === true || projection.canonicalArchitecturePersisted === true || projection.lifecycleMutated === true;
     const fallback: Record<string, unknown> = {
       ok: false,
       error: mutationReached ? "The operation reached a mutation boundary; inspect the current project state before retrying." : "We couldn't complete this request. The project was not changed.",
@@ -790,11 +816,12 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     if (projection.operationId && SafeOperationIdSchema.safeParse(projection.operationId).success) fallback.operationId = projection.operationId;
     if (projection.operationKind && /^[A-Z][A-Z0-9_]{1,80}$/.test(projection.operationKind)) fallback.operationKind = projection.operationKind;
     if (safeProjectId) fallback.projectId = safeProjectId;
-    if (projection.phase === "PLANNING") fallback.phase = projection.phase;
+    if (projection.phase === "PLANNING" || projection.phase === "ARCHITECTURE_REVIEW") fallback.phase = projection.phase;
     if (projection.providerCallsByStage && WorkbenchProviderCallsByStageSchema.safeParse(projection.providerCallsByStage).success) fallback.providerCallsByStage = projection.providerCallsByStage;
     if (safeProviderCallsTotal !== undefined) fallback.providerCallsTotal = safeProviderCallsTotal;
     if (safeProviderState) fallback.providerInvocationState = safeProviderState;
     if (typeof projection.canonicalPlanningPersisted === "boolean") fallback.canonicalPlanningPersisted = projection.canonicalPlanningPersisted;
+    if (typeof projection.canonicalArchitecturePersisted === "boolean") fallback.canonicalArchitecturePersisted = projection.canonicalArchitecturePersisted;
     if (typeof projection.lifecycleMutated === "boolean") fallback.lifecycleMutated = projection.lifecycleMutated;
     response = WorkbenchErrorResponseSchema.parse(Object.fromEntries(Object.entries(fallback).filter(([, value]) => value !== undefined)));
   }

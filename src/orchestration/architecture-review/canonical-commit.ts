@@ -24,6 +24,7 @@ import {
 } from "@/agents/reviewers/architecture/contracts";
 import { ArchitectureReviewError, rethrowWrappedArchitectureReviewError } from "@/agents/reviewers/architecture/errors";
 import type { ArchitectureReviewProposal } from "@/agents/reviewers/architecture/service";
+import type { ArchitectureReviewExecutionContext } from "@/agents/reviewers/architecture/ports";
 import { readCanonicalReviewContext, type CanonicalReviewContext } from "@/agents/reviewers/architecture/currentness";
 import { canonicalArchitectureEvidence } from "@/agents/reviewers/architecture/deterministic";
 import { createReviewEvidenceCatalog, evidenceCatalogChecksum } from "@/agents/reviewers/evidence";
@@ -72,6 +73,7 @@ export class ArchitectureReviewCanonicalCommitService {
   async commit(
     rawInput: ArchitectureReviewInput,
     proposal: ArchitectureReviewProposal,
+    executionContext: ArchitectureReviewExecutionContext = {},
   ): Promise<ArchitectureReviewCommitResult> {
     const input = this.parseInput(rawInput);
     const result = ArchitectureReviewResultSchema.parse({
@@ -258,13 +260,16 @@ export class ArchitectureReviewCanonicalCommitService {
         replay: false as const,
       };
     }).catch((error) => rethrowWrappedArchitectureReviewError(error));
-    if (committed.replay)
+    if (committed.replay) {
+      await executionContext.markCanonicalPersisted?.(false);
       return {
         result: committed.result,
         projectState: committed.projectState,
         rowVersion: committed.rowVersion,
         projectionStatus: "REPLAYED",
       };
+    }
+    await executionContext.markCanonicalPersisted?.(committed.projectState !== "ARCHITECTURE_REVIEW");
     if (!this.projection)
       return {
         result: committed.result,

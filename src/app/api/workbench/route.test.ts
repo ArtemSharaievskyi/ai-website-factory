@@ -51,6 +51,14 @@ describe("Workbench route safe failure projection", () => {
     expect(mockWorkbench.handle).toHaveBeenCalledWith(validRespondPayload);
   });
 
+  it("accepts the host-owned Architecture Review action without caller-supplied canonical inputs", async () => {
+    const payload = { action: "generate-architecture-review" as const, projectId: validRespondPayload.projectId };
+    mockWorkbench.handle.mockResolvedValue({ mode: "PROJECT_WORKBENCH" });
+    const response = await POST(request(payload));
+    expect(response.status).toBe(200);
+    expect(mockWorkbench.handle).toHaveBeenCalledWith(payload);
+  });
+
   it("rejects browser-authored available asset metadata with bounded indexed paths", async () => {
     const response = await POST(request({
       ...validRespondPayload,

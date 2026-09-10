@@ -20,6 +20,7 @@ export const WorkbenchActionSchema = z.enum([
   "REQUEST_BRIEF_CHANGES",
   "APPROVE_PLANNING",
   "REQUEST_PLANNING_CHANGES",
+  "GENERATE_ARCHITECTURE_REVIEW",
   "DATABASE_DECISION",
   "DEPENDENCY_APPROVAL",
   "DESIGN_SELECTION",
@@ -67,6 +68,7 @@ export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("request-brief-changes"), projectId: ProjectIdSchema, projectVersion: z.number().int().positive(), briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), expectedRowVersion: z.number().int().positive(), reason: BriefRevisionInstructionSchema, requirementKeys: z.array(z.string().min(1).max(128)).max(40).default([]) }).strict(),
   z.object({ action: z.literal("approve-planning"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("request-planning-changes"), projectId: ProjectIdSchema, reason: z.string().trim().min(1).max(4000) }).strict(),
+  z.object({ action: z.literal("generate-architecture-review"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("database-decision"), projectId: ProjectIdSchema, mode: z.enum(["NONE", "SUPABASE_NEW", "SUPABASE_EXISTING"]), reason: z.string().max(4000).optional() }).strict(),
   z.object({ action: z.literal("dependency-approval"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("design-selection"), projectId: ProjectIdSchema, selectedDirectionId: ProjectIdSchema }).strict(),
@@ -252,6 +254,7 @@ export function actionsForWorkbenchState(input: {
   hasDesigns: boolean;
   implementationReady?: boolean;
   canRefreshClarifications?: boolean;
+  canGenerateArchitectureReview?: boolean;
 }): WorkbenchAction[] {
   switch (input.workflowState) {
     case "CLARIFYING":
@@ -267,6 +270,7 @@ export function actionsForWorkbenchState(input: {
         ...(input.hasDesigns ? ["DESIGN_SELECTION"] as WorkbenchAction[] : []),
       ];
     case "READY_FOR_IMPLEMENTATION": return input.implementationReady ? ["START_IMPLEMENTATION"] : [];
+    case "ARCHITECTURE_REVIEW": return input.canGenerateArchitectureReview ? ["GENERATE_ARCHITECTURE_REVIEW"] : [];
     default: return [];
   }
 }

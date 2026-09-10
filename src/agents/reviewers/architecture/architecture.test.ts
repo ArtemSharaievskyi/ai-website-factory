@@ -440,7 +440,8 @@ describe("Architecture Reviewer", () => {
     const workbench = readFileSync("src/runtime/workbench/application.ts", "utf8");
     const alternate = readFileSync("src/runtime/production-e2e-stage-runner.ts", "utf8");
     expect(workbench).toContain("scope.planner.planApprovedProject");
-    expect(workbench).not.toContain("scope.architectureReviewer.reviewAndRoute");
+    expect(workbench).toContain("scope.architectureReviewer.reviewAndRoute");
+    expect(workbench).toContain('case "generate-architecture-review"');
     expect(alternate).toContain("scope.architectureReviewer.reviewAndRoute");
     expect(readFileSync("src/orchestration/architecture-review/service.ts", "utf8")).not.toContain("workflow.transition");
   });
