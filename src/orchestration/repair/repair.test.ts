@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { createRepairIncident, checksumRepairProposal, RepairIntentSchema, RepairProposalSchema, type FailureSnapshot, type RepairBaseline, type RepairIntent, type RepairProposal, type RepairVerificationResult } from "./contracts";
+import { createRepairIncident, checksumRepairProposal, RepairIntentSchema, RepairProposalSchema, RepairTransactionSchema, SafeIdSchema, type FailureSnapshot, type RepairBaseline, type RepairIntent, type RepairProposal, type RepairVerificationResult } from "./contracts";
 import { classifyRepairRisk, ContractGuardian, DeterministicAdversarialReviewer, TestMutationGuardian, compareProtectedProjectState, evaluateRepairOwnership } from "./guards";
 import { ImpactMapper, impactEdge, impactNode, StaticImpactEvidenceSource } from "./impact";
 import { FileRegressionLedgerStore, InMemoryRegressionLedgerStore, RegressionLedger } from "./ledger";
@@ -135,6 +135,83 @@ describe("Safe Repair foundation", () => {
     const graph = await mapper.map({ sourceHead: "head-a", changedFiles: ["src/security.ts"], risk: "HIGH" });
     expect(graph.maxDepth).toBe(6);
     expect(graph.transitiveNodeIds).toContain("node:5");
+  });
+
+  it("admits the impact result into a RepairTransaction with a bounded SafeId cache key", async () => {
+    const value = orchestrator(proposal());
+    let transaction = await value.captureIncident({ incident: incident(), repairId: "repair-1", risk: "HIGH" });
+    transaction = RepairTransactionSchema.parse({ ...transaction, baseline: baseline() });
+    transaction = await value.diagnose(transaction);
+    transaction = await value.analyzeImpact(transaction, { changedFiles: ["src/runtime\\workbench\\application.ts", "src/runtime/workbench/application.ts"] });
+    const cacheKey = transaction.performance?.cacheKey;
+    expect(cacheKey).toBeDefined();
+    expect(SafeIdSchema.parse(cacheKey)).toBe(cacheKey);
+    expect(cacheKey).toMatch(/^impact-v1-[a-f0-9]{64}$/);
+    expect(cacheKey).toHaveLength(74);
+    expect(cacheKey).not.toContain("application.ts");
+  });
+
+  it("normalizes unordered seeds and path separators without changing cache identity", async () => {
+    const nodes = [
+      impactNode({ nodeId: "file:one", type: "FILE", label: "src/one.ts", path: "src/one.ts" }),
+      impactNode({ nodeId: "file:two", type: "FILE", label: "src/two.ts", path: "src/two.ts" }),
+    ];
+    const source = () => new StaticImpactEvidenceSource("HOST", { nodes, edges: [] });
+    const first = await new ImpactMapper({ sources: [source()] }).map({ sourceHead: "head-a", changedFiles: ["src/one.ts", "src/two.ts"] });
+    const second = await new ImpactMapper({ sources: [source()] }).map({ sourceHead: "head-a", changedFiles: ["src\\two.ts", "src\\one.ts", "src/one.ts"] });
+    const firstMeasurement = new ImpactMapper({ sources: [source()] });
+    await firstMeasurement.map({ sourceHead: "head-a", changedFiles: ["src/one.ts", "src/two.ts"] });
+    const secondMeasurement = new ImpactMapper({ sources: [source()] });
+    await secondMeasurement.map({ sourceHead: "head-a", changedFiles: ["src\\two.ts", "src\\one.ts", "src/one.ts"] });
+    expect(first.changedFiles).toEqual(["src/one.ts", "src/two.ts"]);
+    expect(second.changedFiles).toEqual(first.changedFiles);
+    expect(firstMeasurement.lastMeasurement?.cacheKey).toBe(secondMeasurement.lastMeasurement?.cacheKey);
+  });
+
+  it("changes cache identity when authoritative impact inputs change", async () => {
+    const source = new StaticImpactEvidenceSource("HOST", evidence());
+    const map = async (overrides: Partial<{ sourceHead: string; risk: "LOW" | "MEDIUM" | "HIGH" }>) => {
+      const mapper = new ImpactMapper({ sources: [source], maxDepth: 4 });
+      await mapper.map({ sourceHead: overrides.sourceHead ?? "head-a", changedFiles: ["src/runtime/workbench/application.ts"], risk: overrides.risk });
+      return mapper.lastMeasurement?.cacheKey;
+    };
+    const baselineKey = await map({});
+    expect(await map({ sourceHead: "head-b" })).not.toBe(baselineKey);
+    expect(await map({ risk: "HIGH" })).not.toBe(baselineKey);
+    const deeper = new ImpactMapper({ sources: [source], maxDepth: 5 });
+    await deeper.map({ sourceHead: "head-a", changedFiles: ["src/runtime/workbench/application.ts"] });
+    expect(deeper.lastMeasurement?.cacheKey).not.toBe(baselineKey);
+    expect(baselineKey).toMatch(/^impact-v1-[a-f0-9]{64}$/);
+  });
+
+  it("invalidates cache identity when graph authority changes and keeps large seed material bounded", async () => {
+    const base = evidence();
+    const changedAuthority = { nodes: [...base.nodes, impactNode({ nodeId: "file:authority", type: "FILE", label: "src/authority.ts", path: "src/authority.ts" })], edges: base.edges };
+    const originalMapper = new ImpactMapper({ sources: [new StaticImpactEvidenceSource("HOST", base)] });
+    const changedMapper = new ImpactMapper({ sources: [new StaticImpactEvidenceSource("HOST", changedAuthority)] });
+    await originalMapper.map({ sourceHead: "head-a", changedFiles: ["src/runtime/workbench/application.ts"] });
+    await changedMapper.map({ sourceHead: "head-a", changedFiles: ["src/runtime/workbench/application.ts"] });
+    expect(changedMapper.lastMeasurement?.cacheKey).not.toBe(originalMapper.lastMeasurement?.cacheKey);
+
+    const largeSeeds = ["src/runtime/workbench/application.ts", ...Array.from({ length: 100 }, (_, index) => `src/unrelated/${index}.ts`)];
+    const boundedMapper = new ImpactMapper({ sources: [new StaticImpactEvidenceSource("HOST", base)] });
+    await boundedMapper.map({ sourceHead: "head-a", changedFiles: largeSeeds });
+    const cacheKey = boundedMapper.lastMeasurement?.cacheKey;
+    expect(cacheKey).toMatch(/^impact-v1-[a-f0-9]{64}$/);
+    expect(cacheKey).toHaveLength(74);
+    expect(cacheKey).not.toContain("src/unrelated");
+  });
+
+  it("closes an environmental incident without inventing a source candidate", async () => {
+    const value = orchestrator(proposal());
+    let transaction = await value.captureIncident({ incident: incident(), repairId: "repair-1", risk: "HIGH" });
+    transaction = RepairTransactionSchema.parse({ ...transaction, baseline: baseline() });
+    transaction = await value.diagnose(transaction);
+    transaction = await value.analyzeImpact(transaction, { changedFiles: ["src/runtime/workbench/application.ts"] });
+    transaction = await value.completeWithoutSourceRepair(transaction);
+    expect(transaction.status).toBe("NO_SOURCE_REPAIR_REQUIRED");
+    expect(transaction.proposal).toBeUndefined();
+    expect(transaction.providerCalls).toBe(0);
   });
 
   it("discovers ledger regressions from the impacted subsystem without specialist hints", async () => {

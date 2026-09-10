@@ -1,4 +1,4 @@
-import { ChangeImpactGraphSchema, checksumImpactGraph, ImpactEdgeSchema, ImpactNodeSchema, type ChangeImpactGraph, type ImpactEdge, type ImpactGraphMeasurement, type ImpactNode, type RepairRisk } from "./contracts";
+import { ChangeImpactGraphSchema, checksumImpactGraph, checksumRepairValue, ImpactEdgeSchema, ImpactNodeSchema, type ChangeImpactGraph, type ImpactEdge, type ImpactGraphMeasurement, type ImpactNode, type RepairRisk } from "./contracts";
 import { RegressionLedger } from "./ledger";
 
 export type ImpactEvidence = { source: ImpactNode["source"]; nodes: readonly ImpactNode[]; edges: readonly ImpactEdge[] };
@@ -22,8 +22,22 @@ export type ImpactMapperOptions = {
   maxEdges?: number;
 };
 
+export const IMPACT_CACHE_IDENTITY_VERSION = "impact-v1";
+
 const normalizePath = (value: string) => value.replaceAll("\\", "/");
-const sortStrings = (values: Iterable<string>) => [...values].sort((a, b) => a.localeCompare(b));
+const sortStrings = (values: Iterable<string>) => [...new Set(values)].sort((a, b) => a.localeCompare(b));
+
+function normalizedNode(node: ImpactNode) {
+  return { nodeId: node.nodeId, type: node.type, label: node.label, ...(node.path ? { path: normalizePath(node.path) } : {}), source: node.source, protected: node.protected };
+}
+
+function normalizedEdge(edge: ImpactEdge) {
+  return { edgeId: edge.edgeId, from: edge.from, to: edge.to, type: edge.type, source: edge.source, evidenceRefs: sortStrings(edge.evidenceRefs) };
+}
+
+function normalizedRegression(entry: Awaited<ReturnType<RegressionLedger["list"]>>[number]) {
+  return { regressionId: entry.regressionId, safeFingerprint: entry.safeFingerprint, subsystem: entry.subsystem, rootCauseClass: entry.rootCauseClass, protectingInvariant: entry.protectingInvariant, regressionTestRefs: sortStrings(entry.regressionTestRefs), affectedContracts: sortStrings(entry.affectedContracts), affectedRuntimeBoundaries: sortStrings(entry.affectedRuntimeBoundaries), status: entry.status };
+}
 
 export class ImpactMapper {
   private readonly maxDepth: number;
@@ -42,7 +56,8 @@ export class ImpactMapper {
 
   async map(input: { sourceHead: string; changedFiles: readonly string[]; risk?: RepairRisk }): Promise<ChangeImpactGraph> {
     const startedAt = performance.now();
-    const maxDepth = input.risk === "HIGH" ? this.maxDepth + 2 : input.risk === "LOW" ? Math.min(this.maxDepth, 2) : this.maxDepth;
+    const risk = input.risk ?? "MEDIUM";
+    const maxDepth = risk === "HIGH" ? this.maxDepth + 2 : risk === "LOW" ? Math.min(this.maxDepth, 2) : this.maxDepth;
     const changedFiles = sortStrings(input.changedFiles.map(normalizePath));
     const nodesById = new Map<string, ImpactNode>();
     const edgesById = new Map<string, ImpactEdge>();
@@ -108,7 +123,17 @@ export class ImpactMapper {
     const identityBase = { graphId: "pending", sourceHead: input.sourceHead, changedFiles, nodes: finalNodes, edges: finalEdges, directNodeIds, transitiveNodeIds, mandatoryRegressionIds, maxDepth, bounded: true, nodeCount: finalNodes.length, edgeCount: finalEdges.length };
     const base = { ...identityBase, graphId: `impact:${input.sourceHead}:${checksumImpactGraph(identityBase).slice(0, 32)}` };
     const result = ChangeImpactGraphSchema.parse({ ...base, checksum: checksumImpactGraph(base) });
-    this._lastMeasurement = { buildDurationMs: Number((performance.now() - startedAt).toFixed(3)), nodeCount: result.nodeCount, edgeCount: result.edgeCount, traversedNodeCount: reachableNodeIds.length, bounded: result.bounded, cacheKey: `${input.sourceHead}:${changedFiles.join(",")}` };
+    const cacheMaterial = {
+      version: IMPACT_CACHE_IDENTITY_VERSION,
+      sourceHead: input.sourceHead,
+      changedFiles,
+      risk,
+      traversal: { baseMaxDepth: this.maxDepth, effectiveMaxDepth: maxDepth, maxNodes: this.maxNodes, maxEdges: this.maxEdges },
+      nodes: finalNodes.map(normalizedNode),
+      edges: finalEdges.map(normalizedEdge),
+      regressions: discovered.map(normalizedRegression).sort((a, b) => a.regressionId.localeCompare(b.regressionId)),
+    };
+    this._lastMeasurement = { buildDurationMs: Number((performance.now() - startedAt).toFixed(3)), nodeCount: result.nodeCount, edgeCount: result.edgeCount, traversedNodeCount: reachableNodeIds.length, bounded: result.bounded, cacheKey: `${IMPACT_CACHE_IDENTITY_VERSION}-${checksumRepairValue(cacheMaterial)}` };
     return result;
   }
 }

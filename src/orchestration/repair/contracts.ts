@@ -3,7 +3,7 @@ import { z } from "zod";
 import { stableValue } from "@/persistence/database/serialization";
 
 const SafeTextSchema = z.string().min(1).max(1000);
-const SafeIdSchema = z.string().min(1).max(160).regex(/^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/);
+export const SafeIdSchema = z.string().min(1).max(160).regex(/^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/);
 const HashSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const SafeFingerprintSchema = z.string().min(1).max(256);
 const RepoPathSchema = z.string().min(1).max(300).regex(/^(?![A-Za-z]:[\\/])(?![\\/])(?!.*(?:^|[\\/])\.\.(?:[\\/]|$))(?!.*\\.git(?:[\\/]|$))(?!.*(?:^|[\\/])node_modules(?:[\\/]|$))(?!.*(?:^|[\\/])\.next(?:[\\/]|$)).+$/);
@@ -17,7 +17,7 @@ export const REPAIR_STATUS_MACHINE_VERSION = "safe-repair-status-v1";
 export const RepairSourceSchema = z.enum(["WORKBENCH", "PROVIDER", "BUILD", "TEST", "RUNTIME", "PERSISTENCE", "CONTRACT", "MANUAL"]);
 export const RepairRiskSchema = z.enum(["LOW", "MEDIUM", "HIGH"]);
 export type RepairRisk = z.infer<typeof RepairRiskSchema>;
-export const RepairStatusSchema = z.enum(["INCIDENT_CAPTURED", "DIAGNOSING", "IMPACT_ANALYZED", "READY_FOR_REPAIR", "REPAIRING", "VERIFYING", "REVIEW_BLOCKED", "READY_FOR_INTEGRATION", "INTEGRATED", "REJECTED", "STALE"]);
+export const RepairStatusSchema = z.enum(["INCIDENT_CAPTURED", "DIAGNOSING", "IMPACT_ANALYZED", "READY_FOR_REPAIR", "REPAIRING", "VERIFYING", "REVIEW_BLOCKED", "READY_FOR_INTEGRATION", "INTEGRATED", "NO_SOURCE_REPAIR_REQUIRED", "REJECTED", "STALE"]);
 export const RepairNodeTypeSchema = z.enum(["FILE", "SYMBOL", "MODULE", "PUBLIC_EXPORT", "TYPE_CONTRACT", "PROVIDER_CONTRACT", "WORKBENCH_ACTION", "LIFECYCLE_STATE", "PERSISTENCE_ENTITY", "DATABASE_SCHEMA", "RLS_POLICY", "ROUTE", "RUNTIME_BOUNDARY", "TEST", "PROTECTED_ARTIFACT", "SPECIALIST_OWNERSHIP", "REGRESSION"]);
 export const RepairEdgeTypeSchema = z.enum(["IMPORTS", "RE_EXPORTS", "CALLS", "IMPLEMENTS", "VALIDATES", "PERSISTS", "TRANSITIONS_TO", "USES_CONTRACT", "OWNS", "PROTECTS", "TESTS", "DEPENDS_ON"]);
 export const RepairEvidenceSourceSchema = z.enum(["TYPESCRIPT_AST", "PUBLIC_EXPORTS", "WORKBENCH_REGISTRY", "LIFECYCLE_AUTHORITY", "PROVIDER_REGISTRY", "ROUTE_MANIFEST", "ZOD_SCHEMA", "PERSISTENCE_ADAPTER", "DATABASE_METADATA", "TEST_REGISTRY", "SPECIALIST_REGISTRY", "REGRESSION_LEDGER", "HOST"]);

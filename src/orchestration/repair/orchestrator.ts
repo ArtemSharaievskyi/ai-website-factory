@@ -7,13 +7,14 @@ import { InMemoryRepairWorkspace, type RepairWorkspacePort } from "./workspace";
 const transitionTable: Record<RepairTransaction["status"], readonly RepairTransaction["status"][]> = {
   INCIDENT_CAPTURED: ["DIAGNOSING", "REJECTED"],
   DIAGNOSING: ["IMPACT_ANALYZED", "REJECTED"],
-  IMPACT_ANALYZED: ["READY_FOR_REPAIR", "REJECTED", "STALE"],
+  IMPACT_ANALYZED: ["READY_FOR_REPAIR", "NO_SOURCE_REPAIR_REQUIRED", "REJECTED", "STALE"],
   READY_FOR_REPAIR: ["REPAIRING", "REJECTED", "STALE"],
   REPAIRING: ["VERIFYING", "REJECTED", "STALE"],
   VERIFYING: ["READY_FOR_INTEGRATION", "REVIEW_BLOCKED", "REJECTED", "STALE"],
   REVIEW_BLOCKED: ["REJECTED", "STALE"],
   READY_FOR_INTEGRATION: ["INTEGRATED", "REJECTED", "STALE"],
   INTEGRATED: [],
+  NO_SOURCE_REPAIR_REQUIRED: [],
   REJECTED: [],
   STALE: [],
 };
@@ -147,6 +148,13 @@ export class SafeRepairOrchestrator {
     if (currentSourceHead !== baseline.sourceHead) return this.update(transaction, { integrationDecision: { decision: "BLOCK", reason: "REPAIR_BASELINE_STALE", reasons: ["Canonical source HEAD changed after baseline capture."], decidedAt: currentTime() }, status: "STALE" });
     const impact = await this.dependencies.impactMapper.map({ sourceHead: baseline.sourceHead, changedFiles: input.changedFiles, risk: transaction.risk });
     return this.update(transaction, { impact, performance: this.dependencies.impactMapper.lastMeasurement, status: "IMPACT_ANALYZED" });
+  }
+
+  async completeWithoutSourceRepair(transaction: RepairTransaction) {
+    this.assertStatus(transaction, "IMPACT_ANALYZED");
+    if (transaction.providerBudget !== 0 || transaction.providerCalls !== 0) throw new SafeRepairError("REPAIR_PROVIDER_BUDGET_EXCEEDED", "A no-source-repair outcome requires zero provider calls.");
+    if (transaction.proposal || transaction.workspace || transaction.verification || transaction.integrationDecision) throw new SafeRepairError("REPAIR_SOURCE_CANDIDATE_UNEXPECTED", "A no-source-repair outcome cannot contain a source candidate or integration decision.");
+    return this.update(transaction, { status: "NO_SOURCE_REPAIR_REQUIRED" });
   }
 
   async openRepairWorkspace(transaction: RepairTransaction, input: { project?: RepairWorkspaceOpenInputProject; projectVersion?: number; operationId?: string } = {}) {
