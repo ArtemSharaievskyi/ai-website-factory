@@ -4,6 +4,55 @@ const SafeDiagnosticTokenSchema = z.string().min(1).max(160).regex(/^[A-Za-z0-9]
 const SafeDiagnosticPathSchema = z.string().min(1).max(240).regex(/^[A-Za-z0-9_$.[\]/:-]+$/);
 const SafeDiagnosticChecksumSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const SafeDiagnosticMessageSchema = z.string().min(1).max(500);
+export const ProviderTransportPhaseSchema = z.enum([
+  "CLIENT_INITIALIZATION",
+  "DNS",
+  "CONNECT",
+  "TLS",
+  "REQUEST_SEND",
+  "WAITING_FOR_RESPONSE",
+  "RESPONSE_HEADERS",
+  "RESPONSE_BODY",
+  "UNKNOWN",
+]);
+export type ProviderTransportPhase = z.infer<typeof ProviderTransportPhaseSchema>;
+export const ProviderTransportFailureClassSchema = z.enum([
+  "DNS_RESOLUTION_FAILED",
+  "CONNECT_FAILED",
+  "TLS_HANDSHAKE_FAILED",
+  "CONNECT_TIMEOUT",
+  "RESPONSE_TIMEOUT",
+  "CONNECTION_RESET",
+  "REQUEST_ABORTED",
+  "HTTP_ERROR_RESPONSE",
+  "RESPONSE_STREAM_FAILED",
+  "PROVIDER_CLIENT_INITIALIZATION_FAILED",
+  "UNKNOWN_TRANSPORT_FAILURE",
+]);
+export type ProviderTransportFailureClass = z.infer<typeof ProviderTransportFailureClassSchema>;
+export const KnownTransportCauseCodeSchema = z.enum([
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_BODY_TIMEOUT",
+  "UND_ERR_SOCKET",
+  "ABORT_ERR",
+  "ERR_STREAM_PREMATURE_CLOSE",
+  "ERR_TLS_HANDSHAKE_TIMEOUT",
+  "ERR_TLS_CERT_ALTNAME_INVALID",
+  "DEPTH_ZERO_SELF_SIGNED_CERT",
+  "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+  "CERT_HAS_EXPIRED",
+]);
+export type KnownTransportCauseCode = z.infer<typeof KnownTransportCauseCodeSchema>;
+export const ProviderTransportElapsedBucketSchema = z.enum(["LT_10_MS", "LT_100_MS", "LT_1_S", "LT_10_S", "LT_60_S", "GTE_60_S"]);
+export type ProviderTransportElapsedBucket = z.infer<typeof ProviderTransportElapsedBucketSchema>;
 const SafeZodIssueSchema = z.object({
   path: SafeDiagnosticPathSchema,
   code: SafeDiagnosticTokenSchema,
@@ -41,6 +90,16 @@ export const ProviderFailureDiagnosticSchema = z.object({
   providerErrorType: SafeDiagnosticTokenSchema.optional(),
   providerErrorParam: SafeDiagnosticTokenSchema.optional(),
   safeProviderMessage: SafeDiagnosticMessageSchema.optional(),
+  transportPhase: ProviderTransportPhaseSchema.optional(),
+  transportFailureClass: ProviderTransportFailureClassSchema.optional(),
+  transportCauseCode: KnownTransportCauseCodeSchema.optional(),
+  endpointClass: SafeDiagnosticTokenSchema.optional(),
+  timeoutConfiguredMs: z.number().int().positive().max(86_400_000).optional(),
+  configuredMaxRetries: z.number().int().nonnegative().max(8).optional(),
+  elapsedBucket: ProviderTransportElapsedBucketSchema.optional(),
+  requestSizeBytes: z.number().int().nonnegative().max(20_000_000).optional(),
+  inputBytes: z.number().int().nonnegative().max(20_000_000).optional(),
+  schemaSizeBytes: z.number().int().nonnegative().max(20_000_000).optional(),
   errorCode: SafeDiagnosticTokenSchema.optional(),
   schemaName: SafeDiagnosticTokenSchema.optional(),
   choicesCount: z.number().int().nonnegative().optional(),

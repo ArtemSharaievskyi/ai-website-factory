@@ -1,11 +1,13 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { ProviderInvocationLedgerPort, ProviderInvocationLedgerState } from "@/integrations/openai/usage";
 import type { PlanningAdmissionBoundary, PlanningFinalAdmissionDiagnostics } from "@/agents/planner/final-admission-diagnostics";
+import type { ProviderFailureDiagnostic } from "@/domain/shared/provider-failure";
 
 export const WORKBENCH_OPERATION_STAGES = [
   "WORKBENCH_DISPATCH",
   "OPERATION_INITIALIZATION",
   "PREFLIGHT",
+  "PROVIDER_TRANSPORT",
   "DECOMPOSITION",
   "GRAPH",
   "COVERAGE",
@@ -29,6 +31,7 @@ export type WorkbenchOperationFailureDetails = {
   reasonCode?: string;
   safeErrorFingerprint: string;
   providerContract?: string;
+  providerDiagnostic?: ProviderFailureDiagnostic;
   providerCallsTotal: number;
   providerCallsByStage: Record<string, {
     attempted: number;

@@ -1,4 +1,5 @@
 import type { ContextBundle } from "@/runtime/context";
+import type { KnownTransportCauseCode, ProviderTransportElapsedBucket, ProviderTransportFailureClass, ProviderTransportPhase } from "@/domain/shared/provider-failure";
 export type ProviderUsage = { inputTokens?: number; cachedInputTokens?: number; uncachedInputTokens?: number; outputTokens?: number; totalTokens?: number; actualUsageCaptured: boolean; cacheTelemetryUnavailable: boolean; requestCount: number; retryCount: number; correctionCount: number; provider: string; model: string; role: string; promptVersion: string; invocationId?: string; invocationFingerprint?: string; contextBundleId?: string; contextChecksum?: string; prefixChecksum?: string; prefixBytes?: number; contextMetrics?: ContextBundle["metrics"] };
 export type ProviderDiagnosticStage = "request_construction" | "api_request" | "api_response" | "structured_parse" | "domain_validation" | "provider_normalization";
 export const PROVIDER_OUTPUT_STAGES = [
@@ -32,6 +33,16 @@ export type ProviderDiagnostic = {
   openaiErrorParam?: string;
   /** Provider-supplied error text, normalized and capped; never a prompt or payload. */
   openaiErrorMessage?: string;
+  transportPhase?: ProviderTransportPhase;
+  transportFailureClass?: ProviderTransportFailureClass;
+  transportCauseCode?: KnownTransportCauseCode;
+  endpointClass?: string;
+  timeoutConfiguredMs?: number;
+  configuredMaxRetries?: number;
+  elapsedBucket?: ProviderTransportElapsedBucket;
+  requestSizeBytes?: number;
+  inputBytes?: number;
+  schemaSizeBytes?: number;
   choicesCount?: number;
   finishReason?: string | null;
   refusalPresent?: boolean;

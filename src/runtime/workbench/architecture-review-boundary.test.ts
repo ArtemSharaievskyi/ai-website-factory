@@ -8,6 +8,8 @@ import type { PlanningPackage, PlannerAgentInput } from "@/agents/planner/contra
 import type { ArchitectureReviewInput } from "@/agents/reviewers/architecture/contracts";
 import { ArchitectureReviewService } from "@/agents/reviewers/architecture/service";
 import { deterministicArchitectureReview } from "@/agents/reviewers/architecture/deterministic";
+import { OpenAiArchitectureReviewerProvider } from "@/integrations/openai/adapters";
+import { OpenAiStructuredClient } from "@/integrations/openai/client";
 import { ArchitectureReviewOrchestrationService } from "@/orchestration/architecture-review/service";
 import { createBriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
@@ -16,6 +18,7 @@ import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from 
 import { TrialEntryService } from "@/runtime/trial-entry/service";
 import { WorkbenchApplication } from "./application";
 import { WorkbenchRequestSchema, actionsForWorkbenchState } from "./contracts";
+import { workbenchFailureResponse } from "./diagnostics";
 
 const timestamp = "2026-08-23T12:00:00.000Z";
 const projectId = "28282828-2828-4282-8282-282828282828";
@@ -99,5 +102,47 @@ describe("canonical Workbench Architecture Review boundary", () => {
     expect(calls).toBe(1);
     expect(await new DocumentRepository(state.database).get(projectId, 1, "architecture-review")).not.toBeNull();
     expect((await state.database.transaction((tx) => tx.getOperation({ operation: "workbench.architecture-review", key: projectId })))?.status).toBe("SUCCEEDED");
+  });
+
+  it("persists bounded transport diagnostics through the real Architecture Workbench failure envelope", async () => {
+    const state = await fixture();
+    let providerCalls = 0;
+    const cause = Object.assign(new Error("SECRET_DNS_DETAIL"), { code: "ENOTFOUND" });
+    const provider = new OpenAiArchitectureReviewerProvider(new OpenAiStructuredClient({ apiKey: "synthetic", model: "synthetic-model", modelLabel: "Synthetic", maxRetries: 0, maxConcurrentRequests: 1 }, {
+      executor: async () => {
+        providerCalls += 1;
+        throw Object.assign(new Error("SECRET_PROVIDER_WRAPPER"), { cause });
+      },
+    }));
+    const service = new ArchitectureReviewOrchestrationService(state.database, new ArchitectureReviewService(state.database, { provider }));
+    const app = new WorkbenchApplication({ database: state.database, entry: state.entry, getWorkflowScope: () => ({ architectureReviewer: service, planner: undefined, design: undefined, orchestrator: undefined, contractAuditor: undefined } as never) });
+    let failure: unknown;
+    try {
+      await app.handle({ action: "generate-architecture-review", projectId });
+    } catch (error) {
+      failure = error;
+    }
+    expect(providerCalls).toBe(1);
+    const response = workbenchFailureResponse(failure, { action: "generate-architecture-review", projectId });
+    expect(response.status).toBe(503);
+    expect(response.response).toMatchObject({
+      code: "ARCHITECTURE_REVIEW_PROVIDER_FAILED",
+      operationStage: "PROVIDER_TRANSPORT",
+      providerCallsTotal: 1,
+      providerInvocationState: "FAILED",
+      canonicalArchitecturePersisted: false,
+      lifecycleMutated: false,
+      providerDiagnostic: {
+        transportPhase: "DNS",
+        transportFailureClass: "DNS_RESOLUTION_FAILED",
+        transportCauseCode: "ENOTFOUND",
+      },
+    });
+    expect(JSON.stringify(response.response)).not.toContain("SECRET_");
+    const operation = await state.database.transaction((tx) => tx.getOperation({ operation: "workbench.architecture-review", key: projectId }));
+    expect(operation).toMatchObject({ status: "FAILED", result: { stage: "PROVIDER_TRANSPORT", providerCallsTotal: 1, providerDiagnostic: { transportFailureClass: "DNS_RESOLUTION_FAILED" }, canonicalArchitecturePersisted: false, lifecycleMutated: false } });
+    expect(await new DocumentRepository(state.database).get(projectId, 1, "architecture-review")).toBeNull();
+    const current = await new ProjectRepository(state.database).getWithVersion(projectId);
+    expect(current).toMatchObject({ project: { workflowState: "ARCHITECTURE_REVIEW" }, rowVersion: 1 });
   });
 });

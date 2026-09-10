@@ -3,7 +3,7 @@ import type { ChatCompletion } from "openai/resources/chat/completions";
 import { z, type ZodType } from "zod";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { AiProviderError, isAiProviderError } from "./errors";
-import { createProviderFailureDiagnostic } from "./failure-diagnostics";
+import { classifyProviderTransportFailure, createProviderFailureDiagnostic } from "./failure-diagnostics";
 import { FifoConcurrencyLimiter } from "./limiter";
 import { DEFAULT_AI_MAX_COMPLETION_TOKENS, type AiProviderConfig } from "./config";
 import type { ProviderDiagnostic, ProviderEventSink, ProviderInvocationContext, ProviderOutputStage, ProviderUsage, ProviderUsageSink } from "./usage";
@@ -139,11 +139,14 @@ export class OpenAiStructuredClient {
     const maxCorrections = request.providerInvocation?.ledger ? 0 : request.retryPolicy?.corrections ?? 0;
     const startedAt = new Date().toISOString();
     const started = Date.now();
+    let requestDiagnostic: Partial<ProviderDiagnostic> | undefined;
+    let transportStarted = false;
     const operationEvent = request.providerInvocation ? { operationId: request.providerInvocation.operationId, correlationId: request.providerInvocation.correlationId, operationStage: request.providerInvocation.stage } : {};
     let suppliedInvocation = request.providerInvocation?.invocation;
     this.eventSink?.({ type: "request.started", provider: "openai", model: this.config.model, role: request.role, promptVersion: request.promptVersion, startedAt, ...operationEvent });
     try {
       while (true) {
+        transportStarted = false;
         let invocation = suppliedInvocation;
         suppliedInvocation = undefined;
         if (request.signal?.aborted) throw new AiProviderError("AI_REQUEST_CANCELLED", "AI request was cancelled.", undefined, { stage: "request_construction", requestAttempted: false, apiResponseReceived: false, responseReceived: false, outputComplete: false, schemaName: request.schemaName });
@@ -155,8 +158,10 @@ export class OpenAiStructuredClient {
           // irreversible provider budget. The executor builds the same format
           // for the SDK call, but this preflight keeps schema failures at zero
           // transport calls.
-          buildProductionResponseFormat(request.schema, request.schemaName, { schemaDefinitions: request.schemaDefinitions });
+          const responseFormat = buildProductionResponseFormat(request.schema, request.schemaName, { schemaDefinitions: request.schemaDefinitions });
+          requestDiagnostic = requestMetadata(request, responseFormat, this.client, this.config, correction);
           await invocation?.beforeTransport();
+          transportStarted = true;
           const captureResponse: ProviderResponseCapture = async (response) => {
             if (!capturedUsage) capturedUsage = await this.recordUsage(request, response, retries, correction);
           };
@@ -169,7 +174,7 @@ export class OpenAiStructuredClient {
           this.eventSink?.({ type: "request.completed", provider: "openai", model: this.config.model, role: request.role, promptVersion: request.promptVersion, requestId: result.requestId, retryCount: retries, startedAt, completedAt: new Date().toISOString(), elapsedMs: Date.now() - started, diagnostic: result.diagnostic, ...operationEvent });
           return { value: result.value, usage, requestId: result.requestId, diagnostic: result.diagnostic };
         } catch (error) {
-          const mapped = mapError(error, request.schemaName, true, this.config.model);
+          const mapped = mapError(error, request.schemaName, transportStarted, this.config.model, { ...requestDiagnostic, elapsedBucket: elapsedBucket(Date.now() - started) });
           if (invocation && (mapped.diagnostic?.responseReceived || mapped.diagnostic?.apiResponseReceived)) await invocation.responseReceived().catch(() => undefined);
           if (invocation) await invocation.failed().catch(() => undefined);
           if (mapped.code === "AI_OUTPUT_SCHEMA_MISMATCH" && !correction && maxCorrections > 0) {
@@ -186,7 +191,7 @@ export class OpenAiStructuredClient {
         }
       }
     } catch (error) {
-      throw mapError(error, request.schemaName, true, this.config.model);
+      throw mapError(error, request.schemaName, transportStarted, this.config.model, { ...requestDiagnostic, elapsedBucket: elapsedBucket(Date.now() - started) });
     }
   }
 
@@ -301,12 +306,7 @@ function completionResponseDiagnostic<T>(completion: ChatCompletion, request: St
 async function manualExecutor<T>(request: StructuredRequest<T>, client: OpenAI, config: AiProviderConfig, correction: boolean, captureResponse: ProviderResponseCapture) {
   const responseSchema = buildProductionResponseFormat(request.schema, request.schemaName, { schemaDefinitions: request.schemaDefinitions });
   const correctionInstruction = request.role === "design" ? "\nReturn exactly 3 directions. Repair only the structural deficiency; do not omit, clone, or add a fourth direction." : "\nCorrect the previous structured-output formatting.";
-  let completion: ChatCompletion;
-  try {
-    completion = await client.chat.completions.create({ model: config.model, max_completion_tokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, messages: [{ role: "system", content: `${request.system}${correction ? correctionInstruction : ""}` }, { role: "user", content: request.user }], response_format: responseSchema }, request.signal ? { signal: request.signal } : undefined) as unknown as ChatCompletion;
-  } catch (error) {
-    throw mapError(error, request.schemaName, true, config.model);
-  }
+  const completion = await client.chat.completions.create({ model: config.model, max_completion_tokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, messages: [{ role: "system", content: `${request.system}${correction ? correctionInstruction : ""}` }, { role: "user", content: request.user }], response_format: responseSchema }, request.signal ? { signal: request.signal } : undefined) as unknown as ChatCompletion;
   const choice = completion.choices[0];
   const message = choice?.message;
   const inputTokens = completion.usage?.prompt_tokens;
@@ -324,12 +324,7 @@ async function manualExecutor<T>(request: StructuredRequest<T>, client: OpenAI, 
 async function defaultExecutor<T>(request: StructuredRequest<T>, client: OpenAI, config: AiProviderConfig, correction: boolean) {
   const responseSchema = buildProductionResponseFormat(request.schema, request.schemaName, { schemaDefinitions: request.schemaDefinitions });
   const correctionInstruction = request.role === "design" ? "\nReturn exactly 3 directions. Repair only the structural deficiency; do not omit, clone, or add a fourth direction." : "\nCorrect the previous structured-output formatting.";
-  let completion: Awaited<ReturnType<OpenAI["chat"]["completions"]["parse"]>>;
-  try {
-  completion = await client.chat.completions.parse({ model: config.model, max_completion_tokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, messages: [{ role: "system", content: `${request.system}${correction ? correctionInstruction : ""}` }, { role: "user", content: request.user }], response_format: responseSchema }, request.signal ? { signal: request.signal } : undefined);
-  } catch (error) {
-    throw mapError(error, request.schemaName, true, config.model);
-  }
+  const completion = await client.chat.completions.parse({ model: config.model, max_completion_tokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, messages: [{ role: "system", content: `${request.system}${correction ? correctionInstruction : ""}` }, { role: "user", content: request.user }], response_format: responseSchema }, request.signal ? { signal: request.signal } : undefined);
   const choice = completion.choices[0];
   const message = choice?.message;
   const inputTokens = completion.usage?.prompt_tokens;
@@ -348,6 +343,48 @@ async function defaultExecutor<T>(request: StructuredRequest<T>, client: OpenAI,
     throw new AiProviderError("AI_OUTPUT_DOMAIN_INVALID", "Provider structured output failed the strict transport schema.", error, { ...responseDiagnostic, stage: "domain_validation", outputStage: "TRANSPORT_SCHEMA_VALIDATION_FAILED", issueCode: zodIssueCode(error), fieldPath: zodIssuePaths(error)?.[0], issueCount: zodIssueCount(error), domainValidationIssuePaths: zodIssuePaths(error) });
   }
   return { value, requestId: completion.id, inputTokens, ...(completion.usage?.prompt_tokens_details?.cached_tokens === undefined ? {} : { cachedInputTokens: completion.usage.prompt_tokens_details.cached_tokens }), outputTokens, diagnostic: responseDiagnostic } as const;
+}
+
+function elapsedBucket(elapsedMs: number) {
+  if (elapsedMs < 10) return "LT_10_MS" as const;
+  if (elapsedMs < 100) return "LT_100_MS" as const;
+  if (elapsedMs < 1_000) return "LT_1_S" as const;
+  if (elapsedMs < 10_000) return "LT_10_S" as const;
+  if (elapsedMs < 60_000) return "LT_60_S" as const;
+  return "GTE_60_S" as const;
+}
+
+function endpointClass(baseURL: unknown) {
+  if (typeof baseURL !== "string") return "OPENAI_API_DEFAULT";
+  try {
+    const parsed = new URL(baseURL);
+    return parsed.hostname === "api.openai.com" && parsed.pathname.startsWith("/v1")
+      ? "OPENAI_CHAT_COMPLETIONS_API"
+      : "CUSTOM_PROVIDER_ENDPOINT";
+  } catch {
+    return "UNKNOWN_PROVIDER_ENDPOINT";
+  }
+}
+
+function requestMetadata<T>(request: StructuredRequest<T>, responseFormat: unknown, client: OpenAI, config: AiProviderConfig, correction: boolean): Partial<ProviderDiagnostic> {
+  const correctionInstruction = request.role === "design" ? "\nReturn exactly 3 directions. Repair only the structural deficiency; do not omit, clone, or add a fourth direction." : "\nCorrect the previous structured-output formatting.";
+  const system = `${request.system}${correction ? correctionInstruction : ""}`;
+  const inputBytes = Buffer.byteLength(`${system}\n${request.user}`, "utf8");
+  const schemaJson = JSON.stringify(responseFormat);
+  const schemaSizeBytes = schemaJson === undefined ? undefined : Buffer.byteLength(schemaJson, "utf8");
+  const requestJson = JSON.stringify({ model: config.model, max_completion_tokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, messages: [{ role: "system", content: system }, { role: "user", content: request.user }], response_format: responseFormat });
+  const requestSizeBytes = requestJson === undefined ? undefined : Buffer.byteLength(requestJson, "utf8");
+  const timeoutConfiguredMs = typeof client.timeout === "number" && Number.isInteger(client.timeout) && client.timeout > 0 && client.timeout <= 86_400_000 ? client.timeout : undefined;
+  const configuredMaxRetries = typeof client.maxRetries === "number" && Number.isInteger(client.maxRetries) && client.maxRetries >= 0 && client.maxRetries <= 8 ? client.maxRetries : config.maxRetries;
+  return {
+    endpointClass: endpointClass(client.baseURL),
+    ...(timeoutConfiguredMs === undefined ? {} : { timeoutConfiguredMs }),
+    configuredMaxRetries,
+    ...(requestSizeBytes === undefined ? {} : { requestSizeBytes }),
+    inputBytes,
+    ...(schemaSizeBytes === undefined ? {} : { schemaSizeBytes }),
+    maxCompletionTokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS,
+  };
 }
 
 function safeClassName(error: unknown) { return error instanceof Error && error.constructor?.name ? error.constructor.name : typeof error === "object" && error ? "SdkError" : "Error"; }
@@ -370,25 +407,30 @@ function zodIssueCode(error: unknown) {
   if (issue.code === "invalid_format") return "INVALID_FORMAT";
   return "INVALID_FIELD";
 }
-function diagnosticForError(error: unknown, schemaName: string, requestAttempted: boolean, outputStage: ProviderOutputStage = requestAttempted ? "PROVIDER_REQUEST_FAILED" : "REQUEST_SCHEMA_CONSTRUCTION_FAILED"): ProviderDiagnostic {
+function diagnosticForError(error: unknown, schemaName: string, requestAttempted: boolean, outputStage: ProviderOutputStage = requestAttempted ? "PROVIDER_REQUEST_FAILED" : "REQUEST_SCHEMA_CONSTRUCTION_FAILED", context: Partial<ProviderDiagnostic> = {}): ProviderDiagnostic {
   const shape = safeProviderErrorShape(error);
   const apiError = shape.error ?? {};
   const responseReceived = safeStatus(shape.status) !== undefined;
-  return { stage: requestAttempted ? "api_request" : "structured_parse", outputStage, requestAttempted, apiResponseReceived: responseReceived, responseReceived, outputComplete: false, httpStatus: safeStatus(shape.status), requestId: safeString(shape.requestID) ?? safeString(shape.request_id), sdkErrorClass: safeClassName(error), openaiErrorType: safeString(apiError.type) ?? safeString(shape.type), openaiErrorCode: safeString(apiError.code) ?? safeString(shape.code), openaiErrorParam: safeString(apiError.param) ?? safeString(shape.param), openaiErrorMessage: safeProviderMessage(apiError.message), schemaName };
+  const diagnosticBase: ProviderDiagnostic = { stage: requestAttempted ? "api_request" : "structured_parse", outputStage, requestAttempted, apiResponseReceived: responseReceived, responseReceived, outputComplete: false, httpStatus: safeStatus(shape.status), requestId: safeString(shape.requestID) ?? safeString(shape.request_id), sdkErrorClass: safeClassName(error), openaiErrorType: safeString(apiError.type) ?? safeString(shape.type), openaiErrorCode: safeString(apiError.code) ?? safeString(shape.code), openaiErrorParam: safeString(apiError.param) ?? safeString(shape.param), openaiErrorMessage: safeProviderMessage(apiError.message), schemaName };
+  const diagnostic = { ...diagnosticBase, ...context } as ProviderDiagnostic;
+  const transport = classifyProviderTransportFailure({ errorCode: "AI_OUTPUT_INVALID", requestAttempted, diagnostic, error });
+  return { ...diagnostic, ...(transport ?? {}) };
 }
-function withFailureDiagnostic(error: AiProviderError, schemaName: string, requestAttempted: boolean, model: string): AiProviderError {
+function withFailureDiagnostic(error: AiProviderError, schemaName: string, requestAttempted: boolean, model: string, context: Partial<ProviderDiagnostic> = {}): AiProviderError {
   const effectiveRequestAttempted = error.diagnostic?.requestAttempted ?? requestAttempted;
-  if (error.failureDiagnostic?.errorCode === error.code && error.failureDiagnostic.schemaName === schemaName && error.failureDiagnostic.model === model) return error;
-  return new AiProviderError(error.code, error.message, error.cause, error.diagnostic, createProviderFailureDiagnostic({ errorCode: error.code, model, schemaName, requestAttempted: effectiveRequestAttempted, diagnostic: error.diagnostic, error: error.cause ?? error }));
+  const diagnostic = { ...error.diagnostic, ...context } as ProviderDiagnostic;
+  if (!Object.keys(context).length && error.failureDiagnostic?.errorCode === error.code && error.failureDiagnostic.schemaName === schemaName && error.failureDiagnostic.model === model) return error;
+  return new AiProviderError(error.code, error.message, error.cause, diagnostic, createProviderFailureDiagnostic({ errorCode: error.code, model, schemaName, requestAttempted: effectiveRequestAttempted, diagnostic, error: error.cause ?? error }));
 }
 
-function mapError(error: unknown, schemaName = "unknown", requestAttempted = true, model = "unknown"): AiProviderError {
-  if (isAiProviderError(error)) return withFailureDiagnostic(error, schemaName, requestAttempted, model);
-  if (error instanceof z.ZodError) return withFailureDiagnostic(new AiProviderError("AI_STRUCTURED_PARSE_FAILED", "Provider structured output could not be parsed safely.", error, { ...diagnosticForError(error, schemaName, requestAttempted, "STRUCTURED_OUTPUT_PARSE_FAILED"), stage: "structured_parse", issueCode: zodIssueCode(error), fieldPath: zodIssuePaths(error)?.[0], issueCount: zodIssueCount(error), domainValidationIssuePaths: zodIssuePaths(error) }), schemaName, requestAttempted, model);
+function mapError(error: unknown, schemaName = "unknown", requestAttempted = true, model = "unknown", context: Partial<ProviderDiagnostic> = {}): AiProviderError {
+  if (isAiProviderError(error)) return withFailureDiagnostic(error, schemaName, requestAttempted, model, context);
+  if (error instanceof z.ZodError) return withFailureDiagnostic(new AiProviderError("AI_STRUCTURED_PARSE_FAILED", "Provider structured output could not be parsed safely.", error, { ...diagnosticForError(error, schemaName, requestAttempted, "STRUCTURED_OUTPUT_PARSE_FAILED", context), stage: "structured_parse", issueCode: zodIssueCode(error), fieldPath: zodIssuePaths(error)?.[0], issueCount: zodIssueCount(error), domainValidationIssuePaths: zodIssuePaths(error) }), schemaName, requestAttempted, model);
   const shape = safeProviderErrorShape(error);
   const status = safeStatus(shape.status);
   const code = safeString((shape.error ?? {}).code) ?? safeString(shape.code);
-  const diagnostic = diagnosticForError(error, schemaName, requestAttempted);
+  const diagnostic = diagnosticForError(error, schemaName, requestAttempted, undefined, context);
+  const transportClass = diagnostic.transportFailureClass;
   let mapped: AiProviderError;
   if (status === 400 && (code === "unsupported_value" || code === "unsupported_parameter" || code === "unknown_parameter")) mapped = new AiProviderError("AI_REQUEST_PARAMETER_UNSUPPORTED", "AI provider rejected an unsupported request parameter.", error, diagnostic);
   else if (status === 400) mapped = new AiProviderError("AI_REQUEST_INVALID", "AI provider rejected the request contract.", error, diagnostic);
@@ -396,7 +438,9 @@ function mapError(error: unknown, schemaName = "unknown", requestAttempted = tru
   else if (status === 404) mapped = new AiProviderError("AI_MODEL_ACCESS_FAILED", "AI provider rejected model access.", undefined, diagnostic);
   else if (status === 429) mapped = new AiProviderError("AI_RATE_LIMITED", "AI provider rate limit reached.", undefined, diagnostic);
   else if (status !== undefined && status >= 500) mapped = new AiProviderError("AI_PROVIDER_UNAVAILABLE", "AI provider is unavailable.", undefined, diagnostic);
-  else if (shape.name === "AbortError" || code === "ETIMEDOUT" || code === "ECONNRESET") mapped = new AiProviderError("AI_NETWORK_ERROR", "AI provider network request failed safely.", undefined, diagnostic);
+  else if (transportClass === "REQUEST_ABORTED" || shape.name === "AbortError") mapped = new AiProviderError("AI_REQUEST_CANCELLED", "AI provider request was cancelled.", undefined, diagnostic);
+  else if (transportClass === "CONNECT_TIMEOUT" || transportClass === "RESPONSE_TIMEOUT" || shape.name === "APIConnectionTimeoutError" || code === "ETIMEDOUT") mapped = new AiProviderError("AI_REQUEST_TIMEOUT", "AI provider request timed out safely.", undefined, diagnostic);
+  else if (transportClass && transportClass !== "HTTP_ERROR_RESPONSE") mapped = new AiProviderError("AI_NETWORK_ERROR", "AI provider network request failed safely.", undefined, diagnostic);
   else mapped = new AiProviderError("AI_OUTPUT_INVALID", "AI provider request failed safely.", error, diagnostic);
   return withFailureDiagnostic(mapped, schemaName, requestAttempted, model);
 }

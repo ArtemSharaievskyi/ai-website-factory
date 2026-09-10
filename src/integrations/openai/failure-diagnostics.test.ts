@@ -43,6 +43,7 @@ describe("provider failure diagnostic normalization", () => {
     }
     expect(failure?.code).toBe("AI_OUTPUT_NO_PARSED_OUTPUT");
     expect(failure?.failureDiagnostic).toMatchObject({ category: "STRUCTURED_OUTPUT", stage: "PROVIDER_RESPONSE", requestAttempted: true, responseReceived: true, structuredParsingReached: true, requestId: "req_parse", errorCode: "AI_OUTPUT_NO_PARSED_OUTPUT" });
+    expect(failure?.failureDiagnostic).not.toHaveProperty("transportFailureClass");
     expect(JSON.stringify(failure?.failureDiagnostic)).not.toContain("SECRET_RESPONSE_CONTENT");
   });
 
@@ -85,4 +86,54 @@ describe("provider failure diagnostic normalization", () => {
     expect(JSON.stringify(failure.failureDiagnostic)).not.toContain("SECRET_");
     expect(ProviderFailureDiagnosticSchema.safeParse(failure.failureDiagnostic).success).toBe(true);
   });
+
+  it.each([
+    ["DNS resolution", Object.assign(new Error("SECRET_DNS"), { code: "ENOTFOUND" }), "AI_NETWORK_ERROR", "DNS", "DNS_RESOLUTION_FAILED", "ENOTFOUND"],
+    ["connection refused", Object.assign(new Error("SECRET_CONNECT"), { code: "ECONNREFUSED" }), "AI_NETWORK_ERROR", "CONNECT", "CONNECT_FAILED", "ECONNREFUSED"],
+    ["network unreachable", Object.assign(new Error("SECRET_UNREACHABLE"), { code: "EHOSTUNREACH" }), "AI_NETWORK_ERROR", "CONNECT", "CONNECT_FAILED", "EHOSTUNREACH"],
+    ["connection reset", Object.assign(new Error("SECRET_RESET"), { code: "ECONNRESET" }), "AI_NETWORK_ERROR", "UNKNOWN", "CONNECTION_RESET", "ECONNRESET"],
+    ["connect timeout", Object.assign(new Error("SECRET_TIMEOUT"), { name: "ConnectTimeoutError", code: "UND_ERR_CONNECT_TIMEOUT" }), "AI_REQUEST_TIMEOUT", "CONNECT", "CONNECT_TIMEOUT", "UND_ERR_CONNECT_TIMEOUT"],
+    ["request abort", Object.assign(new Error("SECRET_ABORT"), { name: "AbortError", code: "ABORT_ERR" }), "AI_REQUEST_CANCELLED", "UNKNOWN", "REQUEST_ABORTED", "ABORT_ERR"],
+    ["HTTP error response", Object.assign(new Error("SECRET_HTTP"), { status: 502, requestID: "req_http" }), "AI_PROVIDER_UNAVAILABLE", "RESPONSE_HEADERS", "HTTP_ERROR_RESPONSE", undefined],
+    ["unknown SDK transport", Object.assign(new Error("SECRET_UNKNOWN_TRANSPORT"), { name: "APIConnectionError" }), "AI_NETWORK_ERROR", "UNKNOWN", "UNKNOWN_TRANSPORT_FAILURE", undefined],
+  ] as const)("classifies bounded %s transport evidence", async (_name, error, code, phase, failureClass, causeCode) => {
+    const failure = await failureFor(error);
+    expect(failure).toMatchObject({ code });
+    expect(failure.failureDiagnostic).toMatchObject({
+      transportPhase: phase,
+      transportFailureClass: failureClass,
+      ...(causeCode ? { transportCauseCode: causeCode } : {}),
+      responseReceived: code === "AI_PROVIDER_UNAVAILABLE" ? true : false,
+    });
+    expect(JSON.stringify(failure.failureDiagnostic)).not.toContain("SECRET_");
+    expect(ProviderFailureDiagnosticSchema.safeParse(failure.failureDiagnostic).success).toBe(true);
+  });
+
+  it("walks a bounded nested cause chain and retains transport metrics without private values", async () => {
+    const cause = Object.assign(new Error("SECRET_NESTED_DNS"), { code: "ENOTFOUND" });
+    const failure = await failureFor(Object.assign(new Error("SECRET_WRAPPER"), { cause }));
+    expect(failure.failureDiagnostic).toMatchObject({
+      transportPhase: "DNS",
+      transportFailureClass: "DNS_RESOLUTION_FAILED",
+      transportCauseCode: "ENOTFOUND",
+      endpointClass: "OPENAI_CHAT_COMPLETIONS_API",
+      timeoutConfiguredMs: 600_000,
+      configuredMaxRetries: 0,
+      elapsedBucket: expect.stringMatching(/^LT_|^GTE_/),
+    });
+    expect(failure.failureDiagnostic?.requestSizeBytes).toBeGreaterThan(0);
+    expect(failure.failureDiagnostic?.inputBytes).toBeGreaterThan(0);
+    expect(failure.failureDiagnostic?.schemaSizeBytes).toBeGreaterThan(0);
+    expect(JSON.stringify(failure.failureDiagnostic)).not.toContain("SECRET_");
+  });
+
+  it("does not loop through a cyclic cause graph and does not promote a plain unknown error", async () => {
+    const cyclic = Object.assign(new Error("SECRET_CYCLE"), { code: "NOT_ALLOWLISTED" }) as Error & { cause?: unknown };
+    cyclic.cause = cyclic;
+    const failure = await failureFor(cyclic);
+    expect(failure.failureDiagnostic).toMatchObject({ category: "UNKNOWN", stage: "REQUEST_TRANSPORT", requestAttempted: true });
+    expect(failure.failureDiagnostic).not.toHaveProperty("transportFailureClass");
+    expect(JSON.stringify(failure.failureDiagnostic)).not.toContain("SECRET_");
+  });
+
 });

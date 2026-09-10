@@ -181,6 +181,7 @@ export class ArchitectureReviewService {
       : undefined;
     try {
       await providerInvocation?.beforeTransport();
+      await executionContext.setStage?.("PROVIDER_TRANSPORT");
       const providerResult = await this.provider.review(
         providerInput,
         signal,

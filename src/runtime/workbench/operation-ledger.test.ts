@@ -9,10 +9,11 @@ import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from 
 import { WorkbenchApplication } from "./application";
 import { workbenchFailureResponse } from "./diagnostics";
 import { WorkbenchOperationFailure } from "./operation-context";
-import { WorkbenchOperationLedger } from "./operation-ledger";
+import { WorkbenchOperationLedger, safeOperationFingerprint } from "./operation-ledger";
 import { OpenAiStructuredClient } from "@/integrations/openai/client";
 import { AiProviderError } from "@/integrations/openai/errors";
 import { PersistenceError } from "@/persistence/database/errors";
+import { ProviderFailureDiagnosticSchema } from "@/domain/shared/provider-failure";
 import { z } from "zod";
 
 const projectId = "47474747-4747-4474-8474-474747474747";
@@ -78,6 +79,17 @@ describe("durable Workbench Planning operation envelope", () => {
     await invocation.parsePassed();
     await invocation.admissionPassed();
     expect(ledger.snapshot()).toMatchObject({ providerCallsTotal: 1, providerCallsByStage: { decomposition: { attempted: 1, started: 1, responseReceived: 1, structuredParsePassed: 1, semanticAdmissionPassed: 1, completed: 1, failed: 0 }, coverage: { attempted: 0 } }, providerInvocationState: "ADMISSION_PASSED" });
+  });
+
+  it("differentiates bounded transport fingerprints without including provider details", () => {
+    const diagnostic = (transportPhase: "DNS" | "CONNECT", transportFailureClass: "DNS_RESOLUTION_FAILED" | "CONNECT_FAILED", transportCauseCode: "ENOTFOUND" | "ECONNREFUSED") => ProviderFailureDiagnosticSchema.parse({ version: 1, category: "NETWORK", stage: "REQUEST_TRANSPORT", requestAttempted: true, responseReceived: false, structuredParsingReached: false, retryabilityHint: true, provider: "openai", model: "synthetic-model", errorCode: "AI_NETWORK_ERROR", schemaName: "planning-decomposition-v4", transportPhase, transportFailureClass, transportCauseCode });
+    const dns = new AiProviderError("AI_NETWORK_ERROR", "private DNS failure", undefined, undefined, diagnostic("DNS", "DNS_RESOLUTION_FAILED", "ENOTFOUND"));
+    const connect = new AiProviderError("AI_NETWORK_ERROR", "private connect failure", undefined, undefined, diagnostic("CONNECT", "CONNECT_FAILED", "ECONNREFUSED"));
+    const dnsFingerprint = safeOperationFingerprint(dns, "PROVIDER_TRANSPORT");
+    const connectFingerprint = safeOperationFingerprint(connect, "PROVIDER_TRANSPORT");
+    expect(dnsFingerprint).not.toBe(connectFingerprint);
+    expect(dnsFingerprint).toMatch(/^AiProviderError@PROVIDER_TRANSPORT:[a-f0-9]{16}$/);
+    expect(dnsFingerprint).not.toContain("private");
   });
 
   it("keeps a pre-transport failure at zero provider calls", async () => {

@@ -5,7 +5,7 @@ import type { ProviderInvocationContext, ProviderInvocationLedgerPort } from "@/
 export type ArchitectureReviewExecutionContext = {
   correlationId?: string;
   providerInvocationLedger?: ProviderInvocationLedgerPort;
-  setStage?: (stage: "PREFLIGHT" | "PERSISTENCE") => void | Promise<void>;
+  setStage?: (stage: "PREFLIGHT" | "PROVIDER_TRANSPORT" | "PERSISTENCE") => void | Promise<void>;
   markCanonicalPersisted?: (lifecycleMutated: boolean) => void | Promise<void>;
 };
 

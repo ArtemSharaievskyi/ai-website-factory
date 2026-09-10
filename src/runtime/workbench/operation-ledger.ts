@@ -4,6 +4,8 @@ import type { PersistenceDatabase, OperationReservation } from "@/persistence/da
 import { isStagedPlanningFailure } from "@/agents/planner/staged-failures";
 import type { PlanningAdmissionBoundary, PlanningFinalAdmissionDiagnostics } from "@/agents/planner/final-admission-diagnostics";
 import type { ProviderInvocationLedgerHandle, ProviderInvocationLedgerPort, ProviderInvocationLedgerState, ProviderInvocationStage } from "@/integrations/openai/usage";
+import { providerFailureDiagnosticFromError } from "@/integrations/openai/failure-diagnostics";
+import type { ProviderFailureDiagnostic } from "@/domain/shared/provider-failure";
 import { WorkbenchOperationFailure, type WorkbenchOperationFailureDetails, type WorkbenchOperationStage } from "./operation-context";
 
 type ProviderCounters = {
@@ -30,6 +32,7 @@ type RecordState = {
   providerCallsTotal: number;
   providerCallsByStage: Record<ProviderInvocationStage, ProviderCounters>;
   providerInvocationState: ProviderInvocationLedgerState | null;
+  providerDiagnostic: ProviderFailureDiagnostic | null;
   providerInvocations: Invocation[];
   canonicalPlanningPersisted: boolean;
   lifecycleMutated: boolean;
@@ -56,6 +59,7 @@ const initialRecord = (operationId: string, projectId: string, correlationId: st
   providerCallsTotal: 0,
   providerCallsByStage: { decomposition: emptyCounters(), coverage: emptyCounters(), "architecture-review": emptyCounters() },
   providerInvocationState: null,
+  providerDiagnostic: null,
   providerInvocations: [],
   canonicalPlanningPersisted: false,
   lifecycleMutated: false,
@@ -83,7 +87,9 @@ const safeErrorClass = (error: unknown) => {
 
 export const safeOperationFingerprint = (error: unknown, stage: WorkbenchOperationStage, boundary?: PlanningAdmissionBoundary, reasonCode?: string) => {
   const category = safeCode(error)?.split("_", 1)[0] ?? "UNEXPECTED";
-  return `${safeErrorClass(error)}@${stage}:${createHash("sha256").update(`${safeErrorClass(error)}|${stage}|${category}|${boundary ?? ""}|${reasonCode ?? ""}`, "utf8").digest("hex").slice(0, 16)}`;
+  const providerDiagnostic = providerFailureDiagnosticFromError(error);
+  const transportIdentity = providerDiagnostic ? `${providerDiagnostic.transportPhase ?? ""}|${providerDiagnostic.transportFailureClass ?? ""}|${providerDiagnostic.transportCauseCode ?? ""}` : "";
+  return `${safeErrorClass(error)}@${stage}:${createHash("sha256").update(`${safeErrorClass(error)}|${stage}|${category}|${boundary ?? ""}|${reasonCode ?? ""}|${transportIdentity}`, "utf8").digest("hex").slice(0, 16)}`;
 };
 
 export class WorkbenchOperationConflict extends Error {
@@ -228,10 +234,12 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
     const boundary = stagedFailure?.details.boundary ?? (stagedFailure?.details.stage === "FINAL_ASSEMBLY" || stagedFailure?.details.stage === "FINAL_ADMISSION" ? stagedFailure.details.stage : undefined);
     const finalAdmissionDiagnostics = stagedFailure?.details.finalAdmissionDiagnostics;
     const safeErrorFingerprint = safeOperationFingerprint(error, operationStage, boundary, finalAdmissionDiagnostics?.primary.reasonCode ?? reasonCode);
+    const providerDiagnostic = providerFailureDiagnosticFromError(error);
     this.record = {
       ...this.record,
       stage: operationStage,
       providerContract: stagedFailure ? stagedFailure.details.providerContract ?? this.record.providerContract : this.record.providerContract,
+      providerDiagnostic: providerDiagnostic ?? this.record.providerDiagnostic,
       failureClass,
       outerCode,
       boundary: boundary ?? null,
@@ -255,6 +263,7 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
       ...(finalAdmissionDiagnostics ? { finalAdmissionDiagnostics } : {}),
       safeErrorFingerprint,
       ...(this.record.providerContract ? { providerContract: this.record.providerContract } : {}),
+      ...(this.record.providerDiagnostic ? { providerDiagnostic: this.record.providerDiagnostic } : {}),
       providerCallsTotal: this.record.providerCallsTotal,
       providerCallsByStage: structuredClone(this.record.providerCallsByStage),
       ...(this.record.providerInvocationState ? { providerInvocationState: this.record.providerInvocationState } : {}),

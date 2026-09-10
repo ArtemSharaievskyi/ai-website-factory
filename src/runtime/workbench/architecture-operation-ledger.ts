@@ -3,6 +3,8 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import type { PersistenceDatabase, OperationReservation } from "@/persistence/database/types";
 import type { ArchitectureReviewInput } from "@/agents/reviewers/architecture/contracts";
 import type { ProviderInvocationLedgerHandle, ProviderInvocationLedgerPort, ProviderInvocationLedgerState, ProviderInvocationStage } from "@/integrations/openai/usage";
+import { providerFailureDiagnosticFromError } from "@/integrations/openai/failure-diagnostics";
+import type { ProviderFailureDiagnostic } from "@/domain/shared/provider-failure";
 import { WorkbenchOperationFailure, type WorkbenchOperationFailureDetails, type WorkbenchOperationStage } from "./operation-context";
 import { WorkbenchOperationConflict, safeOperationFingerprint } from "./operation-ledger";
 
@@ -30,6 +32,7 @@ type RecordState = {
   providerCallsTotal: number;
   providerCallsByStage: Record<ProviderInvocationStage, ProviderCounters>;
   providerInvocationState: ProviderInvocationLedgerState | null;
+  providerDiagnostic: ProviderFailureDiagnostic | null;
   providerInvocations: Invocation[];
   canonicalPlanningPersisted: false;
   canonicalArchitecturePersisted: boolean;
@@ -56,6 +59,7 @@ const initialRecord = (input: ArchitectureReviewInput, correlationId: string): R
   providerCallsTotal: 0,
   providerCallsByStage: { decomposition: emptyCounters(), coverage: emptyCounters(), "architecture-review": emptyCounters() },
   providerInvocationState: null,
+  providerDiagnostic: null,
   providerInvocations: [],
   canonicalPlanningPersisted: false,
   canonicalArchitecturePersisted: false,
@@ -177,8 +181,9 @@ export class ArchitectureReviewOperationLedger implements ProviderInvocationLedg
     const operationStage = hasErrorCode(error, "PERSISTENCE_COMMIT_AMBIGUOUS") ? "PERSISTENCE" : this.record.stage;
     const failureClass = code === "WORKBENCH_INTERNAL_ERROR" ? "UNEXPECTED_EXCEPTION" : "KNOWN_WORKFLOW_FAILURE";
     const safeErrorFingerprint = safeOperationFingerprint(error, operationStage);
+    const providerDiagnostic = providerFailureDiagnosticFromError(error);
     const mutationAmbiguous = hasErrorCode(error, "PERSISTENCE_COMMIT_AMBIGUOUS");
-    this.record = { ...this.record, stage: operationStage, failureClass, outerCode: code, reasonCode: code, safeErrorFingerprint, canonicalArchitecturePersisted: this.record.canonicalArchitecturePersisted || mutationAmbiguous, lifecycleMutated: this.record.lifecycleMutated || mutationAmbiguous };
+    this.record = { ...this.record, stage: operationStage, failureClass, outerCode: code, reasonCode: code, safeErrorFingerprint, providerDiagnostic: providerDiagnostic ?? this.record.providerDiagnostic, canonicalArchitecturePersisted: this.record.canonicalArchitecturePersisted || mutationAmbiguous, lifecycleMutated: this.record.lifecycleMutated || mutationAmbiguous };
     const details: WorkbenchOperationFailureDetails = {
       correlationId: this.record.correlationId,
       operationId: this.record.operationId,
@@ -191,6 +196,7 @@ export class ArchitectureReviewOperationLedger implements ProviderInvocationLedg
       reasonCode: code,
       safeErrorFingerprint,
       ...(this.record.providerContract ? { providerContract: this.record.providerContract } : {}),
+      ...(this.record.providerDiagnostic ? { providerDiagnostic: this.record.providerDiagnostic } : {}),
       providerCallsTotal: this.record.providerCallsTotal,
       providerCallsByStage: structuredClone(this.record.providerCallsByStage),
       ...(this.record.providerInvocationState ? { providerInvocationState: this.record.providerInvocationState } : {}),
