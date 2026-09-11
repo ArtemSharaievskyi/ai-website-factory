@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import {
   DocumentRepository,
@@ -47,6 +49,7 @@ import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { validateTaskCapabilityBinding } from "@/orchestration/tooling/authority";
 import { implementationOrchestrator } from "@/orchestration/orchestrator/implementation-routing";
 import { exclusivePathsOverlap, preflightExclusivePathClaims } from "@/domain/tasks/shared-ownership";
+import { runDesignSystemChecklist } from "./design-quality";
 
 export interface ImplementationMemoryPort {
   writeSnapshot(
@@ -72,6 +75,11 @@ const dependencyContextFor = (input: ImplementationAgentInput, taskType: string)
     : [];
   return { projectId: input.projectId, projectVersion: input.projectVersion, planningChecksum: input.acceptedPlanningChecksum, plannedDependencies, taskType };
 };
+const DESIGN_CHECKLIST_TASK_TYPES = new Set(["implement-design-system", "implement-shared-layout", "implement-navigation", "implement-page", "implement-shared-component", "implement-form", "implement-motion"]);
+const readDesignCandidateFiles = async (root: string, relativePaths: readonly string[]) => (await Promise.all([...new Set([...relativePaths, "package.json"])].map(async (relativePath) => {
+  try { return { path: relativePath.replaceAll("\\", "/"), content: await readFile(path.join(root, relativePath), "utf8") }; }
+  catch { return undefined; }
+}))).filter((file): file is { path: string; content: string } => Boolean(file));
 const approvedBriefChecksumMatches = (input: ImplementationAgentInput) =>
   input.approvedBriefChecksum === checksumPersistedDocument(input.approvedBrief) ||
   input.approvedBriefChecksum === input.approvedBrief.approval.approvedRequirementsChecksum ||
@@ -411,6 +419,7 @@ export class ImplementationAgentService {
     let graphCommitContext: { rowVersion: number; checksum: string } | undefined;
     const canonicalPersistence: CanonicalPersistenceState = { outcome: "NOT_COMMITTED" };
     let applied: Awaited<ReturnType<AtomicChangeApplier["apply"]>> | undefined;
+    let designChecklist: import("@/domain/design/quality-contract").DesignSystemChecklistResult | undefined;
     try {
       const project = await this.projects.getWithVersion(input.projectId);
       const version = await this.versions.get(
@@ -547,6 +556,23 @@ export class ImplementationAgentService {
         input.stagingWorkspacePath,
         dependencyContext,
       );
+      if (DESIGN_CHECKLIST_TASK_TYPES.has(executionTask.taskType)) {
+        const candidateFiles = await readDesignCandidateFiles(input.stagingWorkspacePath, applied.changedFiles);
+        designChecklist = runDesignSystemChecklist({
+          files: candidateFiles,
+          designChecksum: input.selectedDesignChecksum,
+          approvedDesignText: JSON.stringify(input.selectedDesign),
+          taskType: executionTask.taskType,
+        });
+        if (designChecklist.verdict === "BLOCK") {
+          run = {
+            ...run,
+            designChecklist,
+            validationResults: [{ name: "design-system-checklist", status: "failed", summary: "DesignSystemChecklist blocked frontend handoff.", safeFailureCode: "IMPLEMENTATION_DESIGN_VIOLATION" }],
+          };
+          throw new ImplementationError("IMPLEMENTATION_DESIGN_VIOLATION", "DesignSystemChecklist blocked frontend handoff.", designChecklist.findings[0]);
+        }
+      }
       run = {
         ...run,
         status: "passed",
@@ -558,7 +584,11 @@ export class ImplementationAgentService {
         beforeChecksums: applied.beforeChecksums,
         afterChecksums: applied.afterChecksums,
         ...(applied.astPatchEvidence?.length ? { astPatchEvidence: applied.astPatchEvidence } : {}),
-        validationResults: validations,
+        validationResults: [
+          ...validations,
+          ...(designChecklist ? [{ name: "design-system-checklist", status: "passed" as const, summary: `DesignSystemChecklist ${designChecklist.verdict}; findings=${designChecklist.findings.length}.` }] : []),
+        ],
+        ...(designChecklist ? { designChecklist } : {}),
         completedAt: now(),
         providerUsageMetadata: proposal.providerMetadata,
         attempt: executionTask.attempt + 1,
@@ -615,6 +645,7 @@ export class ImplementationAgentService {
       run = {
         ...run,
         status,
+        ...(designChecklist ? { designChecklist } : {}),
         safeFailureCode: implementationError.code,
         safeFailureSummary: `${implementationError.message}${schemaPaths ? ` [schemaPaths=${schemaPaths}]` : ""}`,
         completedAt: now(),

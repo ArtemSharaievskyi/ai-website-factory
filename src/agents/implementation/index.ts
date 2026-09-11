@@ -6,3 +6,4 @@ export * from "./provider";
 export * from "./service";
 export * from "./validators";
 export * from "./server";
+export * from "./design-quality";

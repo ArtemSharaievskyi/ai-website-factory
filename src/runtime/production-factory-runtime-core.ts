@@ -353,8 +353,8 @@ export function createProductionFactoryRuntime(
       : route.domain === "BACKEND"
         ? ["server", "api", "nextjs", "typescript", "zod", "contracts", "testing", "dependencies", "authorization", "trust-boundaries", "concurrency", "errors", "server-only", "cache", ...(supabaseRequired ? ["supabase", "auth", "storage", "database", "rls"] : [])]
       : form
-        ? ["nextjs", "app-router", "react", "typescript", "tailwind", "shadcn", "server", "client", "page", "component", "implementation", "performance", "forms", "validation", "typed"]
-        : ["nextjs", "app-router", "react", "typescript", "tailwind", "shadcn", "server", "client", "page", "component", "implementation", "performance"];
+        ? ["nextjs", "app-router", "react", "typescript", "tailwind", "shadcn", "server", "client", "page", "component", "implementation", "performance", "forms", "validation", "typed", "visual-craft", "motion", "impeccable", "dialkit-authoring", "anti-ai-slop", "design-system-checklist"]
+        : ["nextjs", "app-router", "react", "typescript", "tailwind", "shadcn", "server", "client", "page", "component", "implementation", "performance", "visual-craft", "motion", "impeccable", "dialkit-authoring", "anti-ai-slop", "design-system-checklist"];
     const agent = profile
       ? { ...implementationAgentDefinition, allowedSkillIds: activeImplementationSkillIds(profile, taskType, { supabaseRequired }) }
       : implementationAgentDefinition;
