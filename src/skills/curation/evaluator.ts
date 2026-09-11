@@ -179,6 +179,10 @@ const capabilityKeywords: Record<CurationCapability, RegExp> = {
     /dependenc|package|lockfile|version|bundle|authorized/i,
   "review.documentation":
     /documentation|README|setup|environment|test commands/i,
+  "review.design":
+    /design|typography|spacing|hierarchy|visual|polish|component|responsive|motion/i,
+  "review.animation":
+    /animation|motion|easing|duration|transform|reduced motion|interrupt/i,
 };
 const responsibilityKeywords: Record<CurationReviewer, RegExp> = {
   lead: /requirements?|elicitation|ambiguity|clarif|intent|scope|brief/i,

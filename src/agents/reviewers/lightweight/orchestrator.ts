@@ -28,22 +28,34 @@ export async function runReviewCycle(input: {
   currentImplementationChecksum?: string;
   currentArchitectureChecksum?: string;
   currentDesignChecksum?: string;
+  currentDesignSystemVersion?: string;
+  currentMotionTokenChecksum?: string;
   readCurrentImplementationChecksum?: () => Promise<string>;
   readCurrentArchitectureChecksum?: () => Promise<string>;
   readCurrentDesignChecksum?: () => Promise<string>;
+  readCurrentDesignSystemVersion?: () => Promise<string>;
+  readCurrentMotionTokenChecksum?: () => Promise<string>;
   qualityGates?: Parameters<typeof evaluateReleaseReadiness>[0]["qualityGates"];
 }): Promise<ReviewCycleResult> {
   const snapshot = ReviewSnapshotSchema.parse(input.snapshot);
   const activation = ReviewActivationPlanSchema.parse(input.activation);
   const maxConcurrency = Math.min(Math.max(input.maxConcurrency ?? 4, 1), 4);
   try {
+    if (activation.required.includes("design-review") && (!snapshot.designChecksum || !snapshot.designSystemVersion || !snapshot.motionTokenChecksum))
+      throw new ReviewCycleError("REVIEW_SNAPSHOT_STALE", "Design review requires implementation, approved Design, Design System, and motion-token bindings.");
+    if (activation.required.includes("animation-review") && (!snapshot.designChecksum || !snapshot.designSystemVersion || !snapshot.motionTokenChecksum))
+      throw new ReviewCycleError("REVIEW_SNAPSHOT_STALE", "Animation review requires implementation, approved Design, Design System, and motion-token bindings.");
     assertReviewSnapshotBindingsCurrent({
       expectedImplementationChecksum: snapshot.implementationChecksum,
       actualImplementationChecksum: input.currentImplementationChecksum ?? snapshot.implementationChecksum,
       expectedArchitectureChecksum: snapshot.architectureChecksum,
-      actualArchitectureChecksum: input.currentArchitectureChecksum,
+      actualArchitectureChecksum: input.currentArchitectureChecksum ?? snapshot.architectureChecksum,
       expectedDesignChecksum: snapshot.designChecksum,
-      actualDesignChecksum: input.currentDesignChecksum,
+      actualDesignChecksum: input.currentDesignChecksum ?? snapshot.designChecksum,
+      expectedDesignSystemVersion: snapshot.designSystemVersion,
+      actualDesignSystemVersion: input.currentDesignSystemVersion ?? snapshot.designSystemVersion,
+      expectedMotionTokenChecksum: snapshot.motionTokenChecksum,
+      actualMotionTokenChecksum: input.currentMotionTokenChecksum ?? snapshot.motionTokenChecksum,
     });
   } catch (error) { throw new ReviewCycleError("REVIEW_SNAPSHOT_STALE", (error as Error).message, { cause: error }); }
   const runnerByAgent = new Map(input.runners.map((runner) => [runner.agent, runner]));
@@ -62,15 +74,19 @@ export async function runReviewCycle(input: {
       throw new ReviewCycleError("REVIEW_AGENT_FAILED", `Reviewer ${agent} failed without an admissible typed result.`, { cause: error });
     }
   });
-  if (input.readCurrentImplementationChecksum || input.readCurrentArchitectureChecksum || input.readCurrentDesignChecksum) {
+  if (input.readCurrentImplementationChecksum || input.readCurrentArchitectureChecksum || input.readCurrentDesignChecksum || input.readCurrentDesignSystemVersion || input.readCurrentMotionTokenChecksum) {
     try {
       assertReviewSnapshotBindingsCurrent({
         expectedImplementationChecksum: snapshot.implementationChecksum,
         actualImplementationChecksum: input.readCurrentImplementationChecksum ? await input.readCurrentImplementationChecksum() : snapshot.implementationChecksum,
         expectedArchitectureChecksum: snapshot.architectureChecksum,
-        actualArchitectureChecksum: input.readCurrentArchitectureChecksum ? await input.readCurrentArchitectureChecksum() : undefined,
+        actualArchitectureChecksum: input.readCurrentArchitectureChecksum ? await input.readCurrentArchitectureChecksum() : snapshot.architectureChecksum,
         expectedDesignChecksum: snapshot.designChecksum,
-        actualDesignChecksum: input.readCurrentDesignChecksum ? await input.readCurrentDesignChecksum() : undefined,
+        actualDesignChecksum: input.readCurrentDesignChecksum ? await input.readCurrentDesignChecksum() : snapshot.designChecksum,
+        expectedDesignSystemVersion: snapshot.designSystemVersion,
+        actualDesignSystemVersion: input.readCurrentDesignSystemVersion ? await input.readCurrentDesignSystemVersion() : input.currentDesignSystemVersion ?? snapshot.designSystemVersion,
+        expectedMotionTokenChecksum: snapshot.motionTokenChecksum,
+        actualMotionTokenChecksum: input.readCurrentMotionTokenChecksum ? await input.readCurrentMotionTokenChecksum() : input.currentMotionTokenChecksum ?? snapshot.motionTokenChecksum,
       });
     }
     catch (error) { throw new ReviewCycleError("REVIEW_SNAPSHOT_STALE", (error as Error).message, { cause: error }); }

@@ -5,6 +5,8 @@ import { agentCatalog } from "@/agents/catalog";
 import { SkillRegistry } from "@/skills/registry/registry";
 import { resolveApprovedSkillContext } from "@/skills/runtime/resolver";
 import { ActiveAgentSkillPortfolioSchema } from "./active-portfolio";
+import { agentResponsibilityProfiles } from "./portfolio";
+import { EMIL_SKILL_PROVENANCE } from "@/integrations/design/emil";
 
 const root = process.cwd();
 const registryRoot = path.join(root, "skills", "registry");
@@ -43,13 +45,13 @@ describe("Phase 4D4 active skill portfolios", () => {
 
   it("keeps the exact nine-agent catalog portfolios and shared traceability identity", async () => {
     const snapshot = await readSnapshot();
-    const skillManagedAgents = agentCatalog.filter((agent) => agent.allowedSkillIds.length > 0);
+    const skillManagedAgents = agentCatalog.filter((agent) => agentResponsibilityProfiles.some((profile) => profile.agentId === agent.agentId) && agent.allowedSkillIds.length > 0);
     expect(skillManagedAgents).toHaveLength(9);
     expect(snapshot.agents.map((agent) => agent.agentId)).toEqual(skillManagedAgents.map((agent) => agent.agentId));
     for (const agent of skillManagedAgents) {
       const expected = agent.agentId === "design"
         ? agent.allowedSkillIds.filter((skillId) => skillId === "responsive-form-ux-design")
-        : [...agent.allowedSkillIds];
+        : agent.allowedSkillIds.filter((skillId) => !EMIL_SKILL_PROVENANCE.some((skill) => skill.registrySkillId === skillId));
       expect(snapshot.agents.find((candidate) => candidate.agentId === agent.agentId)?.approvedAllowedSkillIds).toEqual(expected);
     }
     expect(snapshot.agents.find((agent) => agent.agentId === "contract-auditor")?.approvedAllowedSkillIds).toContain("requirements-evidence-traceability");

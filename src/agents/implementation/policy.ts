@@ -112,6 +112,7 @@ export class TaskContextAssembler {
         hasDatabaseHandoff: Boolean(input.domainHandoffs?.database),
         databaseMode: input.phase7cContractPackage?.databaseDecision.mode,
       }),
+      motionRequested: specialistProfile.domain === "FRONTEND" && (input.task.taskType === "implement-motion" || Boolean(input.selectedDesign.selectedDirectionContract && input.selectedDesign.selectedDirectionContract.motion.suitability !== "NONE")),
     });
     const frontendDesignResources = specialistProfile.domain === "FRONTEND"
       ? input.frontendDesignResources ?? input.selectedDesign.selectedDirectionContract?.frontendResources

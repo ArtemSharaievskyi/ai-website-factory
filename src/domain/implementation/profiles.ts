@@ -2,6 +2,7 @@ import { z } from "zod";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { AgentContextCategorySchema } from "@/domain/agents/schema";
 import { ToolIdSchema } from "@/domain/tooling/schema";
+import { EMIL_ANIMATE_SKILL_ID, EMIL_DESIGN_ENGINEERING_SKILL_ID } from "@/domain/design/emil-identifiers";
 
 export const ImplementationDomainSchema = z.enum(["FRONTEND", "BACKEND", "DATABASE"]);
 export type ImplementationDomain = z.infer<typeof ImplementationDomainSchema>;
@@ -44,6 +45,8 @@ export const ImplementationCapabilitySchema = z.enum([
   "DESIGN_CONTRACT_IMPLEMENTATION",
   "VISUAL_CRAFT_IMPLEMENTATION",
   "MOTION_DESIGN_IMPLEMENTATION",
+  "EMIL_DESIGN_ENGINEERING",
+  "EMIL_ANIMATION_CONSTRUCTION",
   "IMPECCABLE_DESIGN_INTEGRATION",
   "DIALKIT_AUTHORING",
   "ANTI_AI_SLOP_DESIGN_GUARD",
@@ -70,6 +73,7 @@ export type ImplementationCapability = z.infer<typeof ImplementationCapabilitySc
 export const SkillActivationSchema = z.enum([
   "ALWAYS",
   "FORM_TASK",
+  "MOTION_TASK",
   "SUPABASE_OR_DATABASE_TASK",
 ]);
 export type SkillActivation = z.infer<typeof SkillActivationSchema>;
@@ -217,13 +221,15 @@ const frontendProfile = createApprovedProfile({
     "Foreign framework defaults such as Vite, Zustand, Prisma, or Express when they are not present in the approved Factory Architecture.",
   ],
   capabilitySurface: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "ASSET_READ", "RELEVANT_TESTS"],
-  implementationCapabilities: ["REACT_UI", "NEXT_APP_ROUTER", "TYPESCRIPT", "TAILWIND", "SHADCN_UI", "ACCESSIBILITY_IMPLEMENTATION", "RESPONSIVE_IMPLEMENTATION", "SERVER_CLIENT_BOUNDARIES", "FORM_IMPLEMENTATION", "STATE_BOUNDARIES", "PERFORMANCE_IMPLEMENTATION", "FRONTEND_TESTING", "CANONICAL_CONTRACT_CONSUMPTION", "DEPENDENCY_DISCIPLINE", "ERROR_LOADING_EMPTY_STATES", "DESIGN_CONTRACT_IMPLEMENTATION", "VISUAL_CRAFT_IMPLEMENTATION", "MOTION_DESIGN_IMPLEMENTATION", "IMPECCABLE_DESIGN_INTEGRATION", "DIALKIT_AUTHORING", "ANTI_AI_SLOP_DESIGN_GUARD", "DESIGN_SYSTEM_CHECKLIST", "SEO_IMPLEMENTATION"],
+  implementationCapabilities: ["REACT_UI", "NEXT_APP_ROUTER", "TYPESCRIPT", "TAILWIND", "SHADCN_UI", "ACCESSIBILITY_IMPLEMENTATION", "RESPONSIVE_IMPLEMENTATION", "SERVER_CLIENT_BOUNDARIES", "FORM_IMPLEMENTATION", "STATE_BOUNDARIES", "PERFORMANCE_IMPLEMENTATION", "FRONTEND_TESTING", "CANONICAL_CONTRACT_CONSUMPTION", "DEPENDENCY_DISCIPLINE", "ERROR_LOADING_EMPTY_STATES", "DESIGN_CONTRACT_IMPLEMENTATION", "VISUAL_CRAFT_IMPLEMENTATION", "MOTION_DESIGN_IMPLEMENTATION", "EMIL_DESIGN_ENGINEERING", "EMIL_ANIMATION_CONSTRUCTION", "IMPECCABLE_DESIGN_INTEGRATION", "DIALKIT_AUTHORING", "ANTI_AI_SLOP_DESIGN_GUARD", "DESIGN_SYSTEM_CHECKLIST", "SEO_IMPLEMENTATION"],
   allowedTools: ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit"],
-  allowedSkillIds: ["nextjs-server-client-implementation", "typed-form-implementation", "maintainable-performance-implementation"],
+  allowedSkillIds: ["nextjs-server-client-implementation", "typed-form-implementation", "maintainable-performance-implementation", EMIL_DESIGN_ENGINEERING_SKILL_ID, EMIL_ANIMATE_SKILL_ID],
   skillBindings: [
     { skillId: "nextjs-server-client-implementation", agentId: "implementation", capability: "SERVER_CLIENT_BOUNDARIES", tools: ["context7-read", "codebase-memory-read", "controlled-edit"], permissions: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "RELEVANT_TESTS"], activation: "ALWAYS", inputContract: "implementation.input", outputContract: "implementation.output", coverageKeys: ["nextjs-implementation", "server-client-boundaries"] },
     { skillId: "typed-form-implementation", agentId: "implementation", capability: "FORM_IMPLEMENTATION", tools: ["context7-read", "shadcn-registry-read", "controlled-edit"], permissions: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "RELEVANT_TESTS"], activation: "FORM_TASK", inputContract: "implementation.input", outputContract: "implementation.output", coverageKeys: ["forms-validation"] },
     { skillId: "maintainable-performance-implementation", agentId: "implementation", capability: "PERFORMANCE_IMPLEMENTATION", tools: ["codebase-memory-read", "controlled-edit"], permissions: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "RELEVANT_TESTS"], activation: "ALWAYS", inputContract: "implementation.input", outputContract: "implementation.output", coverageKeys: ["maintainability-performance"] },
+    { skillId: EMIL_DESIGN_ENGINEERING_SKILL_ID, agentId: "implementation", capability: "EMIL_DESIGN_ENGINEERING", tools: ["controlled-edit"], permissions: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "RELEVANT_TESTS"], activation: "ALWAYS", inputContract: "implementation.input", outputContract: "implementation.output", coverageKeys: ["emil-design-engineering", "interaction-craft", "typography", "spacing", "responsive-craft"] },
+    { skillId: EMIL_ANIMATE_SKILL_ID, agentId: "implementation", capability: "EMIL_ANIMATION_CONSTRUCTION", tools: ["controlled-edit"], permissions: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "RELEVANT_TESTS"], activation: "MOTION_TASK", inputContract: "implementation.input", outputContract: "implementation.output", coverageKeys: ["emil-animation-construction", "motion-tokens", "reduced-motion", "interruptibility"] },
   ],
   allowedTaskTypes: ["prepare-workspace", "implement-project-foundation", "implement-design-system", "implement-shared-layout", "implement-navigation", "implement-page", "implement-shared-component", "implement-form", "integrate-assets", "integrate-content", "implement-seo", "implement-motion", "write-unit-tests", "write-integration-tests", "write-e2e-tests", "repair-targeted-failure"],
   contextPolicy: { version: "frontend-specialist-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "TASK_SLICE", "CODEBASE_CONTEXT", "VALIDATION_DIAGNOSTIC", "PREVIOUS_FINDINGS"], maxBytes: 120_000, maxItems: 80 },
@@ -354,15 +360,16 @@ export function shouldActivateSupabaseImplementationSkill(input: { domain?: Impl
     || ["implement-authentication", "implement-storage", "implement-database-schema", "implement-rls-policy", "write-database-tests"].includes(input.taskType);
 }
 
-export function activeImplementationSkillBindings(profile: AgentProfile, taskType: string, options: { supabaseRequired?: boolean } = {}) {
+export function activeImplementationSkillBindings(profile: AgentProfile, taskType: string, options: { supabaseRequired?: boolean; motionRequested?: boolean } = {}) {
   return profile.skillBindings.filter((binding) =>
     binding.activation === "ALWAYS"
     || (binding.activation === "FORM_TASK" && taskType === "implement-form")
+    || (binding.activation === "MOTION_TASK" && options.motionRequested === true)
     || (binding.activation === "SUPABASE_OR_DATABASE_TASK" && options.supabaseRequired === true),
   );
 }
 
-export function activeImplementationSkillIds(profile: AgentProfile, taskType: string, options: { supabaseRequired?: boolean } = {}) {
+export function activeImplementationSkillIds(profile: AgentProfile, taskType: string, options: { supabaseRequired?: boolean; motionRequested?: boolean } = {}) {
   return activeImplementationSkillBindings(profile, taskType, options).map((binding) => binding.skillId);
 }
 

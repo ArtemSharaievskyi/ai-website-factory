@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { activeImplementationSkillIds, AgentProfileSchema, APPROVED_IMPLEMENTATION_PROFILES, implementationProfileRegistry, shouldActivateSupabaseImplementationSkill } from "./profiles";
+import { EMIL_ANIMATE_SKILL_ID, EMIL_DESIGN_ENGINEERING_SKILL_ID } from "@/domain/design/emil-identifiers";
 
 describe("approved implementation specialist profiles", () => {
   it("contains exactly three immutable, checksum-bound Factory profiles", () => {
@@ -28,6 +29,8 @@ describe("approved implementation specialist profiles", () => {
       "nextjs-server-client-implementation",
       "typed-form-implementation",
       "maintainable-performance-implementation",
+      EMIL_DESIGN_ENGINEERING_SKILL_ID,
+      EMIL_ANIMATE_SKILL_ID,
     ]);
     expect(frontend.skillBindings.map((binding) => binding.skillId)).toEqual(frontend.allowedSkillIds);
     expect(frontend.implementationCapabilities).toEqual(expect.arrayContaining([
@@ -60,11 +63,19 @@ describe("approved implementation specialist profiles", () => {
     expect(activeImplementationSkillIds(frontend, "implement-page")).toEqual([
       "nextjs-server-client-implementation",
       "maintainable-performance-implementation",
+      EMIL_DESIGN_ENGINEERING_SKILL_ID,
     ]);
     expect(activeImplementationSkillIds(frontend, "implement-form")).toEqual([
       "nextjs-server-client-implementation",
       "typed-form-implementation",
       "maintainable-performance-implementation",
+      EMIL_DESIGN_ENGINEERING_SKILL_ID,
+    ]);
+    expect(activeImplementationSkillIds(frontend, "implement-motion", { motionRequested: true })).toEqual([
+      "nextjs-server-client-implementation",
+      "maintainable-performance-implementation",
+      EMIL_DESIGN_ENGINEERING_SKILL_ID,
+      EMIL_ANIMATE_SKILL_ID,
     ]);
     expect(activeImplementationSkillIds(backend, "implement-route-handler")).toEqual([]);
     expect(activeImplementationSkillIds(backend, "implement-route-handler", { supabaseRequired: true })).toEqual(["supabase-application-integration"]);

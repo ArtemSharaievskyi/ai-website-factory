@@ -15,6 +15,8 @@ import { TestQualityReviewService } from "./reviewers/test-quality/service";
 import { OpenAiStructuredClient } from "@/integrations/openai/client";
 import { OpenAiTestQualityReviewProvider } from "@/integrations/openai/adapters";
 import { TestQualityReviewProviderOutputSchema } from "@/domain/review/schema";
+import { agentResponsibilityProfiles } from "@/skills/curation/portfolio";
+import { EMIL_ANIMATION_IMPROVEMENT_SKILL_ID, EMIL_ANIMATION_OPPORTUNITY_SKILL_ID, EMIL_ANIMATION_REVIEW_SKILL_ID, EMIL_ANIMATE_SKILL_ID, EMIL_DESIGN_ENGINEERING_SKILL_ID } from "@/integrations/design/emil";
 
 const reviewerClientConfig = { apiKey: "test-key", model: "test-model", modelLabel: "test", maxRetries: 0, maxConcurrentRequests: 1 };
 const validTestQualityOutput = {
@@ -41,7 +43,7 @@ function reviewerClient(output: unknown) {
 }
 
 describe("typed agent catalog", () => {
-  it("contains the foundation catalog plus the lightweight review layer", () => expect(agentCatalog.map((agent) => agent.agentId)).toEqual(["lead", "planner", "design", "implementation", "architecture-reviewer", "contract-auditor", "code-integration-reviewer", "security-reviewer", "security-threat-model", "test-quality-reviewer", "browser-qa", "accessibility-review", "performance-review", "visual-regression", "release-readiness", "seo-review", "content-quality", "dependency-guardian", "documentation", "security-test", "german-web-compliance", "exploratory-qa", "ux-critic", "product-critic", "architecture-critic"]));
+  it("contains the foundation catalog plus the lightweight review layer", () => expect(agentCatalog.map((agent) => agent.agentId)).toEqual(["lead", "planner", "design", "implementation", "architecture-reviewer", "contract-auditor", "code-integration-reviewer", "security-reviewer", "security-threat-model", "test-quality-reviewer", "browser-qa", "accessibility-review", "performance-review", "visual-regression", "release-readiness", "seo-review", "content-quality", "dependency-guardian", "documentation", "security-test", "german-web-compliance", "exploratory-qa", "ux-critic", "product-critic", "architecture-critic", "design-review", "animation-review"]));
   it("has unique identities and exclusive current capabilities", () => {
     expect(new Set(agentCatalog.map((agent) => agent.agentId)).size).toBe(agentCatalog.length);
     expect(new Set(agentCatalog.flatMap((agent) => agent.capabilities)).size).toBe(AGENT_CAPABILITY_IDS.length);
@@ -67,19 +69,21 @@ describe("typed agent catalog", () => {
   });
   it("keeps tool, skill, contract, and policy permissions explicit", () => {
     expect(AGENT_TOOL_IDS).toEqual(["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "generated-runtime-validation", "playwright-functional-qa", "controlled-edit", "fontpair-read", "design-quality-validation", "design-source-discovery"]);
-    const skillManagedAgents = agentCatalog.filter((agent) => agent.allowedSkillIds.length > 0);
+    const skillManagedAgents = agentCatalog.filter((agent) => agentResponsibilityProfiles.some((profile) => profile.agentId === agent.agentId) && agent.allowedSkillIds.length > 0);
     expect(skillManagedAgents.map((agent) => agent.agentId)).toEqual(["lead", "planner", "design", "implementation", "architecture-reviewer", "contract-auditor", "code-integration-reviewer", "security-reviewer", "test-quality-reviewer"]);
     expect(Object.fromEntries(skillManagedAgents.map((agent) => [agent.agentId, agent.allowedSkillIds]))).toEqual({
       lead: ["lead-requirements-completeness"],
       planner: ["project-data-model-planning", "technical-risk-planning"],
-      design: ["responsive-form-ux-design", "impeccable", "emil-design-eng", "find-animation-opportunities", "review-animations", "improve-animations", "animation-vocabulary", "transitions-dev"],
-      implementation: ["nextjs-server-client-implementation", "typed-form-implementation", "supabase-application-integration", "maintainable-performance-implementation"],
+      design: ["responsive-form-ux-design", "impeccable", EMIL_DESIGN_ENGINEERING_SKILL_ID, "animation-vocabulary", "transitions-dev"],
+      implementation: ["nextjs-server-client-implementation", "typed-form-implementation", "supabase-application-integration", "maintainable-performance-implementation", EMIL_DESIGN_ENGINEERING_SKILL_ID, EMIL_ANIMATE_SKILL_ID],
       "architecture-reviewer": ["module-boundaries-fb20497b5c35", "review-maintainability-d9faf7cb9775", "architecture-tradeoff-review"],
       "contract-auditor": ["acceptance-criteria-80493e317476", "requirements-evidence-traceability"],
       "code-integration-reviewer": ["react-nextjs-integration-review"],
       "security-reviewer": ["supabase-rls-1e36b217c969", "auth-storage-security-review"],
       "test-quality-reviewer": ["requirements-evidence-traceability", "behavioral-test-quality-review"],
     });
+    expect(agentCatalog.find((agent) => agent.agentId === "design-review")?.allowedSkillIds).toEqual([EMIL_DESIGN_ENGINEERING_SKILL_ID]);
+    expect(agentCatalog.find((agent) => agent.agentId === "animation-review")?.allowedSkillIds).toEqual([EMIL_ANIMATION_REVIEW_SKILL_ID, EMIL_ANIMATION_IMPROVEMENT_SKILL_ID, EMIL_ANIMATION_OPPORTUNITY_SKILL_ID]);
     expect(agentCatalog.every((agent) => agent.inputContract.schemaId.endsWith(".input") && agent.outputContract.schemaId.endsWith(".output"))).toBe(true);
     expect(agentCatalog.every((agent) => agent.contextPolicy.maxBytes > 0 && agent.executionPolicy.retryClass)).toBe(true);
     expect(leadAgentDefinition.promptVersion).not.toBe(leadAgentDefinition.policyVersions.context);
@@ -116,7 +120,7 @@ describe("typed agent catalog", () => {
     for (const directory of ["architecture", "contracts", "code-integration", "security", "test-quality"]) {
       await expect(readFile(path.join(root, "src/agents/reviewers", directory, "service.ts"), "utf8")).resolves.toBeTruthy();
     }
-    expect(agentCatalog.filter((agent) => agent.role === "review")).toHaveLength(21);
+    expect(agentCatalog.filter((agent) => agent.role === "review")).toHaveLength(23);
   });
   it("resolves only approved skills", () => {
     const custom = { ...implementationAgentDefinition, allowedSkillIds: ["approved-skill"] } as typeof implementationAgentDefinition;

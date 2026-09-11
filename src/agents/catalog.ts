@@ -1,13 +1,14 @@
 import { AgentCapabilityIdSchema, AgentDefinitionSchema, AgentToolIdSchema, type AgentDefinition } from "@/domain/agents/schema";
 import { ImplementationTaskTypeSchema } from "@/domain/tasks/schema";
 import { z } from "zod";
+import { EMIL_ANIMATE_SKILL_ID, EMIL_ANIMATION_IMPROVEMENT_SKILL_ID, EMIL_ANIMATION_OPPORTUNITY_SKILL_ID, EMIL_ANIMATION_REVIEW_SKILL_ID, EMIL_DESIGN_ENGINEERING_SKILL_ID } from "@/integrations/design/emil";
 
 export const AGENT_TOOL_IDS = ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "generated-runtime-validation", "playwright-functional-qa", "controlled-edit", "fontpair-read", "design-quality-validation", "design-source-discovery"] as const satisfies readonly z.infer<typeof AgentToolIdSchema>[];
 export type AgentToolId = (typeof AGENT_TOOL_IDS)[number];
-export const AGENT_CAPABILITY_IDS = ["requirements.clarify", "requirements.brief", "planning.architecture", "planning.content", "planning.assets", "design.directions", "design.selection", "implementation.code", "implementation.backend", "implementation.seo", "review.architecture", "review.contracts", "review.integration", "review.security", "review.security-threat-model", "review.security-test", "review.german-web-compliance", "review.exploratory-qa", "review.ux-critic", "review.product-critic", "review.architecture-critic", "review.test-quality", "review.browser-qa", "review.accessibility", "review.performance", "review.visual-regression", "review.release-readiness", "review.seo", "review.content-quality", "review.dependencies", "review.documentation"] as const satisfies readonly z.infer<typeof AgentCapabilityIdSchema>[];
+export const AGENT_CAPABILITY_IDS = ["requirements.clarify", "requirements.brief", "planning.architecture", "planning.content", "planning.assets", "design.directions", "design.selection", "implementation.code", "implementation.backend", "implementation.seo", "review.architecture", "review.contracts", "review.integration", "review.security", "review.security-threat-model", "review.security-test", "review.german-web-compliance", "review.exploratory-qa", "review.ux-critic", "review.product-critic", "review.architecture-critic", "review.test-quality", "review.browser-qa", "review.accessibility", "review.performance", "review.visual-regression", "review.release-readiness", "review.seo", "review.content-quality", "review.dependencies", "review.documentation", "review.design", "review.animation"] as const satisfies readonly z.infer<typeof AgentCapabilityIdSchema>[];
 export type AgentCapabilityId = (typeof AGENT_CAPABILITY_IDS)[number];
 
-const CONTRACT_REFERENCES = new Set(["lead.input", "lead.output", "planner.input", "planner.output", "design.input", "design.output", "implementation.input", "implementation.output", "architecture-reviewer.input", "contract-auditor.input", "code-integration-reviewer.input", "security-reviewer.input", "security-threat-model.input", "security-threat-model.output", "test-quality-reviewer.input", "browser-qa.input", "accessibility-review.input", "performance-review.input", "visual-regression.input", "release-readiness.input", "seo-review.input", "content-quality.input", "dependency-guardian.input", "documentation.input", "security-test.input", "german-web-compliance.input", "exploratory-qa.input", "ux-critic.input", "product-critic.input", "architecture-critic.input", "review.output", "agent-review.output"]);
+const CONTRACT_REFERENCES = new Set(["lead.input", "lead.output", "planner.input", "planner.output", "design.input", "design.output", "implementation.input", "implementation.output", "architecture-reviewer.input", "contract-auditor.input", "code-integration-reviewer.input", "security-reviewer.input", "security-threat-model.input", "security-threat-model.output", "test-quality-reviewer.input", "browser-qa.input", "accessibility-review.input", "performance-review.input", "visual-regression.input", "release-readiness.input", "seo-review.input", "content-quality.input", "dependency-guardian.input", "documentation.input", "security-test.input", "german-web-compliance.input", "exploratory-qa.input", "ux-critic.input", "product-critic.input", "architecture-critic.input", "design-review.input", "animation-review.input", "review.output", "agent-review.output"]);
 const CURRENT_TASK_TYPES = new Set<string>([
   ...ImplementationTaskTypeSchema.options,
   "clarify-requirements",
@@ -38,6 +39,10 @@ const CURRENT_TASK_TYPES = new Set<string>([
   "review-content-quality",
   "review-dependencies",
   "review-documentation",
+  "review-design",
+  "review-animation",
+  "audit-animation",
+  "find-animation-opportunities",
 ]);
 const IMPLEMENTATION_TASK_TYPES = ["prepare-workspace", "implement-project-foundation", "implement-design-system", "implement-shared-layout", "implement-navigation", "implement-page", "implement-shared-component", "implement-form", "implement-server-action", "implement-route-handler", "implement-database-schema", "implement-rls-policy", "implement-authentication", "implement-storage", "implement-email", "integrate-assets", "integrate-content", "implement-seo", "implement-motion", "write-unit-tests", "write-integration-tests", "write-e2e-tests", "repair-targeted-failure"];
 
@@ -63,7 +68,7 @@ export const plannerAgentDefinition = definition({
 export const designAgentDefinition = definition({
   agentId: "design", displayName: "Design Agent", role: "generation", version: "1.0.0",
   capabilities: ["design.directions", "design.selection"], supportedTaskTypes: ["create-design-directions"],
-  allowedTools: ["openai-generation", "fontpair-read", "design-quality-validation", "design-source-discovery"], allowedSkillIds: ["responsive-form-ux-design", "impeccable", "emil-design-eng", "find-animation-opportunities", "review-animations", "improve-animations", "animation-vocabulary", "transitions-dev"],
+  allowedTools: ["openai-generation", "fontpair-read", "design-quality-validation", "design-source-discovery"], allowedSkillIds: ["responsive-form-ux-design", "impeccable", EMIL_DESIGN_ENGINEERING_SKILL_ID, "animation-vocabulary", "transitions-dev"],
   contextPolicy: { version: "design-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "SUPPLIED_FILES_METADATA", "PREVIOUS_FINDINGS"], maxBytes: 120000, maxItems: 80 },
   inputContract: { schemaId: "design.input", version: "1" }, outputContract: { schemaId: "design.output", version: "1" },
   promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "design.v1", policyVersions: { context: "design-context-v1", execution: "design-execution-v1" },
@@ -72,7 +77,7 @@ export const designAgentDefinition = definition({
 export const implementationAgentDefinition = definition({
   agentId: "implementation", displayName: "Implementation Agent", role: "implementation", version: "1.0.0",
   capabilities: ["implementation.code", "implementation.backend", "implementation.seo"], supportedTaskTypes: IMPLEMENTATION_TASK_TYPES,
-  allowedTools: ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit", "design-source-discovery"], allowedSkillIds: ["nextjs-server-client-implementation", "typed-form-implementation", "supabase-application-integration", "maintainable-performance-implementation"],
+  allowedTools: ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit", "design-source-discovery"], allowedSkillIds: ["nextjs-server-client-implementation", "typed-form-implementation", "supabase-application-integration", "maintainable-performance-implementation", EMIL_DESIGN_ENGINEERING_SKILL_ID, EMIL_ANIMATE_SKILL_ID],
   contextPolicy: { version: "implementation-context-v1", allowedCategories: ["TASK_SLICE", "PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "CODEBASE_CONTEXT", "VALIDATION_DIAGNOSTIC", "PREVIOUS_FINDINGS"], maxBytes: 120000, maxItems: 80 },
   inputContract: { schemaId: "implementation.input", version: "1" }, outputContract: { schemaId: "implementation.output", version: "1" },
   promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "implementation.v3", policyVersions: { context: "implementation-context-v1", execution: "implementation-v1" },
@@ -121,11 +126,11 @@ export const testQualityReviewerAgentDefinition = definition({
   inputContract: { schemaId: "test-quality-reviewer.input", version: "1" }, outputContract: { schemaId: "review.output", version: "1" }, promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "test-quality-reviewer.v1", policyVersions: { context: "test-quality-review-context-v1", execution: "test-quality-review-execution-v1" }, executionPolicy: { aiGenerationAllowed: true, retryClass: "bounded-provider", cancellationSupported: true, concurrencyClass: "single-flight", requiresExplicitApprovalBeforeTransition: false }, readOnly: true,
 });
 
-const lightweightReviewer = (value: Pick<AgentDefinition, "agentId" | "displayName" | "capabilities" | "supportedTaskTypes" | "allowedTools" | "contextPolicy" | "inputContract"> & { writeScopes?: string[] }) => definition({
+const lightweightReviewer = (value: Pick<AgentDefinition, "agentId" | "displayName" | "capabilities" | "supportedTaskTypes" | "allowedTools" | "contextPolicy" | "inputContract"> & { writeScopes?: string[]; allowedSkillIds?: string[] }) => definition({
   ...value,
   role: "review",
   version: "1.0.0",
-  allowedSkillIds: [],
+  allowedSkillIds: value.allowedSkillIds ?? [],
   outputContract: { schemaId: "agent-review.output", version: "1" },
   promptOwner: "src/agents/reviewers/lightweight/agents.ts",
   promptVersion: "lightweight-reviewer.deterministic.v1",
@@ -151,8 +156,10 @@ export const exploratoryQaAgentDefinition = lightweightReviewer({ agentId: "expl
 export const uxCriticAgentDefinition = lightweightReviewer({ agentId: "ux-critic", displayName: "UX Critic Agent", capabilities: ["review.ux-critic"], supportedTaskTypes: ["review-ux-critic"], allowedTools: ["playwright-functional-qa"], contextPolicy: { version: "ux-critic-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "TASK_SLICE", "SELECTED_DESIGN", "VALIDATION_DIAGNOSTIC"], maxBytes: 140000, maxItems: 120 }, inputContract: { schemaId: "ux-critic.input", version: "1" } });
 export const productCriticAgentDefinition = lightweightReviewer({ agentId: "product-critic", displayName: "Product Critic Agent", capabilities: ["review.product-critic"], supportedTaskTypes: ["review-product-critic"], allowedTools: [], contextPolicy: { version: "product-critic-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "TASK_SLICE", "VALIDATION_DIAGNOSTIC"], maxBytes: 140000, maxItems: 120 }, inputContract: { schemaId: "product-critic.input", version: "1" } });
 export const architectureCriticAgentDefinition = lightweightReviewer({ agentId: "architecture-critic", displayName: "Architecture Critic Agent", capabilities: ["review.architecture-critic"], supportedTaskTypes: ["review-architecture-critic"], allowedTools: [], contextPolicy: { version: "architecture-critic-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "TASK_SLICE", "VALIDATION_DIAGNOSTIC"], maxBytes: 140000, maxItems: 120 }, inputContract: { schemaId: "architecture-critic.input", version: "1" } });
+export const designReviewAgentDefinition = lightweightReviewer({ agentId: "design-review", displayName: "Design Review Agent", capabilities: ["review.design"], supportedTaskTypes: ["review-design"], allowedTools: [], allowedSkillIds: [EMIL_DESIGN_ENGINEERING_SKILL_ID], contextPolicy: { version: "design-review-context-v1", allowedCategories: ["SELECTED_DESIGN", "TASK_SLICE", "CODEBASE_CONTEXT", "VALIDATION_DIAGNOSTIC", "PREVIOUS_FINDINGS"], maxBytes: 140000, maxItems: 120 }, inputContract: { schemaId: "design-review.input", version: "1" } });
+export const animationReviewAgentDefinition = lightweightReviewer({ agentId: "animation-review", displayName: "Animation Review Agent", capabilities: ["review.animation"], supportedTaskTypes: ["review-animation", "audit-animation", "find-animation-opportunities"], allowedTools: [], allowedSkillIds: [EMIL_ANIMATION_REVIEW_SKILL_ID, EMIL_ANIMATION_IMPROVEMENT_SKILL_ID, EMIL_ANIMATION_OPPORTUNITY_SKILL_ID], contextPolicy: { version: "animation-review-context-v1", allowedCategories: ["SELECTED_DESIGN", "TASK_SLICE", "CODEBASE_CONTEXT", "VALIDATION_DIAGNOSTIC", "PREVIOUS_FINDINGS"], maxBytes: 140000, maxItems: 120 }, inputContract: { schemaId: "animation-review.input", version: "1" } });
 
-export const lightweightReviewerAgentDefinitions = [browserQaAgentDefinition, accessibilityReviewAgentDefinition, performanceReviewAgentDefinition, visualRegressionAgentDefinition, releaseReadinessAgentDefinition, seoReviewAgentDefinition, contentQualityAgentDefinition, dependencyGuardianAgentDefinition, documentationAgentDefinition, securityTestAgentDefinition, germanWebComplianceAgentDefinition, exploratoryQaAgentDefinition, uxCriticAgentDefinition, productCriticAgentDefinition, architectureCriticAgentDefinition] as const;
+export const lightweightReviewerAgentDefinitions = [browserQaAgentDefinition, accessibilityReviewAgentDefinition, performanceReviewAgentDefinition, visualRegressionAgentDefinition, releaseReadinessAgentDefinition, seoReviewAgentDefinition, contentQualityAgentDefinition, dependencyGuardianAgentDefinition, documentationAgentDefinition, securityTestAgentDefinition, germanWebComplianceAgentDefinition, exploratoryQaAgentDefinition, uxCriticAgentDefinition, productCriticAgentDefinition, architectureCriticAgentDefinition, designReviewAgentDefinition, animationReviewAgentDefinition] as const;
 
 export const agentCatalog = [leadAgentDefinition, plannerAgentDefinition, designAgentDefinition, implementationAgentDefinition, architectureReviewerAgentDefinition, contractAuditorAgentDefinition, codeIntegrationReviewerAgentDefinition, securityReviewerAgentDefinition, securityThreatModelAgentDefinition, testQualityReviewerAgentDefinition, ...lightweightReviewerAgentDefinitions] as const satisfies readonly AgentDefinition[];
 

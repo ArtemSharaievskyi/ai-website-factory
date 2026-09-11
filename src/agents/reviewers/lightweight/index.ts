@@ -7,3 +7,4 @@ export * from "./release";
 export * from "./taskgraph";
 export * from "./exploratory-harness";
 export * from "./supply-chain-security-skill";
+export * from "./design-motion";

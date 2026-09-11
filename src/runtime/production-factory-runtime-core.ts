@@ -346,7 +346,7 @@ export function createProductionFactoryRuntime(
       databaseMode: input.phase7cContractPackage?.databaseDecision.mode,
     });
     const activeBindings = profile
-      ? activeImplementationSkillBindings(profile, taskType, { supabaseRequired })
+      ? activeImplementationSkillBindings(profile, taskType, { supabaseRequired, motionRequested: taskType === "implement-motion" || Boolean(input.selectedDesign.selectedDirectionContract && input.selectedDesign.selectedDirectionContract.motion.suitability !== "NONE") })
       : [];
     const projectSurfaces = route.domain === "DATABASE"
       ? ["supabase", "postgres", "database", "rls"]
@@ -356,7 +356,7 @@ export function createProductionFactoryRuntime(
         ? ["nextjs", "app-router", "react", "typescript", "tailwind", "shadcn", "server", "client", "page", "component", "implementation", "performance", "forms", "validation", "typed", "visual-craft", "motion", "impeccable", "dialkit-authoring", "anti-ai-slop", "design-system-checklist"]
         : ["nextjs", "app-router", "react", "typescript", "tailwind", "shadcn", "server", "client", "page", "component", "implementation", "performance", "visual-craft", "motion", "impeccable", "dialkit-authoring", "anti-ai-slop", "design-system-checklist"];
     const agent = profile
-      ? { ...implementationAgentDefinition, allowedSkillIds: activeImplementationSkillIds(profile, taskType, { supabaseRequired }) }
+      ? { ...implementationAgentDefinition, allowedSkillIds: activeImplementationSkillIds(profile, taskType, { supabaseRequired, motionRequested: taskType === "implement-motion" || Boolean(input.selectedDesign.selectedDirectionContract && input.selectedDesign.selectedDirectionContract.motion.suitability !== "NONE") }) }
       : implementationAgentDefinition;
     return prepareAgentSkillContext(skillRegistry, {
       agent,

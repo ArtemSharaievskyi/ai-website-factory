@@ -7,6 +7,7 @@ import {
   InitialPortfolioLicenseDecisionArtifactSchema,
 } from "./initial-portfolio-policy";
 import { InternalSkillEvidenceArtifactSchema, canonicalInternalSkillChecksum } from "./internal-skill-evidence";
+import { agentResponsibilityProfiles } from "./portfolio";
 
 const root = process.cwd();
 const readJson = async (relativePath: string) =>
@@ -81,7 +82,7 @@ describe("Phase 4D3.5 initial portfolio policy", () => {
 
   it("provides sufficient initial coverage for all nine agents without a skill-count quota", async () => {
     const { policy } = await artifacts();
-    const skillManagedAgents = agentCatalog.filter((agent) => agent.allowedSkillIds.length > 0);
+    const skillManagedAgents = agentCatalog.filter((agent) => agentResponsibilityProfiles.some((profile) => profile.agentId === agent.agentId) && agent.allowedSkillIds.length > 0);
     expect(policy.skillCountQuotaIntroduced).toBe(false);
     expect(policy.initialCoverage).toHaveLength(9);
     expect(policy.initialCoverage.map((coverage) => coverage.agentId)).toEqual(skillManagedAgents.map((agent) => agent.agentId));

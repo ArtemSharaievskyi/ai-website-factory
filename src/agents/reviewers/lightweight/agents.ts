@@ -8,6 +8,8 @@ import { SupplyChainSecuritySkill } from "./supply-chain-security-skill";
 import { evaluateReleaseReadiness } from "./release";
 import { assertReviewMutationAllowed, reviewMutationDecision, DOCUMENTATION_WRITE_SCOPES } from "./permissions";
 import type { LightweightReviewInput, LightweightReviewRunner } from "./orchestrator";
+import { AnimationReviewAgent, DesignReviewAgent } from "./design-motion";
+export { AnimationReviewAgent, DesignReviewAgent, MotionImprovementAdvisor, AnimationOpportunityFinder } from "./design-motion";
 
 const secretPattern = /(sk-[A-Za-z0-9]{12,}|AKIA[A-Z0-9]{12,}|(?:SERVICE_ROLE|DATABASE_URL|API_KEY|SECRET|TOKEN)\s*[:=]\s*['"]?[A-Za-z0-9_./+=-]{8,})/i;
 const text = (value: string) => value.replaceAll(/\s+/g, " ").trim().slice(0, 1000);
@@ -325,4 +327,6 @@ export const deterministicLightweightReviewers: readonly LightweightReviewRunner
   new ContentQualityAgent(),
   new DependencyGuardianAgent(),
   new DocumentationAgent(),
+  new DesignReviewAgent(),
+  new AnimationReviewAgent(),
 ];

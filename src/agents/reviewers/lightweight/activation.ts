@@ -18,11 +18,14 @@ export const LIGHTWEIGHT_REVIEW_AGENT_IDS = [
   "ux-critic",
   "product-critic",
   "architecture-critic",
+  "design-review",
+  "animation-review",
 ] as const satisfies readonly ReviewAgentId[];
 
 export type ReviewActivationInput = {
   implementationComplete: boolean;
   capabilities: readonly ReviewCapability[];
+  meaningfulMotion?: boolean;
 };
 
 const unique = <T>(values: readonly T[]) => [...new Set(values)];
@@ -44,6 +47,8 @@ export function buildReviewActivationPlan(input: ReviewActivationInput): ReviewA
   activate("accessibility-review", has(capabilities, "INTERACTIVE_UI", "PUBLIC_SITE", "APPROVED_DESIGN"), "No approved user-interface surface requires accessibility review.");
   activate("performance-review", true, "Performance review is normally required for an implemented project.");
   activate("visual-regression", capabilities.has("APPROVED_DESIGN"), "No approved Design artifact is bound to this implementation snapshot.");
+  activate("design-review", has(capabilities, "PUBLIC_SITE", "APPROVED_DESIGN"), "The artifact is not an approved substantial visual site requiring an independent design-craft review.");
+  activate("animation-review", input.meaningfulMotion ?? capabilities.has("MOTION"), "No meaningful motion evidence is present; a heavy animation review is not required for a static artifact.");
   activate("code-integration-reviewer", input.implementationComplete, "Code review requires a completed implementation snapshot.");
   activate("release-readiness", input.implementationComplete, "Release readiness requires a completed implementation snapshot.");
   activate("seo-review", has(capabilities, "PUBLIC_SITE", "INDEXABLE_PUBLIC_PAGES"), "The project is not approved as public or indexable; SEO review is not applicable.");

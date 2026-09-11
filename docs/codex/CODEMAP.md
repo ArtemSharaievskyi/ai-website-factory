@@ -104,9 +104,16 @@ repositories, and validators remain canonical.
   typography, palette, and Aceternity discovery capabilities available to the
   existing FrontendImplementationAgent; it is not an Approved Skills Registry
   or installation authority.
+- `src/integrations/design/emil.ts` pins the current audited Emil Kowalski
+  skill provenance, immutable registry IDs, content checksums, and motion
+  token rules; `scripts/phase8-approve-emil-skills.ts` imports a checked-out
+  upstream revision through the registry lifecycle.
 - `src/agents/reviewers/` contains read-only Architecture, Contract, Code /
   Integration, Security, Test / Quality, and lightweight post-implementation
-  review contracts and services.
+  review contracts and services. `src/agents/reviewers/lightweight/design-motion.ts`
+  owns independent Design Review, Animation Review, motion improvement plans,
+  and bounded motion-opportunity advice; all are snapshot-bound and
+  source-write-free.
 - `src/agents/catalog.ts` is the current agent/capability assignment authority.
 
 - `src/domain/design/resources.ts` owns the checksum-bound Google Fonts,
@@ -115,7 +122,8 @@ repositories, and validators remain canonical.
   gate.
 - `src/integrations/design/` contains the bounded read-only adapters and
   injected transports for Fontpair, Google Fonts, Color Hunt, Aceternity UI,
-  component-source research, and host-controlled design quality evidence.
+  component-source research, host-controlled design quality evidence, and
+  current Emil provenance.
 
 ## Validation and generated runtime
 

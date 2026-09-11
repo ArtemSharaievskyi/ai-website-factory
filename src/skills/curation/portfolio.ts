@@ -105,9 +105,9 @@ export const agentResponsibilityProfiles: readonly AgentResponsibilityProfile[] 
   {
     agentId: "implementation",
     role: "Implementation agent for bounded source changes, backend work, and tests.",
-    capabilities: ["implementation.code", "implementation.backend"],
-    taskTypes: ["prepare-workspace", "implement-project-foundation", "implement-page", "implement-form", "implement-server-action", "implement-route-handler", "implement-database-schema", "implement-rls-policy", "implement-authentication", "implement-storage", "write-unit-tests", "write-integration-tests", "write-e2e-tests", "repair-targeted-failure"],
-    tools: ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit"],
+    capabilities: ["implementation.code", "implementation.backend", "implementation.seo"],
+    taskTypes: ["prepare-workspace", "implement-project-foundation", "implement-design-system", "implement-shared-layout", "implement-navigation", "implement-page", "implement-shared-component", "implement-form", "implement-server-action", "implement-route-handler", "implement-database-schema", "implement-rls-policy", "implement-authentication", "implement-storage", "implement-email", "integrate-assets", "integrate-content", "implement-seo", "implement-motion", "write-unit-tests", "write-integration-tests", "write-e2e-tests", "repair-targeted-failure"],
+    tools: ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit", "design-source-discovery"],
     contextCategories: ["TASK_SLICE", "PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "CODEBASE_CONTEXT", "VALIDATION_DIAGNOSTIC", "PREVIOUS_FINDINGS"],
     readOnly: false,
     responsibilities: ["execute one authorized task in staging", "apply typed proposals with bounded filesystem authority", "implement frontend, backend, auth, storage and persistence slices", "produce test changes and repair targeted validation failures"],
@@ -210,7 +210,12 @@ export const agentResponsibilityProfiles: readonly AgentResponsibilityProfile[] 
 ] as const;
 
 export const portfolioAgents = new Set(agentResponsibilityProfiles.map((profile) => profile.agentId));
-const skillManagedCatalogAgents = agentCatalog.filter((agent) => agent.allowedSkillIds.length > 0).map((agent) => agent.agentId);
+// Phase 4D4 is a historical nine-agent portfolio. Phase 8/9 lightweight
+// reviewers have their own current catalog assignments and must not rewrite
+// that immutable portfolio projection.
+const skillManagedCatalogAgents = agentCatalog
+  .filter((agent) => agentResponsibilityProfiles.some((profile) => profile.agentId === agent.agentId) && agent.allowedSkillIds.length > 0)
+  .map((agent) => agent.agentId);
 if (portfolioAgents.size !== skillManagedCatalogAgents.length || skillManagedCatalogAgents.some((agentId) => !portfolioAgents.has(agentId as CurationReviewer))) throw new Error("Agent portfolio must cover every catalog agent with approved skill assignments.");
 
 export const discoveryTargets = agentResponsibilityProfiles.flatMap((profile) =>

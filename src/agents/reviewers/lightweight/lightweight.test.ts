@@ -2,13 +2,14 @@ import { describe, expect, it } from "vitest";
 import { agentCatalog } from "@/agents/catalog";
 import { AgentReviewResultSchema, ReviewActivationPlanSchema, ReviewFindingSchema, ReviewSnapshotSchema, type AgentReviewResult, type ReviewAgentId, type ReviewFinding } from "@/domain/review/lightweight";
 import { buildReviewActivationPlan } from "./activation";
-import { AccessibilityReviewAgent, ArchitectureCriticAgent, BrowserQAAgent, CodeReviewAgent, ContentQualityAgent, DependencyGuardianAgent, DocumentationAgent, ExploratoryQAAgent, GermanWebComplianceAgent, PerformanceReviewAgent, ProductCriticAgent, SecurityReviewAgent, SecurityTestAgent, SEOReviewAgent, UXCriticAgent, VisualRegressionAgent, deterministicLightweightReviewers } from "./agents";
+import { AccessibilityReviewAgent, AnimationReviewAgent, ArchitectureCriticAgent, BrowserQAAgent, CodeReviewAgent, ContentQualityAgent, DesignReviewAgent, DependencyGuardianAgent, DocumentationAgent, ExploratoryQAAgent, GermanWebComplianceAgent, MotionImprovementAdvisor, AnimationOpportunityFinder, PerformanceReviewAgent, ProductCriticAgent, SecurityReviewAgent, SecurityTestAgent, SEOReviewAgent, UXCriticAgent, VisualRegressionAgent, deterministicLightweightReviewers } from "./agents";
 import { correlateReviewFindings, reviewFindingDisposition, reviewFindingsToEscalations, reviewFindingToRegressionLedgerEntry, reviewFindingsToRepairIncidents } from "./correlation";
 import { runReviewCycle, type LightweightReviewRunner } from "./orchestrator";
 import { assertReviewMutationAllowed, isDocumentationPath, reviewMutationDecision } from "./permissions";
 import { evaluateReleaseReadiness } from "./release";
 import { buildReviewTaskGraph, buildReviewTaskGraphDocument } from "./taskgraph";
 import { executeBoundedExploratoryScenarios } from "./exploratory-harness";
+import { EMIL_SKILL_PROVENANCE } from "@/integrations/design/emil";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
 const hash = (value: string) => value.repeat(64 / value.length);
@@ -19,6 +20,8 @@ const snapshot = (overrides: Record<string, unknown> = {}) => ReviewSnapshotSche
   implementationChecksum: hash("a"),
   architectureChecksum: hash("b"),
   designChecksum: hash("c"),
+  designSystemVersion: "design-system-v1",
+  motionTokenChecksum: hash("e"),
   approvedRoutes: ["/", "/contact"],
   approvedUserFlows: ["contact-flow"],
   architectureOperationRefs: ["operation:contact-submit"],
@@ -41,6 +44,10 @@ const snapshot = (overrides: Record<string, unknown> = {}) => ReviewSnapshotSche
 
 const passResult = (agent: ReviewAgentId, implementationChecksum = hash("a")): AgentReviewResult => AgentReviewResultSchema.parse({ agent, status: "PASS", findings: [], checksExecuted: ["synthetic.check"], evidenceRefs: ["synthetic:evidence"], artifactFingerprint: implementationChecksum });
 const finding = (agent: ReviewAgentId, overrides: Partial<ReviewFinding> = {}): ReviewFinding => ReviewFindingSchema.parse({ id: "shared-defect", agent, category: "AUTHORIZATION", severity: "HIGH", confidence: "HIGH", title: "Shared defect", safeSummary: "A bounded synthetic defect.", affectedArtifacts: ["src/app/contact/page.tsx"], affectedRoutes: ["/contact"], affectedFiles: ["src/app/contact/page.tsx"], evidence: ["src/app/contact/page.tsx:10-12"], blocking: true, repairRequired: true, operation: "contact-submit", invariant: "owner-isolation", ...overrides });
+const sourceSnapshot = (content: string, markers: string[] = [], overrides: Record<string, unknown> = {}) => {
+  const current = snapshot({ designSystemVersion: "design-system-v1", motionTokenChecksum: hash("a"), ...overrides });
+  return ReviewSnapshotSchema.parse({ ...current, evidencePack: { ...current.evidencePack, sourceFiles: [{ relativePath: "src/app/page.tsx", checksum: hash("d"), lineCount: content.split(/\r?\n/).length, content, markers }] } });
+};
 
 describe("lightweight post-implementation review layer", () => {
   it("registers the new inspectors while reusing existing security and code identities", () => {
@@ -52,9 +59,76 @@ describe("lightweight post-implementation review layer", () => {
 
   it("activates public-site reviewers and skips security without inventing DB/RLS requirements", () => {
     const plan = buildReviewActivationPlan({ implementationComplete: true, capabilities: ["IMPLEMENTED", "PUBLIC_SITE", "APPROVED_DESIGN", "INTERACTIVE_UI", "PUBLIC_FACTUAL_CONTENT", "DEPENDENCY_DELTA"] });
-    expect(plan.required).toEqual(expect.arrayContaining(["browser-qa", "accessibility-review", "performance-review", "visual-regression", "code-integration-reviewer", "release-readiness", "seo-review", "content-quality", "dependency-guardian"]));
+    expect(plan.required).toEqual(expect.arrayContaining(["browser-qa", "accessibility-review", "performance-review", "visual-regression", "design-review", "code-integration-reviewer", "release-readiness", "seo-review", "content-quality", "dependency-guardian"]));
     expect(plan.required).not.toContain("security-reviewer");
     expect(plan.skipped.find((item) => item.agent === "security-reviewer")?.reason).toMatch(/must not invent/i);
+  });
+
+  it("activates animation review only for meaningful motion and preserves a valid no-motion result", async () => {
+    const publicPlan = buildReviewActivationPlan({ implementationComplete: true, capabilities: ["IMPLEMENTED", "PUBLIC_SITE", "APPROVED_DESIGN"], meaningfulMotion: false });
+    expect(publicPlan.required).toContain("design-review");
+    expect(publicPlan.required).not.toContain("animation-review");
+    expect(publicPlan.skipped.find((item) => item.agent === "animation-review")?.reason).toMatch(/no meaningful motion/i);
+    const noMotion = await new AnimationReviewAgent().review({ snapshot: sourceSnapshot("export default function CommandPalette(){return <div onKeyDown={() => undefined}>Search</div>}", ["keyboard-interaction"]), agent: "animation-review" });
+    expect(noMotion.status).toBe("PASS");
+    expect(noMotion.evidenceRefs).toContain("motion:none");
+    const visualStateOnly = await new AnimationReviewAgent().review({ snapshot: sourceSnapshot(".button:hover { color: var(--accent); }"), agent: "animation-review" });
+    expect(visualStateOnly.status).toBe("PASS");
+  });
+
+  it("runs independent design craft review across hierarchy, visual language, responsive quality, and anti-AI-slop evidence", async () => {
+    const weak = sourceSnapshot("export default function Page(){return <main><h2>One</h2><div className=\"card\"/><div className=\"card\"/></main>}", ["weak-hierarchy", "weak-typography", "inconsistent-spacing", "generic-card", "weak-color", "weak-iconography", "interaction-rough", "responsive-overflow", "design-generic"]);
+    const result = await new DesignReviewAgent().review({ snapshot: weak, agent: "design-review" });
+    expect(result.status).toBe("BLOCK");
+    expect(result.findings.map((item) => item.category)).toEqual(expect.arrayContaining(["VISUAL_HIERARCHY", "TYPOGRAPHY", "SPACING", "COMPONENT_CONSISTENCY", "COLOR", "ICONOGRAPHY", "INTERACTION_POLISH", "RESPONSIVE_CRAFT", "DESIGN_DISTINCTIVENESS"]));
+    expect(result.checksExecuted).toEqual(expect.arrayContaining(["design-system-checklist.evidence", "anti-ai-slop.evidence", "impeccable.evidence", "emil-design-eng"]));
+    const strong = sourceSnapshot("export default function Page(){return <main><h1>Signal</h1><p>Clear product context.</p><button type=\"button\">Continue</button></main>}");
+    expect((await new DesignReviewAgent().review({ snapshot: strong, agent: "design-review" })).status).toBe("PASS");
+    const uxOnly = sourceSnapshot("export default function Page(){return <main><h1>Signal</h1><button type=\"button\">Continue</button></main>}", ["confusing-ux"]);
+    expect((await new DesignReviewAgent().review({ snapshot: uxOnly, agent: "design-review" })).status).toBe("PASS");
+    expect((await new UXCriticAgent().review({ snapshot: uxOnly, agent: "ux-critic" })).status).toBe("BLOCK");
+    const visualOnly = ReviewSnapshotSchema.parse({ ...strong, evidencePack: { ...strong.evidencePack, browser: { ...strong.evidencePack.browser!, visualComparisons: [{ route: "/", screenshotRef: "screenshot:home", approvedDesignRef: "design:home", classification: "DESIGN_CONTRACT_VIOLATION", safeSummary: "Synthetic visual regression." }] } } });
+    expect((await new DesignReviewAgent().review({ snapshot: visualOnly, agent: "design-review" })).status).toBe("PASS");
+    expect((await new VisualRegressionAgent().review({ snapshot: visualOnly, agent: "visual-regression" })).status).toBe("BLOCK");
+  });
+
+  it("strictly blocks poor motion and accepts bounded, interruptible reduced-motion-aware motion", async () => {
+    const poor = sourceSnapshot("const CommandPalette = () => <div className=\"popover toast\" onKeyDown={() => undefined}/>;\n" + ".menu { transition: all 500ms ease-in; duration: 500ms; transform: scale(0); transform-origin: center; }\n" + ".layout { transition: width 500ms; }\n" + "@keyframes toast { from { width: 0; opacity: 0; } to { width: 100px; opacity: 1; } }");
+    const blocked = await new AnimationReviewAgent().review({ snapshot: poor, agent: "animation-review" });
+    expect(blocked.status).toBe("BLOCK");
+    expect(blocked.findings.map((item) => item.category)).toEqual(expect.arrayContaining(["MOTION_FREQUENCY", "MOTION_EASING", "MOTION_SCALE", "MOTION_ORIGIN", "MOTION_INTERRUPTIBILITY", "MOTION_PERFORMANCE", "MOTION_REDUCED_MOTION"]));
+    expect(blocked.findings.filter((item) => item.category === "MOTION_PERFORMANCE")).toHaveLength(2);
+    const good = sourceSnapshot("const Popover = () => <div className=\"popover\"/>;\n" + ".popover { --duration-popover: 180ms; transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1), opacity 180ms cubic-bezier(0.23, 1, 0.32, 1); transform: scale(.95); transform-origin: bottom; }\n" + "@media (prefers-reduced-motion: reduce) { .popover { transition: opacity 120ms linear; transform: none; } }\n" + "@media (hover: hover) and (pointer: fine) { .button:hover { transform: translateY(-1px); } }");
+    expect((await new AnimationReviewAgent().review({ snapshot: good, agent: "animation-review" })).status).toBe("PASS");
+    const easeInOut = sourceSnapshot(".dialog { transition: transform 180ms cubic-bezier(0.77, 0, 0.175, 1); transform: scale(.95); }\n@media (prefers-reduced-motion: reduce) { .dialog { transform: none; } }");
+    expect((await new AnimationReviewAgent().review({ snapshot: easeInOut, agent: "animation-review" })).status).toBe("PASS");
+  });
+
+  it("keeps improvement and opportunity advisors read-only, bounded, and checksum-bound", async () => {
+    const poor = sourceSnapshot(".toast { transition: all 500ms ease-in; transform: scale(0); }", ["motion"]);
+    const improvement = await new MotionImprovementAdvisor().audit(poor);
+    expect(improvement.plans.length).toBeGreaterThan(0);
+    expect(improvement.binding).toMatchObject({ snapshotId: poor.snapshotId, implementationChecksum: poor.implementationChecksum, skillId: EMIL_SKILL_PROVENANCE[3].registrySkillId, skillChecksum: EMIL_SKILL_PROVENANCE[3].approvedContentChecksum, sourceWriteAuthority: "NONE", canonicalMutationAuthority: "NONE", advisoryOnly: true });
+    expect(new MotionImprovementAdvisor().sourceWriteAuthority).toBe("NONE");
+    expect(new MotionImprovementAdvisor().canonicalMutationAuthority).toBe("NONE");
+    const keyboard = sourceSnapshot("<div aria-expanded=\"false\" onKeyDown={() => undefined}>Menu</div>");
+    const opportunities = await new AnimationOpportunityFinder().find(keyboard);
+    expect(opportunities.verdict).toBe("NO_ADDITIONAL_MOTION_RECOMMENDED");
+    expect(opportunities.suggestions).toHaveLength(0);
+    expect(opportunities.rejectedCandidates[0]?.decision).toBe("REJECT");
+    expect(new AnimationOpportunityFinder().canonicalMutationAuthority).toBe("NONE");
+    const bounded = ReviewSnapshotSchema.parse({ ...keyboard, evidencePack: { ...keyboard.evidencePack, sourceFiles: Array.from({ length: 9 }, (_, index) => ({ relativePath: `src/app/menu-${index}.tsx`, checksum: hash("d"), lineCount: 1, content: '<div aria-expanded="false" onKeyDown={() => undefined}>Menu</div>', markers: [] })) } });
+    expect((await new AnimationOpportunityFinder().find(bounded)).rejectedCandidates).toHaveLength(7);
+  });
+
+  it("rejects stale Design System and motion-token bindings and blocks release on either new review", async () => {
+    const current = sourceSnapshot(".popover { transition: opacity 180ms; }", ["motion"]);
+    const activation = ReviewActivationPlanSchema.parse({ required: ["design-review", "animation-review", "release-readiness"], optional: [], skipped: [] });
+    await expect(runReviewCycle({ snapshot: current, activation, runners: [new DesignReviewAgent(), new AnimationReviewAgent()], currentDesignSystemVersion: "design-system-v2" })).rejects.toMatchObject({ code: "REVIEW_SNAPSHOT_STALE" });
+    await expect(runReviewCycle({ snapshot: current, activation, runners: [new DesignReviewAgent(), new AnimationReviewAgent()], currentMotionTokenChecksum: hash("z") })).rejects.toMatchObject({ code: "REVIEW_SNAPSHOT_STALE" });
+    const design = await new DesignReviewAgent().review({ snapshot: current, agent: "design-review" });
+    const poor = await new AnimationReviewAgent().review({ snapshot: sourceSnapshot(".popover { transition: all 500ms ease-in; }", ["motion"]), agent: "animation-review" });
+    expect(evaluateReleaseReadiness({ implementationChecksum: current.implementationChecksum, requiredReviews: ["design-review", "animation-review"], reviewResults: [design, poor], qualityGates: [{ id: "build", status: "PASS", evidenceRefs: ["build"] }] }).verdict).toBe("BLOCKED");
   });
 
   it("runs browser QA for public pages even when the site has no interactive capability", () => {
@@ -220,6 +294,7 @@ describe("lightweight post-implementation review layer", () => {
     expect(cycle.releaseReadiness.verdict).toBe("READY");
     expect(cycle.providerBudget.maxCalls).toBe(0);
     expect(cycle.providerCalls).toBe(0);
+    await expect(runReviewCycle({ snapshot: current, activation, runners, readCurrentImplementationChecksum: async () => current.implementationChecksum })).resolves.toMatchObject({ providerCalls: 0 });
     await expect(runReviewCycle({ snapshot: current, activation, runners, currentImplementationChecksum: hash("b") })).rejects.toMatchObject({ code: "REVIEW_SNAPSHOT_STALE" });
     await expect(runReviewCycle({ snapshot: current, activation, runners, currentDesignChecksum: hash("d") })).rejects.toMatchObject({ code: "REVIEW_SNAPSHOT_STALE" });
     await expect(runReviewCycle({ snapshot: current, activation, runners, readCurrentImplementationChecksum: async () => hash("b") })).rejects.toMatchObject({ code: "REVIEW_SNAPSHOT_STALE" });

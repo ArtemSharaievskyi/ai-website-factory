@@ -29,6 +29,8 @@ export const ReviewAgentIdSchema = z.enum([
   "ux-critic",
   "product-critic",
   "architecture-critic",
+  "design-review",
+  "animation-review",
 ]);
 export type ReviewAgentId = z.infer<typeof ReviewAgentIdSchema>;
 
@@ -152,6 +154,7 @@ export const ReviewCapabilitySchema = z.enum([
   "EXTERNAL_API",
   "APPROVED_DESIGN",
   "INTERACTIVE_UI",
+  "MOTION",
   "PUBLIC_FACTUAL_CONTENT",
   "DEPENDENCY_DELTA",
   "DOCUMENTATION_REQUEST",
@@ -168,6 +171,8 @@ export const ReviewSnapshotSchema = z.object({
   implementationChecksum: HashSchema,
   architectureChecksum: HashSchema.optional(),
   designChecksum: HashSchema.optional(),
+  designSystemVersion: SafeIdSchema.optional(),
+  motionTokenChecksum: HashSchema.optional(),
   approvedRoutes: z.array(RefSchema).max(100),
   approvedUserFlows: z.array(RefSchema).max(100),
   architectureOperationRefs: z.array(RefSchema).max(100),
@@ -218,3 +223,91 @@ export const ReviewCycleResultSchema = z.object({
   providerCalls: z.literal(0),
 }).strict();
 export type ReviewCycleResult = z.infer<typeof ReviewCycleResultSchema>;
+
+export const DesignReviewCategorySchema = z.enum([
+  "VISUAL_HIERARCHY",
+  "TYPOGRAPHY",
+  "SPACING",
+  "LAYOUT",
+  "SURFACES",
+  "COLOR",
+  "ICONOGRAPHY",
+  "COMPONENT_CONSISTENCY",
+  "MOTION",
+  "INTERACTION_POLISH",
+  "RESPONSIVE_CRAFT",
+  "DESIGN_DISTINCTIVENESS",
+  "AI_SLOP",
+]);
+export type DesignReviewCategory = z.infer<typeof DesignReviewCategorySchema>;
+export const MotionReviewCategorySchema = z.enum([
+  "MOTION_JUSTIFICATION",
+  "MOTION_FREQUENCY",
+  "MOTION_DURATION",
+  "MOTION_EASING",
+  "MOTION_ORIGIN",
+  "MOTION_SCALE",
+  "MOTION_INTERRUPTIBILITY",
+  "MOTION_PERFORMANCE",
+  "MOTION_REDUCED_MOTION",
+  "MOTION_HOVER_GATING",
+  "MOTION_COHESION",
+  "MOTION_ENTER_EXIT",
+]);
+
+const AdvisoryBindingSchema = z.object({
+  snapshotId: SafeIdSchema,
+  implementationChecksum: HashSchema,
+  designChecksum: HashSchema.optional(),
+  designSystemVersion: SafeIdSchema.optional(),
+  motionTokenChecksum: HashSchema.optional(),
+  skillId: SafeIdSchema,
+  skillChecksum: HashSchema,
+  sourceWriteAuthority: z.literal("NONE"),
+  canonicalMutationAuthority: z.literal("NONE"),
+  advisoryOnly: z.literal(true),
+}).strict();
+
+export const MotionImprovementPlanSchema = z.object({
+  planId: SafeIdSchema,
+  severity: ReviewFindingSeveritySchema,
+  category: MotionReviewCategorySchema,
+  affectedFiles: z.array(RelativePathSchema).max(30),
+  problem: SafeTextSchema,
+  target: SafeTextSchema,
+  steps: z.array(SafeTextSchema).min(1).max(8),
+  verification: z.array(SafeTextSchema).min(1).max(8),
+  binding: AdvisoryBindingSchema,
+}).strict();
+export type MotionImprovementPlan = z.infer<typeof MotionImprovementPlanSchema>;
+
+export const MotionImprovementResultSchema = z.object({
+  binding: AdvisoryBindingSchema,
+  plans: z.array(MotionImprovementPlanSchema).max(7),
+  verdict: z.enum(["NO_IMPROVEMENTS_RECOMMENDED", "IMPROVEMENTS_RECOMMENDED"]),
+}).strict();
+export type MotionImprovementResult = z.infer<typeof MotionImprovementResultSchema>;
+
+export const AnimationOpportunitySchema = z.object({
+  opportunityId: SafeIdSchema,
+  route: RefSchema.optional(),
+  affectedFiles: z.array(RelativePathSchema).max(10),
+  frequency: z.enum(["100_PLUS_PER_DAY", "TENS_PER_DAY", "OCCASIONAL", "RARE"]),
+  purpose: SafeTextSchema,
+  suggestedMotion: SafeTextSchema,
+  decision: z.enum(["RECOMMEND", "REJECT"]),
+  rejectionReason: z.string().max(500).optional(),
+  evidence: z.array(RefSchema).min(1).max(10),
+}).strict().superRefine((opportunity, context) => {
+  if (opportunity.decision === "REJECT" && !opportunity.rejectionReason) context.addIssue({ code: "custom", path: ["rejectionReason"], message: "Rejected opportunities require a gate reason." });
+  if (opportunity.decision === "RECOMMEND" && opportunity.rejectionReason) context.addIssue({ code: "custom", path: ["rejectionReason"], message: "Recommended opportunities cannot carry a rejection reason." });
+});
+export type AnimationOpportunity = z.infer<typeof AnimationOpportunitySchema>;
+
+export const AnimationOpportunityResultSchema = z.object({
+  binding: AdvisoryBindingSchema,
+  suggestions: z.array(AnimationOpportunitySchema).max(7),
+  rejectedCandidates: z.array(AnimationOpportunitySchema).max(7),
+  verdict: z.enum(["NO_ADDITIONAL_MOTION_RECOMMENDED", "OPPORTUNITIES_RECOMMENDED"]),
+}).strict();
+export type AnimationOpportunityResult = z.infer<typeof AnimationOpportunityResultSchema>;

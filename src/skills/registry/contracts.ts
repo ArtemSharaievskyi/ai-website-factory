@@ -44,6 +44,10 @@ export const SkillTaskTypeSchema = z.enum([
   "review-code-integration",
   "review-security",
   "review-test-quality",
+  "review-design",
+  "review-animation",
+  "audit-animation",
+  "find-animation-opportunities",
 ]);
 export const SkillFormatVersionSchema = z.literal(1);
 export const SkillFileSchema = z

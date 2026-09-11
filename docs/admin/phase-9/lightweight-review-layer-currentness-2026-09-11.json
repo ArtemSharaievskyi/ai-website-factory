@@ -6,11 +6,11 @@
   "files": [
     {
       "relativePath": "src/agents/catalog.test.ts",
-      "sha256": "db2f7bd2158be1d3981ceb0850d7929cc0256755565d2300e24ba1f97635c9a7"
+      "sha256": "b67cf80994369d72a77de5c44178dbdff61e9520285b7b144a67a4939c3956bf"
     },
     {
       "relativePath": "src/agents/catalog.ts",
-      "sha256": "60380a6c34251f8b09eeb3422bef9326932289ddd7085ff2393864b6c0f3018b"
+      "sha256": "2862f56f990ed1d59e1e1a3a71958f84cc77783186cd2e33a58ad71e77c6f2e2"
     },
     {
       "relativePath": "src/integrations/openai/adapters.ts",
@@ -18,8 +18,8 @@
     },
     {
       "relativePath": "src/skills/curation/portfolio.ts",
-      "sha256": "d50c89581d12745ade6e11c29e292dd302fb4ce9e96b31b933f2816098ec7b22"
+      "sha256": "886a9a10c9a93137e68022626308008dd941c52aa8ccdf151ea7441f672a97bf"
     }
   ],
-  "snapshotChecksum": "ef4bc02a386fc50c33047578567e0a52b464163306e1e43f35f12dcedb756322"
+  "snapshotChecksum": "89c822756d4165a253d0aca24fe0433d47dcffa4bf2106daaebbce8ce0ee7fb1"
 }

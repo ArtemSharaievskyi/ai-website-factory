@@ -51,6 +51,7 @@
     "skills:internal-evidence": "tsx scripts/author-internal-skills.ts",
     "skills:initial-policy": "tsx scripts/initial-portfolio-license-decisions.ts",
     "skills:activate": "tsx scripts/activate-initial-skill-portfolio.ts",
+    "skills:approve-emil-current": "tsx scripts/phase8-approve-emil-skills.ts",
     "factory:e2e-smoke": "tsx scripts/factory-e2e-smoke.ts",
     "codebase-memory:smoke": "tsx scripts/codebase-memory-smoke.ts",
     "phase7f:live-check": "tsx scripts/phase7f-live-check.ts",

@@ -26,6 +26,8 @@ export const ReviewTaskTypeSchema = z.enum([
   "review-ux-critic",
   "review-product-critic",
   "review-architecture-critic",
+  "review-design",
+  "review-animation",
 ]);
 export type ReviewTaskType = z.infer<typeof ReviewTaskTypeSchema>;
 
@@ -80,6 +82,8 @@ const taskTypeFor: Record<ReviewAgentId, ReviewTaskType | undefined> = {
   "ux-critic": "review-ux-critic",
   "product-critic": "review-product-critic",
   "architecture-critic": "review-architecture-critic",
+  "design-review": "review-design",
+  "animation-review": "review-animation",
 };
 
 const deterministicReviewTools: Partial<Record<ReviewAgentId, readonly string[]>> = {
@@ -95,6 +99,8 @@ const deterministicReviewTools: Partial<Record<ReviewAgentId, readonly string[]>
   "ux-critic": ["playwright-functional-qa"],
   "product-critic": [],
   "architecture-critic": [],
+  "design-review": [],
+  "animation-review": [],
 };
 
 export function buildReviewTaskGraph(input: { snapshot: ReviewSnapshot; activation: ReviewActivationPlan; maxConcurrency?: number }): ReviewTaskGraph {

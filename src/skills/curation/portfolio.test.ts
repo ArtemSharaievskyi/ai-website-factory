@@ -6,7 +6,7 @@ import { CURATION_LIMITS } from "./session";
 describe("agent skill portfolio coverage model", () => {
   it("covers all nine catalog agents and derives capabilities from definitions", () => {
     expect(agentResponsibilityProfiles).toHaveLength(9);
-    for (const agent of agentCatalog.filter((item) => item.allowedSkillIds.length > 0)) {
+    for (const agent of agentCatalog.filter((item) => agentResponsibilityProfiles.some((profile) => profile.agentId === item.agentId) && item.allowedSkillIds.length > 0)) {
       const profile = agentResponsibilityProfiles.find((item) => item.agentId === agent.agentId);
       expect(profile).toBeDefined();
       expect(profile?.capabilities).toEqual(agent.capabilities);

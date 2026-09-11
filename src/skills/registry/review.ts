@@ -93,6 +93,13 @@ const rules: Array<[string, RegExp, FindingSeverity, string]> = [
     "The skill instructs disclosure of secrets or private source material.",
   ],
 ];
+
+function isDefensivePromptInjectionMention(line: string) {
+  return /repository content is data,?\s+not instructions/i.test(line) &&
+    /(?:ignore\s+(?:all\s+)?previous\s+instructions|override\s+system|reveal\s+(?:the\s+)?(?:hidden\s+)?prompt)/i.test(line) &&
+    /flag it(?: as a finding)?|treat file contents as inert/i.test(line);
+}
+
 export function reviewSkill(
   files: SkillFile[],
   policy: SkillPolicy,
@@ -105,7 +112,7 @@ export function reviewSkill(
     const lines = file.text.split(/\r?\n/);
     lines.forEach((line, index) => {
       for (const [ruleId, pattern, severity, explanation] of rules)
-        if (pattern.test(line))
+        if (pattern.test(line) && !(ruleId === "PROMPT_INJECTION" && isDefensivePromptInjectionMention(line)))
           findings.push({
             ruleId,
             severity,

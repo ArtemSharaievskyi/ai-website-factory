@@ -17,12 +17,20 @@ export function assertReviewSnapshotBindingsCurrent(input: {
   actualArchitectureChecksum?: string;
   expectedDesignChecksum?: string;
   actualDesignChecksum?: string;
+  expectedDesignSystemVersion?: string;
+  actualDesignSystemVersion?: string;
+  expectedMotionTokenChecksum?: string;
+  actualMotionTokenChecksum?: string;
 }) {
   assertReviewSnapshotCurrent(input.expectedImplementationChecksum, input.actualImplementationChecksum);
-  if (input.expectedArchitectureChecksum && input.actualArchitectureChecksum && input.expectedArchitectureChecksum !== input.actualArchitectureChecksum)
+  if (input.expectedArchitectureChecksum !== input.actualArchitectureChecksum && (input.expectedArchitectureChecksum !== undefined || input.actualArchitectureChecksum !== undefined))
     throw new ReviewReadinessError("REVIEW_SNAPSHOT_STALE", "The approved architecture changed during the review cycle; old review evidence cannot be admitted.");
-  if (input.expectedDesignChecksum && input.actualDesignChecksum && input.expectedDesignChecksum !== input.actualDesignChecksum)
+  if (input.expectedDesignChecksum !== input.actualDesignChecksum && (input.expectedDesignChecksum !== undefined || input.actualDesignChecksum !== undefined))
     throw new ReviewReadinessError("REVIEW_SNAPSHOT_STALE", "The approved design changed during the review cycle; old visual evidence cannot be admitted.");
+  if (input.expectedDesignSystemVersion !== input.actualDesignSystemVersion && (input.expectedDesignSystemVersion !== undefined || input.actualDesignSystemVersion !== undefined))
+    throw new ReviewReadinessError("REVIEW_SNAPSHOT_STALE", "The Design System version changed during the review cycle; old design evidence cannot be admitted.");
+  if (input.expectedMotionTokenChecksum !== input.actualMotionTokenChecksum && (input.expectedMotionTokenChecksum !== undefined || input.actualMotionTokenChecksum !== undefined))
+    throw new ReviewReadinessError("REVIEW_SNAPSHOT_STALE", "The motion-token contract changed during the review cycle; old animation evidence cannot be admitted.");
   return true;
 }
 
