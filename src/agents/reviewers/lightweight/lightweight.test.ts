@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import { agentCatalog } from "@/agents/catalog";
 import { AgentReviewResultSchema, ReviewActivationPlanSchema, ReviewFindingSchema, ReviewSnapshotSchema, type AgentReviewResult, type ReviewAgentId, type ReviewFinding } from "@/domain/review/lightweight";
 import { buildReviewActivationPlan } from "./activation";
-import { AccessibilityReviewAgent, BrowserQAAgent, CodeReviewAgent, ContentQualityAgent, DependencyGuardianAgent, DocumentationAgent, PerformanceReviewAgent, SecurityReviewAgent, SEOReviewAgent, VisualRegressionAgent } from "./agents";
-import { correlateReviewFindings, reviewFindingToRegressionLedgerEntry, reviewFindingsToRepairIncidents } from "./correlation";
+import { AccessibilityReviewAgent, ArchitectureCriticAgent, BrowserQAAgent, CodeReviewAgent, ContentQualityAgent, DependencyGuardianAgent, DocumentationAgent, ExploratoryQAAgent, GermanWebComplianceAgent, PerformanceReviewAgent, ProductCriticAgent, SecurityReviewAgent, SecurityTestAgent, SEOReviewAgent, UXCriticAgent, VisualRegressionAgent, deterministicLightweightReviewers } from "./agents";
+import { correlateReviewFindings, reviewFindingDisposition, reviewFindingsToEscalations, reviewFindingToRegressionLedgerEntry, reviewFindingsToRepairIncidents } from "./correlation";
 import { runReviewCycle, type LightweightReviewRunner } from "./orchestrator";
 import { assertReviewMutationAllowed, isDocumentationPath, reviewMutationDecision } from "./permissions";
 import { evaluateReleaseReadiness } from "./release";
 import { buildReviewTaskGraph, buildReviewTaskGraphDocument } from "./taskgraph";
+import { executeBoundedExploratoryScenarios } from "./exploratory-harness";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
 const hash = (value: string) => value.repeat(64 / value.length);
@@ -66,6 +67,8 @@ describe("lightweight post-implementation review layer", () => {
   it("activates security for auth/database and does not activate SEO for a private dashboard", () => {
     const plan = buildReviewActivationPlan({ implementationComplete: true, capabilities: ["IMPLEMENTED", "AUTH", "DATABASE", "INTERACTIVE_UI", "APPROVED_DESIGN"] });
     expect(plan.required).toContain("security-reviewer");
+    expect(plan.required).toContain("security-test");
+    expect(plan.required).toContain("architecture-critic");
     expect(plan.required).not.toContain("seo-review");
     expect(plan.skipped.find((item) => item.agent === "seo-review")?.reason).toMatch(/not approved as public/i);
   });
@@ -94,6 +97,64 @@ describe("lightweight post-implementation review layer", () => {
       expect(result.artifactFingerprint).toBe(current.implementationChecksum);
       expect(result.agent).toBe(agent.agent);
     }
+  });
+
+  it("keeps the new assurance reviewers read-only, deterministic, and independently registered", async () => {
+    const current = snapshot({
+      evidencePack: {
+        ...snapshot().evidencePack,
+        sourceFiles: [{ relativePath: "src/app/page.tsx", checksum: hash("d"), lineCount: 10, content: "export default function Page(){return <main/>}", markers: ["unsafe-redirect", "confusing-ux", "brief-deviation", "unnecessary-complexity"] }],
+        exploratory: { implementationChecksum: hash("a"), targetBoundary: "LOCAL_TEST_APPLICATION", timeoutMs: 1000, requestBudget: 2, nonDestructive: true, scenarios: [{ scenarioId: "scenario:double-submit", route: "/contact", precondition: "The contact form is empty", steps: ["Click submit twice"], expected: "One safe validation response", actual: "Two submissions were accepted", safeEvidence: ["exploratory:double-submit"], status: "FAIL", severity: "HIGH", blocking: true }], capturedAt: "2026-09-11T00:00:00.000Z" },
+        securityTests: { implementationChecksum: hash("a"), targetBoundary: "LOCAL_TEST_APPLICATION", timeoutMs: 1000, requestBudget: 1, nonDestructive: true, probes: [{ probeId: "probe:headers", kind: "SECURITY_HEADERS", route: "/", expected: "CSP is present", actual: "CSP is missing", status: "FAIL", severity: "MEDIUM", safeEvidence: ["security:headers"] }], capturedAt: "2026-09-11T00:00:00.000Z" },
+      },
+      capabilities: ["IMPLEMENTED", "PUBLIC_SITE", "APPROVED_DESIGN", "INTERACTIVE_UI", "PUBLIC_FACTUAL_CONTENT", "DEPENDENCY_DELTA", "AUTH", "DATABASE"],
+    });
+    const agents = [new SecurityTestAgent(), new GermanWebComplianceAgent(), new ExploratoryQAAgent(), new UXCriticAgent(), new ProductCriticAgent(), new ArchitectureCriticAgent()];
+    expect(agents.every((agent) => agent.readOnly)).toBe(true);
+    expect((await new SecurityTestAgent().review({ snapshot: current, agent: "security-test" })).findings[0]?.category).toBe("SECURITY_TEST_SECURITY_HEADERS");
+    expect((await new ExploratoryQAAgent().review({ snapshot: current, agent: "exploratory-qa" })).findings[0]?.category).toBe("EXPLORATORY_FAILURE");
+    expect((await new SecurityReviewAgent().review({ snapshot: current, agent: "security-reviewer" })).findings[0]?.category).toBe("UNSAFE_REDIRECT");
+    expect(deterministicLightweightReviewers.map((runner) => runner.agent)).toEqual(expect.arrayContaining(["security-test", "german-web-compliance", "exploratory-qa", "ux-critic", "product-critic", "architecture-critic"]));
+  });
+
+  it("routes legal facts and upstream architecture findings away from Safe Repair", () => {
+    const legal = finding("german-web-compliance", { id: "legal-facts", category: "LEGAL_DDG", severity: "HIGH", invariant: "legal-user-input-required", repairRequired: false });
+    const architecture = finding("architecture-critic", { id: "architecture-upstream", category: "ARCHITECTURE_COMPLEXITY", invariant: "bounded-complexity" });
+    expect(reviewFindingDisposition(legal)).toBe("USER_INPUT_REQUIRED");
+    expect(reviewFindingDisposition(architecture)).toBe("UPSTREAM_AUTHORITY");
+    expect(reviewFindingsToRepairIncidents({ projectId, projectVersion: 1, findings: [legal, architecture] })).toEqual([]);
+    expect(reviewFindingsToEscalations([legal, architecture]).map((item) => item.disposition)).toEqual(["USER_INPUT_REQUIRED", "UPSTREAM_AUTHORITY"]);
+  });
+
+  it("fails closed for accidental noindex and preserves the shared implementation checksum", async () => {
+    const current = snapshot({ evidencePack: { ...snapshot().evidencePack, seo: { implementationChecksum: hash("a"), activated: true, publicSite: true, indexableRoutes: ["/"], noindexRoutes: ["/"], crawlerBlockedRoutes: ["/"], canonicalRoutes: [], sitemapPresent: false, robotsPolicyPresent: false, structuredDataApplicable: false, structuredDataPresent: false, localBusinessApplicable: false, localFactsAuthoritative: true, searchEssentialsAligned: true, noRankingGuarantees: true, doorwayPagePattern: false } } });
+    const result = await new SEOReviewAgent().review({ snapshot: current, agent: "seo-review" });
+    expect(result.artifactFingerprint).toBe(current.implementationChecksum);
+    expect(result.findings.map((item) => item.id)).toEqual(expect.arrayContaining(["seo-accidental-noindex", "seo-blocked-crawler", "seo-canonical-missing", "seo-technical-policy"]));
+    expect(() => ReviewSnapshotSchema.parse({ ...current, evidencePack: { ...current.evidencePack, seo: { ...current.evidencePack.seo!, implementationChecksum: hash("b") } } })).toThrow();
+  });
+
+  it("records bounded exploratory edge cases and a local security probe portfolio", async () => {
+    const exploratory = await executeBoundedExploratoryScenarios({
+      implementationChecksum: hash("a"),
+      targetBoundary: "LOCAL_TEST_APPLICATION",
+      timeoutMs: 100,
+      requestBudget: 7,
+      scenarios: ["double-submit", "reload-during-mutation", "expired-session", "long-input", "empty-state", "failed-backend", "stale-conflict"].map((id) => ({ scenarioId: `scenario:${id}`, route: "/contact", precondition: "Synthetic local fixture", steps: [id], expected: "Safe bounded outcome", severity: "HIGH" as const, blocking: false })),
+      execute: async (scenario) => ({ actual: `Safe outcome for ${scenario.scenarioId}`, status: "PASS" as const, safeEvidence: [`exploratory:${scenario.scenarioId}`] }),
+    });
+    expect(exploratory.scenarios).toHaveLength(7);
+    expect(exploratory.scenarios.every((scenario) => scenario.safeEvidence.length > 0)).toBe(true);
+    await expect(executeBoundedExploratoryScenarios({ implementationChecksum: hash("a"), targetBoundary: "LOCAL_TEST_APPLICATION", timeoutMs: 60_001, requestBudget: 1, scenarios: [], execute: async () => ({ actual: "", status: "PASS", safeEvidence: ["x"] }) })).rejects.toThrow("EXPLORATORY_QA_TIMEOUT_OUT_OF_BOUNDS");
+  });
+
+  it("executes every newly activated public reviewer through the bounded zero-provider cycle", async () => {
+    const current = snapshot({ evidencePack: { ...snapshot().evidencePack, exploratory: { implementationChecksum: hash("a"), targetBoundary: "LOCAL_TEST_APPLICATION", timeoutMs: 1000, requestBudget: 1, nonDestructive: true, scenarios: [{ scenarioId: "scenario:resize", route: "/", precondition: "Synthetic local page is loaded", steps: ["Resize to a narrow viewport"], expected: "Content remains usable", actual: "Content remains usable", safeEvidence: ["exploratory:resize"], status: "PASS", severity: "INFO", blocking: false }], capturedAt: "2026-09-11T00:00:00.000Z" } } });
+    const activation = buildReviewActivationPlan({ implementationComplete: true, capabilities: current.capabilities });
+    const cycle = await runReviewCycle({ snapshot: current, activation, runners: deterministicLightweightReviewers, maxConcurrency: 3 });
+    expect(cycle.providerCalls).toBe(0);
+    expect(cycle.results.map((result) => result.agent)).toEqual(expect.arrayContaining(["exploratory-qa", "ux-critic", "product-critic"]));
+    expect(cycle.releaseReadiness.missingRequiredReviews).toEqual([]);
   });
 
   it("keeps finding IDs unique across repeated security evidence and visual comparisons", async () => {

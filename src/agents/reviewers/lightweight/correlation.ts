@@ -34,8 +34,33 @@ export function correlateReviewFindings(findings: readonly ReviewFinding[]): Cor
   return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([correlationKey, group]) => ({ correlationKey, findings: group.sort((left, right) => left.agent.localeCompare(right.agent) || left.id.localeCompare(right.id)) }));
 }
 
+export type ReviewFindingDisposition = "SAFE_REPAIR" | "USER_INPUT_REQUIRED" | "LEGAL_REVIEW_REQUIRED" | "UPSTREAM_AUTHORITY";
+
+export function reviewFindingDisposition(finding: ReviewFinding): ReviewFindingDisposition {
+  if (finding.agent === "german-web-compliance" && finding.invariant === "legal-user-input-required") return "USER_INPUT_REQUIRED";
+  if (finding.agent === "german-web-compliance" && ["legal-professional-review", "legal-currentness"].includes(finding.invariant ?? "")) return "LEGAL_REVIEW_REQUIRED";
+  if (finding.agent === "architecture-critic") return "UPSTREAM_AUTHORITY";
+  if (finding.agent === "product-critic" && ["brief-alignment", "required-outcome", "audience-fit"].includes(finding.invariant ?? "")) return "UPSTREAM_AUTHORITY";
+  return "SAFE_REPAIR";
+}
+
+export type ReviewFindingEscalation = {
+  findingId: string;
+  agent: ReviewFinding["agent"];
+  disposition: Exclude<ReviewFindingDisposition, "SAFE_REPAIR">;
+  safeSummary: string;
+  evidence: string[];
+};
+
+export function reviewFindingsToEscalations(findings: readonly ReviewFinding[]): ReviewFindingEscalation[] {
+  return findings
+    .map((finding) => ReviewFindingSchema.parse(finding))
+    .filter((finding) => reviewFindingDisposition(finding) !== "SAFE_REPAIR")
+    .map((finding) => ({ findingId: finding.id, agent: finding.agent, disposition: reviewFindingDisposition(finding) as Exclude<ReviewFindingDisposition, "SAFE_REPAIR">, safeSummary: finding.safeSummary, evidence: [...finding.evidence] }));
+}
+
 const sourceForAgent = (agent: ReviewFinding["agent"]): RepairIncident["source"] => {
-  if (["browser-qa", "accessibility-review", "performance-review", "visual-regression"].includes(agent)) return "RUNTIME";
+  if (["browser-qa", "accessibility-review", "performance-review", "visual-regression", "security-test", "exploratory-qa"].includes(agent)) return "RUNTIME";
   if (["security-reviewer"].includes(agent)) return "CONTRACT";
   return "CONTRACT";
 };
@@ -45,7 +70,7 @@ const repairSafeRef = (value: string) => /^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/.test(v
   : `review-evidence:${checksumPersistedDocument(value).slice(0, 24)}`;
 
 export function reviewFindingsToRepairIncidents(input: { projectId: string; projectVersion: number; findings: readonly ReviewFinding[]; observedAt?: string }): RepairIncident[] {
-  const groups = correlateReviewFindings(input.findings.filter((finding) => finding.blocking && finding.repairRequired));
+  const groups = correlateReviewFindings(input.findings.filter((finding) => finding.blocking && finding.repairRequired && reviewFindingDisposition(finding) === "SAFE_REPAIR"));
   return groups.map((group) => {
     const first = group.findings[0]!;
     const evidenceRefs = [...new Set(group.findings.flatMap((finding) => [finding.id, ...finding.evidence].map(repairSafeRef)))].slice(0, 50);

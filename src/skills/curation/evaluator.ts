@@ -143,6 +143,7 @@ const capabilityKeywords: Record<CurationCapability, RegExp> = {
   "design.selection": /design|UX|responsive|typography|spacing|layout|interaction|motion|accessib/i,
   "implementation.code": /implement|React|Next\.js|TypeScript|Server Component|client component|form|Zod|performance|maintain/i,
   "implementation.backend": /Supabase|PostgreSQL|auth|storage|server action|route handler|database|RLS|security/i,
+  "implementation.seo": /SEO|metadata|canonical|robots|sitemap|indexab|Open Graph|structured data/i,
   "review.architecture":
     /architecture|module boundaries?|domain model|cohesion|coupling|source of truth|architecture decision/i,
   "review.contracts":
@@ -151,6 +152,13 @@ const capabilityKeywords: Record<CurationCapability, RegExp> = {
     /code review|React|Next\.js|TypeScript|integration|server.?client|module composition/i,
   "review.security":
     /security|authorization|authentication|RLS|Supabase|PostgreSQL|secure input|route handler|server action/i,
+  "review.security-threat-model": /threat model|attack surface|trust boundary|STRIDE|OWASP|security control|risk treatment/i,
+  "review.security-test": /security test|penetration|authorization|injection|XSS|CSRF|SSRF|headers|cookies|secret scan/i,
+  "review.german-web-compliance": /German|Germany|Impressum|Datenschutz|DSGVO|BDSG|DDG|TDDDG|BFSG|VSBG|newsletter|e-commerce|consent/i,
+  "review.exploratory-qa": /exploratory|edge case|boundary|user flow|failure mode|reproducible evidence|unexpected state/i,
+  "review.ux-critic": /UX|usability|clarity|CTA|flow|mobile|friction|interaction|feedback/i,
+  "review.product-critic": /product|scope|audience|outcome|value proposition|conversion|requirement fit/i,
+  "review.architecture-critic": /architecture|complexity|trust boundary|failure mode|coupling|module boundary|resilience/i,
   "review.test-quality":
     /test strategy|Playwright|Vitest|assertions?|coverage|quality engineering|user flow/i,
   "review.browser-qa":

@@ -20,6 +20,12 @@ export const ReviewTaskTypeSchema = z.enum([
   "review-content-quality",
   "review-dependencies",
   "review-documentation",
+  "review-security-test",
+  "review-german-web-compliance",
+  "review-exploratory-qa",
+  "review-ux-critic",
+  "review-product-critic",
+  "review-architecture-critic",
 ]);
 export type ReviewTaskType = z.infer<typeof ReviewTaskTypeSchema>;
 
@@ -68,6 +74,12 @@ const taskTypeFor: Record<ReviewAgentId, ReviewTaskType | undefined> = {
   "content-quality": "review-content-quality",
   "dependency-guardian": "review-dependencies",
   "documentation": "review-documentation",
+  "security-test": "review-security-test",
+  "german-web-compliance": "review-german-web-compliance",
+  "exploratory-qa": "review-exploratory-qa",
+  "ux-critic": "review-ux-critic",
+  "product-critic": "review-product-critic",
+  "architecture-critic": "review-architecture-critic",
 };
 
 const deterministicReviewTools: Partial<Record<ReviewAgentId, readonly string[]>> = {
@@ -77,6 +89,12 @@ const deterministicReviewTools: Partial<Record<ReviewAgentId, readonly string[]>
   "visual-regression": ["playwright-functional-qa"],
   "seo-review": ["generated-runtime-validation"],
   "dependency-guardian": ["generated-runtime-validation"],
+  "security-test": ["playwright-functional-qa", "generated-runtime-validation"],
+  "german-web-compliance": ["generated-runtime-validation"],
+  "exploratory-qa": ["playwright-functional-qa"],
+  "ux-critic": ["playwright-functional-qa"],
+  "product-critic": [],
+  "architecture-critic": [],
 };
 
 export function buildReviewTaskGraph(input: { snapshot: ReviewSnapshot; activation: ReviewActivationPlan; maxConcurrency?: number }): ReviewTaskGraph {

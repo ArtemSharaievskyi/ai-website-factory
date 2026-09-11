@@ -41,7 +41,7 @@ function reviewerClient(output: unknown) {
 }
 
 describe("typed agent catalog", () => {
-  it("contains the foundation catalog plus the lightweight review layer", () => expect(agentCatalog.map((agent) => agent.agentId)).toEqual(["lead", "planner", "design", "implementation", "architecture-reviewer", "contract-auditor", "code-integration-reviewer", "security-reviewer", "test-quality-reviewer", "browser-qa", "accessibility-review", "performance-review", "visual-regression", "release-readiness", "seo-review", "content-quality", "dependency-guardian", "documentation"]));
+  it("contains the foundation catalog plus the lightweight review layer", () => expect(agentCatalog.map((agent) => agent.agentId)).toEqual(["lead", "planner", "design", "implementation", "architecture-reviewer", "contract-auditor", "code-integration-reviewer", "security-reviewer", "security-threat-model", "test-quality-reviewer", "browser-qa", "accessibility-review", "performance-review", "visual-regression", "release-readiness", "seo-review", "content-quality", "dependency-guardian", "documentation", "security-test", "german-web-compliance", "exploratory-qa", "ux-critic", "product-critic", "architecture-critic"]));
   it("has unique identities and exclusive current capabilities", () => {
     expect(new Set(agentCatalog.map((agent) => agent.agentId)).size).toBe(agentCatalog.length);
     expect(new Set(agentCatalog.flatMap((agent) => agent.capabilities)).size).toBe(AGENT_CAPABILITY_IDS.length);
@@ -116,7 +116,7 @@ describe("typed agent catalog", () => {
     for (const directory of ["architecture", "contracts", "code-integration", "security", "test-quality"]) {
       await expect(readFile(path.join(root, "src/agents/reviewers", directory, "service.ts"), "utf8")).resolves.toBeTruthy();
     }
-    expect(agentCatalog.filter((agent) => agent.role === "review")).toHaveLength(14);
+    expect(agentCatalog.filter((agent) => agent.role === "review")).toHaveLength(21);
   });
   it("resolves only approved skills", () => {
     const custom = { ...implementationAgentDefinition, allowedSkillIds: ["approved-skill"] } as typeof implementationAgentDefinition;

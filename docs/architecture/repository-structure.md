@@ -17,7 +17,7 @@ src/
       architecture/            Architecture Reviewer
       contracts/               Contract Auditor
       code-integration/        Code / Integration Reviewer
-      security/                Security Reviewer
+      security/                Security Reviewer, threat model, and bounded security test harness
       test-quality/            Test / Quality Reviewer
       lightweight/             Deterministic post-implementation QA/review layer
   domain/                      Shared workflow and product contracts
@@ -59,4 +59,4 @@ public/                        Factory static assets only
 - Factory-internal generated, smoke, QA, and build artifacts are transient and ignored; they must not become source or customer output.
 - Documentation is grouped by responsibility. Durable architectural decisions remain under `docs/adr/`.
 
-The current catalog includes the nine foundation agents, five existing provider-backed reviewers, and nine lightweight deterministic reviewers under `src/agents/reviewers/lightweight/` (the established role convention is `src/agents/reviewers/<role>/`). The historical skill portfolio remains nine-agent scoped. Reviewer source is read-only by default; DocumentationAgent has only the host-enforced documentation path scopes declared in the catalog. This document does not create agent eligibility.
+The current catalog includes the nine foundation agents, five existing provider-backed reviewers, one pre-implementation deterministic Security Threat Model Agent, and fifteen lightweight deterministic reviewers under `src/agents/reviewers/lightweight/` (the established role convention is `src/agents/reviewers/<role>/`). The historical skill portfolio remains nine-agent scoped. Reviewer source is read-only by default; Security and exploratory harnesses have only bounded test-target authority, and DocumentationAgent has only the host-enforced documentation path scopes declared in the catalog. This document does not create agent eligibility.

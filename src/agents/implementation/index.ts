@@ -7,3 +7,4 @@ export * from "./service";
 export * from "./validators";
 export * from "./server";
 export * from "./design-quality";
+export * from "./seo-optimization";

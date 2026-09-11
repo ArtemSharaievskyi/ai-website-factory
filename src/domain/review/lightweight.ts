@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { IsoDateTimeSchema, ProjectVersionSchema, UuidSchema } from "@/domain/shared/schemas";
+import { ExploratoryQAEvidenceSchema, GermanComplianceResultSchema, SecurityTestEvidenceSchema, SEOImplementationEvidenceSchema } from "@/domain/assurance/contracts";
 
 const HashSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const SafeIdSchema = z.string().min(1).max(160).regex(/^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/);
@@ -22,6 +23,12 @@ export const ReviewAgentIdSchema = z.enum([
   "content-quality",
   "dependency-guardian",
   "documentation",
+  "security-test",
+  "german-web-compliance",
+  "exploratory-qa",
+  "ux-critic",
+  "product-critic",
+  "architecture-critic",
 ]);
 export type ReviewAgentId = z.infer<typeof ReviewAgentIdSchema>;
 
@@ -124,6 +131,10 @@ export const ReviewEvidencePackSchema = z.object({
   routeRefs: z.array(RefSchema).max(100),
   sourceFiles: z.array(ReviewSourceFileSchema).max(200),
   browser: ReviewBrowserEvidenceSchema.optional(),
+  securityTests: SecurityTestEvidenceSchema.optional(),
+  germanCompliance: GermanComplianceResultSchema.optional(),
+  exploratory: ExploratoryQAEvidenceSchema.optional(),
+  seo: SEOImplementationEvidenceSchema.optional(),
   dependencyDelta: z.array(ReviewDependencyDeltaSchema).max(100).default([]),
   metrics: z.record(z.string().regex(/^[a-z][A-Za-z0-9_.-]*$/), z.number().nonnegative()).default({}),
   evidenceRefs: z.array(RefSchema).max(200),
@@ -144,6 +155,9 @@ export const ReviewCapabilitySchema = z.enum([
   "PUBLIC_FACTUAL_CONTENT",
   "DEPENDENCY_DELTA",
   "DOCUMENTATION_REQUEST",
+  "GERMAN_PUBLIC_SITE",
+  "ECOMMERCE",
+  "SENSITIVE_DATA",
 ]);
 export type ReviewCapability = z.infer<typeof ReviewCapabilitySchema>;
 
@@ -164,6 +178,10 @@ export const ReviewSnapshotSchema = z.object({
   createdAt: IsoDateTimeSchema,
 }).strict().superRefine((snapshot, context) => {
   if (snapshot.evidencePack.implementationChecksum !== snapshot.implementationChecksum) context.addIssue({ code: "custom", path: ["evidencePack", "implementationChecksum"], message: "Evidence must bind to the implementation snapshot." });
+  if (snapshot.evidencePack.securityTests && snapshot.evidencePack.securityTests.implementationChecksum !== snapshot.implementationChecksum) context.addIssue({ code: "custom", path: ["evidencePack", "securityTests", "implementationChecksum"], message: "Security-test evidence must bind to the implementation snapshot." });
+  if (snapshot.evidencePack.germanCompliance && snapshot.evidencePack.germanCompliance.implementationChecksum !== snapshot.implementationChecksum) context.addIssue({ code: "custom", path: ["evidencePack", "germanCompliance", "implementationChecksum"], message: "German compliance evidence must bind to the implementation snapshot." });
+  if (snapshot.evidencePack.exploratory && snapshot.evidencePack.exploratory.implementationChecksum !== snapshot.implementationChecksum) context.addIssue({ code: "custom", path: ["evidencePack", "exploratory", "implementationChecksum"], message: "Exploratory evidence must bind to the implementation snapshot." });
+  if (snapshot.evidencePack.seo && snapshot.evidencePack.seo.implementationChecksum !== snapshot.implementationChecksum) context.addIssue({ code: "custom", path: ["evidencePack", "seo", "implementationChecksum"], message: "SEO evidence must bind to the implementation snapshot." });
 });
 export type ReviewSnapshot = z.infer<typeof ReviewSnapshotSchema>;
 

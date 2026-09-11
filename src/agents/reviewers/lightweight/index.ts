@@ -5,3 +5,5 @@ export * from "./orchestrator";
 export * from "./permissions";
 export * from "./release";
 export * from "./taskgraph";
+export * from "./exploratory-harness";
+export * from "./supply-chain-security-skill";
