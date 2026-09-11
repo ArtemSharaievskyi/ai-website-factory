@@ -76,6 +76,7 @@ export const TaskExecutionDispatchSchema = z
       "runtime-validation",
       "functional-qa",
       "static-validation",
+      "review",
       "unsupported",
     ]),
     attempt: z.number().int().nonnegative(),

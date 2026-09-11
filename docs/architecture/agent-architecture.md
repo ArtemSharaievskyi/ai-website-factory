@@ -9,7 +9,7 @@ The current typed flow is:
 
 `user/workflow requirement -> capability -> AgentDefinition -> bounded context/tools/approved skills -> typed result`
 
-The catalog currently contains exactly these nine definitions:
+The catalog currently contains the foundation definitions plus nine deterministic post-implementation reviewers. The historical Phase 4D4 skill portfolio remains scoped to the nine skill-managed foundation agents; the lightweight reviewers intentionally have no approved procedural skills.
 
 | Agent | Role | Current capabilities | Write authority |
 | --- | --- | --- | --- |
@@ -22,6 +22,15 @@ The catalog currently contains exactly these nine definitions:
 | Code / Integration Reviewer | review | `review.integration` | read-only review result; React/Next integration |
 | Security Reviewer | review | `review.security` | read-only review result; Supabase RLS and auth/storage when relevant |
 | Test / Quality Reviewer | review | `review.test-quality` | read-only review result; shared traceability and behavioral test quality |
+| Browser QA Agent | review | `review.browser-qa` | read-only browser/runtime evidence review |
+| Accessibility Review Agent | review | `review.accessibility` | read-only WCAG-oriented evidence review |
+| Performance Review Agent | review | `review.performance` | read-only build, bundle, rendering, and layout evidence review |
+| Visual Regression Agent | review | `review.visual-regression` | read-only approved-Design comparison |
+| Release Readiness Agent | review | `review.release-readiness` | read-only typed evidence aggregator |
+| SEO Review Agent | review | `review.seo` | conditional read-only public/indexability review |
+| Content Quality Agent | review | `review.content-quality` | conditional read-only provenance and placeholder review |
+| Dependency Guardian Agent | review | `review.dependencies` | conditional read-only dependency-delta review |
+| Documentation Agent | review | `review.documentation` | conditional, path-bounded documentation-only mutation when explicitly authorized |
 
 The role boundaries are:
 
@@ -36,11 +45,11 @@ The workflow gates are `Planning Acceptance -> ARCHITECTURE_REVIEW -> Design -> 
 
 ## Permissions and policy
 
-Agent tools are explicit integration IDs: `openai-generation`, `context7-read`, `shadcn-registry-read`, and `codebase-memory-read`. Agent definitions do not inherit wildcard tools or capabilities. Skills are separate approved procedural context. Phase 4D4 assigns explicit role-appropriate portfolios to all nine agents; the portfolio has no fixed one-skill or top-K quota, and the shared traceability procedure remains one artifact with multi-reviewer applicability. The three deferred external candidates remain inactive. `src/agents/catalog.ts` is the sole current assignment authority; this document, curation plans, and admin portfolio snapshots are derived views and never grant runtime eligibility. The dedicated `skills.sh` source adapter is administrative read-only infrastructure documented in [skills.sh source integration](../integrations/skills-sh-source.md); it never approves or assigns skills.
+Agent tools are explicit integration IDs; the lightweight layer reuses `playwright-functional-qa` and `generated-runtime-validation` where evidence capture requires them. Agent definitions do not inherit wildcard tools or capabilities. Skills are separate approved procedural context. Phase 4D4 assigns explicit role-appropriate portfolios to the nine skill-managed agents; the portfolio has no fixed one-skill or top-K quota, and the shared traceability procedure remains one artifact with multi-reviewer applicability. The three deferred external candidates remain inactive. `src/agents/catalog.ts` is the sole current assignment authority; this document, curation plans, and admin portfolio snapshots are derived views and never grant runtime eligibility. The dedicated `skills.sh` source adapter is administrative read-only infrastructure documented in [skills.sh source integration](../integrations/skills-sh-source.md); it never approves or assigns skills.
 
 Each definition declares a versioned context policy with allowed categories, item and byte limits, plus an execution policy covering AI-generation permission, retry class, cancellation, concurrency, approval gates, and read-only status. Input and output contracts reference the existing typed agent schemas, while prompt versioning is tracked independently from context and execution policy versions. The Architecture Reviewer receives only the approved Brief, accepted PlanningPackage, fixed architecture policy, and bounded constraints.
 
-The current review capabilities are `review.architecture`, `review.contracts`, `review.integration`, `review.security`, and `review.test-quality`.
+The current review capabilities are `review.architecture`, `review.contracts`, `review.integration`, `review.security`, `review.test-quality`, `review.browser-qa`, `review.accessibility`, `review.performance`, `review.visual-regression`, `review.release-readiness`, `review.seo`, `review.content-quality`, `review.dependencies`, and `review.documentation`.
 
 Skills provide reviewed specialization to roles; they do not replace the Orchestrator. External discovery follows `skills.sh -> bounded fetch -> STAGING -> deterministic validation/static review -> explicit approval -> checksum-bound immutable copy`. At invocation, the resolver evaluates zero, one, or multiple approved candidates by capability, task type, project surface, coverage, overlap/conflict, tool authority, and shared context budget. It uses stable priority/ID ordering and no fixed maximum or top-K quota. Selected checksums form the procedural context identity used for reviewer idempotency/staleness. Agents must not install arbitrary skills, change requirements, invent facts, or broaden infrastructure.
 Context7 is a replaceable documentation port at the Planner and Implementation context seams, not an Orchestrator or general MCP layer.
@@ -50,5 +59,7 @@ The Phase 7B host tooling boundary is documented in [developer-tooling-capabilit
 The Code / Integration Reviewer is a read-only semantic gate after implementation structural validation, lint, and typecheck. It receives only bounded source manifests/slices and canonical contract checksums, persists evidence-backed findings, and never writes source or invokes Implementation.
 
 The Test / Quality Reviewer is documented in [test-quality-reviewer.md](test-quality-reviewer.md). It runs after current lint, typecheck, unit-test, build, and Functional QA evidence exists. Its bounded `QualityEvidenceSummary` traces approved requirements to implementation responsibility and executed evidence. Deterministic prerequisites establish currentness and pass/fail facts; semantic review considers meaningful assertions, important flows, success/error outcomes, risk-scaled coverage, and Playwright scenario sufficiency. It does not write tests, run validators, invent requirements, or demand numeric coverage. Corrections route to existing test/QA or implementation ownership, with at most two bounded cycles. Application-source changes stale source-bound quality and semantic reviews; test-only changes preserve unchanged application reviews when checksums prove that boundary.
+
+The lightweight post-implementation layer is implemented under `src/agents/reviewers/lightweight/`. Host-owned activation derives required reviewers from approved project capabilities, materializes a snapshot-bound review TaskGraph, runs deterministic read-only inspections with bounded parallelism, and lets Release Readiness aggregate only same-checksum results and quality gates. Findings correlate by boundary, route, operation, and invariant before becoming `RepairIncident` inputs for the existing Safe Repair pipeline. No lightweight reviewer owns canonical writes; DocumentationAgent is limited to explicitly authorized `README.md`, `docs/**`, and `.env.example` paths.
 
 The shadcn Registry is a replaceable implementation-reference port, not a Design Agent, Orchestrator, installer, or general remote executor.

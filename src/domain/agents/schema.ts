@@ -66,10 +66,17 @@ export const AgentDefinitionSchema = z.object({
   policyVersions: z.object({ context: z.string().min(1), execution: z.string().min(1) }).strict(),
   executionPolicy: AgentExecutionPolicySchema,
   readOnly: z.boolean(),
+  /** Host-owned mutation boundary. Reviewers never own canonical writes. */
+  canonicalWriteAuthority: z.boolean().default(false),
+  /** Optional bounded source paths; documentation review is the only supported write scope. */
+  writeScopes: z.array(z.string().min(1)).default([]),
 }).strict().superRefine((definition, context) => {
   if (new Set(definition.capabilities).size !== definition.capabilities.length) context.addIssue({ code: "custom", path: ["capabilities"], message: "Capabilities must be unique." });
   if (new Set(definition.supportedTaskTypes).size !== definition.supportedTaskTypes.length) context.addIssue({ code: "custom", path: ["supportedTaskTypes"], message: "Supported task types must be unique." });
   if (definition.role === "review" && definition.executionPolicy.concurrencyClass === "exclusive-write") context.addIssue({ code: "custom", path: ["executionPolicy", "concurrencyClass"], message: "Reviewer agents cannot use exclusive-write execution." });
   if (definition.role === "review" && !definition.readOnly) context.addIssue({ code: "custom", path: ["readOnly"], message: "Reviewer agents must be read-only." });
+  if (definition.role === "review" && definition.canonicalWriteAuthority) context.addIssue({ code: "custom", path: ["canonicalWriteAuthority"], message: "Reviewers cannot own canonical writes." });
+  if (definition.agentId !== "documentation" && definition.writeScopes.length) context.addIssue({ code: "custom", path: ["writeScopes"], message: "Only DocumentationAgent may receive bounded documentation write scopes." });
+  if (definition.agentId === "documentation" && definition.writeScopes.some((scope) => !["README.md", ".env.example", "docs/**"].includes(scope))) context.addIssue({ code: "custom", path: ["writeScopes"], message: "Documentation write scopes must remain bounded to README.md, docs/**, or .env.example." });
 });
 export type AgentDefinition = z.infer<typeof AgentDefinitionSchema>;

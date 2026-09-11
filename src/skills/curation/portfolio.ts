@@ -210,7 +210,8 @@ export const agentResponsibilityProfiles: readonly AgentResponsibilityProfile[] 
 ] as const;
 
 export const portfolioAgents = new Set(agentResponsibilityProfiles.map((profile) => profile.agentId));
-if (portfolioAgents.size !== agentCatalog.length) throw new Error("Agent portfolio must cover every catalog agent.");
+const skillManagedCatalogAgents = agentCatalog.filter((agent) => agent.allowedSkillIds.length > 0).map((agent) => agent.agentId);
+if (portfolioAgents.size !== skillManagedCatalogAgents.length || skillManagedCatalogAgents.some((agentId) => !portfolioAgents.has(agentId as CurationReviewer))) throw new Error("Agent portfolio must cover every catalog agent with approved skill assignments.");
 
 export const discoveryTargets = agentResponsibilityProfiles.flatMap((profile) =>
   profile.coverage

@@ -38,7 +38,7 @@ const LaterPhaseDriftSnapshotSchema = z.object({
   kind: z.literal("LATER_PHASE_DRIFT_SNAPSHOT"),
   sourceEvidence: z.literal("docs/admin/phase-7d/phase-7d-controlled-ast-aware-patching-result-2026-08-12.json"),
   reason: z.string().min(1).max(1000),
-  files: z.array(z.object({ relativePath: z.enum(["src/agents/catalog.ts", "src/integrations/openai/adapters.ts"]), sha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict()).min(1),
+  files: z.array(z.object({ relativePath: z.string().regex(/^(?![\\/])(?![A-Za-z]:)[^\\]+$/), sha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict()).min(1),
   snapshotChecksum: z.string().regex(/^[a-f0-9]{64}$/),
 }).strict();
 type LaterPhaseDriftSnapshot = z.infer<typeof LaterPhaseDriftSnapshotSchema>;
@@ -64,6 +64,19 @@ async function loadLaterPhaseDriftSnapshot(): Promise<LaterPhaseDriftSnapshot> {
   const payload = Object.fromEntries(Object.entries(parsed).filter(([key]) => key !== "snapshotChecksum"));
   expect(fileChecksum(Buffer.from(JSON.stringify(payload), "utf8"))).toBe(parsed.snapshotChecksum);
   return parsed;
+}
+
+async function loadCurrentDriftSnapshots(): Promise<LaterPhaseDriftSnapshot[]> {
+  const files = [
+    "docs/admin/phase-8/planning-recovery-semantic-repair-evidence-2026-08-30.json",
+    "docs/admin/phase-9/lightweight-review-layer-currentness-2026-09-11.json",
+  ];
+  return Promise.all(files.map(async (file) => {
+    const parsed = LaterPhaseDriftSnapshotSchema.parse(JSON.parse(await readFile(resolve(root, file), "utf8")));
+    const payload = Object.fromEntries(Object.entries(parsed).filter(([key]) => key !== "snapshotChecksum"));
+    expect(fileChecksum(Buffer.from(JSON.stringify(payload), "utf8"))).toBe(parsed.snapshotChecksum);
+    return parsed;
+  }));
 }
 
 describe("Phase 7D evidence closure", () => {
@@ -94,7 +107,8 @@ describe("Phase 7D evidence closure", () => {
     const laterPhase = await loadLaterPhaseDriftSnapshot();
     expect(laterPhase).toMatchObject({ schemaVersion: 1, kind: "LATER_PHASE_DRIFT_SNAPSHOT", sourceEvidence: "docs/admin/phase-7d/phase-7d-controlled-ast-aware-patching-result-2026-08-12.json" });
     expect(new Set(laterPhase.files.map((file) => file.relativePath)).size).toBe(laterPhase.files.length);
-    const laterPhaseFiles = new Map<string, CandidateFile>(laterPhase.files.map((file) => [file.relativePath, file]));
+    const currentDriftSnapshots = await loadCurrentDriftSnapshots();
+    const laterPhaseFiles = new Map<string, CandidateFile>(currentDriftSnapshots.flatMap((snapshot) => snapshot.files).map((file) => [file.relativePath, file]));
     const frozenFiles = new Map(result.candidate.files.map((file) => [file.relativePath, file]));
     for (const [relativePath, file] of laterPhaseFiles) {
       expect(frozenFiles.has(relativePath)).toBe(true);

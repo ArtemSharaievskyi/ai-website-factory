@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "kind": "LATER_PHASE_DRIFT_SNAPSHOT",
+  "sourceEvidence": "docs/admin/phase-7d/phase-7d-controlled-ast-aware-patching-result-2026-08-12.json",
+  "reason": "The lightweight post-implementation QA/review layer expands the authoritative agent catalog, its catalog certification, and the skill-portfolio compatibility projection. This is an explicitly authorized current change; historical Phase 7D evidence remains immutable and the historical nine-agent skill portfolio remains unchanged.",
+  "files": [
+    {
+      "relativePath": "src/agents/catalog.test.ts",
+      "sha256": "db2f7bd2158be1d3981ceb0850d7929cc0256755565d2300e24ba1f97635c9a7"
+    },
+    {
+      "relativePath": "src/agents/catalog.ts",
+      "sha256": "60380a6c34251f8b09eeb3422bef9326932289ddd7085ff2393864b6c0f3018b"
+    },
+    {
+      "relativePath": "src/integrations/openai/adapters.ts",
+      "sha256": "81ebf612b17130f41cc5b6ce0f2e6ee931d4a7334b21b7ee306a057a256bef68"
+    },
+    {
+      "relativePath": "src/skills/curation/portfolio.ts",
+      "sha256": "d50c89581d12745ade6e11c29e292dd302fb4ce9e96b31b933f2816098ec7b22"
+    }
+  ],
+  "snapshotChecksum": "ef4bc02a386fc50c33047578567e0a52b464163306e1e43f35f12dcedb756322"
+}

@@ -101,7 +101,8 @@ repositories, and validators remain canonical.
 - `src/agents/implementation/` owns task validation, bounded context,
   proposals, atomic apply, and implementation execution.
 - `src/agents/reviewers/` contains read-only Architecture, Contract, Code /
-  Integration, Security, and Test / Quality review contracts and services.
+  Integration, Security, Test / Quality, and lightweight post-implementation
+  review contracts and services.
 - `src/agents/catalog.ts` is the current agent/capability assignment authority.
 
 ## Validation and generated runtime

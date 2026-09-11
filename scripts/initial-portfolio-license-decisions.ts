@@ -258,7 +258,11 @@ async function main() {
   const deferredIds = candidates
     .filter((candidate) => !candidate.initialPortfolioRequired)
     .map((candidate) => candidate.externalSkillId);
-  const initialCoverage: InitialPortfolioCoverageRecord[] = agentCatalog.map((agent) => {
+  // The historical Phase 4D4 artifact is intentionally scoped to agents with
+  // approved skill assignments. Deterministic post-implementation reviewers
+  // are cataloged separately and have no approved procedural skills.
+  const skillManagedCatalog = agentCatalog.filter((agent) => agent.allowedSkillIds.length > 0);
+  const initialCoverage: InitialPortfolioCoverageRecord[] = skillManagedCatalog.map((agent) => {
     const agentId = CurationReviewerSchema.parse(agent.agentId);
     const internalIds = internalEvidence.candidates
       .filter((candidate) => candidate.targets.includes(agentId))

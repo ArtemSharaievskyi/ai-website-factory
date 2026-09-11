@@ -2,12 +2,12 @@ import { AgentCapabilityIdSchema, AgentDefinitionSchema, AgentToolIdSchema, type
 import { ImplementationTaskTypeSchema } from "@/domain/tasks/schema";
 import { z } from "zod";
 
-export const AGENT_TOOL_IDS = ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit", "fontpair-read", "design-quality-validation", "design-source-discovery"] as const satisfies readonly z.infer<typeof AgentToolIdSchema>[];
+export const AGENT_TOOL_IDS = ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "generated-runtime-validation", "playwright-functional-qa", "controlled-edit", "fontpair-read", "design-quality-validation", "design-source-discovery"] as const satisfies readonly z.infer<typeof AgentToolIdSchema>[];
 export type AgentToolId = (typeof AGENT_TOOL_IDS)[number];
-export const AGENT_CAPABILITY_IDS = ["requirements.clarify", "requirements.brief", "planning.architecture", "planning.content", "planning.assets", "design.directions", "design.selection", "implementation.code", "implementation.backend", "review.architecture", "review.contracts", "review.integration", "review.security", "review.test-quality"] as const satisfies readonly z.infer<typeof AgentCapabilityIdSchema>[];
+export const AGENT_CAPABILITY_IDS = ["requirements.clarify", "requirements.brief", "planning.architecture", "planning.content", "planning.assets", "design.directions", "design.selection", "implementation.code", "implementation.backend", "review.architecture", "review.contracts", "review.integration", "review.security", "review.test-quality", "review.browser-qa", "review.accessibility", "review.performance", "review.visual-regression", "review.release-readiness", "review.seo", "review.content-quality", "review.dependencies", "review.documentation"] as const satisfies readonly z.infer<typeof AgentCapabilityIdSchema>[];
 export type AgentCapabilityId = (typeof AGENT_CAPABILITY_IDS)[number];
 
-const CONTRACT_REFERENCES = new Set(["lead.input", "lead.output", "planner.input", "planner.output", "design.input", "design.output", "implementation.input", "implementation.output", "architecture-reviewer.input", "contract-auditor.input", "code-integration-reviewer.input", "security-reviewer.input", "test-quality-reviewer.input", "review.output"]);
+const CONTRACT_REFERENCES = new Set(["lead.input", "lead.output", "planner.input", "planner.output", "design.input", "design.output", "implementation.input", "implementation.output", "architecture-reviewer.input", "contract-auditor.input", "code-integration-reviewer.input", "security-reviewer.input", "test-quality-reviewer.input", "browser-qa.input", "accessibility-review.input", "performance-review.input", "visual-regression.input", "release-readiness.input", "seo-review.input", "content-quality.input", "dependency-guardian.input", "documentation.input", "review.output", "agent-review.output"]);
 const CURRENT_TASK_TYPES = new Set<string>([
   ...ImplementationTaskTypeSchema.options,
   "clarify-requirements",
@@ -19,12 +19,22 @@ const CURRENT_TASK_TYPES = new Set<string>([
   "review-architecture",
   "review-contracts",
   "review-code-integration",
+  "review-code",
   "review-security",
   "review-test-quality",
+  "review-browser-qa",
+  "review-accessibility",
+  "review-performance",
+  "review-visual-regression",
+  "review-release-readiness",
+  "review-seo",
+  "review-content-quality",
+  "review-dependencies",
+  "review-documentation",
 ]);
 const IMPLEMENTATION_TASK_TYPES = ["prepare-workspace", "implement-project-foundation", "implement-design-system", "implement-shared-layout", "implement-navigation", "implement-page", "implement-shared-component", "implement-form", "implement-server-action", "implement-route-handler", "implement-database-schema", "implement-rls-policy", "implement-authentication", "implement-storage", "implement-email", "integrate-assets", "integrate-content", "implement-seo", "implement-motion", "write-unit-tests", "write-integration-tests", "write-e2e-tests", "repair-targeted-failure"];
 
-const definition = (value: AgentDefinition) => AgentDefinitionSchema.parse(value);
+const definition = (value: z.input<typeof AgentDefinitionSchema>): AgentDefinition => AgentDefinitionSchema.parse(value);
 export const leadAgentDefinition = definition({
   agentId: "lead", displayName: "Lead Agent", role: "generation", version: "1.0.0",
   capabilities: ["requirements.clarify", "requirements.brief"], supportedTaskTypes: ["clarify-requirements", "create-requirements-spec"],
@@ -98,7 +108,34 @@ export const testQualityReviewerAgentDefinition = definition({
   inputContract: { schemaId: "test-quality-reviewer.input", version: "1" }, outputContract: { schemaId: "review.output", version: "1" }, promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "test-quality-reviewer.v1", policyVersions: { context: "test-quality-review-context-v1", execution: "test-quality-review-execution-v1" }, executionPolicy: { aiGenerationAllowed: true, retryClass: "bounded-provider", cancellationSupported: true, concurrencyClass: "single-flight", requiresExplicitApprovalBeforeTransition: false }, readOnly: true,
 });
 
-export const agentCatalog = [leadAgentDefinition, plannerAgentDefinition, designAgentDefinition, implementationAgentDefinition, architectureReviewerAgentDefinition, contractAuditorAgentDefinition, codeIntegrationReviewerAgentDefinition, securityReviewerAgentDefinition, testQualityReviewerAgentDefinition] as const satisfies readonly AgentDefinition[];
+const lightweightReviewer = (value: Pick<AgentDefinition, "agentId" | "displayName" | "capabilities" | "supportedTaskTypes" | "allowedTools" | "contextPolicy" | "inputContract"> & { writeScopes?: string[] }) => definition({
+  ...value,
+  role: "review",
+  version: "1.0.0",
+  allowedSkillIds: [],
+  outputContract: { schemaId: "agent-review.output", version: "1" },
+  promptOwner: "src/agents/reviewers/lightweight/agents.ts",
+  promptVersion: "lightweight-reviewer.deterministic.v1",
+  policyVersions: { context: "lightweight-review-context-v1", execution: "lightweight-review-execution-v1" },
+  executionPolicy: { aiGenerationAllowed: false, retryClass: "none", cancellationSupported: true, concurrencyClass: "bounded", requiresExplicitApprovalBeforeTransition: false },
+  readOnly: true,
+  canonicalWriteAuthority: false,
+  writeScopes: value.writeScopes ?? [],
+});
+
+export const browserQaAgentDefinition = lightweightReviewer({ agentId: "browser-qa", displayName: "Browser QA Agent", capabilities: ["review.browser-qa"], supportedTaskTypes: ["review-browser-qa"], allowedTools: ["playwright-functional-qa"], contextPolicy: { version: "browser-qa-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "TASK_SLICE", "VALIDATION_DIAGNOSTIC"], maxBytes: 120000, maxItems: 120 }, inputContract: { schemaId: "browser-qa.input", version: "1" } });
+export const accessibilityReviewAgentDefinition = lightweightReviewer({ agentId: "accessibility-review", displayName: "Accessibility Review Agent", capabilities: ["review.accessibility"], supportedTaskTypes: ["review-accessibility"], allowedTools: ["playwright-functional-qa"], contextPolicy: { version: "accessibility-review-context-v1", allowedCategories: ["SELECTED_DESIGN", "TASK_SLICE", "VALIDATION_DIAGNOSTIC"], maxBytes: 100000, maxItems: 100 }, inputContract: { schemaId: "accessibility-review.input", version: "1" } });
+export const performanceReviewAgentDefinition = lightweightReviewer({ agentId: "performance-review", displayName: "Performance Review Agent", capabilities: ["review.performance"], supportedTaskTypes: ["review-performance"], allowedTools: ["generated-runtime-validation"], contextPolicy: { version: "performance-review-context-v1", allowedCategories: ["PLANNING_PACKAGE", "SELECTED_DESIGN", "TASK_SLICE", "CODEBASE_CONTEXT", "VALIDATION_DIAGNOSTIC"], maxBytes: 120000, maxItems: 120 }, inputContract: { schemaId: "performance-review.input", version: "1" } });
+export const visualRegressionAgentDefinition = lightweightReviewer({ agentId: "visual-regression", displayName: "Visual Regression Agent", capabilities: ["review.visual-regression"], supportedTaskTypes: ["review-visual-regression"], allowedTools: ["playwright-functional-qa"], contextPolicy: { version: "visual-regression-context-v1", allowedCategories: ["SELECTED_DESIGN", "TASK_SLICE", "VALIDATION_DIAGNOSTIC"], maxBytes: 120000, maxItems: 100 }, inputContract: { schemaId: "visual-regression.input", version: "1" } });
+export const releaseReadinessAgentDefinition = lightweightReviewer({ agentId: "release-readiness", displayName: "Release Readiness Agent", capabilities: ["review.release-readiness"], supportedTaskTypes: ["review-release-readiness"], allowedTools: [], contextPolicy: { version: "release-readiness-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "TASK_SLICE", "VALIDATION_DIAGNOSTIC", "PREVIOUS_FINDINGS"], maxBytes: 100000, maxItems: 160 }, inputContract: { schemaId: "release-readiness.input", version: "1" } });
+export const seoReviewAgentDefinition = lightweightReviewer({ agentId: "seo-review", displayName: "SEO Review Agent", capabilities: ["review.seo"], supportedTaskTypes: ["review-seo"], allowedTools: ["generated-runtime-validation"], contextPolicy: { version: "seo-review-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "TASK_SLICE", "CODEBASE_CONTEXT", "VALIDATION_DIAGNOSTIC"], maxBytes: 100000, maxItems: 100 }, inputContract: { schemaId: "seo-review.input", version: "1" } });
+export const contentQualityAgentDefinition = lightweightReviewer({ agentId: "content-quality", displayName: "Content Quality Agent", capabilities: ["review.content-quality"], supportedTaskTypes: ["review-content-quality"], allowedTools: [], contextPolicy: { version: "content-quality-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "TASK_SLICE", "CODEBASE_CONTEXT"], maxBytes: 100000, maxItems: 100 }, inputContract: { schemaId: "content-quality.input", version: "1" } });
+export const dependencyGuardianAgentDefinition = lightweightReviewer({ agentId: "dependency-guardian", displayName: "Dependency Guardian Agent", capabilities: ["review.dependencies"], supportedTaskTypes: ["review-dependencies"], allowedTools: ["generated-runtime-validation"], contextPolicy: { version: "dependency-guardian-context-v1", allowedCategories: ["PLANNING_PACKAGE", "TASK_SLICE", "CODEBASE_CONTEXT", "VALIDATION_DIAGNOSTIC"], maxBytes: 100000, maxItems: 100 }, inputContract: { schemaId: "dependency-guardian.input", version: "1" } });
+export const documentationAgentDefinition = lightweightReviewer({ agentId: "documentation", displayName: "Documentation Agent", capabilities: ["review.documentation"], supportedTaskTypes: ["review-documentation"], allowedTools: [], contextPolicy: { version: "documentation-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "TASK_SLICE", "CODEBASE_CONTEXT", "VALIDATION_DIAGNOSTIC"], maxBytes: 100000, maxItems: 100 }, inputContract: { schemaId: "documentation.input", version: "1" }, writeScopes: ["README.md", "docs/**", ".env.example"] });
+
+export const lightweightReviewerAgentDefinitions = [browserQaAgentDefinition, accessibilityReviewAgentDefinition, performanceReviewAgentDefinition, visualRegressionAgentDefinition, releaseReadinessAgentDefinition, seoReviewAgentDefinition, contentQualityAgentDefinition, dependencyGuardianAgentDefinition, documentationAgentDefinition] as const;
+
+export const agentCatalog = [leadAgentDefinition, plannerAgentDefinition, designAgentDefinition, implementationAgentDefinition, architectureReviewerAgentDefinition, contractAuditorAgentDefinition, codeIntegrationReviewerAgentDefinition, securityReviewerAgentDefinition, testQualityReviewerAgentDefinition, ...lightweightReviewerAgentDefinitions] as const satisfies readonly AgentDefinition[];
 
 export class AgentCatalogError extends Error { constructor(readonly code: "DUPLICATE_AGENT_ID" | "DUPLICATE_CAPABILITY" | "UNKNOWN_CONTRACT" | "UNKNOWN_TASK_TYPE" | "UNKNOWN_SKILL" | "AGENT_NOT_FOUND" | "CAPABILITY_NOT_SUPPORTED", message: string) { super(message); this.name = "AgentCatalogError"; } }
 

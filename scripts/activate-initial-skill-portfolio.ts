@@ -144,7 +144,8 @@ async function main() {
   const selected = policy.candidates.filter((candidate) => candidate.phase4d35Decision === "SELECTED_FOR_PHASE_4D4_APPROVAL");
   const internalCandidates = internalArtifact.candidates.filter((candidate) => candidate.approvalReadiness === "APPROVAL_ELIGIBLE");
   if (selected.length !== 1 || internalCandidates.length !== 13 || policy.phase4d4ApprovalPreview.totalArtifacts !== 14) throw new Error("Phase 4D4 approval set is not the exact human-approved 1 + 13 set.");
-  if (agentCatalog.length !== 9) throw new Error("The authoritative agent catalog must contain exactly nine agents.");
+  const requiredFoundationAgents = ["lead", "planner", "design", "implementation", "architecture-reviewer", "contract-auditor", "code-integration-reviewer", "security-reviewer", "test-quality-reviewer"];
+  if (requiredFoundationAgents.some((agentId) => !agentCatalog.some((agent) => agent.agentId === agentId))) throw new Error("The authoritative agent catalog is missing a foundation agent.");
   const selectedExternal = selected[0];
   const externalCandidate = externalArtifact.candidates.find((candidate) => candidate.externalSkillId === selectedExternal.externalSkillId);
   if (!externalCandidate || externalCandidate.candidateChecksum !== selectedExternal.checksum || externalCandidate.staticSecurity.status !== "PASS" || externalCandidate.evaluation.overlapAssessment !== "low") throw new Error("Selected external evidence is incomplete or changed.");

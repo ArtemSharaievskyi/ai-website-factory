@@ -41,7 +41,7 @@ function reviewerClient(output: unknown) {
 }
 
 describe("typed agent catalog", () => {
-  it("contains exactly the nine current agents", () => expect(agentCatalog.map((agent) => agent.agentId)).toEqual(["lead", "planner", "design", "implementation", "architecture-reviewer", "contract-auditor", "code-integration-reviewer", "security-reviewer", "test-quality-reviewer"]));
+  it("contains the foundation catalog plus the lightweight review layer", () => expect(agentCatalog.map((agent) => agent.agentId)).toEqual(["lead", "planner", "design", "implementation", "architecture-reviewer", "contract-auditor", "code-integration-reviewer", "security-reviewer", "test-quality-reviewer", "browser-qa", "accessibility-review", "performance-review", "visual-regression", "release-readiness", "seo-review", "content-quality", "dependency-guardian", "documentation"]));
   it("has unique identities and exclusive current capabilities", () => {
     expect(new Set(agentCatalog.map((agent) => agent.agentId)).size).toBe(agentCatalog.length);
     expect(new Set(agentCatalog.flatMap((agent) => agent.capabilities)).size).toBe(AGENT_CAPABILITY_IDS.length);
@@ -66,9 +66,10 @@ describe("typed agent catalog", () => {
     expect(() => assertAgentSupportsCapability("lead", "implementation.code")).toThrowError(/does not support/i);
   });
   it("keeps tool, skill, contract, and policy permissions explicit", () => {
-    expect(AGENT_TOOL_IDS).toEqual(["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit", "fontpair-read", "design-quality-validation", "design-source-discovery"]);
-    expect(agentCatalog.filter((agent) => agent.allowedSkillIds.length > 0).map((agent) => agent.agentId)).toEqual(["lead", "planner", "design", "implementation", "architecture-reviewer", "contract-auditor", "code-integration-reviewer", "security-reviewer", "test-quality-reviewer"]);
-    expect(Object.fromEntries(agentCatalog.map((agent) => [agent.agentId, agent.allowedSkillIds]))).toEqual({
+    expect(AGENT_TOOL_IDS).toEqual(["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "generated-runtime-validation", "playwright-functional-qa", "controlled-edit", "fontpair-read", "design-quality-validation", "design-source-discovery"]);
+    const skillManagedAgents = agentCatalog.filter((agent) => agent.allowedSkillIds.length > 0);
+    expect(skillManagedAgents.map((agent) => agent.agentId)).toEqual(["lead", "planner", "design", "implementation", "architecture-reviewer", "contract-auditor", "code-integration-reviewer", "security-reviewer", "test-quality-reviewer"]);
+    expect(Object.fromEntries(skillManagedAgents.map((agent) => [agent.agentId, agent.allowedSkillIds]))).toEqual({
       lead: ["lead-requirements-completeness"],
       planner: ["project-data-model-planning", "technical-risk-planning"],
       design: ["responsive-form-ux-design", "impeccable", "emil-design-eng", "find-animation-opportunities", "review-animations", "improve-animations", "animation-vocabulary", "transitions-dev"],
@@ -115,7 +116,7 @@ describe("typed agent catalog", () => {
     for (const directory of ["architecture", "contracts", "code-integration", "security", "test-quality"]) {
       await expect(readFile(path.join(root, "src/agents/reviewers", directory, "service.ts"), "utf8")).resolves.toBeTruthy();
     }
-    expect(agentCatalog.filter((agent) => agent.role === "review")).toHaveLength(5);
+    expect(agentCatalog.filter((agent) => agent.role === "review")).toHaveLength(14);
   });
   it("resolves only approved skills", () => {
     const custom = { ...implementationAgentDefinition, allowedSkillIds: ["approved-skill"] } as typeof implementationAgentDefinition;

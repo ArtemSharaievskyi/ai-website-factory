@@ -43,9 +43,10 @@ describe("Phase 4D4 active skill portfolios", () => {
 
   it("keeps the exact nine-agent catalog portfolios and shared traceability identity", async () => {
     const snapshot = await readSnapshot();
-    expect(agentCatalog).toHaveLength(9);
-    expect(snapshot.agents.map((agent) => agent.agentId)).toEqual(agentCatalog.map((agent) => agent.agentId));
-    for (const agent of agentCatalog) {
+    const skillManagedAgents = agentCatalog.filter((agent) => agent.allowedSkillIds.length > 0);
+    expect(skillManagedAgents).toHaveLength(9);
+    expect(snapshot.agents.map((agent) => agent.agentId)).toEqual(skillManagedAgents.map((agent) => agent.agentId));
+    for (const agent of skillManagedAgents) {
       const expected = agent.agentId === "design"
         ? agent.allowedSkillIds.filter((skillId) => skillId === "responsive-form-ux-design")
         : [...agent.allowedSkillIds];

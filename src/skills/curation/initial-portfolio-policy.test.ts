@@ -81,9 +81,10 @@ describe("Phase 4D3.5 initial portfolio policy", () => {
 
   it("provides sufficient initial coverage for all nine agents without a skill-count quota", async () => {
     const { policy } = await artifacts();
+    const skillManagedAgents = agentCatalog.filter((agent) => agent.allowedSkillIds.length > 0);
     expect(policy.skillCountQuotaIntroduced).toBe(false);
     expect(policy.initialCoverage).toHaveLength(9);
-    expect(policy.initialCoverage.map((coverage) => coverage.agentId)).toEqual(agentCatalog.map((agent) => agent.agentId));
+    expect(policy.initialCoverage.map((coverage) => coverage.agentId)).toEqual(skillManagedAgents.map((agent) => agent.agentId));
     expect(policy.initialCoverage.every((coverage) => coverage.coverageStatus === "SUFFICIENT_INITIAL_COVERAGE")).toBe(true);
     expect(policy.initialPortfolioGaps).toEqual([]);
   });

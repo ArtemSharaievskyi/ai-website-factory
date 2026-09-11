@@ -27,10 +27,11 @@ export function classifyTaskFailure(task: { taskType: string }, outcome: { statu
   return "blocking-nonrepairable" as const;
 }
 
-export function taskCategory(taskType: string): "implementation" | "runtime-validation" | "functional-qa" | "static-validation" | "unsupported" {
+export function taskCategory(taskType: string): "implementation" | "runtime-validation" | "functional-qa" | "static-validation" | "review" | "unsupported" {
   if (["validate-lint", "validate-typecheck", "validate-unit-tests", "validate-build"].includes(taskType)) return "runtime-validation";
   if (taskType === "validate-functional-flow") return "functional-qa";
   if (["validate-security", "validate-database"].includes(taskType)) return "static-validation";
+  if (taskType.startsWith("review-")) return "review";
   if (taskType.startsWith("implement-") || taskType.startsWith("write-") || taskType === "prepare-workspace" || taskType === "integrate-assets" || taskType === "integrate-content" || taskType === "repair-targeted-failure") return "implementation";
   return "unsupported";
 }

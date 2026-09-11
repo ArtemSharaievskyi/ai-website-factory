@@ -19,6 +19,7 @@ src/
       code-integration/        Code / Integration Reviewer
       security/                Security Reviewer
       test-quality/            Test / Quality Reviewer
+      lightweight/             Deterministic post-implementation QA/review layer
   domain/                      Shared workflow and product contracts
   orchestration/
     orchestrator/              TaskGraph planning and lifecycle coordination
@@ -58,4 +59,4 @@ public/                        Factory static assets only
 - Factory-internal generated, smoke, QA, and build artifacts are transient and ignored; they must not become source or customer output.
 - Documentation is grouped by responsibility. Durable architectural decisions remain under `docs/adr/`.
 
-The current nine-agent catalog includes five read-only reviewers implemented under `src/agents/reviewers/<role>/` as explicit role directories. Future reviewer capabilities, if approved, must first be reflected in the typed catalog and source tree; this document does not create agent eligibility.
+The current catalog includes the nine foundation agents, five existing provider-backed reviewers, and nine lightweight deterministic reviewers under `src/agents/reviewers/lightweight/` (the established role convention is `src/agents/reviewers/<role>/`). The historical skill portfolio remains nine-agent scoped. Reviewer source is read-only by default; DocumentationAgent has only the host-enforced documentation path scopes declared in the catalog. This document does not create agent eligibility.

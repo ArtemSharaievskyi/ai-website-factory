@@ -153,6 +153,24 @@ const capabilityKeywords: Record<CurationCapability, RegExp> = {
     /security|authorization|authentication|RLS|Supabase|PostgreSQL|secure input|route handler|server action/i,
   "review.test-quality":
     /test strategy|Playwright|Vitest|assertions?|coverage|quality engineering|user flow/i,
+  "review.browser-qa":
+    /browser|Playwright|navigation|user flow|console|network|responsive/i,
+  "review.accessibility":
+    /accessib|WCAG|keyboard|focus|screen reader|contrast|semantic/i,
+  "review.performance":
+    /performance|bundle|client JavaScript|waterfall|layout shift|cache|render/i,
+  "review.visual-regression":
+    /visual|screenshot|responsive|layout|spacing|typography|overflow/i,
+  "review.release-readiness":
+    /release|readiness|build|typecheck|lint|blocking|verdict/i,
+  "review.seo":
+    /SEO|metadata|canonical|robots|sitemap|indexab|Open Graph/i,
+  "review.content-quality":
+    /content|placeholder|provenance|factual|copy|testimonial/i,
+  "review.dependencies":
+    /dependenc|package|lockfile|version|bundle|authorized/i,
+  "review.documentation":
+    /documentation|README|setup|environment|test commands/i,
 };
 const responsibilityKeywords: Record<CurationReviewer, RegExp> = {
   lead: /requirements?|elicitation|ambiguity|clarif|intent|scope|brief/i,
