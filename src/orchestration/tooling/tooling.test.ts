@@ -118,7 +118,13 @@ function codebaseMemoryResult(text: string) {
 
 describe("Phase 7B developer tooling authority", () => {
   it("has a deterministic registry with no generic mutation or shell operations", () => {
-    expect(validateToolRegistry()).toEqual({ tools: 10, operations: 22, capabilities: 17 });
+    expect(validateToolRegistry()).toEqual({ tools: 10, operations: 26, capabilities: 21 });
+    expect(implementationAgentDefinition.allowedTools).toContain("design-source-discovery");
+    expect(CAPABILITY_REGISTRY.map((capability) => capability.id)).toEqual(expect.arrayContaining(["design.google-fonts-read", "design.color-hunt-read", "design.aceternity-read", "design.aceternity-inspect"]));
+    expect(resolveTools("implement-page").allowed).toContain("design-source-discovery");
+    expect(resolveTools("implement-server-action").allowed).not.toContain("design-source-discovery");
+    expect(() => validateToolPolicy(task({ taskType: "implement-page", allowedTools: resolveTools("implement-page").allowed }))).not.toThrow();
+    expect(() => validateToolPolicy(task({ taskType: "implement-server-action", allowedTools: [...resolveTools("implement-server-action").allowed, "design-source-discovery"] }))).toThrow("Frontend design resource discovery");
     const operations = Object.values(TOOL_REGISTRY).flatMap((tool) => tool.operations.map((operation) => operation.operationId));
     expect(operations).not.toEqual(expect.arrayContaining(["write-file", "edit-file", "delete-file", "move-file", "shell", "terminal", "execute-command"]));
     expect(CAPABILITY_REGISTRY.every((capability) => capability.eligibleOperations.length > 0)).toBe(true);

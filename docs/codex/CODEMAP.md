@@ -100,10 +100,22 @@ repositories, and validators remain canonical.
   reconciliation.
 - `src/agents/implementation/` owns task validation, bounded context,
   proposals, atomic apply, and implementation execution.
+- `src/agents/implementation/design-resources.ts` describes the bounded
+  typography, palette, and Aceternity discovery capabilities available to the
+  existing FrontendImplementationAgent; it is not an Approved Skills Registry
+  or installation authority.
 - `src/agents/reviewers/` contains read-only Architecture, Contract, Code /
   Integration, Security, Test / Quality, and lightweight post-implementation
   review contracts and services.
 - `src/agents/catalog.ts` is the current agent/capability assignment authority.
+
+- `src/domain/design/resources.ts` owns the checksum-bound Google Fonts,
+  Color Hunt, and Aceternity contracts, semantic palette checks, Next font
+  implementation plan, privacy checks, and separate task-authorized install
+  gate.
+- `src/integrations/design/` contains the bounded read-only adapters and
+  injected transports for Fontpair, Google Fonts, Color Hunt, Aceternity UI,
+  component-source research, and host-controlled design quality evidence.
 
 ## Validation and generated runtime
 

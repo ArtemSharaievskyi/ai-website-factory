@@ -135,6 +135,14 @@ export const PrivacyProcessingEntrySchema = z.object({
   noticeRef: SafeIdSchema.optional(),
 }).strict();
 export type PrivacyProcessingEntry = z.infer<typeof PrivacyProcessingEntrySchema>;
+export const FontPrivacyEvidenceSchema = z.object({
+  provider: z.enum(["GOOGLE_FONTS", "CLIENT_SUPPLIED", "LOCAL", "OTHER_APPROVED"]),
+  implementation: z.enum(["NEXT_FONT_GOOGLE_SELF_HOSTED", "NEXT_FONT_LOCAL", "OTHER_APPROVED", "RUNTIME_STYLESHEET"]),
+  runtimeExternalRequest: z.boolean(),
+  browserProviderRequests: z.boolean(),
+  evidenceRefs: z.array(SafeIdSchema).max(20),
+}).strict();
+export type FontPrivacyEvidence = z.infer<typeof FontPrivacyEvidenceSchema>;
 export const GermanComplianceFindingSchema = z.object({
   id: SafeIdSchema,
   domain: GermanLegalDomainSchema,
@@ -164,6 +172,7 @@ export const GermanComplianceInputSchema = z.object({
   vsbgInformationPresent: z.boolean().default(false),
   bfsgStatus: z.enum(["APPLICABLE", "EXEMPT", "NOT_APPLICABLE", "UNKNOWN"]).default("UNKNOWN"),
   accessibilityEvidenceComplete: z.boolean().default(false),
+  fontPrivacyEvidence: FontPrivacyEvidenceSchema.optional(),
   authoritySnapshots: z.array(GermanLegalAuthoritySnapshotSchema).min(1).max(20),
 }).strict();
 export type GermanComplianceInput = z.input<typeof GermanComplianceInputSchema>;
@@ -366,6 +375,7 @@ export function evaluateGermanCompliance(raw: GermanComplianceInput): GermanComp
     applicableDomains.push("UWG", "NEWSLETTER");
     if (!input.newsletterConsentSeparated) add({ id: "compliance-newsletter-consent", domain: "UWG", severity: "BLOCKING", code: "NEWSLETTER_CONSENT_NOT_SEPARATE", summary: "Marketing consent is not evidenced as separate from unrelated form submission.", required: true, status: "IMPLEMENTATION_MISMATCH", evidenceRefs: refs });
   }
+  if (input.fontPrivacyEvidence && (input.fontPrivacyEvidence.runtimeExternalRequest || input.fontPrivacyEvidence.browserProviderRequests || (input.fontPrivacyEvidence.provider === "GOOGLE_FONTS" && input.fontPrivacyEvidence.implementation !== "NEXT_FONT_GOOGLE_SELF_HOSTED"))) add({ id: "compliance-font-runtime-request", domain: "DSGVO", severity: "BLOCKING", code: "FONT_RUNTIME_EXTERNAL_REQUEST", summary: "The German public-site evidence permits a runtime external font request; use build-time self-hosting or an approved local font implementation.", required: true, status: "IMPLEMENTATION_MISMATCH", evidenceRefs: input.fontPrivacyEvidence.evidenceRefs.length ? input.fontPrivacyEvidence.evidenceRefs : refs });
   if (input.vsbgApplicable === "APPLICABLE") {
     if (!applicableDomains.includes("VSBG")) applicableDomains.push("VSBG");
     if (!input.vsbgInformationPresent) add({ id: "compliance-vsbg-information", domain: "VSBG", severity: "BLOCKING", code: "VSBG_INFORMATION_MISSING", summary: "Current dispute-information applicability requires an evidenced surface or professional review.", required: true, status: "LEGAL_REVIEW_REQUIRED", evidenceRefs: refs });

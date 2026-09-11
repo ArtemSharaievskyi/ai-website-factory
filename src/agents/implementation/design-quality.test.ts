@@ -111,4 +111,10 @@ describe("frontend design quality boundary", () => {
     expect(leaked).toMatchObject({ status: "BLOCK", productionRuntimeDependency: true });
     expect(clean).toMatchObject({ status: "PASS", productionRuntimeDependency: false });
   });
+
+  it("blocks browser-loaded Google Fonts in the implementation quality checklist", () => {
+    const result = runDesignSystemChecklist({ files: [{ path: "src/app/layout.tsx", content: "<link href=\"https://fonts.googleapis.com/css2?family=Fraunces\" rel=\"stylesheet\" />" }], designChecksum: checksum });
+    expect(result.findings).toEqual(expect.arrayContaining([expect.objectContaining({ ruleId: "runtime-google-font-request", source: "DESIGN_SYSTEM", severity: "BLOCKING" })]));
+    expect(result.verdict).toBe("BLOCK");
+  });
 });

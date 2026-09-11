@@ -7,9 +7,13 @@ import { TwentyFirstDevAdapter, ReactBitsAdapter, MagicUiAdapter, discoverShadcn
 import type { FontpairNormalizedPair, DesignSourceResearch } from "@/integrations/design/contracts";
 import { detectImpeccableAntiPatterns } from "@/integrations/design/impeccable";
 import { inspectApprovedDesignSkills, validateDesignSkillCoverage, type ApprovedDesignSkillEvidence } from "@/integrations/design/skill-evidence";
+import { GoogleFontsAdapter } from "@/integrations/design/google-fonts";
+import { ColorHuntAdapter } from "@/integrations/design/color-hunt";
+import { AceternityAdapter } from "@/integrations/design/aceternity";
+import { FrontendDesignResourceActivationSchema, FrontendDesignResourcePlanSchema, createNextFontGoogleImplementation, evaluatePaletteSelection, validateTypographySelection, type AceternityComponentSelection, type FrontendDesignResourceActivation, type FrontendDesignResourcePlan, type PaletteSelection, type TypographySelection } from "@/domain/design/resources";
 
-export type ProfessionalDesignPipelineInput = { projectId: string; projectVersion: number; directionSet: DesignDirectionSet; prompt: string; idempotencyKey: string; approvedDependencies?: ReadonlySet<string>; signal?: AbortSignal };
-export type ProfessionalDesignPipelineResult = { directionSet: DesignDirectionSet; dependencyRequests: Array<{ packageName: "motion"; versionSpec: "12.43.0"; directionIds: string[]; authorityCode: string }>; skillEvidence: ApprovedDesignSkillEvidence[]; fontpairCandidates: FontpairNormalizedPair[]; sourceResearch: Array<{ directionId: string; sources: DesignSourceResearch[]; deduplicatedCandidateCount: number }>; impeccableDetector: ReturnType<typeof detectImpeccableAntiPatterns> };
+export type ProfessionalDesignPipelineInput = { projectId: string; projectVersion: number; directionSet: DesignDirectionSet; prompt: string; idempotencyKey: string; approvedDependencies?: ReadonlySet<string>; signal?: AbortSignal; resourceActivation?: FrontendDesignResourceActivation; resourceSelections?: { typography?: TypographySelection; palette?: PaletteSelection; component?: AceternityComponentSelection } };
+export type ProfessionalDesignPipelineResult = { directionSet: DesignDirectionSet; dependencyRequests: Array<{ packageName: "motion"; versionSpec: "12.43.0"; directionIds: string[]; authorityCode: string }>; skillEvidence: ApprovedDesignSkillEvidence[]; fontpairCandidates: FontpairNormalizedPair[]; sourceResearch: Array<{ directionId: string; sources: DesignSourceResearch[]; deduplicatedCandidateCount: number }>; resourcePlans: Array<{ directionId: string; plan: FrontendDesignResourcePlan }>; impeccableDetector: ReturnType<typeof detectImpeccableAntiPatterns> };
 
 const sourceChecksum = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const evidence = (capabilityId: DesignCapabilityPassEvidence["capabilityId"], directionId: string, summary: string, checkedAt: string, sourceChecksumValue?: string): DesignCapabilityPassEvidence => ({ capabilityId, status: "PASS", evidenceId: `${directionId}:${capabilityId}:${sourceChecksum(summary).slice(0, 16)}`, summary, ...(sourceChecksumValue ? { sourceChecksum: sourceChecksumValue } : {}), checkedAt });
@@ -17,6 +21,67 @@ const evidence = (capabilityId: DesignCapabilityPassEvidence["capabilityId"], di
 const skillSourceRef = (repository: string) => `https://github.com/${repository}`;
 const discoveryTool = (source: DesignSourceResearch["source"]): DesignToolProvenance["toolId"] => source === "twenty-first-dev" ? "twenty-first-dev" : source === "react-bits" ? "react-bits" : source === "magic-ui" ? "magic-ui" : "shadcn-ui";
 const researchToCapability = (source: DesignSourceResearch) => ({ source: source.source, query: source.query, sourceReference: source.sourceReference, sourceChecksum: source.sourceChecksum, liveEvidence: source.liveEvidence, writeAuthority: "NONE" as const, candidates: source.candidates.map((item) => ({ candidateId: item.candidateId, componentIdentity: item.componentIdentity, disposition: item.disposition, decisionReason: item.decisionReason, dependencies: item.dependencies })), deduplicatedCandidateCount: source.candidates.length });
+
+async function buildResourcePlan(input: ProfessionalDesignPipelineInput, direction: DesignDirection, checkedAt: string, dependencies: { googleFonts?: GoogleFontsAdapter; colorHunt?: ColorHuntAdapter; aceternity?: AceternityAdapter }): Promise<FrontendDesignResourcePlan | undefined> {
+  if (!input.resourceActivation) return undefined;
+  const activation = FrontendDesignResourceActivationSchema.parse(input.resourceActivation);
+  const directionChecksum = stableDesignChecksum(direction);
+  const plan: { policyVersion: "frontend-design-resource-policy-v1"; authority: "APPROVED_DESIGN"; directionChecksum: string; activation: FrontendDesignResourceActivation; typography?: FrontendDesignResourcePlan["typography"]; palette?: FrontendDesignResourcePlan["palette"]; components?: FrontendDesignResourcePlan["components"]; provenance: FrontendDesignResourcePlan["provenance"]; adaptationNotes: string[]; writeAuthority: "NONE"; currentness: { status: "CURRENT"; checkedAt: string } } = { policyVersion: "frontend-design-resource-policy-v1", authority: "APPROVED_DESIGN", directionChecksum, activation, provenance: [], adaptationNotes: ["External resources remain advisory candidates; approved Design remains the visual authority.", "Every selected resource must be adapted to the project tokens, content structure, responsive rules, and motion policy."], writeAuthority: "NONE", currentness: { status: "CURRENT", checkedAt } };
+  if (activation.typography !== "NOT_NEEDED" && activation.typography !== "CLIENT_SUPPLIED") {
+    const research = dependencies.googleFonts ? await dependencies.googleFonts.searchFonts({ idempotencyKey: `${input.idempotencyKey}:${direction.id}:google-fonts`, query: input.resourceSelections?.typography?.primaryFamily, languageCoverage: ["latin", "latin-ext"], signal: input.signal }) : undefined;
+    if (activation.typography === "DISCOVERY_REQUIRED" && !research) throw new Error("GOOGLE_FONTS_DISCOVERY_UNAVAILABLE");
+    if (research) {
+      plan.typography = { research };
+      plan.provenance.push({ resource: "GOOGLE_FONTS", sourceReference: research.sourceReference, sourceChecksum: research.sourceChecksum, retrievedAt: research.retrievedAt, access: "READ_ONLY_DISCOVERY", contentTrust: "UNTRUSTED_EXTERNAL" });
+      const selection = input.resourceSelections?.typography;
+      if (selection) {
+        const candidate = research.candidates.find((item) => item.family.toLowerCase() === selection.primaryFamily.toLowerCase());
+        if (!candidate) throw new Error("GOOGLE_FONTS_SELECTION_NOT_FOUND");
+        const validation = validateTypographySelection(selection, candidate, `${direction.label} ${direction.typographyStrategy}`);
+        if (!validation.valid) throw new Error(`TYPOGRAPHY_SELECTION_BLOCKED:${validation.findings.map((finding) => finding.code).join(",")}`);
+        plan.typography.selection = selection;
+        plan.typography.implementation = createNextFontGoogleImplementation(selection, candidate);
+      }
+    }
+  } else if (input.resourceSelections?.typography) {
+    plan.typography = { selection: input.resourceSelections.typography };
+  }
+  if (activation.palette !== "NOT_NEEDED" && activation.palette !== "CLIENT_SUPPLIED") {
+    const research = dependencies.colorHunt ? await dependencies.colorHunt.searchPalettes({ idempotencyKey: `${input.idempotencyKey}:${direction.id}:color-hunt`, characteristics: [direction.colorStrategy], signal: input.signal }) : undefined;
+    if (activation.palette === "DISCOVERY_REQUIRED" && !research) throw new Error("COLOR_HUNT_DISCOVERY_UNAVAILABLE");
+    if (research) {
+      plan.palette = { research };
+      plan.provenance.push({ resource: "COLOR_HUNT", sourceReference: research.sourceReference, sourceChecksum: research.sourceChecksum, retrievedAt: research.retrievedAt, access: "READ_ONLY_DISCOVERY", contentTrust: "UNTRUSTED_EXTERNAL" });
+      const selection = input.resourceSelections?.palette;
+      if (selection) {
+        const candidate = research.candidates.find((item) => item.paletteId === selection.candidateId);
+        if (!candidate) throw new Error("COLOR_HUNT_SELECTION_NOT_FOUND");
+        const validation = evaluatePaletteSelection({ candidate, semanticTokens: selection.semanticTokens, rationale: selection.rationale, adjustments: selection.adjustments, approvedByDesign: selection.approvedByDesign, approvedBrandMatch: selection.approvedBrandMatch });
+        if (!validation.valid) throw new Error(`COLOR_HUNT_SELECTION_BLOCKED:${validation.findings.map((finding) => finding.code).join(",")}`);
+        if (selection.candidateChecksum !== candidate.sourceChecksum) throw new Error("COLOR_HUNT_SELECTION_CHECKSUM_MISMATCH");
+        plan.palette.selection = { ...selection, accessibility: validation.accessibility, blindCopy: validation.blindCopy };
+      }
+    }
+  } else if (input.resourceSelections?.palette) {
+    plan.palette = { selection: input.resourceSelections.palette };
+  }
+  if (activation.components !== "NOT_NEEDED") {
+    const names = (activation.componentQuery ?? "").split(",").map((name) => name.trim()).filter(Boolean).slice(0, 6);
+    const discovery = dependencies.aceternity && names.length ? await dependencies.aceternity.searchComponents({ componentNames: names, directionId: direction.id, signal: input.signal }) : undefined;
+    if (activation.components === "DISCOVERY_REQUIRED" && !discovery) throw new Error("ACETERNITY_DISCOVERY_QUERY_REQUIRED");
+    if (discovery) {
+      plan.components = { discovery };
+      plan.provenance.push({ resource: "ACETERNITY_UI", sourceReference: discovery.sourceReference, sourceChecksum: discovery.sourceChecksum, retrievedAt: discovery.retrievedAt, access: "READ_ONLY_INSPECTION", contentTrust: "UNTRUSTED_EXTERNAL" });
+      if (input.resourceSelections?.component) {
+        const selected = input.resourceSelections.component;
+        const discovered = discovery.candidates.find((candidate) => candidate.componentName === selected.candidate.componentName && candidate.sourceChecksum === selected.candidate.sourceChecksum);
+        if (!discovered) throw new Error("ACETERNITY_SELECTION_NOT_DISCOVERED");
+        plan.components.selection = selected;
+      }
+    }
+  }
+  return FrontendDesignResourcePlanSchema.parse(plan);
+}
 
 const stableUuid = (value: string) => {
   const bytes = Buffer.from(sourceChecksum(value).slice(0, 32), "hex");
@@ -146,7 +211,7 @@ const foundationCapability = (direction: DesignDirection, idempotencyKey: string
 };
 
 export class ProfessionalDesignCapabilityPipeline {
-  constructor(private readonly dependencies: { fontpair?: FontpairAdapter; twentyFirstDev?: TwentyFirstDevAdapter; reactBits?: ReactBitsAdapter; magicUi?: MagicUiAdapter; approvedSkillEvidence?: () => Promise<ApprovedDesignSkillEvidence[]> } = {}) {}
+  constructor(private readonly dependencies: { fontpair?: FontpairAdapter; twentyFirstDev?: TwentyFirstDevAdapter; reactBits?: ReactBitsAdapter; magicUi?: MagicUiAdapter; googleFonts?: GoogleFontsAdapter; colorHunt?: ColorHuntAdapter; aceternity?: AceternityAdapter; approvedSkillEvidence?: () => Promise<ApprovedDesignSkillEvidence[]> } = {}) {}
 
   async run(input: ProfessionalDesignPipelineInput): Promise<ProfessionalDesignPipelineResult> {
     if (input.directionSet.directions.length !== 3) throw new Error("DESIGN_DIRECTION_COUNT_INVALID");
@@ -165,6 +230,7 @@ export class ProfessionalDesignCapabilityPipeline {
     const skillChecksum = sourceChecksum(skillEvidence.map((item) => ({ id: item.skillId, checksum: item.sourceChecksum })));
     const directions = [] as DesignDirectionSet["directions"];
     const sourceResearch: ProfessionalDesignPipelineResult["sourceResearch"] = [];
+    const resourcePlans: ProfessionalDesignPipelineResult["resourcePlans"] = [];
 
     for (const [index, direction] of input.directionSet.directions.entries()) {
       const category = (direction.shortName ?? direction.id).toLowerCase();
@@ -186,8 +252,10 @@ export class ProfessionalDesignCapabilityPipeline {
       sourceResearch.push({ directionId: direction.id, sources: markedSources, deduplicatedCandidateCount: deduplicatedCount });
       const pair = pairCandidates[index] ?? pairCandidates[0]!;
       const current = direction.professionalDesign ?? foundationCapability(direction, input.idempotencyKey, checkedAt);
+      const resourcePlan = await buildResourcePlan(input, direction, checkedAt, this.dependencies);
+      if (resourcePlan) resourcePlans.push({ directionId: direction.id, plan: resourcePlan });
       const motion = current.motion.tokens ? current.motion : { ...current.motion, tokens: DEFAULT_MOTION_TOKEN_SET, checksum: stableDesignChecksum({ ...current.motion, tokens: DEFAULT_MOTION_TOKEN_SET }) };
-      const typographyBase = { ...current.typography, displayFamily: pair.displayFamily, bodyFamily: pair.bodyFamily, normalizedPair: { display: pair.displayFamily, body: pair.bodyFamily }, source: "fontpair" as const, sourceEvidenceChecksum: pair.normalizedChecksum, loadingStrategy: "google-fonts-css" as const };
+      const typographyBase = { ...current.typography, displayFamily: pair.displayFamily, bodyFamily: pair.bodyFamily, normalizedPair: { display: pair.displayFamily, body: pair.bodyFamily }, source: "fontpair" as const, sourceEvidenceChecksum: pair.normalizedChecksum, loadingStrategy: "next-font-google-self-hosted" as const };
       const typography = { ...typographyBase, checksum: stableDesignChecksum(typographyBase) };
       const provenance: DesignToolProvenance[] = [
         { toolId: "fontpair", status: "AVAILABLE", source: "official-public-read-only", sourceRef: pair.sourceUrl, sourceVersion: "bounded-html-font-metadata", sourceChecksum: pair.sourceChecksum, retrievedAt: checkedAt, liveEvidence: true, contentTrust: "UNTRUSTED_EXTERNAL", redacted: true },
@@ -216,7 +284,7 @@ export class ProfessionalDesignCapabilityPipeline {
         evidence("motion-suitability", direction.id, `Motion suitability ${current.motion.suitability} was evaluated without forcing the dependency.`, checkedAt),
       ];
       const componentDiscovery = markedSources.map(researchToCapability);
-      const capabilityBase = { ...current, typography, motion, componentDiscovery, toolProvenance: provenance, passEvidence, currentness: { status: "CURRENT" as const, checkedAt } };
+      const capabilityBase = { ...current, typography, motion, componentDiscovery, toolProvenance: provenance, passEvidence, ...(resourcePlan ? { frontendResources: resourcePlan } : {}), currentness: { status: "CURRENT" as const, checkedAt } };
       directions.push({ ...direction, professionalDesign: DirectionDesignCapabilitySchema.parse({ ...capabilityBase, contractChecksum: stableDesignChecksum(capabilityBase) }) });
     }
 
@@ -230,6 +298,6 @@ export class ProfessionalDesignCapabilityPipeline {
     if (nonDependencyIssues.length || (input.approvedDependencies && !readiness.valid)) throw new Error(`PHASE_7F_RECONCILIATION_EVIDENCE_INVALID:${(nonDependencyIssues[0] ?? readiness.issues[0])?.code ?? "DESIGN_CONTRACT_STALE"}`);
     const packageBase = { schemaVersion: 1 as const, documentType: "professional-design-capability" as const, projectId: input.projectId, projectVersion: input.projectVersion, createdAt: input.directionSet.createdAt, updatedAt: checkedAt, capabilityPolicyVersion: "professional-design-capability-v1" as const, directionSetId: input.directionSet.setId, directions: directions.map((direction) => ({ directionId: direction.id, capability: direction.professionalDesign! })), dependencyRequests: dependencyDirectionIds.length ? [{ packageName: "motion" as const, versionSpec: "12.43.0" as const, reason: "Selected dynamic direction requires the approved Motion for React runtime.", directionIds: dependencyDirectionIds }] : [] };
     const professionalCapability = DesignCapabilityPackageSchema.parse({ ...packageBase, packageChecksum: stableDesignChecksum(packageBase) });
-    return { directionSet: DesignDirectionSetSchema.parse({ ...input.directionSet, directions, professionalCapability, provider: { name: "professional-design-capability-pipeline", used: true } }), dependencyRequests: dependencyDirectionIds.length ? [{ packageName: "motion", versionSpec: "12.43.0", directionIds: dependencyDirectionIds, authorityCode: "APPROVED" }] : [], skillEvidence, fontpairCandidates: pairCandidates, sourceResearch, impeccableDetector: detector };
+    return { directionSet: DesignDirectionSetSchema.parse({ ...input.directionSet, directions, professionalCapability, provider: { name: "professional-design-capability-pipeline", used: true } }), dependencyRequests: dependencyDirectionIds.length ? [{ packageName: "motion", versionSpec: "12.43.0", directionIds: dependencyDirectionIds, authorityCode: "APPROVED" }] : [], skillEvidence, fontpairCandidates: pairCandidates, sourceResearch, resourcePlans, impeccableDetector: detector };
   }
 }

@@ -83,6 +83,14 @@ describe("production assurance contracts", () => {
     expect(evaluateGermanCompliance(legalBase({ vsbgApplicable: "APPLICABLE", vsbgInformationPresent: false })).verdict).toBe("LEGAL_REVIEW_REQUIRED");
   });
 
+  it("requires privacy-safe font evidence for German public sites", () => {
+    const selfHosted = evaluateGermanCompliance(legalBase({ fontPrivacyEvidence: { provider: "GOOGLE_FONTS", implementation: "NEXT_FONT_GOOGLE_SELF_HOSTED", runtimeExternalRequest: false, browserProviderRequests: false, evidenceRefs: ["font:next-font"] } }));
+    expect(selfHosted.findings.some((finding) => finding.code === "FONT_RUNTIME_EXTERNAL_REQUEST")).toBe(false);
+    const runtimeRequest = evaluateGermanCompliance(legalBase({ fontPrivacyEvidence: { provider: "GOOGLE_FONTS", implementation: "RUNTIME_STYLESHEET", runtimeExternalRequest: true, browserProviderRequests: true, evidenceRefs: ["font:runtime-request"] } }));
+    expect(runtimeRequest.verdict).toBe("BLOCKED_IMPLEMENTATION");
+    expect(runtimeRequest.findings).toEqual(expect.arrayContaining([expect.objectContaining({ code: "FONT_RUNTIME_EXTERNAL_REQUEST", domain: "DSGVO", severity: "BLOCKING" })]));
+  });
+
   it("bounds security probes to local routes, a request budget, and safe evidence", async () => {
     const evidence = await executeBoundedSecurityProbes({
       implementationChecksum,

@@ -72,7 +72,7 @@ export const designAgentDefinition = definition({
 export const implementationAgentDefinition = definition({
   agentId: "implementation", displayName: "Implementation Agent", role: "implementation", version: "1.0.0",
   capabilities: ["implementation.code", "implementation.backend", "implementation.seo"], supportedTaskTypes: IMPLEMENTATION_TASK_TYPES,
-  allowedTools: ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit"], allowedSkillIds: ["nextjs-server-client-implementation", "typed-form-implementation", "supabase-application-integration", "maintainable-performance-implementation"],
+  allowedTools: ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit", "design-source-discovery"], allowedSkillIds: ["nextjs-server-client-implementation", "typed-form-implementation", "supabase-application-integration", "maintainable-performance-implementation"],
   contextPolicy: { version: "implementation-context-v1", allowedCategories: ["TASK_SLICE", "PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "CODEBASE_CONTEXT", "VALIDATION_DIAGNOSTIC", "PREVIOUS_FINDINGS"], maxBytes: 120000, maxItems: 80 },
   inputContract: { schemaId: "implementation.input", version: "1" }, outputContract: { schemaId: "implementation.output", version: "1" },
   promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "implementation.v3", policyVersions: { context: "implementation-context-v1", execution: "implementation-v1" },

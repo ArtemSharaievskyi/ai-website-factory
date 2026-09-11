@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { DocumentBaseSchema, IsoDateTimeSchema, NonEmptyStringSchema, UuidSchema } from "@/domain/shared/schemas";
 import { decideDependency, type DependencyAuthorityContext } from "@/dependencies/authority";
+import { FrontendDesignResourcePlanSchema } from "./resources";
 
 export const DESIGN_CAPABILITY_POLICY_VERSION = "professional-design-capability-v1" as const;
 export const DESIGN_CONTRACT_SCHEMA_VERSION = 1 as const;
@@ -28,6 +29,9 @@ export const DesignToolIdSchema = z.enum([
   "react-bits",
   "magic-ui",
   "shadcn-ui",
+  "google-fonts",
+  "color-hunt",
+  "aceternity-ui",
   "motion-for-react",
   "host-deterministic",
 ]);
@@ -125,7 +129,7 @@ export const TypographyDecisionSchema = z.object({
   source: z.enum(["fontpair", "supplied-brand", "system-approved"]),
   sourceEvidenceChecksum: HashSchema,
   weights: z.array(z.number().int().positive()).min(1).max(12),
-  loadingStrategy: z.enum(["existing-project-fonts", "local-assets", "google-fonts-css", "system-stack"]),
+  loadingStrategy: z.enum(["existing-project-fonts", "local-assets", "google-fonts-css", "next-font-google-self-hosted", "system-stack"]),
   usageRules: z.array(NonEmptyStringSchema).min(2).max(20),
   checksum: HashSchema,
 }).strict();
@@ -203,6 +207,7 @@ export const DirectionDesignCapabilitySchema = z.object({
   passEvidence: z.array(DesignCapabilityPassEvidenceSchema).min(1).max(30),
   contractChecksum: HashSchema,
   currentness: z.object({ status: z.enum(["CURRENT", "STALE"]), checkedAt: IsoDateTimeSchema, reason: z.string().optional() }).strict(),
+  frontendResources: FrontendDesignResourcePlanSchema.optional(),
 }).strict();
 export type DirectionDesignCapability = z.infer<typeof DirectionDesignCapabilitySchema>;
 
@@ -268,7 +273,7 @@ export function stableDesignChecksum(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
-export type DesignContractValidationCode = "DESIGN_CONTRACT_STALE" | "TYPOGRAPHY_CONTRACT_MISMATCH" | "UNAPPROVED_DESIGN_DEPENDENCY" | "MOTION_STRATEGY_MISMATCH" | "INTERACTION_CONTRACT_MISSING" | "VISUAL_TOKEN_VIOLATION" | "DESIGN_TOOL_EVIDENCE_MISSING" | "IMPECCABLE_DETECTOR_FAILED" | "COMPONENT_SOURCE_EVIDENCE_MISSING";
+export type DesignContractValidationCode = "DESIGN_CONTRACT_STALE" | "TYPOGRAPHY_CONTRACT_MISMATCH" | "UNAPPROVED_DESIGN_DEPENDENCY" | "MOTION_STRATEGY_MISMATCH" | "INTERACTION_CONTRACT_MISSING" | "VISUAL_TOKEN_VIOLATION" | "DESIGN_TOOL_EVIDENCE_MISSING" | "IMPECCABLE_DETECTOR_FAILED" | "COMPONENT_SOURCE_EVIDENCE_MISSING" | "DESIGN_RESOURCE_CONTRACT_INVALID";
 export type DesignContractValidationIssue = { code: DesignContractValidationCode; directionId: string; message: string };
 
 export function validateDirectionDesignCapability(directionId: string, capability: DirectionDesignCapability, options: { requireLiveEvidence?: boolean; approvedDependencies?: ReadonlySet<string> } = {}) {
@@ -279,6 +284,11 @@ export function validateDirectionDesignCapability(directionId: string, capabilit
   if (!capability.interactions.length) issues.push({ code: "INTERACTION_CONTRACT_MISSING", directionId, message: "At least one interaction contract is required." });
   if (capability.motion.suitability === "MOTION" && (!capability.motion.dependency || !(options.approvedDependencies?.has("motion@12.43.0") ?? false))) issues.push({ code: "UNAPPROVED_DESIGN_DEPENDENCY", directionId, message: "Motion was selected without an approved Dependency Authority decision." });
   if (capability.motion.suitability !== "MOTION" && capability.motion.dependency) issues.push({ code: "MOTION_STRATEGY_MISMATCH", directionId, message: "The motion dependency is present for a non-Motion strategy." });
+  if (capability.frontendResources) {
+    const resourcePlan = FrontendDesignResourcePlanSchema.safeParse(capability.frontendResources);
+    if (!resourcePlan.success || capability.frontendResources.currentness.status !== "CURRENT") issues.push({ code: "DESIGN_RESOURCE_CONTRACT_INVALID", directionId, message: "The frontend design resource plan is malformed or stale." });
+    if (capability.frontendResources.typography?.selection && !capability.frontendResources.typography.implementation) issues.push({ code: "DESIGN_RESOURCE_CONTRACT_INVALID", directionId, message: "A selected typography resource requires a self-hosted or otherwise approved implementation plan." });
+  }
   const requiredPass: DesignCapabilityPassEvidence["capabilityId"][] = ["fontpair-normalization", "fontpair-multiple-candidates", "twenty-first-discovery", "react-bits-discovery", "magic-ui-discovery", "shadcn-base-discovery", "impeccable-semantic-skill", "impeccable-critique", "impeccable-antipattern-detector", "emil-design-review", "emil-animation-opportunities", "emil-animation-review", "transitions-pattern-mapping", "transitions-polish", "motion-suitability"];
   for (const capabilityId of requiredPass) {
     const pass = capability.passEvidence.find((item) => item.capabilityId === capabilityId);

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { detectImpeccableAntiPatterns } from "@/integrations/design/impeccable";
 import { validateNoDialKitProductionLeak } from "@/integrations/design/dialkit";
+import { evaluatePaletteSelection, validateGoogleFontRuntimePrivacy, validateTypographySelection } from "@/domain/design/resources";
 import {
   DesignFindingSchema,
   DesignSystemChecklistInputSchema,
@@ -161,6 +162,17 @@ export function runDesignSystemChecklist(raw: DesignSystemChecklistInput): Desig
   const findings: DesignFinding[] = [];
   const text = input.files.map((file) => file.content).join("\n");
   evaluateFactoryHeuristics(input, text, findings);
+
+  if (input.typographySelection) {
+    const typography = validateTypographySelection(input.typographySelection, undefined, input.approvedDesignText);
+    for (const item of typography.findings) addFinding(findings, input, item.code === "TYPOGRAPHY_RATIONALE_REQUIRED" ? "default-ai-font" : "typography-resource-contract", item.severity, item.summary, "TYPOGRAPHY", "DESIGN_SYSTEM");
+  }
+  if (input.paletteEvidence) {
+    const palette = evaluatePaletteSelection({ candidate: input.paletteEvidence.candidate, semanticTokens: input.paletteEvidence.selection.semanticTokens, rationale: input.paletteEvidence.selection.rationale, adjustments: input.paletteEvidence.selection.adjustments, approvedByDesign: input.paletteEvidence.selection.approvedByDesign, approvedBrandMatch: input.paletteEvidence.selection.approvedBrandMatch });
+    for (const item of palette.findings) addFinding(findings, input, item.code === "PALETTE_CONTRAST_FAILED" ? "palette-contrast" : item.code === "PALETTE_BLIND_COPY" ? "palette-blind-copy" : "palette-rationale", item.severity, item.summary, item.code === "PALETTE_CONTRAST_FAILED" ? "ACCESSIBILITY" : "COLOR", "DESIGN_SYSTEM");
+  }
+  const fontPrivacy = validateGoogleFontRuntimePrivacy(input.files);
+  for (const item of fontPrivacy.findings) addFinding(findings, input, "runtime-google-font-request", "BLOCKING", item.summary, "ACCESSIBILITY", "DESIGN_SYSTEM");
 
   const impeccable = detectImpeccableAntiPatterns(input.files);
   for (const finding of impeccable.findings) {

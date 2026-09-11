@@ -15,6 +15,7 @@ import { ShadcnComponentQueryPlanSchema, ShadcnReferenceResultSchema } from "@/i
 import { CodebaseMemoryIndexSchema, CodebaseMemoryResultSchema } from "@/integrations/codebase-memory/contracts";
 import { FunctionalQaReportSchema } from "@/runtime/qa/contracts";
 import { FontpairNormalizedPairSchema, ImpeccableDetectorResultSchema, DesignSourceResearchSchema } from "@/integrations/design/contracts";
+import { AceternityComponentCandidateSchema, AceternityDiscoverySchema, ColorHuntResearchSchema, GoogleFontResearchSchema } from "@/domain/design/resources";
 import { REGISTERED_TOOL_EXECUTOR_IDS } from "./executor-ids";
 
 const resultPolicy = {
@@ -124,6 +125,10 @@ export const TOOL_REGISTRY: Readonly<Record<ToolId, ToolDefinition>> = Object.fr
       operation({ operationId: "search-react-bits-components", requiredCapabilities: ["design.react-bits-read"], mutationMode: "READ_ONLY", networkMode: "APPROVED_EXTERNAL_READ_ONLY", workspaceScope: "NONE", executorId: "design-source-discovery-service", inputSchemaRef: "design.component-discovery.input", outputSchemaRef: "design.component-discovery.output", timeoutMs: 30_000 }),
       operation({ operationId: "search-magic-ui-components", requiredCapabilities: ["design.magic-ui-read"], mutationMode: "READ_ONLY", networkMode: "APPROVED_EXTERNAL_READ_ONLY", workspaceScope: "NONE", executorId: "design-source-discovery-service", inputSchemaRef: "design.component-discovery.input", outputSchemaRef: "design.component-discovery.output", timeoutMs: 30_000 }),
       operation({ operationId: "discover-shadcn-base", requiredCapabilities: ["design.shadcn-discovery"], mutationMode: "READ_ONLY", networkMode: "CURRENT_EXISTING_INTEGRATION", workspaceScope: "NONE", executorId: "design-source-discovery-service", inputSchemaRef: "design.component-discovery.input", outputSchemaRef: "design.component-discovery.output" }),
+      operation({ operationId: "search-google-fonts", requiredCapabilities: ["design.google-fonts-read"], mutationMode: "READ_ONLY", networkMode: "APPROVED_EXTERNAL_READ_ONLY", workspaceScope: "NONE", executorId: "design-source-discovery-service", inputSchemaRef: "design.typography-discovery.input", outputSchemaRef: "design.typography-discovery.output", timeoutMs: 30_000 }),
+      operation({ operationId: "search-color-hunt-palettes", requiredCapabilities: ["design.color-hunt-read"], mutationMode: "READ_ONLY", networkMode: "APPROVED_EXTERNAL_READ_ONLY", workspaceScope: "NONE", executorId: "design-source-discovery-service", inputSchemaRef: "design.palette-discovery.input", outputSchemaRef: "design.palette-discovery.output", timeoutMs: 30_000 }),
+      operation({ operationId: "search-aceternity-components", requiredCapabilities: ["design.aceternity-read"], mutationMode: "READ_ONLY", networkMode: "APPROVED_EXTERNAL_READ_ONLY", workspaceScope: "NONE", executorId: "design-source-discovery-service", inputSchemaRef: "design.aceternity-discovery.input", outputSchemaRef: "design.aceternity-discovery.output", timeoutMs: 30_000 }),
+      operation({ operationId: "inspect-aceternity-component", requiredCapabilities: ["design.aceternity-inspect"], mutationMode: "READ_ONLY", networkMode: "APPROVED_EXTERNAL_READ_ONLY", workspaceScope: "NONE", executorId: "design-source-discovery-service", inputSchemaRef: "design.aceternity-inspection.input", outputSchemaRef: "design.aceternity-inspection.output", timeoutMs: 30_000 }),
     ],
   }),
 });
@@ -146,6 +151,10 @@ export const CAPABILITY_REGISTRY: readonly CapabilityDefinition[] = Object.freez
   CapabilityDefinitionSchema.parse({ id: "design.react-bits-read", description: "Read bounded free React Bits discovery metadata without source-write authority.", eligibleOperations: [{ toolId: "design-source-discovery", operationId: "search-react-bits-components" }], taskTypes: ["create-design-directions"], availability: "AVAILABLE" }),
   CapabilityDefinitionSchema.parse({ id: "design.magic-ui-read", description: "Read bounded free Magic UI registry metadata without source-write authority.", eligibleOperations: [{ toolId: "design-source-discovery", operationId: "search-magic-ui-components" }], taskTypes: ["create-design-directions"], availability: "AVAILABLE" }),
   CapabilityDefinitionSchema.parse({ id: "design.shadcn-discovery", description: "Resolve the existing approved shadcn/ui base primitive authority for design evidence.", eligibleOperations: [{ toolId: "design-source-discovery", operationId: "discover-shadcn-base" }], taskTypes: ["create-design-directions"], availability: "AVAILABLE" }),
+  CapabilityDefinitionSchema.parse({ id: "design.google-fonts-read", description: "Read bounded Google Fonts metadata for typography candidate evaluation; it never authorizes runtime stylesheet loading.", eligibleOperations: [{ toolId: "design-source-discovery", operationId: "search-google-fonts" }], taskTypes: ["create-design-directions", "implement-design-system", "implement-shared-layout", "implement-page", "implement-shared-component"], availability: "AVAILABLE" }),
+  CapabilityDefinitionSchema.parse({ id: "design.color-hunt-read", description: "Read bounded Color Hunt palette candidates as inspiration only; semantic conversion and contrast validation remain host/design obligations.", eligibleOperations: [{ toolId: "design-source-discovery", operationId: "search-color-hunt-palettes" }], taskTypes: ["create-design-directions", "implement-design-system", "implement-shared-layout", "implement-page", "implement-shared-component"], availability: "AVAILABLE" }),
+  CapabilityDefinitionSchema.parse({ id: "design.aceternity-read", description: "Search and inspect the official Aceternity namespaced registry without installation or source-write authority.", eligibleOperations: [{ toolId: "design-source-discovery", operationId: "search-aceternity-components" }], taskTypes: ["create-design-directions", "implement-design-system", "implement-shared-layout", "implement-page", "implement-shared-component"], availability: "AVAILABLE" }),
+  CapabilityDefinitionSchema.parse({ id: "design.aceternity-inspect", description: "Inspect one named Aceternity registry component before any separately authorized adaptation.", eligibleOperations: [{ toolId: "design-source-discovery", operationId: "inspect-aceternity-component" }], taskTypes: ["create-design-directions", "implement-design-system", "implement-shared-layout", "implement-page", "implement-shared-component"], availability: "AVAILABLE" }),
 ]);
 
 const noArguments = z.object({}).strict();
@@ -170,6 +179,10 @@ const TOOL_INPUT_SCHEMAS: Readonly<Record<string, z.ZodType>> = Object.freeze({
   "design.fontpair.resolve-curated-pair.input": input(z.object({ idempotencyKey: z.string().min(1).max(200), displayFamily: z.string().min(1).max(120).optional(), bodyFamily: z.string().min(1).max(120).optional() }).strict()),
   "design.quality.detect-antipatterns.input": input(z.object({ files: z.array(z.object({ path: z.string().min(1).max(240), content: z.string().max(100_000) }).strict()).max(80) }).strict()),
   "design.component-discovery.input": input(z.object({ category: z.string().min(1).max(100), directionId: z.string().uuid() }).strict()),
+  "design.typography-discovery.input": input(z.object({ idempotencyKey: z.string().min(1).max(200), query: z.string().max(160).optional(), languageCoverage: z.array(z.string().min(1).max(40)).max(20).default([]), sort: z.enum(["alpha", "date", "popularity", "style", "trending"]).default("alpha") }).strict()),
+  "design.palette-discovery.input": input(z.object({ idempotencyKey: z.string().min(1).max(200), characteristics: z.array(z.string().min(1).max(50)).max(8).default([]) }).strict()),
+  "design.aceternity-discovery.input": input(z.object({ directionId: z.string().uuid(), componentNames: z.array(z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)).min(1).max(6) }).strict()),
+  "design.aceternity-inspection.input": input(z.object({ directionId: z.string().uuid(), componentName: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/) }).strict()),
 });
 
 const genericToolOutputSchema = z.record(z.string(), z.unknown());
@@ -188,6 +201,10 @@ const TOOL_OUTPUT_SCHEMAS: Readonly<Record<string, z.ZodType>> = Object.freeze({
   "design.fontpair.resolve-curated-pair.output": FontpairNormalizedPairSchema,
   "design.quality.detect-antipatterns.output": ImpeccableDetectorResultSchema,
   "design.component-discovery.output": DesignSourceResearchSchema,
+  "design.typography-discovery.output": GoogleFontResearchSchema,
+  "design.palette-discovery.output": ColorHuntResearchSchema,
+  "design.aceternity-discovery.output": AceternityDiscoverySchema,
+  "design.aceternity-inspection.output": AceternityComponentCandidateSchema,
 });
 
 export function registeredToolInputIsValid(toolId: string, operationId: string, value: ToolInput) {

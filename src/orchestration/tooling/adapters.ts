@@ -32,6 +32,10 @@ export type DesignSourceDiscoveryHost = Readonly<{
   searchReactBitsComponents: (input: { category: string; directionId: string }) => Promise<string>;
   searchMagicUiComponents: (input: { category: string; directionId: string }) => Promise<string>;
   discoverShadcnBase: (input: { category: string; directionId: string }) => Promise<string>;
+  searchGoogleFonts: (input: { idempotencyKey: string; query?: string; languageCoverage: string[]; sort: "alpha" | "date" | "popularity" | "style" | "trending" }) => Promise<string>;
+  searchColorHuntPalettes: (input: { idempotencyKey: string; characteristics: string[] }) => Promise<string>;
+  searchAceternityComponents: (input: { directionId: string; componentNames: string[] }) => Promise<string>;
+  inspectAceternityComponent: (input: { directionId: string; componentName: string }) => Promise<string>;
 }>;
 
 export type ToolExecutorBindings = Readonly<{
@@ -59,7 +63,11 @@ export type BoundToolOperation =
   | { toolId: "controlled-edit"; operationId: "ast-patch"; executor: ControlledEditHost; input: { proposalId: string; operationId: string; relativePath: string; expectedFileChecksum: string } }
   | { toolId: "fontpair-read"; operationId: "resolve-curated-pair"; executor: FontpairReadHost; input: { idempotencyKey: string; displayFamily?: string; bodyFamily?: string } }
   | { toolId: "design-quality-validation"; operationId: "detect-antipatterns"; executor: DesignQualityValidationHost; input: { files: Array<{ path: string; content: string }> } }
-  | { toolId: "design-source-discovery"; operationId: "search-21st-components" | "search-react-bits-components" | "search-magic-ui-components" | "discover-shadcn-base"; executor: DesignSourceDiscoveryHost; input: { category: string; directionId: string } };
+  | { toolId: "design-source-discovery"; operationId: "search-21st-components" | "search-react-bits-components" | "search-magic-ui-components" | "discover-shadcn-base"; executor: DesignSourceDiscoveryHost; input: { category: string; directionId: string } }
+  | { toolId: "design-source-discovery"; operationId: "search-google-fonts"; executor: DesignSourceDiscoveryHost; input: { idempotencyKey: string; query?: string; languageCoverage: string[]; sort: "alpha" | "date" | "popularity" | "style" | "trending" } }
+  | { toolId: "design-source-discovery"; operationId: "search-color-hunt-palettes"; executor: DesignSourceDiscoveryHost; input: { idempotencyKey: string; characteristics: string[] } }
+  | { toolId: "design-source-discovery"; operationId: "search-aceternity-components"; executor: DesignSourceDiscoveryHost; input: { directionId: string; componentNames: string[] } }
+  | { toolId: "design-source-discovery"; operationId: "inspect-aceternity-component"; executor: DesignSourceDiscoveryHost; input: { directionId: string; componentName: string } };
 
 /** Host dispatch after authorizeToolRequest; the discriminated input prevents raw shell, URL, or executor selection. */
 export async function executeBoundToolOperation(input: BoundToolOperation): Promise<ToolResult> {
@@ -80,5 +88,9 @@ export async function executeBoundToolOperation(input: BoundToolOperation): Prom
     case "search-react-bits-components": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.searchReactBitsComponents(input.input), Date.now() - started);
     case "search-magic-ui-components": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.searchMagicUiComponents(input.input), Date.now() - started);
     case "discover-shadcn-base": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.discoverShadcnBase(input.input), Date.now() - started);
+    case "search-google-fonts": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.searchGoogleFonts(input.input), Date.now() - started);
+    case "search-color-hunt-palettes": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.searchColorHuntPalettes(input.input), Date.now() - started);
+    case "search-aceternity-components": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.searchAceternityComponents(input.input), Date.now() - started);
+    case "inspect-aceternity-component": return registeredOutputToToolResult(input.toolId, input.operationId, await input.executor.inspectAceternityComponent(input.input), Date.now() - started);
   }
 }

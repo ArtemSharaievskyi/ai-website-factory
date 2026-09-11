@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ColorHuntPaletteSchema, PaletteSelectionSchema, TypographySelectionSchema } from "./resources";
 
 const HashSchema = z.string().regex(/^[a-f0-9]{64}$/);
 
@@ -95,6 +96,8 @@ export const DesignSystemChecklistInputSchema = z.object({
     requiresPrivacy: z.boolean().default(false),
     dataDriven: z.boolean().default(false),
   }).strict().default({ requiresInteractiveDemo: false, collectsPersonalData: false, requiresTerms: false, requiresPrivacy: false, dataDriven: false }),
+  typographySelection: TypographySelectionSchema.optional(),
+  paletteEvidence: z.object({ candidate: ColorHuntPaletteSchema, selection: PaletteSelectionSchema }).strict().optional(),
 }).strict();
 export type DesignSystemChecklistInput = z.input<typeof DesignSystemChecklistInputSchema>;
 

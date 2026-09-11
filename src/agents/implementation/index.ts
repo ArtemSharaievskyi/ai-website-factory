@@ -8,3 +8,4 @@ export * from "./validators";
 export * from "./server";
 export * from "./design-quality";
 export * from "./seo-optimization";
+export * from "./design-resources";
