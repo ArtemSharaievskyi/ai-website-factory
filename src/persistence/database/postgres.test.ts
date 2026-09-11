@@ -165,9 +165,9 @@ describePostgres("Postgres approval persistence round-trip", () => {
     const approved = await app.handle({ action: "approve-brief", projectId: fixture.projectId, briefChecksum: fixture.document.briefChecksum, expectedRowVersion: before.project!.rowVersion });
     const state = await database.transaction(async (tx) => ({ project: await tx.getProject(fixture.projectId), version: await tx.getVersion(fixture.projectId, 1), document: await tx.getDocument(fixture.projectId, 1, "brief-v3"), decisions: await tx.listDecisions(fixture.projectId, 1), events: await tx.listWorkflowEvents(fixture.projectId, 1), history: await tx.listBriefRevisionHistory(fixture.projectId, 1) }));
     const persisted = BriefV3DocumentSchema.parse((await new DocumentRepository(database).get(fixture.projectId, 1, "brief-v3")));
-    expect(approved.project?.workflowState).toBe("AWAITING_DESIGN_SELECTION");
+    expect(approved.project?.workflowState).toBe("AWAITING_PLANNING_GENERATION");
     expect(approved.brief?.approved).toBe(true);
-    expect(state.project?.workflow_state).toBe("AWAITING_DESIGN_SELECTION");
+    expect(state.project?.workflow_state).toBe("AWAITING_PLANNING_GENERATION");
     expect(state.project?.row_version).toBe(2);
     expect(state.version?.rowVersion).toBe(1);
     expect(state.document?.rowVersion).toBe(2);
@@ -177,7 +177,7 @@ describePostgres("Postgres approval persistence round-trip", () => {
     expect(state.decisions).toHaveLength(1);
     expect(state.decisions[0]?.rationale).toBe("Explicit user approval accepted by the host-owned V3 readiness and currentness path.");
     expect(state.events).toHaveLength(1);
-    expect(state.events[0]).toMatchObject({ fromState: "CLARIFYING", toState: "AWAITING_DESIGN_SELECTION" });
+    expect(state.events[0]).toMatchObject({ fromState: "CLARIFYING", toState: "AWAITING_PLANNING_GENERATION" });
     expect(state.history).toHaveLength(0);
     expect(await projection.verifyVersionSnapshot(fixture.projectId, 1)).toBe(true);
   });
