@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { DesignDirectionSetSchema, type DesignDirection, type DesignDirectionSet } from "@/domain/design/schema";
-import { DesignCapabilityPackageSchema, DirectionDesignCapabilitySchema, stableDesignChecksum, validateExactThreeDesignCapabilities, type DesignCapabilityPassEvidence, type DesignToolProvenance } from "@/domain/design/capability";
+import { DEFAULT_MOTION_TOKEN_SET, DesignCapabilityPackageSchema, DirectionDesignCapabilitySchema, stableDesignChecksum, validateExactThreeDesignCapabilities, type DesignCapabilityPassEvidence, type DesignToolProvenance } from "@/domain/design/capability";
 import { decideDependency } from "@/dependencies/authority";
 import { FontpairAdapter } from "@/integrations/design/fontpair";
 import { TwentyFirstDevAdapter, ReactBitsAdapter, MagicUiAdapter, discoverShadcnBase, normalizeAndDeduplicateCandidates } from "@/integrations/design/component-sources";
@@ -97,6 +97,7 @@ const foundationCapability = (direction: DesignDirection, idempotencyKey: string
     microinteractions: "Use feedback-oriented state cues only.",
     reducedMotionFallback: "Remove non-essential movement and preserve state changes.",
     transitionPattern: motionSuitability === "NONE" ? "none" : "CSS transition on transform and opacity",
+    tokens: DEFAULT_MOTION_TOKEN_SET,
   };
   const interactionBase = {
     schemaVersion: 1 as const,
@@ -185,6 +186,7 @@ export class ProfessionalDesignCapabilityPipeline {
       sourceResearch.push({ directionId: direction.id, sources: markedSources, deduplicatedCandidateCount: deduplicatedCount });
       const pair = pairCandidates[index] ?? pairCandidates[0]!;
       const current = direction.professionalDesign ?? foundationCapability(direction, input.idempotencyKey, checkedAt);
+      const motion = current.motion.tokens ? current.motion : { ...current.motion, tokens: DEFAULT_MOTION_TOKEN_SET, checksum: stableDesignChecksum({ ...current.motion, tokens: DEFAULT_MOTION_TOKEN_SET }) };
       const typographyBase = { ...current.typography, displayFamily: pair.displayFamily, bodyFamily: pair.bodyFamily, normalizedPair: { display: pair.displayFamily, body: pair.bodyFamily }, source: "fontpair" as const, sourceEvidenceChecksum: pair.normalizedChecksum, loadingStrategy: "google-fonts-css" as const };
       const typography = { ...typographyBase, checksum: stableDesignChecksum(typographyBase) };
       const provenance: DesignToolProvenance[] = [
@@ -214,7 +216,7 @@ export class ProfessionalDesignCapabilityPipeline {
         evidence("motion-suitability", direction.id, `Motion suitability ${current.motion.suitability} was evaluated without forcing the dependency.`, checkedAt),
       ];
       const componentDiscovery = markedSources.map(researchToCapability);
-      const capabilityBase = { ...current, typography, componentDiscovery, toolProvenance: provenance, passEvidence, currentness: { status: "CURRENT" as const, checkedAt } };
+      const capabilityBase = { ...current, typography, motion, componentDiscovery, toolProvenance: provenance, passEvidence, currentness: { status: "CURRENT" as const, checkedAt } };
       directions.push({ ...direction, professionalDesign: DirectionDesignCapabilitySchema.parse({ ...capabilityBase, contractChecksum: stableDesignChecksum(capabilityBase) }) });
     }
 

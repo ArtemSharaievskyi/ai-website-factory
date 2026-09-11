@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { validateNoDialKitProductionLeak, createDialKitAuthoringSession } from "@/integrations/design/dialkit";
 import { detectImpeccableAntiPatterns } from "@/integrations/design/impeccable";
 import { FACTORY_ANTI_AI_SLOP_HEURISTIC_IDS } from "@/domain/design/quality-contract";
+import { DEFAULT_MOTION_TOKEN_SET, MotionTokenSetSchema } from "@/domain/design/capability";
 import { AntiAISlopDesignGuard, DesignSystemChecklist, runDesignSystemChecklist } from "./design-quality";
 
 const checksum = "a".repeat(64);
@@ -45,7 +46,8 @@ describe("frontend design quality boundary", () => {
     const generic = runDesignSystemChecklist({ files: [{ path: "src/app/page.tsx", content: "export const style = { fontFamily: 'Inter' };" }], designChecksum: checksum });
     const approved = runDesignSystemChecklist({ files: [{ path: "src/app/page.tsx", content: "export const style = { fontFamily: 'Inter' };" }], designChecksum: checksum, approvedDesignText: "The approved brand system deliberately specifies Inter for the editorial system." });
     expect(generic.findings.some((finding) => finding.ruleId === "default-ai-font")).toBe(true);
-    expect(approved.findings.some((finding) => finding.ruleId === "default-ai-font")).toBe(false);
+    expect(approved.findings).toMatchObject([{ ruleId: "default-ai-font", disposition: "JUSTIFIED_BY_DESIGN", justified: true, justificationReference: expect.any(String) }]);
+    expect(approved.verdict).toBe("PASS");
   });
 
   it("blocks over-animated hover surfaces and passes coherent reduced-motion behavior", () => {
@@ -58,6 +60,18 @@ describe("frontend design quality boundary", () => {
     expect(coherent.verdict).toBe("PASS");
   });
 
+  it("provides bounded motion tokens and explicit checklist category statuses", () => {
+    expect(MotionTokenSetSchema.parse(DEFAULT_MOTION_TOKEN_SET)).toMatchObject({
+      fast: { durationMs: 120 },
+      standard: { durationMs: 200 },
+      slow: { durationMs: 360 },
+      gentleSpring: { stiffness: 260 },
+      expressiveSpring: { stiffness: 420 },
+    });
+    const result = runDesignSystemChecklist({ files: [{ path: "src/app/page.tsx", content: "export default function Page() { return <main />; }" }], designChecksum: checksum });
+    expect(result).toMatchObject({ designFidelity: "PASS", surfaces: "PASS", uxStates: "PASS" });
+  });
+
   it("normalizes Impeccable findings into Factory evidence without writing source", () => {
     const files = [{ path: "src/app/page.tsx", content: "background: linear-gradient(purple, violet); animation: margin 2s infinite;" }];
     const external = detectImpeccableAntiPatterns(files);
@@ -66,6 +80,20 @@ describe("frontend design quality boundary", () => {
     expect(result.findings.some((finding) => finding.source === "IMPECCABLE" && finding.ruleId === "generic-purple-gradient")).toBe(true);
     expect(result.findings.some((finding) => finding.source === "IMPECCABLE" && finding.ruleId === "layout-property-animation")).toBe(true);
     expect(files[0]?.content).toContain("linear-gradient");
+  });
+
+  it("lets approved Design rationale suppress a conflicting normalized Impeccable finding", () => {
+    const result = runDesignSystemChecklist({
+      files: [{ path: "src/app/page.tsx", content: "background: linear-gradient(purple, violet);" }],
+      designChecksum: checksum,
+      approvedDesignText: "The approved brand system specifies this purple gradient as the product's focal visual treatment.",
+    });
+    expect(result.findings.filter((finding) => ["generic-purple-gradient", "generic-gradient"].includes(finding.ruleId))).toMatchObject([
+      { disposition: "JUSTIFIED_BY_DESIGN", justified: true, justificationReference: expect.any(String) },
+      { disposition: "JUSTIFIED_BY_DESIGN", justified: true, justificationReference: expect.any(String) },
+    ]);
+    expect(result.antiAiSlop).toBe("PASS");
+    expect(result.verdict).toBe("PASS");
   });
 
   it("keeps DialKit authoring-only and blocks runtime or visible control leaks", () => {

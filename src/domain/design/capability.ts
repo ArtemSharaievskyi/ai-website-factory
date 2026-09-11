@@ -134,6 +134,30 @@ export type TypographyDecision = z.infer<typeof TypographyDecisionSchema>;
 export const MotionSuitabilitySchema = z.enum(["NONE", "CSS_NATIVE", "MOTION"]);
 export type MotionSuitability = z.infer<typeof MotionSuitabilitySchema>;
 
+const MotionDurationTokenSchema = z.object({ durationMs: z.number().int().min(0).max(2000), easing: NonEmptyStringSchema }).strict();
+const MotionSpringTokenSchema = z.object({ stiffness: z.number().finite().min(1).max(1000), damping: z.number().finite().min(0).max(200), mass: z.number().finite().positive().max(20) }).strict();
+export const MotionTokenSetSchema = z.object({
+  fast: MotionDurationTokenSchema,
+  standard: MotionDurationTokenSchema,
+  slow: MotionDurationTokenSchema,
+  enter: MotionDurationTokenSchema,
+  exit: MotionDurationTokenSchema,
+  standardEasing: NonEmptyStringSchema,
+  gentleSpring: MotionSpringTokenSchema,
+  expressiveSpring: MotionSpringTokenSchema,
+}).strict();
+export type MotionTokenSet = z.infer<typeof MotionTokenSetSchema>;
+export const DEFAULT_MOTION_TOKEN_SET = Object.freeze(MotionTokenSetSchema.parse({
+  fast: { durationMs: 120, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
+  standard: { durationMs: 200, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
+  slow: { durationMs: 360, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
+  enter: { durationMs: 240, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
+  exit: { durationMs: 160, easing: "cubic-bezier(0.4, 0, 1, 1)" },
+  standardEasing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+  gentleSpring: { stiffness: 260, damping: 30, mass: 1 },
+  expressiveSpring: { stiffness: 420, damping: 24, mass: 0.8 },
+}));
+
 export const MotionDecisionSchema = z.object({
   schemaVersion: z.literal(DESIGN_CONTRACT_SCHEMA_VERSION),
   decisionId: UuidSchema,
@@ -144,6 +168,7 @@ export const MotionDecisionSchema = z.object({
   microinteractions: NonEmptyStringSchema,
   reducedMotionFallback: NonEmptyStringSchema,
   transitionPattern: NonEmptyStringSchema,
+  tokens: MotionTokenSetSchema.optional(),
   dependency: z.object({ packageName: z.literal("motion"), versionSpec: z.literal("12.43.0") }).strict().optional(),
   checksum: HashSchema,
 }).strict().superRefine((value, context) => {

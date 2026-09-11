@@ -25,6 +25,7 @@ describe("professional design capability pipeline", () => {
     expect(result.directionSet.professionalCapability?.directions).toHaveLength(3);
     expect(result.directionSet.directions.every((direction) => direction.professionalDesign?.typography.source === "fontpair")).toBe(true);
     expect(result.directionSet.directions.every((direction) => direction.professionalDesign?.componentDiscovery.length === 4)).toBe(true);
+    expect(result.directionSet.directions.every((direction) => direction.professionalDesign?.motion.tokens?.fast.durationMs === 120)).toBe(true);
     expect(result.fontpairCandidates).toHaveLength(3);
     expect(result.dependencyRequests).toHaveLength(1);
   });

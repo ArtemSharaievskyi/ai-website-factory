@@ -23,13 +23,13 @@ const categoryForRule: Record<string, DesignFindingCategory> = {
   "lucide-saturation": "ICONOGRAPHY",
   "pure-white-everywhere": "COLOR",
   "rainbow-color-assignment": "COLOR",
-  "shadows-under-everything": "COMPONENTS",
+  "shadows-under-everything": "SURFACES",
   "generic-three-card-row": "COMPONENTS",
   "decorative-emoji": "ICONOGRAPHY",
-  "generic-glassmorphism": "COMPONENTS",
+  "generic-glassmorphism": "SURFACES",
   "excessive-em-dashes": "CONTENT",
   "default-ai-font": "TYPOGRAPHY",
-  "colored-left-border": "COMPONENTS",
+  "colored-left-border": "SURFACES",
   "invented-testimonial": "CONTENT",
   "generic-bento-grid": "COMPONENTS",
   "fake-terminal-window": "COMPONENTS",
@@ -37,9 +37,9 @@ const categoryForRule: Record<string, DesignFindingCategory> = {
   "repetitive-checkmark-list": "CONTENT",
   "automatic-pricing-tiers": "CONTENT",
   "missing-real-demo": "DESIGN_FIDELITY",
-  "universal-rounded-corners": "COMPONENTS",
+  "universal-rounded-corners": "SURFACES",
   "purple-black-ai-palette": "COLOR",
-  "missing-loading-state": "COMPONENTS",
+  "missing-loading-state": "UX_STATES",
   "glowing-blurred-spheres": "COLOR",
   "dot-grid-background": "COLOR",
   "sparkle-icon-decoration": "ICONOGRAPHY",
@@ -100,19 +100,22 @@ const justificationPatterns: Partial<Record<FactoryAntiAiSlopHeuristicId, RegExp
 };
 
 const pathFor = (files: ReadonlyArray<{ path: string; content: string }>) => files[0]?.path ?? "<implementation>";
+const justificationRuleFor = (ruleId: string): FactoryAntiAiSlopHeuristicId | undefined => ruleId === "generic-purple-gradient" ? "generic-gradient" : (FACTORY_ANTI_AI_SLOP_HEURISTIC_IDS as readonly string[]).includes(ruleId) ? ruleId as FactoryAntiAiSlopHeuristicId : undefined;
 const count = (value: string, expression: RegExp) => value.match(expression)?.length ?? 0;
 const distinctMatches = (value: string, expression: RegExp) => new Set([...value.matchAll(expression)].map((match) => match[0]!.toLowerCase())).size;
 
-function justified(input: z.infer<typeof DesignSystemChecklistInputSchema>, ruleId: FactoryAntiAiSlopHeuristicId) {
-  const explicit = input.approvedDesignJustifications[ruleId];
-  if (explicit?.trim()) return true;
-  return Boolean(input.approvedDesignText && justificationPatterns[ruleId]?.test(input.approvedDesignText));
+function designJustification(input: z.infer<typeof DesignSystemChecklistInputSchema>, ruleId: string) {
+  const mappedRule = justificationRuleFor(ruleId);
+  const explicit = input.approvedDesignJustifications[ruleId] ?? (mappedRule ? input.approvedDesignJustifications[mappedRule] : undefined);
+  if (explicit?.trim()) return explicit.trim();
+  return mappedRule && input.approvedDesignText && justificationPatterns[mappedRule]?.test(input.approvedDesignText) ? `approved-design:${mappedRule}` : undefined;
 }
 
 function addFinding(findings: DesignFinding[], input: z.infer<typeof DesignSystemChecklistInputSchema>, ruleId: string, severity: DesignFindingSeverity, summary: string, category: DesignFindingCategory = categoryForRule[ruleId] ?? "ANTI_AI_SLOP", source: DesignFinding["source"] = "FACTORY_ANTI_AI_SLOP") {
   const isFactoryHeuristic = (FACTORY_ANTI_AI_SLOP_HEURISTIC_IDS as readonly string[]).includes(ruleId);
-  if (isFactoryHeuristic && justified(input, ruleId as FactoryAntiAiSlopHeuristicId)) return;
-  findings.push(DesignFindingSchema.parse({ id: `${source.toLowerCase().replaceAll("_", "-")}:${ruleId}:${findings.length + 1}`, ruleId, category, severity, source, path: pathFor(input.files), summary, recommendation: recommendationForRule[ruleId] ?? "Resolve the finding within the bounded implementation scope.", justified: false }));
+  const justificationReference = isFactoryHeuristic || source === "IMPECCABLE" ? designJustification(input, ruleId) : undefined;
+  const disposition = justificationReference ? "JUSTIFIED_BY_DESIGN" : "OPEN";
+  findings.push(DesignFindingSchema.parse({ id: `${source.toLowerCase().replaceAll("_", "-")}:${ruleId}:${findings.length + 1}`, ruleId, category, severity, source, confidence: source === "DIALKIT" || source === "DESIGN_SYSTEM" ? "HIGH" : source === "IMPECCABLE" ? "MEDIUM" : "LOW", disposition, ...(justificationReference ? { justificationReference } : {}), path: pathFor(input.files), summary, recommendation: recommendationForRule[ruleId] ?? "Resolve the finding within the bounded implementation scope.", justified: disposition === "JUSTIFIED_BY_DESIGN" }));
 }
 
 function evaluateFactoryHeuristics(input: z.infer<typeof DesignSystemChecklistInputSchema>, text: string, findings: DesignFinding[]) {
@@ -149,7 +152,7 @@ function evaluateFactoryHeuristics(input: z.infer<typeof DesignSystemChecklistIn
 }
 
 function categoryStatus(findings: readonly DesignFinding[], category: DesignFindingCategory): "PASS" | "WARN" | "FAIL" {
-  const matches = findings.filter((finding) => finding.category === category);
+  const matches = findings.filter((finding) => finding.category === category && finding.disposition === "OPEN");
   return matches.some((finding) => finding.severity === "BLOCKING") ? "FAIL" : matches.some((finding) => finding.severity === "WARNING") ? "WARN" : "PASS";
 }
 
@@ -172,20 +175,24 @@ export function runDesignSystemChecklist(raw: DesignSystemChecklistInput): Desig
   if (hasMotion && !/prefers-reduced-motion|motion-reduce|reducedMotion|reduced-motion/i.test(text)) addFinding(findings, input, "reduced-motion-support", "BLOCKING", "Motion is present without an explicit reduced-motion fallback.", "ACCESSIBILITY", "DESIGN_SYSTEM");
   if (/\b(?:w|width)\s*[:=\[]\s*(?:1200|1440)px|w-\[(?:1000|1200|1440)px\]|min-width\s*:\s*\d{4,}px/i.test(text)) addFinding(findings, input, "fixed-wide-layout", "WARNING", "A fixed wide layout risks overflow at mobile widths.", "RESPONSIVE", "DESIGN_SYSTEM");
 
-  const hasWarnings = findings.some((finding) => finding.severity === "WARNING");
-  const hasBlocking = findings.some((finding) => finding.severity === "BLOCKING");
-  const antiAiFindings = findings.filter((finding) => finding.source === "FACTORY_ANTI_AI_SLOP" || finding.source === "IMPECCABLE" || finding.source === "DIALKIT");
+  const effectiveFindings = findings.filter((finding) => finding.disposition === "OPEN");
+  const hasWarnings = effectiveFindings.some((finding) => finding.severity === "WARNING");
+  const hasBlocking = effectiveFindings.some((finding) => finding.severity === "BLOCKING");
+  const antiAiFindings = effectiveFindings.filter((finding) => finding.source === "FACTORY_ANTI_AI_SLOP" || finding.source === "IMPECCABLE" || finding.source === "DIALKIT");
   return DesignSystemChecklistResultSchema.parse({
     implementationChecksum: sourceChecksum(input.files),
     designChecksum: input.designChecksum,
+    designFidelity: categoryStatus(findings, "DESIGN_FIDELITY"),
     typography: categoryStatus(findings, "TYPOGRAPHY"),
     color: categoryStatus(findings, "COLOR"),
     spacing: categoryStatus(findings, "SPACING"),
+    surfaces: categoryStatus(findings, "SURFACES"),
     components: categoryStatus(findings, "COMPONENTS"),
     iconography: categoryStatus(findings, "ICONOGRAPHY"),
     motion: categoryStatus(findings, "MOTION"),
     responsive: categoryStatus(findings, "RESPONSIVE"),
     accessibility: categoryStatus(findings, "ACCESSIBILITY"),
+    uxStates: categoryStatus(findings, "UX_STATES"),
     content: categoryStatus(findings, "CONTENT"),
     antiAiSlop: antiAiFindings.some((finding) => finding.severity === "BLOCKING") ? "FAIL" : antiAiFindings.length ? "WARN" : "PASS",
     findings,
