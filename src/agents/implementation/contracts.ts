@@ -17,6 +17,7 @@ import { AstPatchOperationSchema, AstStructuralContextEntrySchema } from "@/doma
 import { DecisionRecordSchema } from "@/domain/workflow/decision";
 import { CanonicalBriefV3Schema } from "@/domain/requirements/v3/schema";
 import { BackendImplementationContractSchema, DatabaseImplementationContractSchema } from "@/domain/implementation/contracts";
+import { ImplementationSkillBindingSchema } from "@/domain/implementation/profiles";
 
 export const ExecutionPolicySchema = z.object({ version: z.string().min(1), maxContextBytes: z.number().int().positive(), maxContextFiles: z.number().int().positive(), maxSourceFileBytes: z.number().int().positive(), maxProposalOperations: z.number().int().positive(), maxChangedFiles: z.number().int().positive(), maxOperationContentBytes: z.number().int().positive(), maxAstPatchPayloadBytes: z.number().int().positive().max(32000).optional(), maxAstPatchOperations: z.number().int().positive().max(8).optional(), supportedEncodings: z.array(z.literal("utf-8")), transactionDirectoryName: z.string().regex(/^\.[a-z0-9-]+$/), lockExpiryMs: z.number().int().positive(), providerTimeoutMs: z.number().int().positive(), maxEventBytes: z.number().int().positive(), defaultTaskAttempts: z.number().int().positive() }).strict();
 export const DEFAULT_EXECUTION_POLICY = ExecutionPolicySchema.parse({ version: "implementation-v1", maxContextBytes: 120000, maxContextFiles: 40, maxSourceFileBytes: 200000, maxProposalOperations: 20, maxChangedFiles: 20, maxOperationContentBytes: 200000, maxAstPatchPayloadBytes: 32000, maxAstPatchOperations: 8, supportedEncodings: ["utf-8"], transactionDirectoryName: ".factory-transaction", lockExpiryMs: 120000, providerTimeoutMs: 30000, maxEventBytes: 12000, defaultTaskAttempts: 3 });
@@ -32,7 +33,7 @@ export const ImplementationChangeProposalSchema = z.object({ proposalId: z.strin
 export const ImplementationContextSchema = z.object({
   task: AgentTaskSchema,
   taskGraphChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
-  specialistProfile: z.object({ profileId: z.enum(["frontend-implementation", "backend-implementation", "database-implementation"]), domain: z.enum(["FRONTEND", "BACKEND", "DATABASE"]), version: z.string().regex(/^\d+\.\d+\.\d+$/), checksum: z.string().regex(/^[a-f0-9]{64}$/), normalizedGuidance: z.array(z.string().min(1).max(1_000)).min(1).max(8) }).strict().optional(),
+  specialistProfile: z.object({ profileId: z.enum(["frontend-implementation", "backend-implementation", "database-implementation"]), domain: z.enum(["FRONTEND", "BACKEND", "DATABASE"]), version: z.string().regex(/^\d+\.\d+\.\d+$/), checksum: z.string().regex(/^[a-f0-9]{64}$/), normalizedGuidance: z.array(z.string().min(1).max(1_000)).min(1).max(20), skillBindings: z.array(ImplementationSkillBindingSchema) }).strict().optional(),
   acceptanceCriteria: z.array(z.string()), requirementReferences: z.array(z.string()), planningReferences: z.array(z.string()), selectedDesignReferences: z.array(z.string()),
   selectedDesignContract: DirectionDesignCapabilitySchema.optional(), architectureExcerpt: z.unknown(), contentExcerpt: z.unknown(), assetExcerpt: z.unknown(),
   domainHandoffs: z.object({ database: DatabaseImplementationContractSchema.optional(), backend: BackendImplementationContractSchema.optional() }).strict().optional(),

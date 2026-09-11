@@ -13,7 +13,7 @@ export const ImplementationSpecialistIdSchema = z.enum([
 ]);
 export type ImplementationSpecialistId = z.infer<typeof ImplementationSpecialistIdSchema>;
 
-const ProfileSurfaceSchema = z.enum([
+export const ProfileSurfaceSchema = z.enum([
   "SOURCE_READ",
   "FRONTEND_SOURCE_WRITE",
   "BACKEND_SOURCE_WRITE",
@@ -23,6 +23,62 @@ const ProfileSurfaceSchema = z.enum([
   "ASSET_READ",
   "RELEVANT_TESTS",
 ]);
+export type ProfileSurface = z.infer<typeof ProfileSurfaceSchema>;
+
+export const ImplementationCapabilitySchema = z.enum([
+  "REACT_UI",
+  "NEXT_APP_ROUTER",
+  "TYPESCRIPT",
+  "TAILWIND",
+  "SHADCN_UI",
+  "ACCESSIBILITY_IMPLEMENTATION",
+  "RESPONSIVE_IMPLEMENTATION",
+  "SERVER_CLIENT_BOUNDARIES",
+  "FORM_IMPLEMENTATION",
+  "STATE_BOUNDARIES",
+  "PERFORMANCE_IMPLEMENTATION",
+  "FRONTEND_TESTING",
+  "CANONICAL_CONTRACT_CONSUMPTION",
+  "DEPENDENCY_DISCIPLINE",
+  "ERROR_LOADING_EMPTY_STATES",
+  "DESIGN_CONTRACT_IMPLEMENTATION",
+  "NEXT_SERVER_RUNTIME",
+  "ZOD_VALIDATION",
+  "SERVER_ARCHITECTURE",
+  "AUTHENTICATION",
+  "AUTHORIZATION",
+  "SERVER_TRUST_BOUNDARY",
+  "TYPED_BACKEND_CONTRACTS",
+  "TRANSACTION_CONCURRENCY",
+  "ERROR_MODELING",
+  "SERVER_ONLY_BOUNDARIES",
+  "CACHE_REVALIDATION",
+  "BACKEND_TESTING",
+  "CONDITIONAL_SUPABASE",
+  "CONDITIONAL_POSTGRES_APPLICATION",
+  "DATABASE_OWNERSHIP_HANDOFF",
+]);
+export type ImplementationCapability = z.infer<typeof ImplementationCapabilitySchema>;
+
+export const SkillActivationSchema = z.enum([
+  "ALWAYS",
+  "FORM_TASK",
+  "SUPABASE_OR_DATABASE_TASK",
+]);
+export type SkillActivation = z.infer<typeof SkillActivationSchema>;
+
+export const ImplementationSkillBindingSchema = z.object({
+  skillId: z.string().regex(/^[a-z0-9]+(?:[-_.][a-z0-9]+)*$/),
+  agentId: z.literal("implementation"),
+  capability: ImplementationCapabilitySchema,
+  tools: z.array(ToolIdSchema),
+  permissions: z.array(ProfileSurfaceSchema).min(1),
+  activation: SkillActivationSchema,
+  inputContract: z.literal("implementation.input"),
+  outputContract: z.literal("implementation.output"),
+  coverageKeys: z.array(z.string().min(1)).min(1),
+}).strict();
+export type ImplementationSkillBinding = z.infer<typeof ImplementationSkillBindingSchema>;
 
 const ImportedProfileSourceSchema = z.object({
   sourceRepository: z.literal("defuj/opencode-agent-kit"),
@@ -46,8 +102,10 @@ export const AgentProfileSchema = z.object({
   normalizedGuidance: z.array(z.string().min(1).max(1_000)).min(1).max(20),
   rejectedForeignAssumptions: z.array(z.string().min(1).max(300)).min(1).max(20),
   capabilitySurface: z.array(ProfileSurfaceSchema).min(1),
+  implementationCapabilities: z.array(ImplementationCapabilitySchema).min(1),
   allowedTools: z.array(ToolIdSchema),
   allowedSkillIds: z.array(z.string().regex(/^[a-z0-9]+(?:[-_.][a-z0-9]+)*$/)),
+  skillBindings: z.array(ImplementationSkillBindingSchema),
   allowedTaskTypes: z.array(z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/)).min(1),
   contextPolicy: z.object({
     version: z.string().min(1),
@@ -70,6 +128,25 @@ export const AgentProfileSchema = z.object({
   }
   if (profile.profileId !== `${profile.domain.toLowerCase()}-implementation`) {
     context.addIssue({ code: "custom", path: ["profileId"], message: "Profile identity must match its implementation domain." });
+  }
+  if (new Set(profile.implementationCapabilities).size !== profile.implementationCapabilities.length) {
+    context.addIssue({ code: "custom", path: ["implementationCapabilities"], message: "Implementation capabilities must be unique." });
+  }
+  if (new Set(profile.allowedSkillIds).size !== profile.allowedSkillIds.length) {
+    context.addIssue({ code: "custom", path: ["allowedSkillIds"], message: "Allowed skills must be unique." });
+  }
+  const allowedSkillIds = new Set(profile.allowedSkillIds);
+  const allowedTools = new Set(profile.allowedTools);
+  const allowedPermissions = new Set(profile.capabilitySurface);
+  const bindingKeys = new Set<string>();
+  for (const binding of profile.skillBindings) {
+    const key = `${binding.skillId}:${binding.capability}`;
+    if (bindingKeys.has(key)) context.addIssue({ code: "custom", path: ["skillBindings"], message: "Skill bindings must be unique by skill and capability." });
+    bindingKeys.add(key);
+    if (!allowedSkillIds.has(binding.skillId)) context.addIssue({ code: "custom", path: ["skillBindings"], message: "A skill binding must reference an explicitly allowed skill." });
+    if (!profile.implementationCapabilities.includes(binding.capability)) context.addIssue({ code: "custom", path: ["skillBindings"], message: "A skill binding capability must be declared by the profile." });
+    if (binding.tools.some((tool) => !allowedTools.has(tool))) context.addIssue({ code: "custom", path: ["skillBindings"], message: "A skill binding cannot grant a tool outside the profile allowlist." });
+    if (binding.permissions.some((permission) => !allowedPermissions.has(permission))) context.addIssue({ code: "custom", path: ["skillBindings"], message: "A skill binding cannot grant a permission outside the profile surface." });
   }
   const withoutChecksum = Object.fromEntries(Object.entries(profile).filter(([key]) => key !== "checksum"));
   if (profile.checksum !== checksumPersistedDocument(withoutChecksum)) {
@@ -98,7 +175,7 @@ const frontendProfile = createApprovedProfile({
   role: "implementation",
   displayName: "FrontendImplementationAgent",
   domain: "FRONTEND",
-  version: "1.0.0",
+  version: "1.1.0",
   status: "APPROVED",
   source: {
     sourceRepository: "defuj/opencode-agent-kit",
@@ -113,7 +190,12 @@ const frontendProfile = createApprovedProfile({
     "Implement approved Next.js App Router and React UI responsibilities with clear component boundaries, accessible HTML, and responsive behavior.",
     "Keep Server Components and client interaction aligned with the approved Architecture; frontend ownership does not grant backend, database, auth, email, analytics, or deployment authority.",
     "Use the selected Design contract, canonical content, approved assets, and typed form plan as host-owned inputs; preserve facts and do not invent requirements.",
-    "Prefer small, maintainable changes and validate the relevant frontend behavior within the exact task scopes.",
+    "Implement semantic names, labels, keyboard and focus behavior, heading order, alt text, disabled semantics, dialog behavior, and accessible form errors without treating ARIA as a substitute for native HTML.",
+    "Treat the Design contract as the responsive authority: preserve hierarchy across mobile, tablet, and desktop, prevent overflow, and adapt navigation, grids, media, and touch interactions deliberately.",
+    "Separate server data, URL state, form state, local UI state, and shared application state; do not introduce a global state library or a dependency when the approved stack already provides the capability.",
+    "Consume canonical shared contracts and approved route, content, asset, and error/loading/empty-state inputs before creating a new type; keep focused tests beside the owned behavior.",
+    "Prefer small, maintainable, performance-aware changes: minimize client JavaScript and hydration, avoid unnecessary effects and waterfalls, and keep image, font, loading, error, empty, retry, and recovery behavior reachable.",
+    "Do not hide failures with mock data, fake success, swallowed exceptions, or client-only completion for a required server operation; implementation verification does not replace independent Browser, Security, Accessibility, Performance, Code, Dependency, or Release review.",
   ],
   rejectedForeignAssumptions: [
     "OpenCode or Claude-specific orchestration, subagent invocation, session, question, and MCP authority.",
@@ -121,8 +203,14 @@ const frontendProfile = createApprovedProfile({
     "Foreign framework defaults such as Vite, Zustand, Prisma, or Express when they are not present in the approved Factory Architecture.",
   ],
   capabilitySurface: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "ASSET_READ", "RELEVANT_TESTS"],
+  implementationCapabilities: ["REACT_UI", "NEXT_APP_ROUTER", "TYPESCRIPT", "TAILWIND", "SHADCN_UI", "ACCESSIBILITY_IMPLEMENTATION", "RESPONSIVE_IMPLEMENTATION", "SERVER_CLIENT_BOUNDARIES", "FORM_IMPLEMENTATION", "STATE_BOUNDARIES", "PERFORMANCE_IMPLEMENTATION", "FRONTEND_TESTING", "CANONICAL_CONTRACT_CONSUMPTION", "DEPENDENCY_DISCIPLINE", "ERROR_LOADING_EMPTY_STATES", "DESIGN_CONTRACT_IMPLEMENTATION"],
   allowedTools: ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit"],
   allowedSkillIds: ["nextjs-server-client-implementation", "typed-form-implementation", "maintainable-performance-implementation"],
+  skillBindings: [
+    { skillId: "nextjs-server-client-implementation", agentId: "implementation", capability: "SERVER_CLIENT_BOUNDARIES", tools: ["context7-read", "codebase-memory-read", "controlled-edit"], permissions: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "RELEVANT_TESTS"], activation: "ALWAYS", inputContract: "implementation.input", outputContract: "implementation.output", coverageKeys: ["nextjs-implementation", "server-client-boundaries"] },
+    { skillId: "typed-form-implementation", agentId: "implementation", capability: "FORM_IMPLEMENTATION", tools: ["context7-read", "shadcn-registry-read", "controlled-edit"], permissions: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "RELEVANT_TESTS"], activation: "FORM_TASK", inputContract: "implementation.input", outputContract: "implementation.output", coverageKeys: ["forms-validation"] },
+    { skillId: "maintainable-performance-implementation", agentId: "implementation", capability: "PERFORMANCE_IMPLEMENTATION", tools: ["codebase-memory-read", "controlled-edit"], permissions: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "RELEVANT_TESTS"], activation: "ALWAYS", inputContract: "implementation.input", outputContract: "implementation.output", coverageKeys: ["maintainability-performance"] },
+  ],
   allowedTaskTypes: ["prepare-workspace", "implement-project-foundation", "implement-design-system", "implement-shared-layout", "implement-navigation", "implement-page", "implement-shared-component", "implement-form", "integrate-assets", "integrate-content", "implement-seo", "implement-motion", "write-unit-tests", "write-integration-tests", "write-e2e-tests", "repair-targeted-failure"],
   contextPolicy: { version: "frontend-specialist-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "TASK_SLICE", "CODEBASE_CONTEXT", "VALIDATION_DIAGNOSTIC", "PREVIOUS_FINDINGS"], maxBytes: 120_000, maxItems: 80 },
   approval: { status: "APPROVED", reviewer: "factory-import-policy", approvedAt: APPROVED_AT },
@@ -134,7 +222,7 @@ const backendProfile = createApprovedProfile({
   role: "implementation",
   displayName: "BackendImplementationAgent",
   domain: "BACKEND",
-  version: "1.0.0",
+  version: "1.1.0",
   status: "APPROVED",
   source: {
     sourceRepository: "defuj/opencode-agent-kit",
@@ -148,7 +236,13 @@ const backendProfile = createApprovedProfile({
   normalizedGuidance: [
     "Implement only approved Next.js Route Handler and Server Action behavior, including server-side validation, safe error behavior, and explicit API boundaries.",
     "Consume approved database and authentication contracts without redesigning schema, RLS, or persistence authority; keep secrets server-only and use existing Factory adapters.",
-    "Cover the bounded server behavior with relevant tests and preserve the host-owned task, path, dependency, and approval constraints.",
+    "Keep authentication (who the caller is) separate from authorization (whether the caller may act on this resource); derive identity, role, ownership, tenant, price, permission, and status from trusted server context instead of client input.",
+    "Use typed Zod input, result, and error contracts at every server boundary, preserve deterministic validation, unauthenticated, forbidden, not-found, conflict, stale, rate-limit, and internal semantics, and never return raw exceptions or fake success.",
+    "When Architecture requires it, make multi-step mutations atomic and reason about compare-and-set, idempotency, unique constraints, state transitions, history, and lost updates; database-owned primitives remain DatabaseImplementationAgent work.",
+    "Keep database clients, service credentials, secret environment variables, and private server modules behind server-only boundaries; do not leak privileged data or credentials to Client Components.",
+    "Use cache, no-store, revalidation, tag/path invalidation, and authenticated dynamic-data semantics only when the approved Architecture requires them; never cache private data by default or disable caching without reason.",
+    "Cover the bounded server behavior with focused validation, authorization, error, transaction/concurrency, route/action, and server-boundary tests, then preserve host-owned task, path, dependency, contract, and approval constraints.",
+    "Do not edit schema, migrations, indexes, constraints, RLS, database functions, or database-owned persistence contracts; request a Database task through the host ChangeProposal/TaskGraph route when needed.",
   ],
   rejectedForeignAssumptions: [
     "OpenCode or Claude-specific orchestration, subagent delegation, session tools, question tools, MCP authority, and automatic retries.",
@@ -156,8 +250,12 @@ const backendProfile = createApprovedProfile({
     "Independent database schema or RLS design; Backend may consume only current approved data contracts.",
   ],
   capabilitySurface: ["SOURCE_READ", "BACKEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "RELEVANT_TESTS"],
+  implementationCapabilities: ["NEXT_SERVER_RUNTIME", "TYPESCRIPT", "ZOD_VALIDATION", "SERVER_ARCHITECTURE", "AUTHENTICATION", "AUTHORIZATION", "SERVER_TRUST_BOUNDARY", "TYPED_BACKEND_CONTRACTS", "TRANSACTION_CONCURRENCY", "ERROR_MODELING", "SERVER_ONLY_BOUNDARIES", "CACHE_REVALIDATION", "BACKEND_TESTING", "CANONICAL_CONTRACT_CONSUMPTION", "DEPENDENCY_DISCIPLINE", "CONDITIONAL_SUPABASE", "CONDITIONAL_POSTGRES_APPLICATION", "DATABASE_OWNERSHIP_HANDOFF"],
   allowedTools: ["openai-generation", "context7-read", "codebase-memory-read"],
   allowedSkillIds: ["supabase-application-integration"],
+  skillBindings: [
+    { skillId: "supabase-application-integration", agentId: "implementation", capability: "CONDITIONAL_SUPABASE", tools: ["context7-read", "codebase-memory-read"], permissions: ["SOURCE_READ", "BACKEND_SOURCE_WRITE", "RELEVANT_TESTS"], activation: "SUPABASE_OR_DATABASE_TASK", inputContract: "implementation.input", outputContract: "implementation.output", coverageKeys: ["supabase-implementation"] },
+  ],
   allowedTaskTypes: ["implement-server-action", "implement-route-handler", "implement-authentication", "implement-storage", "implement-email", "repair-targeted-failure"],
   contextPolicy: { version: "backend-specialist-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "TASK_SLICE", "CODEBASE_CONTEXT", "VALIDATION_DIAGNOSTIC", "PREVIOUS_FINDINGS"], maxBytes: 80_000, maxItems: 60 },
   approval: { status: "APPROVED", reviewer: "factory-import-policy", approvedAt: APPROVED_AT },
@@ -191,8 +289,12 @@ const databaseProfile = createApprovedProfile({
     "Application code, API, UI, or authentication ownership; those remain separate typed Factory task domains.",
   ],
   capabilitySurface: ["SOURCE_READ", "DATABASE_SCHEMA_WRITE", "CONTROLLED_TEXT_PATCH", "RELEVANT_TESTS"],
+  implementationCapabilities: ["TYPESCRIPT", "CANONICAL_CONTRACT_CONSUMPTION", "DEPENDENCY_DISCIPLINE", "BACKEND_TESTING", "CONDITIONAL_SUPABASE", "DATABASE_OWNERSHIP_HANDOFF"],
   allowedTools: ["openai-generation", "context7-read", "codebase-memory-read"],
   allowedSkillIds: ["supabase-application-integration"],
+  skillBindings: [
+    { skillId: "supabase-application-integration", agentId: "implementation", capability: "CONDITIONAL_SUPABASE", tools: ["context7-read", "codebase-memory-read"], permissions: ["SOURCE_READ", "DATABASE_SCHEMA_WRITE", "RELEVANT_TESTS"], activation: "SUPABASE_OR_DATABASE_TASK", inputContract: "implementation.input", outputContract: "implementation.output", coverageKeys: ["supabase-implementation"] },
+  ],
   allowedTaskTypes: ["implement-database-schema", "implement-rls-policy", "write-database-tests", "validate-database", "repair-targeted-failure"],
   contextPolicy: { version: "database-specialist-context-v1", allowedCategories: ["PLANNING_PACKAGE", "TASK_SLICE", "CODEBASE_CONTEXT", "VALIDATION_DIAGNOSTIC", "PREVIOUS_FINDINGS"], maxBytes: 80_000, maxItems: 60 },
   approval: { status: "APPROVED", reviewer: "factory-import-policy", approvedAt: APPROVED_AT },
@@ -229,6 +331,26 @@ export class AgentProfileRegistry {
 }
 
 export const implementationProfileRegistry = new AgentProfileRegistry();
+
+export function shouldActivateSupabaseImplementationSkill(input: { domain?: ImplementationDomain; taskType: string; hasDatabaseHandoff?: boolean; databaseMode?: "NONE" | "SUPABASE_NEW" | "SUPABASE_EXISTING" }) {
+  return input.domain === "DATABASE"
+    || Boolean(input.hasDatabaseHandoff)
+    || input.databaseMode === "SUPABASE_NEW"
+    || input.databaseMode === "SUPABASE_EXISTING"
+    || ["implement-authentication", "implement-storage", "implement-database-schema", "implement-rls-policy", "write-database-tests"].includes(input.taskType);
+}
+
+export function activeImplementationSkillBindings(profile: AgentProfile, taskType: string, options: { supabaseRequired?: boolean } = {}) {
+  return profile.skillBindings.filter((binding) =>
+    binding.activation === "ALWAYS"
+    || (binding.activation === "FORM_TASK" && taskType === "implement-form")
+    || (binding.activation === "SUPABASE_OR_DATABASE_TASK" && options.supabaseRequired === true),
+  );
+}
+
+export function activeImplementationSkillIds(profile: AgentProfile, taskType: string, options: { supabaseRequired?: boolean } = {}) {
+  return activeImplementationSkillBindings(profile, taskType, options).map((binding) => binding.skillId);
+}
 
 const FRONTEND_TASK_TYPES = new Set(frontendProfile.allowedTaskTypes.filter((taskType) => taskType !== "repair-targeted-failure"));
 const BACKEND_TASK_TYPES = new Set(backendProfile.allowedTaskTypes.filter((taskType) => taskType !== "repair-targeted-failure"));

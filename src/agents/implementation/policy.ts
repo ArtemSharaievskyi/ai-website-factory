@@ -27,7 +27,7 @@ import type { AgentSkillSelection } from "@/skills/runtime/resolver";
 import { allowedDependencyNamesForPlan, dependencyCatalogPromptContext, type DependencyPlanIntent } from "@/dependencies/authority";
 import { summarizeTypeScriptSource } from "./ast-patch-executor";
 import { implementationOrchestrator } from "@/orchestration/orchestrator/implementation-routing";
-import { implementationProfileRegistry } from "@/domain/implementation/profiles";
+import { activeImplementationSkillBindings, implementationProfileRegistry, shouldActivateSupabaseImplementationSkill } from "@/domain/implementation/profiles";
 
 const sha = (value: string) =>
   createHash("sha256").update(value, "utf8").digest("hex");
@@ -105,6 +105,14 @@ export class TaskContextAssembler {
         { routeStatus: route.status, domain: route.domain },
       );
     const specialistProfile = implementationProfileRegistry.get(route.specialistProfileId);
+    const activeSkillBindings = activeImplementationSkillBindings(specialistProfile, input.task.taskType, {
+      supabaseRequired: shouldActivateSupabaseImplementationSkill({
+        domain: specialistProfile.domain,
+        taskType: input.task.taskType,
+        hasDatabaseHandoff: Boolean(input.domainHandoffs?.database),
+        databaseMode: input.phase7cContractPackage?.databaseDecision.mode,
+      }),
+    });
     if (
       !(await this.dependencies.workspace.verifyStaging(
         input.projectId,
@@ -597,7 +605,7 @@ export class TaskContextAssembler {
     const context = ImplementationContextSchema.parse({
       task: input.task,
       taskGraphChecksum: input.taskGraphChecksum,
-      specialistProfile: { profileId: specialistProfile.profileId, domain: specialistProfile.domain, version: specialistProfile.version, checksum: specialistProfile.checksum, normalizedGuidance: specialistProfile.normalizedGuidance },
+      specialistProfile: { profileId: specialistProfile.profileId, domain: specialistProfile.domain, version: specialistProfile.version, checksum: specialistProfile.checksum, normalizedGuidance: specialistProfile.normalizedGuidance, skillBindings: activeSkillBindings },
       acceptanceCriteria: input.task.acceptanceCriteria ?? [],
       requirementReferences: input.task.requirementReferences ?? [],
       planningReferences: input.task.planningReferences ?? [],
@@ -624,7 +632,7 @@ export class TaskContextAssembler {
       contextChecksum: checksumPersistedDocument({
         task: input.task,
         taskGraphChecksum: input.taskGraphChecksum,
-        specialistProfile: { profileId: specialistProfile.profileId, domain: specialistProfile.domain, version: specialistProfile.version, checksum: specialistProfile.checksum, normalizedGuidance: specialistProfile.normalizedGuidance },
+        specialistProfile: { profileId: specialistProfile.profileId, domain: specialistProfile.domain, version: specialistProfile.version, checksum: specialistProfile.checksum, normalizedGuidance: specialistProfile.normalizedGuidance, skillBindings: activeSkillBindings },
         selectedDesignContract: input.selectedDesign.selectedDirectionContract,
         files,
         structuralContext,

@@ -23,7 +23,9 @@ describe("generated-project exclusive shared ownership", () => {
     expect(taskOwnsGeneratedArtifact("integrate-dependencies", "INTEGRATION", "package-lock.json")).toBe(true);
     expect(taskOwnsGeneratedArtifact("implement-page", "INTEGRATION", "package.json")).toBe(false);
     expect(taskOwnsGeneratedArtifact("implement-page", "FRONTEND", "src/app/page.tsx")).toBe(true);
+    expect(taskOwnsGeneratedArtifact("implement-page", "FRONTEND", "src/app/api/x/route.ts")).toBe(false);
     expect(taskOwnsGeneratedArtifact("implement-server-action", "BACKEND", "src/actions/x.ts")).toBe(true);
+    expect(taskOwnsGeneratedArtifact("implement-server-action", "BACKEND", "src/app/page.tsx")).toBe(false);
     expect(taskOwnsGeneratedArtifact("implement-database-schema", "DATABASE", "supabase/migrations/001.sql")).toBe(true);
   });
   it("rejects a collision before a provider can be called", () => {
@@ -36,5 +38,7 @@ describe("generated-project exclusive shared ownership", () => {
   it("rejects unsafe or non-concrete claims before worker admission", () => {
     expect(preflightExclusivePathClaims([{ taskId: "a", taskType: "implement-page", implementationDomain: "FRONTEND", paths: ["../package.json"] }])).toMatchObject({ valid: false, code: "TASK_PATH_INVALID" });
     expect(preflightExclusivePathClaims([{ taskId: "a", taskType: "implement-page", implementationDomain: "FRONTEND", paths: ["src/app/**"] }])).toMatchObject({ valid: false, code: "TASK_PATH_INVALID" });
+    expect(preflightExclusivePathClaims([{ taskId: "a", taskType: "implement-server-action", implementationDomain: "BACKEND", paths: ["supabase/migrations/001.sql"] }])).toMatchObject({ valid: false, code: "TASK_PATH_OWNER_DENIED" });
+    expect(preflightExclusivePathClaims([{ taskId: "a", taskType: "implement-page", implementationDomain: "FRONTEND", paths: ["src/app/api/x/route.ts"] }])).toMatchObject({ valid: false, code: "TASK_PATH_OWNER_DENIED" });
   });
 });

@@ -83,7 +83,7 @@ import {
 } from "@/agents/catalog";
 import { classifySecuritySurface } from "@/agents/reviewers/security/deterministic";
 import { implementationOrchestrator } from "@/orchestration/orchestrator/implementation-routing";
-import { implementationProfileRegistry } from "@/domain/implementation/profiles";
+import { activeImplementationSkillBindings, activeImplementationSkillIds, implementationProfileRegistry, shouldActivateSupabaseImplementationSkill } from "@/domain/implementation/profiles";
 import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
 import { OpenAiBriefV3RevisionProvider } from "@/integrations/openai-v3/provider";
 import { effectivePlannerBrief } from "@/agents/planner/brief-context";
@@ -339,29 +339,31 @@ export function createProductionFactoryRuntime(
     const profile = route.specialistProfileId ? implementationProfileRegistry.get(route.specialistProfileId) : undefined;
     const backend = route.domain === "BACKEND" || route.domain === "DATABASE";
     const form = taskType === "implement-form";
-    const performance = /performance|maintain|refactor/i.test(taskType);
+    const supabaseRequired = shouldActivateSupabaseImplementationSkill({
+      domain: route.domain,
+      taskType,
+      hasDatabaseHandoff: Boolean(input.domainHandoffs?.database),
+      databaseMode: input.phase7cContractPackage?.databaseDecision.mode,
+    });
+    const activeBindings = profile
+      ? activeImplementationSkillBindings(profile, taskType, { supabaseRequired })
+      : [];
     const projectSurfaces = route.domain === "DATABASE"
       ? ["supabase", "postgres", "database", "rls"]
       : route.domain === "BACKEND"
-        ? ["supabase", "auth", "storage", "server", "api"]
+        ? ["server", "api", "nextjs", "typescript", "zod", "contracts", "testing", "dependencies", "authorization", "trust-boundaries", "concurrency", "errors", "server-only", "cache", ...(supabaseRequired ? ["supabase", "auth", "storage", "database", "rls"] : [])]
       : form
-        ? ["forms", "validation", "typed"]
-        : performance
-          ? ["performance", "maintenance"]
-          : ["nextjs", "server", "client", "page", "component"];
-    const agent = profile ? { ...implementationAgentDefinition, allowedSkillIds: profile.allowedSkillIds } : implementationAgentDefinition;
+        ? ["nextjs", "app-router", "react", "typescript", "tailwind", "shadcn", "server", "client", "page", "component", "implementation", "performance", "forms", "validation", "typed"]
+        : ["nextjs", "app-router", "react", "typescript", "tailwind", "shadcn", "server", "client", "page", "component", "implementation", "performance"];
+    const agent = profile
+      ? { ...implementationAgentDefinition, allowedSkillIds: activeImplementationSkillIds(profile, taskType, { supabaseRequired }) }
+      : implementationAgentDefinition;
     return prepareAgentSkillContext(skillRegistry, {
       agent,
       capability: route.domain === "BACKEND" || route.domain === "DATABASE" ? "implementation.backend" : "implementation.code",
       taskType: backend ? "implement-backend" : "implement-frontend",
       projectSurfaces,
-      requiredCoverage: backend
-        ? ["supabase-implementation"]
-        : form
-          ? ["forms-validation"]
-          : performance
-            ? ["maintainability-performance"]
-            : ["nextjs-implementation", "server-client-boundaries"],
+      requiredCoverage: activeBindings.flatMap((binding) => binding.coverageKeys),
       requestedTools: [],
       contextBudgetBytes: profile?.contextPolicy.maxBytes ?? implementationAgentDefinition.contextPolicy.maxBytes,
       reservedContextBytes: Buffer.byteLength(JSON.stringify(input), "utf8"),
