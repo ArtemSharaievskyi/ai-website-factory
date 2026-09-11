@@ -348,7 +348,7 @@ describePostgres("Planning Acceptance Postgres certification", () => {
     const service = new PlannerArchitectService({ database, memory: fixture.memory, acceptanceFaultInjector: { hit: async (point) => { if (point === "after-acceptance-write") throw new Error("synthetic-postgres-rollback"); } } });
     await expect(service.acceptPlanningPackage(acceptanceInput(fixture, { idempotencyKey: `synthetic-planning-accept-${runId}-${fixture.projectId}` }))).rejects.toMatchObject({ code: "PERSISTENCE_PROVIDER_ERROR" });
     const state = await stateOf(database, fixture.projectId);
-    expect(state.project).toMatchObject({ workflow_state: "AWAITING_DESIGN_SELECTION", row_version: 1 });
+    expect(state.project).toMatchObject({ workflow_state: "AWAITING_PLANNING_APPROVAL", row_version: 1 });
     expect(state.planning?.rowVersion).toBe(1);
     expect(state.architecture?.rowVersion).toBe(1);
     expect(state.phase7c).toBeNull();
