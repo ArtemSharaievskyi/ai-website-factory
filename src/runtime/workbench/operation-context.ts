@@ -27,6 +27,7 @@ export type WorkbenchOperationStage = (typeof WORKBENCH_OPERATION_STAGES)[number
 
 export type WorkbenchOperationFailureDetails = {
   correlationId: string;
+  attemptId?: string;
   operationId: string;
   operationKind: string;
   projectId: string;

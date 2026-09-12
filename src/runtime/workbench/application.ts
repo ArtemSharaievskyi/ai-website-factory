@@ -40,7 +40,7 @@ import { executorCapabilitiesForTasks } from "@/orchestration/execution/capabili
 import { canonicalBriefToPlannerBrief } from "@/agents/planner/brief-context";
 import { admitPlanningRefresh, PlanningAdmissionError } from "@/agents/planner/refresh-admission";
 import { CONTRACT_AUDIT_PROMPT_VERSION } from "@/agents/reviewers/contracts/contracts";
-import { currentWorkbenchOperationContext, withWorkbenchOperationContext, type WorkbenchOperationContext } from "./operation-context";
+import { currentWorkbenchOperationContext, isWorkbenchOperationFailure, withWorkbenchOperationContext, type WorkbenchOperationContext } from "./operation-context";
 import { WorkbenchOperationConflict, WorkbenchOperationLedger } from "./operation-ledger";
 import { ArchitectureReviewOperationLedger } from "./architecture-operation-ledger";
 
@@ -133,6 +133,9 @@ export class WorkbenchApplication {
           return this.handlePlanningGeneration(request.projectId, operation);
         }
       } catch (error) {
+        // handlePlanningGeneration already converted staged failures into the
+        // durable Workbench envelope. Re-wrapping it would discard diagnostics.
+        if (isWorkbenchOperationFailure(error)) throw error;
         throw await operation.fail(error);
       }
     }

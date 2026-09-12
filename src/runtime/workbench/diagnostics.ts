@@ -80,6 +80,7 @@ export const WorkbenchErrorResponseSchema = z
     expectedShape: z.string().min(1).max(160).optional(),
     validationIssues: z.array(z.object({ path: z.string().regex(/^[A-Za-z][A-Za-z0-9_.\[\]]*$/), issueCode: z.string().regex(/^[A-Z][A-Z0-9_]+$/), expectedShape: z.string().min(1).max(160) }).strict()).max(5).optional(),
     operationId: SafeOperationIdSchema.optional(),
+    attemptId: z.string().uuid().optional(),
     operationKind: z.string().regex(/^[A-Z][A-Z0-9_]{1,80}$/).optional(),
     projectId: z.string().uuid().optional(),
     phase: z.enum(["PLANNING", "ARCHITECTURE_REVIEW"]).optional(),
@@ -197,6 +198,7 @@ export type WorkbenchDiagnosticEvent = {
   operation: WorkbenchOperation;
   projectId?: string;
   operationId?: string;
+  attemptId?: string;
   operationKind?: string;
   phase?: "PLANNING" | "ARCHITECTURE_REVIEW";
   operationStage?: WorkbenchOperationStage;
@@ -630,6 +632,7 @@ function operationFailureProjection(error: WorkbenchOperationFailure): Omit<Work
     error: details.canonicalPlanningPersisted || details.canonicalArchitecturePersisted || details.lifecycleMutated ? error.message : base.error,
     errorClass: errorClass(cause),
     operationId: details.operationId,
+    ...(details.attemptId ? { attemptId: details.attemptId } : {}),
     operationKind: details.operationKind,
     projectId: details.projectId,
     phase: details.phase,
@@ -724,6 +727,7 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     operation: projection.operation,
     ...(context.projectId ? { projectId: context.projectId } : {}),
     ...(projection.operationId ? { operationId: projection.operationId } : {}),
+    ...(projection.attemptId ? { attemptId: projection.attemptId } : {}),
     ...(projection.operationKind ? { operationKind: projection.operationKind } : {}),
     ...(projection.phase ? { phase: projection.phase } : {}),
     ...(projection.operationStage ? { operationStage: projection.operationStage } : {}),
@@ -836,6 +840,7 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     ...(projection.expectedShape ? { expectedShape: projection.expectedShape } : {}),
     ...(projection.validationIssues ? { validationIssues: projection.validationIssues } : {}),
     ...(projection.operationId ? { operationId: projection.operationId } : {}),
+    ...(projection.attemptId ? { attemptId: projection.attemptId } : {}),
     ...(projection.operationKind ? { operationKind: projection.operationKind } : {}),
     ...(projection.projectId ? { projectId: projection.projectId } : {}),
     ...(projection.phase ? { phase: projection.phase } : {}),

@@ -60,7 +60,9 @@ import type { PlannerArchitectureProvider } from "./ports";
 import { AiProviderError } from "@/integrations/openai/errors";
 import { clearStagedPlanningOperations, getStagedPlanningOperations, isStagedPlanningFailure, StagedPlanningOperationTelemetry } from "./staged-failures";
 import { workbenchFailureResponse } from "@/runtime/workbench/diagnostics";
-import { WorkbenchOperationLedger } from "@/runtime/workbench/operation-ledger";
+import { WorkbenchApplication } from "@/runtime/workbench/application";
+import { withWorkbenchOperationContext } from "@/runtime/workbench/operation-context";
+import { readWorkbenchPlanningAttempt, WorkbenchOperationLedger } from "@/runtime/workbench/operation-ledger";
 import { buildProductionResponseFormat } from "@/integrations/openai/client";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
@@ -349,6 +351,26 @@ async function stagedService(provider: PlannerArchitectureProvider, memory: Fake
   const document = createBriefV3Document({ projectId, projectVersion: 1, brief: canonicalBrief, createdAt: timestamp, updatedAt: timestamp });
   await new DocumentRepository(database).save(BriefV3DocumentSchema.parse({ ...document, approval: { approved: true, approvedAt: timestamp, approvedBy: "synthetic-user", approvedCanonicalChecksum: document.briefChecksum } }));
   return { database, service: new PlannerArchitectService({ database, memory, provider }), input: portalInput(approvedBrief, canonicalBrief) };
+}
+
+async function workbenchStagedFailureFixture(output: ReturnType<typeof portalDecomposition>["output"]) {
+  const fixture = await stagedService({
+    async plan() { throw new Error("legacy path must not be called"); },
+    async decompose(_input, _skills, _identity, providerInvocation) {
+      await providerInvocation?.invocation?.beforeTransport();
+      return output;
+    },
+    async assignCoverage() { throw new Error("coverage must not be reached"); },
+  });
+  // Workbench reconstructs both the current V3 authority and the legacy
+  // compatibility view before it dispatches the Planner service.
+  await new DocumentRepository(fixture.database).save(fixture.input.approvedBrief);
+  const app = new WorkbenchApplication({
+    database: fixture.database,
+    entry: {} as never,
+    getWorkflowScope: () => ({ planner: fixture.service, architectureReviewer: {} as never, design: {} as never, orchestrator: {} as never, contractAuditor: {} as never }),
+  });
+  return { ...fixture, app };
 }
 
 function failingPlanningDatabase(inner: InMemoryPersistenceDatabase): PersistenceDatabase {
@@ -1023,6 +1045,109 @@ describe("staged Planner pipeline", () => {
     expect((await new ProjectRepository(database).getWithVersion(projectId))?.project.workflowState).toBe("AWAITING_PLANNING_GENERATION");
     expect((await new ProjectRepository(database).getWithVersion(projectId))?.rowVersion).toBe(1);
     expect(await new DocumentRepository(database).get(projectId, 1, "planning-package")).toBeNull();
+  });
+
+  it("preserves staged diagnostics through Workbench dispatch, durable readback, and report projection", async () => {
+    const cases: Array<{ predicate: string; output: ReturnType<typeof portalDecomposition>["output"] }> = [
+      {
+        predicate: "MISSING_PRODUCT_SCOPE",
+        output: (() => {
+          const output = portalDecomposition().output;
+          return { ...output, elements: output.elements.filter((element) => element.kind !== "PRODUCT_SCOPE") };
+        })(),
+      },
+      {
+        predicate: "MISSING_PAGE_ROUTE",
+        output: (() => {
+          const output = portalDecomposition().output;
+          // Keep the required FRONTEND domain count satisfied so this fixture
+          // reaches the specific missing PAGE/ROUTE predicate.
+          return { ...output, elements: output.elements.map((element) => element.kind === "PAGE" || element.kind === "ROUTE" ? { ...element, kind: "CONTENT" as const, pageTokens: null, routeTokens: null } : element) };
+        })(),
+      },
+      {
+        predicate: "PAGE_ROUTE_BINDING_MISSING",
+        output: (() => {
+          const output = portalDecomposition().output;
+          return { ...output, elements: output.elements.map((element) => ({ ...element, pageTokens: null, routeTokens: null })) };
+        })(),
+      },
+      {
+        predicate: "INSUFFICIENT_FRONTEND_ELEMENTS",
+        output: (() => {
+          const output = portalDecomposition().output;
+          return { ...output, elements: output.elements.filter((element) => element.domain !== "FRONTEND") };
+        })(),
+      },
+    ];
+
+    for (const [index, testCase] of cases.entries()) {
+      const fixture = await workbenchStagedFailureFixture(testCase.output);
+      const correlationId = `33333333-3333-4333-8333-${String(index + 1).padStart(12, "0")}`;
+      let failure: unknown;
+      await withWorkbenchOperationContext({ correlationId }, async () => {
+        try {
+          await fixture.app.handle({ action: "generate-planning", projectId });
+        } catch (error) {
+          failure = error;
+        }
+      });
+
+      expect(failure).toMatchObject({
+        details: {
+          operationId: `workbench-planning:${projectId}`,
+          attemptId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+          outerCode: "PLANNING_PACKAGE_INVALID",
+          failureClass: "STAGED_DECOMPOSITION_FAILURE",
+          operationStage: "DECOMPOSITION",
+          admissionDiagnostics: { failurePredicate: testCase.predicate },
+        },
+      });
+      const attemptId = (failure as { details: { attemptId: string } }).details.attemptId;
+      const persistedAttempt = await readWorkbenchPlanningAttempt(fixture.database, `workbench-planning:${projectId}`, attemptId);
+      expect(persistedAttempt).toMatchObject({ status: "FAILED", result: { attemptId, correlationId, operationId: `workbench-planning:${projectId}`, admissionDiagnostics: { schemaVersion: 1, failurePredicate: testCase.predicate, parsedElementCount: expect.any(Number), normalizedElementCount: expect.any(Number), actualCountByDomain: expect.any(Object), minimumCountByDomain: expect.any(Object), actualCountByKind: expect.any(Object), minimumCountByKind: expect.any(Object), requiredStructuralPredicates: expect.any(Object), productScopePresent: expect.any(Boolean), pageOrRoutePresent: expect.any(Boolean), pageRouteBindingCount: expect.any(Number), unboundPageRouteCount: expect.any(Number), hostIssuedAnchorCount: expect.any(Number), hostIssuedAnchorCoverageCount: expect.any(Number), providerTermination: { responseReceived: true, parseStatus: "PASSED", rawResponseRetained: false } }, providerCallsTotal: 1, canonicalPlanningPersisted: false, lifecycleMutated: false } });
+      expect(JSON.stringify(persistedAttempt)).not.toContain("raw-provider-response");
+
+      const stable = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: projectId }));
+      expect(stable).toMatchObject({ status: "FAILED", result: { admissionDiagnostics: { failurePredicate: testCase.predicate } } });
+      const response = workbenchFailureResponse(failure, { action: "generate-planning", projectId, correlationId });
+      expect(response.status).toBe(422);
+      expect(response.response).toMatchObject({ code: "PLANNING_PACKAGE_INVALID", category: "VALIDATION", operationId: `workbench-planning:${projectId}`, attemptId, admissionDiagnostics: { failurePredicate: testCase.predicate, parsedElementCount: expect.any(Number), normalizedElementCount: expect.any(Number), providerTermination: { responseReceived: true, parseStatus: "PASSED", rawResponseRetained: false } }, providerCallsTotal: 1, canonicalPlanningPersisted: false, lifecycleMutated: false });
+      expect(JSON.stringify(response.response)).not.toContain("raw-provider-response");
+      expect((await new ProjectRepository(fixture.database).getWithVersion(projectId))?.project.workflowState).toBe("AWAITING_PLANNING_GENERATION");
+      expect((await new ProjectRepository(fixture.database).getWithVersion(projectId))?.rowVersion).toBe(1);
+      expect(await new DocumentRepository(fixture.database).get(projectId, 1, "planning-package")).toBeNull();
+    }
+  });
+
+  it("isolates two sequential Workbench Planning failure attempts without overwriting evidence", async () => {
+    const output = portalDecomposition().output;
+    const fixture = await workbenchStagedFailureFixture({ ...output, elements: output.elements.slice(0, 1) });
+    const dispatch = async (correlationId: string) => {
+      let failure: unknown;
+      await withWorkbenchOperationContext({ correlationId }, async () => {
+        try {
+          await fixture.app.handle({ action: "generate-planning", projectId });
+        } catch (error) {
+          failure = error;
+        }
+      });
+      return failure as { details: { attemptId: string; correlationId: string; operationId: string; admissionDiagnostics?: { failurePredicate: string } } };
+    };
+    const first = await dispatch("44444444-4444-4444-8444-444444444444");
+    const second = await dispatch("55555555-5555-4555-8555-555555555555");
+
+    expect(first.details.operationId).toBe(second.details.operationId);
+    expect(first.details.attemptId).not.toBe(second.details.attemptId);
+    expect(first.details.correlationId).not.toBe(second.details.correlationId);
+    const firstRecord = await readWorkbenchPlanningAttempt(fixture.database, first.details.operationId, first.details.attemptId);
+    const secondRecord = await readWorkbenchPlanningAttempt(fixture.database, second.details.operationId, second.details.attemptId);
+    expect(firstRecord).toMatchObject({ status: "FAILED", result: { attemptId: first.details.attemptId, correlationId: first.details.correlationId, admissionDiagnostics: { failurePredicate: "INSUFFICIENT_DATABASE_ELEMENTS" } } });
+    expect(secondRecord).toMatchObject({ status: "FAILED", result: { attemptId: second.details.attemptId, correlationId: second.details.correlationId, admissionDiagnostics: { failurePredicate: "INSUFFICIENT_DATABASE_ELEMENTS" } } });
+    expect(JSON.stringify(firstRecord)).not.toContain(second.details.attemptId);
+    expect(JSON.stringify(secondRecord)).not.toContain(first.details.attemptId);
+    const latest = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: projectId }));
+    expect(latest).toMatchObject({ status: "FAILED", result: { attemptId: second.details.attemptId, correlationId: second.details.correlationId } });
   });
 
   it("rejects provider-declared dependency cycles before Coverage and retains graph diagnostics", async () => {

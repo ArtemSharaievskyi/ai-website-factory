@@ -59,6 +59,23 @@ type RecordState = {
   safeErrorFingerprint: string | null;
 };
 
+/** Stable logical operation used for idempotency and current-result lookup. */
+export const WORKBENCH_PLANNING_OPERATION = "workbench.planning";
+/** Namespaced terminal records retain one bounded result per execution attempt. */
+export const WORKBENCH_PLANNING_ATTEMPT_OPERATION = "workbench.planning.attempt";
+
+export function workbenchPlanningAttemptKey(operationId: string, attemptId: string) {
+  return `${operationId}:${attemptId}`;
+}
+
+/** Read one terminal Workbench Planning attempt without mutating it. */
+export function readWorkbenchPlanningAttempt(database: PersistenceDatabase, operationId: string, attemptId: string) {
+  return database.transaction((tx) => tx.getOperation({
+    operation: WORKBENCH_PLANNING_ATTEMPT_OPERATION,
+    key: workbenchPlanningAttemptKey(operationId, attemptId),
+  }));
+}
+
 const emptyCounters = (): ProviderCounters => ({ attempted: 0, started: 0, responseReceived: 0, structuredParsePassed: 0, semanticAdmissionPassed: 0, completed: 0, failed: 0 });
 const initialRecord = (operationId: string, projectId: string, correlationId: string): RecordState => ({
   schemaVersion: 1,
@@ -133,10 +150,11 @@ function outerStageForStaged(stage: string): WorkbenchOperationStage {
 
 export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
   private record: RecordState;
-  private readonly operation = "workbench.planning";
+  private readonly operation = WORKBENCH_PLANNING_OPERATION;
   private readonly key: string;
   private reservationPayloadHash?: string;
   private reserved = false;
+  private attemptEvidencePersisted = false;
 
   constructor(private readonly database: PersistenceDatabase, projectId: string, operationId = `workbench-planning:${projectId}`, correlationId: string = randomUUID()) {
     this.record = initialRecord(operationId, projectId, correlationId);
@@ -145,6 +163,40 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
 
   private payloadHash() {
     return checksumPersistedDocument({ action: "generate-planning", projectId: this.record.projectId, operationKind: "PLANNING_GENERATION", currentness: this.record.currentness ?? null });
+  }
+
+  private attemptPayloadHash() {
+    return checksumPersistedDocument({
+      action: "generate-planning",
+      operationId: this.record.operationId,
+      attemptId: this.record.attemptId,
+      projectId: this.record.projectId,
+      operationKind: this.record.operationKind,
+      currentness: this.record.currentness ?? null,
+    });
+  }
+
+  private async persistAttemptTerminal(status: "SUCCEEDED" | "FAILED") {
+    if (!this.reserved || this.attemptEvidencePersisted) return;
+    const key = workbenchPlanningAttemptKey(this.record.operationId, this.record.attemptId);
+    const payloadHash = this.attemptPayloadHash();
+    const result = structuredClone(this.record);
+    try {
+      await this.database.transaction(async (tx) => {
+        // Generic FAILED operations are retryable. Attempt records are not:
+        // never reset an already persisted attempt and risk overwriting it.
+        if (await tx.getOperation({ operation: WORKBENCH_PLANNING_ATTEMPT_OPERATION, key })) return;
+        const reservation = await tx.reserveOperation({ operation: WORKBENCH_PLANNING_ATTEMPT_OPERATION, key, payloadHash, initialResult: result });
+        if (reservation.status === "NEW" || reservation.status === "IN_PROGRESS") {
+          const terminal = status === "FAILED" ? tx.failOperation.bind(tx) : tx.completeOperation.bind(tx);
+          await terminal({ operation: WORKBENCH_PLANNING_ATTEMPT_OPERATION, key, payloadHash, result, leaseId: this.record.attemptId });
+        }
+      });
+      this.attemptEvidencePersisted = true;
+    } catch {
+      // The stable current-result row remains the compatibility path; attempt
+      // history must not expose persistence internals on a failure response.
+    }
   }
 
   async reserve(): Promise<OperationReservation> {
@@ -250,6 +302,7 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
   async complete() {
     this.record.stage = "LIFECYCLE_TRANSITION";
     await this.database.transaction((tx) => tx.completeOperation({ operation: this.operation, key: this.key, payloadHash: this.reservationPayloadHash!, result: structuredClone(this.record), leaseId: this.record.attemptId }));
+    await this.persistAttemptTerminal("SUCCEEDED");
   }
 
   async fail(error: unknown): Promise<WorkbenchOperationFailure> {
@@ -293,6 +346,7 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
     };
     const details: WorkbenchOperationFailureDetails = {
       correlationId: this.record.correlationId,
+      attemptId: this.record.attemptId,
       operationId: this.record.operationId,
       operationKind: this.record.operationKind,
       projectId: this.record.projectId,
@@ -329,6 +383,7 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
       // The in-memory envelope is still returned; the persistence failure is
       // deliberately not allowed to expose raw database details.
     }
+    await this.persistAttemptTerminal("FAILED");
     const message = details.canonicalPlanningPersisted || details.lifecycleMutated
       ? "The Workbench operation reached a mutation boundary; inspect the current project state before retrying."
       : "The Workbench operation failed safely; the project was not changed.";
