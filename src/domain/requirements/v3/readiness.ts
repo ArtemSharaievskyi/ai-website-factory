@@ -29,7 +29,7 @@ export type BriefReadinessResult = {
 };
 
 const analyticsMarker = /(?:analytics|tracking|telemetrie|analyse)/iu;
-const analyticsProhibitionMarker = /(?:no\b|without|kein\w*|keine\w*|ohne|nicht)[^.!?]{0,80}(?:analytics|tracking|telemetrie|analyse)|(?:analytics|tracking|telemetrie|analyse)[^.!?]{0,80}(?:not allowed|forbidden|verboten)/iu;
+const analyticsProhibitionMarker = /(?:no\b|without|kein\w*|keine\w*|ohne|nicht)[^.!?]{0,80}(?:analytics|tracking|telemetrie|analyse)|(?:analytics|tracking|telemetrie|analyse)[^.!?]{0,80}(?:not allowed|forbidden|verboten|not enabled|not approved|disabled|deferred)/iu;
 const inventionMarker = /(?:invent\w*|fabricat\w*|erfind\w*|erfund\w*|business facts?|fakten|unternehmensdaten|geschäftsdaten)/iu;
 const inventionProhibitionMarker = /(?:do not|never|without|no\b|kein\w*|keine\w*|nicht|ohne|forbidden|prohibited|verboten)/iu;
 const inventionPermissionMarker = /(?:allowed|allow|erlaubt|zulässig)/iu;

@@ -4,7 +4,7 @@ import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
 import { FakeLeadMemoryPort } from "./memory";
 import { LeadAgentService } from "./service";
 import { LeadError, serializeLeadError } from "./errors";
-import { analyzePromptDeterministically, planClarificationsDeterministically } from "./deterministic";
+import { analyzePromptDeterministically, assembleRequirements, planClarificationsDeterministically } from "./deterministic";
 import { LeadAgentAnalysisSchema, LeadAgentInputSchema } from "./contracts";
 import type { LeadAgentAnalysis, LeadAgentInput } from "./contracts";
 
@@ -31,6 +31,16 @@ describe("Lead Agent clarification workflow", () => {
   it("omits authentication for clearly public simple sites", () => { const result = planClarificationsDeterministically({ analysis: analyzePromptDeterministically(input("A simple public brochure site")) }); expect(result.questions.some((question) => question.requirementKey === "authentication")).toBe(false); });
   it("asks storage for uploads", () => { const result = planClarificationsDeterministically({ analysis: analyzePromptDeterministically(input("Functionality: users upload files")) }); expect(result.questions.some((question) => question.requirementKey === "storage")).toBe(true); });
   it("asks email for notifications", () => { const result = planClarificationsDeterministically({ analysis: analyzePromptDeterministically(input("Functionality: contact form with email notification")) }); expect(result.questions.some((question) => question.requirementKey === "email")).toBe(true); });
+  it("preserves explicit negative capabilities, direct contact links, and placeholders", () => {
+    const analysis = analyzePromptDeterministically(input("Create a German local-service site.\nLanguages: de\nPages: home, contact\nFunctionality: direct mailto link and WhatsApp contact\nConstraints: no backend, no database, no authentication, no storage, no email delivery, no testimonials; phone number placeholder\nAcceptance: done when the German site renders."));
+    expect(analysis.userPreferences.map((fact) => fact.key)).not.toEqual(expect.arrayContaining(["storage", "email", "protected-functionality"]));
+    expect(analysis.unsupportedAssumptions).toEqual([]);
+    const plan = planClarificationsDeterministically({ analysis });
+    expect(plan.questions.map((question) => question.requirementKey)).not.toEqual(expect.arrayContaining(["storage", "email"]));
+    const draft = assembleRequirements({ analysis, session: { schemaVersion: 1, documentType: "clarification-log", projectId: analysis.projectId, projectVersion: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), questions: [], answers: [] } });
+    expect(draft.requirements.formBehaviorRequirements).toMatchObject({ formPresent: false, dataTransmission: "NONE", persistence: "NONE" });
+    expect(draft.blockingReasons).not.toContain("REQUIRED_BUSINESS_DATA_MISSING");
+  });
   it("asks admin only conditionally", () => { const result = planClarificationsDeterministically({ analysis: analyzePromptDeterministically(input("A public brochure site")) }); expect(result.questions.some((question) => question.requirementKey === "administration")).toBe(false); });
   it("deduplicates by requirement key", () => { const analysis = analyzePromptDeterministically(input("Purpose: A")); const first = planClarificationsDeterministically({ analysis }); const second = planClarificationsDeterministically({ analysis, session: { schemaVersion: 1, documentType: "clarification-log", projectId: analysis.projectId, projectVersion: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), questions: first.questions.map((question) => ({ ...question, askedAt: new Date().toISOString(), answerStatus: "unresolved" as const })), answers: [] } }); expect(second.questions.some((question) => first.questions.some((old) => old.requirementKey === question.requirementKey))).toBe(false); });
   it("uses stable question IDs", () => { const analysis = analyzePromptDeterministically(input("Purpose: A")); expect(planClarificationsDeterministically({ analysis }).questions.map((q) => q.id)).toEqual(planClarificationsDeterministically({ analysis }).questions.map((q) => q.id)); });

@@ -1,14 +1,108 @@
 import { ProjectBriefV2Schema, RequirementSpecificationSchema, type ProjectBriefV2 } from "../schema";
 import { BriefV3Error, BriefV3MigrationAmbiguityError } from "./errors";
 import { validateCanonicalBriefV3 } from "./invariants";
-import { legacyAsset, legacyAssetId, legacyDecisionRequirement, legacyDeferredRequirement, legacyEntryRequirement, legacyRequirement, isLegacySimulationProhibition } from "./legacy";
+import { legacyAsset, legacyAssetId, legacyDecisionRequirement, legacyDeferredRequirement, legacyEntryRequirement, legacyRequirement, legacySourceRef, isLegacySimulationProhibition } from "./legacy";
 import { migrateV1RecordToCanonicalBriefV3 } from "./migrate-v1";
 import { normalizeCanonicalBrief } from "./normalize";
 import { type CanonicalBriefV3, type FormBehaviorState } from "./schema";
 import { AnalyticsModeSchema, AuthModeSchema, DatabaseModeSchema, RoutePolicySchema } from "./schema";
 import { canonicalizeLegacyBriefV3WithLineage, type CanonicalizedLegacyBriefV3 } from "./identity";
 
-const typedEntry = (field: string, index: number, entry: { id: string; statement: string; sourceRefs: string[] }, category: Parameters<typeof legacyRequirement>[4]) => legacyEntryRequirement(2, field, index, entry, category);
+const typedEntry = (field: string, index: number, entry: { id: string; statement: string; sourceRefs: string[] }, category: Parameters<typeof legacyRequirement>[4]) => legacyEntryRequirement(2, field, index, { ...entry, id: `${field}:${entry.id}` }, category);
+
+const V3_SEO_KEYWORD_MAX = 300;
+const V3_SEO_TITLE_MAX = 300;
+const V3_SEO_DESCRIPTION_MAX = 1000;
+const V3_SEO_REQUIREMENT_MAX = 4000;
+
+type SeoMigration = {
+  primaryKeywords: string[];
+  exactTitle: string | null;
+  exactMetaDescription: string | null;
+  locationTargeting: CanonicalBriefV3["seo"]["locationTargeting"];
+  pageMetadata: CanonicalBriefV3["seo"]["pageMetadata"];
+  requirements: CanonicalBriefV3["requirements"];
+};
+
+const splitSeoText = (value: string): string[] => value.split(/[;\r\n]+/u).map((part) => part.trim()).filter(Boolean);
+
+function preserveSeoText(value: string, field: string, index: number, sourceRefs?: string[]): CanonicalBriefV3["requirements"] {
+  const text = value.trim();
+  if (!text) return [];
+  const refs = sourceRefs?.length ? sourceRefs : [legacySourceRef(2, field, index, text)];
+  const chunks: CanonicalBriefV3["requirements"] = [];
+  for (let offset = 0; offset < text.length; offset += V3_SEO_REQUIREMENT_MAX) {
+    const chunk = text.slice(offset, offset + V3_SEO_REQUIREMENT_MAX);
+    chunks.push(legacyRequirement(2, field, index * 10000 + offset, chunk, "SEO", refs, `seo-preserved:${field}:${index}:${offset}`));
+  }
+  return chunks;
+}
+
+function normalizeV2Seo(brief: ProjectBriefV2): SeoMigration {
+  const explicitTitle = brief.seoMetadata.exactTitle?.trim() || null;
+  const explicitMetaDescription = brief.seoMetadata.exactMetaDescription?.trim() || null;
+  let exactTitle: string | null = explicitTitle && explicitTitle.length <= V3_SEO_TITLE_MAX ? explicitTitle : null;
+  let exactMetaDescription: string | null = explicitMetaDescription && explicitMetaDescription.length <= V3_SEO_DESCRIPTION_MAX ? explicitMetaDescription : null;
+  const primaryKeywords: string[] = [];
+  const requirements: CanonicalBriefV3["requirements"] = [];
+  if (explicitTitle && explicitTitle.length > V3_SEO_TITLE_MAX) requirements.push(...preserveSeoText(explicitTitle, "seoMetadata.exactTitle", 0));
+  if (explicitMetaDescription && explicitMetaDescription.length > V3_SEO_DESCRIPTION_MAX) requirements.push(...preserveSeoText(explicitMetaDescription, "seoMetadata.exactMetaDescription", 0));
+  const setExact = (field: "exactTitle" | "exactMetaDescription", value: string, index: number) => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    const limit = field === "exactTitle" ? V3_SEO_TITLE_MAX : V3_SEO_DESCRIPTION_MAX;
+    const explicit = field === "exactTitle" ? explicitTitle : explicitMetaDescription;
+    if (explicit !== null) {
+      if (explicit !== trimmed) requirements.push(...preserveSeoText(trimmed, `seoMetadata.primaryKeywords.${field}`, index));
+      return;
+    }
+    if (trimmed.length > limit) {
+      requirements.push(...preserveSeoText(trimmed, `seoMetadata.${field}`, index));
+      return;
+    }
+    const previous = field === "exactTitle" ? exactTitle : exactMetaDescription;
+    if (previous !== null && previous !== trimmed) throw new BriefV3MigrationAmbiguityError(`seoMetadata.${field}`, "multiple exact SEO values disagree");
+    if (field === "exactTitle") exactTitle = trimmed; else exactMetaDescription = trimmed;
+  };
+
+  for (const [index, value] of brief.seoMetadata.primaryKeywords.entries()) {
+    for (const part of splitSeoText(value)) {
+      const title = /^(?:seo[- ]?title|exact[- ]?title|seo[- ]?titel(?:\s+exakt)?|titel(?:\s+exakt)?)\s*[:=]\s*(.*)$/iu.exec(part);
+      const description = /^(?:meta[- ]?description(?:\s+(?:exact|exakt))?|exact[- ]?meta[- ]?description|meta[- ]?beschreibung(?:\s+exakt)?)\s*[:=]\s*(.*)$/iu.exec(part);
+      const keyword = /^(?:primary[- ]?keywords?|keywords?|suchbegriffe)\s*[:=]\s*(.*)$/iu.exec(part);
+      if (title?.[1] !== undefined) { setExact("exactTitle", title[1], index); continue; }
+      if (description?.[1] !== undefined) { setExact("exactMetaDescription", description[1], index); continue; }
+      const keywordValue = (keyword?.[1] ?? part).trim();
+      if (keywordValue.length <= V3_SEO_KEYWORD_MAX) primaryKeywords.push(keywordValue);
+      else requirements.push(...preserveSeoText(keywordValue, "seoMetadata.primaryKeywords", index));
+    }
+  }
+
+  const pageMetadata: CanonicalBriefV3["seo"]["pageMetadata"] = [];
+  for (const [index, item] of brief.seoMetadata.pageMetadata.entries()) {
+    const route = item.route.trim();
+    const validRoute = route.length <= 160;
+    if (!validRoute) requirements.push(...preserveSeoText(item.route, `seoMetadata.pageMetadata.${index}.route`, index, item.sourceRefs));
+    const title = item.title?.trim() ?? null;
+    const metaDescription = item.metaDescription?.trim() ?? null;
+    const keywords = item.keywords.filter((keyword) => keyword.trim().length <= V3_SEO_KEYWORD_MAX).map((keyword) => keyword.trim());
+    item.keywords.forEach((keyword, keywordIndex) => {
+      if (keyword.trim().length > V3_SEO_KEYWORD_MAX) requirements.push(...preserveSeoText(keyword, `seoMetadata.pageMetadata.${index}.keywords`, keywordIndex, item.sourceRefs));
+    });
+    if (title && title.length > V3_SEO_TITLE_MAX) requirements.push(...preserveSeoText(title, `seoMetadata.pageMetadata.${index}.title`, index, item.sourceRefs));
+    if (metaDescription && metaDescription.length > V3_SEO_DESCRIPTION_MAX) requirements.push(...preserveSeoText(metaDescription, `seoMetadata.pageMetadata.${index}.metaDescription`, index, item.sourceRefs));
+    if (validRoute) pageMetadata.push({ route, title: title && title.length <= V3_SEO_TITLE_MAX ? title : null, metaDescription: metaDescription && metaDescription.length <= V3_SEO_DESCRIPTION_MAX ? metaDescription : null, keywords, sourceRefs: item.sourceRefs });
+  }
+
+  return {
+    primaryKeywords: [...new Set(primaryKeywords)],
+    exactTitle,
+    exactMetaDescription,
+    locationTargeting: brief.seoMetadata.locationTargeting.map((entry, index) => typedEntry("seo-location", index, entry, "SEO")),
+    pageMetadata,
+    requirements,
+  };
+}
 
 function hasLegacySimulationProhibition(brief: ProjectBriefV2): string | undefined {
   return [...brief.explicitExclusions, ...brief.prohibitedRequirements.map((entry) => entry.statement)].find(isLegacySimulationProhibition);
@@ -129,7 +223,7 @@ function finalizeV2Migration(canonical: CanonicalBriefV3, scope: { projectId: st
     return canonicalizeLegacyBriefV3WithLineage(validateCanonicalBriefV3(normalizeCanonicalBrief(canonical)), scope);
   } catch (error) {
     if (error instanceof BriefV3MigrationAmbiguityError) throw error;
-    if (error instanceof BriefV3Error) throw new BriefV3MigrationAmbiguityError("canonical-state", error.code);
+    if (error instanceof BriefV3Error) throw new BriefV3MigrationAmbiguityError("canonical-state", error.details?.issue ?? error.details?.invariant ?? error.code);
     throw error;
   }
 }
@@ -139,9 +233,11 @@ export function migrateV2RecordToCanonicalBriefV3WithLineage(brief: ProjectBrief
   const baseInput = { ...brief, prohibitedRequirements: undefined };
   const base = migrateV1RecordToCanonicalBriefV3(RequirementSpecificationSchema.parse(baseInput));
   const form = formFromV2(brief);
+  const seo = normalizeV2Seo(brief);
   checkLegacyDecisionConflicts(brief, form);
   const requirements = [
     ...base.requirements,
+    ...seo.requirements,
     ...brief.content.map((entry, index) => typedEntry("content", index, entry, "CONTENT")),
     ...brief.technical.map((entry, index) => typedEntry("technical", index, entry, "TECHNICAL")),
     ...brief.brandVisualRequirements.colorDirection.map((entry, index) => typedEntry("brand-color", index, entry, "BRAND_VISUAL")),
@@ -196,11 +292,11 @@ export function migrateV2RecordToCanonicalBriefV3WithLineage(brief: ProjectBrief
     },
     scope: { ...base.scope, images },
     seo: {
-      primaryKeywords: brief.seoMetadata.primaryKeywords,
-      exactTitle: brief.seoMetadata.exactTitle ?? null,
-      exactMetaDescription: brief.seoMetadata.exactMetaDescription ?? null,
-      locationTargeting: brief.seoMetadata.locationTargeting.map((entry, index) => typedEntry("seo-location", index, entry, "SEO")),
-      pageMetadata: brief.seoMetadata.pageMetadata.map((item) => ({ ...item, title: item.title ?? null, metaDescription: item.metaDescription ?? null })),
+      primaryKeywords: seo.primaryKeywords,
+      exactTitle: seo.exactTitle,
+      exactMetaDescription: seo.exactMetaDescription,
+      locationTargeting: seo.locationTargeting,
+      pageMetadata: seo.pageMetadata,
     },
     legal: {
       placeholderPolicy: brief.legalComplianceConstraints.placeholderPolicy,

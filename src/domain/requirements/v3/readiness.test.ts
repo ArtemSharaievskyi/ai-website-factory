@@ -66,6 +66,18 @@ describe("canonical Brief readiness", () => {
     expect(result.approvalBlockers).toContainEqual({ code: "UNRESOLVED_CANONICAL_DECISION", target: "ANALYTICS_MODE" });
   });
 
+  it("does not treat a deferred analytics default as an active product decision", () => {
+    const brief = {
+      ...cleanBriefV3,
+      decisions: { ...cleanBriefV3.decisions, analytics: { mode: "UNRESOLVED" as const } },
+      requirements: [...cleanBriefV3.requirements, { id: "REQUIREMENT:analytics-default", category: "DEFERRED_INTEGRATION" as const, statement: "Analytics is not enabled by default.", sourceRefs: ["fixture:analytics-default"] }],
+    };
+    const result = evaluateBriefReadiness({ brief });
+
+    expect(result.readyForApproval).toBe(true);
+    expect(result.approvalBlockers).toEqual([]);
+  });
+
   it("keeps canonical contradictions blocking", () => {
     const brief = { ...cleanBriefV3, decisions: { ...cleanBriefV3.decisions, routePolicy: { mode: "MULTI_PAGE" as const } } };
     const result = evaluateBriefReadiness({ brief });

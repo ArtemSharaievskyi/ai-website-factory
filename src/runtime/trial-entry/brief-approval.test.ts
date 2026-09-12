@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { CanonicalBriefV3Schema } from "@/domain/requirements/v3/schema";
-import { cleanBriefV3 } from "@/domain/requirements/v3/fixtures";
+import { cleanBriefV3, representativeV2Brief } from "@/domain/requirements/v3/fixtures";
+import { ProjectBriefV2Schema } from "@/domain/requirements/schema";
 import { FactoryProjectSchema } from "@/domain/project/schema";
 import { BriefV3DocumentSchema, createBriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
 import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
@@ -36,7 +37,51 @@ async function fixture(overrides: { brief?: unknown; workflowState?: "CLARIFYING
   return { database, projectId, document, entry, app: new WorkbenchApplication({ database, entry }), projection };
 }
 
+async function legacyFixture() {
+  const database = new InMemoryPersistenceDatabase();
+  const projectId = id();
+  const legacy = ProjectBriefV2Schema.parse({ ...representativeV2Brief, projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp });
+  const project = FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: projectId, slug: `legacy-brief-${projectId.slice(0, 8)}`, origin: "TEST", siteLanguage: "en", originalPrompt: "Synthetic legacy admission fixture.", currentVersion: 1, workflowState: "AWAITING_BRIEF_APPROVAL" });
+  await new ProjectRepository(database).create(project);
+  await new ProjectVersionRepository(database).create({ id: id(), projectId, versionNumber: 1, state: project.workflowState, memoryRootPath: null, requirementsChecksum: checksumPersistedDocument(legacy), selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
+  await new DocumentRepository(database).save(legacy);
+  const entry = new TrialEntryService({ database, createLeadAgent: () => { throw new Error("LEAD_ADMISSION_PATH_REACHED"); } });
+  return { database, projectId, legacy, entry };
+}
+
 describe("host-owned V3 Brief approval", () => {
+  it("admits the same legacy Brief losslessly, unapproved, and idempotently", async () => {
+    const f = await legacyFixture();
+    const legacyChecksum = checksumPersistedDocument(f.legacy);
+    const first = await f.entry.resumeBriefV3({ projectId: f.projectId, expectedRowVersion: 1 });
+    const second = await f.entry.resumeBriefV3({ projectId: f.projectId, expectedRowVersion: 1 });
+    expect(second).toEqual({ ...first, created: false });
+    expect(first).toMatchObject({ projectId: f.projectId, projectVersion: 1, projectState: "AWAITING_BRIEF_APPROVAL", rowVersion: 1, approved: false, created: true, documentRowVersion: 1 });
+    const state = await f.database.transaction(async (tx) => ({
+      project: await tx.getProject(f.projectId),
+      legacy: await tx.getDocument(f.projectId, 1, "requirements"),
+      v3: await tx.getDocument(f.projectId, 1, "brief-v3"),
+      events: await tx.listWorkflowEvents(f.projectId, 1),
+      decisions: await tx.listDecisions(f.projectId, 1),
+      lineage: await tx.listRequirementIdentityLineage(f.projectId, 1),
+    }));
+    expect(state.project).toMatchObject({ workflow_state: "AWAITING_BRIEF_APPROVAL", row_version: 1 });
+    expect(state.legacy?.checksum).toBe(legacyChecksum);
+    expect(state.v3).toMatchObject({ documentType: "brief-v3", rowVersion: 1, checksum: first.documentChecksum });
+    expect(state.events).toHaveLength(0);
+    expect(state.decisions).toHaveLength(0);
+    expect(state.lineage.length).toBeGreaterThan(0);
+    const status = await f.entry.status(f.projectId);
+    expect(status).toMatchObject({ workflowState: "AWAITING_BRIEF_APPROVAL", rowVersion: 1, brief: { approved: false, checksum: first.briefChecksum } });
+    expect(status.nextAllowedActions).toEqual(["APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES"]);
+  });
+
+  it("rejects stale admission currentness without creating a V3 document", async () => {
+    const f = await legacyFixture();
+    await expect(f.entry.resumeBriefV3({ projectId: f.projectId, expectedRowVersion: 2 })).rejects.toMatchObject({ code: "BRIEF_APPROVAL_STALE" });
+    await expect(new DocumentRepository(f.database).get(f.projectId, 1, "brief-v3")).resolves.toBeNull();
+  });
+
   it("approves a ready CLARIFYING Brief through the production-shaped Workbench path", async () => {
     const f = await fixture({ projection: new FakeProjectMemorySyncPort() });
     const before = await f.app.handle({ action: "status", projectId: f.projectId });

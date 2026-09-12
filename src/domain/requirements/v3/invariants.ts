@@ -37,7 +37,11 @@ export function validateCanonicalBriefV3(input: unknown): CanonicalBriefV3 {
   const hostOwnedKey = findHostOwnedKey(input);
   if (hostOwnedKey) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "host-owned-metadata", key: hostOwnedKey });
   const parsed = CanonicalBriefV3Schema.safeParse(input);
-  if (!parsed.success) throw new BriefV3Error("BRIEF_V3_SCHEMA_INVALID", { issue: parsed.error.issues[0]?.message ?? "invalid canonical brief" });
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const path = issue?.path.length ? issue.path.join(".") : "<root>";
+    throw new BriefV3Error("BRIEF_V3_SCHEMA_INVALID", { issue: `${path}: ${issue?.message ?? "invalid canonical brief"}` });
+  }
   const brief = parsed.data;
   const ids = activeSemanticIds(brief);
   if (new Set(ids).size !== ids.length) throw new BriefV3Error("BRIEF_V3_DUPLICATE_TARGET", { invariant: "duplicate-semantic-id" });

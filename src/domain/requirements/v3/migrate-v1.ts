@@ -180,7 +180,7 @@ function finalizeV1Migration(canonical: CanonicalBriefV3, scope: { projectId: st
     return canonicalizeLegacyBriefV3WithLineage(validateCanonicalBriefV3(normalizeCanonicalBrief(canonical)), scope);
   } catch (error) {
     if (error instanceof BriefV3MigrationAmbiguityError) throw error;
-    if (error instanceof BriefV3Error) throw new BriefV3MigrationAmbiguityError("canonical-state", error.code);
+    if (error instanceof BriefV3Error) throw new BriefV3MigrationAmbiguityError("canonical-state", error.details?.issue ?? error.details?.invariant ?? error.code);
     throw error;
   }
 }

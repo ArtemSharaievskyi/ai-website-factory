@@ -508,6 +508,17 @@ export class TrialEntryService {
   }
 
   /** Routes current V3 approval to the host-owned readiness/currentness authority. */
+  async resumeBriefV3(input: { projectId: string; expectedRowVersion: number }) {
+    const current = await this.projects.getWithVersion(input.projectId);
+    if (!current) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");
+    const approval = this.dependencies.createBriefApproval?.(current.project.slug) ?? new BriefApprovalService({ database: this.dependencies.database });
+    return approval.admitCurrentBrief({
+      projectId: input.projectId,
+      projectVersion: current.project.currentVersion,
+      expectedRowVersion: input.expectedRowVersion,
+    });
+  }
+
   async approveBrief(input: { projectId: string; briefChecksum: string; expectedRowVersion: number; approvalNote?: string; approvedBy?: string }) {
     const current = await this.projects.getWithVersion(input.projectId);
     if (!current) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");

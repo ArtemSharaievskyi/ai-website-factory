@@ -61,6 +61,31 @@ export type BriefApprovalResult = {
   projectionStatus: "SYNCED" | "UNAVAILABLE";
 };
 
+export type BriefV3AdmissionInput = {
+  projectId: string;
+  projectVersion: number;
+  expectedRowVersion: number;
+};
+
+const BriefV3AdmissionInputSchema = z.object({
+  projectId: z.string().uuid(),
+  projectVersion: z.number().int().positive(),
+  expectedRowVersion: z.number().int().positive(),
+}).strict();
+
+export type BriefV3AdmissionResult = {
+  projectId: string;
+  projectVersion: number;
+  projectState: "AWAITING_BRIEF_APPROVAL";
+  rowVersion: number;
+  briefChecksum: string;
+  documentChecksum: string;
+  documentRowVersion: number;
+  approved: false;
+  created: boolean;
+  projectionStatus: "SYNCED" | "UNAVAILABLE";
+};
+
 export class BriefApprovalError extends Error {
   constructor(public readonly code: "BRIEF_NOT_FOUND" | "BRIEF_NOT_READY" | "BRIEF_CHECKSUM_MISMATCH" | "BRIEF_APPROVAL_STALE" | "BRIEF_APPROVAL_WORKFLOW_INVALID" | "BRIEF_ALREADY_APPROVED" | "BRIEF_APPROVAL_IN_PROGRESS" | "BRIEF_APPROVAL_PROJECTION_FAILED", message: string) {
     super(message);
@@ -91,6 +116,76 @@ function currentness(project: ProjectRow, version: ProjectVersionRow, row: impor
 
 export class BriefApprovalService {
   constructor(private readonly options: { database: PersistenceDatabase; projection?: ProjectMemorySyncPort }) {}
+
+  /**
+   * Materializes a legacy Brief as the current canonical V3 document without
+   * approving it or advancing the workflow. The legacy document remains
+   * immutable source evidence; a concurrent V3 insert fails closed through
+   * the document CAS boundary and a repeated call reads the existing V3 row.
+   */
+  async admitCurrentBrief(input: BriefV3AdmissionInput): Promise<BriefV3AdmissionResult> {
+    const request = BriefV3AdmissionInputSchema.parse(input);
+    const committed = await this.options.database.transaction(async (tx) => {
+      const project = await tx.getProject(request.projectId);
+      const version = await tx.getVersion(request.projectId, request.projectVersion);
+      const v3Row = await tx.getDocument(request.projectId, request.projectVersion, "brief-v3");
+      const legacyRow = await tx.getDocument(request.projectId, request.projectVersion, "requirements");
+      const row = v3Row ?? legacyRow;
+      if (!project || !version || !row) throw new BriefApprovalError("BRIEF_NOT_FOUND", "The current Project Brief was not found.");
+      if (project.current_version !== request.projectVersion || project.row_version !== request.expectedRowVersion) throw new BriefApprovalError("BRIEF_APPROVAL_STALE", "The Project Brief currentness is stale.");
+      if (project.workflow_state !== "AWAITING_BRIEF_APPROVAL") throw new BriefApprovalError("BRIEF_APPROVAL_WORKFLOW_INVALID", "The project is not awaiting Brief approval.");
+
+      if (row.documentType === "brief-v3") {
+        const document = requireCurrentIdentity(BriefV3DocumentSchema.parse(mapRowToDocument(row)));
+        if (document.approval?.approved) throw new BriefApprovalError("BRIEF_ALREADY_APPROVED", "The current Project Brief is already approved.");
+        return {
+          result: {
+            projectId: project.id,
+            projectVersion: request.projectVersion,
+            projectState: "AWAITING_BRIEF_APPROVAL" as const,
+            rowVersion: project.row_version,
+            briefChecksum: document.briefChecksum,
+            documentChecksum: row.checksum,
+            documentRowVersion: row.rowVersion,
+            approved: false as const,
+            created: false,
+            projectionStatus: this.options.projection ? "SYNCED" as const : "UNAVAILABLE" as const,
+          },
+          document: null as BriefV3Document | null,
+        };
+      }
+
+      const stored = mapRowToDocument(row);
+      const migrated = migrateLegacyBriefToCanonicalBriefV3WithLineage(stored);
+      const document = createBriefV3Document({ projectId: request.projectId, projectVersion: request.projectVersion, brief: migrated.brief, createdAt: stored.createdAt, updatedAt: stored.updatedAt });
+      const saved = await tx.saveDocumentCAS({ row: mapDocumentToRow(document), expectedRowVersion: null, expectedChecksum: null });
+      for (const lineage of migrated.lineage) await tx.appendRequirementIdentityLineage({ ...lineage, createdAt: stored.updatedAt });
+      return {
+        result: {
+          projectId: project.id,
+          projectVersion: request.projectVersion,
+          projectState: "AWAITING_BRIEF_APPROVAL" as const,
+          rowVersion: project.row_version,
+          briefChecksum: document.briefChecksum,
+          documentChecksum: saved.checksum,
+          documentRowVersion: saved.rowVersion,
+          approved: false as const,
+          created: true,
+          projectionStatus: this.options.projection ? "SYNCED" as const : "UNAVAILABLE" as const,
+        },
+        document,
+      };
+    });
+
+    if (committed.document && this.options.projection) {
+      try {
+        await this.options.projection.writeVersionSnapshot(request.projectId, request.projectVersion, { "brief-v3.json": committed.document });
+      } catch {
+        throw new BriefApprovalError("BRIEF_APPROVAL_PROJECTION_FAILED", "The canonical Brief was persisted, but its derived Project Memory projection failed.");
+      }
+    }
+    return committed.result;
+  }
 
   async approve(input: BriefApprovalInput): Promise<BriefApprovalResult> {
     const request = BriefApprovalInputSchema.parse(input);

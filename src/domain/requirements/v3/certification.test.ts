@@ -24,7 +24,8 @@ import {
   validateCanonicalBriefV3,
 } from ".";
 import { ambiguousV2Brief, cleanBriefV3, cleanFormRevisionChangeSet, conflictingChangeSet, expectedNormalizedBrief, expectedV1Migration, expectedV2Migration, multiDomainChangeSet, pilotShapedV1Brief, representativeV1Brief, representativeV2Brief } from "./fixtures";
-import { RequirementSpecificationSchema } from "../schema";
+import { ProjectBriefV2Schema, RequirementSpecificationSchema } from "../schema";
+import { CanonicalBriefV3Schema } from "./schema";
 
 const passedGroups = new Set<string>();
 let generatedPropertyCases = 0;
@@ -346,6 +347,42 @@ describe("Brief Revision V3 certification", () => {
     expect(migrated.legal.placeholderPolicy).toBe(expectedV2Migration.legalPlaceholderPolicy);
     expect(migrated.requirements.some((entry) => entry.statement === "Use concise synthetic service copy.")).toBe(true);
     expect(migrateV2ToCanonicalBriefV3(representativeV2Brief)).toEqual(migrated);
+  });
+
+  it("repairs bounded SEO projections and scopes duplicate legacy collection IDs without loss", () => {
+    const sharedId = "shared-cross-collection-id";
+    const longKeyword = `Long synthetic SEO requirement ${"k".repeat(340)}`;
+    const legacy = ProjectBriefV2Schema.parse({
+      ...representativeV2Brief,
+      forms: [],
+      emailDecision: "not-needed",
+      storageDecision: "not-needed",
+      authenticationDecision: "no-authentication-guest-first",
+      content: [{ id: sharedId, statement: "Keep the customer-facing service copy.", sourceRefs: ["fixture:content"] }],
+      prohibitedRequirements: [{ id: sharedId, statement: "Do not invent customer facts.", sourceRefs: ["fixture:prohibited"] }],
+      formBehaviorRequirements: { ...representativeV2Brief.formBehaviorRequirements, formPresent: false, validation: "NOT_REQUIRED", successUx: "NONE", dataTransmission: "NONE", persistence: "NONE", thirdParty: "NONE", privacyCheckbox: "NOT_APPLICABLE", interactionStates: [] },
+      seoMetadata: {
+        ...representativeV2Brief.seoMetadata,
+        primaryKeywords: [`alpha;SEO-Titel exakt: Synthetic repair title;Meta Description exakt: Synthetic repair description;${longKeyword}`],
+        exactTitle: undefined,
+        exactMetaDescription: undefined,
+      },
+    });
+    const first = migrateV2ToCanonicalBriefV3(legacy);
+    const second = migrateV2ToCanonicalBriefV3(JSON.parse(JSON.stringify(legacy)));
+    expect(CanonicalBriefV3Schema.safeParse(first).success).toBe(true);
+    expect(validateCanonicalBriefV3(first)).toEqual(first);
+    expect(canonicalBriefChecksum(first)).toBe(canonicalBriefChecksum(second));
+    expect(first.seo).toMatchObject({ exactTitle: "Synthetic repair title", exactMetaDescription: "Synthetic repair description", primaryKeywords: ["alpha"] });
+    expect(first.requirements.some((entry) => entry.statement === longKeyword)).toBe(true);
+    const contentId = first.requirements.find((entry) => entry.statement === "Keep the customer-facing service copy.")?.id;
+    const prohibitedId = first.requirements.find((entry) => entry.statement === "Do not invent customer facts.")?.id;
+    expect(contentId).toBeTruthy();
+    expect(prohibitedId).toBeTruthy();
+    expect(contentId).not.toBe(prohibitedId);
+    expect(first.decisions.form).toMatchObject({ mode: "NONE", formPresent: false, transmissionMode: "NONE", persistenceMode: "NONE" });
+    expect(first.decisions.database.mode).toBe("NONE");
+    expect(first.decisions.auth.mode).toBe("NONE");
   });
 
   it("gives valid Unicode legacy page slugs stable encoded semantic IDs", () => {
