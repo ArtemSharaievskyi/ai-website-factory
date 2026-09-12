@@ -41,12 +41,12 @@ describe("durable Workbench Planning operation envelope", () => {
     const fixture = await approvedPlanningFixture();
     let failure: unknown;
     try {
-      await fixture.app.handle({ action: "approve-planning", projectId });
+      await fixture.app.handle({ action: "generate-planning", projectId });
     } catch (error) {
       failure = error;
     }
     expect(failure).toBeInstanceOf(WorkbenchOperationFailure);
-    const response = workbenchFailureResponse(failure, { action: "approve-planning", projectId });
+    const response = workbenchFailureResponse(failure, { action: "generate-planning", projectId });
     expect(response.status).toBe(500);
     expect(response.response).toMatchObject({
       code: "WORKBENCH_INTERNAL_ERROR",

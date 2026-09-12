@@ -142,11 +142,11 @@ const actionForState = (state: WorkflowState) => {
     case "AWAITING_BRIEF_APPROVAL":
       return { pendingUserAction: "APPROVE_BRIEF_OR_REQUEST_CHANGES", nextAllowedActions: ["APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES"] };
     case "AWAITING_PLANNING_GENERATION":
-      return { pendingUserAction: "GENERATE_PLANNING", nextAllowedActions: ["APPROVE_PLANNING", "REQUEST_BRIEF_CHANGES"] };
+      return { pendingUserAction: "GENERATE_PLANNING", nextAllowedActions: ["GENERATE_PLANNING", "REQUEST_BRIEF_CHANGES"] };
     case "AWAITING_PLANNING_APPROVAL":
       return { pendingUserAction: "APPROVE_PLANNING", nextAllowedActions: ["APPROVE_PLANNING", "REQUEST_BRIEF_CHANGES", "REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL"] };
     case "AWAITING_DESIGN_SELECTION":
-      return { pendingUserAction: "APPROVE_PLANNING_AND_SELECT_DESIGN", nextAllowedActions: ["APPROVE_PLANNING", "REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL", "DESIGN_SELECTION"] };
+      return { pendingUserAction: "DESIGN_SELECTION", nextAllowedActions: ["REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL", "DESIGN_SELECTION"] };
     case "READY_FOR_IMPLEMENTATION":
       return { pendingUserAction: "START_IMPLEMENTATION", nextAllowedActions: ["START_IMPLEMENTATION"] };
     default:

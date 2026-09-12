@@ -119,7 +119,7 @@ export class WorkbenchApplication {
   }
 
   async handle(request: WorkbenchRequest): Promise<WorkbenchProjection> {
-    if (request.action === "approve-planning") {
+    if (request.action === "generate-planning") {
       const operation = new WorkbenchOperationLedger(this.dependencies.database, request.projectId, `workbench-planning:${request.projectId}`, currentWorkbenchOperationContext()?.correlationId);
       try {
         const current = await this.projects.getWithVersion(request.projectId);
@@ -132,9 +132,17 @@ export class WorkbenchApplication {
           }
           return this.handlePlanningGeneration(request.projectId, operation);
         }
+      } catch (error) {
+        throw await operation.fail(error);
+      }
+    }
+    if (request.action === "approve-planning") {
+      const operation = new WorkbenchOperationLedger(this.dependencies.database, request.projectId, `workbench-planning:${request.projectId}`, currentWorkbenchOperationContext()?.correlationId);
+      try {
         if (await operation.hasActiveOperation())
           throw new WorkbenchOperationConflict("WORKBENCH_OPERATION_IN_PROGRESS", "A current Planning operation is already active.");
       } catch (error) {
+        if (error instanceof WorkbenchOperationConflict) throw error;
         throw await operation.fail(error);
       }
     }
@@ -159,6 +167,8 @@ export class WorkbenchApplication {
       case "request-brief-changes":
         await this.dependencies.entry.requestBriefChanges(request);
         return this.project(request.projectId);
+      case "generate-planning":
+        throw new WorkbenchActionError("PLANNING_WORKFLOW_INVALID", "Planning generation is only available from its canonical lifecycle frontier.");
       case "approve-planning":
         await this.approvePlanning(request.projectId);
         return this.project(request.projectId);
@@ -205,7 +215,7 @@ export class WorkbenchApplication {
         markMutationCommitted: () => ledger.markCanonicalPlanningPersisted(),
       };
       return await withWorkbenchOperationContext(context, async () => {
-        await this.approvePlanning(projectId);
+        await this.generatePlanning(projectId);
         await ledger.complete();
         return this.project(projectId);
       });
@@ -383,7 +393,7 @@ export class WorkbenchApplication {
     });
   }
 
-  private async approvePlanning(projectId: string) {
+  private async generatePlanning(projectId: string) {
     const scope = await this.scope(projectId);
     const current = await this.projects.getWithVersion(projectId);
     const version = current?.project.currentVersion ?? 1;
@@ -394,14 +404,19 @@ export class WorkbenchApplication {
     const brief = approvedBriefForDownstream(persistedBrief, briefV3);
     const decisions = await new DecisionRepository(this.dependencies.database).list(projectId, version);
     const approvedBriefChecksum = briefV3.briefChecksum;
-    if (current.project.workflowState === "AWAITING_PLANNING_GENERATION") {
-      await currentWorkbenchOperationContext()?.bindCurrentness?.({ projectVersion: version, rowVersion: current.rowVersion, briefChecksum: approvedBriefChecksum });
-      await scope.planner.planApprovedProject({ projectId, projectVersion: version, approvedBrief: brief, canonicalBrief: briefV3.brief, approvedBriefChecksum, originalPromptReference: "original-prompt.md", clarificationEvidenceReferences: ["clarification-log.json"], currentWorkflowState: "AWAITING_PLANNING_GENERATION", existingDecisions: decisions, suppliedFiles: [], allowedSkills: [], idempotencyKey: `workbench-planning:${projectId}`, expectedRowVersion: current.rowVersion }, { correlationId: currentWorkbenchOperationContext()?.correlationId, ...(currentWorkbenchOperationContext()?.providerInvocationLedger ? { providerInvocationLedger: currentWorkbenchOperationContext()?.providerInvocationLedger } : {}), ...(currentWorkbenchOperationContext()?.setStage ? { setStage: currentWorkbenchOperationContext()?.setStage } : {}), ...(currentWorkbenchOperationContext()?.markMutationCommitted ? { markMutationCommitted: currentWorkbenchOperationContext()?.markMutationCommitted } : {}) });
-      return;
-    }
-    if (current.project.workflowState !== "AWAITING_PLANNING_APPROVAL") throw new WorkbenchActionError("PLANNING_WORKFLOW_INVALID", "Planning can only be generated or explicitly approved from its canonical lifecycle states.");
+    if (current.project.workflowState !== "AWAITING_PLANNING_GENERATION") throw new WorkbenchActionError("PLANNING_WORKFLOW_INVALID", "Planning generation is only available from the canonical Planning generation lifecycle state.");
+    await currentWorkbenchOperationContext()?.bindCurrentness?.({ projectVersion: version, rowVersion: current.rowVersion, briefChecksum: approvedBriefChecksum });
+    await scope.planner.planApprovedProject({ projectId, projectVersion: version, approvedBrief: brief, canonicalBrief: briefV3.brief, approvedBriefChecksum, originalPromptReference: "original-prompt.md", clarificationEvidenceReferences: ["clarification-log.json"], currentWorkflowState: "AWAITING_PLANNING_GENERATION", existingDecisions: decisions, suppliedFiles: [], allowedSkills: [], idempotencyKey: `workbench-planning:${projectId}`, expectedRowVersion: current.rowVersion }, { correlationId: currentWorkbenchOperationContext()?.correlationId, ...(currentWorkbenchOperationContext()?.providerInvocationLedger ? { providerInvocationLedger: currentWorkbenchOperationContext()?.providerInvocationLedger } : {}), ...(currentWorkbenchOperationContext()?.setStage ? { setStage: currentWorkbenchOperationContext()?.setStage } : {}), ...(currentWorkbenchOperationContext()?.markMutationCommitted ? { markMutationCommitted: currentWorkbenchOperationContext()?.markMutationCommitted } : {}) });
+  }
+
+  private async approvePlanning(projectId: string) {
+    const current = await this.projects.getWithVersion(projectId);
+    if (!current) throw new WorkbenchActionError("PROJECT_NOT_FOUND", "We could not find that project.");
+    if (current.project.workflowState !== "AWAITING_PLANNING_APPROVAL") throw new WorkbenchActionError("PLANNING_WORKFLOW_INVALID", "Planning approval is only available from the canonical Planning approval lifecycle state.");
+    const version = current.project.currentVersion;
     const planning = await this.documents.get(projectId, version, "planning-package");
     if (!planning || planning.documentType !== "planning-package") throw new WorkbenchActionError("PLANNING_NOT_READY", "No current Planning candidate is available for approval.");
+    const scope = await this.scope(projectId);
     await scope.planner.acceptPlanningPackage({ projectId, projectVersion: version, planningChecksum: planningDocumentChecksum(planning), acceptedAt: new Date().toISOString(), acceptedBy: "workbench-user", expectedRowVersion: current.rowVersion, idempotencyKey: `workbench-planning-accept:${projectId}` });
   }
 
@@ -618,5 +633,5 @@ export class WorkbenchApplication {
 }
 
 export const isWorkbenchAction = (value: string): value is WorkbenchAction => [
-  "ANSWER_LEAD_CLARIFICATIONS", "REFRESH_LEAD_CLARIFICATIONS", "APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES", "APPROVE_PLANNING", "REQUEST_PLANNING_CHANGES", "GENERATE_ARCHITECTURE_REVIEW", "DATABASE_DECISION", "DEPENDENCY_APPROVAL", "DESIGN_SELECTION", "START_IMPLEMENTATION",
+  "ANSWER_LEAD_CLARIFICATIONS", "REFRESH_LEAD_CLARIFICATIONS", "APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES", "GENERATE_PLANNING", "APPROVE_PLANNING", "REQUEST_PLANNING_CHANGES", "GENERATE_ARCHITECTURE_REVIEW", "DATABASE_DECISION", "DEPENDENCY_APPROVAL", "DESIGN_SELECTION", "START_IMPLEMENTATION",
 ].includes(value);

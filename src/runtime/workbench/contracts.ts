@@ -18,6 +18,7 @@ export const WorkbenchActionSchema = z.enum([
   "REFRESH_LEAD_CLARIFICATIONS",
   "APPROVE_BRIEF",
   "REQUEST_BRIEF_CHANGES",
+  "GENERATE_PLANNING",
   "APPROVE_PLANNING",
   "REQUEST_PLANNING_CHANGES",
   "GENERATE_ARCHITECTURE_REVIEW",
@@ -66,6 +67,7 @@ export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("refresh-clarifications"), projectId: ProjectIdSchema, requestId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("approve-brief"), projectId: ProjectIdSchema, briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), expectedRowVersion: z.number().int().positive(), approvalNote: z.string().max(4000).optional() }).strict(),
   z.object({ action: z.literal("request-brief-changes"), projectId: ProjectIdSchema, projectVersion: z.number().int().positive(), briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), expectedRowVersion: z.number().int().positive(), reason: BriefRevisionInstructionSchema, requirementKeys: z.array(z.string().min(1).max(128)).max(40).default([]) }).strict(),
+  z.object({ action: z.literal("generate-planning"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("approve-planning"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("request-planning-changes"), projectId: ProjectIdSchema, reason: z.string().trim().min(1).max(4000) }).strict(),
   z.object({ action: z.literal("generate-architecture-review"), projectId: ProjectIdSchema }).strict(),
@@ -261,12 +263,11 @@ export function actionsForWorkbenchState(input: {
       if (input.hasBrief && input.briefReady && !input.hasBlockingQuestions) return ["APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES"];
       return input.hasBlockingQuestions ? ["ANSWER_LEAD_CLARIFICATIONS", ...(input.canRefreshClarifications ? ["REFRESH_LEAD_CLARIFICATIONS" as WorkbenchAction] : [])] : [];
     case "AWAITING_BRIEF_APPROVAL": return input.hasBrief && input.briefReady ? ["APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES"] : [];
-    case "AWAITING_PLANNING_GENERATION": return ["APPROVE_PLANNING"];
+    case "AWAITING_PLANNING_GENERATION": return ["GENERATE_PLANNING", "REQUEST_BRIEF_CHANGES"];
     case "AWAITING_PLANNING_APPROVAL": return input.hasPlanning ? ["APPROVE_PLANNING", "REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL"] : [];
     case "AWAITING_DESIGN_SELECTION":
       return [
-        ...(!input.hasPlanning ? ["APPROVE_PLANNING"] as WorkbenchAction[] : []),
-        ...(input.hasPlanning ? ["APPROVE_PLANNING", "REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL"] as WorkbenchAction[] : []),
+        ...(input.hasPlanning ? ["REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL"] as WorkbenchAction[] : []),
         ...(input.hasDesigns ? ["DESIGN_SELECTION"] as WorkbenchAction[] : []),
       ];
     case "READY_FOR_IMPLEMENTATION": return input.implementationReady ? ["START_IMPLEMENTATION"] : [];

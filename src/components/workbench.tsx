@@ -276,13 +276,22 @@ function PlanningPendingCard({
         <span className="badge">Next canonical step</span>
       </div>
       <div className="card-actions">
-        {allowedActions.includes("APPROVE_PLANNING") && (
+        {allowedActions.includes("GENERATE_PLANNING") && (
           <button
             className="button button-primary"
-            onClick={() => onAction("APPROVE_PLANNING")}
+            onClick={() => onAction("GENERATE_PLANNING")}
             disabled={busy}
           >
-            Prepare planning
+            Generate Planning
+          </button>
+        )}
+        {allowedActions.includes("REQUEST_BRIEF_CHANGES") && (
+          <button
+            className="button button-secondary"
+            onClick={() => onAction("REQUEST_BRIEF_CHANGES")}
+            disabled={busy}
+          >
+            Request Brief changes
           </button>
         )}
       </div>
@@ -894,7 +903,12 @@ export function Workbench() {
     } else if (value === "REQUEST_PLANNING_CHANGES") {
       setComposerMode("planning");
       textareaRef.current?.focus();
-    } else if (value === "APPROVE_PLANNING")
+    } else if (value === "GENERATE_PLANNING")
+      void run({
+        action: "generate-planning",
+        projectId: projection.project.projectId,
+      });
+    else if (value === "APPROVE_PLANNING")
       void run({
         action: "approve-planning",
         projectId: projection.project.projectId,
@@ -1140,7 +1154,7 @@ export function Workbench() {
                 busy={loading}
               />
             ) : (
-              projection.status.allowedActions.includes("APPROVE_PLANNING") && (
+              projection.status.allowedActions.includes("GENERATE_PLANNING") && (
                 <PlanningPendingCard
                   allowedActions={projection.status.allowedActions}
                   onAction={action}

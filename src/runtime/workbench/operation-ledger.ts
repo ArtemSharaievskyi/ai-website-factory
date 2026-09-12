@@ -144,7 +144,7 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
   }
 
   private payloadHash() {
-    return checksumPersistedDocument({ action: "approve-planning", projectId: this.record.projectId, operationKind: "PLANNING_GENERATION", currentness: this.record.currentness ?? null });
+    return checksumPersistedDocument({ action: "generate-planning", projectId: this.record.projectId, operationKind: "PLANNING_GENERATION", currentness: this.record.currentness ?? null });
   }
 
   async reserve(): Promise<OperationReservation> {

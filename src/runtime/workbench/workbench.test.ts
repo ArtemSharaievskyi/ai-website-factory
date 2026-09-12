@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { FakeLeadMemoryPort } from "@/agents/lead/memory";
 import { DeterministicLeadProvider } from "@/agents/lead/ports";
 import { LeadAgentService } from "@/agents/lead/service";
@@ -34,7 +34,7 @@ const answerFor = (key: string | undefined) => {
   }
 };
 
-function fixture(options: { calls?: string[] } = {}) {
+function fixture(options: { calls?: string[]; getWorkflowScope?: () => never } = {}) {
   const database = new InMemoryPersistenceDatabase();
   const memory = new FakeLeadMemoryPort();
   const provider = new DeterministicLeadProvider(
@@ -43,7 +43,7 @@ function fixture(options: { calls?: string[] } = {}) {
     (input) => { options.calls?.push("brief"); return assembleRequirements(input); },
   );
   const entry = new TrialEntryService({ database, createLeadAgent: () => new LeadAgentService({ database, memory, provider }), createBriefRevisionV3: () => new BriefV3TransactionService({ database, provider: { proposeChanges: async () => multiDomainChangeSet } }) });
-  return { database, app: new WorkbenchApplication({ database, entry }) };
+  return { database, entry, app: new WorkbenchApplication({ database, entry, ...(options.getWorkflowScope ? { getWorkflowScope: options.getWorkflowScope } : {}) }) };
 }
 
 async function createBriefReadyProject(app: WorkbenchApplication) {
@@ -133,6 +133,36 @@ describe("Factory Workbench projection and boundary", () => {
     expect(actionsForWorkbenchState({ workflowState: "READY_FOR_IMPLEMENTATION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, implementationReady: true })).toEqual(["START_IMPLEMENTATION"]);
   });
 
+  it("separates Planning generation and approval frontiers", () => {
+    const projectId = "00000000-0000-4000-8000-000000000000";
+    expect(actionsForWorkbenchState({ workflowState: "AWAITING_PLANNING_GENERATION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: false, hasDesigns: false })).toEqual(["GENERATE_PLANNING", "REQUEST_BRIEF_CHANGES"]);
+    expect(WorkbenchRequestSchema.safeParse({ action: "generate-planning", projectId }).success).toBe(true);
+    expect(actionsForWorkbenchState({ workflowState: "AWAITING_PLANNING_APPROVAL", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: false })).toContain("APPROVE_PLANNING");
+    expect(actionsForWorkbenchState({ workflowState: "AWAITING_PLANNING_APPROVAL", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: false, hasDesigns: false })).toEqual([]);
+    expect(actionsForWorkbenchState({ workflowState: "AWAITING_DESIGN_SELECTION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: false })).not.toContain("APPROVE_PLANNING");
+  });
+
+  it("fails closed when Planning approval is requested before Planning exists", async () => {
+    const { app } = fixture();
+    const ready = await createBriefReadyProject(app);
+    if (!ready.project || !ready.brief) throw new Error("fixture Brief was not ready");
+    const approved = await app.handle({ action: "approve-brief", projectId: ready.project.projectId, briefChecksum: ready.brief.checksum, expectedRowVersion: ready.project.rowVersion });
+    await expect(app.handle({ action: "approve-planning", projectId: approved.project!.projectId })).rejects.toMatchObject({ code: "PLANNING_WORKFLOW_INVALID" });
+  });
+
+  it("dispatches generation to the existing Planner service entry point", async () => {
+    const planApprovedProject = vi.fn().mockResolvedValue(undefined);
+    const workflowScope = { planner: { planApprovedProject, acceptPlanningPackage: vi.fn() } } as never;
+    const { app, entry } = fixture({ getWorkflowScope: () => workflowScope });
+    const ready = await createBriefReadyProject(app);
+    if (!ready.project || !ready.brief) throw new Error("fixture Brief was not ready");
+    const approved = await app.handle({ action: "approve-brief", projectId: ready.project.projectId, briefChecksum: ready.brief.checksum, expectedRowVersion: ready.project.rowVersion });
+    expect((await entry.status(approved.project!.projectId)).nextAllowedActions).toContain("GENERATE_PLANNING");
+    await app.handle({ action: "generate-planning", projectId: approved.project!.projectId });
+    expect(planApprovedProject).toHaveBeenCalledOnce();
+    expect(planApprovedProject.mock.calls[0]?.[0]).toMatchObject({ currentWorkflowState: "AWAITING_PLANNING_GENERATION", projectId: ready.project.projectId });
+  });
+
   const matrix: Array<[string, () => Promise<void>]> = [
     ["W1 landing renders without project", async () => { expect((await fixture().app.handle({ action: "list" })).mode).toBe("NEW_PROJECT"); }],
     ["W2 multiline composer contract accepts text", async () => { const parsed = WorkbenchRequestSchema.parse({ action: "create", requestText: "line one\nline two" }); expect(parsed.action).toBe("create"); if (parsed.action === "create") expect(parsed.requestText).toContain("\n"); }],
@@ -153,7 +183,7 @@ describe("Factory Workbench projection and boundary", () => {
     ["W17 approval action is typed", async () => { expect(WorkbenchRequestSchema.safeParse({ action: "approve-brief", projectId: "00000000-0000-4000-8000-000000000000", briefChecksum: "a".repeat(64), expectedRowVersion: 1 }).success).toBe(true); }],
     ["W18 revision action is typed", async () => { expect(WorkbenchRequestSchema.safeParse({ action: "request-brief-changes", projectId: "00000000-0000-4000-8000-000000000000", projectVersion: 1, briefChecksum: "a".repeat(64), expectedRowVersion: 1, reason: "Change" }).success).toBe(true); }],
     ["W19 planning requires upstream state", async () => { expect(actionsForWorkbenchState({ workflowState: "CLARIFYING", hasBlockingQuestions: true, hasBrief: false, briefReady: false, hasPlanning: false, hasDesigns: false })).not.toContain("APPROVE_PLANNING"); }],
-    ["W20 planning permission is state-derived", async () => { expect(actionsForWorkbenchState({ workflowState: "AWAITING_DESIGN_SELECTION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: false })).toContain("APPROVE_PLANNING"); }],
+    ["W20 planning approval permission is state-derived", async () => { expect(actionsForWorkbenchState({ workflowState: "AWAITING_DESIGN_SELECTION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: false })).not.toContain("APPROVE_PLANNING"); }],
     ["W21 database action is explicit", async () => { expect(actionsForWorkbenchState({ workflowState: "AWAITING_DESIGN_SELECTION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: false })).toContain("DATABASE_DECISION"); }],
     ["W22 dependency action is explicit", async () => { expect(actionsForWorkbenchState({ workflowState: "AWAITING_DESIGN_SELECTION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: false })).toContain("DEPENDENCY_APPROVAL"); }],
     ["W23 direction set cardinality is three in domain", async () => { expect(await source("src/domain/design/schema.ts")).toContain(".length(3)"); }],

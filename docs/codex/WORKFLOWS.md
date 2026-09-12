@@ -81,8 +81,9 @@ but approval of a current V3 Brief never writes or approves a legacy document.
 
 ## Planning and Design
 
-After Brief approval, Workbench action `approve-planning` calls the configured
-workflow scope in `src/runtime/workbench/application.ts`:
+After Brief approval, Workbench action `generate-planning` calls the configured
+workflow scope in `src/runtime/workbench/application.ts`. Planning generation
+and Planning approval are separate user-authorized actions:
 
 1. Planner creates a planning package from the approved Brief.
 2. The host evaluates Planning Acceptance readiness. Technical blockers prevent
@@ -95,6 +96,9 @@ workflow scope in `src/runtime/workbench/application.ts`:
    churned.
 4. Architecture review validates and routes the package.
 5. Design generates exactly three structured directions.
+
+`approve-planning` is available only from `AWAITING_PLANNING_APPROVAL` when a
+current Planning package is present. It never starts Planning generation.
 
 Architecture Review is one canonical commit. The provider returns only the
 semantic verdict, findings, and evidence references; the host owns policy
