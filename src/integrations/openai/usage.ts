@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { ContextBundle } from "@/runtime/context";
 import type { KnownTransportCauseCode, ProviderTransportElapsedBucket, ProviderTransportFailureClass, ProviderTransportPhase } from "@/domain/shared/provider-failure";
 export type ProviderUsage = { inputTokens?: number; cachedInputTokens?: number; uncachedInputTokens?: number; outputTokens?: number; totalTokens?: number; actualUsageCaptured: boolean; cacheTelemetryUnavailable: boolean; requestCount: number; retryCount: number; correctionCount: number; provider: string; model: string; role: string; promptVersion: string; invocationId?: string; invocationFingerprint?: string; contextBundleId?: string; contextChecksum?: string; prefixChecksum?: string; prefixBytes?: number; contextMetrics?: ContextBundle["metrics"] };
@@ -69,6 +70,41 @@ export type ProviderDiagnostic = {
   zodIssuesBounded?: Array<{ path: string; code: string; expected?: string; received?: string; message: string }>;
   contextCapacity?: { budgetProfile: string; requestBytes: number; requestTokens: number; totalBytesWithReserve: number; totalTokensWithReserve: number; maxBytes: number; maxTokens: number; canonicalRequirementBytes: number; supportingContextBytes: number };
 };
+export const ProviderTerminationParseStatusSchema = z.enum(["NOT_REACHED", "FAILED", "PASSED"]);
+export type ProviderTerminationParseStatus = z.infer<typeof ProviderTerminationParseStatusSchema>;
+export const ProviderTerminationMetadataSchema = z.object({
+  schemaVersion: z.literal(1),
+  transportStatus: z.enum(["NOT_ATTEMPTED", "STARTED", "RESPONSE_RECEIVED"]),
+  parseStatus: ProviderTerminationParseStatusSchema,
+  requestAttempted: z.boolean(),
+  responseReceived: z.boolean(),
+  finishReason: z.string().regex(/^[a-z_]{1,64}$/).nullable(),
+  outputComplete: z.boolean(),
+  tokenExhaustion: z.boolean(),
+  parsedPresent: z.boolean(),
+  jsonParseSucceeded: z.boolean().nullable(),
+  schemaName: z.string().regex(/^[a-z0-9-]{1,100}$/).nullable(),
+  rawResponseRetained: z.literal(false),
+}).strict();
+export type ProviderTerminationMetadata = z.infer<typeof ProviderTerminationMetadataSchema>;
+export function createProviderTerminationMetadata(diagnostic: ProviderDiagnostic, parseStatus: ProviderTerminationParseStatus): ProviderTerminationMetadata {
+  const responseReceived = diagnostic.responseReceived ?? diagnostic.apiResponseReceived;
+  const finishReason = diagnostic.finishReason === null || diagnostic.finishReason === undefined || /^[a-z_]{1,64}$/.test(diagnostic.finishReason) ? diagnostic.finishReason ?? null : null;
+  return ProviderTerminationMetadataSchema.parse({
+    schemaVersion: 1,
+    transportStatus: !diagnostic.requestAttempted ? "NOT_ATTEMPTED" : responseReceived ? "RESPONSE_RECEIVED" : "STARTED",
+    parseStatus,
+    requestAttempted: diagnostic.requestAttempted,
+    responseReceived,
+    finishReason,
+    outputComplete: diagnostic.outputComplete ?? parseStatus === "PASSED",
+    tokenExhaustion: diagnostic.tokenExhaustion ?? false,
+    parsedPresent: diagnostic.parsedPresent ?? parseStatus === "PASSED",
+    jsonParseSucceeded: diagnostic.jsonParseSucceeded ?? null,
+    schemaName: diagnostic.schemaName && /^[a-z0-9-]{1,100}$/.test(diagnostic.schemaName) ? diagnostic.schemaName : null,
+    rawResponseRetained: false,
+  });
+}
 export type ProviderInvocationStage = "decomposition" | "coverage" | "architecture-review";
 export type ProviderInvocationLedgerState = "RESERVED" | "ATTEMPTING" | "TRANSPORT_STARTED" | "RESPONSE_RECEIVED" | "PARSE_PASSED" | "ADMISSION_PASSED" | "FAILED";
 export type ProviderInvocationLedgerHandle = {
@@ -82,9 +118,10 @@ export type ProviderInvocationLedgerHandle = {
 };
 export type ProviderInvocationLedgerPort = {
   reserveInvocation(input: { stage: ProviderInvocationStage; providerContract: string }): Promise<ProviderInvocationLedgerHandle>;
+  recordProviderDiagnostic?: (diagnostic: ProviderDiagnostic, parseStatus: ProviderTerminationParseStatus) => void | Promise<void>;
   snapshot(): { providerCallsTotal: number; providerCallsByStage: Record<ProviderInvocationStage, { attempted: number; started: number; responseReceived: number; structuredParsePassed: number; semanticAdmissionPassed: number; completed: number; failed: number }>; providerInvocationState?: ProviderInvocationLedgerState };
 };
-export type ProviderInvocationContext = { operationId: string; correlationId: string; stage: ProviderInvocationStage; ledger?: ProviderInvocationLedgerPort; invocation?: ProviderInvocationLedgerHandle };
+export type ProviderInvocationContext = { operationId: string; correlationId: string; stage: ProviderInvocationStage; ledger?: ProviderInvocationLedgerPort; invocation?: ProviderInvocationLedgerHandle; recordDiagnostic?: (diagnostic: ProviderDiagnostic, parseStatus: ProviderTerminationParseStatus) => void | Promise<void> };
 export type SafeProviderEvent = { type: "request.started" | "request.completed" | "request.failed"; provider: string; model: string; role: string; promptVersion: string; requestId?: string; code?: string; retryCount?: number; startedAt?: string; completedAt?: string; elapsedMs?: number; diagnostic?: ProviderDiagnostic; operationId?: string; correlationId?: string; operationStage?: ProviderInvocationStage };
 export type ProviderEventSink = (event: SafeProviderEvent) => void;
 export type ProviderUsageSink = (usage: ProviderUsage) => void | Promise<void>;

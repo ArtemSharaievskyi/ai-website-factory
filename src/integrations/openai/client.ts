@@ -170,11 +170,19 @@ export class OpenAiStructuredClient {
             : await this.executor(request, this.client, this.config, correction);
           await invocation?.responseReceived();
           await invocation?.parsePassed();
+          if (result.diagnostic && request.providerInvocation?.recordDiagnostic)
+            await Promise.resolve(request.providerInvocation.recordDiagnostic(result.diagnostic, "PASSED")).catch(() => undefined);
+          else if (result.diagnostic && request.providerInvocation?.ledger?.recordProviderDiagnostic)
+            await Promise.resolve(request.providerInvocation.ledger.recordProviderDiagnostic(result.diagnostic, "PASSED")).catch(() => undefined);
           const usage = capturedUsage ?? await this.recordUsage(request, result, retries, correction);
           this.eventSink?.({ type: "request.completed", provider: "openai", model: this.config.model, role: request.role, promptVersion: request.promptVersion, requestId: result.requestId, retryCount: retries, startedAt, completedAt: new Date().toISOString(), elapsedMs: Date.now() - started, diagnostic: result.diagnostic, ...operationEvent });
           return { value: result.value, usage, requestId: result.requestId, diagnostic: result.diagnostic };
         } catch (error) {
           const mapped = mapError(error, request.schemaName, transportStarted, this.config.model, { ...requestDiagnostic, elapsedBucket: elapsedBucket(Date.now() - started) });
+          if (mapped.diagnostic && request.providerInvocation?.recordDiagnostic)
+            await Promise.resolve(request.providerInvocation.recordDiagnostic(mapped.diagnostic, (mapped.diagnostic.responseReceived ?? mapped.diagnostic.apiResponseReceived) ? "FAILED" : "NOT_REACHED")).catch(() => undefined);
+          else if (mapped.diagnostic && request.providerInvocation?.ledger?.recordProviderDiagnostic)
+            await Promise.resolve(request.providerInvocation.ledger.recordProviderDiagnostic(mapped.diagnostic, (mapped.diagnostic.responseReceived ?? mapped.diagnostic.apiResponseReceived) ? "FAILED" : "NOT_REACHED")).catch(() => undefined);
           if (invocation && (mapped.diagnostic?.responseReceived || mapped.diagnostic?.apiResponseReceived)) await invocation.responseReceived().catch(() => undefined);
           if (invocation) await invocation.failed().catch(() => undefined);
           if (mapped.code === "AI_OUTPUT_SCHEMA_MISMATCH" && !correction && maxCorrections > 0) {

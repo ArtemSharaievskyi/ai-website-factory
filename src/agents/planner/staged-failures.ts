@@ -1,5 +1,5 @@
 import { isAiProviderError } from "@/integrations/openai/errors";
-import type { ProviderDiagnostic } from "@/integrations/openai/usage";
+import { createProviderTerminationMetadata, type ProviderDiagnostic, type ProviderTerminationMetadata, type ProviderTerminationParseStatus } from "@/integrations/openai/usage";
 import { PlannerError, type PlannerErrorCode } from "./errors";
 import { z } from "zod";
 import { PlannerCoverageDiagnosticsSchema, PlannerDecompositionKindDomainDiagnosticsSchema, type PlannerCoverageDiagnostics, type PlannerDecompositionKindDomainDiagnostics } from "./coverage-contract";
@@ -7,6 +7,7 @@ import { PlanningGraphCycleDiagnosticsSchema, type PlanningGraphCycleDiagnostics
 import { DecompositionMinimumDiagnosticsSchema, type DecompositionMinimumDiagnostics } from "./decomposition-minimum";
 import { CoverageRepresentabilityAnchorDiagnosticsSchema, type CoverageRepresentabilityAnchorDiagnostics } from "./coverage-representability";
 import { PlanningAdmissionBoundarySchema, PlanningFinalAdmissionDiagnosticsSchema, type PlanningAdmissionBoundary, type PlanningFinalAdmissionDiagnostics } from "./final-admission-diagnostics";
+import { createPlanningAdmissionDiagnosticEnvelope, PlanningAdmissionDiagnosticEnvelopeSchema, type PlanningAdmissionDiagnosticEnvelope, type PlanningAdmissionEvidence } from "./staged-admission-diagnostics";
 
 export const StagedPlanningStageSchema = z.enum([
   "PREFLIGHT",
@@ -89,6 +90,7 @@ export const StagedPlanningOperationSummarySchema = z.object({
   coverageDiagnostics: PlannerCoverageDiagnosticsSchema.optional(),
   representabilityAnchorDiagnostics: CoverageRepresentabilityAnchorDiagnosticsSchema.optional(),
   finalAdmissionDiagnostics: PlanningFinalAdmissionDiagnosticsSchema.optional(),
+  admissionDiagnostics: PlanningAdmissionDiagnosticEnvelopeSchema.optional(),
 }).strict();
 export type StagedPlanningOperationSummary = z.infer<typeof StagedPlanningOperationSummarySchema>;
 
@@ -105,6 +107,8 @@ export type StagedPlanningFailureDetails = {
   coverageDiagnostics?: PlannerCoverageDiagnostics;
   representabilityAnchorDiagnostics?: CoverageRepresentabilityAnchorDiagnostics;
   finalAdmissionDiagnostics?: PlanningFinalAdmissionDiagnostics;
+  admissionDiagnostics?: PlanningAdmissionDiagnosticEnvelope;
+  providerTermination?: ProviderTerminationMetadata;
   providerContract?: string;
   providerRequestCountExact: boolean;
   providerRequestAttempted: boolean;
@@ -155,6 +159,7 @@ export class StagedPlanningOperationTelemetry {
   private canonicalPlanningPersisted = false;
   private lifecycleMutated = false;
   private providerContract: string | null = null;
+  private providerTermination: ProviderTerminationMetadata | undefined;
   private providerRequestCountExact = true;
   private recorded = false;
 
@@ -194,6 +199,10 @@ export class StagedPlanningOperationTelemetry {
     counters.completed += 1;
   }
 
+  recordProviderDiagnostic(diagnostic: ProviderDiagnostic, parseStatus: ProviderTerminationParseStatus) {
+    this.providerTermination = createProviderTerminationMetadata(diagnostic, parseStatus);
+  }
+
   providerFailed(handle: { stage: StagedPlanningProviderStage; providerContract: string }, error: unknown) {
     const counters = this.providerCalls[handle.stage];
     const diagnostic = nestedProviderDiagnostic(error);
@@ -202,6 +211,7 @@ export class StagedPlanningOperationTelemetry {
       counters.failed += 1;
       return;
     }
+    this.recordProviderDiagnostic(diagnostic, (diagnostic.responseReceived ?? diagnostic.apiResponseReceived) ? "FAILED" : "NOT_REACHED");
     counters.attempted += diagnostic.requestAttempted ? 1 : 0;
     counters.started += diagnostic.requestAttempted ? 1 : 0;
     counters.responseReceived += (diagnostic.responseReceived ?? diagnostic.apiResponseReceived) ? 1 : 0;
@@ -243,12 +253,23 @@ export class StagedPlanningOperationTelemetry {
     coverageDiagnostics?: PlannerCoverageDiagnostics;
     representabilityAnchorDiagnostics?: CoverageRepresentabilityAnchorDiagnostics;
     finalAdmissionDiagnostics?: PlanningFinalAdmissionDiagnostics;
+    admissionEvidence?: PlanningAdmissionEvidence;
   }): StagedPlanningOperationSummary {
     const providerCallsByStage = {
       decomposition: { ...this.providerCalls.decomposition },
       coverage: { ...this.providerCalls.coverage },
     };
     const providerCallsTotal = Object.values(providerCallsByStage).reduce((sum, counters) => sum + counters.attempted, 0);
+    const admissionDiagnostics = input.admissionEvidence
+      ? createPlanningAdmissionDiagnosticEnvelope({
+          evidence: input.admissionEvidence,
+          projectId: this.identity.projectId,
+          operationId: this.identity.operationId,
+          correlationId: this.identity.correlationId,
+          stage: input.stageFailed ?? this.stageReached,
+          ...(this.providerTermination ? { providerTermination: this.providerTermination } : {}),
+        })
+      : undefined;
     return StagedPlanningOperationSummarySchema.parse({
       operationId: safeOperationId(this.identity.operationId),
       operationChecksum: this.identity.operationChecksum,
@@ -276,6 +297,7 @@ export class StagedPlanningOperationTelemetry {
       ...(input.coverageDiagnostics ? { coverageDiagnostics: input.coverageDiagnostics } : {}),
       ...(input.representabilityAnchorDiagnostics ? { representabilityAnchorDiagnostics: input.representabilityAnchorDiagnostics } : {}),
       ...(input.finalAdmissionDiagnostics ? { finalAdmissionDiagnostics: input.finalAdmissionDiagnostics } : {}),
+      ...(admissionDiagnostics ? { admissionDiagnostics } : {}),
     });
   }
 
@@ -300,14 +322,15 @@ export class StagedPlanningOperationTelemetry {
     coverageDiagnostics?: PlannerCoverageDiagnostics;
     representabilityAnchorDiagnostics?: CoverageRepresentabilityAnchorDiagnostics;
     finalAdmissionDiagnostics?: PlanningFinalAdmissionDiagnostics;
+    admissionEvidence?: PlanningAdmissionEvidence;
     message: string;
     cause?: unknown;
   }) {
     this.stageFailed = input.stage;
     this.stageReached = input.stage;
     const summary = this.recorded
-      ? this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, boundary: input.boundary, reasonCode: input.reasonCode, safeToken: input.safeToken, kindDomainDiagnostics: input.kindDomainDiagnostics, minimumDiagnostics: input.minimumDiagnostics, graphCycleDiagnostics: input.graphCycleDiagnostics, coverageDiagnostics: input.coverageDiagnostics, representabilityAnchorDiagnostics: input.representabilityAnchorDiagnostics, finalAdmissionDiagnostics: input.finalAdmissionDiagnostics })
-      : this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, boundary: input.boundary, reasonCode: input.reasonCode, safeToken: input.safeToken, kindDomainDiagnostics: input.kindDomainDiagnostics, minimumDiagnostics: input.minimumDiagnostics, graphCycleDiagnostics: input.graphCycleDiagnostics, coverageDiagnostics: input.coverageDiagnostics, representabilityAnchorDiagnostics: input.representabilityAnchorDiagnostics, finalAdmissionDiagnostics: input.finalAdmissionDiagnostics });
+      ? this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, boundary: input.boundary, reasonCode: input.reasonCode, safeToken: input.safeToken, kindDomainDiagnostics: input.kindDomainDiagnostics, minimumDiagnostics: input.minimumDiagnostics, graphCycleDiagnostics: input.graphCycleDiagnostics, coverageDiagnostics: input.coverageDiagnostics, representabilityAnchorDiagnostics: input.representabilityAnchorDiagnostics, finalAdmissionDiagnostics: input.finalAdmissionDiagnostics, admissionEvidence: input.admissionEvidence })
+      : this.summary({ stageFailed: input.stage, outerCode: input.outerCode, failureClass: input.failureClass, boundary: input.boundary, reasonCode: input.reasonCode, safeToken: input.safeToken, kindDomainDiagnostics: input.kindDomainDiagnostics, minimumDiagnostics: input.minimumDiagnostics, graphCycleDiagnostics: input.graphCycleDiagnostics, coverageDiagnostics: input.coverageDiagnostics, representabilityAnchorDiagnostics: input.representabilityAnchorDiagnostics, finalAdmissionDiagnostics: input.finalAdmissionDiagnostics, admissionEvidence: input.admissionEvidence });
     if (!this.recorded) {
       this.recorded = true;
       recordStagedPlanningOperation(summary);
@@ -325,6 +348,8 @@ export class StagedPlanningOperationTelemetry {
       ...(input.coverageDiagnostics ? { coverageDiagnostics: input.coverageDiagnostics } : {}),
       ...(input.representabilityAnchorDiagnostics ? { representabilityAnchorDiagnostics: input.representabilityAnchorDiagnostics } : {}),
       ...(input.finalAdmissionDiagnostics ? { finalAdmissionDiagnostics: input.finalAdmissionDiagnostics } : {}),
+      ...(summary.admissionDiagnostics ? { admissionDiagnostics: summary.admissionDiagnostics } : {}),
+      ...(this.providerTermination ? { providerTermination: this.providerTermination } : {}),
       ...(this.providerContract ? { providerContract: this.providerContract } : {}),
       providerRequestCountExact: summary.providerRequestCountExact,
       providerRequestAttempted: summary.providerRequestAttempted,

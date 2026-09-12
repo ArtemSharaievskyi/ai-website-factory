@@ -157,6 +157,31 @@ describe("durable Workbench Planning operation envelope", () => {
     expect(ledger.snapshot()).toMatchObject({ providerCallsTotal: 1, providerCallsByStage: { decomposition: { attempted: 1, started: 1, responseReceived: 0, failed: 1 } }, providerInvocationState: "FAILED" });
   });
 
+  it("persists provider termination metadata for completion and truncation without retaining raw output", async () => {
+    const completedDatabase = new InMemoryPersistenceDatabase();
+    const completedLedger = new WorkbenchOperationLedger(completedDatabase, projectId, `workbench-planning:${projectId}:completed`);
+    await completedLedger.bindCurrentness({ projectVersion: 1, rowVersion: 1, briefChecksum: "a".repeat(64) });
+    await completedLedger.reserve();
+    const completedClient = new OpenAiStructuredClient({ apiKey: "synthetic", model: "synthetic", modelLabel: "synthetic", maxRetries: 0, maxConcurrentRequests: 1 }, {
+      executor: async <T>() => ({ value: { ok: true } as T, requestId: "synthetic-complete", diagnostic: { stage: "api_response" as const, requestAttempted: true, apiResponseReceived: true, responseReceived: true, outputComplete: true, tokenExhaustion: false, parsedPresent: true, finishReason: "stop", schemaName: "planning-decomposition-v4" } }),
+    });
+    await completedClient.request({ role: "planner", promptVersion: "test.v1", system: "bounded system", user: "bounded user", schemaName: "planning-decomposition-v4", schema: z.object({ ok: z.boolean() }), idempotencyKey: "synthetic-complete", retryPolicy: { maxRetries: 0, corrections: 0 }, providerInvocation: { operationId: `workbench-planning:${projectId}:completed`, correlationId: "49494949-4949-4494-8494-494949494949", stage: "decomposition", ledger: completedLedger } });
+    const completed = await completedDatabase.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: projectId }));
+    expect(completed).toMatchObject({ result: { providerTermination: { transportStatus: "RESPONSE_RECEIVED", parseStatus: "PASSED", responseReceived: true, finishReason: "stop", rawResponseRetained: false } } });
+
+    const truncatedDatabase = new InMemoryPersistenceDatabase();
+    const truncatedLedger = new WorkbenchOperationLedger(truncatedDatabase, projectId, `workbench-planning:${projectId}:truncated`);
+    await truncatedLedger.bindCurrentness({ projectVersion: 1, rowVersion: 1, briefChecksum: "a".repeat(64) });
+    await truncatedLedger.reserve();
+    const truncatedClient = new OpenAiStructuredClient({ apiKey: "synthetic", model: "synthetic", modelLabel: "synthetic", maxRetries: 0, maxConcurrentRequests: 1 }, {
+      executor: async () => { throw new AiProviderError("AI_OUTPUT_TRUNCATED", "synthetic truncation", undefined, { stage: "api_response", requestAttempted: true, apiResponseReceived: true, responseReceived: true, outputComplete: false, tokenExhaustion: true, parsedPresent: false, finishReason: "length", schemaName: "planning-decomposition-v4" }); },
+    });
+    await expect(truncatedClient.request({ role: "planner", promptVersion: "test.v1", system: "bounded system", user: "bounded user", schemaName: "planning-decomposition-v4", schema: z.object({ ok: z.boolean() }), idempotencyKey: "synthetic-truncated", retryPolicy: { maxRetries: 0, corrections: 0 }, providerInvocation: { operationId: `workbench-planning:${projectId}:truncated`, correlationId: "49494949-4949-4494-8494-494949494949", stage: "decomposition", ledger: truncatedLedger } })).rejects.toMatchObject({ code: "AI_OUTPUT_TRUNCATED" });
+    const truncated = await truncatedDatabase.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: projectId }));
+    expect(truncated).toMatchObject({ result: { providerTermination: { transportStatus: "RESPONSE_RECEIVED", parseStatus: "FAILED", responseReceived: true, finishReason: "length", outputComplete: false, tokenExhaustion: true, rawResponseRetained: false }, providerCallsByStage: { decomposition: { structuredParsePassed: 0 } } } });
+    expect(JSON.stringify(truncated)).not.toContain("synthetic truncation");
+  });
+
   it("does not allow durable ledger updates after terminal completion", async () => {
     const database = new InMemoryPersistenceDatabase();
     const ledger = new WorkbenchOperationLedger(database, projectId);

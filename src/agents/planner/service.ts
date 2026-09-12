@@ -83,7 +83,7 @@ import type { TransitionContext } from "@/domain/workflow/engine";
 import { canonicalRequirementEntries } from "@/domain/requirements/v3/identity";
 import { assertPlannerReferenceTableCurrent, createPlannerReferenceTable, PlannerReferenceTableError } from "./reference-table";
 import { isAiProviderError } from "@/integrations/openai/errors";
-import type { ProviderDiagnostic, ProviderInvocationLedgerHandle, ProviderInvocationLedgerPort } from "@/integrations/openai/usage";
+import type { ProviderDiagnostic, ProviderInvocationLedgerHandle, ProviderInvocationLedgerPort, ProviderTerminationParseStatus } from "@/integrations/openai/usage";
 import {
   admitPlanningCoverage,
   admitPlanningDecomposition,
@@ -99,6 +99,7 @@ import {
   stagedPlanningCoverageDiagnostics,
   stagedPlanningRepresentabilityDiagnostics,
   stagedPlanningGraphCycleDiagnostics,
+  stagedPlanningAdmissionEvidence,
 } from "./staged-admission";
 import { PLANNER_COVERAGE_CONTRACT_VERSION, PLANNING_COVERAGE_PROVIDER_SCHEMA_NAME, PLANNER_DECOMPOSITION_PROVIDER_SCHEMA_NAME, type PlannerDecompositionProviderInput } from "./staged-contracts";
 import { createDecompositionMinimumContract } from "./decomposition-minimum";
@@ -511,6 +512,10 @@ export class PlannerArchitectService {
       minimumContract: createDecompositionMinimumContract({ brief: input.brief, canonicalBrief: input.canonicalBrief }),
       coverageRepresentabilityPlan: deriveCoverageRepresentabilityPlan(table),
     };
+    const recordProviderDiagnostic = (diagnostic: ProviderDiagnostic, parseStatus: ProviderTerminationParseStatus) => {
+      input.telemetry?.recordProviderDiagnostic(diagnostic, parseStatus);
+      return input.providerInvocationLedger?.recordProviderDiagnostic?.(diagnostic, parseStatus);
+    };
     let decompositionOutput;
     await input.setStage?.("DECOMPOSITION");
     input.telemetry?.enter("DECOMPOSITION_PROVIDER");
@@ -523,7 +528,7 @@ export class PlannerArchitectService {
         decompositionInput,
         input.skillSelection?.contexts,
         input.skillSelection?.identityChecksum,
-        input.correlationId ? { operationId: input.plannerInput.idempotencyKey, correlationId: input.correlationId, stage: "decomposition", ...(input.providerInvocationLedger ? { ledger: input.providerInvocationLedger } : {}), ...(decompositionInvocation ? { invocation: decompositionInvocation } : {}) } : undefined,
+        input.correlationId ? { operationId: input.plannerInput.idempotencyKey, correlationId: input.correlationId, stage: "decomposition", recordDiagnostic: recordProviderDiagnostic, ...(input.providerInvocationLedger ? { ledger: input.providerInvocationLedger } : {}), ...(decompositionInvocation ? { invocation: decompositionInvocation } : {}) } : undefined,
       );
       await decompositionInvocation?.responseReceived();
       await decompositionInvocation?.parsePassed();
@@ -612,7 +617,7 @@ export class PlannerArchitectService {
         { plannerReferenceTable: table, elements, graph, admissibleCoverageTargetsByRequirement: coverageTargetTable.admissibleCoverageTargetsByRequirement },
         input.skillSelection?.contexts,
         input.skillSelection?.identityChecksum,
-        input.correlationId ? { operationId: input.plannerInput.idempotencyKey, correlationId: input.correlationId, stage: "coverage", ...(input.providerInvocationLedger ? { ledger: input.providerInvocationLedger } : {}), ...(coverageInvocation ? { invocation: coverageInvocation } : {}) } : undefined,
+        input.correlationId ? { operationId: input.plannerInput.idempotencyKey, correlationId: input.correlationId, stage: "coverage", recordDiagnostic: recordProviderDiagnostic, ...(input.providerInvocationLedger ? { ledger: input.providerInvocationLedger } : {}), ...(coverageInvocation ? { invocation: coverageInvocation } : {}) } : undefined,
       );
       await coverageInvocation?.responseReceived();
       await coverageInvocation?.parsePassed();
@@ -1014,6 +1019,7 @@ export class PlannerArchitectService {
           ...(stagedPlanningCoverageDiagnostics(error) ? { coverageDiagnostics: stagedPlanningCoverageDiagnostics(error) } : {}),
           ...(stagedPlanningGraphCycleDiagnostics(error) ? { graphCycleDiagnostics: stagedPlanningGraphCycleDiagnostics(error) } : {}),
           ...(stagedPlanningRepresentabilityDiagnostics(error) ? { representabilityAnchorDiagnostics: stagedPlanningRepresentabilityDiagnostics(error) } : {}),
+          ...(stagedPlanningAdmissionEvidence(error) ? { admissionEvidence: stagedPlanningAdmissionEvidence(error) } : {}),
           ...(stage === "FINAL_ASSEMBLY" || stage === "FINAL_ADMISSION" ? { finalAdmissionDiagnostics: planningFinalAdmissionDiagnosticsFromError({ error, boundary: stage, validator: stage === "FINAL_ASSEMBLY" ? "ASSEMBLE_STAGED_PLANNING_CANDIDATE" : "VALIDATE_PLANNING_ADMISSION" }) } : {}),
           message: "Staged Planning failed safely; the project was not changed.",
           cause: error,

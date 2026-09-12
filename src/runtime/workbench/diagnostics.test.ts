@@ -61,7 +61,7 @@ describe("safe Web Workbench failure diagnostics D409-1..D409-24", () => {
   });
 
   it("D409-6 typed provider failures use the existing provider code safely", () => {
-    expect(failure(new AiProviderError("AI_PROVIDER_UNAVAILABLE", "private provider response"))).toMatchObject({ status: 503, response: { code: "AI_PROVIDER_UNAVAILABLE", category: "PROVIDER", recoverable: true } });
+    expect(failure(new AiProviderError("AI_PROVIDER_UNAVAILABLE", "private provider response", undefined, { stage: "api_request", requestAttempted: true, responseReceived: true, apiResponseReceived: true, httpStatus: 503 }))).toMatchObject({ status: 503, response: { code: "AI_PROVIDER_UNAVAILABLE", category: "PROVIDER", recoverable: true } });
   });
 
   it("D409-7 persistence conflicts remain 409 only for actual conflicts", () => {

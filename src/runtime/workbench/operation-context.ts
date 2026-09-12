@@ -2,6 +2,13 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { ProviderInvocationLedgerPort, ProviderInvocationLedgerState } from "@/integrations/openai/usage";
 import type { PlanningAdmissionBoundary, PlanningFinalAdmissionDiagnostics } from "@/agents/planner/final-admission-diagnostics";
 import type { ProviderFailureDiagnostic } from "@/domain/shared/provider-failure";
+import type { ProviderTerminationMetadata } from "@/integrations/openai/usage";
+import type { PlanningAdmissionDiagnosticEnvelope } from "@/agents/planner/staged-admission-diagnostics";
+import type { PlannerCoverageDiagnostics, PlannerDecompositionKindDomainDiagnostics } from "@/agents/planner/coverage-contract";
+import type { PlanningGraphCycleDiagnostics } from "@/agents/planner/staged-contracts";
+import type { DecompositionMinimumDiagnostics } from "@/agents/planner/decomposition-minimum";
+import type { CoverageRepresentabilityAnchorDiagnostics } from "@/agents/planner/coverage-representability";
+import type { StagedPlanningOperationSummary } from "@/agents/planner/staged-failures";
 
 export const WORKBENCH_OPERATION_STAGES = [
   "WORKBENCH_DISPATCH",
@@ -48,7 +55,14 @@ export type WorkbenchOperationFailureDetails = {
   lifecycleMutated: boolean;
   stagedStage?: string;
   finalAdmissionDiagnostics?: PlanningFinalAdmissionDiagnostics;
-  stagedOperation?: unknown;
+  stagedOperation?: StagedPlanningOperationSummary;
+  kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
+  minimumDiagnostics?: DecompositionMinimumDiagnostics;
+  graphCycleDiagnostics?: PlanningGraphCycleDiagnostics;
+  coverageDiagnostics?: PlannerCoverageDiagnostics;
+  representabilityAnchorDiagnostics?: CoverageRepresentabilityAnchorDiagnostics;
+  admissionDiagnostics?: PlanningAdmissionDiagnosticEnvelope;
+  providerTermination?: ProviderTerminationMetadata;
   internalClassification?: "UNEXPECTED_EXCEPTION";
 };
 

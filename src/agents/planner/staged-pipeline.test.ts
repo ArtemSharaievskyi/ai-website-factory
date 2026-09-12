@@ -910,7 +910,7 @@ describe("staged Planner pipeline", () => {
     expect(stagedFailure.details.operation).toMatchObject({ correlationId, providerCallsTotal: 1, providerCallsByStage: { decomposition: { attempted: 1, started: 1, failed: 1 }, coverage: { attempted: 0 } }, canonicalPlanningPersisted: false, lifecycleMutated: false });
     expect(getStagedPlanningOperations().at(-1)).toMatchObject({ correlationId, stageFailed: "DECOMPOSITION_PROVIDER", providerCallsTotal: 1 });
     const response = workbenchFailureResponse(failure, { action: "approve-planning", projectId, correlationId });
-    expect(response).toMatchObject({ status: 503, response: { code: "PLANNER_PROVIDER_FAILED", failureClass: "PROVIDER_TRANSPORT_FAILURE", stage: "DECOMPOSITION_PROVIDER", reasonCode: "AI_NETWORK_ERROR", providerRequestCount: 1, correlationId } });
+    expect(response).toMatchObject({ status: 503, response: { code: "PLANNER_PROVIDER_FAILED", category: "PROVIDER", failureClass: "PROVIDER_TRANSPORT_FAILURE", stage: "DECOMPOSITION_PROVIDER", reasonCode: "AI_NETWORK_ERROR", providerRequestCount: 1, correlationId } });
     expect(JSON.stringify(response)).not.toContain("private transport detail");
     expect(await new DocumentRepository(database).get(projectId, 1, "planning-package")).toBeNull();
   });
@@ -949,7 +949,7 @@ describe("staged Planner pipeline", () => {
     expect(failure).toMatchObject({ details: { reasonCode: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE", operation: { providerCallsTotal: 2, providerCallsByStage: { decomposition: { attempted: 1 }, coverage: { attempted: 1 } }, canonicalPlanningPersisted: false, lifecycleMutated: false } } });
     const outerFailure = await ledger.fail(failure);
     const response = workbenchFailureResponse(outerFailure, { action: "approve-planning", projectId, correlationId });
-    expect(response.response).toMatchObject({ code: "PLANNING_PACKAGE_INVALID", reasonCode: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE", providerRequestCount: 2, canonicalPlanningPersisted: false, lifecycleMutated: false });
+    expect(response.response).toMatchObject({ code: "PLANNING_PACKAGE_INVALID", category: "VALIDATION", reasonCode: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE", providerRequestCount: 2, canonicalPlanningPersisted: false, lifecycleMutated: false });
     expect(await new DocumentRepository(database).get(projectId, 1, "planning-package")).toBeNull();
   });
 
@@ -1003,12 +1003,26 @@ describe("staged Planner pipeline", () => {
   });
 
   it("classifies non-referential decomposition admission failures separately", async () => {
-    const { service, input } = await stagedService({
+    const { service, input, database } = await stagedService({
       async plan() { throw new Error("legacy path must not be called"); },
-      async decompose() { const output = portalDecomposition().output; return { ...output, elements: output.elements.slice(0, 1) }; },
+      async decompose(_input, _skills, _identity, providerInvocation) { await providerInvocation?.invocation?.beforeTransport(); const output = portalDecomposition().output; return { ...output, elements: output.elements.slice(0, 1) }; },
       async assignCoverage() { throw new Error("coverage must not be reached"); },
     });
-    await expect(service.planApprovedProject(input)).rejects.toMatchObject({ details: { stage: "DECOMPOSITION_ADMISSION", failureClass: "STAGED_DECOMPOSITION_FAILURE", reasonCode: "PLANNING_DECOMPOSITION_MINIMUM_ELEMENTS", minimumDiagnostics: { actualElementCount: 1, minimumElementCount: 5 }, operation: { providerRequestCount: 1, providerCallsByStage: { coverage: { attempted: 0 } } } } });
+    const correlationId = "24242424-2424-4424-8424-242424242424";
+    const ledger = new WorkbenchOperationLedger(database, projectId, `workbench-planning:${projectId}`, correlationId);
+    await ledger.bindCurrentness({ projectVersion: 1, rowVersion: 1, briefChecksum: canonicalBriefChecksum(input.canonicalBrief) });
+    await ledger.reserve();
+    let failure: unknown;
+    try { await service.planApprovedProject(input, { correlationId, providerInvocationLedger: ledger }); } catch (error) { failure = error; }
+    expect(failure).toMatchObject({ details: { stage: "DECOMPOSITION_ADMISSION", failureClass: "STAGED_DECOMPOSITION_FAILURE", reasonCode: "PLANNING_DECOMPOSITION_MINIMUM_ELEMENTS", minimumDiagnostics: { actualElementCount: 1, minimumElementCount: 5 }, admissionDiagnostics: { schemaVersion: 1, stage: "DECOMPOSITION_ADMISSION" }, operation: { providerRequestCount: 1, providerCallsByStage: { coverage: { attempted: 0 } } } } });
+    const outerFailure = await ledger.fail(failure);
+    const persisted = await database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: projectId }));
+    expect(persisted).toMatchObject({ status: "FAILED", result: { admissionDiagnostics: { schemaVersion: 1, stage: "DECOMPOSITION_ADMISSION", parsedElementCount: 1, normalizedElementCount: 1, failurePredicate: expect.any(String), providerTermination: { responseReceived: true, parseStatus: "PASSED", rawResponseRetained: false } }, providerCallsTotal: 1, canonicalPlanningPersisted: false, lifecycleMutated: false } });
+    expect(JSON.stringify(persisted)).not.toContain("Synthetic");
+    expect(workbenchFailureResponse(outerFailure, { action: "approve-planning", projectId, correlationId }).response.category).toBe("VALIDATION");
+    expect((await new ProjectRepository(database).getWithVersion(projectId))?.project.workflowState).toBe("AWAITING_PLANNING_GENERATION");
+    expect((await new ProjectRepository(database).getWithVersion(projectId))?.rowVersion).toBe(1);
+    expect(await new DocumentRepository(database).get(projectId, 1, "planning-package")).toBeNull();
   });
 
   it("rejects provider-declared dependency cycles before Coverage and retains graph diagnostics", async () => {

@@ -24,6 +24,7 @@ import { deriveCoverageRepresentabilityPlan, type CoverageRepresentabilityPlan }
 import { PLANNER_ELEMENT_KINDS_BY_DOMAIN, PlannerCoverageDomainSchema, PlannerCoverageElementKindSchema } from "./coverage-contract";
 import { OpenAiPlannerProvider } from "@/integrations/openai/adapters";
 import { OpenAiStructuredClient, buildProductionResponseFormat, type StructuredRequest } from "@/integrations/openai/client";
+import { PlanningAdmissionFailurePredicateSchema } from "./staged-admission-diagnostics";
 
 const projectId = "99999999-9999-4999-8999-999999999999";
 const legacyBrief = RequirementSpecificationSchema.parse({ ...representativeV1Brief, projectId, projectVersion: 1 });
@@ -300,5 +301,38 @@ describe("Planner decomposition minimum contract", () => {
 
     const graph = finalizePlanningElementGraph(admitPlanningDecomposition({ output, table, brief: frontendLegacyBrief, canonicalBrief }));
     expect(graph.elements).toHaveLength(2 + deriveCoverageRepresentabilityPlan(table).anchors.length);
+  });
+
+  it("records an exact bounded predicate for every minimum failure shape", () => {
+    const frontendTable = tableFor(cleanBriefV3);
+    const boundPage = frontendTable.pages[0]!.token;
+    const boundRoute = frontendTable.routes[0]!.token;
+    const failureFor = (elements: ReturnType<typeof proposal>[], brief = frontendLegacyBrief, canonicalBrief = cleanBriefV3) => {
+      let failure: unknown;
+      try {
+        admitPlanningDecompositionSemantics({ output: PlanningDecompositionProviderOutputSchema.parse({ schemaVersion: 1, providerContractVersion: PLANNER_DECOMPOSITION_CONTRACT_VERSION, complete: true, elements }), table: tableFor(canonicalBrief), brief, canonicalBrief });
+      } catch (error) {
+        failure = error;
+      }
+      return failure as { admissionEvidence?: { failurePredicate: string; parsedElementCount: number; normalizedElementCount: number; productScopePresent: boolean; pageOrRoutePresent: boolean; pageRouteBindingCount: number; unboundPageRouteCount: number; hostIssuedAnchorCount: number; hostIssuedAnchorCoverageCount: number } };
+    };
+    const cases = [
+      { name: "missing PRODUCT_SCOPE", elements: [proposal("PAGE", "FRONTEND", "Bound page", [boundPage], [boundRoute]), proposal("CONTENT", "FRONTEND", "Content responsibility")], expected: "MISSING_PRODUCT_SCOPE" },
+      { name: "missing PAGE/ROUTE", elements: [proposal("PRODUCT_SCOPE", "FRONTEND", "Product scope"), proposal("CONTENT", "FRONTEND", "Content responsibility")], expected: "MISSING_PAGE_ROUTE" },
+      { name: "missing page/route binding", elements: [proposal("PRODUCT_SCOPE", "FRONTEND", "Product scope"), proposal("PAGE", "FRONTEND", "Unbound page")], expected: "PAGE_ROUTE_BINDING_MISSING" },
+      { name: "insufficient frontend", elements: [proposal("PRODUCT_SCOPE", "FRONTEND", "Product scope")], expected: "INSUFFICIENT_FRONTEND_ELEMENTS" },
+      { name: "insufficient backend", elements: [proposal("PRODUCT_SCOPE", "FRONTEND", "Product scope"), proposal("PAGE", "FRONTEND", "Bound page", [boundPage], [boundRoute]), proposal("DATABASE_MODEL", "DATABASE", "Persistence model"), proposal("AUTHENTICATION", "SECURITY", "Authentication boundary")], brief: legacyBrief, canonicalBrief: statefulCanonicalBrief(), expected: "INSUFFICIENT_BACKEND_ELEMENTS" },
+      { name: "insufficient security", elements: [proposal("PRODUCT_SCOPE", "FRONTEND", "Product scope"), proposal("PAGE", "FRONTEND", "Bound page", [boundPage], [boundRoute]), proposal("ARCHITECTURE", "BACKEND", "Server boundary"), proposal("DATABASE_MODEL", "DATABASE", "Persistence model")], brief: legacyBrief, canonicalBrief: statefulCanonicalBrief(), expected: "INSUFFICIENT_SECURITY_ELEMENTS" },
+    ];
+    for (const testCase of cases) {
+      const failure = failureFor(testCase.elements, testCase.brief, testCase.canonicalBrief);
+      expect(failure.admissionEvidence, testCase.name).toBeDefined();
+      expect(PlanningAdmissionFailurePredicateSchema.parse(failure.admissionEvidence!.failurePredicate)).toBe(testCase.expected);
+    }
+    const frontendSuccess = normalizePlanningDecompositionProviderOutput(exactFrontendWire(cleanBriefV3), createDecompositionMinimumContract({ brief: frontendLegacyBrief, canonicalBrief: cleanBriefV3 }), deriveCoverageRepresentabilityPlan(frontendTable));
+    expect(() => admitPlanningDecompositionSemantics({ output: frontendSuccess, table: frontendTable, brief: frontendLegacyBrief, canonicalBrief: cleanBriefV3 })).not.toThrow();
+    const evidence = failureFor([proposal("PRODUCT_SCOPE", "FRONTEND", "Product scope")]).admissionEvidence!;
+    expect(evidence).toMatchObject({ parsedElementCount: 1, normalizedElementCount: 1, productScopePresent: true, pageOrRoutePresent: false, pageRouteBindingCount: 0, unboundPageRouteCount: 0, hostIssuedAnchorCount: 0, hostIssuedAnchorCoverageCount: 0 });
+    expect(JSON.stringify(evidence)).not.toContain("Product scope");
   });
 });

@@ -3,9 +3,15 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import type { PersistenceDatabase, OperationReservation } from "@/persistence/database/types";
 import { isStagedPlanningFailure } from "@/agents/planner/staged-failures";
 import type { PlanningAdmissionBoundary, PlanningFinalAdmissionDiagnostics } from "@/agents/planner/final-admission-diagnostics";
-import type { ProviderInvocationLedgerHandle, ProviderInvocationLedgerPort, ProviderInvocationLedgerState, ProviderInvocationStage } from "@/integrations/openai/usage";
+import { createProviderTerminationMetadata, type ProviderDiagnostic, type ProviderInvocationLedgerHandle, type ProviderInvocationLedgerPort, type ProviderInvocationLedgerState, type ProviderInvocationStage, type ProviderTerminationMetadata, type ProviderTerminationParseStatus } from "@/integrations/openai/usage";
 import { providerFailureDiagnosticFromError } from "@/integrations/openai/failure-diagnostics";
 import type { ProviderFailureDiagnostic } from "@/domain/shared/provider-failure";
+import type { PlanningAdmissionDiagnosticEnvelope } from "@/agents/planner/staged-admission-diagnostics";
+import type { PlannerCoverageDiagnostics, PlannerDecompositionKindDomainDiagnostics } from "@/agents/planner/coverage-contract";
+import type { PlanningGraphCycleDiagnostics } from "@/agents/planner/staged-contracts";
+import type { DecompositionMinimumDiagnostics } from "@/agents/planner/decomposition-minimum";
+import type { CoverageRepresentabilityAnchorDiagnostics } from "@/agents/planner/coverage-representability";
+import type { StagedPlanningOperationSummary } from "@/agents/planner/staged-failures";
 import { WorkbenchOperationFailure, type WorkbenchOperationFailureDetails, type WorkbenchOperationStage } from "./operation-context";
 
 type ProviderCounters = {
@@ -42,6 +48,14 @@ type RecordState = {
   boundary: PlanningAdmissionBoundary | null;
   reasonCode: string | null;
   finalAdmissionDiagnostics: PlanningFinalAdmissionDiagnostics | null;
+  kindDomainDiagnostics: PlannerDecompositionKindDomainDiagnostics | null;
+  minimumDiagnostics: DecompositionMinimumDiagnostics | null;
+  graphCycleDiagnostics: PlanningGraphCycleDiagnostics | null;
+  coverageDiagnostics: PlannerCoverageDiagnostics | null;
+  representabilityAnchorDiagnostics: CoverageRepresentabilityAnchorDiagnostics | null;
+  stagedOperation: StagedPlanningOperationSummary | null;
+  admissionDiagnostics: PlanningAdmissionDiagnosticEnvelope | null;
+  providerTermination: ProviderTerminationMetadata | null;
   safeErrorFingerprint: string | null;
 };
 
@@ -68,6 +82,14 @@ const initialRecord = (operationId: string, projectId: string, correlationId: st
   boundary: null,
   reasonCode: null,
   finalAdmissionDiagnostics: null,
+  kindDomainDiagnostics: null,
+  minimumDiagnostics: null,
+  graphCycleDiagnostics: null,
+  coverageDiagnostics: null,
+  representabilityAnchorDiagnostics: null,
+  stagedOperation: null,
+  admissionDiagnostics: null,
+  providerTermination: null,
   safeErrorFingerprint: null,
 });
 
@@ -219,6 +241,12 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
     });
   }
 
+  async recordProviderDiagnostic(diagnostic: ProviderDiagnostic, parseStatus: ProviderTerminationParseStatus) {
+    if (!this.reserved) return;
+    this.record.providerTermination = createProviderTerminationMetadata(diagnostic, parseStatus);
+    await this.persist();
+  }
+
   async complete() {
     this.record.stage = "LIFECYCLE_TRANSITION";
     await this.database.transaction((tx) => tx.completeOperation({ operation: this.operation, key: this.key, payloadHash: this.reservationPayloadHash!, result: structuredClone(this.record), leaseId: this.record.attemptId }));
@@ -233,6 +261,13 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
     const reasonCode = stagedFailure ? stagedFailure.details.reasonCode : safeCode(error);
     const boundary = stagedFailure?.details.boundary ?? (stagedFailure?.details.stage === "FINAL_ASSEMBLY" || stagedFailure?.details.stage === "FINAL_ADMISSION" ? stagedFailure.details.stage : undefined);
     const finalAdmissionDiagnostics = stagedFailure?.details.finalAdmissionDiagnostics;
+    const kindDomainDiagnostics = stagedFailure?.details.kindDomainDiagnostics;
+    const minimumDiagnostics = stagedFailure?.details.minimumDiagnostics;
+    const graphCycleDiagnostics = stagedFailure?.details.graphCycleDiagnostics;
+    const coverageDiagnostics = stagedFailure?.details.coverageDiagnostics;
+    const representabilityAnchorDiagnostics = stagedFailure?.details.representabilityAnchorDiagnostics;
+    const stagedOperation = stagedFailure?.details.operation;
+    const admissionDiagnostics = stagedFailure?.details.admissionDiagnostics;
     const safeErrorFingerprint = safeOperationFingerprint(error, operationStage, boundary, finalAdmissionDiagnostics?.primary.reasonCode ?? reasonCode);
     const providerDiagnostic = providerFailureDiagnosticFromError(error);
     this.record = {
@@ -245,6 +280,13 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
       boundary: boundary ?? null,
       reasonCode: reasonCode ?? null,
       finalAdmissionDiagnostics: finalAdmissionDiagnostics ?? null,
+      kindDomainDiagnostics: kindDomainDiagnostics ?? null,
+      minimumDiagnostics: minimumDiagnostics ?? null,
+      graphCycleDiagnostics: graphCycleDiagnostics ?? null,
+      coverageDiagnostics: coverageDiagnostics ?? null,
+      representabilityAnchorDiagnostics: representabilityAnchorDiagnostics ?? null,
+      stagedOperation: stagedOperation ?? null,
+      admissionDiagnostics: admissionDiagnostics ?? null,
       safeErrorFingerprint,
       canonicalPlanningPersisted: this.record.canonicalPlanningPersisted || commitOutcomeAmbiguous,
       lifecycleMutated: this.record.lifecycleMutated || commitOutcomeAmbiguous,
@@ -261,6 +303,14 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
       ...(boundary ? { boundary } : {}),
       ...(reasonCode ? { reasonCode } : {}),
       ...(finalAdmissionDiagnostics ? { finalAdmissionDiagnostics } : {}),
+      ...(kindDomainDiagnostics ? { kindDomainDiagnostics } : {}),
+      ...(minimumDiagnostics ? { minimumDiagnostics } : {}),
+      ...(graphCycleDiagnostics ? { graphCycleDiagnostics } : {}),
+      ...(coverageDiagnostics ? { coverageDiagnostics } : {}),
+      ...(representabilityAnchorDiagnostics ? { representabilityAnchorDiagnostics } : {}),
+      ...(stagedOperation ? { stagedOperation } : {}),
+      ...(admissionDiagnostics ? { admissionDiagnostics } : {}),
+      ...(this.record.providerTermination ? { providerTermination: this.record.providerTermination } : {}),
       safeErrorFingerprint,
       ...(this.record.providerContract ? { providerContract: this.record.providerContract } : {}),
       ...(this.record.providerDiagnostic ? { providerDiagnostic: this.record.providerDiagnostic } : {}),
@@ -269,7 +319,7 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
       ...(this.record.providerInvocationState ? { providerInvocationState: this.record.providerInvocationState } : {}),
       canonicalPlanningPersisted: this.record.canonicalPlanningPersisted,
       lifecycleMutated: this.record.lifecycleMutated,
-      ...(stagedFailure ? { stagedStage: stagedFailure.details.stage, stagedOperation: stagedFailure.details.operation } : {}),
+      ...(stagedFailure ? { stagedStage: stagedFailure.details.stage } : {}),
       ...(failureClass === "UNEXPECTED_EXCEPTION" ? { internalClassification: "UNEXPECTED_EXCEPTION" as const } : {}),
     };
     try {

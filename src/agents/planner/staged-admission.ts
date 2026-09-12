@@ -58,6 +58,10 @@ import {
   requiredDecompositionDomains,
   type DecompositionMinimumDiagnostics,
 } from "./decomposition-minimum";
+import {
+  createPlanningAdmissionEvidence,
+  type PlanningAdmissionEvidence,
+} from "./staged-admission-diagnostics";
 import { PlanningPackageSchema, type PlannerAgentInput, type PlanningPackage } from "./contracts";
 import {
   PlannerReferenceBindingError,
@@ -89,6 +93,7 @@ export class StagedPlanningAdmissionError extends Error {
     readonly coverageDiagnostics?: PlannerCoverageDiagnostics,
     readonly minimumDiagnostics?: DecompositionMinimumDiagnostics,
     readonly representabilityAnchorDiagnostics?: CoverageRepresentabilityAnchorDiagnostics,
+    readonly admissionEvidence?: PlanningAdmissionEvidence,
   ) {
     super(`${code}:${fieldPath}`);
     this.name = "StagedPlanningAdmissionError";
@@ -134,6 +139,12 @@ export function stagedPlanningMinimumDiagnostics(error: unknown, depth = 0): Dec
   if (depth > 6 || !error || typeof error !== "object") return undefined;
   if (error instanceof StagedPlanningAdmissionError) return error.minimumDiagnostics;
   return "cause" in error ? stagedPlanningMinimumDiagnostics(error.cause, depth + 1) : undefined;
+}
+
+export function stagedPlanningAdmissionEvidence(error: unknown, depth = 0): PlanningAdmissionEvidence | undefined {
+  if (depth > 6 || !error || typeof error !== "object") return undefined;
+  if (error instanceof StagedPlanningAdmissionError) return error.admissionEvidence;
+  return "cause" in error ? stagedPlanningAdmissionEvidence(error.cause, depth + 1) : undefined;
 }
 
 const normalized = (value: string) => value.normalize("NFKD").toLocaleLowerCase("en").replace(/[^a-z0-9]+/g, " ").trim();
@@ -254,6 +265,27 @@ export function admitPlanningDecompositionSemantics(input: {
   const minimumResult = decompositionMinimumSatisfied({ elements, contract: minimumContract, hasPageOrRoute, hasRequiredPageOrRouteBinding });
   const minimum = minimumResult.diagnostics;
   if (!minimumResult.satisfied) {
+    const failureCode = minimum.missingRequiredDomains.some((domain) => minimum.actualCountByDomain[domain] === 0)
+      && minimum.actualElementCount >= minimum.minimumElementCount
+      && minimum.missingRequiredKinds.length === 0
+      && hasPageOrRoute
+      && hasRequiredPageOrRouteBinding
+      ? "PLANNING_DECOMPOSITION_DOMAIN_MISSING"
+      : "PLANNING_DECOMPOSITION_INVALID";
+    const failureReasonCode = failureCode === "PLANNING_DECOMPOSITION_DOMAIN_MISSING"
+      ? minimum.missingRequiredDomains.find((domain) => minimum.actualCountByDomain[domain] === 0)
+      : "PLANNING_DECOMPOSITION_MINIMUM_ELEMENTS";
+    const admissionEvidence = createPlanningAdmissionEvidence({
+      parsed,
+      elements,
+      table,
+      minimumContract,
+      representabilityPlan,
+      hasRequiredPageOrRouteBinding,
+      failureCode,
+      failureReasonCode,
+      minimumDiagnostics: minimum,
+    });
     const missingDomainOnly = minimum.missingRequiredDomains.some((domain) => minimum.actualCountByDomain[domain] === 0)
       && minimum.actualElementCount >= minimum.minimumElementCount
       && minimum.missingRequiredKinds.length === 0
@@ -261,9 +293,9 @@ export function admitPlanningDecompositionSemantics(input: {
       && hasRequiredPageOrRouteBinding;
     if (missingDomainOnly) {
       const missingDomain = minimum.missingRequiredDomains.find((domain) => minimum.actualCountByDomain[domain] === 0)!;
-      throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_DOMAIN_MISSING", "elements", missingDomain, undefined, undefined, undefined, undefined, minimum);
+      throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_DOMAIN_MISSING", "elements", missingDomain, undefined, undefined, undefined, undefined, minimum, undefined, admissionEvidence);
     }
-    throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_INVALID", "elements", "PLANNING_DECOMPOSITION_MINIMUM_ELEMENTS", undefined, undefined, undefined, undefined, minimum);
+    throw new StagedPlanningAdmissionError("PLANNING_DECOMPOSITION_INVALID", "elements", "PLANNING_DECOMPOSITION_MINIMUM_ELEMENTS", undefined, undefined, undefined, undefined, minimum, undefined, admissionEvidence);
   }
   const pageTokens = new Set(elements.flatMap((element) => element.pageTokens));
   const routeTokens = new Set(elements.flatMap((element) => element.routeTokens));
