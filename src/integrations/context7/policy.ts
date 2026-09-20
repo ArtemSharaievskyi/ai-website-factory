@@ -1,6 +1,6 @@
 import { Context7Error } from "./errors";
 
-export const APPROVED_CONTEXT7_PACKAGES = ["next", "react", "react-dom", "typescript", "tailwindcss", "zod", "react-hook-form", "@supabase/supabase-js", "@supabase/ssr", "vitest", "@playwright/test", "motion"] as const;
+export const APPROVED_CONTEXT7_PACKAGES = ["next", "react", "react-dom", "typescript", "tailwindcss", "daisyui", "zod", "react-hook-form", "@supabase/supabase-js", "@supabase/ssr", "vitest", "@playwright/test", "motion"] as const;
 const vague = /^(everything|all|entire|complete)\b|\b(all|entire)\s+(the\s+)?(docs|documentation)\b/i;
 export function validatePackageAccess(packageName: string, input: { dependencyPlan?: Array<{ name: string }>; designApprovesMotion?: boolean }) {
   if (!APPROVED_CONTEXT7_PACKAGES.includes(packageName as typeof APPROVED_CONTEXT7_PACKAGES[number])) throw new Context7Error("CONTEXT7_LIBRARY_NOT_ALLOWED", "The package is not on the approved Context7 allowlist.");

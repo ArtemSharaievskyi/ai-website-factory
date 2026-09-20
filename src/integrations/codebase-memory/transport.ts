@@ -7,10 +7,10 @@ export const CODEBASE_MEMORY_RAW_LINE_MAX_BYTES = 200_000;
 export const CODEBASE_MEMORY_STDERR_MAX_BYTES = 16_000;
 export type UpstreamTransport = (tool: UpstreamTool, args: Record<string, unknown>, signal?: AbortSignal) => Promise<string>;
 
-const CHILD_ENVIRONMENT_KEYS = ["PATH", "Path", "PATHEXT", "SystemRoot", "SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "COMSPEC"] as const;
+const CHILD_ENVIRONMENT_KEYS = ["PATH", "Path", "PATHEXT", "SystemRoot", "SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "COMSPEC", "CBM_CACHE_DIR", "CBM_ALLOWED_ROOT"] as const;
 
-export function buildCodebaseMemoryChildEnvironment(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  const environment: NodeJS.ProcessEnv = { NODE_ENV: source.NODE_ENV ?? "production" };
+export function buildCodebaseMemoryChildEnvironment(source: Record<string, string | undefined> = process.env): NodeJS.ProcessEnv {
+  const environment: NodeJS.ProcessEnv = { NODE_ENV: (source.NODE_ENV ?? "production") as NodeJS.ProcessEnv["NODE_ENV"] };
   for (const key of CHILD_ENVIRONMENT_KEYS) if (source[key] !== undefined) environment[key] = source[key];
   return environment;
 }

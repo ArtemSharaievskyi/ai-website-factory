@@ -36,7 +36,7 @@ export class Context7Service implements Context7DocumentationPort {
         controller = new AbortController();
         let cancel: (() => void) | undefined; let timeout: ReturnType<typeof setTimeout> | undefined;
         const cancellation = signal ? new Promise<never>((_, reject) => { cancel = () => reject(new Context7Error("CONTEXT7_CANCELLED", "Context7 request was cancelled.")); signal.addEventListener("abort", cancel, { once: true }); }) : undefined;
-        const transport = Promise.resolve().then(() => this.transport({ libraryId: plan.resolvedLibraryId, packageName: plan.packageName, version: plan.version, topic: plan.topic, symbol: plan.symbol, signal: controller.signal }));
+        const transport = Promise.resolve().then(() => this.transport({ libraryId: plan.resolvedLibraryId, packageName: plan.packageName, version: plan.version, topic: plan.topic, symbol: plan.symbol, maxBytes: plan.maxBytes, signal: controller.signal }));
         try {
           const response = await Promise.race([transport, new Promise<never>((_, reject) => { timeout = setTimeout(() => { controller.abort(); reject(new Context7Error("CONTEXT7_TIMEOUT", "Context7 request timed out.")); }, this.config.timeoutMs); }), ...(cancellation ? [cancellation] : [])]);
           const excerpts = normalizeContext7Response(parseContext7TransportResponse(response), plan); return { queryId: plan.queryId, excerpts, totalBytes: excerpts.reduce((sum, item) => sum + Buffer.byteLength(item.content, "utf8"), 0), cache: "miss", versionUnresolved: !plan.version };

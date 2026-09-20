@@ -63,7 +63,14 @@ import {
   readCodebaseMemoryConfig,
   CodebaseMemoryService,
 } from "@/integrations/codebase-memory";
-import { createProcessTransport } from "@/integrations/codebase-memory/transport";
+import {
+  buildCodebaseMemoryChildEnvironment,
+  createProcessTransport,
+} from "@/integrations/codebase-memory/transport";
+import { Context7Cache } from "@/integrations/context7/cache";
+import { readContext7Config } from "@/integrations/context7/config";
+import { Context7Service } from "@/integrations/context7/service";
+import { createContext7McpTransport } from "@/integrations/context7/transport";
 import { SkillRegistry } from "@/skills/registry/registry";
 import {
   resolveApprovedSkillContext,
@@ -210,8 +217,20 @@ export function createProductionFactoryRuntime(
     },
   });
   const codebaseConfig = readCodebaseMemoryConfig(env);
+  const context7Config = readContext7Config(env);
+  const context7 = context7Config.enabled
+    ? new Context7Service(
+        createContext7McpTransport(context7Config),
+        context7Config,
+        new Context7Cache(
+          path.join(process.cwd(), ".factory", "context7-cache"),
+          context7Config.cacheTtlSeconds,
+        ),
+      )
+    : undefined;
   const identity = createProductionFactoryIdentity({
     ...options,
+    context7: context7Config.enabled ? "configured" : options.context7 ?? "not-needed",
     codebaseMemory: codebaseConfig.enabled ? "configured" : "not-needed",
   });
   const skillRegistry = new SkillRegistry(path.join(process.cwd(), "skills"));
@@ -433,6 +452,7 @@ export function createProductionFactoryRuntime(
         provider: ai.planner,
         memory: new PlannerMemoryAdapter(sync, decisions),
         resolveSkills: resolvePlannerSkills,
+        context7,
       });
       const planningRecovery = new PlanningRecoveryService({
         database,
@@ -496,6 +516,7 @@ export function createProductionFactoryRuntime(
               codebaseConfig.executable ?? "codebase-memory-mcp",
               workspaceRoot,
               codebaseConfig.timeoutMs,
+              buildCodebaseMemoryChildEnvironment(env),
             ),
             codebaseConfig,
           )
@@ -508,6 +529,7 @@ export function createProductionFactoryRuntime(
               provider: ai.implementation,
               taskGraphOwner: "full-execution",
               resolveSkills: resolveImplementationSkills,
+              context7,
               memory: implementationMemory,
               codebaseMemory: codebaseMemory
                 ? {

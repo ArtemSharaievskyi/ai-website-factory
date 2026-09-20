@@ -35,6 +35,16 @@ const sha = (value: string) =>
 const CODEBASE_MEMORY_REFERENCE_LIMIT = 20;
 const secretLike =
   /(sk-[A-Za-z0-9]{12,}|AKIA[A-Z0-9]{12,}|-----BEGIN .*PRIVATE KEY-----|password\s*[:=]|DATABASE_URL\s*[:=])/i;
+const CONTEXT7_IMPLEMENTATION_TOPICS: Record<string, string> = {
+  daisyui: "daisyUI Tailwind v4 plugin configuration",
+  "@supabase/supabase-js": "Supabase server-only client integration patterns",
+  zod: "Zod schema validation patterns",
+  react: "React component implementation patterns",
+  next: "Next.js App Router implementation patterns",
+};
+export function context7ImplementationTopic(packageName: string) {
+  return CONTEXT7_IMPLEMENTATION_TOPICS[packageName] ?? "library implementation patterns";
+}
 export type SkillLoader = {
   load(request: {
     skillId: string;
@@ -315,7 +325,7 @@ export class TaskContextAssembler {
           packageName,
           resolvedLibraryId: packageName,
           version: plannedVersion,
-          topic: objective.slice(0, 180),
+          topic: context7ImplementationTopic(packageName),
           reason: `Current task needs ${packageName} implementation guidance.`,
           requirementReferences: input.task.requirementReferences ?? [],
           planningReferences: input.task.planningReferences ?? [],
@@ -328,7 +338,7 @@ export class TaskContextAssembler {
         context7Excerpts = (
           await this.dependencies.context7.queryDocumentation({
             plan,
-            idempotencyKey: `implementation:${input.task.id}:${objective}`,
+            idempotencyKey: `implementation:${input.task.id}:${packageName}:${input.task.taskType}`,
           })
         ).excerpts;
       }
