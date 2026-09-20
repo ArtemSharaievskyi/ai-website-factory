@@ -216,27 +216,18 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
     return { projectVersion: value.projectVersion, rowVersion: value.rowVersion, briefChecksum: value.briefChecksum };
   }
 
-  private failedAttemptMayBeReexecuted(existing: { payloadHash: string; result?: unknown }, currentHash: string) {
+  private failedAttemptReexecutionDecision(existing: { payloadHash: string; result?: unknown }) {
     const historical = this.historicalCurrentness(existing.result);
-    if (historical && this.record.currentness) {
-      const sameCurrentness = historical.projectVersion === this.record.currentness.projectVersion
-        && historical.rowVersion === this.record.currentness.rowVersion
-        && historical.briefChecksum === this.record.currentness.briefChecksum;
-      const knownHistoricalPayload = [null, historical].some((legacyCurrentness) =>
-        (["approve-planning", "generate-planning"] as const).some((action) => existing.payloadHash === legacyWorkbenchPlanningIntentHash(this.record.projectId, action, legacyCurrentness)));
-      return sameCurrentness && knownHistoricalPayload;
-    }
-    if (historical || this.record.currentness === undefined) return false;
-
-    // Before the GENERATE_PLANNING frontier was exposed, the operation was
-    // reserved before currentness was bound. Only that known unbound legacy
-    // shape is eligible without historical currentness evidence, and only
-    // when no provider or canonical mutation had occurred.
-    const legacyUnbound = existing.payloadHash === legacyWorkbenchPlanningIntentHash(this.record.projectId, "approve-planning", null)
-      || existing.payloadHash === legacyWorkbenchPlanningIntentHash(this.record.projectId, "generate-planning", null);
-    if (!legacyUnbound || !existing.result || typeof existing.result !== "object" || Array.isArray(existing.result)) return false;
-    const result = existing.result as { providerCallsTotal?: unknown; canonicalPlanningPersisted?: unknown; lifecycleMutated?: unknown };
-    return result.providerCallsTotal === 0 && result.canonicalPlanningPersisted === false && result.lifecycleMutated === false && currentHash !== existing.payloadHash;
+    if (!historical) return { allowed: false as const, reasonCode: "HISTORICAL_CURRENTNESS_UNAVAILABLE" as const };
+    if (!this.record.currentness) return { allowed: false as const, reasonCode: "CURRENTNESS_UNAVAILABLE" as const };
+    const sameCurrentness = historical.projectVersion === this.record.currentness.projectVersion
+      && historical.rowVersion === this.record.currentness.rowVersion
+      && historical.briefChecksum === this.record.currentness.briefChecksum;
+    if (!sameCurrentness) return { allowed: false as const, reasonCode: "CURRENTNESS_MISMATCH" as const };
+    const knownHistoricalPayload = [null, historical].some((legacyCurrentness) =>
+      (["approve-planning", "generate-planning"] as const).some((action) => existing.payloadHash === legacyWorkbenchPlanningIntentHash(this.record.projectId, action, legacyCurrentness)));
+    if (!knownHistoricalPayload) return { allowed: false as const, reasonCode: "HISTORICAL_PAYLOAD_INCOMPATIBLE" as const };
+    return { allowed: true as const };
   }
 
   private async persistAttemptTerminal(status: "SUCCEEDED" | "FAILED") {
@@ -272,11 +263,19 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
       if (existing?.status === "IN_PROGRESS") throw new WorkbenchOperationConflict("WORKBENCH_OPERATION_IN_PROGRESS", "A current Planning operation is already active.");
       if (existing?.status === "SUCCEEDED" && existing.payloadHash !== currentHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The current Planning operation is bound to a different semantic intent.");
       let reservationHash = currentHash;
-      if (existing?.status === "FAILED" && existing.payloadHash !== currentHash) {
-        if (!this.failedAttemptMayBeReexecuted(existing, currentHash)) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The failed Planning operation is bound to stale or incompatible canonical intent.");
+      if (existing?.status === "FAILED") {
+        const decision = this.failedAttemptReexecutionDecision(existing);
+        if (!decision.allowed) {
+          const message = decision.reasonCode === "CURRENTNESS_MISMATCH"
+            ? "The failed Planning operation is bound to stale canonical currentness."
+            : decision.reasonCode === "HISTORICAL_CURRENTNESS_UNAVAILABLE"
+              ? "The failed Planning operation has no historical currentness evidence for reexecution."
+              : "The failed Planning operation is bound to stale or incompatible canonical intent.";
+          throw new PersistenceError("IDEMPOTENCY_CONFLICT", message, { reasonCode: decision.reasonCode });
+        }
         // Keep the historical logical-row hash as the compatibility binding;
         // the new attempt gets its own currentness-bound request hash below.
-        reservationHash = existing.payloadHash;
+        if (existing.payloadHash !== currentHash) reservationHash = existing.payloadHash;
       }
       this.reservationPayloadHash = reservationHash;
       return tx.reserveOperation({ operation: this.operation, key: this.key, payloadHash: reservationHash, initialResult: this.record });

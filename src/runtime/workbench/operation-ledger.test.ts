@@ -9,7 +9,7 @@ import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from 
 import { WorkbenchApplication } from "./application";
 import { workbenchFailureResponse } from "./diagnostics";
 import { WorkbenchOperationFailure } from "./operation-context";
-import { legacyWorkbenchPlanningIntentHash, readWorkbenchPlanningAttempt, WorkbenchOperationLedger, safeOperationFingerprint, workbenchPlanningIntentHash } from "./operation-ledger";
+import { legacyWorkbenchPlanningIntentHash, readWorkbenchPlanningAttempt, WorkbenchOperationLedger, safeOperationFingerprint, workbenchPlanningAttemptKey, workbenchPlanningIntentHash, type WorkbenchPlanningCurrentness } from "./operation-ledger";
 import { OpenAiStructuredClient } from "@/integrations/openai/client";
 import { AiProviderError } from "@/integrations/openai/errors";
 import { PersistenceError } from "@/persistence/database/errors";
@@ -34,6 +34,47 @@ async function approvedPlanningFixture() {
   const entry = {} as never;
   const app = new WorkbenchApplication({ database, entry, getWorkflowScope: () => ({ planner, architectureReviewer: empty, design: empty, orchestrator: empty, contractAuditor: empty } as never) });
   return { database, app, briefChecksum, planner };
+}
+
+async function seedFailedPlanningOperation(database: InMemoryPersistenceDatabase, currentness?: WorkbenchPlanningCurrentness) {
+  const operationId = `workbench-planning:${projectId}`;
+  const attemptId = "77777777-7777-4777-8777-777777777777";
+  const correlationId = "88888888-8888-4888-8888-888888888888";
+  const historicalHash = legacyWorkbenchPlanningIntentHash(projectId, "approve-planning", null);
+  const historical = {
+    attemptId,
+    correlationId,
+    operationId,
+    operationKind: "PLANNING_GENERATION" as const,
+    projectId,
+    phase: "PLANNING" as const,
+    ...(currentness ? { currentness } : {}),
+    providerCallsTotal: 0,
+    canonicalPlanningPersisted: false,
+    lifecycleMutated: false,
+  };
+  const attemptHash = "9".repeat(64);
+  await database.transaction(async (tx) => {
+    await tx.reserveOperation({ operation: "workbench.planning", key: projectId, payloadHash: historicalHash, initialResult: historical });
+    await tx.failOperation({ operation: "workbench.planning", key: projectId, payloadHash: historicalHash, result: historical, leaseId: attemptId });
+    await tx.reserveOperation({ operation: "workbench.planning.attempt", key: workbenchPlanningAttemptKey(operationId, attemptId), payloadHash: attemptHash, initialResult: historical });
+    await tx.failOperation({ operation: "workbench.planning.attempt", key: workbenchPlanningAttemptKey(operationId, attemptId), payloadHash: attemptHash, result: historical, leaseId: attemptId });
+  });
+  return { operationId, attemptId, historicalHash };
+}
+
+async function changeCurrentBrief(database: InMemoryPersistenceDatabase) {
+  const documents = new DocumentRepository(database);
+  const current = await documents.get(projectId, 1, "brief-v3");
+  if (!current || current.documentType !== "brief-v3") throw new Error("synthetic Brief fixture is missing");
+  const changed = createBriefV3Document({ projectId, projectVersion: 1, brief: { ...current.brief, summary: `${current.brief.summary} changed` }, createdAt: current.createdAt, updatedAt: current.updatedAt });
+  await documents.save({ ...changed, approval: { approved: true, approvedAt: timestamp, approvedBy: "synthetic-user", approvedCanonicalChecksum: changed.briefChecksum } });
+  return changed.briefChecksum;
+}
+
+function idempotencySnapshot(database: InMemoryPersistenceDatabase) {
+  const records = Reflect.get(database, "idempotency") as Map<string, unknown>;
+  return [...records.entries()].map(([key, value]) => [key, structuredClone(value)] as const);
 }
 
 describe("durable Workbench Planning operation envelope", () => {
@@ -228,6 +269,53 @@ describe("durable Workbench Planning operation envelope", () => {
     expect(await readWorkbenchPlanningAttempt(database, operationId, failure.details.attemptId!)).toMatchObject({ status: "FAILED", result: { attemptId: failure.details.attemptId, correlationId: "33333333-3333-4333-8333-333333333333" } });
   });
 
+  it.each([
+    { label: "matching-looking state without historical proof", changeRowVersion: false, changeBrief: false, rowVersion: 1 },
+    { label: "changed row version", changeRowVersion: true, changeBrief: false, rowVersion: 2 },
+    { label: "changed Brief semantic checksum", changeRowVersion: false, changeBrief: true, rowVersion: 1 },
+    { label: "changed row version and Brief semantic checksum", changeRowVersion: true, changeBrief: true, rowVersion: 2 },
+  ])("rejects unbound legacy reexecution for $label before any new attempt", async ({ changeRowVersion, changeBrief, rowVersion }) => {
+    const fixture = await approvedPlanningFixture();
+    if (changeBrief) await changeCurrentBrief(fixture.database);
+    if (changeRowVersion) {
+      const project = fixture.database.projects.get(projectId);
+      if (!project) throw new Error("synthetic project is missing");
+      project.row_version = rowVersion;
+    }
+    const seeded = await seedFailedPlanningOperation(fixture.database);
+    const beforeOperation = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: projectId }));
+    const beforeAttempt = await readWorkbenchPlanningAttempt(fixture.database, seeded.operationId, seeded.attemptId);
+    const beforeIdempotency = idempotencySnapshot(fixture.database);
+    const beforeProject = structuredClone(fixture.database.projects.get(projectId));
+
+    await expect(fixture.app.handle({ action: "generate-planning", projectId })).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT", details: { outerCode: "IDEMPOTENCY_CONFLICT", providerCallsTotal: 0, canonicalPlanningPersisted: false, lifecycleMutated: false }, cause: { details: { reasonCode: "HISTORICAL_CURRENTNESS_UNAVAILABLE" } } });
+
+    expect(fixture.planner.planApprovedProject).not.toHaveBeenCalled();
+    expect(await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: projectId }))).toEqual(beforeOperation);
+    expect(await readWorkbenchPlanningAttempt(fixture.database, seeded.operationId, seeded.attemptId)).toEqual(beforeAttempt);
+    expect(idempotencySnapshot(fixture.database)).toEqual(beforeIdempotency);
+    expect(fixture.database.projects.get(projectId)).toEqual(beforeProject);
+  });
+
+  it("admits a bound legacy retry through the Workbench path and isolates its fresh failed attempt", async () => {
+    const fixture = await approvedPlanningFixture();
+    const currentness = { projectVersion: 1, rowVersion: 1, briefChecksum: fixture.briefChecksum };
+    const seeded = await seedFailedPlanningOperation(fixture.database, currentness);
+    const beforeAttempt = await readWorkbenchPlanningAttempt(fixture.database, seeded.operationId, seeded.attemptId);
+    const beforeIdempotency = idempotencySnapshot(fixture.database);
+
+    await expect(fixture.app.handle({ action: "generate-planning", projectId })).rejects.toMatchObject({ code: "WORKBENCH_INTERNAL_ERROR" });
+
+    expect(fixture.planner.planApprovedProject).toHaveBeenCalledOnce();
+    const current = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: projectId }));
+    const attemptId = (current?.result as { attemptId?: string } | undefined)?.attemptId;
+    expect(current).toMatchObject({ status: "FAILED", payloadHash: seeded.historicalHash, result: { currentness, providerCallsTotal: 0, canonicalPlanningPersisted: false, lifecycleMutated: false } });
+    expect(attemptId).toBeDefined();
+    expect(attemptId).not.toBe(seeded.attemptId);
+    expect(await readWorkbenchPlanningAttempt(fixture.database, seeded.operationId, seeded.attemptId)).toEqual(beforeAttempt);
+    expect(idempotencySnapshot(fixture.database)).toHaveLength(beforeIdempotency.length + 1);
+  });
+
   it("keeps transient attempt metadata out of semantic idempotency while isolating attempt evidence", async () => {
     const database = new InMemoryPersistenceDatabase();
     const currentness = { projectVersion: 1, rowVersion: 1, briefChecksum: "b".repeat(64) };
@@ -256,11 +344,11 @@ describe("durable Workbench Planning operation envelope", () => {
 
     const changedBrief = new WorkbenchOperationLedger(database, projectId);
     await changedBrief.bindCurrentness({ projectVersion: 1, rowVersion: 1, briefChecksum: "d".repeat(64) });
-    await expect(changedBrief.reserve()).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+    await expect(changedBrief.reserve()).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT", details: { reasonCode: "CURRENTNESS_MISMATCH" } });
 
     const changedRow = new WorkbenchOperationLedger(database, projectId);
     await changedRow.bindCurrentness({ projectVersion: 1, rowVersion: 2, briefChecksum: "c".repeat(64) });
-    await expect(changedRow.reserve()).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+    await expect(changedRow.reserve()).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT", details: { reasonCode: "CURRENTNESS_MISMATCH" } });
   });
 
   it("does not treat an unknown semantic payload as a retryable failed attempt", async () => {
@@ -295,6 +383,19 @@ describe("durable Workbench Planning operation envelope", () => {
     const replay = new WorkbenchOperationLedger(succeededDatabase, projectId);
     await replay.bindCurrentness(currentness);
     await expect(replay.reserve()).rejects.toMatchObject({ code: "WORKBENCH_OPERATION_REPLAY" });
+  });
+
+  it("rejects an unbound legacy hash even when the retry has no currentness to compare", async () => {
+    const database = new InMemoryPersistenceDatabase();
+    const historicalAttemptId = "99999999-9999-4999-8999-999999999999";
+    const historicalHash = legacyWorkbenchPlanningIntentHash(projectId, "generate-planning", null);
+    const historical = { attemptId: historicalAttemptId, providerCallsTotal: 0, canonicalPlanningPersisted: false, lifecycleMutated: false };
+    await database.transaction(async (tx) => {
+      await tx.reserveOperation({ operation: "workbench.planning", key: projectId, payloadHash: historicalHash, initialResult: historical });
+      await tx.failOperation({ operation: "workbench.planning", key: projectId, payloadHash: historicalHash, result: historical, leaseId: historicalAttemptId });
+    });
+    const retry = new WorkbenchOperationLedger(database, projectId);
+    await expect(retry.reserve()).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT", details: { reasonCode: "HISTORICAL_CURRENTNESS_UNAVAILABLE" } });
   });
 
   it("returns a minimal response when failure serialization itself rejects", async () => {
