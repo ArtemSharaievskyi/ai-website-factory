@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import type { PersistenceDatabase, OperationReservation } from "@/persistence/database/types";
+import { PersistenceError } from "@/persistence/database/errors";
 import { isStagedPlanningFailure } from "@/agents/planner/staged-failures";
 import type { PlanningAdmissionBoundary, PlanningFinalAdmissionDiagnostics } from "@/agents/planner/final-admission-diagnostics";
 import { createProviderTerminationMetadata, type ProviderDiagnostic, type ProviderInvocationLedgerHandle, type ProviderInvocationLedgerPort, type ProviderInvocationLedgerState, type ProviderInvocationStage, type ProviderTerminationMetadata, type ProviderTerminationParseStatus } from "@/integrations/openai/usage";
@@ -42,7 +43,7 @@ type RecordState = {
   providerInvocations: Invocation[];
   canonicalPlanningPersisted: boolean;
   lifecycleMutated: boolean;
-  currentness?: { projectVersion: number; rowVersion: number; briefChecksum: string };
+  currentness?: WorkbenchPlanningCurrentness;
   failureClass: string | null;
   outerCode: string | null;
   boundary: PlanningAdmissionBoundary | null;
@@ -57,7 +58,32 @@ type RecordState = {
   admissionDiagnostics: PlanningAdmissionDiagnosticEnvelope | null;
   providerTermination: ProviderTerminationMetadata | null;
   safeErrorFingerprint: string | null;
+  semanticIntentHash: string | null;
+  attemptRequestHash: string | null;
 };
+
+export type WorkbenchPlanningCurrentness = { projectVersion: number; rowVersion: number; briefChecksum: string };
+
+export type WorkbenchPlanningIntentPayload = {
+  action: "generate-planning";
+  projectId: string;
+  operationKind: "PLANNING_GENERATION";
+  currentness: WorkbenchPlanningCurrentness | null;
+};
+
+/** The stable product/currentness identity. It deliberately excludes attempt and observability metadata. */
+export function workbenchPlanningIntentPayload(projectId: string, currentness: WorkbenchPlanningCurrentness | null): WorkbenchPlanningIntentPayload {
+  return { action: "generate-planning", projectId, operationKind: "PLANNING_GENERATION", currentness };
+}
+
+export function workbenchPlanningIntentHash(projectId: string, currentness: WorkbenchPlanningCurrentness | null) {
+  return checksumPersistedDocument(workbenchPlanningIntentPayload(projectId, currentness));
+}
+
+/** Historical payload contracts accepted only for terminal failed rows during explicit re-execution. */
+export function legacyWorkbenchPlanningIntentHash(projectId: string, action: "approve-planning" | "generate-planning", currentness: WorkbenchPlanningCurrentness | null) {
+  return checksumPersistedDocument({ action, projectId, operationKind: "PLANNING_GENERATION", currentness });
+}
 
 /** Stable logical operation used for idempotency and current-result lookup. */
 export const WORKBENCH_PLANNING_OPERATION = "workbench.planning";
@@ -108,6 +134,8 @@ const initialRecord = (operationId: string, projectId: string, correlationId: st
   admissionDiagnostics: null,
   providerTermination: null,
   safeErrorFingerprint: null,
+  semanticIntentHash: null,
+  attemptRequestHash: null,
 });
 
 const safeCode = (error: unknown) => {
@@ -162,24 +190,60 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
   }
 
   private payloadHash() {
-    return checksumPersistedDocument({ action: "generate-planning", projectId: this.record.projectId, operationKind: "PLANNING_GENERATION", currentness: this.record.currentness ?? null });
+    return workbenchPlanningIntentHash(this.record.projectId, this.record.currentness ?? null);
   }
 
   private attemptPayloadHash() {
     return checksumPersistedDocument({
+      schemaVersion: 1,
+      logicalOperationId: this.record.operationId,
+      semanticIntentHash: this.record.semanticIntentHash,
       action: "generate-planning",
-      operationId: this.record.operationId,
       attemptId: this.record.attemptId,
       projectId: this.record.projectId,
       operationKind: this.record.operationKind,
+      correlationId: this.record.correlationId,
       currentness: this.record.currentness ?? null,
     });
+  }
+
+  private historicalCurrentness(result: unknown): WorkbenchPlanningCurrentness | null {
+    if (!result || typeof result !== "object" || Array.isArray(result)) return null;
+    const currentness = (result as { currentness?: unknown }).currentness;
+    if (!currentness || typeof currentness !== "object" || Array.isArray(currentness)) return null;
+    const value = currentness as Record<string, unknown>;
+    if (typeof value.projectVersion !== "number" || typeof value.rowVersion !== "number" || typeof value.briefChecksum !== "string") return null;
+    return { projectVersion: value.projectVersion, rowVersion: value.rowVersion, briefChecksum: value.briefChecksum };
+  }
+
+  private failedAttemptMayBeReexecuted(existing: { payloadHash: string; result?: unknown }, currentHash: string) {
+    const historical = this.historicalCurrentness(existing.result);
+    if (historical && this.record.currentness) {
+      const sameCurrentness = historical.projectVersion === this.record.currentness.projectVersion
+        && historical.rowVersion === this.record.currentness.rowVersion
+        && historical.briefChecksum === this.record.currentness.briefChecksum;
+      const knownHistoricalPayload = [null, historical].some((legacyCurrentness) =>
+        (["approve-planning", "generate-planning"] as const).some((action) => existing.payloadHash === legacyWorkbenchPlanningIntentHash(this.record.projectId, action, legacyCurrentness)));
+      return sameCurrentness && knownHistoricalPayload;
+    }
+    if (historical || this.record.currentness === undefined) return false;
+
+    // Before the GENERATE_PLANNING frontier was exposed, the operation was
+    // reserved before currentness was bound. Only that known unbound legacy
+    // shape is eligible without historical currentness evidence, and only
+    // when no provider or canonical mutation had occurred.
+    const legacyUnbound = existing.payloadHash === legacyWorkbenchPlanningIntentHash(this.record.projectId, "approve-planning", null)
+      || existing.payloadHash === legacyWorkbenchPlanningIntentHash(this.record.projectId, "generate-planning", null);
+    if (!legacyUnbound || !existing.result || typeof existing.result !== "object" || Array.isArray(existing.result)) return false;
+    const result = existing.result as { providerCallsTotal?: unknown; canonicalPlanningPersisted?: unknown; lifecycleMutated?: unknown };
+    return result.providerCallsTotal === 0 && result.canonicalPlanningPersisted === false && result.lifecycleMutated === false && currentHash !== existing.payloadHash;
   }
 
   private async persistAttemptTerminal(status: "SUCCEEDED" | "FAILED") {
     if (!this.reserved || this.attemptEvidencePersisted) return;
     const key = workbenchPlanningAttemptKey(this.record.operationId, this.record.attemptId);
     const payloadHash = this.attemptPayloadHash();
+    this.record.attemptRequestHash = payloadHash;
     const result = structuredClone(this.record);
     try {
       await this.database.transaction(async (tx) => {
@@ -200,8 +264,23 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
   }
 
   async reserve(): Promise<OperationReservation> {
-    this.reservationPayloadHash = this.payloadHash();
-    const reservation = await this.database.transaction((tx) => tx.reserveOperation({ operation: this.operation, key: this.key, payloadHash: this.reservationPayloadHash!, initialResult: this.record }));
+    const currentHash = this.payloadHash();
+    this.record.semanticIntentHash = currentHash;
+    this.reservationPayloadHash = currentHash;
+    const reservation = await this.database.transaction(async (tx) => {
+      const existing = await tx.getOperation({ operation: this.operation, key: this.key });
+      if (existing?.status === "IN_PROGRESS") throw new WorkbenchOperationConflict("WORKBENCH_OPERATION_IN_PROGRESS", "A current Planning operation is already active.");
+      if (existing?.status === "SUCCEEDED" && existing.payloadHash !== currentHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The current Planning operation is bound to a different semantic intent.");
+      let reservationHash = currentHash;
+      if (existing?.status === "FAILED" && existing.payloadHash !== currentHash) {
+        if (!this.failedAttemptMayBeReexecuted(existing, currentHash)) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The failed Planning operation is bound to stale or incompatible canonical intent.");
+        // Keep the historical logical-row hash as the compatibility binding;
+        // the new attempt gets its own currentness-bound request hash below.
+        reservationHash = existing.payloadHash;
+      }
+      this.reservationPayloadHash = reservationHash;
+      return tx.reserveOperation({ operation: this.operation, key: this.key, payloadHash: reservationHash, initialResult: this.record });
+    });
     if (reservation.status === "IN_PROGRESS") throw new WorkbenchOperationConflict("WORKBENCH_OPERATION_IN_PROGRESS", "A current Planning operation is already active.");
     if (reservation.status === "SUCCEEDED") throw new WorkbenchOperationConflict("WORKBENCH_OPERATION_REPLAY", "The current Planning operation was already completed.");
     this.reserved = true;
