@@ -3,9 +3,37 @@
 Every execution task declares its operation envelope. The envelope is
 machine-readable; this document defines the stable meaning of its fields.
 
-Required fields are `MODE`, `EXPECTED_HEAD`, `OPERATION`, `PROVIDER_BUDGET`,
-`ALLOWED_SOURCE_MUTATION`, `ALLOWED_CANONICAL_MUTATION`, `TARGET_STATE`,
-`STOP_CONDITIONS`, and `AGENT_POLICY`. `AGENT_POLICY` declares a bounded
+## Task shape
+
+Use the smallest existing structure:
+
+`Milestone -> Task -> optional subtask checklist`
+
+Do not require an Initiative, PRD, Epic, User Story, Task, and Subtask for
+every change. A task must still state its observable outcome, owning boundary,
+explicit exclusions, acceptance criteria, and expected evidence. Scale the
+specification to the change: defects need observed/expected behavior and a
+production-boundary regression; contract changes need compatibility and
+failure semantics; substantial features need user problem, scope, non-goals,
+and acceptance criteria; architectural decisions need alternatives, choice,
+and consequences.
+
+Keep Factory requirements, generated-website requirements, engineering
+procedure, live project state, and verification evidence distinct. A dated
+report or session snapshot can support a decision but does not become current
+state by being copied into a task. Agents may correct a specification when
+evidence disproves it, but may not lower its acceptance bar to match the
+implementation.
+
+Delegation is optional. When used, assignments are bounded by purpose,
+expected output, and exact file ownership or read-only scope. One Lead owns
+integration and canonical work; parallel canonical writes are forbidden.
+Do not add a parallel task database, management framework, orchestration code,
+or agent implementation merely to express or coordinate a task.
+
+Required envelope fields are `mode`, `expectedHead`, `operation`,
+`providerBudget`, `allowedSourceMutation`, `allowedCanonicalMutation`,
+`targetState`, `stopAt`, and `agentPolicy`. `agentPolicy` declares a bounded
 `SINGLE`, `BOUNDED_PARALLEL`, or `READ_ONLY_SWARM` mode, with at most four
 subagents, one integration authority, and no parallel canonical writes. Use
 `npm run codex:task -- --file <task-envelope.json>` for deterministic preflight.
@@ -46,23 +74,41 @@ certification: <checks/evidence>
 safe next action: <action>
 ```
 
+For documentation-only work, the result may omit operation fields that do not
+apply, but it must still name changed documents, validation gates, protected
+state, baseline failures, remaining uncertainty, and the safe next action.
+Never describe an unverified live project, durable database state, provider
+eligibility, or lifecycle readiness as established merely because local tests
+pass.
+
 ## Compact future-task example
 
 Documentation-only example; do not execute it:
 
-```text
-MODE: REAL_LIFECYCLE
-OPERATION: PLANNING_REFRESH
-EXPECTED_HEAD: <sha>
-PROTECTED_PROJECT: <uuid>
-PROVIDER_BUDGET:
-  planner: 1
-  architectureReview: 0
-  design: 0
-STOP_AT:
-  USER_APPROVAL
-  SOURCE_DEFECT
-  PROVIDER_FAILURE
+```json
+{
+  "mode": "REAL_LIFECYCLE",
+  "expectedHead": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "protectedProjectId": "00000000-0000-4000-8000-000000000000",
+  "operation": "PLANNING_REFRESH",
+  "providerBudget": {
+    "planner": 1,
+    "architectureReview": 0,
+    "design": 0
+  },
+  "allowedSourceMutation": false,
+  "allowedCanonicalMutation": true,
+  "targetState": "PLANNING_REFRESH_PENDING_APPROVAL",
+  "stopAt": ["USER_APPROVAL", "SOURCE_DEFECT", "PROVIDER_FAILURE"],
+  "agentPolicy": {
+    "mode": "BOUNDED_PARALLEL",
+    "maxSubagents": 4,
+    "parallelCanonicalWrites": false,
+    "singleIntegrationAuthority": true
+  }
+}
 
-Follow AGENTS.md, FAST_PILOT.md, TASK_PROTOCOL.md, and the applicable skill.
 ```
+
+Follow `AGENTS.md`, `FAST_PILOT.md`, `TASK_PROTOCOL.md`, and the applicable
+skill before execution.

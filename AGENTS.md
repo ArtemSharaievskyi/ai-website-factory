@@ -57,6 +57,10 @@ transient local artifacts.
 
 - Read this file, `docs/codex/CODEMAP.md`, and the relevant files in
   `docs/codex/` before choosing an implementation boundary.
+- Establish the real baseline first: inspect `git status --short`, the current
+  HEAD, the named source contracts, and the applicable current-state documents.
+  Treat dated `docs/admin/**` reports and session snapshots as evidence, not as
+  live canonical state.
 - Inspect the actual files and imports named by the task. Do not rely on an
   architecture diagram when source contracts disagree with it.
 - For code changes, read the relevant guide in
@@ -65,6 +69,30 @@ transient local artifacts.
   untracked evidence under `docs/admin/`.
 - For a bug fix, reproduce the failure at the production-reachable boundary
   first. A unit test around a lower helper is evidence, not proof of a fix.
+
+## Task framing and documentation
+
+- Frame authorized work as `Milestone -> Task -> optional subtask checklist`.
+  Use the smallest proportional specification: observed/expected behavior and
+  a regression scenario for a defect; compatibility and failure semantics for
+  a contract change; scope, non-goals, and acceptance criteria for a feature;
+  and alternatives, choice, and consequences for an architectural decision.
+- State the affected Factory boundary, explicit exclusions, acceptance
+  evidence, and remaining uncertainty. Distinguish Factory product
+  requirements, generated-website requirements, engineering workflow, live
+  project state, and verification evidence.
+- Prefer the existing authority for the change: `docs/codex/` indexes
+  procedure, `docs/architecture/` describes product and architecture,
+  `docs/contracts/` defines cross-boundary contracts, `docs/operations/`
+  describes runbooks, and `docs/adr/` records durable decisions. Correct a
+  specification when evidence disproves it; do not weaken its acceptance
+  criteria to fit an implementation.
+- Update documentation when behavior, an authority boundary, an invariant,
+  workflow, or the next milestone changes. Keep dated incident and session
+  records as dated evidence rather than copying them into current guidance.
+- A neighboring issue enters the task only when it is necessary for the stated
+  acceptance criteria. Otherwise record it through the repository's existing
+  backlog or roadmap and continue the authorized task.
 
 ## Bug-fix discipline
 
@@ -119,15 +147,15 @@ transient local artifacts.
 - Approved Skills Registry source is `src/skills/registry/`; imported skill content is stored under root `skills/`.
 - The read-only `skills.sh` source adapter lives under `src/integrations/skills-sh/`; it may discover and stage bounded public candidates, but never approves, executes, assigns, or dynamically reloads skills.
 
-## Typed agent contracts
+## Agent authority
 
-- `src/domain/agents/schema.ts` defines the shared `AgentDefinition` contract: identity, role, capabilities, task types, tools, approved skills, bounded context categories, input/output contracts, prompt ownership, policy versions, and execution metadata.
-- `src/agents/catalog.ts` is the authoritative catalog for the current foundation and lightweight review agents. Capabilities are explicit and exclusive; routing resolves a capability to a catalog entry before a service runs. Its `allowedSkillIds` are the sole current assignment authority; this rules file and admin portfolio snapshots are derived documentation and never grant runtime eligibility. The historical Phase 4D4 skill portfolio remains scoped to its nine skill-managed agents; deterministic lightweight reviewers have no approved skills unless explicitly added through the registry process.
-- Tools are typed integration permissions. Skills are separate reviewed content references and are resolved only when explicitly approved. No wildcard permissions are valid.
-- Approved skills are additive procedural context, never tools: an agent may own zero or more approved role-appropriate skill IDs. The runtime resolver selects the smallest relevant non-conflicting subset in deterministic order, with no fixed one-skill or top-K quota, and includes selected approved checksums in reviewer prompt identity/staleness inputs.
-- AI agents may propose or transform typed artifacts; deterministic validators and runtime QA remain outside the AI catalog. Architecture Reviewer owns architecture quality; Contract Auditor owns cross-artifact traceability. Both use read-only review contracts and have no source, Brief, Planning, Design, TaskGraph, shell, or arbitrary database mutation path.
-
-Architecture Reviewer, Contract Auditor, Code / Integration Reviewer, Security Reviewer, and Test / Quality Reviewer are implemented in the reviewer family. Code / Integration Reviewer is read-only, requires structural validation/lint/typecheck evidence, and reviews bounded source semantics rather than compiler, security, or test strategy concerns. Security Reviewer is read-only, requires current Code / Integration approval and deterministic security evidence, sanitizes source context, and reviews contextual security rather than general code integration or test strategy. Test / Quality Reviewer is read-only, receives derived quality evidence after deterministic gates, and judges semantic sufficiency rather than whether commands passed.
+- `src/domain/agents/schema.ts` defines the shared typed agent contract and
+  `src/agents/catalog.ts` is the sole runtime assignment authority. This file
+  does not grant capabilities or skills.
+- Tools are typed permissions; approved skills are separate, checksum-bound
+  procedural context. Neither grants workflow authority or canonical write
+  ownership. Reviewer roles and their read-only boundaries are documented in
+  `docs/architecture/agent-architecture.md` and `docs/codex/ARCHITECTURE.md`.
 
 ## Independent implementation review
 
@@ -139,4 +167,15 @@ review-implementation skill. The reviewer receives bounded structural context,
 does not edit source or run arbitrary commands, and must report severity,
 evidence, and repair guidance for each finding.
 
-Phase 4D4 activates the complete nine-agent skill portfolio: 4 approved external artifacts and 13 approved internal artifacts, with the shared `requirements-evidence-traceability` artifact assigned to Contract Auditor and Test / Quality Reviewer. The current catalog additionally contains deterministic lightweight post-implementation reviewers; they are read-only by default, use the existing browser/runtime tool boundaries, and do not alter the historical skill snapshot. All assignments remain explicit catalog allowlists; skills grant no tools or workflow authority, and internal/external artifacts use the same checksum-bound registry and resolver semantics. The three deferred external candidates (`ambiguity-detector`, `web-security-review`, and `reviewing-test-quality`) remain unapproved, unassigned, and runtime-ineligible pending future policy evidence. Security RLS guidance is relevant only to Supabase/RLS/user-scoped database surfaces; it is not injected for `NONE`, static/no-persistence, or external-API-only reviews.
+The active catalog and Approved Skills Registry are authoritative. Dated skill
+portfolio snapshots under `docs/admin/` are evidence only; they do not grant
+runtime eligibility, tools, workflow authority, or canonical write access.
+
+## Bounded delegation
+
+- Delegate only when independent investigation, review, or clearly separate
+  file ownership improves the result. Record the assignment, expected output,
+  and exact edited-file or read-only scope.
+- The Lead owns integration and canonical work. Delegation may not create
+  concurrent canonical mutations, hidden approval, or a second source of
+  truth. Review findings must cite evidence, severity, and repair guidance.
