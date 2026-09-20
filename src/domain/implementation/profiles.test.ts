@@ -31,6 +31,9 @@ describe("approved implementation specialist profiles", () => {
       "maintainable-performance-implementation",
       EMIL_DESIGN_ENGINEERING_SKILL_ID,
       EMIL_ANIMATE_SKILL_ID,
+      "design-motion-principles",
+      "magic-ui-adaptation",
+      "daisyui-tailwind-v4",
     ]);
     expect(frontend.skillBindings.map((binding) => binding.skillId)).toEqual(frontend.allowedSkillIds);
     expect(frontend.implementationCapabilities).toEqual(expect.arrayContaining([
@@ -76,6 +79,20 @@ describe("approved implementation specialist profiles", () => {
       "maintainable-performance-implementation",
       EMIL_DESIGN_ENGINEERING_SKILL_ID,
       EMIL_ANIMATE_SKILL_ID,
+      "design-motion-principles",
+    ]);
+    expect(activeImplementationSkillIds(frontend, "implement-design-system", { daisyUiRequested: true })).toEqual([
+      "nextjs-server-client-implementation",
+      "maintainable-performance-implementation",
+      EMIL_DESIGN_ENGINEERING_SKILL_ID,
+      "daisyui-tailwind-v4",
+    ]);
+    expect(activeImplementationSkillIds(frontend, "implement-page", { daisyUiRequested: true })).toContain("daisyui-tailwind-v4");
+    expect(activeImplementationSkillIds(frontend, "implement-page", { magicUiRequested: true })).toEqual([
+      "nextjs-server-client-implementation",
+      "maintainable-performance-implementation",
+      EMIL_DESIGN_ENGINEERING_SKILL_ID,
+      "magic-ui-adaptation",
     ]);
     expect(activeImplementationSkillIds(backend, "implement-route-handler")).toEqual([]);
     expect(activeImplementationSkillIds(backend, "implement-route-handler", { supabaseRequired: true })).toEqual(["supabase-application-integration"]);

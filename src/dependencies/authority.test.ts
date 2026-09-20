@@ -31,7 +31,7 @@ const baselineLockfile = {
 
 describe("dependency authority", () => {
   it("uses the generated foundation as the complete baseline catalog", () => {
-    expect(DEPENDENCY_CATALOG).toHaveLength(18);
+    expect(DEPENDENCY_CATALOG).toHaveLength(19);
     expect(BASELINE_REQUIRED_PACKAGE_NAMES).toEqual([
       ...Object.keys(GENERATED_BASELINE_DEPENDENCIES),
       ...Object.keys(GENERATED_BASELINE_DEV_DEPENDENCIES),
@@ -44,6 +44,8 @@ describe("dependency authority", () => {
     expect(decideDependency({ operation: "ADD", packageName: "next", versionSpec: "latest", dependencySection: "dependencies" }).code).toBe("UNSUPPORTED_PACKAGE_SPEC");
     expect(decideDependency({ operation: "ADD", packageName: "next", versionSpec: "16.2.11", dependencySection: "dependencies" }).code).toBe("VERSION_NOT_APPROVED");
     expect(decideDependency({ operation: "ADD", packageName: "next", versionSpec: "16.2.12", dependencySection: "devDependencies" }).code).toBe("DEPENDENCY_SECTION_NOT_ALLOWED");
+    expect(decideDependency({ operation: "ADD", packageName: "daisyui", versionSpec: "5.7.42", dependencySection: "devDependencies", context: { plannedDependencies: [{ name: "daisyui@5.7.42", runtime: "dev", required: true }], taskType: "implement-design-system" } }).code).toBe("APPROVED");
+    expect(decideDependency({ operation: "ADD", packageName: "daisyui", versionSpec: "5.7.42", dependencySection: "dependencies", context: { plannedDependencies: [{ name: "daisyui@5.7.42", runtime: "dev", required: true }], taskType: "implement-design-system" } }).code).toBe("DEPENDENCY_SECTION_NOT_ALLOWED");
   });
 
   it("rejects unapproved names, malformed names, and non-registry specs", () => {

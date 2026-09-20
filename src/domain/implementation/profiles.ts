@@ -51,6 +51,8 @@ export const ImplementationCapabilitySchema = z.enum([
   "DIALKIT_AUTHORING",
   "ANTI_AI_SLOP_DESIGN_GUARD",
   "DESIGN_SYSTEM_CHECKLIST",
+  "DAISYUI_INTEGRATION",
+  "MAGIC_UI_INTEGRATION",
   "SEO_IMPLEMENTATION",
   "NEXT_SERVER_RUNTIME",
   "ZOD_VALIDATION",
@@ -74,6 +76,8 @@ export const SkillActivationSchema = z.enum([
   "ALWAYS",
   "FORM_TASK",
   "MOTION_TASK",
+  "DAISYUI_TASK",
+  "MAGIC_UI_TASK",
   "SUPABASE_OR_DATABASE_TASK",
 ]);
 export type SkillActivation = z.infer<typeof SkillActivationSchema>;
@@ -186,7 +190,7 @@ const frontendProfile = createApprovedProfile({
   role: "implementation",
   displayName: "FrontendImplementationAgent",
   domain: "FRONTEND",
-  version: "1.1.0",
+  version: "1.2.0",
   status: "APPROVED",
   source: {
     sourceRepository: "defuj/opencode-agent-kit",
@@ -213,6 +217,8 @@ const frontendProfile = createApprovedProfile({
     "Use the host-controlled Impeccable integration as design vocabulary, anti-pattern detection, and polish guidance; approved Design and canonical content remain higher authority and Impeccable cannot introduce a competing visual direction.",
     "Use DialKit only as an authoring-time parameter exploration boundary for spacing, scale, opacity, blur, timing, springs, and sequencing; extract approved values into canonical tokens and never ship its controls, overlays, imports, or runtime dependency.",
     "Before frontend handoff, complete the bounded DesignSystemChecklist: inspect all thirty Factory anti-AI-slop heuristics, normalize Impeccable findings, preserve contextual Design justifications, and block unsupplied content, missing states, motion accessibility defects, and authoring-tool leaks.",
+    "Use daisyUI only when the accepted DependencyPlan and Phase 7C approval select the exact host-pinned devDependency; preserve Tailwind v4, semantic Design tokens, and shadcn/ui as higher authorities.",
+    "Adapt only explicitly selected free Magic UI candidates from the read-only Design-source evidence; preserve provenance, validate dependencies, minimize client islands, and normalize motion and accessibility.",
     "Do not invent testimonials, customer identities, metrics, awards, partner logos, prices, legal claims, or legal copy; surface missing privacy, terms, consent, or product-demo requirements for the correct authority to resolve.",
   ],
   rejectedForeignAssumptions: [
@@ -221,15 +227,18 @@ const frontendProfile = createApprovedProfile({
     "Foreign framework defaults such as Vite, Zustand, Prisma, or Express when they are not present in the approved Factory Architecture.",
   ],
   capabilitySurface: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "ASSET_READ", "RELEVANT_TESTS"],
-  implementationCapabilities: ["REACT_UI", "NEXT_APP_ROUTER", "TYPESCRIPT", "TAILWIND", "SHADCN_UI", "ACCESSIBILITY_IMPLEMENTATION", "RESPONSIVE_IMPLEMENTATION", "SERVER_CLIENT_BOUNDARIES", "FORM_IMPLEMENTATION", "STATE_BOUNDARIES", "PERFORMANCE_IMPLEMENTATION", "FRONTEND_TESTING", "CANONICAL_CONTRACT_CONSUMPTION", "DEPENDENCY_DISCIPLINE", "ERROR_LOADING_EMPTY_STATES", "DESIGN_CONTRACT_IMPLEMENTATION", "VISUAL_CRAFT_IMPLEMENTATION", "MOTION_DESIGN_IMPLEMENTATION", "EMIL_DESIGN_ENGINEERING", "EMIL_ANIMATION_CONSTRUCTION", "IMPECCABLE_DESIGN_INTEGRATION", "DIALKIT_AUTHORING", "ANTI_AI_SLOP_DESIGN_GUARD", "DESIGN_SYSTEM_CHECKLIST", "SEO_IMPLEMENTATION"],
+  implementationCapabilities: ["REACT_UI", "NEXT_APP_ROUTER", "TYPESCRIPT", "TAILWIND", "SHADCN_UI", "ACCESSIBILITY_IMPLEMENTATION", "RESPONSIVE_IMPLEMENTATION", "SERVER_CLIENT_BOUNDARIES", "FORM_IMPLEMENTATION", "STATE_BOUNDARIES", "PERFORMANCE_IMPLEMENTATION", "FRONTEND_TESTING", "CANONICAL_CONTRACT_CONSUMPTION", "DEPENDENCY_DISCIPLINE", "ERROR_LOADING_EMPTY_STATES", "DESIGN_CONTRACT_IMPLEMENTATION", "VISUAL_CRAFT_IMPLEMENTATION", "MOTION_DESIGN_IMPLEMENTATION", "EMIL_DESIGN_ENGINEERING", "EMIL_ANIMATION_CONSTRUCTION", "IMPECCABLE_DESIGN_INTEGRATION", "DIALKIT_AUTHORING", "ANTI_AI_SLOP_DESIGN_GUARD", "DESIGN_SYSTEM_CHECKLIST", "DAISYUI_INTEGRATION", "MAGIC_UI_INTEGRATION", "SEO_IMPLEMENTATION"],
   allowedTools: ["openai-generation", "context7-read", "shadcn-registry-read", "codebase-memory-read", "controlled-edit"],
-  allowedSkillIds: ["nextjs-server-client-implementation", "typed-form-implementation", "maintainable-performance-implementation", EMIL_DESIGN_ENGINEERING_SKILL_ID, EMIL_ANIMATE_SKILL_ID],
+  allowedSkillIds: ["nextjs-server-client-implementation", "typed-form-implementation", "maintainable-performance-implementation", EMIL_DESIGN_ENGINEERING_SKILL_ID, EMIL_ANIMATE_SKILL_ID, "design-motion-principles", "magic-ui-adaptation", "daisyui-tailwind-v4"],
   skillBindings: [
     { skillId: "nextjs-server-client-implementation", agentId: "implementation", capability: "SERVER_CLIENT_BOUNDARIES", tools: ["context7-read", "codebase-memory-read", "controlled-edit"], permissions: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "RELEVANT_TESTS"], activation: "ALWAYS", inputContract: "implementation.input", outputContract: "implementation.output", coverageKeys: ["nextjs-implementation", "server-client-boundaries"] },
     { skillId: "typed-form-implementation", agentId: "implementation", capability: "FORM_IMPLEMENTATION", tools: ["context7-read", "shadcn-registry-read", "controlled-edit"], permissions: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "RELEVANT_TESTS"], activation: "FORM_TASK", inputContract: "implementation.input", outputContract: "implementation.output", coverageKeys: ["forms-validation"] },
     { skillId: "maintainable-performance-implementation", agentId: "implementation", capability: "PERFORMANCE_IMPLEMENTATION", tools: ["codebase-memory-read", "controlled-edit"], permissions: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "RELEVANT_TESTS"], activation: "ALWAYS", inputContract: "implementation.input", outputContract: "implementation.output", coverageKeys: ["maintainability-performance"] },
     { skillId: EMIL_DESIGN_ENGINEERING_SKILL_ID, agentId: "implementation", capability: "EMIL_DESIGN_ENGINEERING", tools: ["controlled-edit"], permissions: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "RELEVANT_TESTS"], activation: "ALWAYS", inputContract: "implementation.input", outputContract: "implementation.output", coverageKeys: ["emil-design-engineering", "interaction-craft", "typography", "spacing", "responsive-craft"] },
     { skillId: EMIL_ANIMATE_SKILL_ID, agentId: "implementation", capability: "EMIL_ANIMATION_CONSTRUCTION", tools: ["controlled-edit"], permissions: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "RELEVANT_TESTS"], activation: "MOTION_TASK", inputContract: "implementation.input", outputContract: "implementation.output", coverageKeys: ["emil-animation-construction", "motion-tokens", "reduced-motion", "interruptibility"] },
+    { skillId: "design-motion-principles", agentId: "implementation", capability: "MOTION_DESIGN_IMPLEMENTATION", tools: ["controlled-edit"], permissions: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "RELEVANT_TESTS"], activation: "MOTION_TASK", inputContract: "implementation.input", outputContract: "implementation.output", coverageKeys: ["motion-frequency-gate", "motion-accessibility", "motion-create-audit"] },
+    { skillId: "magic-ui-adaptation", agentId: "implementation", capability: "MAGIC_UI_INTEGRATION", tools: ["controlled-edit"], permissions: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "RELEVANT_TESTS"], activation: "MAGIC_UI_TASK", inputContract: "implementation.input", outputContract: "implementation.output", coverageKeys: ["magic-ui-adaptation", "component-provenance"] },
+    { skillId: "daisyui-tailwind-v4", agentId: "implementation", capability: "DAISYUI_INTEGRATION", tools: ["controlled-edit"], permissions: ["SOURCE_READ", "FRONTEND_SOURCE_WRITE", "CONTROLLED_TEXT_PATCH", "CONTROLLED_AST_PATCH", "RELEVANT_TESTS"], activation: "DAISYUI_TASK", inputContract: "implementation.input", outputContract: "implementation.output", coverageKeys: ["daisyui-tailwind-v4", "daisyui-theme-tokens"] },
   ],
   allowedTaskTypes: ["prepare-workspace", "implement-project-foundation", "implement-design-system", "implement-shared-layout", "implement-navigation", "implement-page", "implement-shared-component", "implement-form", "integrate-assets", "integrate-content", "implement-seo", "implement-motion", "write-unit-tests", "write-integration-tests", "write-e2e-tests", "repair-targeted-failure"],
   contextPolicy: { version: "frontend-specialist-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "TASK_SLICE", "CODEBASE_CONTEXT", "VALIDATION_DIAGNOSTIC", "PREVIOUS_FINDINGS"], maxBytes: 120_000, maxItems: 80 },
@@ -360,16 +369,18 @@ export function shouldActivateSupabaseImplementationSkill(input: { domain?: Impl
     || ["implement-authentication", "implement-storage", "implement-database-schema", "implement-rls-policy", "write-database-tests"].includes(input.taskType);
 }
 
-export function activeImplementationSkillBindings(profile: AgentProfile, taskType: string, options: { supabaseRequired?: boolean; motionRequested?: boolean } = {}) {
+export function activeImplementationSkillBindings(profile: AgentProfile, taskType: string, options: { supabaseRequired?: boolean; motionRequested?: boolean; daisyUiRequested?: boolean; magicUiRequested?: boolean } = {}) {
   return profile.skillBindings.filter((binding) =>
     binding.activation === "ALWAYS"
     || (binding.activation === "FORM_TASK" && taskType === "implement-form")
     || (binding.activation === "MOTION_TASK" && options.motionRequested === true)
+    || (binding.activation === "DAISYUI_TASK" && options.daisyUiRequested === true)
+    || (binding.activation === "MAGIC_UI_TASK" && options.magicUiRequested === true)
     || (binding.activation === "SUPABASE_OR_DATABASE_TASK" && options.supabaseRequired === true),
   );
 }
 
-export function activeImplementationSkillIds(profile: AgentProfile, taskType: string, options: { supabaseRequired?: boolean; motionRequested?: boolean } = {}) {
+export function activeImplementationSkillIds(profile: AgentProfile, taskType: string, options: { supabaseRequired?: boolean; motionRequested?: boolean; daisyUiRequested?: boolean; magicUiRequested?: boolean } = {}) {
   return activeImplementationSkillBindings(profile, taskType, options).map((binding) => binding.skillId);
 }
 

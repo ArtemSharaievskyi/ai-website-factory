@@ -26,6 +26,10 @@ export const FOUNDATION_PACKAGE_JSON = JSON.stringify({
   scripts: FOUNDATION_PACKAGE_POLICY.scripts,
 }, null, 2) + "\n";
 
+export function designSystemStylesheet(daisyUiEnabled = false) {
+  return `${daisyUiEnabled ? '@import "tailwindcss";\n@plugin "daisyui";\n\n' : '@import "tailwindcss";\n\n'}:root { --factory-canvas: #ffffff; --factory-text: #111111; }\n`;
+}
+
 export function foundationPackageJson(optional: readonly { packageName: string; versionSpec: string; section: "dependencies" | "devDependencies" }[] = []) {
   const dependencies: Record<string, string> = { ...FOUNDATION_PACKAGE_POLICY.dependencies };
   const devDependencies: Record<string, string> = { ...FOUNDATION_PACKAGE_POLICY.devDependencies };

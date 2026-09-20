@@ -49,9 +49,10 @@ describe("Phase 4D4 active skill portfolios", () => {
     expect(skillManagedAgents).toHaveLength(9);
     expect(snapshot.agents.map((agent) => agent.agentId)).toEqual(skillManagedAgents.map((agent) => agent.agentId));
     for (const agent of skillManagedAgents) {
+      const currentIntegrationSkills = new Set(["ui-ux-pro-max-frontend", "taste-frontend-direction", "design-motion-principles", "magic-ui-adaptation", "daisyui-tailwind-v4"]);
       const expected = agent.agentId === "design"
         ? agent.allowedSkillIds.filter((skillId) => skillId === "responsive-form-ux-design")
-        : agent.allowedSkillIds.filter((skillId) => !EMIL_SKILL_PROVENANCE.some((skill) => skill.registrySkillId === skillId));
+        : agent.allowedSkillIds.filter((skillId) => !EMIL_SKILL_PROVENANCE.some((skill) => skill.registrySkillId === skillId) && !currentIntegrationSkills.has(skillId));
       expect(snapshot.agents.find((candidate) => candidate.agentId === agent.agentId)?.approvedAllowedSkillIds).toEqual(expected);
     }
     expect(snapshot.agents.find((agent) => agent.agentId === "contract-auditor")?.approvedAllowedSkillIds).toContain("requirements-evidence-traceability");

@@ -90,6 +90,8 @@ import { effectivePlannerBrief } from "@/agents/planner/brief-context";
 import { PlanningRecoveryService } from "@/agents/planner/recovery";
 import { createGitSourceCurrentnessPort } from "@/runtime/source-head";
 import { buildDesignContext } from "@/agents/design/context";
+import { PlanningPackageSchema } from "@/agents/planner/contracts";
+import { parseDependencySpec } from "@/dependencies/authority";
 export const RUNTIME_MODES = ["DETERMINISTIC_TEST", "REAL_E2E"] as const;
 export type FactoryRuntimeMode = (typeof RUNTIME_MODES)[number];
 export type ProductionAdapterIdentity = {
@@ -324,8 +326,8 @@ export function createProductionFactoryRuntime(
       agent: designAgentDefinition,
       capability: "design.directions",
       taskType: "create-design-directions",
-      projectSurfaces: hasForm ? ["responsive", "forms"] : [],
-      requiredCoverage: hasForm ? ["responsive-form-ux"] : [],
+      projectSurfaces: ["design", "typography", "palette", "ux", "frontend", ...(hasForm ? ["responsive", "forms"] : [])],
+      requiredCoverage: ["ui-ux-pro-max", "ux-guidelines", "design-system-synthesis", "design-taste", "visual-variance", ...(hasForm ? ["responsive-form-ux"] : [])],
       requestedTools: [],
       contextBudgetBytes: designAgentDefinition.contextPolicy.maxBytes,
       reservedContextBytes: Buffer.byteLength(JSON.stringify(buildDesignContext(input)), "utf8"),
@@ -339,6 +341,13 @@ export function createProductionFactoryRuntime(
     const profile = route.specialistProfileId ? implementationProfileRegistry.get(route.specialistProfileId) : undefined;
     const backend = route.domain === "BACKEND" || route.domain === "DATABASE";
     const form = taskType === "implement-form";
+    const planning = PlanningPackageSchema.safeParse(input.acceptedPlanningPackage);
+    const plannedDependencyNames = planning.success
+      ? planning.data.dependencies.dependencies.map((dependency) => parseDependencySpec(dependency.name).packageName)
+      : [];
+    const daisyUiRequested = plannedDependencyNames.includes("daisyui");
+    const magicUiRequested = /magic-ui/i.test(JSON.stringify(input.selectedDesign.selectedDirectionContract ?? {}));
+    const motionRequested = taskType === "implement-motion" || Boolean(input.selectedDesign.selectedDirectionContract && input.selectedDesign.selectedDirectionContract.motion.suitability !== "NONE");
     const supabaseRequired = shouldActivateSupabaseImplementationSkill({
       domain: route.domain,
       taskType,
@@ -346,17 +355,17 @@ export function createProductionFactoryRuntime(
       databaseMode: input.phase7cContractPackage?.databaseDecision.mode,
     });
     const activeBindings = profile
-      ? activeImplementationSkillBindings(profile, taskType, { supabaseRequired, motionRequested: taskType === "implement-motion" || Boolean(input.selectedDesign.selectedDirectionContract && input.selectedDesign.selectedDirectionContract.motion.suitability !== "NONE") })
+      ? activeImplementationSkillBindings(profile, taskType, { supabaseRequired, motionRequested, daisyUiRequested, magicUiRequested })
       : [];
     const projectSurfaces = route.domain === "DATABASE"
       ? ["supabase", "postgres", "database", "rls"]
       : route.domain === "BACKEND"
         ? ["server", "api", "nextjs", "typescript", "zod", "contracts", "testing", "dependencies", "authorization", "trust-boundaries", "concurrency", "errors", "server-only", "cache", ...(supabaseRequired ? ["supabase", "auth", "storage", "database", "rls"] : [])]
       : form
-        ? ["nextjs", "app-router", "react", "typescript", "tailwind", "shadcn", "server", "client", "page", "component", "implementation", "performance", "forms", "validation", "typed", "visual-craft", "motion", "impeccable", "dialkit-authoring", "anti-ai-slop", "design-system-checklist"]
-        : ["nextjs", "app-router", "react", "typescript", "tailwind", "shadcn", "server", "client", "page", "component", "implementation", "performance", "visual-craft", "motion", "impeccable", "dialkit-authoring", "anti-ai-slop", "design-system-checklist"];
+        ? ["nextjs", "app-router", "react", "typescript", "tailwind", "shadcn", "server", "client", "page", "component", "implementation", "performance", "forms", "validation", "typed", "visual-craft", "motion", "impeccable", "dialkit-authoring", "anti-ai-slop", "design-system-checklist", ...(daisyUiRequested ? ["daisyui"] : []), ...(magicUiRequested ? ["magic-ui"] : [])]
+        : ["nextjs", "app-router", "react", "typescript", "tailwind", "shadcn", "server", "client", "page", "component", "implementation", "performance", "visual-craft", "motion", "impeccable", "dialkit-authoring", "anti-ai-slop", "design-system-checklist", ...(daisyUiRequested ? ["daisyui"] : []), ...(magicUiRequested ? ["magic-ui"] : [])];
     const agent = profile
-      ? { ...implementationAgentDefinition, allowedSkillIds: activeImplementationSkillIds(profile, taskType, { supabaseRequired, motionRequested: taskType === "implement-motion" || Boolean(input.selectedDesign.selectedDirectionContract && input.selectedDesign.selectedDirectionContract.motion.suitability !== "NONE") }) }
+      ? { ...implementationAgentDefinition, allowedSkillIds: activeImplementationSkillIds(profile, taskType, { supabaseRequired, motionRequested, daisyUiRequested, magicUiRequested }) }
       : implementationAgentDefinition;
     return prepareAgentSkillContext(skillRegistry, {
       agent,

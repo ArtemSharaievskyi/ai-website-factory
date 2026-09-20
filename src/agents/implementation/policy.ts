@@ -21,6 +21,7 @@ import type {
 import { assertCodebaseMemoryPermission } from "@/integrations/codebase-memory/contracts";
 import { computeSourceManifest } from "@/integrations/codebase-memory/policy";
 import { foundationPolicySummary } from "./foundation-policy";
+import { parseDependencySpec } from "@/dependencies/authority";
 import { ownershipForTask } from "@/domain/tasks/ownership";
 import { isWithinTaskScope } from "./scope";
 import type { AgentSkillSelection } from "@/skills/runtime/resolver";
@@ -268,7 +269,9 @@ export class TaskContextAssembler {
     }
     let context7Excerpts;
     const objective = input.task.objective;
-    const packageName = /supabase/i.test(objective)
+    const packageName = /daisyui|daisy ui|tailwind plugin/i.test(objective)
+      ? "daisyui"
+      : /supabase/i.test(objective)
       ? "@supabase/supabase-js"
       : /zod/i.test(objective)
         ? "zod"
@@ -301,8 +304,9 @@ export class TaskContextAssembler {
           ).dependencies.dependencies
         : [];
       const planned = dependencyPlan.find(
-        (entry) => entry.name === packageName,
+        (entry) => parseDependencySpec(entry.name).packageName === packageName,
       );
+      const plannedVersion = planned ? parseDependencySpec(planned.name).versionSpec ?? planned.version : undefined;
       if (planned || ["next", "react", "zod"].includes(packageName)) {
         const plan = {
           queryId: randomUUID(),
@@ -310,7 +314,7 @@ export class TaskContextAssembler {
           taskType: input.task.taskType,
           packageName,
           resolvedLibraryId: packageName,
-          version: planned?.version,
+          version: plannedVersion,
           topic: objective.slice(0, 180),
           reason: `Current task needs ${packageName} implementation guidance.`,
           requirementReferences: input.task.requirementReferences ?? [],

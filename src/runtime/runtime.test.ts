@@ -19,5 +19,6 @@ describe("Factory composition modes", () => {
   it("does not treat optional documentation integrations as mandatory", () => {
     expect(createProductionFactoryIdentity().context7).toBe("not-needed");
     expect(createProductionFactoryIdentity().shadcn).toBe("not-needed");
+    expect(createProductionFactoryIdentity().codebaseMemory).toBe("not-needed");
   });
 });

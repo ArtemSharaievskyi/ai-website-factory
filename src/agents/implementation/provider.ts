@@ -1,7 +1,7 @@
 import { randomUUID, createHash } from "node:crypto";
 import { ImplementationChangeProposalSchema, type ImplementationContext, type ImplementationProvider } from "./contracts";
 import { ImplementationError } from "./errors";
-import { FOUNDATION_ESLINT_CONFIG, FOUNDATION_ESLINT_CONFIG_PATH, FOUNDATION_NEXT_CONFIG, FOUNDATION_NEXT_CONFIG_PATH, FOUNDATION_TSCONFIG, FOUNDATION_TSCONFIG_PATH, foundationPackageJson } from "./foundation-policy";
+import { FOUNDATION_ESLINT_CONFIG, FOUNDATION_ESLINT_CONFIG_PATH, FOUNDATION_NEXT_CONFIG, FOUNDATION_NEXT_CONFIG_PATH, FOUNDATION_TSCONFIG, FOUNDATION_TSCONFIG_PATH, designSystemStylesheet, foundationPackageJson } from "./foundation-policy";
 import { storagePlanContractChecksum, type StoragePlan } from "@/agents/planner/contracts";
 import { renderBehavioralSecurityFixture } from "@/runtime/database/security-fixtures";
 
@@ -135,7 +135,7 @@ const storageSourceForPlan = (plan: StoragePlan) => {
 const files: Record<string, { path: string; content: string }> = {
   "prepare-workspace": { path: "src/app/factory-prepared.ts", content: "export const factoryWorkspacePrepared = true;\n" },
   "implement-project-foundation": { path: "src/app/layout.tsx", content: "export default function RootLayout({ children }: { children: React.ReactNode }) { return <html lang=\"en\"><body>{children}</body></html>; }\n" },
-  "implement-design-system": { path: "src/styles/design-tokens.css", content: ":root { --factory-canvas: #ffffff; --factory-text: #111111; }\n" },
+  "implement-design-system": { path: "src/app/globals.css", content: designSystemStylesheet() },
   "implement-shared-layout": { path: "src/components/layout/factory-shell.tsx", content: "export function FactoryShell({ children }: { children: React.ReactNode }) { return <main>{children}</main>; }\n" },
   "implement-navigation": { path: "src/components/navigation/factory-navigation.tsx", content: "export function FactoryNavigation() { return <nav aria-label=\"Primary\" />; }\n" },
   "implement-page": { path: "src/app/page.tsx", content: "export default function Page() { return <main />; }\n" },
@@ -161,7 +161,8 @@ export class DeterministicImplementationProvider implements ImplementationProvid
   async proposeTaskChanges(context: ImplementationContext, signal?: AbortSignal) {
     if (signal?.aborted) throw new ImplementationError("IMPLEMENTATION_CANCELLED", "Implementation was cancelled before proposal generation.");
     if (context.task.taskType === "implement-storage" && (!context.storagePlan || context.storagePlan.decision !== "supabase-storage")) throw new ImplementationError("STORAGE_POLICY_UNSAFE", "Storage generation requires the accepted typed StoragePlan in implementation context.");
-    const candidate = context.task.taskType === "implement-storage" ? { path: "src/lib/storage/uploads.ts", content: storageSourceForPlan(context.storagePlan!) } : files[context.task.taskType];
+    const daisyUiApproved = context.phase7c?.dependencyApprovals.some((dependency) => dependency.packageName === "daisyui" && dependency.class === "PLANNED_OPTIONAL_DEPENDENCY" && (dependency.approvalStatus === "APPROVED" || dependency.approvalStatus === "NOT_REQUIRED")) ?? false;
+    const candidate = context.task.taskType === "implement-storage" ? { path: "src/lib/storage/uploads.ts", content: storageSourceForPlan(context.storagePlan!) } : context.task.taskType === "implement-design-system" ? { path: "src/app/globals.css", content: designSystemStylesheet(daisyUiApproved) } : files[context.task.taskType];
     if (!candidate) throw new ImplementationError("IMPLEMENTATION_TASK_TYPE_UNSUPPORTED", "This task type has no deterministic implementation handler.");
     const exactScope = context.task.fileScopes.find((scope) => !scope.includes("*"));
     const sharedComponentScope = context.task.taskType === "implement-shared-component" ? context.task.fileScopes.find((scope) => scope.startsWith("src/components/shared/") && scope.endsWith("/**")) : undefined;

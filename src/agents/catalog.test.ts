@@ -74,8 +74,8 @@ describe("typed agent catalog", () => {
     expect(Object.fromEntries(skillManagedAgents.map((agent) => [agent.agentId, agent.allowedSkillIds]))).toEqual({
       lead: ["lead-requirements-completeness"],
       planner: ["project-data-model-planning", "technical-risk-planning"],
-      design: ["responsive-form-ux-design", "impeccable", EMIL_DESIGN_ENGINEERING_SKILL_ID, "animation-vocabulary", "transitions-dev"],
-      implementation: ["nextjs-server-client-implementation", "typed-form-implementation", "supabase-application-integration", "maintainable-performance-implementation", EMIL_DESIGN_ENGINEERING_SKILL_ID, EMIL_ANIMATE_SKILL_ID],
+      design: ["responsive-form-ux-design", "impeccable", EMIL_DESIGN_ENGINEERING_SKILL_ID, "animation-vocabulary", "transitions-dev", "ui-ux-pro-max-frontend", "taste-frontend-direction"],
+      implementation: ["nextjs-server-client-implementation", "typed-form-implementation", "supabase-application-integration", "maintainable-performance-implementation", EMIL_DESIGN_ENGINEERING_SKILL_ID, EMIL_ANIMATE_SKILL_ID, "design-motion-principles", "magic-ui-adaptation", "daisyui-tailwind-v4"],
       "architecture-reviewer": ["module-boundaries-fb20497b5c35", "review-maintainability-d9faf7cb9775", "architecture-tradeoff-review"],
       "contract-auditor": ["acceptance-criteria-80493e317476", "requirements-evidence-traceability"],
       "code-integration-reviewer": ["react-nextjs-integration-review"],
@@ -83,7 +83,7 @@ describe("typed agent catalog", () => {
       "test-quality-reviewer": ["requirements-evidence-traceability", "behavioral-test-quality-review"],
     });
     expect(agentCatalog.find((agent) => agent.agentId === "design-review")?.allowedSkillIds).toEqual([EMIL_DESIGN_ENGINEERING_SKILL_ID]);
-    expect(agentCatalog.find((agent) => agent.agentId === "animation-review")?.allowedSkillIds).toEqual([EMIL_ANIMATION_REVIEW_SKILL_ID, EMIL_ANIMATION_IMPROVEMENT_SKILL_ID, EMIL_ANIMATION_OPPORTUNITY_SKILL_ID]);
+    expect(agentCatalog.find((agent) => agent.agentId === "animation-review")?.allowedSkillIds).toEqual([EMIL_ANIMATION_REVIEW_SKILL_ID, EMIL_ANIMATION_IMPROVEMENT_SKILL_ID, EMIL_ANIMATION_OPPORTUNITY_SKILL_ID, "design-motion-principles"]);
     expect(agentCatalog.every((agent) => agent.inputContract.schemaId.endsWith(".input") && agent.outputContract.schemaId.endsWith(".output"))).toBe(true);
     expect(agentCatalog.every((agent) => agent.contextPolicy.maxBytes > 0 && agent.executionPolicy.retryClass)).toBe(true);
     expect(leadAgentDefinition.promptVersion).not.toBe(leadAgentDefinition.policyVersions.context);
