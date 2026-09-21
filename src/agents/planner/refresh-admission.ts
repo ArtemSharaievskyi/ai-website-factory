@@ -3,6 +3,7 @@ import { CanonicalBriefV3Schema, type CanonicalBriefV3, type CanonicalRequiremen
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { PlanningPackageSchema, type PlanningPackage } from "./contracts";
 import { CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY } from "./semantic-checksum";
+import { PlanningFinalCoverageIssueSchema, type PlanningFinalCoverageIssue } from "./final-admission-diagnostics";
 import type { PlannerCoverageDiagnostics } from "./coverage-contract";
 import {
   bindPlanningRecoverySemanticAccounting,
@@ -94,6 +95,7 @@ export type PlanningRefreshAdmission = {
   introducedRequirementIds: string[];
   removedRequirementIds: string[];
   coverage: PlanningRequirementCoverage[];
+  coverageDiagnostics: PlanningFinalCoverageIssue[];
 };
 
 export class PlanningAdmissionError extends Error {
@@ -205,6 +207,7 @@ const domainCauses: Record<PlanningRefreshDomain, readonly (RequirementCategory 
 };
 
 const semanticMetadataKeys = new Set(["projectId", "projectVersion", "createdAt", "updatedAt", "approvedBriefChecksum", "accepted", "acceptance", "decisionId"]);
+const semanticExcludedKeys = new Set(["requirementReferences", "decisionId", "rationale", "category", "confidence", "systemConstraintReferences", "userConfirmationRequired", "blockers"]);
 const stableSemanticValue = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(stableSemanticValue);
   if (!value || typeof value !== "object") return value;
@@ -220,7 +223,7 @@ function semanticEvidenceCorpus(value: unknown, output: string[] = []): string[]
   else if (Array.isArray(value)) value.forEach((item) => semanticEvidenceCorpus(item, output));
   else if (value && typeof value === "object") {
     for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-      if (semanticMetadataKeys.has(key) || ["requirementReferences", "decisionId", "rationale", "category", "confidence", "systemConstraintReferences", "userConfirmationRequired", "blockers"].includes(key)) continue;
+      if (semanticMetadataKeys.has(key) || semanticExcludedKeys.has(key)) continue;
       semanticEvidenceCorpus(child, output);
     }
   }
@@ -239,6 +242,73 @@ function semanticEvidenceScore(candidate: PlanningPackage, requirement: Canonica
   if (tokens.length < 6) return 0;
   const joined = corpus.join(" ");
   return tokens.filter((token) => joined.includes(token)).length / tokens.length;
+}
+
+function semanticEvidenceEvaluation(candidate: PlanningPackage, requirement: CanonicalRequirement) {
+  const stable = stableSemanticValue(candidate) as Record<string, unknown>;
+  const statement = normalizeSearchText(requirement.statement);
+  const rawCorpus = semanticEvidenceCorpus(stable);
+  const corpus = rawCorpus.map(normalizeSearchText);
+  const tokens = semanticTokens(requirement.statement);
+  const exactMatch = corpus.some((value) => value.includes(statement));
+  const joinedCorpus = corpus.join(" ");
+  const matchedTokens = tokens.filter((token) => joinedCorpus.includes(token));
+  const unmatchedTokens = tokens.filter((token) => !joinedCorpus.includes(token));
+  const matchedTokenCount = matchedTokens.length;
+  const score = exactMatch ? 1 : tokens.length < 6 ? 0 : matchedTokenCount / tokens.length;
+  const evaluatedFieldPaths = Object.entries(stable)
+    .filter(([key, value]) => !semanticMetadataKeys.has(key) && !semanticExcludedKeys.has(key) && semanticEvidenceCorpus(value).length > 0)
+    .map(([key]) => key)
+    .slice(0, 32);
+  return {
+    status: score >= 0.75 ? "FULL" as const : score > 0 ? "PARTIAL" as const : "NONE" as const,
+    score: Number(score.toFixed(6)),
+    requiredTokenCount: tokens.length,
+    matchedTokenCount,
+    requiredTokens: tokens.slice(0, 32),
+    matchedTokens: matchedTokens.slice(0, 32),
+    unmatchedTokens: unmatchedTokens.slice(0, 32),
+    tokenListTruncated: tokens.length > 32,
+    evaluatedFieldPaths,
+    normalizedCorpusChecksum: checksumPersistedDocument(corpus),
+  };
+}
+
+function coverageDiagnosticFor(input: {
+  candidate: PlanningPackage;
+  references: ReadonlySet<string>;
+  entry: PlanningRequirementCoverage;
+  canonicalEntry?: CanonicalRequirement;
+}): PlanningFinalCoverageIssue | undefined {
+  if (input.entry.reason !== "MISSING_REFERENCE" && input.entry.reason !== "MISSING_SEMANTIC_EVIDENCE") return undefined;
+  if (!input.canonicalEntry || input.entry.requirementId !== input.canonicalEntry.id) return undefined;
+  const canonicalReferencePresent = input.references.has(input.entry.requirementId);
+  const evaluation = canonicalReferencePresent
+    ? semanticEvidenceEvaluation(input.candidate, input.canonicalEntry)
+    : undefined;
+  const diagnostic = PlanningFinalCoverageIssueSchema.safeParse({
+    canonicalRequirementId: input.canonicalEntry.id,
+    category: input.canonicalEntry.category,
+    ownership: "PLANNING",
+    kind: input.entry.reason === "MISSING_REFERENCE" ? "ABSENT_MAPPING" : "SEMANTIC_MISSING",
+    reason: input.entry.reason,
+    referenceStatus: canonicalReferencePresent ? "PRESENT" : "ABSENT",
+    canonicalReferencesPresent: canonicalReferencePresent ? [input.entry.requirementId] : [],
+    normalizedEvidence: evaluation ?? {
+      status: "NOT_EVALUATED",
+      score: null,
+      requiredTokenCount: 0,
+      matchedTokenCount: 0,
+      requiredTokens: [],
+      matchedTokens: [],
+      unmatchedTokens: [],
+      tokenListTruncated: false,
+      evaluatedFieldPaths: [],
+      normalizedCorpusChecksum: null,
+    },
+    explanation: input.entry.reason === "MISSING_REFERENCE" ? "CANONICAL_REFERENCE_ABSENT" : "SEMANTIC_EVIDENCE_BELOW_THRESHOLD",
+  });
+  return diagnostic.success ? diagnostic.data : undefined;
 }
 
 function canonicalRequirementEntries(brief: CanonicalBriefV3) {
@@ -676,11 +746,17 @@ export function admitPlanningRefresh(input: {
   let introducedRequirementIds: string[] = [];
   let removedRequirementIds: string[] = [];
   let domains: PlanningRefreshDomain[] = [];
+  let coverageDiagnostics: PlanningFinalCoverageIssue[] = [];
   if (input.canonicalBrief) {
     blockers.push(...validateCanonicalRouteAndFormShape(candidate, input.canonicalBrief));
     if (input.validateRequirementCoverage !== false) {
       coverage = input.requirementCoverage ?? validatePlanningRequirementCoverage({ candidate, canonicalBrief: input.canonicalBrief });
       blockers.push(...coverage.map((item) => `PLANNING_REQUIREMENT_COVERAGE_MISSING:${item.requirementId}:${item.reason}`));
+      const references = referencesOf(candidate);
+      const canonicalEntriesById = new Map(canonicalRequirementEntries(CanonicalBriefV3Schema.parse(input.canonicalBrief)).map((entry) => [entry.id, entry]));
+      coverageDiagnostics = coverage
+        .map((entry) => coverageDiagnosticFor({ candidate, references, entry, canonicalEntry: canonicalEntriesById.get(entry.requirementId) }))
+        .filter((entry): entry is PlanningFinalCoverageIssue => Boolean(entry));
     }
     if (input.current) {
       const normalizedCurrent = normalizePlanningPackageForHost({ ...input, candidate: input.current, current: undefined, timestamp: input.current.updatedAt, validateRoutePolicy: false });
@@ -696,5 +772,5 @@ export function admitPlanningRefresh(input: {
       if (domains.includes("traceability") && !introducedRequirementIds.length && !removedRequirementIds.length && !differsOnlyByHostRefreshTrace(normalizedCurrent, candidate)) blockers.push("PLANNING_REFRESH_TRACEABILITY_DRIFT");
     }
   }
-  return { candidate, blockers: [...new Set(blockers)], changedDomains: domains, introducedRequirementIds, removedRequirementIds, coverage };
+  return { candidate, blockers: [...new Set(blockers)], changedDomains: domains, introducedRequirementIds, removedRequirementIds, coverage, coverageDiagnostics };
 }

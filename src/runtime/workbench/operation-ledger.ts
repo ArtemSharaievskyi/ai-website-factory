@@ -3,7 +3,7 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import type { PersistenceDatabase, OperationReservation } from "@/persistence/database/types";
 import { PersistenceError } from "@/persistence/database/errors";
 import { isStagedPlanningFailure } from "@/agents/planner/staged-failures";
-import type { PlanningAdmissionBoundary, PlanningFinalAdmissionDiagnostics } from "@/agents/planner/final-admission-diagnostics";
+import { existingPlanningFinalAdmissionDiagnostics, type PlanningAdmissionBoundary, type PlanningFinalAdmissionDiagnostics } from "@/agents/planner/final-admission-diagnostics";
 import { createProviderTerminationMetadata, type ProviderDiagnostic, type ProviderInvocationLedgerHandle, type ProviderInvocationLedgerPort, type ProviderInvocationLedgerState, type ProviderInvocationStage, type ProviderTerminationMetadata, type ProviderTerminationParseStatus } from "@/integrations/openai/usage";
 import { providerFailureDiagnosticFromError } from "@/integrations/openai/failure-diagnostics";
 import type { ProviderFailureDiagnostic } from "@/domain/shared/provider-failure";
@@ -389,9 +389,10 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
     const operationStage = stagedFailure ? outerStageForStaged(stagedFailure.details.stage) : this.record.stage;
     const outerCode = stagedFailure ? stagedFailure.details.outerCode : safeCode(error) ?? "WORKBENCH_INTERNAL_ERROR";
     const failureClass = stagedFailure ? stagedFailure.details.failureClass : safeCode(error) ? "KNOWN_WORKFLOW_FAILURE" : "UNEXPECTED_EXCEPTION";
-    const reasonCode = stagedFailure ? stagedFailure.details.reasonCode : safeCode(error);
-    const boundary = stagedFailure?.details.boundary ?? (stagedFailure?.details.stage === "FINAL_ASSEMBLY" || stagedFailure?.details.stage === "FINAL_ADMISSION" ? stagedFailure.details.stage : undefined);
-    const finalAdmissionDiagnostics = stagedFailure?.details.finalAdmissionDiagnostics;
+    const nestedFinalAdmissionDiagnostics = existingPlanningFinalAdmissionDiagnostics(error);
+    const reasonCode = stagedFailure ? stagedFailure.details.reasonCode : nestedFinalAdmissionDiagnostics?.primary.reasonCode ?? safeCode(error);
+    const boundary = stagedFailure?.details.boundary ?? nestedFinalAdmissionDiagnostics?.boundary ?? (stagedFailure?.details.stage === "FINAL_ASSEMBLY" || stagedFailure?.details.stage === "FINAL_ADMISSION" ? stagedFailure.details.stage : undefined);
+    const finalAdmissionDiagnostics = stagedFailure?.details.finalAdmissionDiagnostics ?? nestedFinalAdmissionDiagnostics;
     const kindDomainDiagnostics = stagedFailure?.details.kindDomainDiagnostics;
     const minimumDiagnostics = stagedFailure?.details.minimumDiagnostics;
     const graphCycleDiagnostics = stagedFailure?.details.graphCycleDiagnostics;

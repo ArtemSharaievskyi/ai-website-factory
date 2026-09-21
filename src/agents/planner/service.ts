@@ -111,8 +111,10 @@ import {
 } from "./staged-failures";
 import {
   PlanningFinalAdmissionError,
+  planningFinalCoverageDiagnostics,
   planningFinalAdmissionDiagnostics,
   planningFinalAdmissionDiagnosticsFromError,
+  type PlanningStagedCoverageBinding,
 } from "./final-admission-diagnostics";
 
 const now = () => new Date().toISOString();
@@ -416,6 +418,7 @@ export class PlannerArchitectService {
     candidate: PlanningPackage;
     current?: PlanningPackage;
     authorizedDomains?: readonly PlanningRefreshDomain[];
+    stagedCoverageBindings?: readonly PlanningStagedCoverageBinding[];
   }) {
     let admission;
     try {
@@ -441,7 +444,25 @@ export class PlannerArchitectService {
       throw error;
     }
     if (admission.blockers.length > 0) {
-      const diagnostics = planningFinalAdmissionDiagnostics({ boundary: "FINAL_ADMISSION", validator: "ADMIT_PLANNING_REFRESH", blockers: admission.blockers });
+      const coverageBlocker = admission.blockers.some((blocker) => blocker.startsWith("PLANNING_REQUIREMENT_COVERAGE_MISSING:"));
+      const coverage = coverageBlocker
+        ? planningFinalCoverageDiagnostics({
+          availability: admission.coverageDiagnostics.length ? "AVAILABLE" : "UNAVAILABLE",
+          issues: admission.coverageDiagnostics.map((issue) => {
+            const binding = input.stagedCoverageBindings?.find((candidate) => candidate.canonicalRequirementId === issue.canonicalRequirementId);
+            if (!binding) return issue;
+            return {
+              ...issue,
+              ...(issue.reason === "MISSING_REFERENCE"
+                ? { kind: "INVALID_MAPPING" as const, referenceStatus: "INVALID" as const, explanation: "STAGED_MAPPING_NOT_BOUND" as const }
+                : {}),
+              stagedRequirementToken: binding.stagedRequirementToken,
+              planningElementIds: binding.planningElementIds,
+            };
+          }),
+          })
+        : undefined;
+      const diagnostics = planningFinalAdmissionDiagnostics({ boundary: "FINAL_ADMISSION", validator: "ADMIT_PLANNING_REFRESH", blockers: admission.blockers, ...(coverage ? { coverage } : {}) });
       throw new PlannerError(
         "PLANNING_PACKAGE_INVALID",
         "Planner output failed deterministic refresh admission.",
@@ -678,7 +699,12 @@ export class PlannerArchitectService {
       );
     }
     input.telemetry?.enter("FINAL_ADMISSION");
-    return parsedCandidate;
+    const stagedCoverageBindings: PlanningStagedCoverageBinding[] = (Object.entries(coverage.coverageByRequirement) as Array<[string, { planningElementIds: readonly string[] }]>).flatMap(([token, entry]) => {
+      const requirement = table.requirements.find((candidate) => candidate.token === token);
+      if (!requirement) return [];
+      return [{ canonicalRequirementId: requirement.canonicalRequirementId, stagedRequirementToken: token, planningElementIds: [...entry.planningElementIds] }];
+    });
+    return { candidate: parsedCandidate, stagedCoverageBindings };
   }
   async planApprovedProject(rawInput: PlannerAgentInput, executionContext: { correlationId?: string; providerInvocationLedger?: ProviderInvocationLedgerPort; setStage?: (stage: "OPERATION_INITIALIZATION" | "PREFLIGHT" | "DECOMPOSITION" | "GRAPH" | "COVERAGE" | "FINAL_ASSEMBLY" | "PERSISTENCE" | "LIFECYCLE_TRANSITION") => void | Promise<void>; markMutationCommitted?: () => void | Promise<void> } = {}) {
     await executionContext.setStage?.("OPERATION_INITIALIZATION");
@@ -858,6 +884,7 @@ export class PlannerArchitectService {
       ...(plannerReferenceTable ? { plannerReferenceTable } : {}),
     });
     let planningPackage: PlanningPackage;
+    let stagedCoverageBindings: PlanningStagedCoverageBinding[] | undefined;
     try {
     try {
       const documentationExcerpts =
@@ -890,7 +917,7 @@ export class PlannerArchitectService {
       if (this.provider.decompose && this.provider.assignCoverage) {
         if (!plannerReferenceTable || !currentCanonical)
           throw new PlannerError("PLANNING_PACKAGE_INVALID", "Staged Planning requires a current CanonicalBriefV3 reference table.");
-        planningPackage = await this.runStagedPlanning({
+        const stagedResult = await this.runStagedPlanning({
           plannerInput,
           brief,
           ...(currentCanonical ? { canonicalBrief: currentCanonical.brief } : {}),
@@ -903,6 +930,8 @@ export class PlannerArchitectService {
           ...(executionContext.providerInvocationLedger ? { providerInvocationLedger: executionContext.providerInvocationLedger } : {}),
           ...(executionContext.setStage ? { setStage: executionContext.setStage } : {}),
         });
+        planningPackage = stagedResult.candidate;
+        stagedCoverageBindings = stagedResult.stagedCoverageBindings;
       } else {
         planningPackage = PlanningPackageSchema.parse({
           ...PlanningPackageSchema.parse(await this.provider.plan(
@@ -961,6 +990,7 @@ export class PlannerArchitectService {
       canonicalBrief: currentAfterProvider?.brief,
       candidate: planningPackage,
       current: currentPlanningPackage,
+      ...(stagedCoverageBindings ? { stagedCoverageBindings } : {}),
     });
     const admissionResult = validatePlanningAdmission(planningPackage);
     if (!admissionResult.ready) {

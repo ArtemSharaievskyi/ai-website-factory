@@ -16,6 +16,8 @@ import { FactoryProjectSchema } from "@/domain/project/schema";
 import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
 import { createBriefV3Document, BriefV3DocumentSchema } from "@/persistence/database/brief-revision-v3-contracts";
 import { DecisionRepository, DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
+import { workbenchFailureResponse } from "@/runtime/workbench/diagnostics";
+import { WorkbenchOperationLedger } from "@/runtime/workbench/operation-ledger";
 
 const timestamp = "2026-01-01T00:00:00.000Z";
 
@@ -105,6 +107,18 @@ function admitted(packageValue: PlanningPackage, input: PlannerAgentInput, curre
   });
 }
 
+function withoutRequirementReference(value: unknown, requirementId: string): unknown {
+  if (Array.isArray(value)) return value.map((item) => withoutRequirementReference(item, requirementId));
+  if (value === "brief:features") return "brief:pages";
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, child]) => [
+    key,
+    key === "requirementReferences" && Array.isArray(child)
+      ? child.filter((reference) => reference !== requirementId).map((reference) => withoutRequirementReference(reference, requirementId))
+      : withoutRequirementReference(child, requirementId),
+  ]));
+}
+
 describe("host-owned Planning refresh admission", () => {
   it("serializes a precise coverage reason without changing the stable outer Planner error", () => {
     const error = new PlannerError("PLANNING_PACKAGE_INVALID", "Planner output failed deterministic token admission.", new PlanningAdmissionError("PLANNING_REQUIREMENT_COVERAGE_INVALID", "coverageByRequirement.REQ_001", "PLANNING_COVERAGE_KIND_INCOMPATIBLE"));
@@ -136,6 +150,44 @@ describe("host-owned Planning refresh admission", () => {
     const result = admitted(candidate, fixture.input);
     expect(result.blockers.some((blocker) => blocker.includes("REQUIREMENT:unique-service"))).toBe(true);
     expect(result.coverage).toEqual(expect.arrayContaining([expect.objectContaining({ requirementId: "REQUIREMENT:unique-service" })]));
+    expect(result.coverageDiagnostics).toEqual(expect.arrayContaining([expect.objectContaining({
+      canonicalRequirementId: "REQUIREMENT:unique-service",
+      category: "FEATURE",
+      ownership: "PLANNING",
+      kind: "SEMANTIC_MISSING",
+      reason: "MISSING_SEMANTIC_EVIDENCE",
+      referenceStatus: "PRESENT",
+      canonicalReferencesPresent: ["REQUIREMENT:unique-service"],
+      normalizedEvidence: expect.objectContaining({ status: expect.any(String), score: expect.any(Number), requiredTokens: expect.any(Array), matchedTokens: expect.any(Array), unmatchedTokens: expect.any(Array), tokenListTruncated: expect.any(Boolean), normalizedCorpusChecksum: expect.stringMatching(/^[a-f0-9]{64}$/) }),
+    })]));
+    expect(JSON.stringify(result.coverageDiagnostics)).not.toContain("The unique synthetic moving service.");
+  });
+
+  it("reports an absent canonical mapping without pretending semantic evidence was evaluated", () => {
+    const brief = fixtureBrief({ requirements: [...cleanBriefV3.requirements, { id: "REQUIREMENT:unmapped-service", category: "FEATURE", statement: "Provide the unmapped synthetic service.", sourceRefs: ["fixture:unmapped-service"] }] });
+    const fixture = packageFor(brief);
+    const candidate = PlanningPackageSchema.parse(withoutRequirementReference(fixture.packageValue, "REQUIREMENT:unmapped-service"));
+    const result = admitted(candidate, fixture.input);
+    expect(result.coverageDiagnostics).toEqual(expect.arrayContaining([expect.objectContaining({
+      canonicalRequirementId: "REQUIREMENT:unmapped-service",
+      category: "FEATURE",
+      kind: "ABSENT_MAPPING",
+      reason: "MISSING_REFERENCE",
+      referenceStatus: "ABSENT",
+      canonicalReferencesPresent: [],
+      normalizedEvidence: {
+        status: "NOT_EVALUATED",
+        score: null,
+        requiredTokenCount: 0,
+        matchedTokenCount: 0,
+        requiredTokens: [],
+        matchedTokens: [],
+        unmatchedTokens: [],
+        tokenListTruncated: false,
+        evaluatedFieldPaths: [],
+        normalizedCorpusChecksum: null,
+      },
+    })]));
   });
 
   it("rejects loss of an approved service scope point without naming the pilot in host logic", () => {
@@ -308,6 +360,49 @@ describe("host-owned Planning refresh admission", () => {
     expect(calls).toBe(1);
     expect([...fixture.database.documents.values()].some((row) => row.documentType === "planning-package")).toBe(false);
     expect(memory.documents.size).toBe(0);
+  });
+
+  it("preserves final coverage diagnostics through the real Planner and Workbench ledger path", async () => {
+    const fixture = await seededFixture();
+    const valid = buildPlanningPackage(fixture.input);
+    const bad = {
+      ...valid,
+      productScope: {
+        ...valid.productScope,
+        inScopeCapabilities: valid.productScope.inScopeCapabilities.filter((value) => value !== "Show the synthetic service overview."),
+      },
+    };
+    await new DocumentRepository(fixture.database).save(RequirementSpecificationSchema.parse(fixture.input.approvedBrief));
+    const service = new PlannerArchitectService({ database: fixture.database, memory: new FakePlannerMemoryPort(), provider: { async plan() { return bad; } } });
+    const correlationId = "13131313-1313-4131-8131-131313131313";
+    const ledger = new WorkbenchOperationLedger(fixture.database, fixture.projectId, `workbench-planning:${fixture.projectId}`, correlationId);
+    await ledger.reserve();
+    let failure: unknown;
+    try {
+      await service.planApprovedProject(fixture.input);
+    } catch (error) {
+      failure = error;
+    }
+    const outerFailure = await ledger.fail(failure);
+    const response = workbenchFailureResponse(outerFailure, { action: "generate-planning", projectId: fixture.projectId, correlationId });
+    expect(response.response).toMatchObject({
+      code: "PLANNING_PACKAGE_INVALID",
+      finalAdmissionDiagnostics: {
+        boundary: "FINAL_ADMISSION",
+        coverage: {
+          availability: "AVAILABLE",
+          issueCount: 1,
+          retainedIssueCount: 1,
+          truncated: false,
+          issues: [expect.objectContaining({ canonicalRequirementId: "REQUIREMENT:service", reason: "MISSING_SEMANTIC_EVIDENCE", referenceStatus: "PRESENT" })],
+        },
+      },
+      canonicalPlanningPersisted: false,
+      lifecycleMutated: false,
+    });
+    const persisted = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: fixture.projectId }));
+    expect(persisted).toMatchObject({ status: "FAILED", result: { finalAdmissionDiagnostics: { coverage: { issueCount: 1, retainedIssueCount: 1, truncated: false } }, canonicalPlanningPersisted: false, lifecycleMutated: false } });
+    expect(JSON.stringify(persisted)).not.toContain("Show the synthetic service overview.");
   });
 
   it("rejects a stale CanonicalBrief that changes after provider return", async () => {
