@@ -14,6 +14,7 @@ import { safeOperationFingerprint } from "./operation-ledger";
 import { ProviderFailureDiagnosticSchema, type ProviderFailureDiagnostic } from "@/domain/shared/provider-failure";
 import { providerFailureDiagnosticFromError } from "@/integrations/openai/failure-diagnostics";
 import { PlanningAdmissionDiagnosticEnvelopeSchema, type PlanningAdmissionDiagnosticEnvelope } from "@/agents/planner/staged-admission-diagnostics";
+import { currentRuntimeProvenance, RuntimeProvenanceSchema, WorkbenchAttemptReadbackSchema, WorkbenchResponseOriginSchema, type RuntimeProvenance, type WorkbenchResponseOrigin } from "./observability";
 
 export const WorkbenchErrorCategorySchema = z.enum([
   "VALIDATION",
@@ -112,6 +113,11 @@ export const WorkbenchErrorResponseSchema = z
     providerRequestCount: z.number().int().nonnegative().optional(),
     internalClassification: z.literal("UNEXPECTED_EXCEPTION").optional(),
     stagedOperation: StagedPlanningOperationSummarySchema.optional(),
+    responseOrigin: WorkbenchResponseOriginSchema,
+    attemptCreated: z.boolean(),
+    attemptStatus: z.enum(["IN_PROGRESS", "SUCCEEDED", "FAILED"]).optional(),
+    runtimeProvenance: RuntimeProvenanceSchema,
+    attemptHistory: z.array(WorkbenchAttemptReadbackSchema).max(8).optional(),
   })
   .strict();
 export type WorkbenchErrorResponse = z.infer<typeof WorkbenchErrorResponseSchema>;
@@ -122,6 +128,7 @@ export type WorkbenchDiagnosticContext = {
   workflowState?: string;
   operation?: WorkbenchOperation;
   correlationId?: string;
+  runtimeProvenance?: RuntimeProvenance;
 };
 
 type SafeValidationProjection = {
@@ -132,7 +139,7 @@ type SafeValidationProjection = {
   validationIssues?: Array<{ path: string; issueCode: string; expectedShape: string }>;
 };
 
-export type WorkbenchErrorProjection = WorkbenchErrorResponse & {
+export type WorkbenchErrorProjection = Omit<WorkbenchErrorResponse, "responseOrigin" | "attemptCreated" | "attemptStatus" | "runtimeProvenance" | "attemptHistory"> & {
   httpStatus: number;
   subsystem: WorkbenchSubsystem;
   errorClass: string;
@@ -147,6 +154,11 @@ export type WorkbenchErrorProjection = WorkbenchErrorResponse & {
   finalAdmissionDiagnostics?: PlanningFinalAdmissionDiagnostics;
   admissionDiagnostics?: PlanningAdmissionDiagnosticEnvelope;
   providerTermination?: ProviderTerminationMetadata;
+  responseOrigin?: WorkbenchResponseOrigin;
+  attemptCreated?: boolean;
+  attemptStatus?: "IN_PROGRESS" | "SUCCEEDED" | "FAILED";
+  runtimeProvenance?: RuntimeProvenance;
+  attemptHistory?: z.infer<typeof WorkbenchAttemptReadbackSchema>[];
 };
 
 type SafeProviderDiagnostic = {
@@ -251,6 +263,11 @@ export type WorkbenchDiagnosticEvent = {
   providerRequestCount?: number;
   internalClassification?: "UNEXPECTED_EXCEPTION";
   stagedOperation?: StagedPlanningOperationSummary;
+  responseOrigin?: WorkbenchResponseOrigin;
+  attemptCreated?: boolean;
+  attemptStatus?: "IN_PROGRESS" | "SUCCEEDED" | "FAILED";
+  runtimeProvenance?: RuntimeProvenance;
+  attemptHistory?: z.infer<typeof WorkbenchAttemptReadbackSchema>[];
 };
 
 const CONFLICT_CODES = new Set([
@@ -587,7 +604,8 @@ function safeValidationProjection(error: unknown): SafeValidationProjection {
 
 function stagedFailureProjection(error: unknown): Omit<WorkbenchErrorProjection, "ok" | "code" | "correlationId" | "operation"> | undefined {
   if (!isStagedPlanningFailure(error)) return undefined;
-  const operation = StagedPlanningOperationSummarySchema.parse(error.details.operation);
+  const operationParsed = StagedPlanningOperationSummarySchema.safeParse(error.details.operation);
+  const operation = operationParsed.success ? operationParsed.data : undefined;
   const providerFailure = ["PROVIDER_SCHEMA_ADHERENCE_FAILURE", "PROVIDER_STRUCTURED_OUTPUT_FAILURE", "PROVIDER_TRANSPORT_FAILURE"].includes(error.details.failureClass);
   const currentnessFailure = error.details.failureClass === "STAGED_CURRENTNESS_FAILURE";
   const persistenceFailure = error.details.failureClass === "RUNTIME_PERSISTENCE_FAILURE";
@@ -616,7 +634,7 @@ function stagedFailureProjection(error: unknown): Omit<WorkbenchErrorProjection,
     ...(error.details.providerTermination ? { providerTermination: error.details.providerTermination } : {}),
     providerRequestCountExact: error.details.providerRequestCountExact,
     providerRequestCount: error.details.providerRequestCount,
-    stagedOperation: operation,
+    ...(operation ? { stagedOperation: operation } : {}),
     ...(safeProviderDiagnostic(error) ? { providerDiagnostic: safeProviderDiagnostic(error) } : {}),
   };
 }
@@ -663,6 +681,11 @@ function operationFailureProjection(error: WorkbenchOperationFailure): Omit<Work
     ...(details.providerTermination ? { providerTermination: details.providerTermination } : {}),
     internalClassification: details.internalClassification,
     ...(details.stagedOperation ? { stagedOperation: details.stagedOperation } : staged?.stagedOperation ? { stagedOperation: staged.stagedOperation } : {}),
+    responseOrigin: details.responseOrigin,
+    attemptCreated: details.attemptCreated,
+    ...(details.attemptStatus ? { attemptStatus: details.attemptStatus } : {}),
+    runtimeProvenance: details.runtimeProvenance,
+    ...(details.attemptHistory ? { attemptHistory: details.attemptHistory } : {}),
   };
 }
 
@@ -695,6 +718,7 @@ function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProject
 }
 
 export function normalizeWorkbenchError(error: unknown, context: WorkbenchDiagnosticContext = {}): WorkbenchErrorProjection {
+  const runtimeProvenance = context.runtimeProvenance ?? currentRuntimeProvenance();
   if (isWorkbenchOperationFailure(error)) {
     const operationProjection = operationFailureProjection(error);
     return {
@@ -702,6 +726,7 @@ export function normalizeWorkbenchError(error: unknown, context: WorkbenchDiagno
       code: error.details.outerCode,
       correlationId: context.correlationId && z.string().uuid().safeParse(context.correlationId).success ? context.correlationId : error.details.correlationId,
       operation: context.operation ?? operationForAction(context.action),
+      runtimeProvenance,
       ...operationProjection,
     };
   }
@@ -715,6 +740,9 @@ export function normalizeWorkbenchError(error: unknown, context: WorkbenchDiagno
     code: knownCode ?? "WORKBENCH_INTERNAL_ERROR",
     correlationId: context.correlationId && z.string().uuid().safeParse(context.correlationId).success ? context.correlationId : errorCorrelationId ?? randomUUID(),
     operation,
+    responseOrigin: code === "WORKBENCH_OPERATION_IN_PROGRESS" ? "IDEMPOTENT_ACTIVE" : code === "WORKBENCH_OPERATION_REPLAY" ? "IDEMPOTENT_SUCCESS" : "PREFLIGHT_REJECTION",
+    attemptCreated: false,
+    runtimeProvenance,
     ...projection,
   };
 }
@@ -767,6 +795,10 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
       stagedOperation: projection.stagedOperation,
       projectId: projection.stagedOperation.projectId,
     } : {}),
+    ...(projection.responseOrigin ? { responseOrigin: projection.responseOrigin } : {}),
+    ...(projection.attemptCreated !== undefined ? { attemptCreated: projection.attemptCreated } : {}),
+    ...(projection.attemptStatus ? { attemptStatus: projection.attemptStatus } : {}),
+    ...(projection.runtimeProvenance ? { runtimeProvenance: projection.runtimeProvenance } : {}),
     ...(projection.validationStage ? { validationStage: projection.validationStage } : {}),
     ...(projection.issueCode ? { issueCode: projection.issueCode } : {}),
     ...(projection.fieldPath ? { fieldPath: projection.fieldPath } : {}),
@@ -822,6 +854,9 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
       subsystem: "ROUTE",
       errorClass: "UnknownError",
       internalClassification: "UNEXPECTED_EXCEPTION",
+      responseOrigin: "PREFLIGHT_REJECTION",
+      attemptCreated: false,
+      runtimeProvenance: context.runtimeProvenance ?? currentRuntimeProvenance(),
       httpStatus: 500,
     };
   }
@@ -872,6 +907,11 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     ...(projection.providerRequestCount !== undefined ? { providerRequestCount: projection.providerRequestCount } : {}),
     ...(projection.internalClassification ? { internalClassification: projection.internalClassification } : {}),
     ...(projection.stagedOperation ? { stagedOperation: projection.stagedOperation } : {}),
+    responseOrigin: projection.responseOrigin ?? "PREFLIGHT_REJECTION",
+    attemptCreated: projection.attemptCreated ?? false,
+    ...(projection.attemptStatus ? { attemptStatus: projection.attemptStatus } : {}),
+    runtimeProvenance: projection.runtimeProvenance ?? currentRuntimeProvenance(),
+    ...(projection.attemptHistory ? { attemptHistory: projection.attemptHistory } : {}),
   };
   let response: WorkbenchErrorResponse;
   try {
@@ -900,6 +940,11 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     };
     if (projection.operationId && SafeOperationIdSchema.safeParse(projection.operationId).success) fallback.operationId = projection.operationId;
     if (projection.operationKind && /^[A-Z][A-Z0-9_]{1,80}$/.test(projection.operationKind)) fallback.operationKind = projection.operationKind;
+    fallback.responseOrigin = projection.responseOrigin ?? "PREFLIGHT_REJECTION";
+    fallback.attemptCreated = projection.attemptCreated === true;
+    fallback.runtimeProvenance = RuntimeProvenanceSchema.parse(projection.runtimeProvenance ?? currentRuntimeProvenance());
+    if (projection.attemptStatus) fallback.attemptStatus = projection.attemptStatus;
+    if (projection.attemptHistory && z.array(WorkbenchAttemptReadbackSchema).max(8).safeParse(projection.attemptHistory).success) fallback.attemptHistory = projection.attemptHistory;
     if (safeProjectId) fallback.projectId = safeProjectId;
     if (projection.phase === "PLANNING" || projection.phase === "ARCHITECTURE_REVIEW") fallback.phase = projection.phase;
     if (projection.providerCallsByStage && WorkbenchProviderCallsByStageSchema.safeParse(projection.providerCallsByStage).success) fallback.providerCallsByStage = projection.providerCallsByStage;

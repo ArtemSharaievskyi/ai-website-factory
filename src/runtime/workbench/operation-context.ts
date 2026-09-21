@@ -9,6 +9,7 @@ import type { PlanningGraphCycleDiagnostics } from "@/agents/planner/staged-cont
 import type { DecompositionMinimumDiagnostics } from "@/agents/planner/decomposition-minimum";
 import type { CoverageRepresentabilityAnchorDiagnostics } from "@/agents/planner/coverage-representability";
 import type { StagedPlanningOperationSummary } from "@/agents/planner/staged-failures";
+import type { RuntimeProvenance, WorkbenchAttemptReadback, WorkbenchAttemptStatus, WorkbenchResponseMetadata, WorkbenchResponseOrigin } from "./observability";
 
 export const WORKBENCH_OPERATION_STAGES = [
   "WORKBENCH_DISPATCH",
@@ -65,6 +66,11 @@ export type WorkbenchOperationFailureDetails = {
   admissionDiagnostics?: PlanningAdmissionDiagnosticEnvelope;
   providerTermination?: ProviderTerminationMetadata;
   internalClassification?: "UNEXPECTED_EXCEPTION";
+  responseOrigin: WorkbenchResponseOrigin;
+  attemptCreated: boolean;
+  attemptStatus?: WorkbenchAttemptStatus;
+  runtimeProvenance: RuntimeProvenance;
+  attemptHistory?: WorkbenchAttemptReadback[];
 };
 
 export class WorkbenchOperationFailure extends Error {
@@ -91,6 +97,8 @@ export type WorkbenchOperationContext = {
   bindCurrentness?: (input: { projectVersion: number; rowVersion: number; briefChecksum: string }) => void | Promise<void>;
   setStage?: (stage: WorkbenchOperationStage) => void | Promise<void>;
   markMutationCommitted?: () => void | Promise<void>;
+  runtimeProvenance?: RuntimeProvenance;
+  responseSink?: { metadata?: WorkbenchResponseMetadata };
 };
 
 const operationContext = new AsyncLocalStorage<WorkbenchOperationContext>();

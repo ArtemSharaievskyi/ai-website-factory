@@ -14,6 +14,7 @@ import type { DecompositionMinimumDiagnostics } from "@/agents/planner/decomposi
 import type { CoverageRepresentabilityAnchorDiagnostics } from "@/agents/planner/coverage-representability";
 import type { StagedPlanningOperationSummary } from "@/agents/planner/staged-failures";
 import { WorkbenchOperationFailure, type WorkbenchOperationFailureDetails, type WorkbenchOperationStage } from "./operation-context";
+import { attemptReadbackFromResult, currentRuntimeProvenance, MAX_WORKBENCH_ATTEMPT_HISTORY, type RuntimeProvenance, type WorkbenchAttemptReadback, type WorkbenchResponseMetadata, type WorkbenchResponseOrigin } from "./observability";
 
 type ProviderCounters = {
   attempted: number;
@@ -60,6 +61,14 @@ type RecordState = {
   safeErrorFingerprint: string | null;
   semanticIntentHash: string | null;
   attemptRequestHash: string | null;
+  attemptCreatedAt: string;
+  reservedAt: string | null;
+  executionStartedAt: string | null;
+  completedAt: string | null;
+  failedAt: string | null;
+  failureStage: string | null;
+  attemptTimeline: Array<{ type: "ATTEMPT_CREATED" | "ATTEMPT_RESERVED" | "EXECUTION_STARTED" | "PROVIDER_STAGE_RESERVED" | "PROVIDER_STAGE_STARTED" | "PROVIDER_STAGE_RESPONSE_RECEIVED" | "PROVIDER_STAGE_PARSE_PASSED" | "PROVIDER_STAGE_ADMISSION_PASSED" | "PROVIDER_STAGE_FAILED" | "EXECUTION_SUCCEEDED" | "EXECUTION_FAILED"; at: string; stage?: ProviderInvocationStage; invocationId?: string }>;
+  runtimeProvenance: RuntimeProvenance;
 };
 
 export type WorkbenchPlanningCurrentness = { projectVersion: number; rowVersion: number; briefChecksum: string };
@@ -102,8 +111,13 @@ export function readWorkbenchPlanningAttempt(database: PersistenceDatabase, oper
   }));
 }
 
+export async function readWorkbenchPlanningAttemptHistory(database: PersistenceDatabase, operationId: string, limit = MAX_WORKBENCH_ATTEMPT_HISTORY): Promise<WorkbenchAttemptReadback[]> {
+  const rows = await database.transaction((tx) => tx.listOperations({ operation: WORKBENCH_PLANNING_ATTEMPT_OPERATION, keyPrefix: `${operationId}:`, limit }));
+  return rows.map((row) => attemptReadbackFromResult({ operationId, status: row.status, result: row.result, createdAt: row.createdAt })).filter((row): row is WorkbenchAttemptReadback => row !== null);
+}
+
 const emptyCounters = (): ProviderCounters => ({ attempted: 0, started: 0, responseReceived: 0, structuredParsePassed: 0, semanticAdmissionPassed: 0, completed: 0, failed: 0 });
-const initialRecord = (operationId: string, projectId: string, correlationId: string): RecordState => ({
+const initialRecord = (operationId: string, projectId: string, correlationId: string, runtimeProvenance: RuntimeProvenance): RecordState => ({
   schemaVersion: 1,
   attemptId: randomUUID(),
   correlationId,
@@ -136,6 +150,14 @@ const initialRecord = (operationId: string, projectId: string, correlationId: st
   safeErrorFingerprint: null,
   semanticIntentHash: null,
   attemptRequestHash: null,
+  attemptCreatedAt: new Date().toISOString(),
+  reservedAt: null,
+  executionStartedAt: null,
+  completedAt: null,
+  failedAt: null,
+  failureStage: null,
+  attemptTimeline: [{ type: "ATTEMPT_CREATED", at: new Date().toISOString() }],
+  runtimeProvenance,
 });
 
 const safeCode = (error: unknown) => {
@@ -184,9 +206,30 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
   private reserved = false;
   private attemptEvidencePersisted = false;
 
-  constructor(private readonly database: PersistenceDatabase, projectId: string, operationId = `workbench-planning:${projectId}`, correlationId: string = randomUUID()) {
-    this.record = initialRecord(operationId, projectId, correlationId);
+  constructor(private readonly database: PersistenceDatabase, projectId: string, operationId = `workbench-planning:${projectId}`, correlationId: string = randomUUID(), runtimeProvenance: RuntimeProvenance = currentRuntimeProvenance(), private readonly responseSink?: { metadata?: WorkbenchResponseMetadata }) {
+    this.record = initialRecord(operationId, projectId, correlationId, runtimeProvenance);
     this.key = projectId;
+  }
+
+  private appendTimeline(type: RecordState["attemptTimeline"][number]["type"], stage?: ProviderInvocationStage, invocationId?: string) {
+    const event = { type, at: new Date().toISOString(), ...(stage ? { stage } : {}), ...(invocationId ? { invocationId } : {}) };
+    this.record.attemptTimeline = [...this.record.attemptTimeline, event].slice(-64);
+  }
+
+  private async publishResponse(responseOrigin: WorkbenchResponseOrigin, attemptCreated = this.reserved, attemptStatus: "IN_PROGRESS" | "SUCCEEDED" | "FAILED" = "IN_PROGRESS") {
+    if (!this.responseSink) return;
+    let attemptHistory: WorkbenchAttemptReadback[] | undefined;
+    try { attemptHistory = await readWorkbenchPlanningAttemptHistory(this.database, this.record.operationId); } catch { /* response metadata remains useful without readback */ }
+    const metadata: WorkbenchResponseMetadata = {
+      schemaVersion: 1,
+      responseOrigin,
+      attemptCreated,
+      correlationId: this.record.correlationId,
+      runtimeProvenance: this.record.runtimeProvenance,
+      ...(attemptCreated ? { operationId: this.record.operationId, attemptId: this.record.attemptId, semanticIntentHash: this.record.semanticIntentHash ?? undefined, attemptStatus } : {}),
+      ...(attemptHistory && attemptHistory.length ? { attemptHistory } : {}),
+    };
+    this.responseSink.metadata = metadata;
   }
 
   private payloadHash() {
@@ -283,6 +326,13 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
     if (reservation.status === "IN_PROGRESS") throw new WorkbenchOperationConflict("WORKBENCH_OPERATION_IN_PROGRESS", "A current Planning operation is already active.");
     if (reservation.status === "SUCCEEDED") throw new WorkbenchOperationConflict("WORKBENCH_OPERATION_REPLAY", "The current Planning operation was already completed.");
     this.reserved = true;
+    const now = new Date().toISOString();
+    this.record.reservedAt = now;
+    this.record.executionStartedAt = now;
+    this.appendTimeline("ATTEMPT_RESERVED");
+    this.appendTimeline("EXECUTION_STARTED");
+    await this.persist();
+    await this.publishResponse("NEW_EXECUTION", true, "IN_PROGRESS");
     return reservation;
   }
 
@@ -329,6 +379,7 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
     this.record.providerContract = input.providerContract;
     this.record.providerInvocationState = "RESERVED";
     this.record.providerInvocations = [...this.record.providerInvocations, invocation].slice(-8);
+    this.appendTimeline("PROVIDER_STAGE_RESERVED", input.stage, invocation.id);
     await this.persist();
     const transition = async (state: ProviderInvocationLedgerState) => {
       const current = this.record.providerInvocations.find((candidate) => candidate.id === invocation.id);
@@ -337,6 +388,8 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
       if (state !== "FAILED" && rank[state] <= rank[current.state]) return;
       current.state = state;
       this.record.providerInvocationState = state;
+      const timelineType = state === "TRANSPORT_STARTED" ? "PROVIDER_STAGE_STARTED" : state === "RESPONSE_RECEIVED" ? "PROVIDER_STAGE_RESPONSE_RECEIVED" : state === "PARSE_PASSED" ? "PROVIDER_STAGE_PARSE_PASSED" : state === "ADMISSION_PASSED" ? "PROVIDER_STAGE_ADMISSION_PASSED" : state === "FAILED" ? "PROVIDER_STAGE_FAILED" : undefined;
+      if (timelineType) this.appendTimeline(timelineType, invocation.stage, invocation.id);
       const counters = this.record.providerCallsByStage[invocation.stage];
       if (state === "TRANSPORT_STARTED" && counters.attempted === counters.started) {
         counters.attempted += 1;
@@ -379,8 +432,11 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
 
   async complete() {
     this.record.stage = "LIFECYCLE_TRANSITION";
+    this.record.completedAt = new Date().toISOString();
+    this.appendTimeline("EXECUTION_SUCCEEDED");
     await this.database.transaction((tx) => tx.completeOperation({ operation: this.operation, key: this.key, payloadHash: this.reservationPayloadHash!, result: structuredClone(this.record), leaseId: this.record.attemptId }));
     await this.persistAttemptTerminal("SUCCEEDED");
+    await this.publishResponse("NEW_EXECUTION", true, "SUCCEEDED");
   }
 
   async fail(error: unknown): Promise<WorkbenchOperationFailure> {
@@ -405,6 +461,7 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
     this.record = {
       ...this.record,
       stage: operationStage,
+      failureStage: operationStage,
       providerContract: stagedFailure ? stagedFailure.details.providerContract ?? this.record.providerContract : this.record.providerContract,
       providerDiagnostic: providerDiagnostic ?? this.record.providerDiagnostic,
       failureClass,
@@ -423,9 +480,13 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
       canonicalPlanningPersisted: this.record.canonicalPlanningPersisted || commitOutcomeAmbiguous,
       lifecycleMutated: this.record.lifecycleMutated || commitOutcomeAmbiguous,
     };
+    if (this.reserved) {
+      this.record.failedAt = new Date().toISOString();
+      this.appendTimeline("EXECUTION_FAILED");
+    }
     const details: WorkbenchOperationFailureDetails = {
       correlationId: this.record.correlationId,
-      attemptId: this.record.attemptId,
+      ...(this.reserved ? { attemptId: this.record.attemptId } : {}),
       operationId: this.record.operationId,
       operationKind: this.record.operationKind,
       projectId: this.record.projectId,
@@ -454,6 +515,10 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
       lifecycleMutated: this.record.lifecycleMutated,
       ...(stagedFailure ? { stagedStage: stagedFailure.details.stage } : {}),
       ...(failureClass === "UNEXPECTED_EXCEPTION" ? { internalClassification: "UNEXPECTED_EXCEPTION" as const } : {}),
+      responseOrigin: this.reserved ? "NEW_EXECUTION" : "PREFLIGHT_REJECTION",
+      attemptCreated: this.reserved,
+      ...(this.reserved ? { attemptStatus: "FAILED" as const } : {}),
+      runtimeProvenance: this.record.runtimeProvenance,
     };
     try {
       if (this.reserved && this.reservationPayloadHash)
@@ -463,10 +528,16 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
       // deliberately not allowed to expose raw database details.
     }
     await this.persistAttemptTerminal("FAILED");
+    let attemptHistory: WorkbenchAttemptReadback[] | undefined;
+    if (this.reserved) {
+      try { attemptHistory = await readWorkbenchPlanningAttemptHistory(this.database, this.record.operationId); } catch { /* preserve the typed failure when readback is unavailable */ }
+    }
+    const responseFailureDetails = attemptHistory ? { ...details, attemptHistory } : details;
+    await this.publishResponse(details.responseOrigin, details.attemptCreated, "FAILED");
     const message = details.canonicalPlanningPersisted || details.lifecycleMutated
       ? "The Workbench operation reached a mutation boundary; inspect the current project state before retrying."
       : "The Workbench operation failed safely; the project was not changed.";
-    return new WorkbenchOperationFailure(details, message, error);
+    return new WorkbenchOperationFailure(responseFailureDetails, message, error);
   }
 }
 

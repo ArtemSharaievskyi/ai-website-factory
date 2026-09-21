@@ -16,6 +16,12 @@ repositories, and validators remain canonical.
 - `src/runtime/workbench/production.ts` composes the server-only production
   runtime and the generated-project scope.
 - `src/runtime/workbench/diagnostics.ts` owns safe Workbench diagnostics.
+- `src/runtime/workbench/operation-ledger.ts` and
+  `src/runtime/workbench/architecture-operation-ledger.ts` own bounded attempt
+  timelines, provider counters, and terminal readback evidence.
+- `src/runtime/workbench/observability.ts` defines response origin and runtime
+  provenance metadata; `scripts/workbench-server.ts` writes build provenance
+  and guards the npm/Next workspace root.
 
 ## Trial Entry and Lead
 

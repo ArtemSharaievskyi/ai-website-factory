@@ -225,12 +225,28 @@ class PostgresTransaction implements PersistenceTransaction {
     return { status: "NEW", key: input.key };
   }
   async getOperation(input: { operation: string; key: string; payloadHash?: string }) {
-    const existing = value<{ payload_hash: string; result: { status?: string; result?: unknown } }>(await this.query("SELECT payload_hash, result FROM idempotency_records WHERE operation = $1 AND idempotency_key = $2", [input.operation, input.key]));
+    const existing = value<{ operation: string; key: string; payload_hash: string; result: { status?: string; result?: unknown }; created_at: string }>(await this.query("SELECT operation, idempotency_key AS key, payload_hash, result, created_at FROM idempotency_records WHERE operation = $1 AND idempotency_key = $2", [input.operation, input.key]));
     if (!existing) return null;
     if (input.payloadHash && existing.payload_hash !== input.payloadHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key was already used with a different payload.");
     const status = existing.result.status;
     if (status !== "IN_PROGRESS" && status !== "SUCCEEDED" && status !== "FAILED") throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "The operation state is invalid.");
-    return { status: status as OperationStatus, payloadHash: existing.payload_hash, ...(existing.result.result === undefined ? {} : { result: existing.result.result }) };
+    return { key: existing.key, operation: existing.operation, status: status as OperationStatus, payloadHash: existing.payload_hash, ...(existing.result.result === undefined ? {} : { result: existing.result.result }), createdAt: String(existing.created_at) };
+  }
+  async listOperations(input: { operation: string; keyPrefix?: string; limit?: number }) {
+    const limit = Math.max(1, Math.min(input.limit ?? 8, 100));
+    const prefix = input.keyPrefix === undefined ? undefined : `${input.keyPrefix}%`;
+    const result = await this.query<Record<string, unknown>>(
+      `SELECT operation, idempotency_key AS "key", payload_hash AS "payloadHash", result, created_at AS "createdAt"
+       FROM idempotency_records WHERE operation=$1${prefix === undefined ? "" : " AND idempotency_key LIKE $2"}
+       ORDER BY created_at, idempotency_key LIMIT $${prefix === undefined ? 2 : 3}`,
+      prefix === undefined ? [input.operation, limit] : [input.operation, prefix, limit],
+    );
+    return result.rows.map((row) => {
+      const state = row.result && typeof row.result === "object" ? row.result as { status?: string; result?: unknown } : {};
+      if (state.status !== "IN_PROGRESS" && state.status !== "SUCCEEDED" && state.status !== "FAILED") throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "The operation state is invalid.");
+      const status = state.status as OperationStatus;
+      return { key: String(row.key), operation: String(row.operation), status, payloadHash: String(row.payloadHash), ...(state.result === undefined ? {} : { result: state.result }), createdAt: String(row.createdAt) };
+    });
   }
   async updateOperationResult(input: { operation: string; key: string; payloadHash: string; result: unknown; leaseId?: string }) {
     const leaseClause = input.leaseId === undefined ? "" : " AND result->'result'->>'attemptId' = $5";

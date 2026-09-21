@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     ".factory-generated/**",
     ".factory-generated-debug/**",
     ".qa-foundation-*/**",
+    ".factory/**",
     "next-env.d.ts",
   ]),
 ]);

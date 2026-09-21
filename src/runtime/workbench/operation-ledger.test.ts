@@ -8,8 +8,9 @@ import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
 import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
 import { WorkbenchApplication } from "./application";
 import { workbenchFailureResponse } from "./diagnostics";
-import { WorkbenchOperationFailure } from "./operation-context";
-import { legacyWorkbenchPlanningIntentHash, readWorkbenchPlanningAttempt, WorkbenchOperationLedger, safeOperationFingerprint, workbenchPlanningAttemptKey, workbenchPlanningIntentHash, type WorkbenchPlanningCurrentness } from "./operation-ledger";
+import { withWorkbenchOperationContext, WorkbenchOperationFailure } from "./operation-context";
+import { legacyWorkbenchPlanningIntentHash, readWorkbenchPlanningAttempt, readWorkbenchPlanningAttemptHistory, WorkbenchOperationLedger, safeOperationFingerprint, workbenchPlanningAttemptKey, workbenchPlanningIntentHash, type WorkbenchPlanningCurrentness } from "./operation-ledger";
+import { currentRuntimeProvenance, type WorkbenchResponseMetadata } from "./observability";
 import { OpenAiStructuredClient } from "@/integrations/openai/client";
 import { AiProviderError } from "@/integrations/openai/errors";
 import { PersistenceError } from "@/persistence/database/errors";
@@ -80,13 +81,16 @@ function idempotencySnapshot(database: InMemoryPersistenceDatabase) {
 describe("durable Workbench Planning operation envelope", () => {
   it("wraps a raw Planner initialization fault at the real Workbench boundary", async () => {
     const fixture = await approvedPlanningFixture();
+    const responseSink: { metadata?: WorkbenchResponseMetadata } = {};
+    const correlationId = "49494949-4949-4494-8494-494949494949";
     let failure: unknown;
     try {
-      await fixture.app.handle({ action: "generate-planning", projectId });
+      await withWorkbenchOperationContext({ correlationId, runtimeProvenance: currentRuntimeProvenance(), responseSink }, () => fixture.app.handle({ action: "generate-planning", projectId }));
     } catch (error) {
       failure = error;
     }
     expect(failure).toBeInstanceOf(WorkbenchOperationFailure);
+    if (!(failure instanceof WorkbenchOperationFailure)) throw new Error("synthetic Workbench failure was not preserved");
     const response = workbenchFailureResponse(failure, { action: "generate-planning", projectId });
     expect(response.status).toBe(500);
     expect(response.response).toMatchObject({
@@ -103,6 +107,8 @@ describe("durable Workbench Planning operation envelope", () => {
       lifecycleMutated: false,
       internalClassification: "UNEXPECTED_EXCEPTION",
     });
+    expect(responseSink.metadata).toMatchObject({ responseOrigin: "NEW_EXECUTION", attemptCreated: true, correlationId, attemptStatus: "FAILED" });
+    expect(responseSink.metadata?.attemptId).toBe(failure.details.attemptId);
     expect(response.response.safeErrorFingerprint).toMatch(/^Error@OPERATION_INITIALIZATION:[a-f0-9]{16}$/);
     expect(JSON.stringify(response.response)).not.toMatch(/PRIVATE_PROVIDER_PAYLOAD|DATABASE_URL=secret/);
     expect((await new DocumentRepository(fixture.database).get(projectId, 1, "planning-package"))).toBeNull();
@@ -120,6 +126,25 @@ describe("durable Workbench Planning operation envelope", () => {
     await invocation.parsePassed();
     await invocation.admissionPassed();
     expect(ledger.snapshot()).toMatchObject({ providerCallsTotal: 1, providerCallsByStage: { decomposition: { attempted: 1, started: 1, responseReceived: 1, structuredParsePassed: 1, semanticAdmissionPassed: 1, completed: 1, failed: 0 }, coverage: { attempted: 0 } }, providerInvocationState: "ADMISSION_PASSED" });
+  });
+
+  it("persists a bounded fake-provider attempt timeline and readback", async () => {
+    const database = new InMemoryPersistenceDatabase();
+    const ledger = new WorkbenchOperationLedger(database, projectId, `workbench-planning:${projectId}:observability`, "49494949-4949-4494-8494-494949494949");
+    await ledger.bindCurrentness({ projectVersion: 1, rowVersion: 1, briefChecksum: "a".repeat(64) });
+    await ledger.reserve();
+    const invocation = await ledger.reserveInvocation({ stage: "decomposition", providerContract: "planning-decomposition-v1" });
+    await invocation.beforeTransport();
+    await invocation.responseReceived();
+    await invocation.parsePassed();
+    await invocation.admissionPassed();
+    await ledger.fail(new Error("synthetic provider-admission failure"));
+    const history = await readWorkbenchPlanningAttemptHistory(database, `workbench-planning:${projectId}:observability`);
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({ status: "FAILED", correlationId: "49494949-4949-4494-8494-494949494949", providerCallsTotal: 1, providerCallsByStage: { decomposition: { attempted: 1, started: 1, responseReceived: 1, structuredParsePassed: 1, semanticAdmissionPassed: 1 } } });
+    expect(["AVAILABLE", "PARTIAL", "UNAVAILABLE"]).toContain(history[0].provenanceAvailability);
+    expect(history[0].timeline.map((event) => event.type)).toEqual(expect.arrayContaining(["ATTEMPT_CREATED", "ATTEMPT_RESERVED", "EXECUTION_STARTED", "PROVIDER_STAGE_STARTED", "PROVIDER_STAGE_RESPONSE_RECEIVED", "PROVIDER_STAGE_PARSE_PASSED", "PROVIDER_STAGE_ADMISSION_PASSED", "EXECUTION_FAILED"]));
+    expect(history[0].runtimeProvenance).toBeTruthy();
   });
 
   it("differentiates bounded transport fingerprints without including provider details", () => {

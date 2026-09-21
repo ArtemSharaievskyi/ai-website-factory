@@ -120,7 +120,8 @@ export class WorkbenchApplication {
 
   async handle(request: WorkbenchRequest): Promise<WorkbenchProjection> {
     if (request.action === "generate-planning") {
-      const operation = new WorkbenchOperationLedger(this.dependencies.database, request.projectId, `workbench-planning:${request.projectId}`, currentWorkbenchOperationContext()?.correlationId);
+      const parent = currentWorkbenchOperationContext();
+      const operation = new WorkbenchOperationLedger(this.dependencies.database, request.projectId, `workbench-planning:${request.projectId}`, parent?.correlationId, parent?.runtimeProvenance, parent?.responseSink);
       try {
         const current = await this.projects.getWithVersion(request.projectId);
         if (!current) throw new WorkbenchActionError("PROJECT_NOT_FOUND", "We could not find that project.");
@@ -140,7 +141,8 @@ export class WorkbenchApplication {
       }
     }
     if (request.action === "approve-planning") {
-      const operation = new WorkbenchOperationLedger(this.dependencies.database, request.projectId, `workbench-planning:${request.projectId}`, currentWorkbenchOperationContext()?.correlationId);
+      const parent = currentWorkbenchOperationContext();
+      const operation = new WorkbenchOperationLedger(this.dependencies.database, request.projectId, `workbench-planning:${request.projectId}`, parent?.correlationId, parent?.runtimeProvenance, parent?.responseSink);
       try {
         if (await operation.hasActiveOperation())
           throw new WorkbenchOperationConflict("WORKBENCH_OPERATION_IN_PROGRESS", "A current Planning operation is already active.");
@@ -197,7 +199,7 @@ export class WorkbenchApplication {
     }
   }
 
-  private async handlePlanningGeneration(projectId: string, ledger = new WorkbenchOperationLedger(this.dependencies.database, projectId, `workbench-planning:${projectId}`, currentWorkbenchOperationContext()?.correlationId)) {
+  private async handlePlanningGeneration(projectId: string, ledger = new WorkbenchOperationLedger(this.dependencies.database, projectId, `workbench-planning:${projectId}`, currentWorkbenchOperationContext()?.correlationId, currentWorkbenchOperationContext()?.runtimeProvenance, currentWorkbenchOperationContext()?.responseSink)) {
     const parent = currentWorkbenchOperationContext();
     const correlationId = parent?.correlationId ?? randomUUID();
     let reserved = false;
@@ -216,6 +218,8 @@ export class WorkbenchApplication {
         bindCurrentness: (input) => ledger.bindCurrentness(input),
         setStage: async (stage) => { context.stage = stage; await ledger.setStage(stage); },
         markMutationCommitted: () => ledger.markCanonicalPlanningPersisted(),
+        runtimeProvenance: parent?.runtimeProvenance,
+        responseSink: parent?.responseSink,
       };
       return await withWorkbenchOperationContext(context, async () => {
         await this.generatePlanning(projectId);
@@ -473,7 +477,7 @@ export class WorkbenchApplication {
     const scope = await this.scope(projectId);
     const parent = currentWorkbenchOperationContext();
     const correlationId = parent?.correlationId ?? randomUUID();
-    const ledger = new ArchitectureReviewOperationLedger(this.dependencies.database, input, correlationId);
+    const ledger = new ArchitectureReviewOperationLedger(this.dependencies.database, input, correlationId, parent?.runtimeProvenance, parent?.responseSink);
     let reserved = false;
     try {
       const reservation = await ledger.reserve();
@@ -488,6 +492,8 @@ export class WorkbenchApplication {
         stage: "OPERATION_INITIALIZATION",
         providerInvocationLedger: ledger,
         setStage: async (stage) => { context.stage = stage; await ledger.setStage(stage); },
+        runtimeProvenance: parent?.runtimeProvenance,
+        responseSink: parent?.responseSink,
       };
       return await withWorkbenchOperationContext(context, async () => {
         await scope.architectureReviewer.reviewAndRoute(input, undefined, { correlationId: context.correlationId, providerInvocationLedger: ledger, setStage: context.setStage, markCanonicalPersisted: (lifecycleMutated) => ledger.markCanonicalArchitecturePersisted(lifecycleMutated) });

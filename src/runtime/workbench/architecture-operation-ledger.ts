@@ -7,6 +7,7 @@ import { providerFailureDiagnosticFromError } from "@/integrations/openai/failur
 import type { ProviderFailureDiagnostic } from "@/domain/shared/provider-failure";
 import { WorkbenchOperationFailure, type WorkbenchOperationFailureDetails, type WorkbenchOperationStage } from "./operation-context";
 import { WorkbenchOperationConflict, safeOperationFingerprint } from "./operation-ledger";
+import { attemptReadbackFromResult, currentRuntimeProvenance, MAX_WORKBENCH_ATTEMPT_HISTORY, type RuntimeProvenance, type WorkbenchAttemptReadback, type WorkbenchResponseMetadata, type WorkbenchResponseOrigin } from "./observability";
 
 type ProviderCounters = {
   attempted: number;
@@ -42,11 +43,19 @@ type RecordState = {
   outerCode: string | null;
   reasonCode: string | null;
   safeErrorFingerprint: string | null;
+  attemptCreatedAt: string;
+  reservedAt: string | null;
+  executionStartedAt: string | null;
+  completedAt: string | null;
+  failedAt: string | null;
+  failureStage: string | null;
+  attemptTimeline: Array<{ type: "ATTEMPT_CREATED" | "ATTEMPT_RESERVED" | "EXECUTION_STARTED" | "PROVIDER_STAGE_RESERVED" | "PROVIDER_STAGE_STARTED" | "PROVIDER_STAGE_RESPONSE_RECEIVED" | "PROVIDER_STAGE_PARSE_PASSED" | "PROVIDER_STAGE_ADMISSION_PASSED" | "PROVIDER_STAGE_FAILED" | "EXECUTION_SUCCEEDED" | "EXECUTION_FAILED"; at: string; stage?: ProviderInvocationStage; invocationId?: string }>;
+  runtimeProvenance: RuntimeProvenance;
 };
 
 const emptyCounters = (): ProviderCounters => ({ attempted: 0, started: 0, responseReceived: 0, structuredParsePassed: 0, semanticAdmissionPassed: 0, completed: 0, failed: 0 });
 
-const initialRecord = (input: ArchitectureReviewInput, correlationId: string): RecordState => ({
+const initialRecord = (input: ArchitectureReviewInput, correlationId: string, runtimeProvenance: RuntimeProvenance): RecordState => ({
   schemaVersion: 1,
   attemptId: randomUUID(),
   correlationId,
@@ -69,6 +78,14 @@ const initialRecord = (input: ArchitectureReviewInput, correlationId: string): R
   outerCode: null,
   reasonCode: null,
   safeErrorFingerprint: null,
+  attemptCreatedAt: new Date().toISOString(),
+  reservedAt: null,
+  executionStartedAt: null,
+  completedAt: null,
+  failedAt: null,
+  failureStage: null,
+  attemptTimeline: [{ type: "ATTEMPT_CREATED", at: new Date().toISOString() }],
+  runtimeProvenance,
 });
 
 const safeCode = (error: unknown) => {
@@ -90,14 +107,64 @@ function hasErrorCode(error: unknown, code: string, depth = 0): boolean {
 export class ArchitectureReviewOperationLedger implements ProviderInvocationLedgerPort {
   private record: RecordState;
   private readonly operation = "workbench.architecture-review";
+  private readonly attemptOperation = "workbench.architecture-review.attempt";
   private readonly key: string;
   private readonly payloadHash: string;
   private reserved = false;
+  private attemptEvidencePersisted = false;
 
-  constructor(private readonly database: PersistenceDatabase, input: ArchitectureReviewInput, correlationId: string = randomUUID()) {
-    this.record = initialRecord(input, correlationId);
+  constructor(private readonly database: PersistenceDatabase, input: ArchitectureReviewInput, correlationId: string = randomUUID(), runtimeProvenance: RuntimeProvenance = currentRuntimeProvenance(), private readonly responseSink?: { metadata?: WorkbenchResponseMetadata }) {
+    this.record = initialRecord(input, correlationId, runtimeProvenance);
     this.key = input.projectId;
     this.payloadHash = checksumPersistedDocument({ action: "generate-architecture-review", projectId: input.projectId, projectVersion: input.projectVersion, approvedBriefChecksum: input.approvedBriefChecksum, acceptedPlanningChecksum: input.acceptedPlanningChecksum, policyVersion: input.factoryArchitecturePolicy.policyVersion, providerContract: "architecture-review-result", expectedRowVersion: input.expectedRowVersion });
+  }
+
+  private appendTimeline(type: RecordState["attemptTimeline"][number]["type"], stage?: ProviderInvocationStage, invocationId?: string) {
+    const event = { type, at: new Date().toISOString(), ...(stage ? { stage } : {}), ...(invocationId ? { invocationId } : {}) };
+    this.record.attemptTimeline = [...this.record.attemptTimeline, event].slice(-64);
+  }
+
+  private publishResponse(responseOrigin: WorkbenchResponseOrigin, attemptStatus: "IN_PROGRESS" | "SUCCEEDED" | "FAILED" = "IN_PROGRESS") {
+    if (!this.responseSink) return;
+    this.responseSink.metadata = {
+      schemaVersion: 1,
+      responseOrigin,
+      attemptCreated: this.reserved,
+      ...(this.reserved ? { operationId: this.record.operationId, attemptId: this.record.attemptId, attemptStatus } : {}),
+      correlationId: this.record.correlationId,
+      runtimeProvenance: this.record.runtimeProvenance,
+    };
+  }
+
+  private attemptKey() { return `${this.record.operationId}:${this.record.attemptId}`; }
+
+  private attemptPayloadHash() {
+    return checksumPersistedDocument({ operationId: this.record.operationId, attemptId: this.record.attemptId, projectId: this.record.projectId, correlationId: this.record.correlationId, currentness: this.record.currentness });
+  }
+
+  private async persistAttemptTerminal(status: "SUCCEEDED" | "FAILED") {
+    if (!this.reserved || this.attemptEvidencePersisted) return;
+    const key = this.attemptKey();
+    const payloadHash = this.attemptPayloadHash();
+    const result = structuredClone(this.record);
+    try {
+      await this.database.transaction(async (tx) => {
+        if (await tx.getOperation({ operation: this.attemptOperation, key })) return;
+        const reservation = await tx.reserveOperation({ operation: this.attemptOperation, key, payloadHash, initialResult: result });
+        if (reservation.status === "NEW" || reservation.status === "IN_PROGRESS") {
+          const terminal = status === "FAILED" ? tx.failOperation.bind(tx) : tx.completeOperation.bind(tx);
+          await terminal({ operation: this.attemptOperation, key, payloadHash, result, leaseId: this.record.attemptId });
+        }
+      });
+      this.attemptEvidencePersisted = true;
+    } catch {
+      // Stable operation state remains the compatibility path if history cannot be recorded.
+    }
+  }
+
+  static async readAttemptHistory(database: PersistenceDatabase, operationId: string, limit = MAX_WORKBENCH_ATTEMPT_HISTORY): Promise<WorkbenchAttemptReadback[]> {
+    const rows = await database.transaction((tx) => tx.listOperations({ operation: "workbench.architecture-review.attempt", keyPrefix: `${operationId}:`, limit }));
+    return rows.map((row) => attemptReadbackFromResult({ operationId, status: row.status, result: row.result, createdAt: row.createdAt })).filter((row): row is WorkbenchAttemptReadback => row !== null);
   }
 
   async reserve(): Promise<OperationReservation> {
@@ -105,6 +172,12 @@ export class ArchitectureReviewOperationLedger implements ProviderInvocationLedg
     if (reservation.status === "IN_PROGRESS") throw new WorkbenchOperationConflict("WORKBENCH_OPERATION_IN_PROGRESS", "A current Architecture Review operation is already active.");
     if (reservation.status === "SUCCEEDED") throw new WorkbenchOperationConflict("WORKBENCH_OPERATION_REPLAY", "The current Architecture Review operation was already completed.");
     this.reserved = true;
+    this.record.reservedAt = new Date().toISOString();
+    this.record.executionStartedAt = new Date().toISOString();
+    this.appendTimeline("ATTEMPT_RESERVED");
+    this.appendTimeline("EXECUTION_STARTED");
+    await this.persist();
+    this.publishResponse("NEW_EXECUTION");
     return reservation;
   }
 
@@ -127,6 +200,7 @@ export class ArchitectureReviewOperationLedger implements ProviderInvocationLedg
     this.record.providerContract = input.providerContract;
     this.record.providerInvocationState = "RESERVED";
     this.record.providerInvocations = [...this.record.providerInvocations, invocation];
+    this.appendTimeline("PROVIDER_STAGE_RESERVED", input.stage, invocation.id);
     await this.persist();
     const transition = async (state: ProviderInvocationLedgerState) => {
       const current = this.record.providerInvocations.find((candidate) => candidate.id === invocation.id);
@@ -135,6 +209,8 @@ export class ArchitectureReviewOperationLedger implements ProviderInvocationLedg
       if (state !== "FAILED" && rank[state] <= rank[current.state]) return;
       current.state = state;
       this.record.providerInvocationState = state;
+      const timelineType = state === "TRANSPORT_STARTED" ? "PROVIDER_STAGE_STARTED" : state === "RESPONSE_RECEIVED" ? "PROVIDER_STAGE_RESPONSE_RECEIVED" : state === "PARSE_PASSED" ? "PROVIDER_STAGE_PARSE_PASSED" : state === "ADMISSION_PASSED" ? "PROVIDER_STAGE_ADMISSION_PASSED" : state === "FAILED" ? "PROVIDER_STAGE_FAILED" : undefined;
+      if (timelineType) this.appendTimeline(timelineType, invocation.stage, invocation.id);
       const counters = this.record.providerCallsByStage[invocation.stage];
       if (state === "TRANSPORT_STARTED" && counters.attempted === counters.started) {
         counters.attempted += 1;
@@ -173,7 +249,11 @@ export class ArchitectureReviewOperationLedger implements ProviderInvocationLedg
 
   async complete() {
     this.record.stage = "LIFECYCLE_TRANSITION";
+    this.record.completedAt = new Date().toISOString();
+    this.appendTimeline("EXECUTION_SUCCEEDED");
     await this.database.transaction((tx) => tx.completeOperation({ operation: this.operation, key: this.key, payloadHash: this.payloadHash, result: structuredClone(this.record), leaseId: this.record.attemptId }));
+    await this.persistAttemptTerminal("SUCCEEDED");
+    this.publishResponse("NEW_EXECUTION", "SUCCEEDED");
   }
 
   async fail(error: unknown): Promise<WorkbenchOperationFailure> {
@@ -183,9 +263,11 @@ export class ArchitectureReviewOperationLedger implements ProviderInvocationLedg
     const safeErrorFingerprint = safeOperationFingerprint(error, operationStage);
     const providerDiagnostic = providerFailureDiagnosticFromError(error);
     const mutationAmbiguous = hasErrorCode(error, "PERSISTENCE_COMMIT_AMBIGUOUS");
-    this.record = { ...this.record, stage: operationStage, failureClass, outerCode: code, reasonCode: code, safeErrorFingerprint, providerDiagnostic: providerDiagnostic ?? this.record.providerDiagnostic, canonicalArchitecturePersisted: this.record.canonicalArchitecturePersisted || mutationAmbiguous, lifecycleMutated: this.record.lifecycleMutated || mutationAmbiguous };
+    this.record = { ...this.record, stage: operationStage, failureStage: operationStage, failureClass, outerCode: code, reasonCode: code, safeErrorFingerprint, providerDiagnostic: providerDiagnostic ?? this.record.providerDiagnostic, canonicalArchitecturePersisted: this.record.canonicalArchitecturePersisted || mutationAmbiguous, lifecycleMutated: this.record.lifecycleMutated || mutationAmbiguous };
+    if (this.reserved) { this.record.failedAt = new Date().toISOString(); this.appendTimeline("EXECUTION_FAILED"); }
     const details: WorkbenchOperationFailureDetails = {
       correlationId: this.record.correlationId,
+      ...(this.reserved ? { attemptId: this.record.attemptId } : {}),
       operationId: this.record.operationId,
       operationKind: this.record.operationKind,
       projectId: this.record.projectId,
@@ -204,13 +286,23 @@ export class ArchitectureReviewOperationLedger implements ProviderInvocationLedg
       canonicalArchitecturePersisted: this.record.canonicalArchitecturePersisted,
       lifecycleMutated: this.record.lifecycleMutated,
       ...(failureClass === "UNEXPECTED_EXCEPTION" ? { internalClassification: "UNEXPECTED_EXCEPTION" as const } : {}),
+      responseOrigin: this.reserved ? "NEW_EXECUTION" : "PREFLIGHT_REJECTION",
+      attemptCreated: this.reserved,
+      ...(this.reserved ? { attemptStatus: "FAILED" as const } : {}),
+      runtimeProvenance: this.record.runtimeProvenance,
     };
     try {
       if (this.reserved) await this.database.transaction((tx) => tx.failOperation({ operation: this.operation, key: this.key, payloadHash: this.payloadHash, result: structuredClone(this.record), leaseId: this.record.attemptId }));
     } catch {
       // Keep the bounded safe envelope even if failure recording is unavailable.
     }
+    await this.persistAttemptTerminal("FAILED");
+    this.publishResponse(details.responseOrigin, "FAILED");
     const message = details.canonicalArchitecturePersisted || details.lifecycleMutated ? "The Workbench Architecture Review operation reached a mutation boundary; inspect the current project state before retrying." : "The Workbench Architecture Review operation failed safely; the project was not changed.";
     return new WorkbenchOperationFailure(details, message, error);
   }
+}
+
+export function readWorkbenchArchitectureReviewAttemptHistory(database: PersistenceDatabase, operationId: string, limit = MAX_WORKBENCH_ATTEMPT_HISTORY) {
+  return ArchitectureReviewOperationLedger.readAttemptHistory(database, operationId, limit);
 }

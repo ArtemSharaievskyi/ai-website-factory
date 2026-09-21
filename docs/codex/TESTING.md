@@ -18,7 +18,10 @@ repository gates required by `CONTRIBUTING.md` for a handoff.
 ## Focused boundary tests
 
 - Workbench/API: `npm run test -- src/app/api/workbench/route.test.ts
-  src/runtime/workbench/workbench.test.ts`.
+  src/runtime/workbench/operation-ledger.test.ts
+  src/runtime/workbench/diagnostics.test.ts
+  src/runtime/workbench/http-observability.test.ts
+  src/runtime/workbench/launch-contract.test.ts`.
 - Clarification and idempotency: `npm run test --
   src/runtime/trial-entry/service.test.ts
   src/runtime/trial-entry/sequential-clarification-idempotency.test.ts`.

@@ -85,6 +85,13 @@ After Brief approval, Workbench action `generate-planning` calls the configured
 workflow scope in `src/runtime/workbench/application.ts`. Planning generation
 and Planning approval are separate user-authorized actions:
 
+The Workbench route returns bounded runtime metadata alongside successful
+projections and on typed failures. The metadata records response origin,
+correlation, runtime/build provenance, and—when an execution was reserved—the
+attempt ID, status, provider counters, and bounded attempt history. Raw prompts,
+provider payloads, secrets, and persistence internals remain excluded. Attempt
+history is read from the existing idempotency records; no migration is needed.
+
 1. Planner creates a planning package from the approved Brief.
 2. The host evaluates Planning Acceptance readiness. Technical blockers prevent
    acceptance; explicitly permitted publication-only legal facts and future

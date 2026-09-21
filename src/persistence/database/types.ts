@@ -14,8 +14,9 @@ export type ProjectAssetRow = ProjectAsset;
 export type ProjectVersionRow = { id: string; projectId: string; versionNumber: number; state: WorkflowState; memoryRootPath: string | null; requirementsChecksum: string | null; selectedDesignChecksum: string | null; architectureChecksum: string | null; releasedAt: string | null; immutable: boolean; createdAt: string; updatedAt: string; rowVersion: number };
 export type WorkflowEvent = { id: string; projectId: string; projectVersion: number; fromState: WorkflowState; toState: WorkflowState; actor: string; reason: string; createdAt: string; idempotencyKey?: string; revisionAttemptId?: string };
 export type CostRecord = { id: string; projectId: string; projectVersion: number; role: string; taskId?: string; provider: string; model: string; inputTokens: number; cachedInputTokens: number; outputTokens: number; estimatedCost: number; createdAt: string };
-export type IdempotencyRecord = { key: string; operation: string; payloadHash: string; result: unknown };
+export type IdempotencyRecord = { key: string; operation: string; payloadHash: string; result: unknown; createdAt?: string };
 export type OperationStatus = "IN_PROGRESS" | "SUCCEEDED" | "FAILED";
+export type OperationReadback = { key: string; operation: string; status: OperationStatus; payloadHash: string; result?: unknown; createdAt: string };
 export type OperationReservation =
   | { status: "NEW"; key: string }
   | { status: "IN_PROGRESS"; key: string }
@@ -103,7 +104,8 @@ export interface PersistenceTransaction {
   appendWorkflowEvent(event: WorkflowEvent): Promise<WorkflowEvent>;
   saveCost(record: CostRecord): Promise<CostRecord>;
   reserveOperation(input: { operation: string; key: string; payloadHash: string; initialResult?: unknown }): Promise<OperationReservation>;
-  getOperation(input: { operation: string; key: string; payloadHash?: string }): Promise<{ status: OperationStatus; payloadHash: string; result?: unknown } | null>;
+  getOperation(input: { operation: string; key: string; payloadHash?: string }): Promise<OperationReadback | null>;
+  listOperations(input: { operation: string; keyPrefix?: string; limit?: number }): Promise<OperationReadback[]>;
   updateOperationResult(input: { operation: string; key: string; payloadHash: string; result: unknown; leaseId?: string }): Promise<void>;
   completeOperation(input: { operation: string; key: string; payloadHash: string; result: unknown; leaseId?: string }): Promise<void>;
   failOperation(input: { operation: string; key: string; payloadHash: string; result?: unknown; leaseId?: string }): Promise<void>;

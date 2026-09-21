@@ -8,11 +8,11 @@
     "sharp": "0.35.3"
   },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "tsx scripts/workbench-server.ts dev",
+    "build": "tsx scripts/workbench-server.ts build",
     "postbuild": "node scripts/clean-next-trace.mjs",
     "clean:workspace": "tsx scripts/clean-workspace.ts",
-    "start": "next start",
+    "start": "tsx scripts/workbench-server.ts start",
     "factory:new": "tsx scripts/factory-new.ts",
     "factory:respond": "tsx scripts/factory-respond.ts",
     "factory:status": "tsx scripts/factory-status.ts",
