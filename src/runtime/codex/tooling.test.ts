@@ -8,7 +8,7 @@ import { resolveAffectedChecks } from "../../../scripts/codex/affected";
 import { loadCheckMap, loadRegressionMap, parseCheckMap, parseRegressionMap, parseProviderContractRegistry } from "../../../scripts/codex/config";
 import { CONTROLLED_CHECKS, requiredChecksPassed } from "../../../scripts/codex/checks";
 import { loadArchitectureConfig } from "../../../scripts/codex/check-architecture";
-import { isIgnored, readGitHead, untrackedFiles } from "../../../scripts/codex/git";
+import { changedFilesSince, isIgnored, readGitHead, untrackedFiles } from "../../../scripts/codex/git";
 import { assertSessionStartAllowed, buildSession, compareProtectedSnapshot, isAllowedDerivedBriefReadinessDifference, loadSession, toProtectedSnapshot } from "../../../scripts/codex/protected-state";
 import { verifyProductionPathEvidence } from "../../../scripts/codex/production-paths";
 
@@ -32,8 +32,11 @@ describe("Codex Level 2 repository guards", () => {
     expect(await isIgnored(process.cwd(), ".codex/session.json")).toBe(true);
   });
 
-  it("does not turn unrelated docs/admin evidence into affected work", async () => {
-    expect((await untrackedFiles(process.cwd())).some((file) => file.startsWith("docs/admin/"))).toBe(false);
+  it("does not turn baseline docs/admin evidence into affected work", async () => {
+    const head = await readGitHead(process.cwd());
+    const baseline = await untrackedFiles(process.cwd());
+    expect(baseline.some((file) => file.startsWith("docs/admin/"))).toBe(true);
+    expect((await changedFilesSince(process.cwd(), head, baseline)).some((file) => file.startsWith("docs/admin/"))).toBe(false);
   });
 
   it("normalizes Windows paths and maps affected checks without duplicates", async () => {

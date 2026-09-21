@@ -41,8 +41,9 @@ repository gates required by `CONTRIBUTING.md` for a handoff.
 - Planner dependency admission: `npm run test --
   src/dependencies/authority.test.ts src/agents/planner/planner.test.ts
   src/agents/planner/admission.test.ts`.
-- Codex task envelope: `npm run test --
-  src/runtime/codex/task-envelope.test.ts`.
+- Codex task envelope and protected worktree baseline: `npm run test --
+  src/runtime/codex/worktree-baseline.test.ts
+  src/runtime/codex/tooling.test.ts`.
 
 ## Provider structured-output rule
 

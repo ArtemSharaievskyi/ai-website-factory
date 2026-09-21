@@ -53,6 +53,28 @@ required, and source cleanliness. It is a guard, not a workflow engine; it does
 not call providers, mutate canonical state, start lifecycle work, or replace
 `codex:start`, `codex:affected`, `codex:review-context`, or `codex:verify`.
 
+### Protected worktree baseline
+
+`codex:start` captures a versioned protected worktree baseline alongside the
+safe protected-project snapshot. The baseline includes only repository-relative
+untracked files in explicit categories: `docs/admin/**` evidence and the
+narrow Supabase CLI runtime artifacts currently produced under
+`supabase/.branches/_current_branch` and
+`supabase/.temp/{cli-latest,start-secrets/<runtime-id>/env/docker.env}`.
+Unknown untracked paths fail baseline capture; ignored files such as `.env`,
+`.next`, and generated output are not silently admitted by this contract.
+
+`codex:task` uses the same classifier and normalized path comparator. A
+baseline artifact is admitted only when its category, regular-file status,
+repository containment, file identity, size, timestamps, and SHA-256 digest
+are unchanged. New, changed, deleted, replaced, redirected, reclassified,
+tracked, or unauthorized paths remain blocking. The policy is
+`UNCHANGED_BASELINE_ONLY`; it never authorizes a mutable runtime artifact.
+Session schema versions without this metadata fail closed and must be
+re-created with `codex:start --reset`. Diagnostics contain only bounded path,
+category, state, and policy fields; file contents, including runtime env
+contents, are never persisted or printed.
+
 ## Common result contract
 
 Report only fields relevant to the operation, using this compact shape:

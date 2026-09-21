@@ -54,7 +54,7 @@ export const CONTROLLED_CHECKS: Record<ControlledCheckId, CommandCheck | Interna
   "db-verify": { label: "DB verification", kind: "command", args: ["run", "db:verify"] },
   "asset-tests": { label: "Asset tests", kind: "command", args: ["run", "test", "--", "src/runtime/assets/service.test.ts", "src/runtime/workbench/asset-upload.test.ts", "src/runtime/trial-entry/lead-asset-context.test.ts"] },
   "context-lossless": { label: "Context losslessness", kind: "command", args: ["run", "test", "--", "src/runtime/context/lossless-context.test.ts"] },
-  "tooling-tests": { label: "Codex tooling tests", kind: "command", args: ["run", "test", "--", "src/runtime/codex/tooling.test.ts", "src/runtime/codex/task-envelope.test.ts", "src/runtime/codex/architecture.test.ts"] },
+  "tooling-tests": { label: "Codex tooling tests", kind: "command", args: ["run", "test", "--", "src/runtime/codex/tooling.test.ts", "src/runtime/codex/worktree-baseline.test.ts"] },
 };
 
 export const controlledCheckIds = () => Object.keys(CONTROLLED_CHECKS) as ControlledCheckId[];
