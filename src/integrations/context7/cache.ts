@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { readDirectory } from "@/runtime/filesystem/directory";
 import path from "node:path";
 import { redactToolText } from "@/orchestration/tooling/executors";
 import type { Context7QueryPlan, Context7QueryResult } from "./contracts";
@@ -15,5 +16,5 @@ export class Context7Cache {
     return { ...result, excerpts, totalBytes: excerpts.reduce((total, excerpt) => total + Buffer.byteLength(excerpt.content, "utf8"), 0) };
   }
   async get(plan: Context7QueryPlan): Promise<Context7QueryResult | undefined> { try { const file = path.join(this.root, `${this.key(plan)}.json`); const value = JSON.parse(await readFile(file, "utf8")) as { storedAt: number; result: Context7QueryResult }; if (Date.now() - value.storedAt > this.ttlSeconds * 1000) { await rm(file, { force: true }); return undefined; } return { ...value.result, cache: "hit" }; } catch { return undefined; } }
-  async set(plan: Context7QueryPlan, result: Context7QueryResult) { await mkdir(this.root, { recursive: true }); const files = (await readdir(this.root)).filter((name) => name.endsWith(".json")); if (files.length >= this.maxItems) await rm(path.join(this.root, files.sort()[0]), { force: true }); await writeFile(path.join(this.root, `${this.key(plan)}.json`), JSON.stringify({ storedAt: Date.now(), result: { ...this.persisted(result), cache: "miss" } }), { encoding: "utf8", flag: "wx" }).catch(() => undefined); }
+  async set(plan: Context7QueryPlan, result: Context7QueryResult) { await mkdir(this.root, { recursive: true }); const files = (await readDirectory(this.root)).map((entry) => entry.name).filter((name) => name.endsWith(".json")); if (files.length >= this.maxItems) await rm(path.join(this.root, files.sort()[0]), { force: true }); await writeFile(path.join(this.root, `${this.key(plan)}.json`), JSON.stringify({ storedAt: Date.now(), result: { ...this.persisted(result), cache: "miss" } }), { encoding: "utf8", flag: "wx" }).catch(() => undefined); }
 }

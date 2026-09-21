@@ -17,8 +17,9 @@ async function main() {
     return;
   }
   const configuredExecutable = process.env.CODEBASE_MEMORY_EXECUTABLE;
-  if (!configuredExecutable) {
-    console.log(JSON.stringify({ status: "NOT_CONFIGURED", releaseEligible: false, reason: "CODEBASE_MEMORY_EXECUTABLE is not configured.", evidence: "configuration-incomplete" }));
+  const configuredRuntimeRoot = process.env.CODEBASE_MEMORY_RUNTIME_ROOT;
+  if (!configuredExecutable && !configuredRuntimeRoot) {
+    console.log(JSON.stringify({ status: "NOT_CONFIGURED", releaseEligible: false, reason: "CODEBASE_MEMORY_EXECUTABLE or CODEBASE_MEMORY_RUNTIME_ROOT is not configured.", evidence: "configuration-incomplete" }));
     process.exitCode = 1;
     return;
   }

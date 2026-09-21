@@ -1,5 +1,6 @@
 import type { AgentTask } from "@/domain/tasks/schema";
-import { lstatSync, readdirSync, readFileSync } from "node:fs";
+import { lstatSync, readFileSync } from "node:fs";
+import { readDirectorySync } from "@/runtime/filesystem/directory";
 import path from "node:path";
 import type { ImplementationChangeProposal } from "./contracts";
 import { ImplementationError } from "./errors";
@@ -11,7 +12,7 @@ export const SUPPORTED_IMPLEMENTATION_TASK_TYPES = new Set(["prepare-workspace",
 export function validateSupportedTask(task: AgentTask) { if (!SUPPORTED_IMPLEMENTATION_TASK_TYPES.has(task.taskType) || (task.taskType === "implement-form" && !task.allowedTools.includes("shadcn-registry-read"))) throw new ImplementationError("IMPLEMENTATION_TASK_TYPE_UNSUPPORTED", "This Implementation Agent foundation does not support the requested task type without the relevant UI reference permission."); }
 const testArtifactPath = (task: AgentTask, relativePath: string) => task.fileScopes.some((scope) => isWithinTaskScope(scope, relativePath)) && /^src\/.*\.test\.(?:ts|tsx)$/i.test(relativePath);
 const isPlaceholder = (content: string) => /expect\s*\(\s*true\s*\)/.test(content);
-function discoverTestArtifacts(root: string, task: AgentTask) { const result: Array<{ relativePath: string; content: string }> = []; const walk = (directory: string) => { for (const entry of readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) { const full = path.join(directory, entry.name); const relative = path.relative(root, full).replaceAll("\\", "/"); if ([".git", ".factory", "node_modules", ".next", "dist", "coverage"].some((name) => relative === name || relative.startsWith(`${name}/`))) continue; if (lstatSync(full).isDirectory()) walk(full); else if (testArtifactPath(task, relative)) result.push({ relativePath: relative, content: readFileSync(full, "utf8") }); } }; walk(root); return result; }
+function discoverTestArtifacts(root: string, task: AgentTask) { const result: Array<{ relativePath: string; content: string }> = []; const walk = (directory: string) => { for (const entry of readDirectorySync(directory).sort((a, b) => a.name.localeCompare(b.name))) { const full = path.join(directory, entry.name); const relative = path.relative(root, full).replaceAll("\\", "/"); if ([".git", ".factory", "node_modules", ".next", "dist", "coverage"].some((name) => relative === name || relative.startsWith(`${name}/`))) continue; if (lstatSync(full).isDirectory()) walk(full); else if (testArtifactPath(task, relative)) result.push({ relativePath: relative, content: readFileSync(full, "utf8") }); } }; walk(root); return result; }
 export function validateTaskResult(task: AgentTask, proposal: ImplementationChangeProposal, backendPlans: BackendPlans = {}, workspacePath?: string, dependencyContext: DependencyAuthorityContext = {}) {
   if (task.taskType === "repair-targeted-failure") {
     const writable = proposal.operations.filter((operation) => operation.type !== "delete-file");

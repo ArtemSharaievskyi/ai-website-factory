@@ -6,7 +6,6 @@ import {
   mkdir,
   open,
   readFile,
-  readdir,
   rename,
   rm,
   writeFile,
@@ -28,6 +27,7 @@ import {
   type SkillAuditEvent,
 } from "./contracts";
 import { SkillError } from "./errors";
+import { readDirectory } from "@/runtime/filesystem/directory";
 import {
   DEFAULT_SKILL_POLICY,
   SkillPolicySchema,
@@ -175,7 +175,7 @@ export class SkillRegistry {
   private async scan(source: string): Promise<SkillFile[]> {
     const files: SkillFile[] = [];
     const walk = async (current: string, relative: string) => {
-      for (const entry of await readdir(current, { withFileTypes: true })) {
+      for (const entry of await readDirectory(current)) {
         const rel = safePath(
           relative ? `${relative}/${entry.name}` : entry.name,
         );

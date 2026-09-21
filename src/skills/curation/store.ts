@@ -1,4 +1,5 @@
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readDirectory } from "@/runtime/filesystem/directory";
 import path from "node:path";
 import {
   CURATION_POLICY_VERSION,
@@ -47,7 +48,7 @@ export class SkillCurationEvaluationStore {
   async findByExternalSkillId(externalSkillId: string) {
     let names: string[];
     try {
-      names = await readdir(this.root);
+      names = (await readDirectory(this.root)).map((entry) => entry.name);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
       throw error;

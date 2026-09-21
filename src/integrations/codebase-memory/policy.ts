@@ -1,4 +1,5 @@
-import { lstat, readdir, readFile } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
+import { readDirectory } from "@/runtime/filesystem/directory";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { CodebaseMemoryError } from "./errors";
@@ -18,7 +19,7 @@ export function validateWorkspaceScope(scope: WorkspaceScope): WorkspaceScope {
 }
 export async function computeSourceManifest(scope: WorkspaceScope) {
   const safe = validateWorkspaceScope(scope); const root = safe.workspacePath; const files: Array<{ relativePath: string; sha256: string; bytes: number }> = [];
-  const walk = async (directory: string) => { const entries = (await readdir(directory, { withFileTypes: true })).sort((a,b) => a.name.localeCompare(b.name)); for (const entry of entries) { if (EXCLUDED_NAMES.has(entry.name) || secretFile.test(entry.name) || entry.name.startsWith(".")) continue; const full = path.join(directory, entry.name); const info = await lstat(full); if (info.isSymbolicLink()) continue; if (info.isDirectory()) await walk(full); else if (info.isFile() && sourceFile.test(entry.name)) { const bytes = await readFile(full); files.push({ relativePath: path.relative(root, full).replaceAll("\\","/"), sha256: createHash("sha256").update(bytes).digest("hex"), bytes: bytes.length }); } } };
+  const walk = async (directory: string) => { const entries = (await readDirectory(directory)).sort((a,b) => a.name.localeCompare(b.name)); for (const entry of entries) { if (EXCLUDED_NAMES.has(entry.name) || secretFile.test(entry.name) || entry.name.startsWith(".")) continue; const full = path.join(directory, entry.name); const info = await lstat(full); if (info.isSymbolicLink()) continue; if (info.isDirectory()) await walk(full); else if (info.isFile() && sourceFile.test(entry.name)) { const bytes = await readFile(full); files.push({ relativePath: path.relative(root, full).replaceAll("\\","/"), sha256: createHash("sha256").update(bytes).digest("hex"), bytes: bytes.length }); } } };
   await walk(root); files.sort((a,b) => a.relativePath.localeCompare(b.relativePath)); const checksum = createHash("sha256").update(JSON.stringify(files), "utf8").digest("hex"); return { checksum, files };
 }
 export function canonicalWorkspaceIdentity(scope: WorkspaceScope) { return `${scope.projectId}:${scope.projectVersion}:${path.resolve(scope.workspacePath).toLowerCase()}`; }

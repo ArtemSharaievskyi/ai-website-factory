@@ -94,11 +94,17 @@ export class CodebaseMemoryProcessTransport {
 
   private start() {
     if (this.process) return;
-    const child = spawn(this.executable, [], { cwd: this.cwd, env: { ...this.environment }, shell: false, stdio: ["pipe", "pipe", "pipe"] });
+    let child: ChildProcessWithoutNullStreams;
+    try {
+      child = spawn(this.executable, [], { cwd: this.cwd, env: { ...this.environment }, shell: false, stdio: ["pipe", "pipe", "pipe"] });
+    } catch (error) {
+      throw this.executableError(error);
+    }
     this.process = child;
     this.stderrBytes = 0;
     child.stdout.on("data", (chunk: Buffer) => this.consumeStdout(child, chunk));
     child.stderr.on("data", (chunk: Buffer) => this.consumeStderr(chunk));
+    child.on("error", (error) => this.failStart(child, error));
     child.on("exit", () => {
       if (this.process !== child) return;
       this.process = undefined;
@@ -110,6 +116,23 @@ export class CodebaseMemoryProcessTransport {
       this.pending.clear();
       for (const request of pending) request.reject(new CodebaseMemoryError("CODEBASE_MEMORY_UNAVAILABLE", "Codebase Memory process exited."));
     });
+  }
+
+  private failStart(child: ChildProcessWithoutNullStreams, cause: unknown) {
+    if (this.process !== child) return;
+    this.process = undefined;
+    this.initialized = false;
+    this.initializationPromise = undefined;
+    this.buffer = Buffer.alloc(0);
+    this.stderrBytes = 0;
+    const pending = [...this.pending.values()];
+    this.pending.clear();
+    for (const request of pending) request.reject(this.executableError(cause));
+  }
+
+  private executableError(cause: unknown) {
+    const missing = (cause as NodeJS.ErrnoException)?.code === "ENOENT";
+    return new CodebaseMemoryError(missing ? "CODEBASE_MEMORY_EXECUTABLE_MISSING" : "CODEBASE_MEMORY_EXECUTABLE_UNAVAILABLE", missing ? "Codebase Memory executable was not found." : "Codebase Memory executable could not be started.", cause);
   }
 
   private consumeStderr(chunk: Buffer) {

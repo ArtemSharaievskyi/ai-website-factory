@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { lstat, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { readDirectory } from "@/runtime/filesystem/directory";
 import path from "node:path";
 import { z } from "zod";
 import { DecisionRecordSchema, type DecisionRecord } from "@/domain/workflow/decision";
@@ -136,7 +137,7 @@ export class ProjectMemoryStore {
     return parsed;
   }
   async rebuildManifest() { await this.assertMutable(); return this.rebuildManifestInternal(); }
-  async listAvailableDocuments() { await this.ensureSafeRoot(); return (await readdir(this.root)).filter((name) => name.endsWith(".json") || name.endsWith(".jsonl") || name === "original-prompt.md"); }
+  async listAvailableDocuments() { await this.ensureSafeRoot(); return (await readDirectory(this.root)).map((entry) => entry.name).filter((name) => name.endsWith(".json") || name.endsWith(".jsonl") || name === "original-prompt.md"); }
   async detectMissingRequiredDocuments() { const available = new Set(await this.listAvailableDocuments()); return REQUIRED_DOCUMENTS.filter((name) => !available.has(name)); }
   async detectUnknownCanonicalDocuments() { const available = await this.listAvailableDocuments(); return available.filter((name) => (name.endsWith(".json") || name.endsWith(".jsonl") || name === "original-prompt.md") && !CANONICAL_DOCUMENT_NAMES.includes(name as typeof CANONICAL_DOCUMENT_NAMES[number])); }
   async verifyIntegrity() {

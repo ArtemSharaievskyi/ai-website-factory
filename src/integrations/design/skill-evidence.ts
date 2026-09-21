@@ -1,4 +1,5 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
+import { readDirectory } from "@/runtime/filesystem/directory";
 import path from "node:path";
 import { ApprovedDesignSkillEvidenceSchema, type ApprovedDesignSkillEvidence } from "./contracts";
 import { EMIL_SKILL_PROVENANCE } from "./emil";
@@ -32,7 +33,8 @@ export async function inspectApprovedDesignSkills(root = process.cwd()): Promise
   const recordsRoot = path.join(root, "skills", "registry");
   const records = new Map<string, RegistryRecord>();
   try {
-    for (const file of await readdir(recordsRoot)) {
+    for (const entry of await readDirectory(recordsRoot)) {
+      const file = entry.name;
       if (!file.endsWith(".json") || file.startsWith("idempotency-")) continue;
       const raw = JSON.parse(await readFile(path.join(recordsRoot, file), "utf8")) as RegistryRecord;
       if (raw.source?.externalSkillId) {

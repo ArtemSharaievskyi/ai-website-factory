@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { lstat, readdir, readFile } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
+import { readDirectory } from "@/runtime/filesystem/directory";
 import path from "node:path";
 import { implementationProfileRegistry, type ImplementationDomain } from "@/domain/implementation/profiles";
 import {
@@ -31,7 +32,7 @@ export async function workspaceSourceChecksum(workspacePath: string) {
   const root = path.resolve(workspacePath);
   const files: Array<{ relativePath: string; checksum: string }> = [];
   const walk = async (directory: string): Promise<void> => {
-    const entries = await readdir(directory, { withFileTypes: true });
+    const entries = await readDirectory(directory);
     for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
       if (excluded.has(entry.name) || entry.name.startsWith(".env")) continue;
       const full = path.join(directory, entry.name);

@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { lstat, mkdtemp, readFile, realpath, readdir, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { readDirectory } from "@/runtime/filesystem/directory";
 import type { Dirent, Stats } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
@@ -103,7 +104,7 @@ const defaultFileSystem: QaWorkspaceFileSystem = {
   mkdtemp: (prefix) => mkdtemp(prefix),
   lstat: (target) => lstat(target),
   realpath: (target) => realpath(target),
-  readdir: (target) => readdir(target, { withFileTypes: true }),
+  readdir: (target) => readDirectory(target),
   readFile: (target) => readFile(target, "utf8"),
   writeFile: (target, content, flag) => writeFile(target, content, { encoding: "utf8", flag, mode: 0o600 }).then(() => undefined),
   rm: (target) => rm(target, { recursive: true, force: true, maxRetries: 0 }),

@@ -66,9 +66,14 @@ Context7 is disabled unless `CONTEXT7_ENABLED=true`; when enabled, the
 server-only transport uses the official hosted MCP endpoint
 (`CONTEXT7_ENDPOINT`, default `https://mcp.context7.com/mcp`) and optional
 server-only `CONTEXT7_API_KEY`. Codebase Memory is disabled unless
-`CODEBASE_MEMORY_ENABLED=true` and a usable `CODEBASE_MEMORY_EXECUTABLE` is
-present; its child process receives only the bounded runtime environment,
-including optional local `CBM_CACHE_DIR` and `CBM_ALLOWED_ROOT`. No client-side
+`CODEBASE_MEMORY_ENABLED=true` and a usable executable is present.
+`CODEBASE_MEMORY_EXECUTABLE` remains the direct-path compatibility override.
+For deterministic installations outside the Next.js tree,
+`CODEBASE_MEMORY_RUNTIME_ROOT` resolves the explicitly configured versioned
+layout `<root>/v0.11.0/codebase-memory-mcp[.exe]`; there is no implicit home
+directory scan or legacy `.factory/tools` fallback.
+Its child process receives only the bounded runtime environment, including
+optional local `CBM_CACHE_DIR` and `CBM_ALLOWED_ROOT`. No client-side
 environment variable can enable either adapter.
 
 Recorded local verification on 2026-09-20:

@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { link, mkdir, open, readFile, readdir, unlink } from "node:fs/promises";
+import { link, mkdir, open, readFile, unlink } from "node:fs/promises";
+import { readDirectory } from "@/runtime/filesystem/directory";
 import path from "node:path";
 import { z } from "zod";
 
@@ -167,7 +168,7 @@ export class AcceptanceWindowStore {
 
   async listTemporaryArtifacts(windowId: string) {
     try {
-      return (await readdir(this.windowDirectory(windowId))).filter((entry) => entry.startsWith(".evidence-") && entry.endsWith(".tmp")).sort();
+      return (await readDirectory(this.windowDirectory(windowId))).map((entry) => entry.name).filter((entry) => entry.startsWith(".evidence-") && entry.endsWith(".tmp")).sort();
     } catch (error) {
       if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
       throw error;

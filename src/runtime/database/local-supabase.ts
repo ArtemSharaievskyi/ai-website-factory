@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { access, readdir, readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
+import { readDirectory, readDirectoryTree } from "@/runtime/filesystem/directory";
 import path from "node:path";
 import {
   LOCAL_SUPABASE_RUNTIME_POLICY_VERSION,
@@ -114,8 +115,8 @@ export class LocalSupabaseDatabaseValidator implements GeneratedDatabaseValidato
     catch { return finish("STATIC_VALIDATION_FAILED", "Generated Supabase configuration is missing.", "GENERATED_DATABASE_NOT_INITIALIZED"); }
     const migrationsPath = path.join(workspacePath, "supabase", "migrations");
     const testsPath = path.join(workspacePath, "supabase", "tests");
-    const migrations = (await readdir(migrationsPath).catch(() => [])).filter((name) => /^\d{14}_[a-z0-9_]+\.sql$/.test(name)).sort();
-    const tests = (await readdir(testsPath, { recursive: true }).catch(() => [])).filter((name) => /\.sql$/.test(name));
+    const migrations = (await readDirectory(migrationsPath).catch(() => [])).map((entry) => entry.name).filter((name) => /^\d{14}_[a-z0-9_]+\.sql$/.test(name)).sort();
+    const tests = (await readDirectoryTree(testsPath).catch(() => [])).filter((name) => /\.sql$/.test(name));
     if (!migrations.length) return finish("STATIC_VALIDATION_FAILED", "No ordered generated migration is available.", "GENERATED_DATABASE_MIGRATION_INVALID");
     for (const migration of migrations) if (forbiddenSql.test(await readFile(path.join(migrationsPath, migration), "utf8"))) return finish("STATIC_VALIDATION_FAILED", "A generated migration violates the local database safety policy.", "GENERATED_DATABASE_MIGRATION_INVALID", migrations.length, tests.length);
     if (!tests.length) return finish("STATIC_VALIDATION_FAILED", "Generated database tests are required.", "GENERATED_DATABASE_TESTS_MISSING", migrations.length, tests.length);

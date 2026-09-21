@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { lstat, readdir, readFile } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
+import { readDirectory } from "@/runtime/filesystem/directory";
 import path from "node:path";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { ImplementationError } from "./errors";
@@ -174,7 +175,7 @@ export class TaskContextAssembler {
     const walk = async (directory: string) => {
       let entries;
       try {
-        entries = await readdir(directory, { withFileTypes: true });
+        entries = await readDirectory(directory);
       } catch (error) {
         throw new ImplementationError(
           "IMPLEMENTATION_CONTEXT_FILE_UNREADABLE",
