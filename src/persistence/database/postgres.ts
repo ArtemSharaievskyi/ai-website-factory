@@ -130,7 +130,12 @@ export class PostgresPersistenceDatabase implements PersistenceDatabase {
   constructor(private readonly pool: Pool) {}
 
   async transaction<T>(work: (transaction: PersistenceTransaction) => Promise<T>): Promise<T> {
-    const client = await this.pool.connect();
+    let client: PoolClient;
+    try {
+      client = await this.pool.connect();
+    } catch (error) {
+      return safeProviderError(error);
+    }
     let commitStarted = false;
     let destroyError: Error | undefined;
     try {

@@ -7,6 +7,8 @@ import { LeadAgentService } from "@/agents/lead/service";
 import { FakeLeadMemoryPort } from "@/agents/lead/memory";
 import { ProjectAssetSchema } from "@/domain/assets/project";
 import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
+import { PersistenceError } from "@/persistence/database/errors";
+import type { PersistenceDatabase } from "@/persistence/database/types";
 import { AssetIntakeError, PROJECT_ASSET_LIMITS, ProjectAssetService } from "./service";
 
 const png = (size = 32, marker = 0) => { const value = new Uint8Array(Math.max(size, 16)); value.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]); value[8] = marker; return size < 16 ? value.slice(0, size) : value; };
@@ -24,6 +26,15 @@ async function fixture() {
 }
 
 describe("project-scoped Asset Intake ASSET1-ASSET36 / AUP1-AUP36", () => {
+  it("maps persistence connection failures to a typed read failure at the service boundary", async () => {
+    const database = { transaction: async () => { throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "private persistence detail"); } } as unknown as PersistenceDatabase;
+    const root = await mkdtemp(path.join(os.tmpdir(), "factory-assets-persistence-test-"));
+    try {
+      const assets = new ProjectAssetService({ database, root });
+      await expect(assets.list(randomUUID())).rejects.toMatchObject({ code: "ASSET_METADATA_PERSIST_FAILED", category: "PERSISTENCE", recoverable: true });
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
   it("ASSET1-ASSET4 accepts the four supported types and preserves category/source", async () => {
     const f = await fixture();
     try {

@@ -114,6 +114,17 @@ describe("Postgres asset row normalization", () => {
 });
 
 describe("Postgres transaction ambiguity handling", () => {
+  it("normalizes connection failures before transaction start into bounded persistence diagnostics", async () => {
+    const connectionFailure = new AggregateError([new Error("private host detail")], "private connection detail");
+    Object.assign(connectionFailure, { code: "EACCES" });
+    const pool = { connect: vi.fn().mockRejectedValue(connectionFailure) } as unknown as Pool;
+    const database = new PostgresPersistenceDatabase(pool);
+    await expect(database.transaction(async () => undefined)).rejects.toMatchObject({
+      code: "PERSISTENCE_PROVIDER_ERROR",
+      diagnostic: { stage: "database", operation: "query", sqlState: "EACCES", errorClass: "AggregateError" },
+    });
+  });
+
   it("evicts a client when COMMIT acknowledgement is ambiguous", async () => {
     const release = vi.fn();
     const client = { query: vi.fn().mockImplementation((sql: string) => sql === "COMMIT" ? Promise.reject(new Error("synthetic network loss")) : Promise.resolve({ rows: [], rowCount: 0 })) , release };
