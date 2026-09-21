@@ -34,6 +34,8 @@ export const SEMANTIC_TARGETS = {
   ANALYTICS_MODE: "ANALYTICS_MODE",
   ROUTE_POLICY: "ROUTE_POLICY",
   BRAND_REFERENCE_STRATEGY: "BRAND_REFERENCE_STRATEGY",
+  BRAND_SUPPLIED_INFORMATION: "BRAND_SUPPLIED_INFORMATION",
+  BRAND_SUPPLIED_LOGO_DESCRIPTION: "BRAND_SUPPLIED_LOGO_DESCRIPTION",
   IMAGE_SOURCE_STRATEGY: "IMAGE_SOURCE_STRATEGY",
   SEO_TITLE: "SEO_TITLE",
   SEO_META_DESCRIPTION: "SEO_META_DESCRIPTION",
@@ -49,7 +51,7 @@ export type DynamicPageTargetId = `PAGE:${string}`;
 export type AssetTargetId = DynamicAssetTargetId | typeof SEMANTIC_TARGETS.ASSET_COMPANY_LOGO;
 export type SemanticTargetId = FixedSemanticTargetId | DynamicRequirementTargetId | DynamicAssetTargetId | DynamicPageTargetId;
 
-export const SEMANTIC_TARGET_ID_PATTERN = /^(?:FORM_[A-Z_]+|DATABASE_MODE|AUTH_MODE|ANALYTICS_MODE|ROUTE_POLICY|BRAND_REFERENCE_STRATEGY|IMAGE_SOURCE_STRATEGY|SEO_TITLE|SEO_META_DESCRIPTION|LEGAL_[A-Z_]+|ASSET_COMPANY_LOGO|REQUIREMENT:[A-Za-z0-9_.:-]{1,180}|ASSET:[A-Za-z0-9_.:-]{1,180}|PAGE:[^\r\n]{1,180})$/;
+export const SEMANTIC_TARGET_ID_PATTERN = /^(?:FORM_[A-Z_]+|DATABASE_MODE|AUTH_MODE|ANALYTICS_MODE|ROUTE_POLICY|BRAND_REFERENCE_STRATEGY|BRAND_SUPPLIED_INFORMATION|BRAND_SUPPLIED_LOGO_DESCRIPTION|IMAGE_SOURCE_STRATEGY|SEO_TITLE|SEO_META_DESCRIPTION|LEGAL_[A-Z_]+|ASSET_COMPANY_LOGO|REQUIREMENT:[A-Za-z0-9_.:-]{1,180}|ASSET:[A-Za-z0-9_.:-]{1,180}|PAGE:[^\r\n]{1,180})$/;
 
 export const isSemanticTargetId = (value: string): value is SemanticTargetId => SEMANTIC_TARGET_ID_PATTERN.test(value);
 export const isRequirementTarget = (value: string): value is DynamicRequirementTargetId => value.startsWith("REQUIREMENT:") && isSemanticTargetId(value);
@@ -75,6 +77,8 @@ export type FixedTargetValueMap = {
   [SEMANTIC_TARGETS.ANALYTICS_MODE]: z.infer<typeof AnalyticsModeSchema>;
   [SEMANTIC_TARGETS.ROUTE_POLICY]: z.infer<typeof RoutePolicySchema>;
   [SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY]: z.infer<typeof BrandReferenceStrategySchema>;
+  [SEMANTIC_TARGETS.BRAND_SUPPLIED_INFORMATION]: string | null;
+  [SEMANTIC_TARGETS.BRAND_SUPPLIED_LOGO_DESCRIPTION]: string | null;
   [SEMANTIC_TARGETS.IMAGE_SOURCE_STRATEGY]: z.infer<typeof ImageSourceStrategySchema>;
   [SEMANTIC_TARGETS.SEO_TITLE]: string | null;
   [SEMANTIC_TARGETS.SEO_META_DESCRIPTION]: string | null;
@@ -92,7 +96,7 @@ export type TargetValueFor<T extends SemanticTargetId> =
 export const TargetCatalogEntrySchema = z.object({
   id: z.string(),
   operation: z.enum(["SET", "UPSERT", "REMOVE"]),
-  valueType: z.enum(["successMode", "successPolicy", "transmissionMode", "persistenceMode", "serverProcessingMode", "externalProviderMode", "privacyConsentMode", "databaseMode", "authMode", "analyticsMode", "routePolicy", "brandStrategy", "imageStrategy", "title", "metaDescription", "placeholderPolicy", "inventedFactsPolicy", "requirement", "asset", "page"]),
+  valueType: z.enum(["successMode", "successPolicy", "transmissionMode", "persistenceMode", "serverProcessingMode", "externalProviderMode", "privacyConsentMode", "databaseMode", "authMode", "analyticsMode", "routePolicy", "brandStrategy", "brandSuppliedInformation", "brandSuppliedLogoDescription", "imageStrategy", "title", "metaDescription", "placeholderPolicy", "inventedFactsPolicy", "requirement", "asset", "page"]),
 }).strict();
 export type TargetCatalogEntry = z.infer<typeof TargetCatalogEntrySchema>;
 
@@ -111,6 +115,8 @@ export const TARGET_CATALOG: readonly TargetCatalogEntry[] = [
   fixed(SEMANTIC_TARGETS.ANALYTICS_MODE, "analyticsMode"),
   fixed(SEMANTIC_TARGETS.ROUTE_POLICY, "routePolicy"),
   fixed(SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY, "brandStrategy"),
+  fixed(SEMANTIC_TARGETS.BRAND_SUPPLIED_INFORMATION, "brandSuppliedInformation"),
+  fixed(SEMANTIC_TARGETS.BRAND_SUPPLIED_LOGO_DESCRIPTION, "brandSuppliedLogoDescription"),
   fixed(SEMANTIC_TARGETS.IMAGE_SOURCE_STRATEGY, "imageStrategy"),
   fixed(SEMANTIC_TARGETS.SEO_TITLE, "title"),
   fixed(SEMANTIC_TARGETS.SEO_META_DESCRIPTION, "metaDescription"),
@@ -146,6 +152,8 @@ export const targetValueSchemas = {
   analyticsMode: AnalyticsModeSchema,
   routePolicy: RoutePolicySchema,
   brandStrategy: BrandReferenceStrategySchema,
+  brandSuppliedInformation: z.string().trim().max(2000).nullable(),
+  brandSuppliedLogoDescription: z.string().trim().max(2000).nullable(),
   imageStrategy: ImageSourceStrategySchema,
   title: z.string().trim().max(300).nullable(),
   metaDescription: z.string().trim().max(1000).nullable(),

@@ -70,6 +70,8 @@ export const BriefChangeSchema = z.union([
   setVariant(SEMANTIC_TARGETS.ANALYTICS_MODE, AnalyticsModeSchema),
   setVariant(SEMANTIC_TARGETS.ROUTE_POLICY, z.enum(["SINGLE_PAGE", "MULTI_PAGE", "UNRESOLVED"])),
   setVariant(SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY, BrandReferenceStrategySchema),
+  setVariant(SEMANTIC_TARGETS.BRAND_SUPPLIED_INFORMATION, z.string().trim().max(2000).nullable()),
+  setVariant(SEMANTIC_TARGETS.BRAND_SUPPLIED_LOGO_DESCRIPTION, z.string().trim().max(2000).nullable()),
   setVariant(SEMANTIC_TARGETS.IMAGE_SOURCE_STRATEGY, ImageSourceStrategySchema),
   setVariant(SEMANTIC_TARGETS.SEO_TITLE, z.string().trim().max(300).nullable()),
   setVariant(SEMANTIC_TARGETS.SEO_META_DESCRIPTION, z.string().trim().max(1000).nullable()),

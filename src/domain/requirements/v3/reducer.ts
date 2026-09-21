@@ -198,6 +198,8 @@ function applySet(brief: CanonicalBriefV3, change: BriefSetChange): CanonicalBri
     case SEMANTIC_TARGETS.ANALYTICS_MODE: return { ...brief, decisions: { ...brief.decisions, analytics: { mode: change.value } } };
     case SEMANTIC_TARGETS.ROUTE_POLICY: return { ...brief, decisions: { ...brief.decisions, routePolicy: { mode: change.value } } };
     case SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY: return { ...brief, brand: { ...brief.brand, referenceStrategy: change.value } };
+    case SEMANTIC_TARGETS.BRAND_SUPPLIED_INFORMATION: return { ...brief, brand: { ...brief.brand, suppliedInformation: change.value } };
+    case SEMANTIC_TARGETS.BRAND_SUPPLIED_LOGO_DESCRIPTION: return { ...brief, brand: { ...brief.brand, suppliedLogoDescription: change.value } };
     case SEMANTIC_TARGETS.IMAGE_SOURCE_STRATEGY: return {
       ...brief,
       scope: { ...brief.scope, images: change.value === "NONE" ? { required: false, sourceStrategy: "NONE" } : { required: true, sourceStrategy: change.value } },

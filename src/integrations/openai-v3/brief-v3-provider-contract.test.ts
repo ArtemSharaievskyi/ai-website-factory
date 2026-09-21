@@ -97,6 +97,8 @@ describe("Brief Revision V3 provider boundary", () => {
       ANALYTICS_MODE: "NONE",
       ROUTE_POLICY: "SINGLE_PAGE",
       BRAND_REFERENCE_STRATEGY: "USER_SUPPLIED",
+      BRAND_SUPPLIED_INFORMATION: "Synthetic supplied identity.",
+      BRAND_SUPPLIED_LOGO_DESCRIPTION: "Synthetic supplied logo description.",
       IMAGE_SOURCE_STRATEGY: "USER_SUPPLIED",
       SEO_TITLE: null,
       SEO_META_DESCRIPTION: null,
@@ -130,6 +132,14 @@ describe("Brief Revision V3 provider boundary", () => {
     for (const change of simulatedRevision.changes) expect(mapped.changes).toContainEqual(expect.objectContaining(change));
     const dynamic = mapProviderBriefChangeSet(providerFixture([{ operation: "UPSERT", target: "REQUIREMENT:service", value: { category: "FEATURE", statement: "Synthetic service." } }]));
     expect(dynamic.changes[0]).toMatchObject({ value: { sourceRefs: [providerSource] } });
+    const brandIdentity = mapProviderBriefChangeSet(providerFixture([
+      { operation: "SET", target: "BRAND_SUPPLIED_INFORMATION", value: "Synthetic supplied identity." },
+      { operation: "SET", target: "BRAND_SUPPLIED_LOGO_DESCRIPTION", value: "Synthetic supplied logo." },
+    ]));
+    expect(brandIdentity.changes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ operation: "SET", target: "BRAND_SUPPLIED_INFORMATION", value: "Synthetic supplied identity." }),
+      expect.objectContaining({ operation: "SET", target: "BRAND_SUPPLIED_LOGO_DESCRIPTION", value: "Synthetic supplied logo." }),
+    ]));
     expect(() => mapProviderBriefChangeSet({ contractVersion: 1, changes: [{ operation: "SET", target: "SEO_TITLE", value: "One" }, { operation: "SET", target: "SEO_TITLE", value: "Two" }] })).toThrowError("BRIEF_V3_CONFLICTING_OPERATIONS");
     expect(() => mapProviderBriefChangeSet({ contractVersion: 1, changes: [{ operation: "REMOVE", target: "REQUIREMENT:service" }, { operation: "UPSERT", target: "REQUIREMENT:service", value: { category: "FEATURE", statement: "Different" } }] })).toThrowError("BRIEF_V3_CONFLICTING_OPERATIONS");
     expect(() => mapProviderBriefChangeSet({ contractVersion: 1, changes: [{ operation: "UPSERT", target: "REQUIREMENT:service", value: { category: "FEATURE", statement: "One" } }, { operation: "UPSERT", target: "REQUIREMENT:service", value: { category: "FEATURE", statement: "Two" } }] })).toThrowError("BRIEF_V3_CONFLICTING_OPERATIONS");

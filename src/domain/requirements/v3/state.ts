@@ -32,6 +32,8 @@ export function targetDomain(target: SemanticTargetId): CanonicalDomain {
     case SEMANTIC_TARGETS.ANALYTICS_MODE: return "analytics";
     case SEMANTIC_TARGETS.ROUTE_POLICY: return "route";
     case SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY: return "brand";
+    case SEMANTIC_TARGETS.BRAND_SUPPLIED_INFORMATION:
+    case SEMANTIC_TARGETS.BRAND_SUPPLIED_LOGO_DESCRIPTION: return "brand";
     case SEMANTIC_TARGETS.IMAGE_SOURCE_STRATEGY: return "scope";
     case SEMANTIC_TARGETS.SEO_TITLE:
     case SEMANTIC_TARGETS.SEO_META_DESCRIPTION: return "seo";
@@ -55,6 +57,8 @@ export function readSemanticTarget(brief: CanonicalBriefV3, target: SemanticTarg
     case SEMANTIC_TARGETS.ANALYTICS_MODE: return brief.decisions.analytics.mode;
     case SEMANTIC_TARGETS.ROUTE_POLICY: return brief.decisions.routePolicy.mode;
     case SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY: return brief.brand.referenceStrategy;
+    case SEMANTIC_TARGETS.BRAND_SUPPLIED_INFORMATION: return brief.brand.suppliedInformation;
+    case SEMANTIC_TARGETS.BRAND_SUPPLIED_LOGO_DESCRIPTION: return brief.brand.suppliedLogoDescription;
     case SEMANTIC_TARGETS.IMAGE_SOURCE_STRATEGY: return brief.scope.images.sourceStrategy;
     case SEMANTIC_TARGETS.SEO_TITLE: return brief.seo.exactTitle;
     case SEMANTIC_TARGETS.SEO_META_DESCRIPTION: return brief.seo.exactMetaDescription;

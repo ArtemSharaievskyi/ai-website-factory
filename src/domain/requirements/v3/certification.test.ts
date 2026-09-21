@@ -438,6 +438,21 @@ describe("Brief Revision V3 certification", () => {
     mark("Adversarial cases");
   });
 
+  it("updates supplied brand identity through typed semantic targets without touching unrelated domains", () => {
+    const next = applyBriefChangeSet(cleanBriefV3, {
+      contractVersion: 1,
+      changes: [
+        { operation: "SET", target: SEMANTIC_TARGETS.BRAND_SUPPLIED_INFORMATION, value: "Synthetic supplied identity." },
+        { operation: "SET", target: SEMANTIC_TARGETS.BRAND_SUPPLIED_LOGO_DESCRIPTION, value: "Synthetic supplied logo." },
+      ],
+      unresolved: [],
+    });
+    expect(next.brand).toEqual({ referenceStrategy: "USER_SUPPLIED", suppliedInformation: "Synthetic supplied identity.", suppliedLogoDescription: "Synthetic supplied logo." });
+    expect(next.requirements).toEqual(cleanBriefV3.requirements);
+    expect(next.assets).toEqual(cleanBriefV3.assets);
+    expect(next.decisions).toEqual(cleanBriefV3.decisions);
+  });
+
   it("rejects semantic conflicts instead of allowing order-dependent form repair", () => {
     const noneWithEmail = { contractVersion: 1 as const, changes: [
       { operation: "SET" as const, target: "FORM_SUCCESS_MODE" as const, value: "NONE" as const },
