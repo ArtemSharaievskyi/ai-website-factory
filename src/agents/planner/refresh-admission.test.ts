@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { buildPlanningPackage, planningSemanticChecksum } from "./deterministic";
-import { admitPlanningRefresh, PlanningAdmissionError } from "./refresh-admission";
+import { admitPlanningRefresh, analyzePlanningRequirementCoverage, PlanningAdmissionError } from "./refresh-admission";
 import { PlannerArchitectService } from "./service";
 import { PlannerError, serializePlannerError } from "./errors";
 import { PlanningPackageSchema, type PlannerAgentInput, type PlanningPackage } from "./contracts";
@@ -209,6 +209,38 @@ describe("host-owned Planning refresh admission", () => {
     const result = admitted(candidate, fixture.input);
 
     expect(result.coverage).toEqual(expect.arrayContaining([expect.objectContaining({ requirementId: "REQUIREMENT:service-scope-2", reason: "MISSING_SEMANTIC_EVIDENCE" })]));
+  });
+
+  it("admits short semantic requirements when normalized evidence fully matches without exact phrasing", () => {
+    const requirement = {
+      id: "REQUIREMENT:synthetic-brand-visual",
+      category: "BRAND_VISUAL" as const,
+      statement: "Logo: do not invent one.",
+      sourceRefs: ["fixture:synthetic-brand-visual"],
+    };
+    const brief = fixtureBrief({ requirements: [...cleanBriefV3.requirements, requirement] });
+    const fixture = packageFor(brief);
+    const candidate = PlanningPackageSchema.parse({
+      ...fixture.packageValue,
+      productScope: {
+        ...fixture.packageValue.productScope,
+        inScopeCapabilities: [
+          ...fixture.packageValue.productScope.inScopeCapabilities,
+          "The supplied logo is preserved; we do not invent one.",
+        ],
+      },
+      traceability: [
+        ...fixture.packageValue.traceability,
+        { ...fixture.packageValue.traceability[0]!, requirementReferences: [requirement.id] },
+      ],
+    });
+
+    const result = admitted(candidate, fixture.input);
+    const evidence = analyzePlanningRequirementCoverage({ candidate, canonicalBrief: brief }).find((entry) => entry.requirementId === requirement.id);
+
+    expect(result.blockers).toEqual([]);
+    expect(result.coverage).not.toEqual(expect.arrayContaining([expect.objectContaining({ requirementId: requirement.id })]));
+    expect(evidence).toMatchObject({ semanticEvidence: "FULL", semanticEvidenceScore: 1 });
   });
 
   it("rejects legacy and unknown traceability references before persistence", () => {

@@ -218,6 +218,17 @@ const normalizeSearchText = (value: string) => value.normalize("NFKD").replace(/
 const stopWords = new Set(["a", "an", "and", "auf", "be", "bei", "das", "der", "die", "ein", "eine", "für", "from", "in", "mit", "of", "oder", "on", "the", "to", "und", "von", "zu"]);
 const semanticTokens = (value: string) => normalizeSearchText(value).split(/\s+/).filter((token) => token.length >= 3 && !stopWords.has(token)).map((token) => token.length > 6 ? token.slice(0, 6) : token);
 
+function semanticMatchedTokens(corpus: string[], tokens: string[]): string[] {
+  if (tokens.length >= 6) {
+    const joined = corpus.join(" ");
+    return tokens.filter((token) => joined.includes(token));
+  }
+  return corpus.reduce<string[]>((best, value) => {
+    const matched = tokens.filter((token) => value.includes(token));
+    return matched.length > best.length ? matched : best;
+  }, []);
+}
+
 function semanticEvidenceCorpus(value: unknown, output: string[] = []): string[] {
   if (typeof value === "string") output.push(value);
   else if (Array.isArray(value)) value.forEach((item) => semanticEvidenceCorpus(item, output));
@@ -239,9 +250,8 @@ function semanticEvidenceScore(candidate: PlanningPackage, requirement: Canonica
   const corpus = semanticEvidenceCorpus(stableSemanticValue(candidate)).map(normalizeSearchText);
   if (corpus.some((value) => value.includes(statement))) return 1;
   const tokens = semanticTokens(requirement.statement);
-  if (tokens.length < 6) return 0;
-  const joined = corpus.join(" ");
-  return tokens.filter((token) => joined.includes(token)).length / tokens.length;
+  if (tokens.length === 0) return 0;
+  return semanticMatchedTokens(corpus, tokens).length / tokens.length;
 }
 
 function semanticEvidenceEvaluation(candidate: PlanningPackage, requirement: CanonicalRequirement) {
@@ -251,11 +261,10 @@ function semanticEvidenceEvaluation(candidate: PlanningPackage, requirement: Can
   const corpus = rawCorpus.map(normalizeSearchText);
   const tokens = semanticTokens(requirement.statement);
   const exactMatch = corpus.some((value) => value.includes(statement));
-  const joinedCorpus = corpus.join(" ");
-  const matchedTokens = tokens.filter((token) => joinedCorpus.includes(token));
-  const unmatchedTokens = tokens.filter((token) => !joinedCorpus.includes(token));
+  const matchedTokens = semanticMatchedTokens(corpus, tokens);
+  const unmatchedTokens = tokens.filter((token) => !matchedTokens.includes(token));
   const matchedTokenCount = matchedTokens.length;
-  const score = exactMatch ? 1 : tokens.length < 6 ? 0 : matchedTokenCount / tokens.length;
+  const score = exactMatch ? 1 : tokens.length === 0 ? 0 : matchedTokenCount / tokens.length;
   const evaluatedFieldPaths = Object.entries(stable)
     .filter(([key, value]) => !semanticMetadataKeys.has(key) && !semanticExcludedKeys.has(key) && semanticEvidenceCorpus(value).length > 0)
     .map(([key]) => key)
