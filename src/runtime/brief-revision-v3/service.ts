@@ -23,10 +23,10 @@ import type { DecisionRecord } from "@/domain/workflow/decision";
 import { BriefV3ProjectionService } from "./projection";
 import { BriefV3TransactionError, type BriefV3TransactionErrorCode } from "./errors";
 import { createBriefV3OperationIdentity, createRevisionCurrentnessToken, sameRevisionCurrentness, type RevisionCurrentnessToken } from "./identity";
-import type { BriefV3ProjectionPort, BriefV3RevisionProvider, BriefV3SupportingContext } from "./ports";
+import type { BriefV3AssetBinding, BriefV3ProjectionPort, BriefV3RevisionProvider, BriefV3SupportingContext } from "./ports";
 
 export type BriefV3CommittedResult = { outcome: "COMMITTED" | "COMMITTED_REPLAY"; projectId: string; projectVersion: number; attemptId: string; changed: boolean; currentBriefChecksum: string; workflowState: ProjectRow["workflow_state"]; historyId: string | null; projectionStatus: "PENDING" | "SYNCED" | "FAILED_RETRYABLE" | "NONE" };
-export type BriefV3TransactionInput = { projectId: string; projectVersion: number; revisionInstruction: string; expectedCurrentness: RevisionCurrentnessToken; targetHints?: readonly string[]; targetWorkflowState?: ProjectRow["workflow_state"]; actor?: string; decision?: DecisionRecord; supportingContext?: readonly BriefV3SupportingContext[]; leaseMs?: number; ownerId?: string; clock?: () => string; faults?: BriefRevisionFaultInjector };
+export type BriefV3TransactionInput = { projectId: string; projectVersion: number; revisionInstruction: string; expectedCurrentness: RevisionCurrentnessToken; targetHints?: readonly string[]; targetWorkflowState?: ProjectRow["workflow_state"]; actor?: string; decision?: DecisionRecord; supportingContext?: readonly BriefV3SupportingContext[]; assetBindings?: readonly BriefV3AssetBinding[]; leaseMs?: number; ownerId?: string; clock?: () => string; faults?: BriefRevisionFaultInjector };
 
 type CurrentSnapshot = { project: ProjectRow; version: ProjectVersionRow; documentRow: import("@/persistence/database/mapping").DocumentRow; canonical: CanonicalBriefV3; identityLineage: readonly RequirementIdentityLineage[]; currentness: RevisionCurrentnessToken };
 
@@ -68,7 +68,7 @@ export class BriefV3TransactionService {
 
   async execute(input: BriefV3TransactionInput): Promise<BriefV3CommittedResult> {
     const expectedCurrentness = createRevisionCurrentnessToken(input.expectedCurrentness);
-    const identity = createBriefV3OperationIdentity({ projectId: input.projectId, projectVersion: input.projectVersion, revisionInstruction: input.revisionInstruction, targetHints: input.targetHints, targetWorkflowState: input.targetWorkflowState, currentness: expectedCurrentness });
+    const identity = createBriefV3OperationIdentity({ projectId: input.projectId, projectVersion: input.projectVersion, revisionInstruction: input.revisionInstruction, targetHints: input.targetHints, targetWorkflowState: input.targetWorkflowState, currentness: expectedCurrentness, assetBindings: input.assetBindings });
     const createdAt = now(input);
     const reserved = await this.attempts.reserve({ id: randomUUID(), operationKind: identity.operationKind, operationKey: identity.operationKey, payloadHash: identity.payloadHash, projectId: input.projectId, projectVersion: input.projectVersion, currentnessToken: identity.currentness as unknown as Record<string, unknown>, now: createdAt });
     if (reserved.status === "COMMITTED") return committedResultFromRow(reserved, "COMMITTED_REPLAY");
@@ -116,7 +116,15 @@ export class BriefV3TransactionService {
       } catch (error) {
         const code = classifyProviderFailure(error);
         await settle(code === "PROVIDER_INVALID_OUTPUT" ? "REJECTED_INVALID" : "FAILED_RETRYABLE", code, providerFailureDiagnostic(error));
-        throw new BriefV3TransactionError(code, { attemptId: claim.row.id });
+        throw new BriefV3TransactionError(code, { attemptId: claim.row.id, schemaName: "brief-revision-v3" });
+      }
+      for (const binding of input.assetBindings ?? []) {
+        const change = providerChanges.changes.find((candidate) => candidate.operation === "UPSERT" && candidate.target === binding.target);
+        const reference = change && change.operation === "UPSERT" && "reference" in change.value ? change.value.reference : undefined;
+        if (reference !== `asset:${binding.assetId}`) {
+          await settle("REJECTED_INVALID", "CHANGESET_INVALID");
+          throw new BriefV3TransactionError("CHANGESET_INVALID", { attemptId: claim.row.id, assetBinding: binding.target });
+        }
       }
       let changeSet: BriefChangeSet;
       let reduction: ReturnType<typeof reduceBriefChangeSet>;

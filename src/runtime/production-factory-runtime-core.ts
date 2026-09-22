@@ -157,6 +157,7 @@ export type ProductionFactoryRuntime = {
     workspaceRoot: string;
     slug: string;
   }): ProductionFactoryProjectScope;
+  createBriefRevisionV3(input: { workspaceRoot: string; slug: string }): BriefV3TransactionService;
   close(): Promise<void>;
 };
 function assertRealMode(env: Record<string, string | undefined>, allowWeb = false) {
@@ -430,6 +431,7 @@ export function createProductionFactoryRuntime(
     ai,
     evidence,
     generatedProjectsRoot: options.generatedProjectsRoot,
+    createBriefRevisionV3: ({ workspaceRoot, slug }) => new BriefV3TransactionService({ database, provider: new OpenAiBriefV3RevisionProvider(ai.ai), projection: new FilesystemProjectMemorySyncPort(workspaceRoot, slug) }),
     createProjectScope: ({ workspaceRoot, slug }) => {
       const decisions = new DecisionRepository(database);
       const versions = new ProjectVersionRepository(database);
@@ -442,11 +444,7 @@ export function createProductionFactoryRuntime(
         resolveSkills: resolveLeadSkills,
       });
       const briefApproval = new BriefApprovalService({ database, projection: sync });
-      const briefRevisionV3 = new BriefV3TransactionService({
-        database,
-        provider: new OpenAiBriefV3RevisionProvider(ai.ai),
-        projection: sync,
-      });
+      const briefRevisionV3 = new BriefV3TransactionService({ database, provider: new OpenAiBriefV3RevisionProvider(ai.ai), projection: sync });
       const planner = createPlannerArchitectService({
         database,
         provider: ai.planner,

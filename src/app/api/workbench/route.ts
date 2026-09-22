@@ -17,7 +17,12 @@ export async function POST(request: Request) {
   try {
     const contentLength = Number(request.headers.get("content-length") ?? 0);
     if (contentLength > WORKBENCH_REQUEST_BYTES + 8192) throw new WorkbenchActionError("WORKBENCH_REQUEST_TOO_LARGE", "The request is too large.");
-    const body: unknown = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      throw new WorkbenchActionError("WORKBENCH_REQUEST_INVALID", "The request body was not valid JSON.");
+    }
     if (typeof body === "object" && body !== null) {
       const candidate = body as Record<string, unknown>;
       diagnosticContext = {
@@ -40,7 +45,7 @@ export async function POST(request: Request) {
     const meta: WorkbenchResponseMetadata = responseSink.metadata ?? { schemaVersion: 1, responseOrigin: "NO_EXECUTION", attemptCreated: false, correlationId, runtimeProvenance };
     return NextResponse.json({ ok: true, data: result, meta }, { status: 200, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    const failure = workbenchFailureResponse(error, diagnosticContext);
+    const failure = workbenchFailureResponse(error, { ...diagnosticContext, responseMetadata: responseSink.metadata });
     return NextResponse.json(failure.response, { status: failure.status, headers: { "Cache-Control": "no-store" } });
   }
 }

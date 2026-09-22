@@ -12,6 +12,12 @@ export const MAX_CLARIFICATION_ANSWER_LENGTH = 32 * 1024;
 export const MAX_BRIEF_REVISION_INSTRUCTION_BYTES = MAX_CANONICAL_USER_INPUT_BYTES;
 export const BriefRevisionInstructionSchema = canonicalUserInstructionSchema();
 export type BriefRevisionInstruction = z.infer<typeof BriefRevisionInstructionSchema>;
+export const BriefRevisionAssetBindingSchema = z.object({
+  target: z.literal("ASSET_COMPANY_LOGO"),
+  assetId: z.string().uuid(),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
+export type BriefRevisionAssetBinding = z.infer<typeof BriefRevisionAssetBindingSchema>;
 
 export const WorkbenchActionSchema = z.enum([
   "ANSWER_LEAD_CLARIFICATIONS",
@@ -66,7 +72,7 @@ export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
   RespondRequestSchema,
   z.object({ action: z.literal("refresh-clarifications"), projectId: ProjectIdSchema, requestId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("approve-brief"), projectId: ProjectIdSchema, briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), expectedRowVersion: z.number().int().positive(), approvalNote: z.string().max(4000).optional() }).strict(),
-  z.object({ action: z.literal("request-brief-changes"), projectId: ProjectIdSchema, projectVersion: z.number().int().positive(), briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), expectedRowVersion: z.number().int().positive(), reason: BriefRevisionInstructionSchema, requirementKeys: z.array(z.string().min(1).max(128)).max(40).default([]) }).strict(),
+  z.object({ action: z.literal("request-brief-changes"), projectId: ProjectIdSchema, projectVersion: z.number().int().positive(), briefChecksum: z.string().regex(/^[a-f0-9]{64}$/), expectedRowVersion: z.number().int().positive(), reason: BriefRevisionInstructionSchema, requirementKeys: z.array(z.string().min(1).max(128)).max(40).default([]), assetBindings: z.array(BriefRevisionAssetBindingSchema).max(8).optional() }).strict(),
   z.object({ action: z.literal("generate-planning"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("approve-planning"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("request-planning-changes"), projectId: ProjectIdSchema, reason: z.string().trim().min(1).max(4000) }).strict(),

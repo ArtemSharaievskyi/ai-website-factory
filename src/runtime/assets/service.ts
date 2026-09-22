@@ -34,6 +34,9 @@ export type AssetIntakeErrorCode =
   | "ASSET_PROJECT_SIZE_LIMIT"
   | "ASSET_SIGNATURE_INVALID"
   | "ASSET_NOT_FOUND"
+  | "ASSET_BINDING_INVALID"
+  | "ASSET_CHECKSUM_MISMATCH"
+  | "ASSET_NOT_CURRENT"
   | "ASSET_STORAGE_FAILED"
   | "ASSET_METADATA_PERSIST_FAILED"
   | "ASSET_INTERNAL_ERROR";
@@ -52,6 +55,9 @@ const ASSET_ERROR_DEFAULTS: Record<AssetIntakeErrorCode, { category: AssetIntake
   ASSET_PROJECT_SIZE_LIMIT: { category: "VALIDATION", recoverable: false },
   ASSET_SIGNATURE_INVALID: { category: "VALIDATION", recoverable: false },
   ASSET_NOT_FOUND: { category: "VALIDATION", recoverable: false },
+  ASSET_BINDING_INVALID: { category: "VALIDATION", recoverable: false },
+  ASSET_CHECKSUM_MISMATCH: { category: "VALIDATION", recoverable: true },
+  ASSET_NOT_CURRENT: { category: "VALIDATION", recoverable: true },
   ASSET_STORAGE_FAILED: { category: "STORAGE", recoverable: true },
   ASSET_METADATA_PERSIST_FAILED: { category: "PERSISTENCE", recoverable: true },
   ASSET_INTERNAL_ERROR: { category: "INTERNAL", recoverable: false },
@@ -151,6 +157,25 @@ export class ProjectAssetService {
   /** Backward-compatible name for the canonical current READY Lead context projection. */
   async listReferences(projectId: string) {
     return this.listCurrentReadyReferences(projectId);
+  }
+
+  async validateBriefRevisionBindings(projectId: string, projectVersion: number, bindings: readonly { target: "ASSET_COMPANY_LOGO"; assetId: string; sha256: string }[]) {
+    const seenTargets = new Set<string>();
+    return Promise.all(bindings.map(async (binding) => {
+      if (seenTargets.has(binding.target)) throw new AssetIntakeError("ASSET_BINDING_INVALID", "Each canonical asset target may be bound only once.");
+      seenTargets.add(binding.target);
+      const asset = await this.get(projectId, binding.assetId);
+      if (asset.projectVersion !== projectVersion) throw new AssetIntakeError("ASSET_VERSION_STALE", "The asset belongs to a different project version.");
+      if (asset.status !== "READY" || asset.currentness !== "CURRENT") throw new AssetIntakeError("ASSET_NOT_CURRENT", "The asset is not a current ready asset.");
+      if (asset.sha256 !== binding.sha256) throw new AssetIntakeError("ASSET_CHECKSUM_MISMATCH", "The asset checksum does not match the bound asset.");
+      if (binding.target === "ASSET_COMPANY_LOGO" && asset.category !== "LOGO") throw new AssetIntakeError("ASSET_CATEGORY_INVALID", "The company logo target requires a logo asset.");
+      return {
+        sourceRef: `asset:${asset.assetId}`,
+        content: JSON.stringify({ assetId: asset.assetId, target: binding.target, category: asset.category, source: asset.source, mediaType: asset.mediaType, byteSize: asset.byteSize, sha256: asset.sha256, version: asset.version, currentness: asset.currentness }),
+        selectionReason: "Host-validated project-owned customer asset metadata.",
+        priority: "HIGH" as const,
+      };
+    }));
   }
 
   async upload(input: AssetUploadInput): Promise<AssetUploadResult> {

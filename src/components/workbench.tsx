@@ -811,6 +811,10 @@ export function Workbench() {
         expectedRowVersion: projection.project.rowVersion,
         reason: prompt,
         requirementKeys: ["project-brief"],
+        assetBindings: projection.assets
+          .filter((asset) => asset.category === "LOGO" && asset.status === "READY" && asset.currentness === "CURRENT")
+          .slice(0, 1)
+          .map((asset) => ({ target: "ASSET_COMPANY_LOGO" as const, assetId: asset.assetId, sha256: asset.sha256 })),
       });
       return;
     }

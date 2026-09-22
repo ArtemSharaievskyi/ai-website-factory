@@ -34,6 +34,10 @@ import { migrateLegacyBriefToCanonicalBriefV3 } from "@/domain/requirements/v3/m
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { createBriefV3OperationIdentity, createRevisionCurrentnessToken, RevisionCurrentnessTokenSchema, type RevisionCurrentnessToken } from "@/runtime/brief-revision-v3/identity";
 import type { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
+import { BriefV3TransactionError } from "@/runtime/brief-revision-v3/errors";
+import type { BriefV3AssetBinding } from "@/runtime/brief-revision-v3/ports";
+import { currentWorkbenchOperationContext } from "@/runtime/workbench/operation-context";
+import { currentRuntimeProvenance } from "@/runtime/workbench/observability";
 import { evaluateBriefReadiness, type BriefReadinessApprovalBlocker } from "@/domain/requirements/v3/readiness";
 import { BriefApprovalService } from "./brief-approval";
 
@@ -548,7 +552,7 @@ export class TrialEntryService {
    * may arrive with the pre-commit row version, so recover its exact token
    * from the durable V3 attempt before reading the now-current document.
    */
-  private async briefRevisionCurrentness(input: { projectId: string; projectVersion: number; briefChecksum: string; expectedRowVersion: number; reason: string; requirementKeys: readonly string[] }): Promise<RevisionCurrentnessToken> {
+  private async briefRevisionCurrentness(input: { projectId: string; projectVersion: number; briefChecksum: string; expectedRowVersion: number; reason: string; requirementKeys: readonly string[]; assetBindings?: readonly BriefV3AssetBinding[] }): Promise<RevisionCurrentnessToken> {
     const snapshot = await this.dependencies.database.transaction(async (tx) => ({
       project: await tx.getProject(input.projectId),
       version: await tx.getVersion(input.projectId, input.projectVersion),
@@ -562,7 +566,7 @@ export class TrialEntryService {
       const currentness = RevisionCurrentnessTokenSchema.safeParse(attempt.currentnessToken);
       if (!currentness.success || currentness.data.projectRowVersion !== input.expectedRowVersion) continue;
       if (input.briefChecksum !== currentness.data.briefChecksum && input.briefChecksum !== currentness.data.documentChecksum) continue;
-      const identity = createBriefV3OperationIdentity({ projectId: input.projectId, projectVersion: input.projectVersion, revisionInstruction: input.reason, targetHints: input.requirementKeys, targetWorkflowState: targetFor(currentness.data.workflowState), currentness: currentness.data });
+      const identity = createBriefV3OperationIdentity({ projectId: input.projectId, projectVersion: input.projectVersion, revisionInstruction: input.reason, targetHints: input.requirementKeys, targetWorkflowState: targetFor(currentness.data.workflowState), currentness: currentness.data, assetBindings: input.assetBindings });
       if (attempt.operationKey === identity.operationKey && attempt.payloadHash === identity.payloadHash) return currentness.data;
     }
     const v3Document = snapshot.v3 ? mapRowToDocument(snapshot.v3) : null;
@@ -586,15 +590,22 @@ export class TrialEntryService {
     });
   }
 
-  async requestBriefChanges(input: { projectId: string; projectVersion: number; briefChecksum: string; expectedRowVersion: number; reason: string; requirementKeys?: string[]; requestedBy?: string }) {
+  async requestBriefChanges(input: { projectId: string; projectVersion: number; briefChecksum: string; expectedRowVersion: number; reason: string; requirementKeys?: string[]; assetBindings?: readonly BriefV3AssetBinding[]; requestedBy?: string }) {
     const project = await this.projects.getWithVersion(input.projectId);
     if (!project) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");
-    const revisionService = this.dependencies.createBriefRevisionV3?.(project.project.slug);
-    if (!revisionService) throw new Error("TRIAL_ENTRY_BRIEF_REVISION_V3_UNAVAILABLE");
     const reason = normalizeCanonicalUserInputText(input.reason, "BRIEF_REVISION_TOO_LARGE");
     const requirementKeys = input.requirementKeys ?? ["project-brief"];
-    const expectedCurrentness = await this.briefRevisionCurrentness({ ...input, reason, requirementKeys });
-    const result = await revisionService.execute({
+    const assetBindings = input.assetBindings ?? [];
+    const expectedCurrentness = await this.briefRevisionCurrentness({ ...input, reason, requirementKeys, assetBindings });
+    const supportingContext = assetBindings.length
+      ? await (this.dependencies.assets ? this.dependencies.assets.validateBriefRevisionBindings(input.projectId, input.projectVersion, assetBindings) : Promise.reject(new Error("ASSET_BINDING_SERVICE_UNAVAILABLE")))
+      : undefined;
+    const revisionService = this.dependencies.createBriefRevisionV3?.(project.project.slug);
+    if (!revisionService) throw new Error("TRIAL_ENTRY_BRIEF_REVISION_V3_UNAVAILABLE");
+    const operationIdentity = createBriefV3OperationIdentity({ projectId: input.projectId, projectVersion: input.projectVersion, revisionInstruction: reason, targetHints: requirementKeys, targetWorkflowState: this.revisionTargetState(expectedCurrentness.workflowState), currentness: expectedCurrentness, assetBindings });
+    const context = currentWorkbenchOperationContext();
+    try {
+      const result = await revisionService.execute({
       projectId: input.projectId,
       projectVersion: input.projectVersion,
       revisionInstruction: reason,
@@ -602,7 +613,14 @@ export class TrialEntryService {
       targetHints: requirementKeys,
       targetWorkflowState: this.revisionTargetState(expectedCurrentness.workflowState),
       actor: input.requestedBy ?? "workbench-user",
-    });
-    return { projectId: result.projectId, workflowState: result.workflowState, requirementsChecksum: result.currentBriefChecksum } satisfies { projectId: string; workflowState: WorkflowState; requirementsChecksum: string };
+      supportingContext,
+      assetBindings,
+      });
+      if (context?.responseSink) context.responseSink.metadata = { schemaVersion: 1, responseOrigin: result.outcome === "COMMITTED_REPLAY" ? "REPLAY" : "NEW_EXECUTION", attemptCreated: true, operationId: operationIdentity.operationKey, attemptId: result.attemptId, correlationId: context.correlationId, semanticIntentHash: operationIdentity.payloadHash, attemptStatus: "SUCCEEDED", runtimeProvenance: context.runtimeProvenance ?? currentRuntimeProvenance() };
+      return { projectId: result.projectId, workflowState: result.workflowState, requirementsChecksum: result.currentBriefChecksum } satisfies { projectId: string; workflowState: WorkflowState; requirementsChecksum: string };
+    } catch (error) {
+      if (context?.responseSink && error instanceof BriefV3TransactionError && typeof error.details.attemptId === "string") context.responseSink.metadata = { schemaVersion: 1, responseOrigin: "NEW_EXECUTION", attemptCreated: true, operationId: operationIdentity.operationKey, attemptId: error.details.attemptId, correlationId: context.correlationId, semanticIntentHash: operationIdentity.payloadHash, attemptStatus: "FAILED", runtimeProvenance: context.runtimeProvenance ?? currentRuntimeProvenance() };
+      throw error;
+    }
   }
 }

@@ -21,6 +21,7 @@ export function getProductionWorkbench(): WorkbenchApplication {
     const factory = createProductionFactoryRuntime({ env, generatedProjectsRoot, allowWeb: true });
     const assets = new ProjectAssetService({ database: factory.database, root: assetRoot });
     const scopes = new Map<string, ProductionFactoryProjectScope>();
+    const briefRevisions = new Map<string, ReturnType<typeof factory.createBriefRevisionV3>>();
     const scopeFor = (slug: string) => {
       const existing = scopes.get(slug);
       if (existing) return existing;
@@ -28,7 +29,14 @@ export function getProductionWorkbench(): WorkbenchApplication {
       scopes.set(slug, created);
       return created;
     };
-    const entry = new TrialEntryService({ database: factory.database, assets, createLeadAgent: (slug) => scopeFor(slug).lead, createBriefRevisionV3: (slug) => scopeFor(slug).briefRevisionV3, createBriefApproval: (slug) => scopeFor(slug).briefApproval });
+    const briefRevisionFor = (slug: string) => {
+      const existing = briefRevisions.get(slug);
+      if (existing) return existing;
+      const created = factory.createBriefRevisionV3({ workspaceRoot: generatedProjectsRoot, slug });
+      briefRevisions.set(slug, created);
+      return created;
+    };
+    const entry = new TrialEntryService({ database: factory.database, assets, createLeadAgent: (slug) => scopeFor(slug).lead, createBriefRevisionV3: briefRevisionFor, createBriefApproval: (slug) => scopeFor(slug).briefApproval });
     runtime = {
       application: new WorkbenchApplication({ database: factory.database, entry, assets, getWorkflowScope: (slug) => scopeFor(slug) }),
       assets,

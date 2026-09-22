@@ -129,6 +129,7 @@ export type WorkbenchDiagnosticContext = {
   operation?: WorkbenchOperation;
   correlationId?: string;
   runtimeProvenance?: RuntimeProvenance;
+  responseMetadata?: import("./observability").WorkbenchResponseMetadata;
 };
 
 type SafeValidationProjection = {
@@ -314,6 +315,14 @@ const CONFLICT_CODES = new Set([
   "ARCHITECTURE_REVIEW_IDEMPOTENCY_CONFLICT",
   "ARCHITECTURE_REVIEW_EXHAUSTED",
   "ARCHITECTURE_REVIEW_ALREADY_EXISTS",
+  "STALE_BEFORE_PROVIDER",
+  "STALE_BEFORE_COMMIT",
+  "IN_PROGRESS_DUPLICATE",
+  "COMMITTED_REPLAY",
+  "REJECTED_STALE",
+  "ASSET_VERSION_STALE",
+  "ASSET_CHECKSUM_MISMATCH",
+  "ASSET_NOT_CURRENT",
 ]);
 
 const NOT_FOUND_CODES = new Set([
@@ -323,6 +332,7 @@ const NOT_FOUND_CODES = new Set([
   "CLARIFICATION_NOT_FOUND",
   "DOCUMENT_NOT_FOUND",
   "PERSISTENCE_NOT_FOUND",
+  "ASSET_NOT_FOUND",
 ]);
 
 const VALIDATION_CODES = new Set([
@@ -358,6 +368,25 @@ const VALIDATION_CODES = new Set([
   "ARCHITECTURE_REVIEW_INPUT_INVALID",
   "ARCHITECTURE_REVIEW_BLOCKED",
   "ARCHITECTURE_REVIEW_CHANGES_REQUIRED",
+  "CHANGESET_INVALID",
+  "REDUCTION_FAILED",
+  "INVARIANT_FAILED",
+  "MIGRATION_AMBIGUOUS",
+  "REJECTED_INVALID",
+  "ASSET_BINDING_INVALID",
+  "ASSET_CATEGORY_INVALID",
+  "BRIEF_V3_SCHEMA_INVALID",
+  "BRIEF_V3_INVARIANT_VIOLATION",
+  "BRIEF_V3_CHANGESET_INVALID",
+  "BRIEF_V3_UNKNOWN_TARGET",
+  "BRIEF_V3_UNSUPPORTED_VALUE",
+  "BRIEF_V3_INVALID_COMBINATION",
+  "BRIEF_V3_DUPLICATE_TARGET",
+  "BRIEF_V3_REDUCTION_INVALID",
+  "BRIEF_V3_MIGRATION_INVALID",
+  "BRIEF_V3_MIGRATION_AMBIGUOUS",
+  "BRIEF_V3_IDENTITY_INVALID",
+  "BRIEF_V3_IDENTITY_AMBIGUOUS",
 ]);
 
 const PROVIDER_CODES = new Set([
@@ -388,6 +417,11 @@ const PROVIDER_CODES = new Set([
   "PLANNER_PROVIDER_TIMEOUT",
   "ARCHITECTURE_REVIEW_PROVIDER_FAILED",
   "ARCHITECTURE_REVIEW_OUTPUT_INVALID",
+  "PROVIDER_FAILED",
+  "PROVIDER_REFUSED",
+  "PROVIDER_INVALID_OUTPUT",
+  "TRIAL_ENTRY_BRIEF_REVISION_V3_UNAVAILABLE",
+  "ASSET_BINDING_SERVICE_UNAVAILABLE",
 ]);
 
 const PERSISTENCE_CODES = new Set([
@@ -400,6 +434,9 @@ const PERSISTENCE_CODES = new Set([
   "PLANNING_PERSISTENCE_FAILED",
   "PLANNING_LIFECYCLE_TRANSITION_FAILED",
   "ARCHITECTURE_REVIEW_PROJECTION_FAILED",
+  "PERSISTENCE_FAILED",
+  "ASSET_METADATA_PERSIST_FAILED",
+  "ASSET_STORAGE_FAILED",
 ]);
 
 const SAFE_ERROR_CLASSES = new Set([
@@ -415,6 +452,10 @@ const SAFE_ERROR_CLASSES = new Set([
   "WorkbenchRequestValidationError",
   "ZodError",
   "StagedPlanningFailure",
+  "BriefV3TransactionError",
+  "BriefV3Error",
+  "BriefV3ProviderError",
+  "AssetIntakeError",
 ]);
 
 export class WorkbenchRequestValidationError extends Error {
@@ -704,6 +745,10 @@ function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProject
   if (["ARCHITECTURE_REVIEW_PROVIDER_FAILED", "ARCHITECTURE_REVIEW_OUTPUT_INVALID"].includes(code)) {
     return { error: "The Architecture Review provider could not complete this request. The project was not changed.", httpStatus: code === "ARCHITECTURE_REVIEW_OUTPUT_INVALID" ? 502 : 503, recoverable: false, category: "PROVIDER", subsystem: "PROVIDER", errorClass: errorClass(error), ...(safeProviderDiagnostic(error) ? { providerDiagnostic: safeProviderDiagnostic(error) } : {}) };
   }
+  if (["PROVIDER_FAILED", "PROVIDER_REFUSED", "PROVIDER_INVALID_OUTPUT", "TRIAL_ENTRY_BRIEF_REVISION_V3_UNAVAILABLE"].includes(code)) {
+    const status = code === "PROVIDER_INVALID_OUTPUT" || code === "PROVIDER_REFUSED" ? 502 : 503;
+    return { error: "The Brief revision provider could not complete this request. The project was not changed.", httpStatus: status, recoverable: code === "PROVIDER_FAILED" || code === "TRIAL_ENTRY_BRIEF_REVISION_V3_UNAVAILABLE", category: "PROVIDER", subsystem: "PROVIDER", errorClass: errorClass(error), providerContract: "brief-revision-v3", ...(safeProviderDiagnostic(error) ? { providerDiagnostic: safeProviderDiagnostic(error) } : {}) };
+  }
   if (["ARCHITECTURE_REVIEW_INPUT_INVALID", "ARCHITECTURE_REVIEW_BLOCKED", "ARCHITECTURE_REVIEW_CHANGES_REQUIRED"].includes(code)) return { error: "The current Architecture Review evidence did not satisfy the canonical review contract. The project was not changed.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
   if (NOT_FOUND_CODES.has(code)) return { error: "The requested project or workflow resource was not found.", httpStatus: 404, recoverable: false, category: "VALIDATION", subsystem: code === "PROJECT_NOT_FOUND" ? "WORKBENCH_APPLICATION" : code.startsWith("PERSISTENCE_") || code === "DOCUMENT_NOT_FOUND" ? "PERSISTENCE" : "TRIAL_ENTRY", errorClass: errorClass(error) };
   if (CONFLICT_CODES.has(code)) return { error: "The project changed or the requested workflow action is no longer current.", httpStatus: 409, recoverable: true, category: "WORKFLOW_CONFLICT", subsystem: code.startsWith("WORKBENCH_") ? "WORKBENCH_APPLICATION" : code.startsWith("PERSISTENCE_") || code === "IDEMPOTENCY_CONFLICT" ? "PERSISTENCE" : code.startsWith("AI_") ? "PROVIDER" : "TRIAL_ENTRY", errorClass: errorClass(error) };
@@ -740,8 +785,11 @@ export function normalizeWorkbenchError(error: unknown, context: WorkbenchDiagno
     code: knownCode ?? "WORKBENCH_INTERNAL_ERROR",
     correlationId: context.correlationId && z.string().uuid().safeParse(context.correlationId).success ? context.correlationId : errorCorrelationId ?? randomUUID(),
     operation,
-    responseOrigin: code === "WORKBENCH_OPERATION_IN_PROGRESS" ? "IDEMPOTENT_ACTIVE" : code === "WORKBENCH_OPERATION_REPLAY" ? "IDEMPOTENT_SUCCESS" : "PREFLIGHT_REJECTION",
-    attemptCreated: false,
+    responseOrigin: context.responseMetadata?.responseOrigin ?? (code === "WORKBENCH_OPERATION_IN_PROGRESS" ? "IDEMPOTENT_ACTIVE" : code === "WORKBENCH_OPERATION_REPLAY" ? "IDEMPOTENT_SUCCESS" : "PREFLIGHT_REJECTION"),
+    attemptCreated: context.responseMetadata?.attemptCreated ?? false,
+    ...(context.responseMetadata?.operationId ? { operationId: context.responseMetadata.operationId } : {}),
+    ...(context.responseMetadata?.attemptId ? { attemptId: context.responseMetadata.attemptId } : {}),
+    ...(context.responseMetadata?.attemptStatus ? { attemptStatus: context.responseMetadata.attemptStatus } : {}),
     runtimeProvenance,
     ...projection,
   };
