@@ -13,6 +13,7 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import type { PersistenceDatabase, ProjectRow, ProjectVersionRow } from "@/persistence/database/types";
 import { newWorkflowEvent } from "@/persistence/database/workflow-events";
 import type { ProjectMemorySyncPort } from "@/persistence/database/sync";
+import { assertCanonicalBriefConsistency } from "@/domain/requirements/v3/consistency";
 
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
 export const BriefApprovalCurrentnessSchema = z.object({
@@ -221,6 +222,12 @@ export class BriefApprovalService {
       if (request.briefChecksum !== token.briefChecksum && request.briefChecksum !== token.documentChecksum) throw new BriefApprovalError("BRIEF_CHECKSUM_MISMATCH", "The Project Brief checksum is stale.");
       if (!["CLARIFYING", "AWAITING_BRIEF_APPROVAL"].includes(project.workflow_state)) throw new BriefApprovalError("BRIEF_APPROVAL_WORKFLOW_INVALID", "The project is not in a Brief-approval lifecycle state.");
       if (document.approval?.approved) throw new BriefApprovalError("BRIEF_ALREADY_APPROVED", "The current Project Brief is already approved.");
+
+      try {
+        assertCanonicalBriefConsistency(document.brief);
+      } catch {
+        throw new BriefApprovalError("BRIEF_NOT_READY", "The current Project Brief contains cross-field consistency contradictions.");
+      }
 
       const clarificationRow = await tx.getDocument(input.projectId, input.projectVersion, "clarification-log");
       const clarificationDocument = clarificationRow ? mapRowToDocument(clarificationRow) : null;

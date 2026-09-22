@@ -49,7 +49,7 @@ export function validateCanonicalBriefV3(input: unknown): CanonicalBriefV3 {
   if (brief.pages.some((page) => page.id !== pageTargetForSlug(page.slug))) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "page-id-mismatch" });
   if (new Set(brief.seo.pageMetadata.map((page) => page.route)).size !== brief.seo.pageMetadata.length) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "duplicate-seo-route" });
   if (brief.decisions.form.mode === "NONE" && brief.decisions.form.formPresent) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "form-none-present" });
-  if (brief.decisions.routePolicy.mode === "SINGLE_PAGE" && brief.pages.length > 1) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "single-page-with-multiple-pages" });
+  if (brief.decisions.routePolicy.mode === "SINGLE_PAGE" && brief.pages.filter((page) => !/^\/?(?:impressum|datenschutz|privacy|imprint|legal|terms)(?:\/)?$/iu.test(page.slug)).length > 1) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "single-page-with-multiple-marketing-pages" });
   if (brief.decisions.routePolicy.mode === "MULTI_PAGE" && brief.pages.length < 2) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "multi-page-without-multiple-pages" });
   if (!brief.localization.locales.includes(brief.localization.defaultLocale)) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "default-locale-not-listed" });
   if (brief.assets.some((asset) => asset.id === "ASSET_COMPANY_LOGO" && asset.role !== "logo")) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "company-logo-role" });
@@ -68,6 +68,9 @@ const topLevelForDomain: Record<CanonicalDomain, keyof CanonicalBriefV3 | "unres
   scope: "scope",
   seo: "seo",
   legal: "legal",
+  title: "title",
+  evidence: "evidence",
+  unresolved: "unresolved",
   requirements: "requirements",
   assets: "assets",
   pages: "pages",
@@ -93,7 +96,7 @@ export function validateReductionInvariants(current: CanonicalBriefV3, next: Can
   for (const key of topLevelKeys) {
     const domainTouched = key === "decisions"
       ? touchedDomains.has("form") || touchedDomains.has("database") || touchedDomains.has("auth") || touchedDomains.has("analytics") || touchedDomains.has("route")
-      : key === "unresolved" ? changeSet.unresolved.length > 0 : [...touchedDomains].some((domain) => topLevelForDomain[domain] === key);
+      : [...touchedDomains].some((domain) => topLevelForDomain[domain] === key) || (key === "unresolved" && changeSet.unresolved.length > 0);
     if (!domainTouched && stableSerialize(normalizedCurrent[key]) !== stableSerialize(normalizedNext[key])) {
       throw new BriefV3Error("BRIEF_V3_REDUCTION_INVALID", { invariant: "untouched-state-changed", target: key });
     }

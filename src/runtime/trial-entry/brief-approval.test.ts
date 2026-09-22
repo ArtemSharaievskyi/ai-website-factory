@@ -179,6 +179,19 @@ describe("host-owned V3 Brief approval", () => {
     expect(current?.rowVersion).toBe(1);
   });
 
+  it("rejects approval when cross-field brand and logo contradictions remain", async () => {
+    const f = await fixture({ brief: {
+      ...cleanBriefV3,
+      title: "Old Brand",
+      brand: { ...cleanBriefV3.brand, referenceStrategy: "USER_SUPPLIED" as const, marketingName: "Current Brand" },
+      evidence: [{ field: "brand.logo", source: "fixture", excerpt: "no logo exists", sourceRefs: ["fixture"] }],
+    } });
+    await expect(f.entry.approveBrief({ projectId: f.projectId, briefChecksum: f.document.briefChecksum, expectedRowVersion: 1 })).rejects.toMatchObject({ code: "BRIEF_NOT_READY" });
+    const current = await new ProjectRepository(f.database).getWithVersion(f.projectId);
+    expect(current?.project.workflowState).toBe("CLARIFYING");
+    expect(current?.rowVersion).toBe(1);
+  });
+
   it("reconstructs approved state and keeps a repeated approval non-mutating", async () => {
     const f = await fixture();
     const first = await f.entry.approveBrief({ projectId: f.projectId, briefChecksum: f.document.briefChecksum, expectedRowVersion: 1 });

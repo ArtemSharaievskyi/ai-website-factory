@@ -166,6 +166,22 @@ export const CanonicalEvidenceSchema = z.object({
 }).strict();
 export type CanonicalEvidence = z.infer<typeof CanonicalEvidenceSchema>;
 
+export const ConfirmedProprietorSchema = z.object({
+  name: NonEmptyStringSchema.max(300),
+  sourceRefs: z.array(SourceRefSchema).min(1),
+}).strict();
+export type ConfirmedProprietor = z.infer<typeof ConfirmedProprietorSchema>;
+
+export const CanonicalUnresolvedSchema = z.object({
+  target: NonEmptyStringSchema.max(300),
+  reason: NonEmptyStringSchema.max(2000),
+  sourceRefs: z.array(SourceRefSchema).min(1),
+  // Optional by design: omitting it keeps historical canonical checksums
+  // valid. Host compatibility logic classifies such items conservatively.
+  blockingStages: z.array(CanonicalUnresolvedStageSchema).min(0).refine((items) => new Set(items).size === items.length, "blockingStages must not contain duplicates.").optional(),
+}).strict();
+export type CanonicalUnresolved = z.infer<typeof CanonicalUnresolvedSchema>;
+
 export const CanonicalSeoSchema = z.object({
   primaryKeywords: z.array(NonEmptyStringSchema.max(300)),
   exactTitle: z.string().trim().max(300).nullable(),
@@ -203,25 +219,20 @@ export const CanonicalBriefV3Schema = z.object({
     referenceStrategy: BrandReferenceStrategySchema,
     suppliedInformation: z.string().trim().max(2000).nullable(),
     suppliedLogoDescription: z.string().trim().max(2000).nullable(),
+    marketingName: NonEmptyStringSchema.max(300).optional(),
   }).strict(),
   seo: CanonicalSeoSchema,
   legal: z.object({
     placeholderPolicy: PlaceholderPolicySchema,
     inventedFactsPolicy: InventedFactsPolicySchema,
+    confirmedProprietor: ConfirmedProprietorSchema.optional(),
   }).strict(),
   localization: z.object({
     locales: z.array(LocaleSchema),
     defaultLocale: LocaleSchema,
   }).strict(),
   evidence: z.array(CanonicalEvidenceSchema),
-  unresolved: z.array(z.object({
-    target: NonEmptyStringSchema.max(300),
-    reason: NonEmptyStringSchema.max(2000),
-    sourceRefs: z.array(SourceRefSchema).min(1),
-    // Optional by design: omitting it keeps historical canonical checksums
-    // valid. Host compatibility logic classifies such items conservatively.
-    blockingStages: z.array(CanonicalUnresolvedStageSchema).min(0).refine((items) => new Set(items).size === items.length, "blockingStages must not contain duplicates.").optional(),
-  }).strict()),
+  unresolved: z.array(CanonicalUnresolvedSchema),
 }).strict();
 export type CanonicalBriefV3 = z.infer<typeof CanonicalBriefV3Schema>;
 

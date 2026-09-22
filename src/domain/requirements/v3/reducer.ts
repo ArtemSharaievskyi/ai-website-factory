@@ -200,14 +200,26 @@ function applySet(brief: CanonicalBriefV3, change: BriefSetChange): CanonicalBri
     case SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY: return { ...brief, brand: { ...brief.brand, referenceStrategy: change.value } };
     case SEMANTIC_TARGETS.BRAND_SUPPLIED_INFORMATION: return { ...brief, brand: { ...brief.brand, suppliedInformation: change.value } };
     case SEMANTIC_TARGETS.BRAND_SUPPLIED_LOGO_DESCRIPTION: return { ...brief, brand: { ...brief.brand, suppliedLogoDescription: change.value } };
+    case SEMANTIC_TARGETS.BRAND_MARKETING_NAME: return change.value === null
+      ? { ...brief, brand: { ...brief.brand, marketingName: undefined } }
+      : { ...brief, brand: { ...brief.brand, marketingName: change.value } };
     case SEMANTIC_TARGETS.IMAGE_SOURCE_STRATEGY: return {
       ...brief,
       scope: { ...brief.scope, images: change.value === "NONE" ? { required: false, sourceStrategy: "NONE" } : { required: true, sourceStrategy: change.value } },
     };
     case SEMANTIC_TARGETS.SEO_TITLE: return { ...brief, seo: { ...brief.seo, exactTitle: change.value } };
     case SEMANTIC_TARGETS.SEO_META_DESCRIPTION: return { ...brief, seo: { ...brief.seo, exactMetaDescription: change.value } };
+    case SEMANTIC_TARGETS.SEO_PRIMARY_KEYWORDS: return { ...brief, seo: { ...brief.seo, primaryKeywords: change.value } };
+    case SEMANTIC_TARGETS.SEO_LOCATION_TARGETING: return { ...brief, seo: { ...brief.seo, locationTargeting: change.value } };
+    case SEMANTIC_TARGETS.SEO_PAGE_METADATA: return { ...brief, seo: { ...brief.seo, pageMetadata: change.value } };
     case SEMANTIC_TARGETS.LEGAL_PLACEHOLDER_POLICY: return { ...brief, legal: { ...brief.legal, placeholderPolicy: change.value } };
     case SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY: return { ...brief, legal: { ...brief.legal, inventedFactsPolicy: change.value } };
+    case SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR: return change.value === null
+      ? { ...brief, legal: { ...brief.legal, confirmedProprietor: undefined } }
+      : { ...brief, legal: { ...brief.legal, confirmedProprietor: change.value } };
+    case SEMANTIC_TARGETS.BRIEF_TITLE: return { ...brief, title: change.value };
+    case SEMANTIC_TARGETS.BRIEF_EVIDENCE: return { ...brief, evidence: change.value };
+    case SEMANTIC_TARGETS.BRIEF_UNRESOLVED: return { ...brief, unresolved: change.value };
   }
   return unreachableTarget(change);
 }

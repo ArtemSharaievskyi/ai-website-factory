@@ -99,11 +99,19 @@ describe("Brief Revision V3 provider boundary", () => {
       BRAND_REFERENCE_STRATEGY: "USER_SUPPLIED",
       BRAND_SUPPLIED_INFORMATION: "Synthetic supplied identity.",
       BRAND_SUPPLIED_LOGO_DESCRIPTION: "Synthetic supplied logo description.",
+      BRAND_MARKETING_NAME: "Synthetic Atelier",
       IMAGE_SOURCE_STRATEGY: "USER_SUPPLIED",
       SEO_TITLE: null,
       SEO_META_DESCRIPTION: null,
+      SEO_PRIMARY_KEYWORDS: [],
+      SEO_LOCATION_TARGETING: [],
+      SEO_PAGE_METADATA: [],
       LEGAL_PLACEHOLDER_POLICY: "UNRESOLVED",
       LEGAL_INVENTED_FACTS_POLICY: "UNRESOLVED",
+      LEGAL_CONFIRMED_PROPRIETOR: null,
+      BRIEF_TITLE: null,
+      BRIEF_EVIDENCE: [],
+      BRIEF_UNRESOLVED: [],
     };
     for (const target of canonicalSetTargets) expect(ProviderBriefChangeSetSchema.safeParse({ contractVersion: 1, changes: [{ operation: "SET", target, value: values[target] }] }).success).toBe(true);
     expect(ProviderBriefChangeSetSchema.safeParse({ contractVersion: 1, changes: [{ operation: "UPSERT", target: "REQUIREMENT:new", value: { category: "FEATURE", statement: "Synthetic feature." } }, { operation: "UPSERT", target: "ASSET_COMPANY_LOGO", value: { reference: "asset:logo", role: "logo", usage: "Use it.", replacementPolicy: "FORBIDDEN" } }, { operation: "UPSERT", target: "PAGE:home", value: { slug: "home", purpose: "Home." } }] }).success).toBe(true);

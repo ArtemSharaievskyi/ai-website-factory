@@ -4,6 +4,11 @@ import {
   AuthModeSchema,
   BrandReferenceStrategySchema,
   CanonicalAssetValueSchema,
+  CanonicalEvidenceSchema,
+  CanonicalRequirementSchema,
+  CanonicalSeoSchema,
+  ConfirmedProprietorSchema,
+  CanonicalUnresolvedSchema,
   CanonicalPageValueSchema,
   CanonicalRequirementValueSchema,
   DatabaseModeSchema,
@@ -41,6 +46,14 @@ export const SEMANTIC_TARGETS = {
   SEO_META_DESCRIPTION: "SEO_META_DESCRIPTION",
   LEGAL_PLACEHOLDER_POLICY: "LEGAL_PLACEHOLDER_POLICY",
   LEGAL_INVENTED_FACTS_POLICY: "LEGAL_INVENTED_FACTS_POLICY",
+  BRAND_MARKETING_NAME: "BRAND_MARKETING_NAME",
+  LEGAL_CONFIRMED_PROPRIETOR: "LEGAL_CONFIRMED_PROPRIETOR",
+  BRIEF_TITLE: "BRIEF_TITLE",
+  BRIEF_EVIDENCE: "BRIEF_EVIDENCE",
+  BRIEF_UNRESOLVED: "BRIEF_UNRESOLVED",
+  SEO_PRIMARY_KEYWORDS: "SEO_PRIMARY_KEYWORDS",
+  SEO_LOCATION_TARGETING: "SEO_LOCATION_TARGETING",
+  SEO_PAGE_METADATA: "SEO_PAGE_METADATA",
   ASSET_COMPANY_LOGO: "ASSET_COMPANY_LOGO",
 } as const;
 
@@ -51,7 +64,7 @@ export type DynamicPageTargetId = `PAGE:${string}`;
 export type AssetTargetId = DynamicAssetTargetId | typeof SEMANTIC_TARGETS.ASSET_COMPANY_LOGO;
 export type SemanticTargetId = FixedSemanticTargetId | DynamicRequirementTargetId | DynamicAssetTargetId | DynamicPageTargetId;
 
-export const SEMANTIC_TARGET_ID_PATTERN = /^(?:FORM_[A-Z_]+|DATABASE_MODE|AUTH_MODE|ANALYTICS_MODE|ROUTE_POLICY|BRAND_REFERENCE_STRATEGY|BRAND_SUPPLIED_INFORMATION|BRAND_SUPPLIED_LOGO_DESCRIPTION|IMAGE_SOURCE_STRATEGY|SEO_TITLE|SEO_META_DESCRIPTION|LEGAL_[A-Z_]+|ASSET_COMPANY_LOGO|REQUIREMENT:[A-Za-z0-9_.:-]{1,180}|ASSET:[A-Za-z0-9_.:-]{1,180}|PAGE:[^\r\n]{1,180})$/;
+export const SEMANTIC_TARGET_ID_PATTERN = /^(?:FORM_[A-Z_]+|DATABASE_MODE|AUTH_MODE|ANALYTICS_MODE|ROUTE_POLICY|BRAND_REFERENCE_STRATEGY|BRAND_SUPPLIED_INFORMATION|BRAND_SUPPLIED_LOGO_DESCRIPTION|BRAND_MARKETING_NAME|IMAGE_SOURCE_STRATEGY|SEO_TITLE|SEO_META_DESCRIPTION|SEO_PRIMARY_KEYWORDS|SEO_LOCATION_TARGETING|SEO_PAGE_METADATA|LEGAL_[A-Z_]+|BRIEF_TITLE|BRIEF_EVIDENCE|BRIEF_UNRESOLVED|ASSET_COMPANY_LOGO|REQUIREMENT:[A-Za-z0-9_.:-]{1,180}|ASSET:[A-Za-z0-9_.:-]{1,180}|PAGE:[^\r\n]{1,180})$/;
 
 export const isSemanticTargetId = (value: string): value is SemanticTargetId => SEMANTIC_TARGET_ID_PATTERN.test(value);
 export const isRequirementTarget = (value: string): value is DynamicRequirementTargetId => value.startsWith("REQUIREMENT:") && isSemanticTargetId(value);
@@ -79,11 +92,19 @@ export type FixedTargetValueMap = {
   [SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY]: z.infer<typeof BrandReferenceStrategySchema>;
   [SEMANTIC_TARGETS.BRAND_SUPPLIED_INFORMATION]: string | null;
   [SEMANTIC_TARGETS.BRAND_SUPPLIED_LOGO_DESCRIPTION]: string | null;
+  [SEMANTIC_TARGETS.BRAND_MARKETING_NAME]: string | null;
   [SEMANTIC_TARGETS.IMAGE_SOURCE_STRATEGY]: z.infer<typeof ImageSourceStrategySchema>;
   [SEMANTIC_TARGETS.SEO_TITLE]: string | null;
   [SEMANTIC_TARGETS.SEO_META_DESCRIPTION]: string | null;
   [SEMANTIC_TARGETS.LEGAL_PLACEHOLDER_POLICY]: z.infer<typeof PlaceholderPolicySchema>;
   [SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY]: z.infer<typeof InventedFactsPolicySchema>;
+  [SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR]: z.infer<typeof ConfirmedProprietorSchema> | null;
+  [SEMANTIC_TARGETS.BRIEF_TITLE]: string | null;
+  [SEMANTIC_TARGETS.BRIEF_EVIDENCE]: z.infer<typeof CanonicalEvidenceSchema>[];
+  [SEMANTIC_TARGETS.BRIEF_UNRESOLVED]: z.infer<typeof CanonicalUnresolvedSchema>[];
+  [SEMANTIC_TARGETS.SEO_PRIMARY_KEYWORDS]: string[];
+  [SEMANTIC_TARGETS.SEO_LOCATION_TARGETING]: z.infer<typeof CanonicalRequirementSchema>[];
+  [SEMANTIC_TARGETS.SEO_PAGE_METADATA]: z.infer<typeof CanonicalSeoSchema>["pageMetadata"];
 };
 
 export type TargetValueFor<T extends SemanticTargetId> =
@@ -96,7 +117,7 @@ export type TargetValueFor<T extends SemanticTargetId> =
 export const TargetCatalogEntrySchema = z.object({
   id: z.string(),
   operation: z.enum(["SET", "UPSERT", "REMOVE"]),
-  valueType: z.enum(["successMode", "successPolicy", "transmissionMode", "persistenceMode", "serverProcessingMode", "externalProviderMode", "privacyConsentMode", "databaseMode", "authMode", "analyticsMode", "routePolicy", "brandStrategy", "brandSuppliedInformation", "brandSuppliedLogoDescription", "imageStrategy", "title", "metaDescription", "placeholderPolicy", "inventedFactsPolicy", "requirement", "asset", "page"]),
+  valueType: z.enum(["successMode", "successPolicy", "transmissionMode", "persistenceMode", "serverProcessingMode", "externalProviderMode", "privacyConsentMode", "databaseMode", "authMode", "analyticsMode", "routePolicy", "brandStrategy", "brandSuppliedInformation", "brandSuppliedLogoDescription", "brandMarketingName", "imageStrategy", "title", "metaDescription", "primaryKeywords", "locationTargeting", "pageMetadata", "placeholderPolicy", "inventedFactsPolicy", "confirmedProprietor", "evidence", "unresolved", "requirement", "asset", "page"]),
 }).strict();
 export type TargetCatalogEntry = z.infer<typeof TargetCatalogEntrySchema>;
 
@@ -117,11 +138,19 @@ export const TARGET_CATALOG: readonly TargetCatalogEntry[] = [
   fixed(SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY, "brandStrategy"),
   fixed(SEMANTIC_TARGETS.BRAND_SUPPLIED_INFORMATION, "brandSuppliedInformation"),
   fixed(SEMANTIC_TARGETS.BRAND_SUPPLIED_LOGO_DESCRIPTION, "brandSuppliedLogoDescription"),
+  fixed(SEMANTIC_TARGETS.BRAND_MARKETING_NAME, "brandMarketingName"),
   fixed(SEMANTIC_TARGETS.IMAGE_SOURCE_STRATEGY, "imageStrategy"),
   fixed(SEMANTIC_TARGETS.SEO_TITLE, "title"),
   fixed(SEMANTIC_TARGETS.SEO_META_DESCRIPTION, "metaDescription"),
+  fixed(SEMANTIC_TARGETS.SEO_PRIMARY_KEYWORDS, "primaryKeywords"),
+  fixed(SEMANTIC_TARGETS.SEO_LOCATION_TARGETING, "locationTargeting"),
+  fixed(SEMANTIC_TARGETS.SEO_PAGE_METADATA, "pageMetadata"),
   fixed(SEMANTIC_TARGETS.LEGAL_PLACEHOLDER_POLICY, "placeholderPolicy"),
   fixed(SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY, "inventedFactsPolicy"),
+  fixed(SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR, "confirmedProprietor"),
+  fixed(SEMANTIC_TARGETS.BRIEF_TITLE, "title"),
+  fixed(SEMANTIC_TARGETS.BRIEF_EVIDENCE, "evidence"),
+  fixed(SEMANTIC_TARGETS.BRIEF_UNRESOLVED, "unresolved"),
   { id: SEMANTIC_TARGETS.ASSET_COMPANY_LOGO, operation: "UPSERT", valueType: "asset" },
   { id: "REQUIREMENT:*", operation: "UPSERT", valueType: "requirement" },
   { id: "ASSET:*", operation: "UPSERT", valueType: "asset" },
@@ -154,11 +183,18 @@ export const targetValueSchemas = {
   brandStrategy: BrandReferenceStrategySchema,
   brandSuppliedInformation: z.string().trim().max(2000).nullable(),
   brandSuppliedLogoDescription: z.string().trim().max(2000).nullable(),
+  brandMarketingName: z.string().trim().max(300).nullable(),
   imageStrategy: ImageSourceStrategySchema,
   title: z.string().trim().max(300).nullable(),
   metaDescription: z.string().trim().max(1000).nullable(),
+  primaryKeywords: z.array(z.string().trim().max(300)),
+  locationTargeting: z.array(CanonicalRequirementSchema),
+  pageMetadata: CanonicalSeoSchema.shape.pageMetadata,
   placeholderPolicy: PlaceholderPolicySchema,
   inventedFactsPolicy: InventedFactsPolicySchema,
+  confirmedProprietor: ConfirmedProprietorSchema.nullable(),
+  evidence: z.array(CanonicalEvidenceSchema),
+  unresolved: z.array(CanonicalUnresolvedSchema),
   requirement: CanonicalRequirementValueSchema,
   asset: CanonicalAssetValueSchema,
   page: CanonicalPageValueSchema,

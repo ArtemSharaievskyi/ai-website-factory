@@ -4,8 +4,12 @@ import {
   AuthModeSchema,
   BrandReferenceStrategySchema,
   CanonicalAssetValueSchema,
+  CanonicalEvidenceSchema,
   CanonicalPageValueSchema,
   CanonicalRequirementValueSchema,
+  CanonicalSeoSchema,
+  CanonicalUnresolvedStageSchema,
+  ConfirmedProprietorSchema,
   DatabaseModeSchema,
   FormExternalProviderModeSchema,
   FormPersistenceModeSchema,
@@ -29,6 +33,12 @@ import {
 export const ProviderRequirementValueSchema = CanonicalRequirementValueSchema.omit({ sourceRefs: true }).strict();
 export const ProviderAssetValueSchema = CanonicalAssetValueSchema.omit({ sourceRefs: true }).strict();
 export const ProviderPageValueSchema = CanonicalPageValueSchema.omit({ sourceRefs: true }).strict();
+const ProviderUnresolvedValueSchema = z.object({
+  target: z.string().trim().min(1).max(300),
+  reason: z.string().trim().min(1).max(2000),
+  sourceRefs: z.array(z.string().trim().min(1).max(200)).min(1),
+  blockingStages: z.array(CanonicalUnresolvedStageSchema).nullable(),
+}).strict();
 
 type ProviderFixedTargetBinding = { valueType: TargetCatalogEntry["valueType"] };
 type ProviderFixedTargetBindings = { [Target in FixedSetTargetId]: ProviderFixedTargetBinding };
@@ -52,11 +62,19 @@ export const PROVIDER_FIXED_TARGET_BINDINGS = {
   [SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY]: { valueType: "brandStrategy" },
   [SEMANTIC_TARGETS.BRAND_SUPPLIED_INFORMATION]: { valueType: "brandSuppliedInformation" },
   [SEMANTIC_TARGETS.BRAND_SUPPLIED_LOGO_DESCRIPTION]: { valueType: "brandSuppliedLogoDescription" },
+  [SEMANTIC_TARGETS.BRAND_MARKETING_NAME]: { valueType: "brandMarketingName" },
   [SEMANTIC_TARGETS.IMAGE_SOURCE_STRATEGY]: { valueType: "imageStrategy" },
   [SEMANTIC_TARGETS.SEO_TITLE]: { valueType: "title" },
   [SEMANTIC_TARGETS.SEO_META_DESCRIPTION]: { valueType: "metaDescription" },
+  [SEMANTIC_TARGETS.SEO_PRIMARY_KEYWORDS]: { valueType: "primaryKeywords" },
+  [SEMANTIC_TARGETS.SEO_LOCATION_TARGETING]: { valueType: "locationTargeting" },
+  [SEMANTIC_TARGETS.SEO_PAGE_METADATA]: { valueType: "pageMetadata" },
   [SEMANTIC_TARGETS.LEGAL_PLACEHOLDER_POLICY]: { valueType: "placeholderPolicy" },
   [SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY]: { valueType: "inventedFactsPolicy" },
+  [SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR]: { valueType: "confirmedProprietor" },
+  [SEMANTIC_TARGETS.BRIEF_TITLE]: { valueType: "title" },
+  [SEMANTIC_TARGETS.BRIEF_EVIDENCE]: { valueType: "evidence" },
+  [SEMANTIC_TARGETS.BRIEF_UNRESOLVED]: { valueType: "unresolved" },
 } satisfies ProviderFixedTargetBindings;
 
 /** Explicit support decision for every non-fixed V3 target catalog entry. */
@@ -88,11 +106,19 @@ const ProviderFixedSetChangeSchema = z.union([
   setVariant(SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY, BrandReferenceStrategySchema),
   setVariant(SEMANTIC_TARGETS.BRAND_SUPPLIED_INFORMATION, z.string().trim().max(2000).nullable()),
   setVariant(SEMANTIC_TARGETS.BRAND_SUPPLIED_LOGO_DESCRIPTION, z.string().trim().max(2000).nullable()),
+  setVariant(SEMANTIC_TARGETS.BRAND_MARKETING_NAME, z.string().trim().max(300).nullable()),
   setVariant(SEMANTIC_TARGETS.IMAGE_SOURCE_STRATEGY, ImageSourceStrategySchema),
   setVariant(SEMANTIC_TARGETS.SEO_TITLE, z.string().trim().max(300).nullable()),
   setVariant(SEMANTIC_TARGETS.SEO_META_DESCRIPTION, z.string().trim().max(1000).nullable()),
+  setVariant(SEMANTIC_TARGETS.SEO_PRIMARY_KEYWORDS, z.array(z.string().trim().max(300))),
+  setVariant(SEMANTIC_TARGETS.SEO_LOCATION_TARGETING, z.array(CanonicalRequirementValueSchema.extend({ id: z.string().regex(/^REQUIREMENT:/) }))),
+  setVariant(SEMANTIC_TARGETS.SEO_PAGE_METADATA, CanonicalSeoSchema.shape.pageMetadata),
   setVariant(SEMANTIC_TARGETS.LEGAL_PLACEHOLDER_POLICY, PlaceholderPolicySchema),
   setVariant(SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY, InventedFactsPolicySchema),
+  setVariant(SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR, ConfirmedProprietorSchema.nullable()),
+  setVariant(SEMANTIC_TARGETS.BRIEF_TITLE, z.string().trim().max(300).nullable()),
+  setVariant(SEMANTIC_TARGETS.BRIEF_EVIDENCE, z.array(CanonicalEvidenceSchema)),
+  setVariant(SEMANTIC_TARGETS.BRIEF_UNRESOLVED, z.array(ProviderUnresolvedValueSchema)),
 ]);
 
 const ProviderDynamicUpsertChangeSchema = z.union([

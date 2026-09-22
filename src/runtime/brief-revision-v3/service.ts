@@ -16,6 +16,7 @@ import type { BriefRevisionAttemptRow, BriefRevisionAtomicCommitInput, BriefRevi
 import { ProviderFailureDiagnosticSchema, type ProviderFailureDiagnostic } from "@/domain/shared/provider-failure";
 import { newWorkflowEvent } from "@/persistence/database/workflow-events";
 import { BriefV3ProviderError } from "@/integrations/openai-v3/errors";
+import { assertCanonicalBriefConsistency, createBriefConsistencyCorrectionChangeSet, type BriefConsistencyCorrectionInput } from "@/domain/requirements/v3/consistency";
 import type { CanonicalBriefV3 } from "@/domain/requirements/v3/schema";
 import type { RequirementIdentityLineage } from "@/domain/requirements/v3/identity";
 import { assertCurrentV3RequirementNamespace, bindProviderRequirementIdentities, canonicalRequirementEntries, createRequirementProposalHandles, isV3RequirementId } from "@/domain/requirements/v3/identity";
@@ -26,7 +27,7 @@ import { createBriefV3OperationIdentity, createRevisionCurrentnessToken, sameRev
 import type { BriefV3AssetBinding, BriefV3ProjectionPort, BriefV3RevisionProvider, BriefV3SupportingContext } from "./ports";
 
 export type BriefV3CommittedResult = { outcome: "COMMITTED" | "COMMITTED_REPLAY"; projectId: string; projectVersion: number; attemptId: string; changed: boolean; currentBriefChecksum: string; workflowState: ProjectRow["workflow_state"]; historyId: string | null; projectionStatus: "PENDING" | "SYNCED" | "FAILED_RETRYABLE" | "NONE" };
-export type BriefV3TransactionInput = { projectId: string; projectVersion: number; revisionInstruction: string; expectedCurrentness: RevisionCurrentnessToken; targetHints?: readonly string[]; targetWorkflowState?: ProjectRow["workflow_state"]; actor?: string; decision?: DecisionRecord; supportingContext?: readonly BriefV3SupportingContext[]; assetBindings?: readonly BriefV3AssetBinding[]; leaseMs?: number; ownerId?: string; clock?: () => string; faults?: BriefRevisionFaultInjector };
+export type BriefV3TransactionInput = { projectId: string; projectVersion: number; revisionInstruction: string; expectedCurrentness: RevisionCurrentnessToken; targetHints?: readonly string[]; targetWorkflowState?: ProjectRow["workflow_state"]; actor?: string; decision?: DecisionRecord; supportingContext?: readonly BriefV3SupportingContext[]; assetBindings?: readonly BriefV3AssetBinding[]; deterministicCorrection?: BriefConsistencyCorrectionInput; leaseMs?: number; ownerId?: string; clock?: () => string; faults?: BriefRevisionFaultInjector };
 
 type CurrentSnapshot = { project: ProjectRow; version: ProjectVersionRow; documentRow: import("@/persistence/database/mapping").DocumentRow; canonical: CanonicalBriefV3; identityLineage: readonly RequirementIdentityLineage[]; currentness: RevisionCurrentnessToken };
 
@@ -111,9 +112,16 @@ export class BriefV3TransactionService {
       let providerChanges: BriefChangeSet;
       try {
         const newRequirementHandles = createRequirementProposalHandles({ projectId: input.projectId, projectVersion: input.projectVersion, operationKey: identity.operationKey });
-        providerChanges = await this.options.provider.proposeChanges({ revisionInstruction: input.revisionInstruction, currentCanonicalV3: beforeProvider.canonical, supportingContext: input.supportingContext, newRequirementHandles });
+        providerChanges = input.deterministicCorrection
+          ? createBriefConsistencyCorrectionChangeSet({ brief: beforeProvider.canonical, projectId: input.projectId, projectVersion: input.projectVersion, correction: input.deterministicCorrection })
+          : await this.options.provider.proposeChanges({ revisionInstruction: input.revisionInstruction, currentCanonicalV3: beforeProvider.canonical, supportingContext: input.supportingContext, newRequirementHandles });
         await input.faults?.hit("after-provider");
       } catch (error) {
+        if (input.deterministicCorrection) {
+          const code = classifyDomainFailure(error);
+          await settle("REJECTED_INVALID", code);
+          throw new BriefV3TransactionError(code, { attemptId: claim.row.id });
+        }
         const code = classifyProviderFailure(error);
         await settle(code === "PROVIDER_INVALID_OUTPUT" ? "REJECTED_INVALID" : "FAILED_RETRYABLE", code, providerFailureDiagnostic(error));
         throw new BriefV3TransactionError(code, { attemptId: claim.row.id, schemaName: "brief-revision-v3" });
@@ -130,7 +138,10 @@ export class BriefV3TransactionService {
       let reduction: ReturnType<typeof reduceBriefChangeSet>;
       try {
         const allowProviderProposalLabels = beforeProvider.documentRow.documentType === "requirements" || canonicalRequirementEntries(beforeProvider.canonical).some((entry) => !isV3RequirementId(entry.id));
-        changeSet = normalizeBriefChangeSet(parseBriefChangeSet(bindProviderRequirementIdentities({ changeSet: providerChanges, current: beforeProvider.canonical, projectId: input.projectId, projectVersion: input.projectVersion, proposalHandles: createRequirementProposalHandles({ projectId: input.projectId, projectVersion: input.projectVersion, operationKey: identity.operationKey }), allowProviderProposalLabels })));
+        const boundChanges = input.deterministicCorrection
+          ? providerChanges
+          : bindProviderRequirementIdentities({ changeSet: providerChanges, current: beforeProvider.canonical, projectId: input.projectId, projectVersion: input.projectVersion, proposalHandles: createRequirementProposalHandles({ projectId: input.projectId, projectVersion: input.projectVersion, operationKey: identity.operationKey }), allowProviderProposalLabels });
+        changeSet = normalizeBriefChangeSet(parseBriefChangeSet(boundChanges));
         reduction = reduceBriefChangeSet(beforeProvider.canonical, changeSet);
         if (canonicalBriefChecksum(reduction.before) !== beforeProvider.currentness.briefChecksum) throw new BriefV3Error("BRIEF_V3_REDUCTION_INVALID", { invariant: "currentness-checksum" });
       } catch (error) {
@@ -139,6 +150,13 @@ export class BriefV3TransactionService {
         throw new BriefV3TransactionError(code, { attemptId: claim.row.id });
       }
       const next = reduction.after;
+      try {
+        assertCanonicalBriefConsistency(next);
+      } catch (error) {
+        const code = classifyDomainFailure(error);
+        await settle("REJECTED_INVALID", code);
+        throw new BriefV3TransactionError(code, { attemptId: claim.row.id });
+      }
       const changed = reduction.changed || beforeProvider.identityLineage.length > 0;
       const nextChecksum = changed ? canonicalBriefChecksum(next) : beforeProvider.currentness.briefChecksum;
       const targetState = changed ? input.targetWorkflowState ?? beforeProvider.project.workflow_state : beforeProvider.project.workflow_state;

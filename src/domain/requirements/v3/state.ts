@@ -13,7 +13,7 @@ const unknownTarget = (target: string): never => {
   throw new BriefV3Error("BRIEF_V3_UNKNOWN_TARGET", { target });
 };
 
-export type CanonicalDomain = "form" | "database" | "auth" | "analytics" | "route" | "brand" | "scope" | "seo" | "legal" | "requirements" | "assets" | "pages";
+export type CanonicalDomain = "form" | "database" | "auth" | "analytics" | "route" | "brand" | "scope" | "seo" | "legal" | "title" | "evidence" | "unresolved" | "requirements" | "assets" | "pages";
 
 export function targetDomain(target: SemanticTargetId): CanonicalDomain {
   if (isRequirementTarget(target)) return "requirements";
@@ -33,12 +33,20 @@ export function targetDomain(target: SemanticTargetId): CanonicalDomain {
     case SEMANTIC_TARGETS.ROUTE_POLICY: return "route";
     case SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY: return "brand";
     case SEMANTIC_TARGETS.BRAND_SUPPLIED_INFORMATION:
-    case SEMANTIC_TARGETS.BRAND_SUPPLIED_LOGO_DESCRIPTION: return "brand";
+    case SEMANTIC_TARGETS.BRAND_SUPPLIED_LOGO_DESCRIPTION:
+    case SEMANTIC_TARGETS.BRAND_MARKETING_NAME: return "brand";
     case SEMANTIC_TARGETS.IMAGE_SOURCE_STRATEGY: return "scope";
     case SEMANTIC_TARGETS.SEO_TITLE:
-    case SEMANTIC_TARGETS.SEO_META_DESCRIPTION: return "seo";
+    case SEMANTIC_TARGETS.SEO_META_DESCRIPTION:
+    case SEMANTIC_TARGETS.SEO_PRIMARY_KEYWORDS:
+    case SEMANTIC_TARGETS.SEO_LOCATION_TARGETING:
+    case SEMANTIC_TARGETS.SEO_PAGE_METADATA: return "seo";
     case SEMANTIC_TARGETS.LEGAL_PLACEHOLDER_POLICY:
-    case SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY: return "legal";
+    case SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY:
+    case SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR: return "legal";
+    case SEMANTIC_TARGETS.BRIEF_TITLE: return "title";
+    case SEMANTIC_TARGETS.BRIEF_EVIDENCE: return "evidence";
+    case SEMANTIC_TARGETS.BRIEF_UNRESOLVED: return "unresolved";
   }
   return unknownTarget(target);
 }
@@ -59,11 +67,19 @@ export function readSemanticTarget(brief: CanonicalBriefV3, target: SemanticTarg
     case SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY: return brief.brand.referenceStrategy;
     case SEMANTIC_TARGETS.BRAND_SUPPLIED_INFORMATION: return brief.brand.suppliedInformation;
     case SEMANTIC_TARGETS.BRAND_SUPPLIED_LOGO_DESCRIPTION: return brief.brand.suppliedLogoDescription;
+    case SEMANTIC_TARGETS.BRAND_MARKETING_NAME: return brief.brand.marketingName ?? null;
     case SEMANTIC_TARGETS.IMAGE_SOURCE_STRATEGY: return brief.scope.images.sourceStrategy;
     case SEMANTIC_TARGETS.SEO_TITLE: return brief.seo.exactTitle;
     case SEMANTIC_TARGETS.SEO_META_DESCRIPTION: return brief.seo.exactMetaDescription;
+    case SEMANTIC_TARGETS.SEO_PRIMARY_KEYWORDS: return brief.seo.primaryKeywords;
+    case SEMANTIC_TARGETS.SEO_LOCATION_TARGETING: return brief.seo.locationTargeting;
+    case SEMANTIC_TARGETS.SEO_PAGE_METADATA: return brief.seo.pageMetadata;
     case SEMANTIC_TARGETS.LEGAL_PLACEHOLDER_POLICY: return brief.legal.placeholderPolicy;
     case SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY: return brief.legal.inventedFactsPolicy;
+    case SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR: return brief.legal.confirmedProprietor ?? null;
+    case SEMANTIC_TARGETS.BRIEF_TITLE: return brief.title;
+    case SEMANTIC_TARGETS.BRIEF_EVIDENCE: return brief.evidence;
+    case SEMANTIC_TARGETS.BRIEF_UNRESOLVED: return brief.unresolved;
     case SEMANTIC_TARGETS.ASSET_COMPANY_LOGO: return brief.assets.find((entry) => entry.id === target);
     default:
       if (isRequirementTarget(target)) return brief.requirements.find((entry) => entry.id === target);

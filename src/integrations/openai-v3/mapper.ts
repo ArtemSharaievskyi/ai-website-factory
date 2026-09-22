@@ -55,12 +55,29 @@ function mapFixedSetChange(change: ProviderBriefSetChange): BriefSetChange {
     case SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY:
     case SEMANTIC_TARGETS.BRAND_SUPPLIED_INFORMATION:
     case SEMANTIC_TARGETS.BRAND_SUPPLIED_LOGO_DESCRIPTION:
+    case SEMANTIC_TARGETS.BRAND_MARKETING_NAME:
     case SEMANTIC_TARGETS.IMAGE_SOURCE_STRATEGY:
     case SEMANTIC_TARGETS.SEO_TITLE:
     case SEMANTIC_TARGETS.SEO_META_DESCRIPTION:
+    case SEMANTIC_TARGETS.SEO_PRIMARY_KEYWORDS:
+    case SEMANTIC_TARGETS.SEO_LOCATION_TARGETING:
+    case SEMANTIC_TARGETS.SEO_PAGE_METADATA:
     case SEMANTIC_TARGETS.LEGAL_PLACEHOLDER_POLICY:
     case SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY:
+    case SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR:
+    case SEMANTIC_TARGETS.BRIEF_TITLE:
+    case SEMANTIC_TARGETS.BRIEF_EVIDENCE:
       return change;
+    case SEMANTIC_TARGETS.BRIEF_UNRESOLVED:
+      return {
+        ...change,
+        value: change.value.map((item) => {
+          if (item.blockingStages === null) {
+            return { target: item.target, reason: item.reason, sourceRefs: item.sourceRefs };
+          }
+          return item;
+        }),
+      } as BriefSetChange;
   }
   return invalidOutput("changes[].target");
 }
