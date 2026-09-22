@@ -217,10 +217,40 @@ export const CanonicalContactSchema = z.object({
 }).strict();
 export type CanonicalContact = z.infer<typeof CanonicalContactSchema>;
 
+/** Host-owned publication status; values are deliberately not legal conclusions. */
+export const PublicationInputStatusSchema = z.enum([
+  "REQUIRED_BEFORE_PUBLICATION",
+  "REVIEW_REQUIRED",
+  "CONDITIONAL_IF_APPLICABLE",
+  "RESOLVED",
+  "NOT_APPLICABLE",
+]);
+export type PublicationInputStatus = z.infer<typeof PublicationInputStatusSchema>;
+
+export const CanonicalPublicationInputSchema = z.object({
+  status: PublicationInputStatusSchema,
+  sourceRefs: z.array(SourceRefSchema).min(1),
+}).strict();
+export type CanonicalPublicationInput = z.infer<typeof CanonicalPublicationInputSchema>;
+
+export const CanonicalPublicationInputsSchema = z.object({
+  address: CanonicalPublicationInputSchema,
+  rapidContact: CanonicalPublicationInputSchema,
+  taxIdentifiers: CanonicalPublicationInputSchema,
+  registerInformation: CanonicalPublicationInputSchema,
+  regulatoryAuthority: CanonicalPublicationInputSchema,
+}).strict();
+export type CanonicalPublicationInputs = z.infer<typeof CanonicalPublicationInputsSchema>;
+
+/** Status metadata is optional so historical unresolved entries retain their checksums. */
+export const CanonicalUnresolvedStatusSchema = PublicationInputStatusSchema;
+export type CanonicalUnresolvedStatus = z.infer<typeof CanonicalUnresolvedStatusSchema>;
+
 export const CanonicalUnresolvedSchema = z.object({
   target: NonEmptyStringSchema.max(300),
   reason: NonEmptyStringSchema.max(2000),
   sourceRefs: z.array(SourceRefSchema).min(1),
+  status: CanonicalUnresolvedStatusSchema.optional(),
   // Optional by design: omitting it keeps historical canonical checksums
   // valid. Host compatibility logic classifies such items conservatively.
   blockingStages: z.array(CanonicalUnresolvedStageSchema).min(0).refine((items) => new Set(items).size === items.length, "blockingStages must not contain duplicates.").optional(),
@@ -271,6 +301,7 @@ export const CanonicalBriefV3Schema = z.object({
     placeholderPolicy: PlaceholderPolicySchema,
     inventedFactsPolicy: InventedFactsPolicySchema,
     confirmedProprietor: ConfirmedProprietorSchema.optional(),
+    publicationInputs: CanonicalPublicationInputsSchema.optional(),
   }).strict(),
   contact: CanonicalContactSchema.optional(),
   localization: z.object({

@@ -104,6 +104,9 @@ const normalizeUnresolved = (item: CanonicalBriefV3["unresolved"][number]) => ({
 const normalizePage = (page: CanonicalPage): CanonicalPage => ({ ...page, sourceRefs: uniqueSorted(page.sourceRefs) });
 const normalizeAsset = (asset: CanonicalAsset): CanonicalAsset => ({ ...asset, sourceRefs: uniqueSorted(asset.sourceRefs) });
 const normalizeEvidence = (evidence: CanonicalEvidence): CanonicalEvidence => ({ ...evidence, sourceRefs: uniqueSorted(evidence.sourceRefs) });
+const normalizePublicationInputs = (inputs: NonNullable<CanonicalBriefV3["legal"]["publicationInputs"]>): NonNullable<CanonicalBriefV3["legal"]["publicationInputs"]> => Object.fromEntries(
+  Object.entries(inputs).map(([key, value]) => [key, { ...value, sourceRefs: uniqueSorted(value.sourceRefs) }]),
+) as NonNullable<CanonicalBriefV3["legal"]["publicationInputs"]>;
 
 /** Normalize current state without rewriting user-facing text. */
 export function normalizeCanonicalBrief(input: unknown): CanonicalBriefV3 {
@@ -140,6 +143,10 @@ export function normalizeCanonicalBrief(input: unknown): CanonicalBriefV3 {
     decisions: {
       ...brief.decisions,
       form: normalizeForm(brief.decisions.form),
+    },
+    legal: {
+      ...brief.legal,
+      ...(brief.legal.publicationInputs ? { publicationInputs: normalizePublicationInputs(brief.legal.publicationInputs) } : {}),
     },
     assets: [...assetsById.values()].sort((a, b) => compareStrings(a.id, b.id)),
     seo: {

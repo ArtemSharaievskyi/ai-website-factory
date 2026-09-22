@@ -31,3 +31,26 @@ canonical storage and project-data readback, but not in operation IDs, safe
 fingerprints, unrestricted logs, or generic diagnostics. Operation identity
 uses a digest of the normalized value so a changed confirmed address remains a
 distinct semantic intent without exposing the address.
+
+## Deterministic consistency correction
+
+The host-owned `COMPLETE_DETERMINISTIC_BRIEF_CONSISTENCY` correction is a
+bounded V3 ChangeSet builder, not a document patch API. It may set analytics to
+`NONE`, reset form behavior to the canonical no-form state, set
+`scope.protectedFunctionality` to `false`, reclassify one known requirement
+without changing its identity or lineage, reconcile the four confirmed
+service-scope statements, and reconcile typed publication-input statuses.
+The builder removes only the contradictory form-transmission and stale
+analytics decisions it can identify deterministically; it preserves the
+customer-confirmed public email and unrelated requirements, routes, assets,
+and facts. The same correction is bound to the current Brief checksum and
+normal operation identity, so stale attempts and replays remain governed by
+the existing CAS/idempotency transaction.
+
+Publication inputs are modeled under `legal.publicationInputs` with the
+statuses `REQUIRED_BEFORE_PUBLICATION`, `REVIEW_REQUIRED`,
+`CONDITIONAL_IF_APPLICABLE`, `RESOLVED`, and `NOT_APPLICABLE`. Address and
+rapid-contact review remain publication/deployment concerns rather than
+automatic Planning blockers. Conditional tax, register, and supervisory
+authority fields do not become required unless an authorized customer-owned
+decision says they apply. No provider may invent or resolve these fields.

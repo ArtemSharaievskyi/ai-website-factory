@@ -8,6 +8,8 @@ import {
   CanonicalEvidenceSchema,
   CanonicalRequirementValueSchema,
   CanonicalPublicEmailSchema,
+  CanonicalPublicationInputsSchema,
+  SemanticRequirementIdSchema,
   CanonicalSeoSchema,
   ConfirmedProprietorSchema,
   type CanonicalBriefV3,
@@ -15,7 +17,7 @@ import {
   type CanonicalPage,
   type CanonicalRequirement,
 } from "./schema";
-import { SEMANTIC_TARGETS, pageTargetForSlug } from "./targets";
+import { SEMANTIC_TARGETS, isRequirementTarget, pageTargetForSlug } from "./targets";
 import { normalizeCanonicalBrief, stableSerialize } from "./normalize";
 
 const source = "customer-confirmation:brief-consistency";
@@ -24,8 +26,40 @@ const noLogoMarker = /(?:no\s+logo|kein(?:e|\s+)?logo|logo\s+(?:does\s+not|doesn
 const imagePermissionMarker = /(?:ai[- ]generated|placeholder|generated imagery|generate images?)/iu;
 const brandMarkMarker = /(?:logo|wordmark|brand\s+mark|company\s+branding|brand(?:ing)?\s+replacement|legal\s+identity)/iu;
 const legalMarker = /(?:legal|proprietor|inhaber|impressum|datenschutz|tax|vat|registration|address|postal|phone|email|contact)/iu;
-const serviceExclusionMarker = /(?:legal|proprietor|inhaber|safety|exclude|exclusion|not\s+infer|do\s+not\s+invent|service\s+scope|service\s+exclusion)/iu;
+const serviceExclusionMarker = /(?:legal|proprietor|inhaber|safety|exclude|exclusion|not\s+infer|do\s+not\s+invent|service\s+scope|service\s+exclusion|keine(?:r|s)?\s+(?:arbeiten|arbeit)|nicht\s+ausführen|nicht\s+übernehmen|tragend|statisch|elektro|gas|heizung|sanitär|wasser|asbest|schadstoff|estrich|fliesen|parkett|maurer|beton|regulated\s+trade)/iu;
 const placeholderPattern = /\[\s*(PHONE|WHATSAPP|EMAIL|ADDRESS|POSTAL[_ -]?ADDRESS|REGISTRATION|TAX|VAT|CONTACT)\s*\]/giu;
+
+const CorrectionSourceRefsSchema = z.array(z.string().trim().min(1).max(200)).min(1).max(12);
+
+/** Complete host-owned correction contract. It contains decisions, never a document path. */
+export const CompleteBriefConsistencyCorrectionInputSchema = z.object({
+  kind: z.literal("COMPLETE_DETERMINISTIC_BRIEF_CONSISTENCY"),
+  analyticsMode: z.literal("NONE"),
+  form: z.object({
+    mode: z.literal("NONE"),
+    formPresent: z.literal(false),
+    transmissionMode: z.literal("NONE"),
+    persistenceMode: z.literal("NONE"),
+    serverProcessingMode: z.literal("NONE"),
+    externalProviderMode: z.literal("NONE"),
+    privacyConsentMode: z.literal("NOT_APPLICABLE"),
+  }).strict(),
+  protectedFunctionality: z.literal(false),
+  classification: z.object({
+    target: SemanticRequirementIdSchema,
+    category: z.enum(["EXCLUSION", "LEGAL_CONSTRAINT"]),
+    sourceRefs: CorrectionSourceRefsSchema,
+  }).strict(),
+  serviceScope: z.object({
+    smallWallpaperRepairs: z.literal(true),
+    limitedRaufaserWhitePainting: z.literal(true),
+    disposalPreparation: z.literal(true),
+    regulatedTradeBoundaries: z.literal(true),
+    sourceRefs: CorrectionSourceRefsSchema,
+  }).strict(),
+  publicationInputs: CanonicalPublicationInputsSchema,
+}).strict();
+export type CompleteBriefConsistencyCorrectionInput = z.infer<typeof CompleteBriefConsistencyCorrectionInputSchema>;
 
 const BrandConsistencyCorrectionInputSchema = z.object({
   marketingName: z.string().trim().min(1).max(300),
@@ -41,6 +75,7 @@ export const PublicEmailCorrectionInputSchema = z.object({
   publicEmail: CanonicalPublicEmailSchema,
 }).strict();
 export const BriefConsistencyCorrectionInputSchema = z.union([
+  CompleteBriefConsistencyCorrectionInputSchema,
   BrandConsistencyCorrectionInputSchema.extend({ publicEmail: CanonicalPublicEmailSchema.optional() }).strict(),
   PublicEmailCorrectionInputSchema,
 ]);
@@ -56,7 +91,10 @@ export type BriefConsistencyIssue = {
     | "PROPRIETOR_INFERRED_FROM_LOGO"
     | "PLACEHOLDER_NOT_UNRESOLVED"
     | "SINGLE_PAGE_TOPOLOGY"
-    | "LEGAL_EXCLUSION_CATEGORY";
+    | "LEGAL_EXCLUSION_CATEGORY"
+    | "ANALYTICS_DECISION_CONTRADICTION"
+    | "FORM_TRANSMISSION_CONTRADICTION"
+    | "PROTECTED_FUNCTIONALITY_CONTRADICTION";
   path: string;
 };
 
@@ -67,11 +105,12 @@ const replaceAllInsensitive = (value: string, candidate: string, replacement: st
 const digest = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
 
 const hasBrandConsistencyCorrection = (correction: BriefConsistencyCorrectionInput): correction is Extract<BriefConsistencyCorrectionInput, { marketingName: string }> => "marketingName" in correction;
+const hasCompleteBriefConsistencyCorrection = (correction: BriefConsistencyCorrectionInput): correction is CompleteBriefConsistencyCorrectionInput => "kind" in correction;
 
 /** Operation identity intentionally carries only a digest of the canonical email. */
 export function deterministicBriefCorrectionInstruction(correction: BriefConsistencyCorrectionInput): string {
   const parsed = BriefConsistencyCorrectionInputSchema.parse(correction);
-  if (!parsed.publicEmail) return `Deterministic Brief consistency correction:${JSON.stringify(parsed)}`;
+  if (!("publicEmail" in parsed) || !parsed.publicEmail) return `Deterministic Brief consistency correction:${JSON.stringify(parsed)}`;
   const safe = parsed.publicEmail
     ? { ...parsed, publicEmail: { ...parsed.publicEmail, email: `sha256:${digest(parsed.publicEmail.email)}` } }
     : parsed;
@@ -290,6 +329,185 @@ function correctedSeoPageMetadata(brief: CanonicalBriefV3, title: string, market
   ];
 }
 
+const COMPLETE_SERVICE_REQUIREMENTS = [
+  {
+    key: "service-scope:small-wallpaper-repairs",
+    category: "CONTENT" as const,
+    statement: "Customer-confirmed limited service scope includes small wallpaper damage repairs only; this does not authorize general painting or complete renovation.",
+  },
+  {
+    key: "service-scope:limited-raufaser-white-painting",
+    category: "CONTENT" as const,
+    statement: "Customer-confirmed limited service scope includes Raufasertapete and white painting only in a small, limited preparation scope; this does not authorize general painting or complete renovation.",
+  },
+  {
+    key: "service-scope:disposal-preparation",
+    category: "CONTENT" as const,
+    statement: "Removed materials may be sorted and prepared for collection through the customer's authorized container or disposal-company process; this does not grant independent waste-disposal authorization.",
+  },
+  {
+    key: "service-scope:regulated-trade-boundaries",
+    category: "EXCLUSION" as const,
+    statement: "No work beyond the confirmed regulated-trade boundaries is authorized; no hazardous-material work, structural demolition, electrical, gas, water, sanitary, or other regulated installations.",
+  },
+] as const;
+
+type PublicationInputKey = keyof z.infer<typeof CanonicalPublicationInputsSchema>;
+const publicationUnresolvedSpec: Record<PublicationInputKey, { target: string; reason: string; aliases: readonly string[] }> = {
+  address: {
+    target: "LEGAL:ADDRESS",
+    reason: "The complete customer-owned ladungsfähige postal address remains required before public Impressum publication or deployment.",
+    aliases: ["LEGAL:ADDRESS", "LEGAL:POSTAL_ADDRESS", "CONTACT:ADDRESS", "CONTACT:POSTAL_ADDRESS"],
+  },
+  rapidContact: {
+    target: "CONTACT:RAPID_CHANNEL",
+    reason: "A customer-owned rapid direct contact channel requires publication review; phone or WhatsApp must not be inferred and another channel requires explicit confirmation.",
+    aliases: ["CONTACT:RAPID_CHANNEL"],
+  },
+  taxIdentifiers: {
+    target: "LEGAL:TAX_IDENTIFIERS",
+    reason: "Tax identifiers are conditional and must be resolved only if legally applicable; no identifier may be invented.",
+    aliases: ["LEGAL:TAX_IDENTIFIERS", "LEGAL:TAX", "LEGAL:VAT"],
+  },
+  registerInformation: {
+    target: "LEGAL:REGISTER_INFORMATION",
+    reason: "Register information is conditional and must be resolved only if registration actually applies; do not assume Handelsregister registration.",
+    aliases: ["LEGAL:REGISTER_INFORMATION", "LEGAL:REGISTRATION"],
+  },
+  regulatoryAuthority: {
+    target: "LEGAL:REGULATORY_AUTHORITY",
+    reason: "Regulatory or supervisory authority information is conditional on the final registered activity and must not be invented.",
+    aliases: ["LEGAL:REGULATORY_AUTHORITY", "LEGAL:AUTHORITY"],
+  },
+};
+
+function reconcilePublicationUnresolved(brief: CanonicalBriefV3, inputs: z.infer<typeof CanonicalPublicationInputsSchema>): CanonicalBriefV3["unresolved"] {
+  const aliases = new Set(Object.values(publicationUnresolvedSpec).flatMap((spec) => spec.aliases));
+  const retained = brief.unresolved.filter((item) => !aliases.has(item.target));
+  const result = [...retained];
+  for (const key of Object.keys(publicationUnresolvedSpec) as PublicationInputKey[]) {
+    const input = inputs[key];
+    const spec = publicationUnresolvedSpec[key];
+    if (input.status === "RESOLVED" || input.status === "NOT_APPLICABLE") continue;
+    result.push({
+      target: spec.target,
+      reason: spec.reason,
+      sourceRefs: [...new Set([...input.sourceRefs, source])],
+      status: input.status,
+      blockingStages: input.status === "CONDITIONAL_IF_APPLICABLE" ? [] : ["PUBLICATION"],
+    });
+  }
+  if (inputs.rapidContact.status === "RESOLVED" || inputs.rapidContact.status === "NOT_APPLICABLE") {
+    return result.filter((item) => item.target !== "CONTACT:PHONE" && item.target !== "CONTACT:WHATSAPP");
+  }
+  return result;
+}
+
+function formTransmissionRequirement(entry: CanonicalRequirement): boolean {
+  return /form[-_ ]data[-_ ]transmission\s*:\s*(?!NONE\b)/iu.test(entry.statement);
+}
+
+function activeAnalyticsRequirement(entry: CanonicalRequirement): boolean {
+  return /(?:analytics|tracking|telemetrie|analyse)/iu.test(entry.statement)
+    && !/(?:no\b|without|kein\w*|keine\w*|ohne|nicht|not\s+enabled|not\s+approved|disabled|deferred|verboten)/iu.test(entry.statement);
+}
+
+const confirmedServiceScopeMarker = /(?:wallpaper|raufaser|white\s+painting|sort(?:ed|ing)\s+and\s+prepar|waste[- ]disposal|regulated[- ]trade|service\s+limitation)/iu;
+
+/** Provider proposals are admitted only after host-owned confirmed decisions are protected. */
+export function assertProviderChangesDoNotOverwriteConfirmedCorrections(input: { brief: CanonicalBriefV3; changeSet: BriefChangeSet }): void {
+  const form = input.brief.decisions.form;
+  for (const change of input.changeSet.changes) {
+    if (change.operation === "SET" && change.target === SEMANTIC_TARGETS.ANALYTICS_MODE && input.brief.decisions.analytics.mode !== "UNRESOLVED" && change.value !== input.brief.decisions.analytics.mode) {
+      throw new BriefV3Error("BRIEF_V3_INVALID_COMBINATION", { target: SEMANTIC_TARGETS.ANALYTICS_MODE });
+    }
+    if (change.operation === "SET" && change.target === SEMANTIC_TARGETS.PROTECTED_FUNCTIONALITY && input.brief.scope.protectedFunctionality === false && change.value !== false) {
+      throw new BriefV3Error("BRIEF_V3_INVALID_COMBINATION", { target: SEMANTIC_TARGETS.PROTECTED_FUNCTIONALITY });
+    }
+    if (change.operation === "SET" && change.target === SEMANTIC_TARGETS.LEGAL_PUBLICATION_INPUTS) {
+      throw new BriefV3Error("BRIEF_V3_INVALID_COMBINATION", { target: SEMANTIC_TARGETS.LEGAL_PUBLICATION_INPUTS });
+    }
+    const staticForm = form.mode === "NONE"
+      || (form.mode === "SIMULATED" && form.transmissionMode === "NONE" && form.persistenceMode === "NONE" && form.serverProcessingMode === "NONE" && form.externalProviderMode === "NONE");
+    if (change.operation === "SET" && change.target.startsWith("FORM_") && staticForm) {
+      const expected: unknown = change.target === SEMANTIC_TARGETS.FORM_SUCCESS_MODE ? form.mode
+        : change.target === SEMANTIC_TARGETS.FORM_SIMULATED_SUCCESS_POLICY ? form.simulatedSuccessPolicy
+          : change.target === SEMANTIC_TARGETS.FORM_TRANSMISSION_MODE ? form.transmissionMode
+            : change.target === SEMANTIC_TARGETS.FORM_PERSISTENCE_MODE ? form.persistenceMode
+              : change.target === SEMANTIC_TARGETS.FORM_SERVER_PROCESSING_MODE ? form.serverProcessingMode
+                : change.target === SEMANTIC_TARGETS.FORM_EXTERNAL_PROVIDER_MODE ? form.externalProviderMode
+                  : form.privacyConsentMode;
+      if (change.value !== expected) throw new BriefV3Error("BRIEF_V3_INVALID_COMBINATION", { target: change.target });
+    }
+    const currentRequirement = isRequirementTarget(change.target) ? input.brief.requirements.find((entry) => entry.id === change.target) : undefined;
+    if (currentRequirement && currentRequirement.sourceRefs.some((ref) => /customer-confirmation:brief-consistency|system:brief-consistency/iu.test(ref))) {
+      throw new BriefV3Error("BRIEF_V3_INVALID_COMBINATION", { target: change.target });
+    }
+    if (change.operation === "UPSERT" && isRequirementTarget(change.target)) {
+      const value = change.value as z.infer<typeof CanonicalRequirementValueSchema>;
+      if (value.category === "BRAND_VISUAL" && serviceExclusionMarker.test(value.statement)) throw new BriefV3Error("BRIEF_V3_INVALID_COMBINATION", { target: change.target });
+      if (confirmedServiceScopeMarker.test(value.statement) || value.category === "CONTACT_FACT" || /(?:address|postal|ladungsfähig|tax|vat|steuernummer|ust[- ]?id|wirtschafts[- ]?id|register|handelsregister|supervisory|regulatory|authority|permit|genehmig)/iu.test(value.statement)) {
+        throw new BriefV3Error("BRIEF_V3_INVALID_COMBINATION", { target: change.target });
+      }
+    }
+  }
+}
+
+function completeServiceChanges(input: { brief: CanonicalBriefV3; projectId: string; projectVersion: number; sourceRefs: readonly string[] }): BriefChange[] {
+  const changes: BriefChange[] = [];
+  for (const requirement of COMPLETE_SERVICE_REQUIREMENTS) {
+    const existing = input.brief.requirements.find((entry) => normalize(entry.statement) === normalize(requirement.statement));
+    const target = (existing?.id ?? requirementId(input.projectId, input.projectVersion, requirement.key)) as `REQUIREMENT:${string}`;
+    const value = requirementValue(requirement.category, requirement.statement, [...(existing?.sourceRefs ?? []), ...input.sourceRefs, source]);
+    if (!existing || existing.category !== requirement.category || normalize(existing.statement) !== normalize(requirement.statement) || !input.sourceRefs.every((ref) => existing.sourceRefs.includes(ref))) {
+      changes.push({ operation: "UPSERT", target, value, sourceRefs: [source] });
+    }
+  }
+  return changes;
+}
+
+function createCompleteBriefConsistencyCorrectionChangeSet(input: { brief: CanonicalBriefV3; projectId: string; projectVersion: number; correction: CompleteBriefConsistencyCorrectionInput }): BriefChangeSet {
+  const brief = CanonicalBriefV3Schema.parse(input.brief);
+  const correction = CompleteBriefConsistencyCorrectionInputSchema.parse(input.correction);
+  const classification = brief.requirements.find((entry) => entry.id === correction.classification.target);
+  if (!classification) throw new BriefV3Error("BRIEF_V3_INVALID_COMBINATION", { target: correction.classification.target });
+  if (classification.category !== "BRAND_VISUAL" && classification.category !== correction.classification.category) {
+    throw new BriefV3Error("BRIEF_V3_INVALID_COMBINATION", { target: correction.classification.target });
+  }
+  if (!serviceExclusionMarker.test(classification.statement)) {
+    throw new BriefV3Error("BRIEF_V3_INVALID_COMBINATION", { target: correction.classification.target });
+  }
+  const classificationChange: BriefChange = {
+    operation: "UPSERT",
+    target: correction.classification.target as `REQUIREMENT:${string}`,
+    value: requirementValue(correction.classification.category, classification.statement, [...classification.sourceRefs, ...correction.classification.sourceRefs, source]),
+    sourceRefs: [source],
+  };
+  const staleFormChanges = brief.requirements
+    .filter(formTransmissionRequirement)
+    .map((entry) => ({ operation: "REMOVE" as const, target: entry.id as `REQUIREMENT:${string}`, sourceRefs: [systemSource] }));
+  const staleAnalyticsChanges = brief.requirements
+    .filter((entry) => activeAnalyticsRequirement(entry) && (entry.category === "DECISION" || /unresolved|deferred/iu.test(entry.statement)))
+    .map((entry) => ({ operation: "REMOVE" as const, target: entry.id as `REQUIREMENT:${string}`, sourceRefs: [systemSource] }));
+  const publicationInputs = CanonicalPublicationInputsSchema.parse(correction.publicationInputs);
+  const unresolved = normalizeCanonicalBrief({ ...brief, unresolved: reconcilePublicationUnresolved(brief, publicationInputs) }).unresolved;
+  return {
+    contractVersion: 1,
+    changes: [
+      { operation: "SET", target: SEMANTIC_TARGETS.ANALYTICS_MODE, value: "NONE", sourceRefs: [source] },
+      { operation: "SET", target: SEMANTIC_TARGETS.FORM_SUCCESS_MODE, value: "NONE", sourceRefs: [source] },
+      { operation: "SET", target: SEMANTIC_TARGETS.PROTECTED_FUNCTIONALITY, value: false, sourceRefs: [source] },
+      { operation: "SET", target: SEMANTIC_TARGETS.LEGAL_PUBLICATION_INPUTS, value: publicationInputs, sourceRefs: [source] },
+      { operation: "SET", target: SEMANTIC_TARGETS.BRIEF_UNRESOLVED, value: unresolved, sourceRefs: [source] },
+      classificationChange,
+      ...staleFormChanges,
+      ...staleAnalyticsChanges,
+      ...completeServiceChanges({ brief, projectId: input.projectId, projectVersion: input.projectVersion, sourceRefs: correction.serviceScope.sourceRefs }),
+    ],
+    unresolved: [],
+  };
+}
+
 function createPublicEmailOnlyCorrectionChangeSet(input: { brief: CanonicalBriefV3; projectId: string; projectVersion: number; correction: Extract<BriefConsistencyCorrectionInput, { publicEmail: unknown; marketingName?: never }> }): BriefChangeSet {
   const brief = CanonicalBriefV3Schema.parse(input.brief);
   const publicEmail = CanonicalPublicEmailSchema.parse(input.correction.publicEmail);
@@ -313,6 +531,7 @@ function createPublicEmailOnlyCorrectionChangeSet(input: { brief: CanonicalBrief
 /** Deterministically creates a typed patch from confirmed customer facts. No provider is involved. */
 export function createBriefConsistencyCorrectionChangeSet(input: { brief: CanonicalBriefV3; projectId: string; projectVersion: number; correction: BriefConsistencyCorrectionInput }): BriefChangeSet {
   const correction = BriefConsistencyCorrectionInputSchema.parse(input.correction);
+  if (hasCompleteBriefConsistencyCorrection(correction)) return createCompleteBriefConsistencyCorrectionChangeSet({ ...input, correction });
   if (!hasBrandConsistencyCorrection(correction)) return createPublicEmailOnlyCorrectionChangeSet({ ...input, correction });
   const brief = CanonicalBriefV3Schema.parse(input.brief);
   const title = `${correction.marketingName}${brief.title?.includes("·") ? ` · ${brief.title.split("·").slice(1).join("·").trim()}` : ""}`;
@@ -402,6 +621,9 @@ export function validateCanonicalBriefConsistency(brief: CanonicalBriefV3): read
   for (const placeholder of extractPlaceholders(parsed)) if (!new RegExp(`(?:${escapeRegExp(placeholder)}|${escapeRegExp(placeholder.replaceAll("_", " "))})`, "iu").test(unresolvedText)) issues.push({ code: "PLACEHOLDER_NOT_UNRESOLVED", path: placeholder });
   if (parsed.decisions.routePolicy.mode === "SINGLE_PAGE" && parsed.pages.filter((page) => !isLegalAuxiliarySlug(page.slug)).length > 1) issues.push({ code: "SINGLE_PAGE_TOPOLOGY", path: "pages" });
   for (const entry of parsed.requirements) if (entry.category === "BRAND_VISUAL" && serviceExclusionMarker.test(entry.statement)) issues.push({ code: "LEGAL_EXCLUSION_CATEGORY", path: `requirements:${entry.id}` });
+  if (parsed.decisions.analytics.mode === "UNRESOLVED" && parsed.requirements.some((entry) => !activeAnalyticsRequirement(entry) && /(?:analytics|tracking|telemetrie|analyse)/iu.test(entry.statement))) issues.push({ code: "ANALYTICS_DECISION_CONTRADICTION", path: "decisions.analytics.mode" });
+  if (parsed.decisions.form.mode === "NONE" && parsed.requirements.some(formTransmissionRequirement)) issues.push({ code: "FORM_TRANSMISSION_CONTRADICTION", path: "decisions.form" });
+  if (parsed.scope.protectedFunctionality && parsed.decisions.database.mode === "NONE" && parsed.decisions.auth.mode === "NONE") issues.push({ code: "PROTECTED_FUNCTIONALITY_CONTRADICTION", path: "scope.protectedFunctionality" });
   return issues;
 }
 

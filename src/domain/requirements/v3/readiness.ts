@@ -18,7 +18,9 @@ export type BriefPublicationBlockerCode =
   | "FINAL_LEGAL_FACTS_REQUIRED"
   | "PHOTO_RIGHTS_PROVENANCE_REQUIRED"
   | "CURRENT_BRIEF_UNRESOLVED"
-  | "CANONICAL_BRIEF_NOT_READY";
+  | "CANONICAL_BRIEF_NOT_READY"
+  | "REQUIRED_PUBLICATION_INPUTS_MISSING"
+  | "PUBLICATION_REVIEW_REQUIRED";
 
 export type BriefReadinessResult = {
   readyForApproval: boolean;
@@ -81,6 +83,18 @@ function unresolvedDecisionTargets(brief: CanonicalBriefV3): string[] {
   return decisions.filter(([, value]) => value === "UNRESOLVED").map(([target]) => target);
 }
 
+function publicationInputBlockers(brief: CanonicalBriefV3): Set<BriefPublicationBlockerCode> {
+  const blockers = new Set<BriefPublicationBlockerCode>();
+  const inputs = brief.legal.publicationInputs;
+  if (!inputs) return blockers;
+  if (inputs.address.status !== "RESOLVED") blockers.add("REQUIRED_PUBLICATION_INPUTS_MISSING");
+  if (!["RESOLVED", "NOT_APPLICABLE"].includes(inputs.rapidContact.status)) blockers.add("PUBLICATION_REVIEW_REQUIRED");
+  for (const key of ["taxIdentifiers", "registerInformation", "regulatoryAuthority"] as const) {
+    if (["REQUIRED_BEFORE_PUBLICATION", "REVIEW_REQUIRED"].includes(inputs[key].status)) blockers.add("REQUIRED_PUBLICATION_INPUTS_MISSING");
+  }
+  return blockers;
+}
+
 function invariantName(error: unknown): string {
   if (error instanceof BriefV3Error) return error.details?.invariant ?? error.code;
   return "invalid-canonical-brief";
@@ -130,13 +144,15 @@ export function evaluateBriefReadiness(input: {
   if (brief.unresolved.some((item) => isPhotoRightsUnresolvedRequirement(item) && canonicalUnresolvedBlockingStages(brief, item).includes("ASSET_REVIEW"))) publicationBlockers.add("PHOTO_RIGHTS_PROVENANCE_REQUIRED");
   if (brief.unresolved.length > 0 || unansweredQuestions.length > 0) publicationBlockers.add("CURRENT_BRIEF_UNRESOLVED");
   if (approvalBlockers.length > 0) publicationBlockers.add("CANONICAL_BRIEF_NOT_READY");
+  for (const blocker of publicationInputBlockers(brief)) publicationBlockers.add(blocker);
 
   const readyForApproval = approvalBlockers.length === 0;
   const publicationReady = readyForApproval
     && brief.unresolved.length === 0
     && unansweredQuestions.length === 0
     && brief.legal.placeholderPolicy === "NO_PLACEHOLDERS"
-    && brief.legal.inventedFactsPolicy !== "UNRESOLVED";
+    && brief.legal.inventedFactsPolicy !== "UNRESOLVED"
+    && publicationInputBlockers(brief).size === 0;
 
   return {
     readyForApproval,

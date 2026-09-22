@@ -16,7 +16,7 @@ import type { BriefRevisionAttemptRow, BriefRevisionAtomicCommitInput, BriefRevi
 import { ProviderFailureDiagnosticSchema, type ProviderFailureDiagnostic } from "@/domain/shared/provider-failure";
 import { newWorkflowEvent } from "@/persistence/database/workflow-events";
 import { BriefV3ProviderError } from "@/integrations/openai-v3/errors";
-import { assertCanonicalBriefConsistency, createBriefConsistencyCorrectionChangeSet, deterministicBriefCorrectionInstruction, type BriefConsistencyCorrectionInput } from "@/domain/requirements/v3/consistency";
+import { assertCanonicalBriefConsistency, assertProviderChangesDoNotOverwriteConfirmedCorrections, createBriefConsistencyCorrectionChangeSet, deterministicBriefCorrectionInstruction, type BriefConsistencyCorrectionInput } from "@/domain/requirements/v3/consistency";
 import type { CanonicalBriefV3 } from "@/domain/requirements/v3/schema";
 import type { RequirementIdentityLineage } from "@/domain/requirements/v3/identity";
 import { assertCurrentV3RequirementNamespace, bindProviderRequirementIdentities, canonicalRequirementEntries, createRequirementProposalHandles, isV3RequirementId } from "@/domain/requirements/v3/identity";
@@ -116,6 +116,7 @@ export class BriefV3TransactionService {
         providerChanges = input.deterministicCorrection
           ? createBriefConsistencyCorrectionChangeSet({ brief: beforeProvider.canonical, projectId: input.projectId, projectVersion: input.projectVersion, correction: input.deterministicCorrection })
           : await this.options.provider.proposeChanges({ revisionInstruction: input.revisionInstruction, currentCanonicalV3: beforeProvider.canonical, supportingContext: input.supportingContext, newRequirementHandles });
+        if (!input.deterministicCorrection) assertProviderChangesDoNotOverwriteConfirmedCorrections({ brief: beforeProvider.canonical, changeSet: providerChanges });
         await input.faults?.hit("after-provider");
       } catch (error) {
         if (input.deterministicCorrection) {

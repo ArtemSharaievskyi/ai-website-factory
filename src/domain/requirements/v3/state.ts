@@ -30,6 +30,7 @@ export function targetDomain(target: SemanticTargetId): CanonicalDomain {
     case SEMANTIC_TARGETS.DATABASE_MODE: return "database";
     case SEMANTIC_TARGETS.AUTH_MODE: return "auth";
     case SEMANTIC_TARGETS.ANALYTICS_MODE: return "analytics";
+    case SEMANTIC_TARGETS.PROTECTED_FUNCTIONALITY: return "scope";
     case SEMANTIC_TARGETS.ROUTE_POLICY: return "route";
     case SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY: return "brand";
     case SEMANTIC_TARGETS.BRAND_SUPPLIED_INFORMATION:
@@ -44,6 +45,7 @@ export function targetDomain(target: SemanticTargetId): CanonicalDomain {
     case SEMANTIC_TARGETS.LEGAL_PLACEHOLDER_POLICY:
     case SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY:
     case SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR: return "legal";
+    case SEMANTIC_TARGETS.LEGAL_PUBLICATION_INPUTS: return "legal";
     case SEMANTIC_TARGETS.PUBLIC_CONTACT_EMAIL: return "contact";
     case SEMANTIC_TARGETS.BRIEF_TITLE: return "title";
     case SEMANTIC_TARGETS.BRIEF_EVIDENCE: return "evidence";
@@ -64,6 +66,7 @@ export function readSemanticTarget(brief: CanonicalBriefV3, target: SemanticTarg
     case SEMANTIC_TARGETS.DATABASE_MODE: return brief.decisions.database.mode;
     case SEMANTIC_TARGETS.AUTH_MODE: return brief.decisions.auth.mode;
     case SEMANTIC_TARGETS.ANALYTICS_MODE: return brief.decisions.analytics.mode;
+    case SEMANTIC_TARGETS.PROTECTED_FUNCTIONALITY: return brief.scope.protectedFunctionality;
     case SEMANTIC_TARGETS.ROUTE_POLICY: return brief.decisions.routePolicy.mode;
     case SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY: return brief.brand.referenceStrategy;
     case SEMANTIC_TARGETS.BRAND_SUPPLIED_INFORMATION: return brief.brand.suppliedInformation;
@@ -78,6 +81,7 @@ export function readSemanticTarget(brief: CanonicalBriefV3, target: SemanticTarg
     case SEMANTIC_TARGETS.LEGAL_PLACEHOLDER_POLICY: return brief.legal.placeholderPolicy;
     case SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY: return brief.legal.inventedFactsPolicy;
     case SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR: return brief.legal.confirmedProprietor ?? null;
+    case SEMANTIC_TARGETS.LEGAL_PUBLICATION_INPUTS: return brief.legal.publicationInputs ?? null;
     case SEMANTIC_TARGETS.PUBLIC_CONTACT_EMAIL: return brief.contact?.publicEmail ?? null;
     case SEMANTIC_TARGETS.BRIEF_TITLE: return brief.title;
     case SEMANTIC_TARGETS.BRIEF_EVIDENCE: return brief.evidence;

@@ -13,3 +13,11 @@ appends a separate `brief-approval` DecisionRecord, and transitions once to
 delta, or revision-history entry; it does not write a legacy requirements
 approval or assert publication readiness. The Design Agent is out of scope for
 this milestone; no design directions or implementation tasks are created here.
+
+Approval readiness and public publication readiness are separate host-owned
+decisions. A current Brief may be approved and used for Planning while safe
+explicit publication placeholders remain. Publication/deployment stays
+fail-closed until required address and contact-review inputs are resolved;
+conditional legal fields may be explicitly marked not applicable. Planning,
+Implementation, Preview, and Deployment must preserve placeholders and may not
+invent legal, tax, register, authority, phone, or WhatsApp facts.

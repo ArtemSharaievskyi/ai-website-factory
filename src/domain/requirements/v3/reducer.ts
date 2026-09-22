@@ -196,6 +196,7 @@ function applySet(brief: CanonicalBriefV3, change: BriefSetChange): CanonicalBri
     case SEMANTIC_TARGETS.DATABASE_MODE: return { ...brief, decisions: { ...brief.decisions, database: { mode: change.value } } };
     case SEMANTIC_TARGETS.AUTH_MODE: return { ...brief, decisions: { ...brief.decisions, auth: { mode: change.value } } };
     case SEMANTIC_TARGETS.ANALYTICS_MODE: return { ...brief, decisions: { ...brief.decisions, analytics: { mode: change.value } } };
+    case SEMANTIC_TARGETS.PROTECTED_FUNCTIONALITY: return { ...brief, scope: { ...brief.scope, protectedFunctionality: change.value } };
     case SEMANTIC_TARGETS.ROUTE_POLICY: return { ...brief, decisions: { ...brief.decisions, routePolicy: { mode: change.value } } };
     case SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY: return { ...brief, brand: { ...brief.brand, referenceStrategy: change.value } };
     case SEMANTIC_TARGETS.BRAND_SUPPLIED_INFORMATION: return { ...brief, brand: { ...brief.brand, suppliedInformation: change.value } };
@@ -217,6 +218,7 @@ function applySet(brief: CanonicalBriefV3, change: BriefSetChange): CanonicalBri
     case SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR: return change.value === null
       ? { ...brief, legal: { ...brief.legal, confirmedProprietor: undefined } }
       : { ...brief, legal: { ...brief.legal, confirmedProprietor: change.value } };
+    case SEMANTIC_TARGETS.LEGAL_PUBLICATION_INPUTS: return { ...brief, legal: { ...brief.legal, publicationInputs: change.value } };
     case SEMANTIC_TARGETS.PUBLIC_CONTACT_EMAIL: return { ...brief, contact: { ...(brief.contact ?? {}), publicEmail: change.value } };
     case SEMANTIC_TARGETS.BRIEF_TITLE: return { ...brief, title: change.value };
     case SEMANTIC_TARGETS.BRIEF_EVIDENCE: return { ...brief, evidence: change.value };

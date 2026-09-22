@@ -422,12 +422,13 @@ function isProtectedCoreBrief(brief: CanonicalBriefV3): boolean {
   return brief.decisions.auth.mode === "NONE"
     && brief.decisions.database.mode === "NONE"
     && brief.decisions.analytics.mode === "NONE"
-    && brief.decisions.form.mode === "SIMULATED"
-    && brief.decisions.form.transmissionMode === "NONE"
-    && brief.decisions.form.persistenceMode === "NONE"
-    && brief.decisions.form.serverProcessingMode === "NONE"
-    && brief.decisions.form.externalProviderMode === "NONE"
-    && brief.decisions.form.privacyConsentMode === "REQUIRED"
+    && (brief.decisions.form.mode === "NONE"
+      || (brief.decisions.form.mode === "SIMULATED"
+        && brief.decisions.form.transmissionMode === "NONE"
+        && brief.decisions.form.persistenceMode === "NONE"
+        && brief.decisions.form.serverProcessingMode === "NONE"
+        && brief.decisions.form.externalProviderMode === "NONE"
+        && brief.decisions.form.privacyConsentMode === "REQUIRED"))
     && brief.scope.protectedFunctionality === false;
 }
 
@@ -437,12 +438,16 @@ function planningCoreContract(brief: CanonicalBriefV3, planning: PlanningPackage
   const databaseNone = !planning.dataModel.entities.length && !planning.supabase.postgres;
   const analyticsNone = true;
   const routePolicyMatchesBrief = planningRoutePolicyMatchesCanonicalBrief(planning, brief);
-  const simulatedForm = planning.forms.forms.length > 0 && planning.forms.forms.every((form) => form.submissionMechanism === "client-only");
-  const noTransmission = planning.email.decision === "not-required" && !planning.supabase.edgeFunctions && planning.forms.forms.every((form) => form.submissionMechanism === "client-only");
-  const noPersistence = planning.dataModel.entities.length === 0 && !planning.supabase.postgres && !planning.supabase.storage && planning.forms.forms.every((form) => form.submissionMechanism === "client-only");
-  const noServerProcessing = planning.forms.forms.every((form) => form.submissionMechanism === "client-only");
+  const formRequired = brief.decisions.form.mode !== "NONE";
+  const noForm = !formRequired && planning.forms.forms.length === 0;
+  const simulatedForm = noForm || (planning.forms.forms.length > 0 && planning.forms.forms.every((form) => form.submissionMechanism === "client-only"));
+  const noTransmission = planning.email.decision === "not-required" && !planning.supabase.edgeFunctions && (noForm || planning.forms.forms.every((form) => form.submissionMechanism === "client-only"));
+  const noPersistence = planning.dataModel.entities.length === 0 && !planning.supabase.postgres && !planning.supabase.storage && (noForm || planning.forms.forms.every((form) => form.submissionMechanism === "client-only"));
+  const noServerProcessing = noForm || planning.forms.forms.every((form) => form.submissionMechanism === "client-only");
   const noExternalProvider = planning.email.decision === "not-required" && !planning.supabase.edgeFunctions;
-  const requiredPrivacyConsent = brief.decisions.form.privacyConsentMode === "REQUIRED" && planning.forms.forms.every((form) => form.consentRequirements.length > 0);
+  const requiredPrivacyConsent = brief.decisions.form.mode === "NONE"
+    ? noForm
+    : brief.decisions.form.privacyConsentMode === "REQUIRED" && planning.forms.forms.every((form) => form.consentRequirements.length > 0);
   const noBackend = planning.architecture.backendPriority.length === 0
     && planning.architecture.serverActions.length === 0
     && planning.architecture.routeHandlers.length === 0

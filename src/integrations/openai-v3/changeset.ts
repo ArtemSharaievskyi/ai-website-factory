@@ -41,7 +41,11 @@ const ProviderUnresolvedValueSchema = z.object({
 }).strict();
 
 type ProviderFixedTargetBinding = { valueType: TargetCatalogEntry["valueType"] };
-type ProviderWritableFixedSetTargetId = Exclude<FixedSetTargetId, typeof SEMANTIC_TARGETS.PUBLIC_CONTACT_EMAIL>;
+type ProviderWritableFixedSetTargetId = Exclude<FixedSetTargetId,
+  | typeof SEMANTIC_TARGETS.PUBLIC_CONTACT_EMAIL
+  | typeof SEMANTIC_TARGETS.PROTECTED_FUNCTIONALITY
+  | typeof SEMANTIC_TARGETS.LEGAL_PUBLICATION_INPUTS
+>;
 type ProviderFixedTargetBindings = { [Target in ProviderWritableFixedSetTargetId]: ProviderFixedTargetBinding };
 
 /**
