@@ -5,7 +5,7 @@ import { zodResponseFormat } from "openai/helpers/zod";
 import { AiProviderError, isAiProviderError } from "./errors";
 import { classifyProviderTransportFailure, createProviderFailureDiagnostic } from "./failure-diagnostics";
 import { FifoConcurrencyLimiter } from "./limiter";
-import { DEFAULT_AI_MAX_COMPLETION_TOKENS, type AiProviderConfig } from "./config";
+import { DEFAULT_AI_MAX_COMPLETION_TOKENS, LUNA_MODEL, LUNA_REASONING_EFFORT, reasoningConfigurationForRole, type AiProviderConfig, type AiReasoningConfiguration } from "./config";
 import type { ProviderDiagnostic, ProviderEventSink, ProviderInvocationContext, ProviderOutputStage, ProviderUsage, ProviderUsageSink } from "./usage";
 import type { ContextBundle } from "@/runtime/context";
 import { createInvocationFingerprint, createInvocationUsageRecord } from "@/runtime/context/telemetry";
@@ -13,7 +13,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { StructuredOutputPreflightError, assertStructuredOutputPreflight } from "./schema-preflight";
 
 export type StructuredSchemaDefinition = Parameters<typeof zodResponseFormat>[0];
-export type StructuredRequest<T> = { role: string; promptVersion: string; system: string; user: string; schemaName: string; schema: ZodType<T>; schemaDefinitions?: Record<string, StructuredSchemaDefinition>; signal?: AbortSignal; idempotencyKey?: string; contextBundle?: ContextBundle; promptPrefixChecksum?: string; promptPrefixBytes?: number; maxCompletionTokens?: number; retryPolicy?: { maxRetries: number; corrections: number }; parseStrategy?: "sdk" | "manual"; providerInvocation?: ProviderInvocationContext };
+export type StructuredRequest<T> = { role: string; promptVersion: string; system: string; user: string; schemaName: string; schema: ZodType<T>; schemaDefinitions?: Record<string, StructuredSchemaDefinition>; signal?: AbortSignal; idempotencyKey?: string; contextBundle?: ContextBundle; promptPrefixChecksum?: string; promptPrefixBytes?: number; maxCompletionTokens?: number; retryPolicy?: { maxRetries: number; corrections: number }; parseStrategy?: "sdk" | "manual"; reasoning?: AiReasoningConfiguration; providerInvocation?: ProviderInvocationContext };
 export type StructuredResponse<T> = { value: T; usage: ProviderUsage; requestId: string; diagnostic?: ProviderDiagnostic };
 export type ProviderTransportResult = { requestId: string; inputTokens?: number; cachedInputTokens?: number; outputTokens?: number; diagnostic: ProviderDiagnostic };
 export type ProviderRawStructuredResult = ProviderTransportResult & { content: string };
@@ -129,6 +129,11 @@ export class OpenAiStructuredClient {
   }
 
   private async execute<T>(request: StructuredRequest<T>): Promise<StructuredResponse<T>> {
+    try {
+      request = configuredRequest(request, this.config);
+    } catch (error) {
+      throw mapError(error, request.schemaName, false, this.config.model);
+    }
     let retries = 0;
     let correction = false;
     let capturedUsage: ProviderUsage | undefined;
@@ -205,7 +210,7 @@ export class OpenAiStructuredClient {
 
   private async recordUsage<T>(request: StructuredRequest<T>, result: Pick<ProviderTransportResult, "inputTokens" | "cachedInputTokens" | "outputTokens">, retries: number, correction: boolean) {
     const actualUsageCaptured = result.inputTokens !== undefined || result.outputTokens !== undefined;
-    const usage = createInvocationUsageRecord({ invocationFingerprint: this.fingerprint(request) ?? randomUUID(), agentId: request.role, ...(request.contextBundle?.taskId ? { taskId: request.contextBundle.taskId } : {}), workflowStage: request.contextBundle?.workflowStage ?? request.role, role: request.role, ...(request.contextBundle?.contextBundleId ? { contextBundleId: request.contextBundle.contextBundleId } : {}), ...(request.contextBundle?.checksum ? { contextChecksum: request.contextBundle.checksum } : {}), provider: "openai", model: this.config.model, ...(result.inputTokens === undefined ? {} : { inputTokens: result.inputTokens }), ...(result.cachedInputTokens === undefined ? {} : { cachedInputTokens: result.cachedInputTokens }), ...(result.outputTokens === undefined ? {} : { outputTokens: result.outputTokens }), ...(result.inputTokens !== undefined && result.outputTokens !== undefined ? { totalTokens: result.inputTokens + result.outputTokens } : {}), actualUsageCaptured, cacheTelemetryUnavailable: result.cachedInputTokens === undefined, prefixChecksum: request.promptPrefixChecksum ?? createHash("sha256").update(request.system, "utf8").digest("hex"), prefixBytes: request.promptPrefixBytes ?? Buffer.byteLength(request.system, "utf8"), contextMetrics: request.contextBundle?.metrics, requestCount: 1, retryCount: retries, correctionCount: correction ? 1 : 0, promptVersion: request.promptVersion }) as ProviderUsage;
+    const usage = createInvocationUsageRecord({ invocationFingerprint: this.fingerprint(request) ?? randomUUID(), agentId: request.role, ...(request.contextBundle?.taskId ? { taskId: request.contextBundle.taskId } : {}), workflowStage: request.contextBundle?.workflowStage ?? request.role, role: request.role, ...(request.contextBundle?.contextBundleId ? { contextBundleId: request.contextBundle.contextBundleId } : {}), ...(request.contextBundle?.checksum ? { contextChecksum: request.contextBundle.checksum } : {}), provider: "openai", model: this.config.model, ...(request.reasoning ? { reasoningEffort: request.reasoning.effort } : {}), ...(result.inputTokens === undefined ? {} : { inputTokens: result.inputTokens }), ...(result.cachedInputTokens === undefined ? {} : { cachedInputTokens: result.cachedInputTokens }), ...(result.outputTokens === undefined ? {} : { outputTokens: result.outputTokens }), ...(result.inputTokens !== undefined && result.outputTokens !== undefined ? { totalTokens: result.inputTokens + result.outputTokens } : {}), actualUsageCaptured, cacheTelemetryUnavailable: result.cachedInputTokens === undefined, prefixChecksum: request.promptPrefixChecksum ?? createHash("sha256").update(request.system, "utf8").digest("hex"), prefixBytes: request.promptPrefixBytes ?? Buffer.byteLength(request.system, "utf8"), contextMetrics: request.contextBundle?.metrics, requestCount: 1, retryCount: retries, correctionCount: correction ? 1 : 0, promptVersion: request.promptVersion }) as ProviderUsage;
     await this.usageSink?.(usage);
     return usage;
   }
@@ -311,7 +316,87 @@ function completionResponseDiagnostic<T>(completion: ChatCompletion, request: St
   return { stage: "api_response", requestAttempted: true, apiResponseReceived: true, responseReceived: true, outputComplete, tokenExhaustion: choice?.finish_reason === "length" || (outputTokens !== undefined && outputTokens >= maxCompletionTokens), requestId: completion.id, choicesCount: completion.choices.length, finishReason: choice?.finish_reason ?? null, refusalPresent: Boolean(message?.refusal), parsedPresent, contentPresent: typeof message?.content === "string", contentLength: typeof message?.content === "string" ? message.content.length : undefined, schemaName: request.schemaName, inputTokens, outputTokens, ...(inputTokens !== undefined && outputTokens !== undefined ? { totalTokens: inputTokens + outputTokens } : {}), maxCompletionTokens };
 }
 
+function configuredRequest<T>(request: StructuredRequest<T>, config: AiProviderConfig): StructuredRequest<T> {
+  const explicit = request.reasoning;
+  if (explicit && (explicit.effort !== LUNA_REASONING_EFFORT || config.model !== LUNA_MODEL)) {
+    throw new AiProviderError("AI_MODEL_REASONING_UNSUPPORTED", "The requested reasoning configuration is not supported by the configured model.", undefined, {
+      stage: "request_construction",
+      outputStage: "REQUEST_SCHEMA_CONSTRUCTION_FAILED",
+      requestAttempted: false,
+      apiResponseReceived: false,
+      responseReceived: false,
+      outputComplete: false,
+      schemaName: request.schemaName,
+      reasoningEffort: explicit.effort === LUNA_REASONING_EFFORT ? LUNA_REASONING_EFFORT : undefined,
+    });
+  }
+  const reasoning = explicit ?? reasoningConfigurationForRole(config.model, request.role);
+  return reasoning ? { ...request, reasoning } : request;
+}
+
+function responseTextFormat(responseFormat: unknown) {
+  const jsonSchema = (responseFormat as unknown as { json_schema: { name: string; strict?: boolean; schema: Record<string, unknown> } }).json_schema;
+  return { type: "json_schema" as const, name: jsonSchema.name, strict: jsonSchema.strict ?? true, schema: jsonSchema.schema };
+}
+
+type ResponsesTransport = {
+  id: string;
+  status?: string;
+  output_text?: string;
+  output?: Array<{ type?: string; content?: Array<{ type?: string }> }>;
+  usage?: { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } };
+};
+
+async function responsesExecutor<T>(request: StructuredRequest<T>, client: OpenAI, config: AiProviderConfig, correction: boolean) {
+  const responseFormat = buildProductionResponseFormat(request.schema, request.schemaName, { schemaDefinitions: request.schemaDefinitions });
+  const correctionInstruction = request.role === "design" ? "\nReturn exactly 3 directions. Repair only the structural deficiency; do not omit, clone, or add a fourth direction." : "\nCorrect the previous structured-output formatting.";
+  const response = await client.responses.create({
+    model: config.model,
+    max_output_tokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS,
+    instructions: `${request.system}${correction ? correctionInstruction : ""}`,
+    input: request.user,
+    reasoning: request.reasoning,
+    text: { format: responseTextFormat(responseFormat) },
+    store: false,
+    stream: false,
+  } as never, request.signal ? { signal: request.signal } : undefined) as unknown as ResponsesTransport;
+  const usage = response.usage;
+  const outputTokens = usage?.output_tokens;
+  const inputTokens = usage?.input_tokens;
+  const cachedInputTokens = usage?.input_tokens_details?.cached_tokens;
+  const outputText = response.output_text;
+  const responseReceived = true;
+  const outputComplete = response.status === "completed";
+  const responseDiagnostic: ProviderDiagnostic = {
+    stage: "api_response",
+    requestAttempted: true,
+    apiResponseReceived: true,
+    responseReceived,
+    outputComplete,
+    tokenExhaustion: response.status === "incomplete",
+    requestId: response.id,
+    choicesCount: response.output?.length,
+    finishReason: response.status === "completed" ? "stop" : response.status ?? null,
+    refusalPresent: Boolean(response.output?.some((item) => item.type === "message" && item.content?.some((part) => part.type === "refusal"))),
+    parsedPresent: false,
+    contentPresent: typeof outputText === "string" && outputText.length > 0,
+    contentLength: typeof outputText === "string" ? outputText.length : undefined,
+    schemaName: request.schemaName,
+    inputTokens,
+    outputTokens,
+    ...(inputTokens !== undefined && outputTokens !== undefined ? { totalTokens: inputTokens + outputTokens } : {}),
+    maxCompletionTokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS,
+    reasoningEffort: request.reasoning?.effort,
+  };
+  if (responseDiagnostic.refusalPresent) throw new AiProviderError("AI_OUTPUT_REFUSED", "The provider refused the structured request.", undefined, { ...responseDiagnostic, outputStage: "PROVIDER_REFUSAL", outputComplete: false });
+  if (!outputComplete) throw new AiProviderError("AI_OUTPUT_TRUNCATED", "The provider output was incomplete.", undefined, { ...responseDiagnostic, outputStage: "PROVIDER_OUTPUT_INCOMPLETE", outputComplete: false });
+  if (typeof outputText !== "string" || outputText.length === 0) throw new AiProviderError("AI_OUTPUT_NO_PARSED_OUTPUT", "The provider returned no structured output content.", undefined, { ...responseDiagnostic, outputStage: "STRUCTURED_OUTPUT_PARSE_FAILED", outputComplete: false, contentPresent: false });
+  const parsed = parseProviderWireContent({ content: outputText, schema: request.schema, response: { requestId: response.id, inputTokens, ...(cachedInputTokens === undefined ? {} : { cachedInputTokens }), outputTokens, diagnostic: responseDiagnostic } });
+  return { value: parsed.value, requestId: parsed.requestId, inputTokens: parsed.inputTokens, ...(parsed.cachedInputTokens === undefined ? {} : { cachedInputTokens: parsed.cachedInputTokens }), outputTokens: parsed.outputTokens, diagnostic: parsed.diagnostic } as const;
+}
+
 async function manualExecutor<T>(request: StructuredRequest<T>, client: OpenAI, config: AiProviderConfig, correction: boolean, captureResponse: ProviderResponseCapture) {
+  if (request.reasoning) return responsesExecutor(request, client, config, correction);
   const responseSchema = buildProductionResponseFormat(request.schema, request.schemaName, { schemaDefinitions: request.schemaDefinitions });
   const correctionInstruction = request.role === "design" ? "\nReturn exactly 3 directions. Repair only the structural deficiency; do not omit, clone, or add a fourth direction." : "\nCorrect the previous structured-output formatting.";
   const completion = await client.chat.completions.create({ model: config.model, max_completion_tokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, messages: [{ role: "system", content: `${request.system}${correction ? correctionInstruction : ""}` }, { role: "user", content: request.user }], response_format: responseSchema }, request.signal ? { signal: request.signal } : undefined) as unknown as ChatCompletion;
@@ -330,6 +415,7 @@ async function manualExecutor<T>(request: StructuredRequest<T>, client: OpenAI, 
 }
 
 async function defaultExecutor<T>(request: StructuredRequest<T>, client: OpenAI, config: AiProviderConfig, correction: boolean) {
+  if (request.reasoning) return responsesExecutor(request, client, config, correction);
   const responseSchema = buildProductionResponseFormat(request.schema, request.schemaName, { schemaDefinitions: request.schemaDefinitions });
   const correctionInstruction = request.role === "design" ? "\nReturn exactly 3 directions. Repair only the structural deficiency; do not omit, clone, or add a fourth direction." : "\nCorrect the previous structured-output formatting.";
   const completion = await client.chat.completions.parse({ model: config.model, max_completion_tokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, messages: [{ role: "system", content: `${request.system}${correction ? correctionInstruction : ""}` }, { role: "user", content: request.user }], response_format: responseSchema }, request.signal ? { signal: request.signal } : undefined);
@@ -380,7 +466,9 @@ function requestMetadata<T>(request: StructuredRequest<T>, responseFormat: unkno
   const inputBytes = Buffer.byteLength(`${system}\n${request.user}`, "utf8");
   const schemaJson = JSON.stringify(responseFormat);
   const schemaSizeBytes = schemaJson === undefined ? undefined : Buffer.byteLength(schemaJson, "utf8");
-  const requestJson = JSON.stringify({ model: config.model, max_completion_tokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, messages: [{ role: "system", content: system }, { role: "user", content: request.user }], response_format: responseFormat });
+  const requestJson = JSON.stringify(request.reasoning
+    ? { model: config.model, max_output_tokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, instructions: system, input: request.user, reasoning: request.reasoning, text: { format: responseTextFormat(responseFormat) }, store: false, stream: false }
+    : { model: config.model, max_completion_tokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, messages: [{ role: "system", content: system }, { role: "user", content: request.user }], response_format: responseFormat });
   const requestSizeBytes = requestJson === undefined ? undefined : Buffer.byteLength(requestJson, "utf8");
   const timeoutConfiguredMs = typeof client.timeout === "number" && Number.isInteger(client.timeout) && client.timeout > 0 && client.timeout <= 86_400_000 ? client.timeout : undefined;
   const configuredMaxRetries = typeof client.maxRetries === "number" && Number.isInteger(client.maxRetries) && client.maxRetries >= 0 && client.maxRetries <= 8 ? client.maxRetries : config.maxRetries;
@@ -392,6 +480,7 @@ function requestMetadata<T>(request: StructuredRequest<T>, responseFormat: unkno
     inputBytes,
     ...(schemaSizeBytes === undefined ? {} : { schemaSizeBytes }),
     maxCompletionTokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS,
+    ...(request.reasoning ? { reasoningEffort: request.reasoning.effort } : {}),
   };
 }
 

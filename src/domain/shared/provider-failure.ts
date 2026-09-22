@@ -111,6 +111,7 @@ export const ProviderFailureDiagnosticSchema = z.object({
   outputTokens: z.number().int().nonnegative().optional(),
   totalTokens: z.number().int().nonnegative().optional(),
   maxCompletionTokens: z.number().int().positive().optional(),
+  reasoningEffort: z.literal("xhigh").optional(),
   rawContentBytes: z.number().int().nonnegative().optional(),
   rawContentChecksum: SafeDiagnosticChecksumSchema.optional(),
   jsonParseSucceeded: z.boolean().optional(),

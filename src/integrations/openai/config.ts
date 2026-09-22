@@ -3,6 +3,17 @@ import { AiProviderError } from "./errors";
 
 export const DEFAULT_AI_MODEL_LABEL = "GPT-5.6 Luna";
 export const DEFAULT_AI_MAX_COMPLETION_TOKENS = 24000;
+export const LUNA_MODEL = "gpt-5.6-luna" as const;
+export const LUNA_REASONING_EFFORT = "xhigh" as const;
+export const WEBSITE_GENERATION_ROLES = ["lead", "planner", "design", "orchestrator", "implementation"] as const;
+export type WebsiteGenerationRole = (typeof WEBSITE_GENERATION_ROLES)[number];
+export type AiReasoningConfiguration = { effort: typeof LUNA_REASONING_EFFORT };
+export function isWebsiteGenerationRole(role: string): role is WebsiteGenerationRole {
+  return (WEBSITE_GENERATION_ROLES as readonly string[]).includes(role);
+}
+export function reasoningConfigurationForRole(model: string, role: string): AiReasoningConfiguration | undefined {
+  return model === LUNA_MODEL && isWebsiteGenerationRole(role) ? { effort: LUNA_REASONING_EFFORT } : undefined;
+}
 const EnvironmentSchema = z.object({ OPENAI_API_KEY: z.string().min(1).optional(), OPENAI_MODEL: z.string().min(1), OPENAI_MAX_RETRIES: z.coerce.number().int().min(0).max(2).default(0), OPENAI_MAX_CONCURRENT_REQUESTS: z.coerce.number().int().min(1).max(8).default(2), OPENAI_MAX_COMPLETION_TOKENS: z.coerce.number().int().min(1000).max(64000).default(DEFAULT_AI_MAX_COMPLETION_TOKENS) }).strict();
 export type AiProviderConfig = { apiKey: string; model: string; modelLabel: string; maxRetries: number; maxConcurrentRequests: number; maxCompletionTokens?: number };
 export function readAiProviderConfig(env: Record<string, string | undefined> = process.env, requireKey = true): AiProviderConfig {

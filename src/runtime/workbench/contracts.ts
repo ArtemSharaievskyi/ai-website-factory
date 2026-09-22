@@ -3,7 +3,7 @@ import type { WorkflowState } from "@/domain/workflow/engine";
 import type { ProjectOrigin } from "@/domain/project/provenance";
 import { FACTORY_OPERATOR_LANGUAGE, OperatorLanguageSchema } from "@/domain/language/schema";
 import type { LanguageResolution, OperatorLanguage } from "@/domain/language/schema";
-import type { ProjectAssetCategory } from "@/domain/assets/project";
+import type { ProjectAssetCategory, ProjectAssetSource } from "@/domain/assets/project";
 import { ClarificationQuestionIdSchema } from "@/domain/requirements/schema";
 import { canonicalUserInstructionSchema, MAX_CANONICAL_USER_INPUT_BYTES } from "@/domain/project/canonical-input";
 import { BriefConsistencyCorrectionInputSchema } from "@/domain/requirements/v3/consistency";
@@ -98,7 +98,7 @@ export type WorkbenchProject = {
 export type WorkbenchAsset = {
   assetId: string;
   category: ProjectAssetCategory;
-  source: "USER_SUPPLIED";
+  source: ProjectAssetSource;
   safeDisplayName: string;
   mediaType: string;
   byteSize: number;

@@ -126,6 +126,9 @@ const REQUEST_CONSTRUCTION_CODES = new Set<AiProviderErrorCode>([
   "AI_CONFIGURATION_INVALID",
   "AI_REQUEST_SCHEMA_INVALID",
   "AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED",
+  "AI_MODEL_REASONING_UNSUPPORTED",
+  "AI_IMAGE_CONFIGURATION_INVALID",
+  "AI_IMAGE_PROTECTED_ASSET",
 ]);
 
 function safeToken(value: unknown) {
@@ -180,14 +183,14 @@ function safeZodIssues(value: ProviderDiagnostic["zodIssuesBounded"]) {
 
 function categoryFor(input: ProviderFailureDiagnosticInput, status: number | undefined, providerErrorCode: string | undefined, transportFailureClass?: ProviderFailureDiagnostic["transportFailureClass"]): ProviderFailureDiagnostic["category"] {
   if (status === 401 || status === 403 || input.errorCode === "AI_AUTHENTICATION_FAILED") return "AUTHENTICATION";
-  if (status === 404 || input.errorCode === "AI_MODEL_ACCESS_FAILED") return "MODEL_ACCESS";
+  if (status === 404 || input.errorCode === "AI_MODEL_ACCESS_FAILED" || input.errorCode === "AI_IMAGE_MODEL_UNAVAILABLE") return "MODEL_ACCESS";
   if (status === 429 || input.errorCode === "AI_RATE_LIMITED") return "RATE_LIMIT";
   if (status !== undefined && status >= 500 || input.errorCode === "AI_PROVIDER_UNAVAILABLE") return "PROVIDER_UNAVAILABLE";
   if (input.errorCode === "AI_REQUEST_TIMEOUT" || providerErrorCode === "ETIMEDOUT" || transportFailureClass === "CONNECT_TIMEOUT" || transportFailureClass === "RESPONSE_TIMEOUT") return "TIMEOUT";
   if (input.errorCode === "AI_REQUEST_CANCELLED" || input.diagnostic?.sdkErrorClass === "AbortError" || transportFailureClass === "REQUEST_ABORTED") return "CANCELLED";
   if (input.errorCode === "AI_NETWORK_ERROR" || providerErrorCode === "ECONNRESET" || ["DNS_RESOLUTION_FAILED", "CONNECT_FAILED", "TLS_HANDSHAKE_FAILED", "CONNECTION_RESET", "RESPONSE_STREAM_FAILED", "UNKNOWN_TRANSPORT_FAILURE"].includes(transportFailureClass ?? "")) return "NETWORK";
   if (REQUEST_CONSTRUCTION_CODES.has(input.errorCode) || !input.requestAttempted) return "REQUEST_CONSTRUCTION";
-  if (input.errorCode === "AI_REQUEST_INVALID" || input.errorCode === "AI_REQUEST_PARAMETER_UNSUPPORTED") return "REQUEST_REJECTED";
+  if (input.errorCode === "AI_REQUEST_INVALID" || input.errorCode === "AI_REQUEST_PARAMETER_UNSUPPORTED" || input.errorCode === "AI_IMAGE_CONTENT_POLICY_REJECTED") return "REQUEST_REJECTED";
   if (STRUCTURED_OUTPUT_CODES.has(input.errorCode) || input.diagnostic?.stage === "api_response" || input.diagnostic?.stage === "structured_parse" || input.diagnostic?.stage === "domain_validation") return "STRUCTURED_OUTPUT";
   return "UNKNOWN";
 }

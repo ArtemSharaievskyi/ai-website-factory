@@ -114,16 +114,16 @@ describePilot("Haus & Garten Service Planning Recovery pilot shape", () => {
       throw Object.assign(new Error("network boundary intentionally stopped"), { code: "ECONNRESET" });
     });
     const config = readAiProviderConfig({ OPENAI_API_KEY: "synthetic-provider-key", OPENAI_MODEL: configuredProviderModel(), OPENAI_MAX_RETRIES: "0", OPENAI_MAX_CONCURRENT_REQUESTS: "1" });
-    const provider = new OpenAiPlannerProvider(new OpenAiStructuredClient(config, { client: { chat: { completions: { create } } } as never }));
+    const provider = new OpenAiPlannerProvider(new OpenAiStructuredClient(config, { client: { responses: { create } } } as never));
     await expect(provider.planRecovery(input, [], "none", "2026-08-31T00:00:00.000Z")).rejects.toMatchObject({ code: "AI_NETWORK_ERROR", diagnostic: { stage: "api_request", requestAttempted: true, apiResponseReceived: false }, failureDiagnostic: { category: "NETWORK", stage: "REQUEST_TRANSPORT", requestAttempted: true, responseReceived: false, schemaName: "planning-recovery-package" } });
     expect(create).toHaveBeenCalledTimes(1);
     expect(capturedRequest).toBeDefined();
-    const responseFormat = capturedRequest!.response_format as { type: string; json_schema: { name: string; strict: boolean; schema: unknown } };
-    expect(responseFormat).toMatchObject({ type: "json_schema", json_schema: { name: "planning-recovery-package", strict: true } });
+    const responseFormat = capturedRequest!.text as { format: { type: string; name: string; strict: boolean; schema: unknown } };
+    expect(responseFormat).toMatchObject({ format: { type: "json_schema", name: "planning-recovery-package", strict: true } });
     expect(() => JSON.stringify(capturedRequest)).not.toThrow();
-    const userMessage = (capturedRequest!.messages as Array<{ role?: string; content?: unknown }>).find((message) => message.role === "user");
-    expect(userMessage?.content).toEqual(expect.stringContaining("planning-recovery-full-package"));
-    expect(() => JSON.stringify(responseFormat.json_schema.schema)).not.toThrow();
+    expect(capturedRequest!.reasoning).toEqual({ effort: "xhigh" });
+    expect(capturedRequest!.input).toEqual(expect.stringContaining("planning-recovery-full-package"));
+    expect(() => JSON.stringify(responseFormat.format.schema)).not.toThrow();
   });
 });
 

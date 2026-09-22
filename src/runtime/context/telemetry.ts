@@ -17,6 +17,7 @@ export type InvocationUsageRecord = {
   contextChecksum?: string;
   provider: string;
   model: string;
+  reasoningEffort?: "xhigh";
   resultIdentity?: string;
   inputTokens?: number;
   cachedInputTokens?: number;

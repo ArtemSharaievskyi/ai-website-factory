@@ -88,6 +88,7 @@ export type AssetUploadInput = {
 };
 
 export type AssetUploadResult = { asset: ProjectAsset; deduplicated: boolean };
+export type GeneratedAssetPersistInput = Omit<AssetUploadInput, "replaceAssetId"> & { replaceAssetId?: string; provenance: NonNullable<ProjectAsset["generationProvenance"]> };
 
 const hasPrefix = (bytes: Uint8Array, prefix: number[]) => prefix.every((value, index) => bytes[index] === value);
 const validSignature = (mediaType: ProjectAsset["mediaType"], bytes: Uint8Array) => {
@@ -240,6 +241,51 @@ export class ProjectAssetService {
       throw new AssetIntakeError("ASSET_INTERNAL_ERROR", "The asset could not be finalized.");
     }
     return { asset: ready, deduplicated: false };
+  }
+
+  /** Persist a validated non-logo provider result through the same project asset storage pipeline. */
+  async persistGenerated(input: GeneratedAssetPersistInput): Promise<AssetUploadResult> {
+    if (input.category !== "IMAGE") throw new AssetIntakeError("ASSET_CATEGORY_INVALID", "AI generation is only allowed for supporting IMAGE assets.");
+    if (input.provenance.actualMimeType !== input.mediaType) throw new AssetIntakeError("ASSET_MIME_MISMATCH", "Generated asset provenance does not match the returned bytes.");
+    if (input.provenance.sha256 !== createHash("sha256").update(input.bytes).digest("hex")) throw new AssetIntakeError("ASSET_CHECKSUM_MISMATCH", "Generated asset provenance checksum does not match the returned bytes.");
+    const current = await this.requireProject(input.projectId);
+    if (input.provenance.projectId !== input.projectId || input.provenance.projectVersion !== current.project.currentVersion) throw new AssetIntakeError("ASSET_VERSION_STALE", "Generated asset provenance is not bound to the current project version.");
+    const mediaType = input.mediaType as ProjectAsset["mediaType"];
+    if (!Object.prototype.hasOwnProperty.call(EXTENSIONS, mediaType) || mediaType === "application/pdf") throw new AssetIntakeError("ASSET_TYPE_NOT_ALLOWED", "Generated assets must be PNG, JPEG, or WebP images.");
+    if (!input.bytes.byteLength) throw new AssetIntakeError("ASSET_FILE_REQUIRED", "Generated image bytes are empty.");
+    const displayName = safeDisplayName(input.filename);
+    const extension = displayName.toLowerCase().split(".").pop() ?? "";
+    if (extension !== EXTENSIONS[mediaType] && !(mediaType === "image/jpeg" && extension === "jpeg")) throw new AssetIntakeError("ASSET_EXTENSION_MISMATCH", "The generated filename does not match the returned media type.");
+    if (input.bytes.byteLength > PROJECT_ASSET_LIMITS.imageBytes) throw new AssetIntakeError("ASSET_SIZE_LIMIT", "The generated image exceeds the allowed size.");
+    if (!validSignature(mediaType, input.bytes)) throw new AssetIntakeError("ASSET_SIGNATURE_INVALID", "The generated image signature is invalid.");
+    let existing: ProjectAsset[];
+    try { existing = await this.assets.list(input.projectId); } catch (error) { if (error instanceof PersistenceError) throw metadataPersistenceFailure(); throw error; }
+    const replacementCandidate = input.replaceAssetId ? existing.find((asset) => asset.assetId === input.replaceAssetId) : undefined;
+    if (replacementCandidate?.category === "LOGO") throw new AssetIntakeError("ASSET_CATEGORY_INVALID", "A user-supplied logo cannot be replaced by generated imagery.");
+    const replaced = replacementCandidate?.status === "READY" && replacementCandidate.currentness === "CURRENT" ? replacementCandidate : undefined;
+    const duplicate = existing.find((asset) => asset.status === "READY" && asset.currentness === "CURRENT" && asset.category === "IMAGE" && asset.source === "AI_GENERATED" && asset.mediaType === mediaType && asset.sha256 === input.provenance.sha256);
+    if (duplicate) return { asset: duplicate, deduplicated: true };
+    if (input.replaceAssetId && !replaced) throw new AssetIntakeError("ASSET_NOT_FOUND", "The generated asset replacement target was not found.");
+    const currentBytes = existing.filter((asset) => asset.status === "READY" && asset.currentness === "CURRENT").reduce((sum, asset) => sum + asset.byteSize, 0) - (replaced?.byteSize ?? 0);
+    if (currentBytes + input.bytes.byteLength > PROJECT_ASSET_LIMITS.projectBytes) throw new AssetIntakeError("ASSET_PROJECT_SIZE_LIMIT", "The project asset storage limit would be exceeded.");
+    const assetId = randomUUID();
+    const storageIdentity = `projects/${input.projectId}/assets/${assetId}/${EXTENSIONS[mediaType]}`;
+    const target = this.safePath(storageIdentity);
+    const timestamp = new Date().toISOString();
+    const uploading = ProjectAssetSchema.parse({ schemaVersion: 1, assetId, projectId: input.projectId, projectVersion: current.project.currentVersion, category: "IMAGE", source: "AI_GENERATED", generationProvenance: input.provenance, safeDisplayName: displayName, mediaType, byteSize: input.bytes.byteLength, sha256: input.provenance.sha256, storageIdentity, status: "UPLOADING", createdAt: timestamp, updatedAt: timestamp, version: (replaced?.version ?? 0) + 1, currentness: "CURRENT", ...(replaced ? { supersedesAssetId: replaced.assetId } : {}) });
+    try { await this.assets.create(uploading); } catch (error) { if (error instanceof PersistenceError) throw metadataPersistenceFailure(); throw error; }
+    const temporary = `${target}.uploading-${randomUUID()}`;
+    try { await mkdir(path.dirname(target), { recursive: true }); await writeFile(temporary, input.bytes, { flag: "wx" }); await rename(temporary, target); } catch { await rm(temporary, { force: true }).catch(() => undefined); await rm(target, { force: true }).catch(() => undefined); await this.assets.delete(uploading.projectId, uploading.assetId).catch(() => undefined); throw new AssetIntakeError("ASSET_STORAGE_FAILED", "The Factory could not persist the generated image."); }
+    const generated = ProjectAssetSchema.parse({ ...uploading, status: "READY", updatedAt: new Date().toISOString() });
+    try {
+      const persisted = await this.assets.update(generated);
+      if (replaced) { await this.assets.update(ProjectAssetSchema.parse({ ...replaced, status: "SUPERSEDED", currentness: "SUPERSEDED", updatedAt: new Date().toISOString() })); await rm(this.safePath(replaced.storageIdentity), { force: true }).catch(() => undefined); }
+      return { asset: persisted, deduplicated: false };
+    } catch (error) {
+      await rm(temporary, { force: true }).catch(() => undefined); await rm(target, { force: true }).catch(() => undefined); await this.assets.delete(uploading.projectId, uploading.assetId).catch(() => undefined);
+      if (error instanceof PersistenceError) throw metadataPersistenceFailure();
+      throw new AssetIntakeError("ASSET_INTERNAL_ERROR", "The generated asset could not be finalized.");
+    }
   }
 
   async remove(projectId: string, assetId: string) {

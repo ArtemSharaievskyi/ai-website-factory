@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ContextBundle } from "@/runtime/context";
 import type { KnownTransportCauseCode, ProviderTransportElapsedBucket, ProviderTransportFailureClass, ProviderTransportPhase } from "@/domain/shared/provider-failure";
-export type ProviderUsage = { inputTokens?: number; cachedInputTokens?: number; uncachedInputTokens?: number; outputTokens?: number; totalTokens?: number; actualUsageCaptured: boolean; cacheTelemetryUnavailable: boolean; requestCount: number; retryCount: number; correctionCount: number; provider: string; model: string; role: string; promptVersion: string; invocationId?: string; invocationFingerprint?: string; contextBundleId?: string; contextChecksum?: string; prefixChecksum?: string; prefixBytes?: number; contextMetrics?: ContextBundle["metrics"] };
+export type ProviderUsage = { inputTokens?: number; cachedInputTokens?: number; uncachedInputTokens?: number; outputTokens?: number; totalTokens?: number; actualUsageCaptured: boolean; cacheTelemetryUnavailable: boolean; requestCount: number; retryCount: number; correctionCount: number; provider: string; model: string; role: string; promptVersion: string; reasoningEffort?: "xhigh"; invocationId?: string; invocationFingerprint?: string; contextBundleId?: string; contextChecksum?: string; prefixChecksum?: string; prefixBytes?: number; contextMetrics?: ContextBundle["metrics"] };
 export type ProviderDiagnosticStage = "request_construction" | "api_request" | "api_response" | "structured_parse" | "domain_validation" | "provider_normalization";
 export const PROVIDER_OUTPUT_STAGES = [
   "REQUEST_SCHEMA_CONSTRUCTION_FAILED",
@@ -61,6 +61,7 @@ export type ProviderDiagnostic = {
   outputTokens?: number;
   totalTokens?: number;
   maxCompletionTokens?: number;
+  reasoningEffort?: "xhigh";
   rawContentBytes?: number;
   rawContentChecksum?: string;
   jsonParseSucceeded?: boolean;

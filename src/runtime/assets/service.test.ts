@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -131,6 +132,20 @@ describe("project-scoped Asset Intake ASSET1-ASSET36 / AUP1-AUP36", () => {
       expect(uploaded.asset.source).toBe("USER_SUPPLIED");
       expect(f.database.projects.get(f.projectId)?.workflow_state).toBe("CLARIFYING");
       expect(f.database.projects.get(f.projectId)?.row_version).toBe(current.row_version);
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+
+  it("persists AI-generated supporting imagery with bounded provenance and never replaces a logo", async () => {
+    const f = await fixture();
+    try {
+      const bytes = png(32, 7);
+      const sha256 = createHash("sha256").update(bytes).digest("hex");
+      const provenance = { provider: "openai" as const, projectId: f.projectId, projectVersion: 1, assetPurpose: "supporting hero image", modelFamily: "gpt-image-2.5-flare", resolvedModel: "gpt-image-2.5-flare-2026-09-08", requestId: "img_asset_fixture", promptVersion: "image-art-direction.v1", requestedQuality: "xhigh" as const, resolvedQuality: "xhigh" as const, requestedMimeType: "image/png" as const, actualMimeType: "image/png" as const, requestedWidth: 32, requestedHeight: 7, actualWidth: 32, actualHeight: 7, byteSize: bytes.byteLength, sha256, providerStatus: "completed" as const, retryCount: 0 as const, usage: { costStatus: "UNAVAILABLE" as const } };
+      const generated = await f.assets.persistGenerated({ projectId: f.projectId, category: "IMAGE", filename: "generated.png", mediaType: "image/png", bytes, provenance });
+      expect(generated.asset).toMatchObject({ source: "AI_GENERATED", generationProvenance: provenance, status: "READY", currentness: "CURRENT" });
+      const logo = await f.assets.upload({ projectId: f.projectId, category: "LOGO", filename: "logo.png", mediaType: "image/png", bytes: png(32, 8) });
+      await expect(f.assets.persistGenerated({ projectId: f.projectId, category: "IMAGE", filename: "replacement.png", mediaType: "image/png", bytes, replaceAssetId: logo.asset.assetId, provenance })).rejects.toMatchObject({ code: "ASSET_CATEGORY_INVALID" });
+      expect((await f.assets.get(f.projectId, logo.asset.assetId))?.source).toBe("USER_SUPPLIED");
     } finally { await rm(f.root, { recursive: true, force: true }); }
   });
 });
