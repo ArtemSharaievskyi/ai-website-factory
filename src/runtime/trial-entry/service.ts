@@ -36,7 +36,7 @@ import { createBriefV3OperationIdentity, createRevisionCurrentnessToken, Revisio
 import type { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
 import { BriefV3TransactionError } from "@/runtime/brief-revision-v3/errors";
 import type { BriefV3AssetBinding } from "@/runtime/brief-revision-v3/ports";
-import type { BriefConsistencyCorrectionInput } from "@/domain/requirements/v3/consistency";
+import { deterministicBriefCorrectionInstruction, type BriefConsistencyCorrectionInput } from "@/domain/requirements/v3/consistency";
 import { currentWorkbenchOperationContext } from "@/runtime/workbench/operation-context";
 import { currentRuntimeProvenance } from "@/runtime/workbench/observability";
 import { evaluateBriefReadiness, type BriefReadinessApprovalBlocker } from "@/domain/requirements/v3/readiness";
@@ -598,10 +598,11 @@ export class TrialEntryService {
     const requirementKeys = input.requirementKeys ?? ["project-brief"];
     const correction = input.correction;
     if (correction && project.project.workflowState !== "AWAITING_BRIEF_APPROVAL") throw new LeadError("BRIEF_REVISION_REQUIRED", "Deterministic Brief consistency correction is only available at the Brief approval frontier.");
-    const correctionBindings = correction ? [correction.assetBinding] : [];
+    const correctionBindings = correction && "assetBinding" in correction ? [correction.assetBinding] : [];
     const assetBindings = input.assetBindings ?? correctionBindings;
-    if (correction && (assetBindings.length !== 1 || assetBindings[0]?.assetId !== correction.assetBinding.assetId || assetBindings[0]?.sha256 !== correction.assetBinding.sha256)) throw new LeadError("BRIEF_REVISION_REQUIRED", "The deterministic Brief correction asset binding is inconsistent.");
-    const revisionInstruction = correction ? `Deterministic Brief consistency correction:${JSON.stringify(correction)}` : reason;
+    if (correction && "assetBinding" in correction && (assetBindings.length !== 1 || assetBindings[0]?.assetId !== correction.assetBinding.assetId || assetBindings[0]?.sha256 !== correction.assetBinding.sha256)) throw new LeadError("BRIEF_REVISION_REQUIRED", "The deterministic Brief correction asset binding is inconsistent.");
+    if (correction && !("assetBinding" in correction) && assetBindings.length) throw new LeadError("BRIEF_REVISION_REQUIRED", "A public email correction cannot carry unrelated asset bindings.");
+    const revisionInstruction = correction ? deterministicBriefCorrectionInstruction(correction) : reason;
     const targetWorkflowState = correction ? "AWAITING_BRIEF_APPROVAL" as const : undefined;
     const expectedCurrentness = await this.briefRevisionCurrentness({ ...input, reason: revisionInstruction, requirementKeys, assetBindings, targetWorkflowState });
     const supportingContext = assetBindings.length

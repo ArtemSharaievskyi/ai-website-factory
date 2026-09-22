@@ -16,7 +16,7 @@ import type { BriefRevisionAttemptRow, BriefRevisionAtomicCommitInput, BriefRevi
 import { ProviderFailureDiagnosticSchema, type ProviderFailureDiagnostic } from "@/domain/shared/provider-failure";
 import { newWorkflowEvent } from "@/persistence/database/workflow-events";
 import { BriefV3ProviderError } from "@/integrations/openai-v3/errors";
-import { assertCanonicalBriefConsistency, createBriefConsistencyCorrectionChangeSet, type BriefConsistencyCorrectionInput } from "@/domain/requirements/v3/consistency";
+import { assertCanonicalBriefConsistency, createBriefConsistencyCorrectionChangeSet, deterministicBriefCorrectionInstruction, type BriefConsistencyCorrectionInput } from "@/domain/requirements/v3/consistency";
 import type { CanonicalBriefV3 } from "@/domain/requirements/v3/schema";
 import type { RequirementIdentityLineage } from "@/domain/requirements/v3/identity";
 import { assertCurrentV3RequirementNamespace, bindProviderRequirementIdentities, canonicalRequirementEntries, createRequirementProposalHandles, isV3RequirementId } from "@/domain/requirements/v3/identity";
@@ -69,7 +69,8 @@ export class BriefV3TransactionService {
 
   async execute(input: BriefV3TransactionInput): Promise<BriefV3CommittedResult> {
     const expectedCurrentness = createRevisionCurrentnessToken(input.expectedCurrentness);
-    const identity = createBriefV3OperationIdentity({ projectId: input.projectId, projectVersion: input.projectVersion, revisionInstruction: input.revisionInstruction, targetHints: input.targetHints, targetWorkflowState: input.targetWorkflowState, currentness: expectedCurrentness, assetBindings: input.assetBindings });
+    const identityInstruction = input.deterministicCorrection ? deterministicBriefCorrectionInstruction(input.deterministicCorrection) : input.revisionInstruction;
+    const identity = createBriefV3OperationIdentity({ projectId: input.projectId, projectVersion: input.projectVersion, revisionInstruction: identityInstruction, targetHints: input.targetHints, targetWorkflowState: input.targetWorkflowState, currentness: expectedCurrentness, assetBindings: input.assetBindings });
     const createdAt = now(input);
     const reserved = await this.attempts.reserve({ id: randomUUID(), operationKind: identity.operationKind, operationKey: identity.operationKey, payloadHash: identity.payloadHash, projectId: input.projectId, projectVersion: input.projectVersion, currentnessToken: identity.currentness as unknown as Record<string, unknown>, now: createdAt });
     if (reserved.status === "COMMITTED") return committedResultFromRow(reserved, "COMMITTED_REPLAY");

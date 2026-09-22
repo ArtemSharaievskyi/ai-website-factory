@@ -41,7 +41,8 @@ const ProviderUnresolvedValueSchema = z.object({
 }).strict();
 
 type ProviderFixedTargetBinding = { valueType: TargetCatalogEntry["valueType"] };
-type ProviderFixedTargetBindings = { [Target in FixedSetTargetId]: ProviderFixedTargetBinding };
+type ProviderWritableFixedSetTargetId = Exclude<FixedSetTargetId, typeof SEMANTIC_TARGETS.PUBLIC_CONTACT_EMAIL>;
+type ProviderFixedTargetBindings = { [Target in ProviderWritableFixedSetTargetId]: ProviderFixedTargetBinding };
 
 /**
  * Exhaustive provider mapping metadata. The key type is derived from the V3
@@ -152,5 +153,7 @@ export type ProviderBriefChangeSet = z.infer<typeof ProviderBriefChangeSetSchema
 
 /** Stable supporting context for the model; the schemas remain the executable authority. */
 export function providerTargetContract() {
-  return TARGET_CATALOG.map((entry) => ({ target: entry.id, operation: entry.operation, valueType: entry.valueType }));
+  return TARGET_CATALOG
+    .filter((entry) => entry.providerWritable !== false)
+    .map((entry) => ({ target: entry.id, operation: entry.operation, valueType: entry.valueType }));
 }

@@ -13,7 +13,7 @@ const unknownTarget = (target: string): never => {
   throw new BriefV3Error("BRIEF_V3_UNKNOWN_TARGET", { target });
 };
 
-export type CanonicalDomain = "form" | "database" | "auth" | "analytics" | "route" | "brand" | "scope" | "seo" | "legal" | "title" | "evidence" | "unresolved" | "requirements" | "assets" | "pages";
+export type CanonicalDomain = "form" | "database" | "auth" | "analytics" | "route" | "brand" | "scope" | "seo" | "legal" | "contact" | "title" | "evidence" | "unresolved" | "requirements" | "assets" | "pages";
 
 export function targetDomain(target: SemanticTargetId): CanonicalDomain {
   if (isRequirementTarget(target)) return "requirements";
@@ -44,6 +44,7 @@ export function targetDomain(target: SemanticTargetId): CanonicalDomain {
     case SEMANTIC_TARGETS.LEGAL_PLACEHOLDER_POLICY:
     case SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY:
     case SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR: return "legal";
+    case SEMANTIC_TARGETS.PUBLIC_CONTACT_EMAIL: return "contact";
     case SEMANTIC_TARGETS.BRIEF_TITLE: return "title";
     case SEMANTIC_TARGETS.BRIEF_EVIDENCE: return "evidence";
     case SEMANTIC_TARGETS.BRIEF_UNRESOLVED: return "unresolved";
@@ -77,6 +78,7 @@ export function readSemanticTarget(brief: CanonicalBriefV3, target: SemanticTarg
     case SEMANTIC_TARGETS.LEGAL_PLACEHOLDER_POLICY: return brief.legal.placeholderPolicy;
     case SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY: return brief.legal.inventedFactsPolicy;
     case SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR: return brief.legal.confirmedProprietor ?? null;
+    case SEMANTIC_TARGETS.PUBLIC_CONTACT_EMAIL: return brief.contact?.publicEmail ?? null;
     case SEMANTIC_TARGETS.BRIEF_TITLE: return brief.title;
     case SEMANTIC_TARGETS.BRIEF_EVIDENCE: return brief.evidence;
     case SEMANTIC_TARGETS.BRIEF_UNRESOLVED: return brief.unresolved;

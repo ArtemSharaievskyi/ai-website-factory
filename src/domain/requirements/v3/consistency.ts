@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { createV3RequirementId } from "./identity";
 import { BriefV3Error } from "./errors";
@@ -6,6 +7,7 @@ import {
   CanonicalBriefV3Schema,
   CanonicalEvidenceSchema,
   CanonicalRequirementValueSchema,
+  CanonicalPublicEmailSchema,
   CanonicalSeoSchema,
   ConfirmedProprietorSchema,
   type CanonicalBriefV3,
@@ -14,7 +16,7 @@ import {
   type CanonicalRequirement,
 } from "./schema";
 import { SEMANTIC_TARGETS, pageTargetForSlug } from "./targets";
-import { normalizeCanonicalBrief } from "./normalize";
+import { normalizeCanonicalBrief, stableSerialize } from "./normalize";
 
 const source = "customer-confirmation:brief-consistency";
 const systemSource = "system:brief-consistency";
@@ -25,7 +27,7 @@ const legalMarker = /(?:legal|proprietor|inhaber|impressum|datenschutz|tax|vat|r
 const serviceExclusionMarker = /(?:legal|proprietor|inhaber|safety|exclude|exclusion|not\s+infer|do\s+not\s+invent|service\s+scope|service\s+exclusion)/iu;
 const placeholderPattern = /\[\s*(PHONE|WHATSAPP|EMAIL|ADDRESS|POSTAL[_ -]?ADDRESS|REGISTRATION|TAX|VAT|CONTACT)\s*\]/giu;
 
-export const BriefConsistencyCorrectionInputSchema = z.object({
+const BrandConsistencyCorrectionInputSchema = z.object({
   marketingName: z.string().trim().min(1).max(300),
   proprietorName: z.string().trim().min(1).max(300),
   primaryStructure: z.literal("ONE_PAGE"),
@@ -35,6 +37,13 @@ export const BriefConsistencyCorrectionInputSchema = z.object({
     sha256: z.string().regex(/^[a-f0-9]{64}$/),
   }).strict(),
 }).strict();
+export const PublicEmailCorrectionInputSchema = z.object({
+  publicEmail: CanonicalPublicEmailSchema,
+}).strict();
+export const BriefConsistencyCorrectionInputSchema = z.union([
+  BrandConsistencyCorrectionInputSchema.extend({ publicEmail: CanonicalPublicEmailSchema.optional() }).strict(),
+  PublicEmailCorrectionInputSchema,
+]);
 export type BriefConsistencyCorrectionInput = z.infer<typeof BriefConsistencyCorrectionInputSchema>;
 
 export type BriefConsistencyIssue = {
@@ -53,8 +62,21 @@ export type BriefConsistencyIssue = {
 
 const normalize = (value: string) => value.normalize("NFKC").replace(/\s+/g, " ").trim().toLocaleLowerCase();
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const contains = (value: string | null | undefined, needle: string) => Boolean(value && normalize(value).includes(normalize(needle)));
+const contains = (value: string | null | undefined, needle: string) => Boolean(value && needle && normalize(value).includes(normalize(needle)));
 const replaceAllInsensitive = (value: string, candidate: string, replacement: string) => value.replace(new RegExp(escapeRegExp(candidate), "giu"), replacement);
+const digest = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
+
+const hasBrandConsistencyCorrection = (correction: BriefConsistencyCorrectionInput): correction is Extract<BriefConsistencyCorrectionInput, { marketingName: string }> => "marketingName" in correction;
+
+/** Operation identity intentionally carries only a digest of the canonical email. */
+export function deterministicBriefCorrectionInstruction(correction: BriefConsistencyCorrectionInput): string {
+  const parsed = BriefConsistencyCorrectionInputSchema.parse(correction);
+  if (!parsed.publicEmail) return `Deterministic Brief consistency correction:${JSON.stringify(parsed)}`;
+  const safe = parsed.publicEmail
+    ? { ...parsed, publicEmail: { ...parsed.publicEmail, email: `sha256:${digest(parsed.publicEmail.email)}` } }
+    : parsed;
+  return `Deterministic Brief consistency correction:${stableSerialize(safe)}`;
+}
 
 export const isLegalAuxiliarySlug = (slug: string): boolean => /^\/?(?:impressum|datenschutz|privacy|imprint|legal|terms)(?:\/)?$/iu.test(slug.trim());
 
@@ -84,10 +106,20 @@ function hasCustomerConfirmation(sourceRefs: readonly string[]): boolean {
   return sourceRefs.some((ref) => /customer[-_: ]confirmation|customer[-_: ]confirmed/iu.test(ref));
 }
 
-function unresolvedForPlaceholders(brief: CanonicalBriefV3, values: readonly string[]): CanonicalBriefV3["unresolved"] {
-  const existing = brief.unresolved.filter((item) => !contains(item.reason, brief.legal.confirmedProprietor?.name ?? ""));
+function isPublicEmailUnresolved(item: CanonicalBriefV3["unresolved"][number]): boolean {
+  const target = item.target.trim();
+  const text = `${item.target} ${item.reason}`;
+  return /^(?:email|e-mail)$/iu.test(target)
+    || /(?:^|[:._-])(?:contact|public[_ -]?contact)[:._-]*(?:email|e-mail)(?:$|[:._-])/iu.test(target)
+    || /\[\s*EMAIL\s*\]/iu.test(text)
+    || /(?:public|contact|impressum|imprint).{0,80}(?:e-?mail|email)/iu.test(text);
+}
+
+function unresolvedForPlaceholders(brief: CanonicalBriefV3, values: readonly string[], resolvedPlaceholders: ReadonlySet<string> = new Set()): CanonicalBriefV3["unresolved"] {
+  const existing = brief.unresolved.filter((item) => !contains(item.reason, brief.legal.confirmedProprietor?.name ?? "") && !(resolvedPlaceholders.has("EMAIL") && isPublicEmailUnresolved(item)));
   const byTarget = new Map(existing.map((item) => [item.target, item]));
   for (const value of values) {
+    if (resolvedPlaceholders.has(value)) continue;
     const target = `CONTACT:${value}`;
     if (!byTarget.has(target)) byTarget.set(target, {
       target,
@@ -120,6 +152,48 @@ function requirementValue(category: CanonicalRequirement["category"], statement:
 
 function evidenceValue(field: string, excerpt: string, sourceRefs: readonly string[] = [source]): CanonicalEvidence {
   return CanonicalEvidenceSchema.parse({ field, source: "customer-confirmation", excerpt, sourceRefs: [...new Set(sourceRefs)] });
+}
+
+function publicEmailEvidence(publicEmail: z.infer<typeof CanonicalPublicEmailSchema>): CanonicalEvidence {
+  return evidenceValue(
+    "contact.publicEmail",
+    `Customer-confirmed public contact email ${publicEmail.email} is authorized for ${publicEmail.publicationScopes.join(" and ")} publication.`,
+  );
+}
+
+function isPublicEmailRequirement(entry: CanonicalRequirement, email: string): boolean {
+  const text = `${entry.id} ${entry.statement}`;
+  return contains(entry.statement, email)
+    || /\[\s*EMAIL\s*\]/iu.test(text)
+    || /(?:public[_ -]?contact|contact|impressum|imprint).{0,80}(?:e-?mail|email)/iu.test(text)
+    || /(?:e-?mail|email).{0,80}(?:public[_ -]?contact|contact|impressum|imprint)/iu.test(text);
+}
+
+function publicEmailRequirementChanges(input: { brief: CanonicalBriefV3; projectId: string; projectVersion: number; publicEmail: z.infer<typeof CanonicalPublicEmailSchema> }): BriefChange[] {
+  const scopes = input.publicEmail.publicationScopes;
+  const candidates = input.brief.requirements.filter((entry) => isPublicEmailRequirement(entry, input.publicEmail.email));
+  const selected = new Set<string>();
+  const changes: BriefChange[] = [];
+  const candidateFor = (scope: "CONTACT" | "IMPRESSUM") => candidates.find((entry) => {
+    if (selected.has(entry.id)) return false;
+    const text = `${entry.id} ${entry.statement}`;
+    if (scope === "IMPRESSUM") return entry.category !== "CONTACT_FACT" && /impressum|imprint|legal/iu.test(text);
+    return entry.category === "CONTACT_FACT" || !/impressum|imprint/iu.test(text);
+  });
+  const addScopeRequirement = (scope: "CONTACT" | "IMPRESSUM") => {
+    const existing = candidateFor(scope);
+    const target = existing?.id ?? requirementId(input.projectId, input.projectVersion, `public-email:${scope.toLocaleLowerCase()}`);
+    const category = scope === "CONTACT" ? "CONTACT_FACT" as const : "LEGAL_FACT" as const;
+    const statement = scope === "CONTACT"
+      ? `Customer-confirmed public contact email: ${input.publicEmail.email}. Publish it in the public contact section; authorized publication scope: CONTACT.`
+      : `Customer-confirmed public contact email: ${input.publicEmail.email}. Include it in the Impressum; authorized publication scope: IMPRESSUM.`;
+    changes.push({ operation: "UPSERT", target: target as `REQUIREMENT:${string}`, value: requirementValue(category, statement, [...(existing?.sourceRefs ?? []), source]), sourceRefs: [source] });
+    selected.add(target);
+  };
+  if (scopes.includes("CONTACT")) addScopeRequirement("CONTACT");
+  if (scopes.includes("IMPRESSUM")) addScopeRequirement("IMPRESSUM");
+  for (const entry of candidates) if (!selected.has(entry.id)) changes.push({ operation: "REMOVE", target: entry.id as `REQUIREMENT:${string}`, sourceRefs: [systemSource] });
+  return changes;
 }
 
 function pageValue(slug: string, purpose: string, sourceRefs: readonly string[] = [source]): CanonicalPage {
@@ -216,9 +290,30 @@ function correctedSeoPageMetadata(brief: CanonicalBriefV3, title: string, market
   ];
 }
 
+function createPublicEmailOnlyCorrectionChangeSet(input: { brief: CanonicalBriefV3; projectId: string; projectVersion: number; correction: Extract<BriefConsistencyCorrectionInput, { publicEmail: unknown; marketingName?: never }> }): BriefChangeSet {
+  const brief = CanonicalBriefV3Schema.parse(input.brief);
+  const publicEmail = CanonicalPublicEmailSchema.parse(input.correction.publicEmail);
+  const normalized = normalizeCanonicalBrief({
+    ...brief,
+    evidence: [...brief.evidence, publicEmailEvidence(publicEmail)],
+    unresolved: unresolvedForPlaceholders(brief, extractPlaceholders(brief), new Set(["EMAIL"])),
+  });
+  return {
+    contractVersion: 1,
+    changes: [
+      { operation: "SET", target: SEMANTIC_TARGETS.PUBLIC_CONTACT_EMAIL, value: publicEmail, sourceRefs: [source] },
+      { operation: "SET", target: SEMANTIC_TARGETS.BRIEF_EVIDENCE, value: normalized.evidence, sourceRefs: [source] },
+      { operation: "SET", target: SEMANTIC_TARGETS.BRIEF_UNRESOLVED, value: normalized.unresolved, sourceRefs: [source] },
+      ...publicEmailRequirementChanges({ brief, projectId: input.projectId, projectVersion: input.projectVersion, publicEmail }),
+    ],
+    unresolved: [],
+  };
+}
+
 /** Deterministically creates a typed patch from confirmed customer facts. No provider is involved. */
 export function createBriefConsistencyCorrectionChangeSet(input: { brief: CanonicalBriefV3; projectId: string; projectVersion: number; correction: BriefConsistencyCorrectionInput }): BriefChangeSet {
   const correction = BriefConsistencyCorrectionInputSchema.parse(input.correction);
+  if (!hasBrandConsistencyCorrection(correction)) return createPublicEmailOnlyCorrectionChangeSet({ ...input, correction });
   const brief = CanonicalBriefV3Schema.parse(input.brief);
   const title = `${correction.marketingName}${brief.title?.includes("·") ? ` · ${brief.title.split("·").slice(1).join("·").trim()}` : ""}`;
   const metaDescription = brief.seo.exactMetaDescription ? rewriteMarketingText(brief.seo.exactMetaDescription, brief, correction.marketingName) : null;
@@ -238,11 +333,13 @@ export function createBriefConsistencyCorrectionChangeSet(input: { brief: Canoni
   const brandInformation = `${correction.marketingName}; customer-confirmed customer-facing brand identity. The registered customer-supplied logo is authoritative and may be responsively sized, placed, spaced, made accessible, and shown on suitable backgrounds; it must not be regenerated, replaced, redrawn, reinterpreted, or substituted.`;
   const logoDescription = "Customer-supplied authoritative logo. Do not regenerate, replace, redraw, reinterpret, substitute, or use replacement company branding; responsive sizing, placement, spacing, accessibility, suitable backgrounds, and non-distorting presentation are allowed.";
   const placeholderValues = extractPlaceholders(brief);
+  const resolvedPlaceholders = correction.publicEmail ? new Set(["EMAIL"]) : new Set<string>();
+  const correctedEvidenceValue = correctedEvidence(brief, correction.marketingName, correction.proprietorName);
   const normalizedFixedValues = normalizeCanonicalBrief({
     ...brief,
     seo: { ...brief.seo, primaryKeywords: keywords, locationTargeting, pageMetadata: correctedSeoPageMetadata(brief, title, correction.marketingName) },
-    evidence: correctedEvidence(brief, correction.marketingName, correction.proprietorName),
-    unresolved: unresolvedForPlaceholders(brief, placeholderValues),
+    evidence: correction.publicEmail ? [...correctedEvidenceValue, publicEmailEvidence(correction.publicEmail)] : correctedEvidenceValue,
+    unresolved: unresolvedForPlaceholders(brief, placeholderValues, resolvedPlaceholders),
   });
   const changes: BriefChange[] = [
     { operation: "SET", target: SEMANTIC_TARGETS.BRAND_REFERENCE_STRATEGY, value: "USER_SUPPLIED", sourceRefs: [source] },
@@ -265,6 +362,10 @@ export function createBriefConsistencyCorrectionChangeSet(input: { brief: Canoni
     ...pages.map((page) => ({ operation: "UPSERT" as const, target: page.id as `PAGE:${string}`, value: { slug: page.slug, purpose: page.purpose, sourceRefs: page.sourceRefs }, sourceRefs: [source] })),
     ...rewriteRequirementChanges({ brief, projectId: input.projectId, projectVersion: input.projectVersion, marketingName: correction.marketingName, proprietorName: correction.proprietorName }),
   ];
+  if (correction.publicEmail) changes.push(
+    { operation: "SET", target: SEMANTIC_TARGETS.PUBLIC_CONTACT_EMAIL, value: correction.publicEmail, sourceRefs: [source] },
+    ...publicEmailRequirementChanges({ brief, projectId: input.projectId, projectVersion: input.projectVersion, publicEmail: correction.publicEmail }),
+  );
   return { contractVersion: 1, changes, unresolved: [] };
 }
 

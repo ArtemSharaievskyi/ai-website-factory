@@ -80,10 +80,10 @@ describe("Brief Revision V3 provider boundary", () => {
   });
 
   it("keeps the host target catalog exhaustive without a duplicate semantic catalog", () => {
-    const canonicalSetTargets = TARGET_CATALOG.filter((entry) => entry.operation === "SET").map((entry) => entry.id).sort();
+    const canonicalSetTargets = TARGET_CATALOG.filter((entry) => entry.operation === "SET" && entry.providerWritable !== false).map((entry) => entry.id).sort();
     expect(Object.keys(PROVIDER_FIXED_TARGET_BINDINGS).sort()).toEqual(canonicalSetTargets);
     expect([...PROVIDER_DYNAMIC_TARGET_BINDINGS].sort()).toEqual(TARGET_CATALOG.filter((entry) => entry.operation !== "SET").map((entry) => entry.id).sort());
-    expect(providerTargetContract()).toEqual(TARGET_CATALOG.map(({ id, operation, valueType }) => ({ target: id, operation, valueType })));
+    expect(providerTargetContract()).toEqual(TARGET_CATALOG.filter((entry) => entry.providerWritable !== false).map(({ id, operation, valueType }) => ({ target: id, operation, valueType })));
     const values: Record<string, unknown> = {
       FORM_SUCCESS_MODE: "SIMULATED",
       FORM_SIMULATED_SUCCESS_POLICY: "ALLOWED",
@@ -115,6 +115,7 @@ describe("Brief Revision V3 provider boundary", () => {
     };
     for (const target of canonicalSetTargets) expect(ProviderBriefChangeSetSchema.safeParse({ contractVersion: 1, changes: [{ operation: "SET", target, value: values[target] }] }).success).toBe(true);
     expect(ProviderBriefChangeSetSchema.safeParse({ contractVersion: 1, changes: [{ operation: "UPSERT", target: "REQUIREMENT:new", value: { category: "FEATURE", statement: "Synthetic feature." } }, { operation: "UPSERT", target: "ASSET_COMPANY_LOGO", value: { reference: "asset:logo", role: "logo", usage: "Use it.", replacementPolicy: "FORBIDDEN" } }, { operation: "UPSERT", target: "PAGE:home", value: { slug: "home", purpose: "Home." } }] }).success).toBe(true);
+    expect(ProviderBriefChangeSetSchema.safeParse({ contractVersion: 1, changes: [{ operation: "SET", target: "PUBLIC_CONTACT_EMAIL", value: { email: "kontakt@example.com", confirmation: "CUSTOMER_CONFIRMED", source: "CUSTOMER_CONFIRMATION", publicationAuthorized: true, publicationScopes: ["CONTACT"] } }] }).success).toBe(false);
     mark("Provider target/value map");
   });
 

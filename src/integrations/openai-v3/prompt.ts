@@ -36,6 +36,7 @@ const BRIEF_V3_PROVIDER_POLICY = [
   "Interpret the requested revision and emit only semantic SET, UPSERT, and REMOVE operations.",
   "Do not regenerate a full Brief, candidate, requirement collection, history, approval, checksum, identity, currentness, or persistence state.",
   "Do not explicitly preserve untouched fields; the host owns preservation through the current canonical state.",
+  "Canonical customer-confirmed public contact email is host-owned and is preserved from current state; it is not a provider-writable target.",
   "Use only the semantic target contract supplied below and the strict output schema.",
   "Do not resolve contradictions by choosing a winner. Emit the requested operations and let deterministic host normalization reject conflicts.",
   "Semantic target IDs are the only mutation authority; never use prose as a target.",

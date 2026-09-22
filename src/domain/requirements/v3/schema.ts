@@ -172,6 +172,51 @@ export const ConfirmedProprietorSchema = z.object({
 }).strict();
 export type ConfirmedProprietor = z.infer<typeof ConfirmedProprietorSchema>;
 
+export const PublicEmailPublicationScopeSchema = z.enum(["CONTACT", "IMPRESSUM"]);
+export type PublicEmailPublicationScope = z.infer<typeof PublicEmailPublicationScopeSchema>;
+
+const PublicEmailAddressSchema = z.string().max(320).superRefine((rawValue, context) => {
+  if (/[\u0000-\u001F\u007F]/u.test(rawValue)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Public email must not contain control characters." });
+    return;
+  }
+  const value = rawValue.trim();
+  if (value.length < 3) {
+    context.addIssue({ code: z.ZodIssueCode.too_small, minimum: 3, inclusive: true, origin: "string", message: "Public email is required." });
+    return;
+  }
+  if (/^mailto:/iu.test(value) || /^[a-z][a-z0-9+.-]*:\/\//iu.test(value)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Public email must be a plain address, not a URL or mailto link." });
+    return;
+  }
+  if (/[<>(),;:"\s]/u.test(value) || (value.match(/@/gu) ?? []).length !== 1) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Public email must be one syntactically valid address." });
+    return;
+  }
+  const [localPart, domain] = value.split("@");
+  if (!localPart || !domain || localPart.startsWith(".") || localPart.endsWith(".") || localPart.includes("..") || domain.startsWith(".") || domain.endsWith(".") || domain.includes("..")) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Public email has an invalid local part or domain." });
+  }
+}).transform((value) => value.trim());
+
+/**
+ * Canonical policy trims surrounding whitespace only; it preserves the email
+ * local part and domain spelling exactly as confirmed by the customer.
+ */
+export const CanonicalPublicEmailSchema = z.object({
+  email: PublicEmailAddressSchema,
+  confirmation: z.literal("CUSTOMER_CONFIRMED"),
+  source: z.literal("CUSTOMER_CONFIRMATION"),
+  publicationAuthorized: z.literal(true),
+  publicationScopes: z.array(PublicEmailPublicationScopeSchema).min(1).max(4).transform((scopes) => [...new Set(scopes)].sort()),
+}).strict();
+export type CanonicalPublicEmail = z.infer<typeof CanonicalPublicEmailSchema>;
+
+export const CanonicalContactSchema = z.object({
+  publicEmail: CanonicalPublicEmailSchema.optional(),
+}).strict();
+export type CanonicalContact = z.infer<typeof CanonicalContactSchema>;
+
 export const CanonicalUnresolvedSchema = z.object({
   target: NonEmptyStringSchema.max(300),
   reason: NonEmptyStringSchema.max(2000),
@@ -227,6 +272,7 @@ export const CanonicalBriefV3Schema = z.object({
     inventedFactsPolicy: InventedFactsPolicySchema,
     confirmedProprietor: ConfirmedProprietorSchema.optional(),
   }).strict(),
+  contact: CanonicalContactSchema.optional(),
   localization: z.object({
     locales: z.array(LocaleSchema),
     defaultLocale: LocaleSchema,

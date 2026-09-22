@@ -217,6 +217,7 @@ function applySet(brief: CanonicalBriefV3, change: BriefSetChange): CanonicalBri
     case SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR: return change.value === null
       ? { ...brief, legal: { ...brief.legal, confirmedProprietor: undefined } }
       : { ...brief, legal: { ...brief.legal, confirmedProprietor: change.value } };
+    case SEMANTIC_TARGETS.PUBLIC_CONTACT_EMAIL: return { ...brief, contact: { ...(brief.contact ?? {}), publicEmail: change.value } };
     case SEMANTIC_TARGETS.BRIEF_TITLE: return { ...brief, title: change.value };
     case SEMANTIC_TARGETS.BRIEF_EVIDENCE: return { ...brief, evidence: change.value };
     case SEMANTIC_TARGETS.BRIEF_UNRESOLVED: return { ...brief, unresolved: change.value };

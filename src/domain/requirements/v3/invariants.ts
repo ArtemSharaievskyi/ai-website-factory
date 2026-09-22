@@ -68,6 +68,7 @@ const topLevelForDomain: Record<CanonicalDomain, keyof CanonicalBriefV3 | "unres
   scope: "scope",
   seo: "seo",
   legal: "legal",
+  contact: "contact",
   title: "title",
   evidence: "evidence",
   unresolved: "unresolved",
@@ -92,7 +93,7 @@ export function validateReductionInvariants(current: CanonicalBriefV3, next: Can
       throw new BriefV3Error("BRIEF_V3_REDUCTION_INVALID", { invariant: "target-value-applied", target: change.target });
     }
   }
-  const topLevelKeys = ["summary", "title", "scope", "pages", "requirements", "decisions", "assets", "brand", "seo", "legal", "localization", "evidence", "unresolved"] as const;
+  const topLevelKeys = ["summary", "title", "scope", "pages", "requirements", "decisions", "assets", "brand", "seo", "legal", "contact", "localization", "evidence", "unresolved"] as const;
   for (const key of topLevelKeys) {
     const domainTouched = key === "decisions"
       ? touchedDomains.has("form") || touchedDomains.has("database") || touchedDomains.has("auth") || touchedDomains.has("analytics") || touchedDomains.has("route")

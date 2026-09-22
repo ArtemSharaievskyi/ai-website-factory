@@ -110,4 +110,68 @@ describe("Deterministic Brief consistency correction HTTP boundary", () => {
     expect(database.briefRevisionHistory.size).toBe(1);
     expect((await new BriefRevisionAttemptRepository(database).get({ operationKind: attempt.operationKind, operationKey: attempt.operationKey, payloadHash: attempt.payloadHash }))?.status).toBe("COMMITTED");
   });
+
+  it("persists a public email through the same Workbench path without constructing a provider operation", async () => {
+    const database = new InMemoryPersistenceDatabase();
+    const root = await mkdtemp(path.join(os.tmpdir(), "brief-public-email-http-"));
+    roots.push(root);
+    const emailProjectId = "ec5549cb-b4b5-4906-8667-7767ff717082";
+    const project = FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId: emailProjectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: emailProjectId, slug: "brief-public-email-http", originalPrompt: "Synthetic public email correction.", currentVersion: 1, workflowState: "AWAITING_BRIEF_APPROVAL" });
+    await new ProjectRepository(database).create(project);
+    const beforeRow = database.projects.get(emailProjectId)!;
+    database.projects.set(emailProjectId, { ...beforeRow, row_version: 4 });
+    const emailBrief = CanonicalBriefV3Schema.parse({
+      ...cleanBriefV3,
+      unresolved: [
+        { target: "CONTACT:EMAIL", reason: "The customer email remains unavailable; keep a placeholder.", sourceRefs: ["fixture:email"], blockingStages: ["PUBLICATION"] },
+        { target: "CONTACT:PHONE", reason: "The customer phone remains unavailable; keep a placeholder.", sourceRefs: ["fixture:phone"], blockingStages: ["PUBLICATION"] },
+      ],
+    });
+    await new DocumentRepository(database).save(createBriefV3Document({ projectId: emailProjectId, projectVersion: 1, brief: emailBrief, createdAt: timestamp, updatedAt: timestamp }));
+    await new ProjectVersionRepository(database).create({ id: "ec5549cb-b4b5-4906-8667-7767ff717083", projectId: emailProjectId, versionNumber: 1, state: project.workflowState, memoryRootPath: null, requirementsChecksum: null, selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
+    let providerCalls = 0;
+    const provider: BriefV3RevisionProvider = { proposeChanges: async () => { providerCalls += 1; throw new Error("PUBLIC_EMAIL_CORRECTION_MUST_NOT_CALL_PROVIDER"); } };
+    const projection = new (await import("@/runtime/workspace/sync")).FilesystemProjectMemorySyncPort(root, project.slug);
+    const revision = new BriefV3TransactionService({ database, provider, projection });
+    const entry = new TrialEntryService({ database, createLeadAgent: () => { throw new Error("LEAD_MUST_NOT_RUN"); }, createBriefRevisionV3: () => revision });
+    const app = new WorkbenchApplication({ database, entry });
+    mockWorkbench.handle.mockImplementation((request: unknown) => app.handle(request as Parameters<WorkbenchApplication["handle"]>[0]));
+    const before = await app.handle({ action: "status", projectId: emailProjectId });
+    const request = {
+      action: "request-brief-changes",
+      projectId: emailProjectId,
+      projectVersion: 1,
+      briefChecksum: before.brief!.checksum,
+      expectedRowVersion: 4,
+      reason: "Persist the customer-confirmed public contact email.",
+      requirementKeys: ["PUBLIC_CONTACT_EMAIL"],
+      correction: {
+        publicEmail: {
+          email: "kontakt@example.com",
+          confirmation: "CUSTOMER_CONFIRMED",
+          source: "CUSTOMER_CONFIRMATION",
+          publicationAuthorized: true,
+          publicationScopes: ["CONTACT", "IMPRESSUM"],
+        },
+      },
+    };
+    const first = await POST(http(request));
+    const firstBody = await first.json() as { ok: boolean; data?: { project?: { workflowState: string; rowVersion: number } }; meta?: Record<string, unknown> };
+    expect(first.status).toBe(200);
+    expect(firstBody).toMatchObject({ ok: true, data: { project: { workflowState: "AWAITING_BRIEF_APPROVAL", rowVersion: 5 } }, meta: { responseOrigin: "NEW_EXECUTION", attemptCreated: true, attemptStatus: "SUCCEEDED", correlationId: expect.any(String), attemptId: expect.any(String) } });
+    expect(providerCalls).toBe(0);
+    const current = BriefV3DocumentSchema.parse(await new DocumentRepository(database).get(emailProjectId, 1, "brief-v3"));
+    expect(current.brief.contact?.publicEmail?.email).toBe("kontakt@example.com");
+    expect(current.brief.unresolved).toEqual(expect.arrayContaining([expect.objectContaining({ target: "CONTACT:PHONE" })]));
+    expect(current.brief.unresolved.some((item) => item.target === "CONTACT:EMAIL")).toBe(false);
+    const attempt = [...database.briefRevisionAttempts.values()][0]!;
+    expect(attempt.operationKey).not.toContain("kontakt@example.com");
+    const replay = await POST(http(request));
+    const replayBody = await replay.json() as { meta?: Record<string, unknown> };
+    expect(replay.status).toBe(200);
+    expect(replayBody.meta).toMatchObject({ responseOrigin: "REPLAY", attemptId: firstBody.meta?.attemptId });
+    expect(providerCalls).toBe(0);
+    expect(database.briefRevisionAttempts.size).toBe(1);
+    expect(database.briefRevisionHistory.size).toBe(1);
+  });
 });

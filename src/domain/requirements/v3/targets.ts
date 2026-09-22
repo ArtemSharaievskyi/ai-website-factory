@@ -7,6 +7,7 @@ import {
   CanonicalEvidenceSchema,
   CanonicalRequirementSchema,
   CanonicalSeoSchema,
+  CanonicalPublicEmailSchema,
   ConfirmedProprietorSchema,
   CanonicalUnresolvedSchema,
   CanonicalPageValueSchema,
@@ -48,6 +49,7 @@ export const SEMANTIC_TARGETS = {
   LEGAL_INVENTED_FACTS_POLICY: "LEGAL_INVENTED_FACTS_POLICY",
   BRAND_MARKETING_NAME: "BRAND_MARKETING_NAME",
   LEGAL_CONFIRMED_PROPRIETOR: "LEGAL_CONFIRMED_PROPRIETOR",
+  PUBLIC_CONTACT_EMAIL: "PUBLIC_CONTACT_EMAIL",
   BRIEF_TITLE: "BRIEF_TITLE",
   BRIEF_EVIDENCE: "BRIEF_EVIDENCE",
   BRIEF_UNRESOLVED: "BRIEF_UNRESOLVED",
@@ -64,7 +66,7 @@ export type DynamicPageTargetId = `PAGE:${string}`;
 export type AssetTargetId = DynamicAssetTargetId | typeof SEMANTIC_TARGETS.ASSET_COMPANY_LOGO;
 export type SemanticTargetId = FixedSemanticTargetId | DynamicRequirementTargetId | DynamicAssetTargetId | DynamicPageTargetId;
 
-export const SEMANTIC_TARGET_ID_PATTERN = /^(?:FORM_[A-Z_]+|DATABASE_MODE|AUTH_MODE|ANALYTICS_MODE|ROUTE_POLICY|BRAND_REFERENCE_STRATEGY|BRAND_SUPPLIED_INFORMATION|BRAND_SUPPLIED_LOGO_DESCRIPTION|BRAND_MARKETING_NAME|IMAGE_SOURCE_STRATEGY|SEO_TITLE|SEO_META_DESCRIPTION|SEO_PRIMARY_KEYWORDS|SEO_LOCATION_TARGETING|SEO_PAGE_METADATA|LEGAL_[A-Z_]+|BRIEF_TITLE|BRIEF_EVIDENCE|BRIEF_UNRESOLVED|ASSET_COMPANY_LOGO|REQUIREMENT:[A-Za-z0-9_.:-]{1,180}|ASSET:[A-Za-z0-9_.:-]{1,180}|PAGE:[^\r\n]{1,180})$/;
+export const SEMANTIC_TARGET_ID_PATTERN = /^(?:FORM_[A-Z_]+|DATABASE_MODE|AUTH_MODE|ANALYTICS_MODE|ROUTE_POLICY|BRAND_REFERENCE_STRATEGY|BRAND_SUPPLIED_INFORMATION|BRAND_SUPPLIED_LOGO_DESCRIPTION|BRAND_MARKETING_NAME|IMAGE_SOURCE_STRATEGY|SEO_TITLE|SEO_META_DESCRIPTION|SEO_PRIMARY_KEYWORDS|SEO_LOCATION_TARGETING|SEO_PAGE_METADATA|LEGAL_[A-Z_]+|PUBLIC_CONTACT_EMAIL|BRIEF_TITLE|BRIEF_EVIDENCE|BRIEF_UNRESOLVED|ASSET_COMPANY_LOGO|REQUIREMENT:[A-Za-z0-9_.:-]{1,180}|ASSET:[A-Za-z0-9_.:-]{1,180}|PAGE:[^\r\n]{1,180})$/;
 
 export const isSemanticTargetId = (value: string): value is SemanticTargetId => SEMANTIC_TARGET_ID_PATTERN.test(value);
 export const isRequirementTarget = (value: string): value is DynamicRequirementTargetId => value.startsWith("REQUIREMENT:") && isSemanticTargetId(value);
@@ -99,6 +101,7 @@ export type FixedTargetValueMap = {
   [SEMANTIC_TARGETS.LEGAL_PLACEHOLDER_POLICY]: z.infer<typeof PlaceholderPolicySchema>;
   [SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY]: z.infer<typeof InventedFactsPolicySchema>;
   [SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR]: z.infer<typeof ConfirmedProprietorSchema> | null;
+  [SEMANTIC_TARGETS.PUBLIC_CONTACT_EMAIL]: z.infer<typeof CanonicalPublicEmailSchema>;
   [SEMANTIC_TARGETS.BRIEF_TITLE]: string | null;
   [SEMANTIC_TARGETS.BRIEF_EVIDENCE]: z.infer<typeof CanonicalEvidenceSchema>[];
   [SEMANTIC_TARGETS.BRIEF_UNRESOLVED]: z.infer<typeof CanonicalUnresolvedSchema>[];
@@ -117,7 +120,8 @@ export type TargetValueFor<T extends SemanticTargetId> =
 export const TargetCatalogEntrySchema = z.object({
   id: z.string(),
   operation: z.enum(["SET", "UPSERT", "REMOVE"]),
-  valueType: z.enum(["successMode", "successPolicy", "transmissionMode", "persistenceMode", "serverProcessingMode", "externalProviderMode", "privacyConsentMode", "databaseMode", "authMode", "analyticsMode", "routePolicy", "brandStrategy", "brandSuppliedInformation", "brandSuppliedLogoDescription", "brandMarketingName", "imageStrategy", "title", "metaDescription", "primaryKeywords", "locationTargeting", "pageMetadata", "placeholderPolicy", "inventedFactsPolicy", "confirmedProprietor", "evidence", "unresolved", "requirement", "asset", "page"]),
+  valueType: z.enum(["successMode", "successPolicy", "transmissionMode", "persistenceMode", "serverProcessingMode", "externalProviderMode", "privacyConsentMode", "databaseMode", "authMode", "analyticsMode", "routePolicy", "brandStrategy", "brandSuppliedInformation", "brandSuppliedLogoDescription", "brandMarketingName", "imageStrategy", "title", "metaDescription", "primaryKeywords", "locationTargeting", "pageMetadata", "placeholderPolicy", "inventedFactsPolicy", "confirmedProprietor", "publicEmail", "evidence", "unresolved", "requirement", "asset", "page"]),
+  providerWritable: z.boolean().optional(),
 }).strict();
 export type TargetCatalogEntry = z.infer<typeof TargetCatalogEntrySchema>;
 
@@ -148,6 +152,7 @@ export const TARGET_CATALOG: readonly TargetCatalogEntry[] = [
   fixed(SEMANTIC_TARGETS.LEGAL_PLACEHOLDER_POLICY, "placeholderPolicy"),
   fixed(SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY, "inventedFactsPolicy"),
   fixed(SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR, "confirmedProprietor"),
+  { id: SEMANTIC_TARGETS.PUBLIC_CONTACT_EMAIL, operation: "SET", valueType: "publicEmail", providerWritable: false },
   fixed(SEMANTIC_TARGETS.BRIEF_TITLE, "title"),
   fixed(SEMANTIC_TARGETS.BRIEF_EVIDENCE, "evidence"),
   fixed(SEMANTIC_TARGETS.BRIEF_UNRESOLVED, "unresolved"),
@@ -193,6 +198,7 @@ export const targetValueSchemas = {
   placeholderPolicy: PlaceholderPolicySchema,
   inventedFactsPolicy: InventedFactsPolicySchema,
   confirmedProprietor: ConfirmedProprietorSchema.nullable(),
+  publicEmail: CanonicalPublicEmailSchema,
   evidence: z.array(CanonicalEvidenceSchema),
   unresolved: z.array(CanonicalUnresolvedSchema),
   requirement: CanonicalRequirementValueSchema,

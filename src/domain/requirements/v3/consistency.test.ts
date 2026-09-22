@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { applyBriefChangeSet } from "./reducer";
 import { cleanBriefV3 } from "./fixtures";
 import { CanonicalBriefV3Schema } from "./schema";
-import { createBriefConsistencyCorrectionChangeSet, validateCanonicalBriefConsistency } from "./consistency";
+import { createBriefConsistencyCorrectionChangeSet, deterministicBriefCorrectionInstruction, PublicEmailCorrectionInputSchema, validateCanonicalBriefConsistency } from "./consistency";
+import { canonicalBriefChecksum } from "./normalize";
 
 const projectId = "22222222-2222-4222-8222-222222222222";
 const correction = {
@@ -86,5 +87,70 @@ describe("Canonical Brief cross-field consistency", () => {
       "SINGLE_PAGE_TOPOLOGY",
       "LEGAL_EXCLUSION_CATEGORY",
     ]));
+  });
+
+  it("persists a typed confirmed public email, reconciles only email obligations, and remains idempotent", () => {
+    const publicEmail = {
+      email: " kontakt@example.com ",
+      confirmation: "CUSTOMER_CONFIRMED" as const,
+      source: "CUSTOMER_CONFIRMATION" as const,
+      publicationAuthorized: true as const,
+      publicationScopes: ["IMPRESSUM", "CONTACT", "CONTACT"] as Array<"CONTACT" | "IMPRESSUM">,
+    };
+    const before = CanonicalBriefV3Schema.parse({
+      ...cleanBriefV3,
+      requirements: [
+        ...cleanBriefV3.requirements,
+        { id: "REQUIREMENT:contact-email", category: "CONTACT_FACT", statement: "Public contact email: [EMAIL]", sourceRefs: ["fixture:contact"] },
+        { id: "REQUIREMENT:imprint-email", category: "LEGAL_FACT", statement: "Impressum email: [EMAIL]", sourceRefs: ["fixture:impressum"] },
+      ],
+      unresolved: [
+        { target: "CONTACT:EMAIL", reason: "The customer email remains unavailable; keep a placeholder.", sourceRefs: ["fixture:email"], blockingStages: ["PUBLICATION"] },
+        { target: "CONTACT:PHONE", reason: "The customer phone remains unavailable; keep a placeholder.", sourceRefs: ["fixture:phone"], blockingStages: ["PUBLICATION"] },
+        { target: "CONTACT:ADDRESS", reason: "The customer postal address remains unavailable; keep a placeholder.", sourceRefs: ["fixture:address"], blockingStages: ["PUBLICATION"] },
+      ],
+    });
+    const beforeChecksum = canonicalBriefChecksum(before);
+    const changeSet = createBriefConsistencyCorrectionChangeSet({ brief: before, projectId, projectVersion: 1, correction: { publicEmail } });
+    const next = applyBriefChangeSet(before, changeSet);
+
+    expect(next.contact?.publicEmail).toMatchObject({ email: "kontakt@example.com", confirmation: "CUSTOMER_CONFIRMED", source: "CUSTOMER_CONFIRMATION", publicationAuthorized: true, publicationScopes: ["CONTACT", "IMPRESSUM"] });
+    expect(next.contact?.publicEmail?.email).not.toMatch(/^mailto:/i);
+    expect(next.unresolved).toEqual(expect.arrayContaining([
+      expect.objectContaining({ target: "CONTACT:PHONE" }),
+      expect.objectContaining({ target: "CONTACT:ADDRESS" }),
+    ]));
+    expect(next.unresolved.some((item) => /email/i.test(item.target))).toBe(false);
+    expect(next.requirements.find((entry) => entry.id === "REQUIREMENT:contact-email")?.statement).toContain("kontakt@example.com");
+    expect(next.requirements.find((entry) => entry.id === "REQUIREMENT:imprint-email")?.statement).toContain("kontakt@example.com");
+    expect(next.requirements.filter((entry) => /kontakt@example\.com/i.test(entry.statement))).toHaveLength(2);
+    expect(next.requirements.some((entry) => entry.id === "REQUIREMENT:service")).toBe(true);
+    expect(next.evidence).toEqual(expect.arrayContaining([expect.objectContaining({ field: "contact.publicEmail", source: "customer-confirmation" })]));
+    expect(canonicalBriefChecksum(next)).not.toBe(beforeChecksum);
+
+    const replay = applyBriefChangeSet(next, createBriefConsistencyCorrectionChangeSet({ brief: next, projectId, projectVersion: 1, correction: { publicEmail: { ...publicEmail, email: "kontakt@example.com" } } }));
+    expect(canonicalBriefChecksum(replay)).toBe(canonicalBriefChecksum(next));
+    expect(deterministicBriefCorrectionInstruction({ publicEmail })).not.toContain("kontakt@example.com");
+    expect(deterministicBriefCorrectionInstruction({ publicEmail })).not.toBe(deterministicBriefCorrectionInstruction({ publicEmail: { ...publicEmail, email: "support@example.com" } }));
+  });
+
+  it("validates ordinary public email values without accepting unsafe representations", () => {
+    const valid = PublicEmailCorrectionInputSchema.parse({
+      publicEmail: {
+        email: "  contact@example.com  ",
+        confirmation: "CUSTOMER_CONFIRMED",
+        source: "CUSTOMER_CONFIRMATION",
+        publicationAuthorized: true,
+        publicationScopes: ["CONTACT", "CONTACT"],
+      },
+    });
+    expect(valid.publicEmail.email).toBe("contact@example.com");
+    expect(valid.publicEmail.publicationScopes).toEqual(["CONTACT"]);
+    for (const email of ["not-an-email", "mailto:contact@example.com", "https://example.com/contact@example.com", "a@example.com,b@example.com", "a\u0000@example.com", "Display Name <contact@example.com>"]) {
+      expect(PublicEmailCorrectionInputSchema.safeParse({ publicEmail: { ...valid.publicEmail, email } }).success).toBe(false);
+    }
+    expect(PublicEmailCorrectionInputSchema.safeParse({ publicEmail: { ...valid.publicEmail, publicationScopes: [] } }).success).toBe(false);
+    expect(PublicEmailCorrectionInputSchema.safeParse({ publicEmail: { ...valid.publicEmail, publicationScopes: ["UNKNOWN"] } }).success).toBe(false);
+    expect(PublicEmailCorrectionInputSchema.safeParse({ publicEmail: { ...valid.publicEmail, confirmation: "PROVIDER_CONFIRMED" } }).success).toBe(false);
   });
 });
