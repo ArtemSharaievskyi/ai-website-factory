@@ -31,6 +31,7 @@ const ASSET_SAFE_MESSAGES: Record<AssetIntakeErrorCode, string> = {
   ASSET_CHECKSUM_MISMATCH: "The asset checksum does not match the bound asset.",
   ASSET_NOT_CURRENT: "The asset is not current and ready.",
   ASSET_STORAGE_FAILED: "The Factory could not persist the file.",
+  ASSET_METADATA_READ_FAILED: "The asset metadata could not be read safely.",
   ASSET_METADATA_PERSIST_FAILED: "The asset metadata could not be saved.",
   ASSET_INTERNAL_ERROR: "The asset operation could not be completed.",
 };

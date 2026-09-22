@@ -78,11 +78,11 @@ describe("Asset Intake route diagnostics AER1-AER24 / AUP1-AUP36", () => {
     expect(missing.status).toBe(404);
     expect(missingBody).toMatchObject({ error: { code: "ASSET_PROJECT_NOT_FOUND" }, category: "VALIDATION", boundary: "PROJECT_ACCESS", reasonCode: "ASSET_PROJECT_NOT_FOUND", mutationReached: false });
 
-    mockIntake.list.mockRejectedValueOnce(new AssetIntakeError("ASSET_METADATA_PERSIST_FAILED", "private persistence detail"));
+    mockIntake.list.mockRejectedValueOnce(new AssetIntakeError("ASSET_METADATA_READ_FAILED", "private persistence detail"));
     const persistence = await GET(getRequest(asset.projectId));
     const persistenceBody = await persistence.json();
     expect(persistence.status).toBe(503);
-    expect(persistenceBody).toMatchObject({ error: { code: "ASSET_METADATA_PERSIST_FAILED" }, category: "PERSISTENCE", boundary: "PERSISTENCE", recoverable: true, mutationReached: false });
+    expect(persistenceBody).toMatchObject({ error: { code: "ASSET_METADATA_READ_FAILED" }, category: "PERSISTENCE", boundary: "PERSISTENCE", recoverable: true, mutationReached: false });
     expect(persistenceBody.safeErrorFingerprint).toMatch(/^AssetIntakeError@PREFLIGHT:[a-f0-9]{16}$/);
     expect(JSON.stringify(persistenceBody)).not.toContain("private persistence detail");
   });

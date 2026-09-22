@@ -38,6 +38,7 @@ export type AssetIntakeErrorCode =
   | "ASSET_CHECKSUM_MISMATCH"
   | "ASSET_NOT_CURRENT"
   | "ASSET_STORAGE_FAILED"
+  | "ASSET_METADATA_READ_FAILED"
   | "ASSET_METADATA_PERSIST_FAILED"
   | "ASSET_INTERNAL_ERROR";
 
@@ -59,6 +60,7 @@ const ASSET_ERROR_DEFAULTS: Record<AssetIntakeErrorCode, { category: AssetIntake
   ASSET_CHECKSUM_MISMATCH: { category: "VALIDATION", recoverable: true },
   ASSET_NOT_CURRENT: { category: "VALIDATION", recoverable: true },
   ASSET_STORAGE_FAILED: { category: "STORAGE", recoverable: true },
+  ASSET_METADATA_READ_FAILED: { category: "PERSISTENCE", recoverable: true },
   ASSET_METADATA_PERSIST_FAILED: { category: "PERSISTENCE", recoverable: true },
   ASSET_INTERNAL_ERROR: { category: "INTERNAL", recoverable: false },
 };
@@ -76,6 +78,7 @@ export class AssetIntakeError extends Error {
   }
 }
 
+const metadataReadFailure = () => new AssetIntakeError("ASSET_METADATA_READ_FAILED", "The asset metadata could not be read safely.");
 const metadataPersistenceFailure = () => new AssetIntakeError("ASSET_METADATA_PERSIST_FAILED", "The asset metadata could not be saved.");
 
 export type AssetUploadInput = {
@@ -122,7 +125,7 @@ export class ProjectAssetService {
     try {
       return await this.assets.list(projectId);
     } catch (error) {
-      if (error instanceof PersistenceError) throw metadataPersistenceFailure();
+      if (error instanceof PersistenceError) throw metadataReadFailure();
       throw error;
     }
   }
@@ -133,7 +136,7 @@ export class ProjectAssetService {
     try {
       asset = await this.assets.get(projectId, assetId);
     } catch (error) {
-      if (error instanceof PersistenceError) throw metadataPersistenceFailure();
+      if (error instanceof PersistenceError) throw metadataReadFailure();
       throw error;
     }
     if (!asset) throw new AssetIntakeError("ASSET_NOT_FOUND", "The asset was not found in this project.");
@@ -195,7 +198,7 @@ export class ProjectAssetService {
     try {
       existing = await this.assets.list(input.projectId);
     } catch (error) {
-      if (error instanceof PersistenceError) throw metadataPersistenceFailure();
+      if (error instanceof PersistenceError) throw metadataReadFailure();
       throw error;
     }
     const duplicate = existing.find((asset) => asset.status === "READY" && asset.currentness === "CURRENT" && asset.category === input.category && asset.mediaType === mediaType && asset.sha256 === sha256);
@@ -259,7 +262,7 @@ export class ProjectAssetService {
     if (input.bytes.byteLength > PROJECT_ASSET_LIMITS.imageBytes) throw new AssetIntakeError("ASSET_SIZE_LIMIT", "The generated image exceeds the allowed size.");
     if (!validSignature(mediaType, input.bytes)) throw new AssetIntakeError("ASSET_SIGNATURE_INVALID", "The generated image signature is invalid.");
     let existing: ProjectAsset[];
-    try { existing = await this.assets.list(input.projectId); } catch (error) { if (error instanceof PersistenceError) throw metadataPersistenceFailure(); throw error; }
+    try { existing = await this.assets.list(input.projectId); } catch (error) { if (error instanceof PersistenceError) throw metadataReadFailure(); throw error; }
     const replacementCandidate = input.replaceAssetId ? existing.find((asset) => asset.assetId === input.replaceAssetId) : undefined;
     if (replacementCandidate?.category === "LOGO") throw new AssetIntakeError("ASSET_CATEGORY_INVALID", "A user-supplied logo cannot be replaced by generated imagery.");
     const replaced = replacementCandidate?.status === "READY" && replacementCandidate.currentness === "CURRENT" ? replacementCandidate : undefined;
@@ -294,7 +297,7 @@ export class ProjectAssetService {
     try {
       asset = await this.assets.get(projectId, assetId);
     } catch (error) {
-      if (error instanceof PersistenceError) throw metadataPersistenceFailure();
+      if (error instanceof PersistenceError) throw metadataReadFailure();
       throw error;
     }
     if (!asset) throw new AssetIntakeError("ASSET_NOT_FOUND", "The asset was not found in this project.");
@@ -314,7 +317,7 @@ export class ProjectAssetService {
     try {
       current = await this.projects.getWithVersion(projectId);
     } catch (error) {
-      if (error instanceof PersistenceError) throw metadataPersistenceFailure();
+      if (error instanceof PersistenceError) throw metadataReadFailure();
       throw error;
     }
     if (!current) throw new AssetIntakeError("ASSET_PROJECT_NOT_FOUND", "The project was not found.");

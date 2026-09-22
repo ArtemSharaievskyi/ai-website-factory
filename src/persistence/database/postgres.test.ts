@@ -95,6 +95,7 @@ describe("Postgres asset row normalization", () => {
       projectVersion: 1,
       category: "LOGO",
       source: "USER_SUPPLIED",
+      generationProvenance: null as never,
       safeDisplayName: "logo.png",
       mediaType: "image/png",
       byteSize: 16,
@@ -110,6 +111,7 @@ describe("Postgres asset row normalization", () => {
     });
     expect(normalized).not.toHaveProperty("supersedesAssetId");
     expect(normalized).not.toHaveProperty("rejectionReason");
+    expect(normalized).not.toHaveProperty("generationProvenance");
   });
 });
 

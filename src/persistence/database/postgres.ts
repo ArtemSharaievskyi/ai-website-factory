@@ -36,8 +36,8 @@ const value = <T>(result: { rows: QueryResultRow[] }) => result.rows[0] as T | u
 const isoTimestamp = (value: unknown): string | null => value == null ? null : value instanceof Date ? value.toISOString() : String(value);
 const normalizeProjectRow = (row: ProjectRow) => ({ ...row, row_version: Number(row.row_version) });
 export const normalizeAssetRow = (row: ProjectAssetRow) => {
-  const nullable = row as ProjectAssetRow & { supersedesAssetId?: string | null; rejectionReason?: string | null };
-  const { supersedesAssetId, rejectionReason, ...required } = nullable;
+  const nullable = row as ProjectAssetRow & { generationProvenance?: ProjectAssetRow["generationProvenance"] | null; supersedesAssetId?: string | null; rejectionReason?: string | null };
+  const { generationProvenance, supersedesAssetId, rejectionReason, ...required } = nullable;
   return {
     ...required,
     byteSize: Number(required.byteSize),
@@ -45,6 +45,7 @@ export const normalizeAssetRow = (row: ProjectAssetRow) => {
     version: Number(required.version),
     createdAt: isoTimestamp(required.createdAt) as string,
     updatedAt: isoTimestamp(required.updatedAt) as string,
+    ...(generationProvenance == null ? {} : { generationProvenance }),
     ...(supersedesAssetId == null ? {} : { supersedesAssetId }),
     ...(rejectionReason == null ? {} : { rejectionReason }),
   };

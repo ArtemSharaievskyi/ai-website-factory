@@ -32,7 +32,7 @@ describe("project-scoped Asset Intake ASSET1-ASSET36 / AUP1-AUP36", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "factory-assets-persistence-test-"));
     try {
       const assets = new ProjectAssetService({ database, root });
-      await expect(assets.list(randomUUID())).rejects.toMatchObject({ code: "ASSET_METADATA_PERSIST_FAILED", category: "PERSISTENCE", recoverable: true });
+      await expect(assets.list(randomUUID())).rejects.toMatchObject({ code: "ASSET_METADATA_READ_FAILED", category: "PERSISTENCE", recoverable: true });
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 

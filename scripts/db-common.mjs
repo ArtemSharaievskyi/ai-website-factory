@@ -1,20 +1,15 @@
-import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { Pool } from "pg";
+import * as nextEnv from "@next/env";
 
-function loadLocalEnv() {
-  for (const filename of [".env.local", ".env"]) {
-    if (!existsSync(filename)) continue;
-    for (const line of readFileSync(filename, "utf8").split(/\r?\n/)) {
-      const match = line.match(/^\s*([A-Z][A-Z0-9_]*)\s*=\s*(.*)\s*$/);
-      if (!match || process.env[match[1]]) continue;
-      const value = match[2].replace(/^['"]|['"]$/g, "");
-      process.env[match[1]] = value;
-    }
-  }
+const { loadEnvConfig } = nextEnv.default ?? nextEnv;
+
+function loadDatabaseEnvironment(projectRoot = path.resolve(process.cwd())) {
+  loadEnvConfig(projectRoot, false, { info: () => undefined, error: () => undefined });
 }
 
 export function createConfiguredPool() {
-  loadLocalEnv();
+  loadDatabaseEnvironment();
   if (!process.env.DATABASE_URL) { const error = new Error("DATABASE_CONFIGURATION_MISSING"); error.code = "DATABASE_CONFIGURATION_MISSING"; throw error; }
   const connectionString = new URL(process.env.DATABASE_URL);
   connectionString.searchParams.delete("sslmode");
