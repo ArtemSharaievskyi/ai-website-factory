@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { createHash } from "node:crypto";
-import sharp from "sharp";
+import { createRequire } from "node:module";
+import type sharp from "sharp";
 import type { Metadata } from "sharp";
 import { z } from "zod";
 import { createProviderFailureDiagnostic } from "./failure-diagnostics";
@@ -76,6 +77,21 @@ type ImageResponse = {
   usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number; cost?: number } | null;
 };
 
+type SharpFactory = typeof sharp;
+const requireSharp = createRequire(import.meta.url);
+// Native resolution prevents Turbopack from rewriting this package to a hashed external alias.
+const sharpPackageName = ["sh", "arp"].join("");
+let sharpModule: Promise<SharpFactory> | undefined;
+
+async function loadSharp(requestId?: string): Promise<SharpFactory> {
+  sharpModule ??= Promise.resolve().then(() => requireSharp(sharpPackageName) as SharpFactory);
+  try {
+    return await sharpModule;
+  } catch (error) {
+    throw imageError("AI_IMAGE_RUNTIME_UNAVAILABLE", "The supported image decoder runtime is unavailable.", error, true, requestId);
+  }
+}
+
 const mediaTypeForFormat = (format: string): GeneratedImageProvenance["actualMimeType"] | undefined => format === "png" ? "image/png" : format === "jpeg" || format === "jpg" ? "image/jpeg" : format === "webp" ? "image/webp" : undefined;
 const requestedDimensions = (size: string) => {
   if (size === "auto") return {};
@@ -88,7 +104,7 @@ function imageProviderError(code: AiProviderErrorCode, message: string, diagnost
   return new AiProviderError(code, message, cause, diagnostic, createProviderFailureDiagnostic({ errorCode: code, model: FLARE_PRODUCTION_SNAPSHOT, schemaName: "flare-image-generation", requestAttempted: diagnostic.requestAttempted, diagnostic, error: cause }));
 }
 
-function imageError(code: "AI_IMAGE_CONFIGURATION_INVALID" | "AI_IMAGE_PROTECTED_ASSET" | "AI_IMAGE_MODEL_UNAVAILABLE" | "AI_IMAGE_CONTENT_POLICY_REJECTED" | "AI_IMAGE_MALFORMED_RESPONSE" | "AI_IMAGE_EMPTY_RESPONSE" | "AI_IMAGE_MIME_MISMATCH" | "AI_IMAGE_DECODE_FAILED" | "AI_IMAGE_DIMENSIONS_INVALID" | "AI_IMAGE_CHECKSUM_FAILED", message: string, cause?: unknown, requestAttempted = false, requestId?: string): AiProviderError {
+function imageError(code: "AI_IMAGE_CONFIGURATION_INVALID" | "AI_IMAGE_PROTECTED_ASSET" | "AI_IMAGE_MODEL_UNAVAILABLE" | "AI_IMAGE_CONTENT_POLICY_REJECTED" | "AI_IMAGE_RUNTIME_UNAVAILABLE" | "AI_IMAGE_MALFORMED_RESPONSE" | "AI_IMAGE_EMPTY_RESPONSE" | "AI_IMAGE_MIME_MISMATCH" | "AI_IMAGE_DECODE_FAILED" | "AI_IMAGE_DIMENSIONS_INVALID" | "AI_IMAGE_CHECKSUM_FAILED", message: string, cause?: unknown, requestAttempted = false, requestId?: string): AiProviderError {
   const diagnostic = { stage: requestAttempted ? "api_response" as const : "request_construction" as const, requestAttempted, apiResponseReceived: requestAttempted, responseReceived: requestAttempted, outputComplete: false, ...(requestId ? { requestId } : {}), endpointClass: "OPENAI_IMAGE_API", issueCode: code };
   return imageProviderError(code, message, diagnostic, cause);
 }
@@ -151,8 +167,10 @@ export class OpenAiFlareImageProvider {
     }
     let metadata: Metadata;
     try {
+      const sharp = await loadSharp(requestId);
       metadata = await sharp(bytes).metadata();
     } catch (error) {
+      if (error instanceof AiProviderError) throw error;
       throw imageError("AI_IMAGE_MALFORMED_RESPONSE", "The image provider returned undecodable image bytes.", error, true, requestId);
     }
     const actualMimeType = mediaTypeForFormat(metadata.format ?? "");

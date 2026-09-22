@@ -36,4 +36,12 @@ describe("Workbench launcher boundary", () => {
     const root = npmWorkspace();
     expect(() => assertBuiltWorkbenchWorkspace(root)).toThrow(/WORKBENCH_BUILD_PROVENANCE_MISSING/);
   });
+
+  it("requires the emitted standalone runtime for production start", () => {
+    const root = npmWorkspace();
+    fs.mkdirSync(path.join(root, ".next"), { recursive: true });
+    fs.writeFileSync(path.join(root, ".next", "BUILD_ID"), "synthetic-build");
+    fs.writeFileSync(path.join(root, ".next", "workbench-runtime-provenance.json"), "{}");
+    expect(() => assertBuiltWorkbenchWorkspace(root)).toThrow(/WORKBENCH_STANDALONE_RUNTIME_MISSING/);
+  });
 });

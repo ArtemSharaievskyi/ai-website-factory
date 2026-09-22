@@ -3,11 +3,13 @@ import { createHash, randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadEnvConfig } from "@next/env";
 import { RuntimeBuildProvenanceSchema, WORKBENCH_RUNTIME_CONTRACT_VERSION } from "../src/runtime/workbench/observability";
 import { assertBuiltWorkbenchWorkspace, assertSupportedWorkbenchWorkspace } from "../src/runtime/workbench/launch-contract";
 
 const root = assertSupportedWorkbenchWorkspace();
 const nextBin = path.join(root, "node_modules", "next", "dist", "bin", "next");
+const standaloneServer = path.join(root, ".next", "standalone", "server.js");
 
 function git(args: string[]) {
   return execFileSync("git", args, { cwd: root, encoding: "utf8", windowsHide: true }).trim();
@@ -49,6 +51,25 @@ function runNext(command: "dev" | "build" | "start", args: string[], environment
   });
 }
 
+function runStandalone(args: string[], environment: NodeJS.ProcessEnv): Promise<number> {
+  const childEnvironment = { ...environment };
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    const [name, inlineValue] = argument.split("=", 2);
+    const value = inlineValue ?? args[++index];
+    if (name === "--hostname" || name === "-H") childEnvironment.HOSTNAME = value;
+    else if (name === "--port" || name === "-p") childEnvironment.PORT = value;
+    else if (name === "--keepAliveTimeout") childEnvironment.KEEP_ALIVE_TIMEOUT = value;
+    else throw new Error(`WORKBENCH_SERVER_ARGUMENT_UNSUPPORTED:${argument}`);
+    if (!value) throw new Error(`WORKBENCH_SERVER_ARGUMENT_VALUE_MISSING:${argument}`);
+  }
+  const child = spawn(process.execPath, [standaloneServer], { cwd: root, env: childEnvironment, stdio: "inherit", windowsHide: false });
+  return new Promise((resolve) => {
+    child.on("exit", (code, signal) => resolve(code ?? (signal ? 1 : 0)));
+    child.on("error", (error) => { console.error(`WORKBENCH_SERVER_LAUNCH_FAILED:${error.name}`); resolve(1); });
+  });
+}
+
 async function main() {
   const [command, ...args] = process.argv.slice(2);
   if (command === "build") {
@@ -68,9 +89,10 @@ async function main() {
   }
   if (command === "start") {
     assertBuiltWorkbenchWorkspace(root);
+    loadEnvConfig(root, false);
     const build = RuntimeBuildProvenanceSchema.parse(JSON.parse(readFileSync(path.join(root, ".next", "workbench-runtime-provenance.json"), "utf8")));
     const processStartedAt = new Date().toISOString();
-    process.exitCode = await runNext("start", args, {
+    process.exitCode = await runStandalone(args, {
       ...process.env,
       FACTORY_RUNTIME_ENVIRONMENT: "PRODUCTION",
       FACTORY_SERVER_GENERATION: randomUUID(),

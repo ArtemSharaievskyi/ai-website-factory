@@ -4,7 +4,7 @@ import path from "node:path";
 const LOCKFILE_NAMES = ["package-lock.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"] as const;
 
 export class WorkbenchLaunchError extends Error {
-  constructor(readonly code: "WORKBENCH_WORKSPACE_ROOT_INVALID" | "WORKBENCH_WORKSPACE_AMBIGUOUS" | "WORKBENCH_BUILD_PROVENANCE_MISSING", message: string) {
+  constructor(readonly code: "WORKBENCH_WORKSPACE_ROOT_INVALID" | "WORKBENCH_WORKSPACE_AMBIGUOUS" | "WORKBENCH_BUILD_PROVENANCE_MISSING" | "WORKBENCH_STANDALONE_RUNTIME_MISSING", message: string) {
     super(`${code}: ${message}`);
     this.name = "WorkbenchLaunchError";
   }
@@ -52,5 +52,7 @@ export function assertBuiltWorkbenchWorkspace(cwd = process.cwd()) {
   const root = assertSupportedWorkbenchWorkspace(cwd);
   if (!exists(path.join(root, ".next", "BUILD_ID")) || !exists(path.join(root, ".next", "workbench-runtime-provenance.json")))
     throw new WorkbenchLaunchError("WORKBENCH_BUILD_PROVENANCE_MISSING", "The production server requires a build created by the supported Workbench build launcher.");
+  if (!exists(path.join(root, ".next", "standalone", "server.js")))
+    throw new WorkbenchLaunchError("WORKBENCH_STANDALONE_RUNTIME_MISSING", "The production server requires the standalone runtime emitted by the supported Workbench build launcher.");
   return root;
 }

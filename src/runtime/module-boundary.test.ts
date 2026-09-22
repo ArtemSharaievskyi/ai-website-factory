@@ -45,6 +45,23 @@ describe("runtime module boundaries", () => {
     expect(nextConfig).toContain('transpilePackages: ["pg", "typescript"]');
   });
 
+  it("keeps Sharp loading lazy and packages the standalone native runtime", async () => {
+    const images = await readFile(path.resolve(__dirname, "../integrations/openai/images.ts"), "utf8");
+    const nextConfig = await readFile(path.resolve(__dirname, "../../next.config.ts"), "utf8");
+    const launcher = await readFile(path.resolve(__dirname, "../../scripts/workbench-server.ts"), "utf8");
+    expect(images).not.toContain('import sharp from "sharp"');
+    expect(images).toContain('import { createRequire } from "node:module"');
+    expect(images).toContain("requireSharp(sharpPackageName)");
+    expect(images).toContain("const sharp = await loadSharp(requestId)");
+    expect(nextConfig).toContain('serverExternalPackages: ["sharp"]');
+    expect(nextConfig).toContain('node_modules/sharp/**/*');
+    expect(nextConfig).toContain('node_modules/@img/sharp-*/**/*');
+    expect(nextConfig).toContain('"/*": [".factory/tools/**"]');
+    expect(launcher).toContain('path.join(root, ".next", "standalone", "server.js")');
+    expect(launcher).toContain('loadEnvConfig(root, false)');
+    expect(launcher).not.toContain('runNext("start"');
+  });
+
   it("keeps all standalone Trial Entry commands on the Node-safe composition", async () => {
     const scripts = await Promise.all(["factory-new.ts", "factory-respond.ts", "factory-status.ts"].map((file) => readFile(path.resolve(__dirname, "../../scripts", file), "utf8")));
     for (const script of scripts) {

@@ -13,6 +13,7 @@
     "postbuild": "node scripts/clean-next-trace.mjs",
     "clean:workspace": "tsx scripts/clean-workspace.ts",
     "start": "tsx scripts/workbench-server.ts start",
+    "runtime:verify-sharp": "node scripts/verify-sharp-production-runtime.mjs",
     "factory:new": "tsx scripts/factory-new.ts",
     "factory:respond": "tsx scripts/factory-respond.ts",
     "factory:status": "tsx scripts/factory-status.ts",
