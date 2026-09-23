@@ -46,7 +46,13 @@ export function targetDomain(target: SemanticTargetId): CanonicalDomain {
     case SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY:
     case SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR: return "legal";
     case SEMANTIC_TARGETS.LEGAL_PUBLICATION_INPUTS: return "legal";
+    case SEMANTIC_TARGETS.PUBLICATION_SERVICE_ADDRESS:
+    case SEMANTIC_TARGETS.BUSINESS_ENTITY_TYPE:
+    case SEMANTIC_TARGETS.COMMERCIAL_REGISTER_STATUS:
+    case SEMANTIC_TARGETS.UST_ID_STATUS:
+    case SEMANTIC_TARGETS.W_ID_STATUS: return "legal";
     case SEMANTIC_TARGETS.PUBLIC_CONTACT_EMAIL: return "contact";
+    case SEMANTIC_TARGETS.PUBLIC_CONTACT_PHONE: return "contact";
     case SEMANTIC_TARGETS.BRIEF_TITLE: return "title";
     case SEMANTIC_TARGETS.BRIEF_EVIDENCE: return "evidence";
     case SEMANTIC_TARGETS.BRIEF_UNRESOLVED: return "unresolved";
@@ -82,7 +88,13 @@ export function readSemanticTarget(brief: CanonicalBriefV3, target: SemanticTarg
     case SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY: return brief.legal.inventedFactsPolicy;
     case SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR: return brief.legal.confirmedProprietor ?? null;
     case SEMANTIC_TARGETS.LEGAL_PUBLICATION_INPUTS: return brief.legal.publicationInputs ?? null;
+    case SEMANTIC_TARGETS.PUBLICATION_SERVICE_ADDRESS: return brief.legal.serviceAddress ?? null;
+    case SEMANTIC_TARGETS.BUSINESS_ENTITY_TYPE: return brief.legal.businessEntityType ?? null;
+    case SEMANTIC_TARGETS.COMMERCIAL_REGISTER_STATUS: return brief.legal.commercialRegisterStatus ?? null;
+    case SEMANTIC_TARGETS.UST_ID_STATUS: return brief.legal.ustIdStatus ?? null;
+    case SEMANTIC_TARGETS.W_ID_STATUS: return brief.legal.wIdStatus ?? null;
     case SEMANTIC_TARGETS.PUBLIC_CONTACT_EMAIL: return brief.contact?.publicEmail ?? null;
+    case SEMANTIC_TARGETS.PUBLIC_CONTACT_PHONE: return brief.contact?.publicPhone ?? null;
     case SEMANTIC_TARGETS.BRIEF_TITLE: return brief.title;
     case SEMANTIC_TARGETS.BRIEF_EVIDENCE: return brief.evidence;
     case SEMANTIC_TARGETS.BRIEF_UNRESOLVED: return brief.unresolved;

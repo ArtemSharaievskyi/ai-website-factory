@@ -8,6 +8,13 @@ import {
   CanonicalEvidenceSchema,
   CanonicalRequirementValueSchema,
   CanonicalPublicEmailSchema,
+  CanonicalPublicPhoneInputSchema,
+  CanonicalServiceAddressSchema,
+  CanonicalBusinessEntityTypeSchema,
+  CanonicalCommercialRegisterStatusSchema,
+  CanonicalTaxIdentifierStatusSchema,
+  canonicalizePublicPhone,
+  canonicalizeServiceAddress,
   CanonicalPublicationInputsSchema,
   SemanticRequirementIdSchema,
   CanonicalSeoSchema,
@@ -61,6 +68,18 @@ export const CompleteBriefConsistencyCorrectionInputSchema = z.object({
 }).strict();
 export type CompleteBriefConsistencyCorrectionInput = z.infer<typeof CompleteBriefConsistencyCorrectionInputSchema>;
 
+/** Host-owned publication identity correction. Raw values are canonical-only and never provider-authored. */
+export const PublicationIdentityCorrectionInputSchema = z.object({
+  kind: z.literal("DETERMINISTIC_PUBLICATION_IDENTITY"),
+  serviceAddress: CanonicalServiceAddressSchema,
+  publicPhone: CanonicalPublicPhoneInputSchema,
+  businessEntityType: CanonicalBusinessEntityTypeSchema,
+  commercialRegisterStatus: CanonicalCommercialRegisterStatusSchema,
+  ustIdStatus: CanonicalTaxIdentifierStatusSchema,
+  wIdStatus: CanonicalTaxIdentifierStatusSchema,
+}).strict();
+export type PublicationIdentityCorrectionInput = z.infer<typeof PublicationIdentityCorrectionInputSchema>;
+
 const BrandConsistencyCorrectionInputSchema = z.object({
   marketingName: z.string().trim().min(1).max(300),
   proprietorName: z.string().trim().min(1).max(300),
@@ -75,6 +94,7 @@ export const PublicEmailCorrectionInputSchema = z.object({
   publicEmail: CanonicalPublicEmailSchema,
 }).strict();
 export const BriefConsistencyCorrectionInputSchema = z.union([
+  PublicationIdentityCorrectionInputSchema,
   CompleteBriefConsistencyCorrectionInputSchema,
   BrandConsistencyCorrectionInputSchema.extend({ publicEmail: CanonicalPublicEmailSchema.optional() }).strict(),
   PublicEmailCorrectionInputSchema,
@@ -105,11 +125,27 @@ const replaceAllInsensitive = (value: string, candidate: string, replacement: st
 const digest = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
 
 const hasBrandConsistencyCorrection = (correction: BriefConsistencyCorrectionInput): correction is Extract<BriefConsistencyCorrectionInput, { marketingName: string }> => "marketingName" in correction;
-const hasCompleteBriefConsistencyCorrection = (correction: BriefConsistencyCorrectionInput): correction is CompleteBriefConsistencyCorrectionInput => "kind" in correction;
+const hasPublicationIdentityCorrection = (correction: BriefConsistencyCorrectionInput): correction is PublicationIdentityCorrectionInput => "kind" in correction && correction.kind === "DETERMINISTIC_PUBLICATION_IDENTITY";
+const hasCompleteBriefConsistencyCorrection = (correction: BriefConsistencyCorrectionInput): correction is CompleteBriefConsistencyCorrectionInput => "kind" in correction && correction.kind === "COMPLETE_DETERMINISTIC_BRIEF_CONSISTENCY";
 
-/** Operation identity intentionally carries only a digest of the canonical email. */
+function redactPublicationIdentityCorrection(correction: PublicationIdentityCorrectionInput): Record<string, unknown> {
+  return {
+    ...correction,
+    serviceAddress: {
+      identityDigest: `sha256:${digest(stableSerialize(correction.serviceAddress))}`,
+      publicationScopes: correction.serviceAddress.publicationScopes,
+    },
+    publicPhone: {
+      identityDigest: `sha256:${digest(stableSerialize(correction.publicPhone))}`,
+      publicationScopes: correction.publicPhone.publicationScopes,
+    },
+  };
+}
+
+/** Operation identity carries only digests for customer-owned publication identity values. */
 export function deterministicBriefCorrectionInstruction(correction: BriefConsistencyCorrectionInput): string {
   const parsed = BriefConsistencyCorrectionInputSchema.parse(correction);
+  if (hasPublicationIdentityCorrection(parsed)) return `Deterministic Brief consistency correction:${stableSerialize(redactPublicationIdentityCorrection(parsed))}`;
   if (!("publicEmail" in parsed) || !parsed.publicEmail) return `Deterministic Brief consistency correction:${JSON.stringify(parsed)}`;
   const safe = parsed.publicEmail
     ? { ...parsed, publicEmail: { ...parsed.publicEmail, email: `sha256:${digest(parsed.publicEmail.email)}` } }
@@ -403,6 +439,84 @@ function reconcilePublicationUnresolved(brief: CanonicalBriefV3, inputs: z.infer
   return result;
 }
 
+function publicationInputsForIdentity(brief: CanonicalBriefV3, sourceRefs: readonly string[]): z.infer<typeof CanonicalPublicationInputsSchema> {
+  const existing = brief.legal.publicationInputs;
+  const refs = [...new Set([...sourceRefs, source])];
+  return CanonicalPublicationInputsSchema.parse({
+    address: { status: "RESOLVED", sourceRefs: refs },
+    rapidContact: { status: "RESOLVED", sourceRefs: refs },
+    taxIdentifiers: existing?.taxIdentifiers ?? { status: "CONDITIONAL_IF_APPLICABLE", sourceRefs: refs },
+    registerInformation: { status: "NOT_APPLICABLE", sourceRefs: refs },
+    regulatoryAuthority: existing?.regulatoryAuthority ?? { status: "CONDITIONAL_IF_APPLICABLE", sourceRefs: refs },
+  });
+}
+
+function assertExactPublicationScopes(value: { publicationScopes: readonly string[] }, target: string): void {
+  if (stableSerialize([...value.publicationScopes].sort()) !== stableSerialize(["CONTACT", "IMPRESSUM"])) {
+    throw new BriefV3Error("BRIEF_V3_INVALID_COMBINATION", { target });
+  }
+}
+
+function assertConfirmedIdentityCompatible(current: unknown, next: unknown, target: string, fields: readonly string[]): void {
+  if (!current || typeof current !== "object") return;
+  const currentValue = current as Record<string, unknown>;
+  const nextValue = next as Record<string, unknown>;
+  const currentSemantic = Object.fromEntries(fields.map((field) => [field, currentValue[field]]));
+  const nextSemantic = Object.fromEntries(fields.map((field) => [field, nextValue[field]]));
+  if (stableSerialize(currentSemantic) !== stableSerialize(nextSemantic)) throw new BriefV3Error("BRIEF_V3_INVALID_COMBINATION", { target });
+}
+
+function publicationIdentityEvidence(brief: CanonicalBriefV3, sourceRefs: readonly string[]): CanonicalEvidence[] {
+  const refs = [...new Set([...sourceRefs, source])];
+  const values = [
+    { field: "legal.serviceAddress", excerpt: "Customer-confirmed legal service address is authorized for CONTACT and IMPRESSUM publication." },
+    { field: "contact.publicPhone", excerpt: "Customer-confirmed public telephone is authorized for CONTACT and IMPRESSUM publication." },
+    { field: "legal.businessEntityType", excerpt: "Customer-confirmed business entity type and legal description are authorized for IMPRESSUM publication." },
+    { field: "legal.commercialRegisterStatus", excerpt: "Customer-confirmed commercial-register status is authorized for IMPRESSUM publication; no register number is inferred." },
+    { field: "legal.ustIdStatus", excerpt: "Customer-confirmed USt-IdNr. status is authorized for IMPRESSUM publication; no identifier is inferred." },
+    { field: "legal.wIdStatus", excerpt: "Customer-confirmed W-IdNr. status is authorized for IMPRESSUM publication; no identifier is inferred." },
+  ];
+  const existing = new Set(brief.evidence.map((entry) => `${entry.field}\u0000${entry.excerpt}`));
+  return [...brief.evidence, ...values
+    .filter((value) => !existing.has(`${value.field}\u0000${value.excerpt}`))
+    .map((value) => ({ ...value, source: "customer-confirmation", sourceRefs: refs }))];
+}
+
+function createPublicationIdentityCorrectionChangeSet(input: { brief: CanonicalBriefV3; correction: PublicationIdentityCorrectionInput }): BriefChangeSet {
+  const brief = CanonicalBriefV3Schema.parse(input.brief);
+  const correction = PublicationIdentityCorrectionInputSchema.parse(input.correction);
+  const serviceAddress = canonicalizeServiceAddress(correction.serviceAddress);
+  const publicPhone = canonicalizePublicPhone(correction.publicPhone);
+  for (const value of [serviceAddress, publicPhone, correction.businessEntityType, correction.commercialRegisterStatus, correction.ustIdStatus, correction.wIdStatus]) assertExactPublicationScopes(value, "PUBLICATION_IDENTITY_SCOPES");
+  assertConfirmedIdentityCompatible(brief.legal.serviceAddress, serviceAddress, SEMANTIC_TARGETS.PUBLICATION_SERVICE_ADDRESS, ["street", "houseNumber", "postalCode", "city", "countryCode", "countryDisplayName"]);
+  assertConfirmedIdentityCompatible(brief.contact?.publicPhone, publicPhone, SEMANTIC_TARGETS.PUBLIC_CONTACT_PHONE, ["e164"]);
+  assertConfirmedIdentityCompatible(brief.legal.businessEntityType, correction.businessEntityType, SEMANTIC_TARGETS.BUSINESS_ENTITY_TYPE, ["entityType", "legalDescription"]);
+  assertConfirmedIdentityCompatible(brief.legal.commercialRegisterStatus, correction.commercialRegisterStatus, SEMANTIC_TARGETS.COMMERCIAL_REGISTER_STATUS, ["status"]);
+  assertConfirmedIdentityCompatible(brief.legal.ustIdStatus, correction.ustIdStatus, SEMANTIC_TARGETS.UST_ID_STATUS, ["status"]);
+  assertConfirmedIdentityCompatible(brief.legal.wIdStatus, correction.wIdStatus, SEMANTIC_TARGETS.W_ID_STATUS, ["status"]);
+  const publicationInputs = publicationInputsForIdentity(brief, [source]);
+  const normalized = normalizeCanonicalBrief({
+    ...brief,
+    evidence: publicationIdentityEvidence(brief, [source]),
+    unresolved: reconcilePublicationUnresolved(brief, publicationInputs),
+  });
+  return {
+    contractVersion: 1,
+    changes: [
+      { operation: "SET", target: SEMANTIC_TARGETS.PUBLICATION_SERVICE_ADDRESS, value: serviceAddress, sourceRefs: [source] },
+      { operation: "SET", target: SEMANTIC_TARGETS.PUBLIC_CONTACT_PHONE, value: publicPhone, sourceRefs: [source] },
+      { operation: "SET", target: SEMANTIC_TARGETS.BUSINESS_ENTITY_TYPE, value: correction.businessEntityType, sourceRefs: [source] },
+      { operation: "SET", target: SEMANTIC_TARGETS.COMMERCIAL_REGISTER_STATUS, value: correction.commercialRegisterStatus, sourceRefs: [source] },
+      { operation: "SET", target: SEMANTIC_TARGETS.UST_ID_STATUS, value: correction.ustIdStatus, sourceRefs: [source] },
+      { operation: "SET", target: SEMANTIC_TARGETS.W_ID_STATUS, value: correction.wIdStatus, sourceRefs: [source] },
+      { operation: "SET", target: SEMANTIC_TARGETS.LEGAL_PUBLICATION_INPUTS, value: publicationInputs, sourceRefs: [source] },
+      { operation: "SET", target: SEMANTIC_TARGETS.BRIEF_EVIDENCE, value: normalized.evidence, sourceRefs: [source] },
+      { operation: "SET", target: SEMANTIC_TARGETS.BRIEF_UNRESOLVED, value: normalized.unresolved, sourceRefs: [source] },
+    ],
+    unresolved: [],
+  };
+}
+
 function formTransmissionRequirement(entry: CanonicalRequirement): boolean {
   return /form[-_ ]data[-_ ]transmission\s*:\s*(?!NONE\b)/iu.test(entry.statement);
 }
@@ -426,6 +540,16 @@ export function assertProviderChangesDoNotOverwriteConfirmedCorrections(input: {
     }
     if (change.operation === "SET" && change.target === SEMANTIC_TARGETS.LEGAL_PUBLICATION_INPUTS) {
       throw new BriefV3Error("BRIEF_V3_INVALID_COMBINATION", { target: SEMANTIC_TARGETS.LEGAL_PUBLICATION_INPUTS });
+    }
+    if (change.operation === "SET" && ([
+      SEMANTIC_TARGETS.PUBLICATION_SERVICE_ADDRESS,
+      SEMANTIC_TARGETS.PUBLIC_CONTACT_PHONE,
+      SEMANTIC_TARGETS.BUSINESS_ENTITY_TYPE,
+      SEMANTIC_TARGETS.COMMERCIAL_REGISTER_STATUS,
+      SEMANTIC_TARGETS.UST_ID_STATUS,
+      SEMANTIC_TARGETS.W_ID_STATUS,
+    ] as readonly string[]).includes(change.target)) {
+      throw new BriefV3Error("BRIEF_V3_INVALID_COMBINATION", { target: change.target });
     }
     const staticForm = form.mode === "NONE"
       || (form.mode === "SIMULATED" && form.transmissionMode === "NONE" && form.persistenceMode === "NONE" && form.serverProcessingMode === "NONE" && form.externalProviderMode === "NONE");
@@ -531,6 +655,7 @@ function createPublicEmailOnlyCorrectionChangeSet(input: { brief: CanonicalBrief
 /** Deterministically creates a typed patch from confirmed customer facts. No provider is involved. */
 export function createBriefConsistencyCorrectionChangeSet(input: { brief: CanonicalBriefV3; projectId: string; projectVersion: number; correction: BriefConsistencyCorrectionInput }): BriefChangeSet {
   const correction = BriefConsistencyCorrectionInputSchema.parse(input.correction);
+  if (hasPublicationIdentityCorrection(correction)) return createPublicationIdentityCorrectionChangeSet({ brief: input.brief, correction });
   if (hasCompleteBriefConsistencyCorrection(correction)) return createCompleteBriefConsistencyCorrectionChangeSet({ ...input, correction });
   if (!hasBrandConsistencyCorrection(correction)) return createPublicEmailOnlyCorrectionChangeSet({ ...input, correction });
   const brief = CanonicalBriefV3Schema.parse(input.brief);

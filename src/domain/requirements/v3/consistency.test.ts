@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { applyBriefChangeSet } from "./reducer";
 import { cleanBriefV3 } from "./fixtures";
-import { CanonicalBriefV3Schema } from "./schema";
-import { createBriefConsistencyCorrectionChangeSet, deterministicBriefCorrectionInstruction, PublicEmailCorrectionInputSchema, validateCanonicalBriefConsistency } from "./consistency";
+import { CanonicalBriefV3Schema, canonicalizePublicPhone, canonicalizeServiceAddress, derivePublicTelephoneDisplay, derivePublicTelephoneUri } from "./schema";
+import { createBriefConsistencyCorrectionChangeSet, deterministicBriefCorrectionInstruction, PublicEmailCorrectionInputSchema, PublicationIdentityCorrectionInputSchema, validateCanonicalBriefConsistency } from "./consistency";
 import { canonicalBriefChecksum } from "./normalize";
 
 const projectId = "22222222-2222-4222-8222-222222222222";
@@ -152,5 +152,179 @@ describe("Canonical Brief cross-field consistency", () => {
     expect(PublicEmailCorrectionInputSchema.safeParse({ publicEmail: { ...valid.publicEmail, publicationScopes: [] } }).success).toBe(false);
     expect(PublicEmailCorrectionInputSchema.safeParse({ publicEmail: { ...valid.publicEmail, publicationScopes: ["UNKNOWN"] } }).success).toBe(false);
     expect(PublicEmailCorrectionInputSchema.safeParse({ publicEmail: { ...valid.publicEmail, confirmation: "PROVIDER_CONFIRMED" } }).success).toBe(false);
+  });
+});
+
+const syntheticPublicationIdentityCorrection = {
+  kind: "DETERMINISTIC_PUBLICATION_IDENTITY" as const,
+  serviceAddress: {
+    street: "Beispielstraße",
+    houseNumber: "12",
+    postalCode: "12345",
+    city: "Beispielstadt",
+    countryCode: "DE",
+    countryDisplayName: "Deutschland",
+    confirmation: "CUSTOMER_CONFIRMED" as const,
+    source: "CUSTOMER_CONFIRMATION" as const,
+    publicationAuthorized: true as const,
+    publicationScopes: ["CONTACT", "IMPRESSUM"] as Array<"CONTACT" | "IMPRESSUM">,
+  },
+  publicPhone: {
+    e164: "+4915123456789",
+    confirmation: "CUSTOMER_CONFIRMED" as const,
+    source: "CUSTOMER_CONFIRMATION" as const,
+    publicationAuthorized: true as const,
+    publicationScopes: ["CONTACT", "IMPRESSUM"] as Array<"CONTACT" | "IMPRESSUM">,
+  },
+  businessEntityType: {
+    entityType: "SOLE_PROPRIETORSHIP" as const,
+    legalDescription: "Einzelunternehmen" as const,
+    confirmation: "CUSTOMER_CONFIRMED" as const,
+    source: "CUSTOMER_CONFIRMATION" as const,
+    publicationAuthorized: true as const,
+    publicationScopes: ["CONTACT", "IMPRESSUM"] as Array<"CONTACT" | "IMPRESSUM">,
+  },
+  commercialRegisterStatus: {
+    status: "NOT_REGISTERED" as const,
+    confirmation: "CUSTOMER_CONFIRMED" as const,
+    source: "CUSTOMER_CONFIRMATION" as const,
+    publicationAuthorized: true as const,
+    publicationScopes: ["CONTACT", "IMPRESSUM"] as Array<"CONTACT" | "IMPRESSUM">,
+  },
+  ustIdStatus: {
+    status: "NOT_YET_ASSIGNED" as const,
+    confirmation: "CUSTOMER_CONFIRMED" as const,
+    source: "CUSTOMER_CONFIRMATION" as const,
+    publicationAuthorized: true as const,
+    publicationScopes: ["CONTACT", "IMPRESSUM"] as Array<"CONTACT" | "IMPRESSUM">,
+  },
+  wIdStatus: {
+    status: "NOT_YET_ASSIGNED" as const,
+    confirmation: "CUSTOMER_CONFIRMED" as const,
+    source: "CUSTOMER_CONFIRMATION" as const,
+    publicationAuthorized: true as const,
+    publicationScopes: ["CONTACT", "IMPRESSUM"] as Array<"CONTACT" | "IMPRESSUM">,
+  },
+};
+
+describe("Deterministic publication identity capability", () => {
+  it("validates structured German addresses and deterministic telephone derivation", () => {
+    const address = canonicalizeServiceAddress(syntheticPublicationIdentityCorrection.serviceAddress);
+    const phone = canonicalizePublicPhone(syntheticPublicationIdentityCorrection.publicPhone);
+    expect(address.display).toBe("Beispielstraße 12, 12345 Beispielstadt, Deutschland");
+    expect(phone.display).toBe(derivePublicTelephoneDisplay(phone.e164));
+    expect(phone.display).toBe("+49 151 23456789");
+    expect(phone.telUri).toBe(derivePublicTelephoneUri(phone.e164));
+    expect(PublicationIdentityCorrectionInputSchema.safeParse(syntheticPublicationIdentityCorrection).success).toBe(true);
+  });
+
+  it("rejects malformed address, postcode, phone, URI, authorization, and scope values", () => {
+    expect(PublicationIdentityCorrectionInputSchema.safeParse({
+      ...syntheticPublicationIdentityCorrection,
+      serviceAddress: { ...syntheticPublicationIdentityCorrection.serviceAddress, postalCode: "1234" },
+    }).success).toBe(false);
+    expect(PublicationIdentityCorrectionInputSchema.safeParse({
+      ...syntheticPublicationIdentityCorrection,
+      serviceAddress: { ...syntheticPublicationIdentityCorrection.serviceAddress, street: "https://example.invalid" },
+    }).success).toBe(false);
+    expect(PublicationIdentityCorrectionInputSchema.safeParse({
+      ...syntheticPublicationIdentityCorrection,
+      serviceAddress: { ...syntheticPublicationIdentityCorrection.serviceAddress, city: "Example <City>" },
+    }).success).toBe(false);
+    expect(PublicationIdentityCorrectionInputSchema.safeParse({
+      ...syntheticPublicationIdentityCorrection,
+      serviceAddress: { ...syntheticPublicationIdentityCorrection.serviceAddress, street: "Example\nStreet" },
+    }).success).toBe(false);
+    expect(PublicationIdentityCorrectionInputSchema.safeParse({
+      ...syntheticPublicationIdentityCorrection,
+      publicPhone: { ...syntheticPublicationIdentityCorrection.publicPhone, e164: "tel:+4915123456789" },
+    }).success).toBe(false);
+    expect(PublicationIdentityCorrectionInputSchema.safeParse({
+      ...syntheticPublicationIdentityCorrection,
+      publicPhone: { ...syntheticPublicationIdentityCorrection.publicPhone, telUri: "javascript:alert(1)" },
+    }).success).toBe(false);
+    expect(PublicationIdentityCorrectionInputSchema.safeParse({
+      ...syntheticPublicationIdentityCorrection,
+      publicPhone: { ...syntheticPublicationIdentityCorrection.publicPhone, e164: "+4915123456789\n" },
+    }).success).toBe(false);
+    expect(PublicationIdentityCorrectionInputSchema.safeParse({
+      ...syntheticPublicationIdentityCorrection,
+      publicPhone: { ...syntheticPublicationIdentityCorrection.publicPhone, publicationAuthorized: false },
+    }).success).toBe(false);
+    expect(PublicationIdentityCorrectionInputSchema.safeParse({
+      ...syntheticPublicationIdentityCorrection,
+      commercialRegisterStatus: { ...syntheticPublicationIdentityCorrection.commercialRegisterStatus, status: "REGISTERED" },
+    }).success).toBe(false);
+    expect(PublicationIdentityCorrectionInputSchema.safeParse({
+      ...syntheticPublicationIdentityCorrection,
+      ustIdStatus: { ...syntheticPublicationIdentityCorrection.ustIdStatus, status: "ASSIGNED" },
+    }).success).toBe(false);
+    const contactOnly = PublicationIdentityCorrectionInputSchema.safeParse({
+      ...syntheticPublicationIdentityCorrection,
+      serviceAddress: { ...syntheticPublicationIdentityCorrection.serviceAddress, publicationScopes: ["CONTACT"] },
+    });
+    expect(contactOnly.success).toBe(true);
+    expect(() => createBriefConsistencyCorrectionChangeSet({ brief: cleanBriefV3, projectId, projectVersion: 1, correction: contactOnly.success ? contactOnly.data : syntheticPublicationIdentityCorrection })).toThrow("BRIEF_V3_INVALID_COMBINATION");
+  });
+
+  it("persists identity targets without creating duplicate requirements or legal fiction", () => {
+    const before = CanonicalBriefV3Schema.parse({
+      ...cleanBriefV3,
+      contact: {
+        publicEmail: {
+          email: "synthetic@example.test",
+          confirmation: "CUSTOMER_CONFIRMED",
+          source: "CUSTOMER_CONFIRMATION",
+          publicationAuthorized: true,
+          publicationScopes: ["CONTACT", "IMPRESSUM"],
+        },
+      },
+      legal: {
+        ...cleanBriefV3.legal,
+        publicationInputs: {
+          address: { status: "REQUIRED_BEFORE_PUBLICATION", sourceRefs: ["fixture:address"] },
+          rapidContact: { status: "REVIEW_REQUIRED", sourceRefs: ["fixture:rapid-contact"] },
+          taxIdentifiers: { status: "CONDITIONAL_IF_APPLICABLE", sourceRefs: ["fixture:tax"] },
+          registerInformation: { status: "CONDITIONAL_IF_APPLICABLE", sourceRefs: ["fixture:register"] },
+          regulatoryAuthority: { status: "CONDITIONAL_IF_APPLICABLE", sourceRefs: ["fixture:authority"] },
+        },
+      },
+      unresolved: [
+        { target: "LEGAL:ADDRESS", reason: "Synthetic address is required before publication.", sourceRefs: ["fixture:address"], status: "REQUIRED_BEFORE_PUBLICATION", blockingStages: ["PUBLICATION"] },
+        { target: "CONTACT:RAPID_CHANNEL", reason: "Synthetic rapid contact requires review.", sourceRefs: ["fixture:rapid-contact"], status: "REVIEW_REQUIRED", blockingStages: ["PUBLICATION"] },
+        { target: "CONTACT:PHONE", reason: "The synthetic phone remains unavailable.", sourceRefs: ["fixture:phone"], blockingStages: ["PUBLICATION"] },
+        { target: "LEGAL:REGISTER_INFORMATION", reason: "Synthetic register status is conditional.", sourceRefs: ["fixture:register"], status: "CONDITIONAL_IF_APPLICABLE", blockingStages: [] },
+      ],
+    });
+    const changeSet = createBriefConsistencyCorrectionChangeSet({ brief: before, projectId, projectVersion: 1, correction: syntheticPublicationIdentityCorrection });
+    const next = applyBriefChangeSet(before, changeSet);
+    expect(validateCanonicalBriefConsistency(next)).toEqual([]);
+    expect(next.legal.serviceAddress?.display).toBe("Beispielstraße 12, 12345 Beispielstadt, Deutschland");
+    expect(next.contact?.publicPhone).toMatchObject({ e164: "+4915123456789", display: "+49 151 23456789", telUri: "tel:+4915123456789" });
+    expect(next.legal.businessEntityType?.legalDescription).toBe("Einzelunternehmen");
+    expect(next.legal.commercialRegisterStatus?.status).toBe("NOT_REGISTERED");
+    expect(next.legal.ustIdStatus?.status).toBe("NOT_YET_ASSIGNED");
+    expect(next.legal.wIdStatus?.status).toBe("NOT_YET_ASSIGNED");
+    expect(next.legal.publicationInputs).toMatchObject({ address: { status: "RESOLVED" }, rapidContact: { status: "RESOLVED" }, registerInformation: { status: "NOT_APPLICABLE" } });
+    expect(next.unresolved.some((item) => ["LEGAL:ADDRESS", "CONTACT:RAPID_CHANNEL", "CONTACT:PHONE", "CONTACT:WHATSAPP", "LEGAL:REGISTER_INFORMATION"].includes(item.target))).toBe(false);
+    expect(next.contact?.publicEmail?.email).toBe("synthetic@example.test");
+    expect(next.requirements).toEqual(before.requirements);
+    expect(next.requirements.filter((entry) => /address|phone|register|USt|W-Id/i.test(entry.statement))).toHaveLength(0);
+    expect(JSON.stringify(next)).not.toMatch(/Kleinunternehmer|§\s*19\s*UStG/i);
+  });
+
+  it("keeps operation identity digest-only and rejects conflicting confirmed values", () => {
+    const instruction = deterministicBriefCorrectionInstruction(syntheticPublicationIdentityCorrection);
+    expect(instruction).not.toContain("Beispielstraße");
+    expect(instruction).not.toContain("+4915123456789");
+    expect(instruction).toContain("identityDigest");
+    const first = createBriefConsistencyCorrectionChangeSet({ brief: cleanBriefV3, projectId, projectVersion: 1, correction: syntheticPublicationIdentityCorrection });
+    const current = applyBriefChangeSet(cleanBriefV3, first);
+    expect(() => createBriefConsistencyCorrectionChangeSet({
+      brief: current,
+      projectId,
+      projectVersion: 1,
+      correction: { ...syntheticPublicationIdentityCorrection, serviceAddress: { ...syntheticPublicationIdentityCorrection.serviceAddress, street: "Andere Straße" } },
+    })).toThrow("BRIEF_V3_INVALID_COMBINATION");
   });
 });

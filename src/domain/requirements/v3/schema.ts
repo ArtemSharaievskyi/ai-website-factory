@@ -172,8 +172,137 @@ export const ConfirmedProprietorSchema = z.object({
 }).strict();
 export type ConfirmedProprietor = z.infer<typeof ConfirmedProprietorSchema>;
 
-export const PublicEmailPublicationScopeSchema = z.enum(["CONTACT", "IMPRESSUM"]);
-export type PublicEmailPublicationScope = z.infer<typeof PublicEmailPublicationScopeSchema>;
+export const PublicationIdentityScopeSchema = z.enum(["CONTACT", "IMPRESSUM"]);
+export type PublicationIdentityScope = z.infer<typeof PublicationIdentityScopeSchema>;
+export const PublicEmailPublicationScopeSchema = PublicationIdentityScopeSchema;
+export type PublicEmailPublicationScope = PublicationIdentityScope;
+
+const publicationIdentityText = (max: number) => z.string().min(1).max(max).superRefine((value, context) => {
+  if (value !== value.trim()) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Publication identity text must not have surrounding whitespace." });
+  }
+  if (/[\x00-\x1F\x7F]/u.test(value)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Publication identity text must not contain control characters or line breaks." });
+  }
+  if (/[<>]/u.test(value) || /[a-z][a-z0-9+.-]*:\/\//iu.test(value) || /(?:^|\s)[a-z][a-z0-9+.-]*:[^\s]/iu.test(value)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Publication identity text must not contain HTML or URI schemes." });
+  }
+});
+
+const PublicationIdentityAuthorizationShape = {
+  confirmation: z.literal("CUSTOMER_CONFIRMED"),
+  source: z.literal("CUSTOMER_CONFIRMATION"),
+  publicationAuthorized: z.literal(true),
+  publicationScopes: z.array(PublicationIdentityScopeSchema).min(1).max(2).transform((scopes) => [...new Set(scopes)].sort()),
+} as const;
+
+export const CanonicalPublicationIdentityAuthorizationSchema = z.object(PublicationIdentityAuthorizationShape).strict();
+export type CanonicalPublicationIdentityAuthorization = z.infer<typeof CanonicalPublicationIdentityAuthorizationSchema>;
+
+export const CountryCodeSchema = z.string().regex(/^[A-Z]{2}$/);
+export const CanonicalServiceAddressSchema = z.object({
+  street: publicationIdentityText(160),
+  houseNumber: publicationIdentityText(30),
+  postalCode: publicationIdentityText(20),
+  city: publicationIdentityText(120),
+  countryCode: CountryCodeSchema,
+  countryDisplayName: publicationIdentityText(120),
+  display: publicationIdentityText(500).optional(),
+  ...PublicationIdentityAuthorizationShape,
+}).strict().superRefine((value, context) => {
+  if (value.countryCode === "DE" && !/^\d{5}$/u.test(value.postalCode)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["postalCode"], message: "German postal codes must contain exactly five digits." });
+  }
+  const expectedDisplay = deriveServiceAddressDisplay(value);
+  if (value.display !== undefined && value.display !== expectedDisplay) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["display"], message: "Address display must be deterministically derived from the structured fields." });
+  }
+});
+export type CanonicalServiceAddress = z.infer<typeof CanonicalServiceAddressSchema>;
+
+export function deriveServiceAddressDisplay(input: Pick<CanonicalServiceAddress, "street" | "houseNumber" | "postalCode" | "city" | "countryDisplayName">): string {
+  return `${input.street} ${input.houseNumber}, ${input.postalCode} ${input.city}, ${input.countryDisplayName}`;
+}
+
+export function canonicalizeServiceAddress(input: unknown): CanonicalServiceAddress {
+  const parsed = CanonicalServiceAddressSchema.parse(input);
+  return CanonicalServiceAddressSchema.parse({ ...parsed, display: deriveServiceAddressDisplay(parsed) });
+}
+
+const PublicTelephoneE164Schema = z.string().max(16).superRefine((value, context) => {
+  if (!/^\+[1-9]\d{7,14}$/u.test(value)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Public telephone must be a canonical E.164 number without extensions or URI schemes." });
+  }
+});
+
+export function derivePublicTelephoneDisplay(e164: string): string {
+  const value = e164;
+  if (value.startsWith("+49") && value.length > 6) return `+49 ${value.slice(3, 6)} ${value.slice(6)}`;
+  const generic = value.match(/^(\+\d{1,3})(\d+)$/u);
+  return generic ? `${generic[1]} ${generic[2]}` : value;
+}
+
+export function derivePublicTelephoneUri(e164: string): string {
+  return `tel:${e164}`;
+}
+
+export const CanonicalPublicPhoneSchema = z.object({
+  e164: PublicTelephoneE164Schema,
+  display: publicationIdentityText(40),
+  telUri: z.string().max(40),
+  ...PublicationIdentityAuthorizationShape,
+}).strict().superRefine((value, context) => {
+  if (value.display !== derivePublicTelephoneDisplay(value.e164)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["display"], message: "Telephone display must be deterministically derived from e164." });
+  }
+  if (value.telUri !== derivePublicTelephoneUri(value.e164)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["telUri"], message: "Telephone URI must be the deterministic tel URI for e164." });
+  }
+});
+export type CanonicalPublicPhone = z.infer<typeof CanonicalPublicPhoneSchema>;
+
+export const CanonicalPublicPhoneInputSchema = z.object({
+  e164: PublicTelephoneE164Schema,
+  display: publicationIdentityText(40).optional(),
+  telUri: z.string().max(40).optional(),
+  ...PublicationIdentityAuthorizationShape,
+}).strict().superRefine((value, context) => {
+  if (value.display !== undefined && value.display !== derivePublicTelephoneDisplay(value.e164)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["display"], message: "Telephone display must be deterministically derived from e164." });
+  }
+  if (value.telUri !== undefined && value.telUri !== derivePublicTelephoneUri(value.e164)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["telUri"], message: "Telephone URI must be the deterministic tel URI for e164." });
+  }
+});
+export type CanonicalPublicPhoneInput = z.infer<typeof CanonicalPublicPhoneInputSchema>;
+
+export function canonicalizePublicPhone(input: unknown): CanonicalPublicPhone {
+  const parsed = CanonicalPublicPhoneInputSchema.parse(input);
+  return CanonicalPublicPhoneSchema.parse({ ...parsed, display: derivePublicTelephoneDisplay(parsed.e164), telUri: derivePublicTelephoneUri(parsed.e164) });
+}
+
+export const BusinessEntityTypeSchema = z.literal("SOLE_PROPRIETORSHIP");
+export const BusinessLegalDescriptionSchema = z.literal("Einzelunternehmen");
+export const CanonicalBusinessEntityTypeSchema = z.object({
+  entityType: BusinessEntityTypeSchema,
+  legalDescription: BusinessLegalDescriptionSchema,
+  ...PublicationIdentityAuthorizationShape,
+}).strict();
+export type CanonicalBusinessEntityType = z.infer<typeof CanonicalBusinessEntityTypeSchema>;
+
+export const CommercialRegisterStatusSchema = z.literal("NOT_REGISTERED");
+export const CanonicalCommercialRegisterStatusSchema = z.object({
+  status: CommercialRegisterStatusSchema,
+  ...PublicationIdentityAuthorizationShape,
+}).strict();
+export type CanonicalCommercialRegisterStatus = z.infer<typeof CanonicalCommercialRegisterStatusSchema>;
+
+export const TaxIdentifierStatusSchema = z.literal("NOT_YET_ASSIGNED");
+export const CanonicalTaxIdentifierStatusSchema = z.object({
+  status: TaxIdentifierStatusSchema,
+  ...PublicationIdentityAuthorizationShape,
+}).strict();
+export type CanonicalTaxIdentifierStatus = z.infer<typeof CanonicalTaxIdentifierStatusSchema>;
 
 const PublicEmailAddressSchema = z.string().max(320).superRefine((rawValue, context) => {
   if (/[\u0000-\u001F\u007F]/u.test(rawValue)) {
@@ -214,6 +343,7 @@ export type CanonicalPublicEmail = z.infer<typeof CanonicalPublicEmailSchema>;
 
 export const CanonicalContactSchema = z.object({
   publicEmail: CanonicalPublicEmailSchema.optional(),
+  publicPhone: CanonicalPublicPhoneSchema.optional(),
 }).strict();
 export type CanonicalContact = z.infer<typeof CanonicalContactSchema>;
 
@@ -301,6 +431,11 @@ export const CanonicalBriefV3Schema = z.object({
     placeholderPolicy: PlaceholderPolicySchema,
     inventedFactsPolicy: InventedFactsPolicySchema,
     confirmedProprietor: ConfirmedProprietorSchema.optional(),
+    serviceAddress: CanonicalServiceAddressSchema.optional(),
+    businessEntityType: CanonicalBusinessEntityTypeSchema.optional(),
+    commercialRegisterStatus: CanonicalCommercialRegisterStatusSchema.optional(),
+    ustIdStatus: CanonicalTaxIdentifierStatusSchema.optional(),
+    wIdStatus: CanonicalTaxIdentifierStatusSchema.optional(),
     publicationInputs: CanonicalPublicationInputsSchema.optional(),
   }).strict(),
   contact: CanonicalContactSchema.optional(),

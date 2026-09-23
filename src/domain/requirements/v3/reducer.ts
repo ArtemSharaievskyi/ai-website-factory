@@ -219,7 +219,13 @@ function applySet(brief: CanonicalBriefV3, change: BriefSetChange): CanonicalBri
       ? { ...brief, legal: { ...brief.legal, confirmedProprietor: undefined } }
       : { ...brief, legal: { ...brief.legal, confirmedProprietor: change.value } };
     case SEMANTIC_TARGETS.LEGAL_PUBLICATION_INPUTS: return { ...brief, legal: { ...brief.legal, publicationInputs: change.value } };
+    case SEMANTIC_TARGETS.PUBLICATION_SERVICE_ADDRESS: return { ...brief, legal: { ...brief.legal, serviceAddress: change.value } };
+    case SEMANTIC_TARGETS.BUSINESS_ENTITY_TYPE: return { ...brief, legal: { ...brief.legal, businessEntityType: change.value } };
+    case SEMANTIC_TARGETS.COMMERCIAL_REGISTER_STATUS: return { ...brief, legal: { ...brief.legal, commercialRegisterStatus: change.value } };
+    case SEMANTIC_TARGETS.UST_ID_STATUS: return { ...brief, legal: { ...brief.legal, ustIdStatus: change.value } };
+    case SEMANTIC_TARGETS.W_ID_STATUS: return { ...brief, legal: { ...brief.legal, wIdStatus: change.value } };
     case SEMANTIC_TARGETS.PUBLIC_CONTACT_EMAIL: return { ...brief, contact: { ...(brief.contact ?? {}), publicEmail: change.value } };
+    case SEMANTIC_TARGETS.PUBLIC_CONTACT_PHONE: return { ...brief, contact: { ...(brief.contact ?? {}), publicPhone: change.value } };
     case SEMANTIC_TARGETS.BRIEF_TITLE: return { ...brief, title: change.value };
     case SEMANTIC_TARGETS.BRIEF_EVIDENCE: return { ...brief, evidence: change.value };
     case SEMANTIC_TARGETS.BRIEF_UNRESOLVED: return { ...brief, unresolved: change.value };

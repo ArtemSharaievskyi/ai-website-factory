@@ -116,7 +116,53 @@ describe("Brief Revision V3 provider boundary", () => {
     for (const target of canonicalSetTargets) expect(ProviderBriefChangeSetSchema.safeParse({ contractVersion: 1, changes: [{ operation: "SET", target, value: values[target] }] }).success).toBe(true);
     expect(ProviderBriefChangeSetSchema.safeParse({ contractVersion: 1, changes: [{ operation: "UPSERT", target: "REQUIREMENT:new", value: { category: "FEATURE", statement: "Synthetic feature." } }, { operation: "UPSERT", target: "ASSET_COMPANY_LOGO", value: { reference: "asset:logo", role: "logo", usage: "Use it.", replacementPolicy: "FORBIDDEN" } }, { operation: "UPSERT", target: "PAGE:home", value: { slug: "home", purpose: "Home." } }] }).success).toBe(true);
     expect(ProviderBriefChangeSetSchema.safeParse({ contractVersion: 1, changes: [{ operation: "SET", target: "PUBLIC_CONTACT_EMAIL", value: { email: "kontakt@example.com", confirmation: "CUSTOMER_CONFIRMED", source: "CUSTOMER_CONFIRMATION", publicationAuthorized: true, publicationScopes: ["CONTACT"] } }] }).success).toBe(false);
+    for (const target of ["PUBLICATION_SERVICE_ADDRESS", "PUBLIC_CONTACT_PHONE", "BUSINESS_ENTITY_TYPE", "COMMERCIAL_REGISTER_STATUS", "UST_ID_STATUS", "W_ID_STATUS"]) {
+      expect(ProviderBriefChangeSetSchema.safeParse({ contractVersion: 1, changes: [{ operation: "SET", target, value: "synthetic-host-owned" }] }).success).toBe(false);
+      expect(providerTargetContract().some((entry) => entry.target === target)).toBe(false);
+    }
     mark("Provider target/value map");
+  });
+
+  it("omits confirmed publication identity values from provider context", () => {
+    const current = CanonicalBriefV3Schema.parse({
+      ...cleanBriefV3,
+      contact: {
+        publicPhone: {
+          e164: "+4915123456789",
+          display: "+49 151 23456789",
+          telUri: "tel:+4915123456789",
+          confirmation: "CUSTOMER_CONFIRMED",
+          source: "CUSTOMER_CONFIRMATION",
+          publicationAuthorized: true,
+          publicationScopes: ["CONTACT", "IMPRESSUM"],
+        },
+      },
+      legal: {
+        ...cleanBriefV3.legal,
+        serviceAddress: {
+          street: "Beispielstraße",
+          houseNumber: "12",
+          postalCode: "12345",
+          city: "Beispielstadt",
+          countryCode: "DE",
+          countryDisplayName: "Deutschland",
+          display: "Beispielstraße 12, 12345 Beispielstadt, Deutschland",
+          confirmation: "CUSTOMER_CONFIRMED",
+          source: "CUSTOMER_CONFIRMATION",
+          publicationAuthorized: true,
+          publicationScopes: ["CONTACT", "IMPRESSUM"],
+        },
+        businessEntityType: { entityType: "SOLE_PROPRIETORSHIP", legalDescription: "Einzelunternehmen", confirmation: "CUSTOMER_CONFIRMED", source: "CUSTOMER_CONFIRMATION", publicationAuthorized: true, publicationScopes: ["CONTACT", "IMPRESSUM"] },
+        commercialRegisterStatus: { status: "NOT_REGISTERED", confirmation: "CUSTOMER_CONFIRMED", source: "CUSTOMER_CONFIRMATION", publicationAuthorized: true, publicationScopes: ["CONTACT", "IMPRESSUM"] },
+        ustIdStatus: { status: "NOT_YET_ASSIGNED", confirmation: "CUSTOMER_CONFIRMED", source: "CUSTOMER_CONFIRMATION", publicationAuthorized: true, publicationScopes: ["CONTACT", "IMPRESSUM"] },
+        wIdStatus: { status: "NOT_YET_ASSIGNED", confirmation: "CUSTOMER_CONFIRMED", source: "CUSTOMER_CONFIRMATION", publicationAuthorized: true, publicationScopes: ["CONTACT", "IMPRESSUM"] },
+      },
+    });
+    const prompt = buildBriefV3RevisionPrompt({ revisionInstruction: "Synthetic revision.", currentCanonicalV3: current });
+    expect(prompt.user).not.toContain("Beispielstraße");
+    expect(prompt.user).not.toContain("+4915123456789");
+    expect(prompt.system).toContain("publication address");
+    mark("Publication identity privacy boundary");
   });
 
   it("rejects unknown fields and every host-owned attack field", () => {

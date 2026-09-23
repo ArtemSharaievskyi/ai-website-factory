@@ -8,6 +8,11 @@ import {
   CanonicalRequirementSchema,
   CanonicalSeoSchema,
   CanonicalPublicEmailSchema,
+  CanonicalPublicPhoneSchema,
+  CanonicalServiceAddressSchema,
+  CanonicalBusinessEntityTypeSchema,
+  CanonicalCommercialRegisterStatusSchema,
+  CanonicalTaxIdentifierStatusSchema,
   ConfirmedProprietorSchema,
   CanonicalUnresolvedSchema,
   CanonicalPublicationInputsSchema,
@@ -53,6 +58,12 @@ export const SEMANTIC_TARGETS = {
   LEGAL_CONFIRMED_PROPRIETOR: "LEGAL_CONFIRMED_PROPRIETOR",
   LEGAL_PUBLICATION_INPUTS: "LEGAL_PUBLICATION_INPUTS",
   PUBLIC_CONTACT_EMAIL: "PUBLIC_CONTACT_EMAIL",
+  PUBLICATION_SERVICE_ADDRESS: "PUBLICATION_SERVICE_ADDRESS",
+  PUBLIC_CONTACT_PHONE: "PUBLIC_CONTACT_PHONE",
+  BUSINESS_ENTITY_TYPE: "BUSINESS_ENTITY_TYPE",
+  COMMERCIAL_REGISTER_STATUS: "COMMERCIAL_REGISTER_STATUS",
+  UST_ID_STATUS: "UST_ID_STATUS",
+  W_ID_STATUS: "W_ID_STATUS",
   BRIEF_TITLE: "BRIEF_TITLE",
   BRIEF_EVIDENCE: "BRIEF_EVIDENCE",
   BRIEF_UNRESOLVED: "BRIEF_UNRESOLVED",
@@ -69,7 +80,7 @@ export type DynamicPageTargetId = `PAGE:${string}`;
 export type AssetTargetId = DynamicAssetTargetId | typeof SEMANTIC_TARGETS.ASSET_COMPANY_LOGO;
 export type SemanticTargetId = FixedSemanticTargetId | DynamicRequirementTargetId | DynamicAssetTargetId | DynamicPageTargetId;
 
-export const SEMANTIC_TARGET_ID_PATTERN = /^(?:FORM_[A-Z_]+|DATABASE_MODE|AUTH_MODE|ANALYTICS_MODE|PROTECTED_FUNCTIONALITY|ROUTE_POLICY|BRAND_REFERENCE_STRATEGY|BRAND_SUPPLIED_INFORMATION|BRAND_SUPPLIED_LOGO_DESCRIPTION|BRAND_MARKETING_NAME|IMAGE_SOURCE_STRATEGY|SEO_TITLE|SEO_META_DESCRIPTION|SEO_PRIMARY_KEYWORDS|SEO_LOCATION_TARGETING|SEO_PAGE_METADATA|LEGAL_[A-Z_]+|PUBLIC_CONTACT_EMAIL|BRIEF_TITLE|BRIEF_EVIDENCE|BRIEF_UNRESOLVED|ASSET_COMPANY_LOGO|REQUIREMENT:[A-Za-z0-9_.:-]{1,180}|ASSET:[A-Za-z0-9_.:-]{1,180}|PAGE:[^\r\n]{1,180})$/;
+export const SEMANTIC_TARGET_ID_PATTERN = /^(?:FORM_[A-Z_]+|DATABASE_MODE|AUTH_MODE|ANALYTICS_MODE|PROTECTED_FUNCTIONALITY|ROUTE_POLICY|BRAND_REFERENCE_STRATEGY|BRAND_SUPPLIED_INFORMATION|BRAND_SUPPLIED_LOGO_DESCRIPTION|BRAND_MARKETING_NAME|IMAGE_SOURCE_STRATEGY|SEO_TITLE|SEO_META_DESCRIPTION|SEO_PRIMARY_KEYWORDS|SEO_LOCATION_TARGETING|SEO_PAGE_METADATA|LEGAL_[A-Z_]+|PUBLIC_CONTACT_EMAIL|PUBLICATION_SERVICE_ADDRESS|PUBLIC_CONTACT_PHONE|BUSINESS_ENTITY_TYPE|COMMERCIAL_REGISTER_STATUS|UST_ID_STATUS|W_ID_STATUS|BRIEF_TITLE|BRIEF_EVIDENCE|BRIEF_UNRESOLVED|ASSET_COMPANY_LOGO|REQUIREMENT:[A-Za-z0-9_.:-]{1,180}|ASSET:[A-Za-z0-9_.:-]{1,180}|PAGE:[^\r\n]{1,180})$/;
 
 export const isSemanticTargetId = (value: string): value is SemanticTargetId => SEMANTIC_TARGET_ID_PATTERN.test(value);
 export const isRequirementTarget = (value: string): value is DynamicRequirementTargetId => value.startsWith("REQUIREMENT:") && isSemanticTargetId(value);
@@ -107,6 +118,12 @@ export type FixedTargetValueMap = {
   [SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR]: z.infer<typeof ConfirmedProprietorSchema> | null;
   [SEMANTIC_TARGETS.LEGAL_PUBLICATION_INPUTS]: z.infer<typeof CanonicalPublicationInputsSchema>;
   [SEMANTIC_TARGETS.PUBLIC_CONTACT_EMAIL]: z.infer<typeof CanonicalPublicEmailSchema>;
+  [SEMANTIC_TARGETS.PUBLICATION_SERVICE_ADDRESS]: z.infer<typeof CanonicalServiceAddressSchema>;
+  [SEMANTIC_TARGETS.PUBLIC_CONTACT_PHONE]: z.infer<typeof CanonicalPublicPhoneSchema>;
+  [SEMANTIC_TARGETS.BUSINESS_ENTITY_TYPE]: z.infer<typeof CanonicalBusinessEntityTypeSchema>;
+  [SEMANTIC_TARGETS.COMMERCIAL_REGISTER_STATUS]: z.infer<typeof CanonicalCommercialRegisterStatusSchema>;
+  [SEMANTIC_TARGETS.UST_ID_STATUS]: z.infer<typeof CanonicalTaxIdentifierStatusSchema>;
+  [SEMANTIC_TARGETS.W_ID_STATUS]: z.infer<typeof CanonicalTaxIdentifierStatusSchema>;
   [SEMANTIC_TARGETS.BRIEF_TITLE]: string | null;
   [SEMANTIC_TARGETS.BRIEF_EVIDENCE]: z.infer<typeof CanonicalEvidenceSchema>[];
   [SEMANTIC_TARGETS.BRIEF_UNRESOLVED]: z.infer<typeof CanonicalUnresolvedSchema>[];
@@ -125,7 +142,7 @@ export type TargetValueFor<T extends SemanticTargetId> =
 export const TargetCatalogEntrySchema = z.object({
   id: z.string(),
   operation: z.enum(["SET", "UPSERT", "REMOVE"]),
-  valueType: z.enum(["successMode", "successPolicy", "transmissionMode", "persistenceMode", "serverProcessingMode", "externalProviderMode", "privacyConsentMode", "databaseMode", "authMode", "analyticsMode", "protectedFunctionality", "routePolicy", "brandStrategy", "brandSuppliedInformation", "brandSuppliedLogoDescription", "brandMarketingName", "imageStrategy", "title", "metaDescription", "primaryKeywords", "locationTargeting", "pageMetadata", "placeholderPolicy", "inventedFactsPolicy", "confirmedProprietor", "publicationInputs", "publicEmail", "evidence", "unresolved", "requirement", "asset", "page"]),
+  valueType: z.enum(["successMode", "successPolicy", "transmissionMode", "persistenceMode", "serverProcessingMode", "externalProviderMode", "privacyConsentMode", "databaseMode", "authMode", "analyticsMode", "protectedFunctionality", "routePolicy", "brandStrategy", "brandSuppliedInformation", "brandSuppliedLogoDescription", "brandMarketingName", "imageStrategy", "title", "metaDescription", "primaryKeywords", "locationTargeting", "pageMetadata", "placeholderPolicy", "inventedFactsPolicy", "confirmedProprietor", "publicationInputs", "publicEmail", "serviceAddress", "publicPhone", "businessEntityType", "commercialRegisterStatus", "taxIdentifierStatus", "evidence", "unresolved", "requirement", "asset", "page"]),
   providerWritable: z.boolean().optional(),
 }).strict();
 export type TargetCatalogEntry = z.infer<typeof TargetCatalogEntrySchema>;
@@ -160,6 +177,12 @@ export const TARGET_CATALOG: readonly TargetCatalogEntry[] = [
   fixed(SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR, "confirmedProprietor"),
   { id: SEMANTIC_TARGETS.LEGAL_PUBLICATION_INPUTS, operation: "SET", valueType: "publicationInputs", providerWritable: false },
   { id: SEMANTIC_TARGETS.PUBLIC_CONTACT_EMAIL, operation: "SET", valueType: "publicEmail", providerWritable: false },
+  { id: SEMANTIC_TARGETS.PUBLICATION_SERVICE_ADDRESS, operation: "SET", valueType: "serviceAddress", providerWritable: false },
+  { id: SEMANTIC_TARGETS.PUBLIC_CONTACT_PHONE, operation: "SET", valueType: "publicPhone", providerWritable: false },
+  { id: SEMANTIC_TARGETS.BUSINESS_ENTITY_TYPE, operation: "SET", valueType: "businessEntityType", providerWritable: false },
+  { id: SEMANTIC_TARGETS.COMMERCIAL_REGISTER_STATUS, operation: "SET", valueType: "commercialRegisterStatus", providerWritable: false },
+  { id: SEMANTIC_TARGETS.UST_ID_STATUS, operation: "SET", valueType: "taxIdentifierStatus", providerWritable: false },
+  { id: SEMANTIC_TARGETS.W_ID_STATUS, operation: "SET", valueType: "taxIdentifierStatus", providerWritable: false },
   fixed(SEMANTIC_TARGETS.BRIEF_TITLE, "title"),
   fixed(SEMANTIC_TARGETS.BRIEF_EVIDENCE, "evidence"),
   fixed(SEMANTIC_TARGETS.BRIEF_UNRESOLVED, "unresolved"),
@@ -208,6 +231,11 @@ export const targetValueSchemas = {
   confirmedProprietor: ConfirmedProprietorSchema.nullable(),
   publicationInputs: CanonicalPublicationInputsSchema,
   publicEmail: CanonicalPublicEmailSchema,
+  serviceAddress: CanonicalServiceAddressSchema,
+  publicPhone: CanonicalPublicPhoneSchema,
+  businessEntityType: CanonicalBusinessEntityTypeSchema,
+  commercialRegisterStatus: CanonicalCommercialRegisterStatusSchema,
+  taxIdentifierStatus: CanonicalTaxIdentifierStatusSchema,
   evidence: z.array(CanonicalEvidenceSchema),
   unresolved: z.array(CanonicalUnresolvedSchema),
   requirement: CanonicalRequirementValueSchema,

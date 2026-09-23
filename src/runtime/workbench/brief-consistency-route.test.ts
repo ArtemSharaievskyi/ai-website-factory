@@ -174,4 +174,83 @@ describe("Deterministic Brief consistency correction HTTP boundary", () => {
     expect(database.briefRevisionAttempts.size).toBe(1);
     expect(database.briefRevisionHistory.size).toBe(1);
   });
+
+  it("persists publication identity through one canonical Workbench dispatch, replays idempotently, and never calls a provider", async () => {
+    const database = new InMemoryPersistenceDatabase();
+    const root = await mkdtemp(path.join(os.tmpdir(), "brief-publication-identity-http-"));
+    roots.push(root);
+    const identityProjectId = "ec5549cb-b4b5-4906-8667-7767ff717084";
+    const project = FactoryProjectSchema.parse({ schemaVersion: 1, documentType: "factory-project", projectId: identityProjectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: identityProjectId, slug: "brief-publication-identity-http", originalPrompt: "Synthetic publication identity correction.", currentVersion: 1, workflowState: "AWAITING_BRIEF_APPROVAL" });
+    await new ProjectRepository(database).create(project);
+    const beforeRow = database.projects.get(identityProjectId)!;
+    database.projects.set(identityProjectId, { ...beforeRow, row_version: 4 });
+    const brief = CanonicalBriefV3Schema.parse({
+      ...cleanBriefV3,
+      legal: {
+        ...cleanBriefV3.legal,
+        publicationInputs: {
+          address: { status: "REQUIRED_BEFORE_PUBLICATION", sourceRefs: ["fixture:address"] },
+          rapidContact: { status: "REVIEW_REQUIRED", sourceRefs: ["fixture:rapid-contact"] },
+          taxIdentifiers: { status: "CONDITIONAL_IF_APPLICABLE", sourceRefs: ["fixture:tax"] },
+          registerInformation: { status: "CONDITIONAL_IF_APPLICABLE", sourceRefs: ["fixture:register"] },
+          regulatoryAuthority: { status: "CONDITIONAL_IF_APPLICABLE", sourceRefs: ["fixture:authority"] },
+        },
+      },
+      unresolved: [
+        { target: "LEGAL:ADDRESS", reason: "Synthetic address remains required.", sourceRefs: ["fixture:address"], status: "REQUIRED_BEFORE_PUBLICATION", blockingStages: ["PUBLICATION"] },
+        { target: "CONTACT:RAPID_CHANNEL", reason: "Synthetic rapid contact remains under review.", sourceRefs: ["fixture:rapid-contact"], status: "REVIEW_REQUIRED", blockingStages: ["PUBLICATION"] },
+        { target: "CONTACT:PHONE", reason: "Synthetic phone remains unavailable.", sourceRefs: ["fixture:phone"], blockingStages: ["PUBLICATION"] },
+      ],
+    });
+    await new DocumentRepository(database).save(createBriefV3Document({ projectId: identityProjectId, projectVersion: 1, brief, createdAt: timestamp, updatedAt: timestamp }));
+    await new ProjectVersionRepository(database).create({ id: "ec5549cb-b4b5-4906-8667-7767ff717085", projectId: identityProjectId, versionNumber: 1, state: project.workflowState, memoryRootPath: null, requirementsChecksum: null, selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
+    let providerCalls = 0;
+    const provider: BriefV3RevisionProvider = { proposeChanges: async () => { providerCalls += 1; throw new Error("PUBLICATION_IDENTITY_MUST_NOT_CALL_PROVIDER"); } };
+    const projection = new (await import("@/runtime/workspace/sync")).FilesystemProjectMemorySyncPort(root, project.slug);
+    const revision = new BriefV3TransactionService({ database, provider, projection });
+    const entry = new TrialEntryService({ database, createLeadAgent: () => { throw new Error("LEAD_MUST_NOT_RUN"); }, createBriefRevisionV3: () => revision });
+    const app = new WorkbenchApplication({ database, entry });
+    mockWorkbench.handle.mockImplementation((request: unknown) => app.handle(request as Parameters<WorkbenchApplication["handle"]>[0]));
+    const before = await app.handle({ action: "status", projectId: identityProjectId });
+    const correction = {
+      kind: "DETERMINISTIC_PUBLICATION_IDENTITY" as const,
+      serviceAddress: { street: "Beispielstraße", houseNumber: "12", postalCode: "12345", city: "Beispielstadt", countryCode: "DE", countryDisplayName: "Deutschland", confirmation: "CUSTOMER_CONFIRMED" as const, source: "CUSTOMER_CONFIRMATION" as const, publicationAuthorized: true as const, publicationScopes: ["CONTACT", "IMPRESSUM"] as const },
+      publicPhone: { e164: "+4915123456789", confirmation: "CUSTOMER_CONFIRMED" as const, source: "CUSTOMER_CONFIRMATION" as const, publicationAuthorized: true as const, publicationScopes: ["CONTACT", "IMPRESSUM"] as const },
+      businessEntityType: { entityType: "SOLE_PROPRIETORSHIP" as const, legalDescription: "Einzelunternehmen" as const, confirmation: "CUSTOMER_CONFIRMED" as const, source: "CUSTOMER_CONFIRMATION" as const, publicationAuthorized: true as const, publicationScopes: ["CONTACT", "IMPRESSUM"] as const },
+      commercialRegisterStatus: { status: "NOT_REGISTERED" as const, confirmation: "CUSTOMER_CONFIRMED" as const, source: "CUSTOMER_CONFIRMATION" as const, publicationAuthorized: true as const, publicationScopes: ["CONTACT", "IMPRESSUM"] as const },
+      ustIdStatus: { status: "NOT_YET_ASSIGNED" as const, confirmation: "CUSTOMER_CONFIRMED" as const, source: "CUSTOMER_CONFIRMATION" as const, publicationAuthorized: true as const, publicationScopes: ["CONTACT", "IMPRESSUM"] as const },
+      wIdStatus: { status: "NOT_YET_ASSIGNED" as const, confirmation: "CUSTOMER_CONFIRMED" as const, source: "CUSTOMER_CONFIRMATION" as const, publicationAuthorized: true as const, publicationScopes: ["CONTACT", "IMPRESSUM"] as const },
+    };
+    const request = { action: "request-brief-changes", projectId: identityProjectId, projectVersion: 1, briefChecksum: before.brief!.checksum, expectedRowVersion: 4, reason: "Persist synthetic confirmed publication identity.", requirementKeys: ["PUBLICATION_IDENTITY"], correction };
+    const stale = await POST(http({ ...request, expectedRowVersion: 3 }));
+    expect(stale.status).toBe(409);
+    expect(providerCalls).toBe(0);
+    expect(database.briefRevisionAttempts.size).toBe(1);
+    expect([...database.briefRevisionAttempts.values()][0]?.status).toBe("REJECTED_STALE");
+    expect(database.briefRevisionHistory.size).toBe(0);
+    const first = await POST(http(request));
+    const firstBody = await first.json() as { ok: boolean; meta?: Record<string, unknown> };
+    expect(first.status).toBe(200);
+    expect(firstBody).toMatchObject({ ok: true, meta: { responseOrigin: "NEW_EXECUTION", attemptCreated: true, attemptStatus: "SUCCEEDED", correlationId: expect.any(String), attemptId: expect.any(String) } });
+    expect(providerCalls).toBe(0);
+    const current = BriefV3DocumentSchema.parse(await new DocumentRepository(database).get(identityProjectId, 1, "brief-v3"));
+    expect(current.brief.legal.serviceAddress?.display).toBe("Beispielstraße 12, 12345 Beispielstadt, Deutschland");
+    expect(current.brief.contact?.publicPhone?.telUri).toBe("tel:+4915123456789");
+    expect(current.brief.legal.commercialRegisterStatus?.status).toBe("NOT_REGISTERED");
+    expect(current.brief.legal.ustIdStatus?.status).toBe("NOT_YET_ASSIGNED");
+    expect(current.brief.legal.wIdStatus?.status).toBe("NOT_YET_ASSIGNED");
+    expect(current.brief.unresolved.some((item) => ["LEGAL:ADDRESS", "CONTACT:RAPID_CHANNEL", "CONTACT:PHONE"].includes(item.target))).toBe(false);
+    const attempt = [...database.briefRevisionAttempts.values()][0]!;
+    expect(attempt.operationKey).not.toContain("Beispielstraße");
+    expect(attempt.operationKey).not.toContain("+4915123456789");
+    const replay = await POST(http(request));
+    const replayBody = await replay.json() as { meta?: Record<string, unknown> };
+    expect(replay.status).toBe(200);
+    expect(replayBody.meta).toMatchObject({ responseOrigin: "REPLAY", attemptId: firstBody.meta?.attemptId });
+    expect(providerCalls).toBe(0);
+    expect(database.briefRevisionAttempts.size).toBe(2);
+    expect(database.briefRevisionHistory.size).toBe(1);
+    expect(await readFile(path.join(root, project.slug, "v1", ".factory", "brief-v3.json"), "utf8")).toContain("Beispielstraße");
+    expect(await new DocumentRepository(database).get(identityProjectId, 1, "planning-package")).toBeNull();
+  });
 });
