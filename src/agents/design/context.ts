@@ -18,6 +18,7 @@ export function buildDesignContext(input: DesignAgentInput) {
       designPreferences: input.designPreferences,
       explicitDesignExclusions: input.explicitDesignExclusions,
       imageSourceDecision: input.imageSourceDecision,
+      ...(input.canonicalBrief?.customerUxDirection ? { customerUxDirection: input.canonicalBrief.customerUxDirection } : {}),
     },
   };
 }

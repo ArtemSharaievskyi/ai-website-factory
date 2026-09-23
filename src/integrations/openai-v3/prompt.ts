@@ -37,6 +37,7 @@ const BRIEF_V3_PROVIDER_POLICY = [
   "Do not regenerate a full Brief, candidate, requirement collection, history, approval, checksum, identity, currentness, or persistence state.",
   "Do not explicitly preserve untouched fields; the host owns preservation through the current canonical state.",
   "Canonical customer-confirmed public contact email is host-owned and is preserved from current state; it is not a provider-writable target.",
+  "Customer-confirmed structured UX direction is host-owned immutable context; providers may use it as context but may not add, delete, rewrite, reinterpret, normalize, or supersede it.",
   "Customer-confirmed publication address, public telephone, business entity, commercial-register status, and tax-identifier statuses are host-owned and omitted from provider context; never author, infer, normalize, replace, or delete them.",
   "Use only the semantic target contract supplied below and the strict output schema.",
   "Do not resolve contradictions by choosing a winner. Emit the requested operations and let deterministic host normalization reject conflicts.",

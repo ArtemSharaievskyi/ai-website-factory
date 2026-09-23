@@ -4,6 +4,7 @@ import { BriefV3Error } from "./errors";
 import { CanonicalBriefV3Schema, type CanonicalAsset, type CanonicalBriefV3, type CanonicalEvidence, type CanonicalPage, type CanonicalRequirement } from "./schema";
 import { compareStrings, stableSerialize } from "./serialization";
 import { getTargetCatalogEntry, targetSortKey } from "./targets";
+import { normalizeCustomerUxDirection } from "./customer-ux-direction";
 
 export { compareStrings, stableSerialize } from "./serialization";
 
@@ -138,6 +139,7 @@ export function normalizeCanonicalBrief(input: unknown): CanonicalBriefV3 {
   });
   const normalized = {
     ...brief,
+    ...(brief.customerUxDirection ? { customerUxDirection: normalizeCustomerUxDirection(brief.customerUxDirection) } : {}),
     pages: [...pagesBySlug.values()].sort((a, b) => compareStrings(a.id, b.id)),
     requirements: mergeRequirement(brief.requirements, "requirements"),
     decisions: {

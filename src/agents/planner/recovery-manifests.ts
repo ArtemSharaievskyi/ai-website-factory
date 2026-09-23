@@ -1,5 +1,6 @@
 import { CanonicalBriefV3Schema, CanonicalRequirementSchema, RequirementCategorySchema, RoutePolicySchema, SemanticPageIdSchema, SemanticRequirementIdSchema, type CanonicalBriefV3, type CanonicalRequirement, type RequirementCategory } from "@/domain/requirements/v3/schema";
 import { canonicalRequirementEntries, isLegacyRequirementId, isV3RequirementId } from "@/domain/requirements/v3/identity";
+import { CUSTOMER_UX_SOURCE_REF } from "@/domain/requirements/v3/customer-ux-direction";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { NonEmptyStringSchema } from "@/domain/shared/schemas";
 import type { PlanningPackage } from "./contracts";
@@ -579,7 +580,7 @@ function requirementOrigin(brief: CanonicalBriefV3, id: string): "brief.requirem
 
 export function createPlanningOwnedRequirementManifest(input: CanonicalBriefV3): PlanningOwnedRequirementManifest {
   const brief = CanonicalBriefV3Schema.parse(input);
-  const entries = canonicalRequirementEntries(brief).filter((entry) => !PLANNING_NON_OWNED_CATEGORIES.has(entry.category)).map((entry, position) => ({
+  const entries = canonicalRequirementEntries(brief).filter((entry) => !PLANNING_NON_OWNED_CATEGORIES.has(entry.category) || entry.sourceRefs.includes(CUSTOMER_UX_SOURCE_REF)).map((entry, position) => ({
     requirementHandle: `planning-requirement:R${String(position).padStart(3, "0")}`,
     requirementId: entry.id,
     category: entry.category,

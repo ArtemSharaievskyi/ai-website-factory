@@ -609,7 +609,7 @@ const StrictFormPlanSchema = z
   })
   .strict();
 export const PlanningPackageStructuredOutputSchema =
-  PlanningPackageSchema.omit({ projectId: true, projectVersion: true, semanticChecksumPolicyVersion: true, providerContractVersion: true, planningPipelineVersion: true, approvedBriefChecksum: true, routePolicy: true, accepted: true, acceptance: true }).extend({
+  PlanningPackageSchema.omit({ projectId: true, projectVersion: true, semanticChecksumPolicyVersion: true, providerContractVersion: true, planningPipelineVersion: true, approvedBriefChecksum: true, routePolicy: true, customerUxDirection: true, accepted: true, acceptance: true }).extend({
     databaseRecommendation: z.object({ recommendation: z.enum(["REQUIRED", "NOT_REQUIRED", "UNCERTAIN"]), rationale: z.string().min(1), requirementReferences: z.array(z.string().min(1)).min(1), userDecisionRequired: z.literal(true), selectedMode: z.enum(["NONE", "SUPABASE_NEW", "SUPABASE_EXISTING"]).nullable() }).strict().nullable(),
     productScope: z.object({
       ...withoutProjectIdentity(PlanningPackageSchema.shape.productScope.shape),
@@ -1535,6 +1535,7 @@ type PlannerBriefNormalizationInput = {
   administrationDecision?: RequirementSpecification["administrationDecision"];
   userRoles?: string[];
   protectedFunctionalityRequired?: boolean;
+  customerUxDirection?: RequirementSpecification["customerUxDirection"];
 };
 function normalizePlanningPackage(
   value: z.infer<typeof PlanningPackageStructuredOutputSchema>,
@@ -1553,6 +1554,7 @@ function normalizePlanningPackage(
     references.map((reference) => routeIdsByPath.get(reference) ?? reference);
   const normalized = bindProjectIdentity({
     ...value,
+    ...(approvedBrief?.customerUxDirection ? { customerUxDirection: approvedBrief.customerUxDirection } : {}),
     ...(value.databaseRecommendation === null ? { databaseRecommendation: undefined } : {}),
     blockers: value.blockers.filter(
       (blocker) =>

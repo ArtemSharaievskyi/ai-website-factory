@@ -26,6 +26,7 @@ import {
 } from "./schema";
 import { SEMANTIC_TARGETS, isRequirementTarget, pageTargetForSlug } from "./targets";
 import { normalizeCanonicalBrief, stableSerialize } from "./normalize";
+import { CustomerUxDirectionCorrectionInputSchema, customerUxDirectionCorrectionInstruction, customerUxDirectionDigest, deriveCustomerUxDirectionRequirements, type CustomerUxDirectionCorrectionInput } from "./customer-ux-direction";
 
 const source = "customer-confirmation:brief-consistency";
 const systemSource = "system:brief-consistency";
@@ -94,6 +95,7 @@ export const PublicEmailCorrectionInputSchema = z.object({
   publicEmail: CanonicalPublicEmailSchema,
 }).strict();
 export const BriefConsistencyCorrectionInputSchema = z.union([
+  CustomerUxDirectionCorrectionInputSchema,
   PublicationIdentityCorrectionInputSchema,
   CompleteBriefConsistencyCorrectionInputSchema,
   BrandConsistencyCorrectionInputSchema.extend({ publicEmail: CanonicalPublicEmailSchema.optional() }).strict(),
@@ -127,6 +129,7 @@ const digest = (value: string) => createHash("sha256").update(value, "utf8").dig
 const hasBrandConsistencyCorrection = (correction: BriefConsistencyCorrectionInput): correction is Extract<BriefConsistencyCorrectionInput, { marketingName: string }> => "marketingName" in correction;
 const hasPublicationIdentityCorrection = (correction: BriefConsistencyCorrectionInput): correction is PublicationIdentityCorrectionInput => "kind" in correction && correction.kind === "DETERMINISTIC_PUBLICATION_IDENTITY";
 const hasCompleteBriefConsistencyCorrection = (correction: BriefConsistencyCorrectionInput): correction is CompleteBriefConsistencyCorrectionInput => "kind" in correction && correction.kind === "COMPLETE_DETERMINISTIC_BRIEF_CONSISTENCY";
+const hasCustomerUxDirectionCorrection = (correction: BriefConsistencyCorrectionInput): correction is CustomerUxDirectionCorrectionInput => "kind" in correction && correction.kind === "DETERMINISTIC_CUSTOMER_UX_DIRECTION";
 
 function redactPublicationIdentityCorrection(correction: PublicationIdentityCorrectionInput): Record<string, unknown> {
   return {
@@ -145,6 +148,7 @@ function redactPublicationIdentityCorrection(correction: PublicationIdentityCorr
 /** Operation identity carries only digests for customer-owned publication identity values. */
 export function deterministicBriefCorrectionInstruction(correction: BriefConsistencyCorrectionInput): string {
   const parsed = BriefConsistencyCorrectionInputSchema.parse(correction);
+  if (hasCustomerUxDirectionCorrection(parsed)) return customerUxDirectionCorrectionInstruction(parsed);
   if (hasPublicationIdentityCorrection(parsed)) return `Deterministic Brief consistency correction:${stableSerialize(redactPublicationIdentityCorrection(parsed))}`;
   if (!("publicEmail" in parsed) || !parsed.publicEmail) return `Deterministic Brief consistency correction:${JSON.stringify(parsed)}`;
   const safe = parsed.publicEmail
@@ -564,7 +568,7 @@ export function assertProviderChangesDoNotOverwriteConfirmedCorrections(input: {
       if (change.value !== expected) throw new BriefV3Error("BRIEF_V3_INVALID_COMBINATION", { target: change.target });
     }
     const currentRequirement = isRequirementTarget(change.target) ? input.brief.requirements.find((entry) => entry.id === change.target) : undefined;
-    if (currentRequirement && currentRequirement.sourceRefs.some((ref) => /customer-confirmation:brief-consistency|system:brief-consistency/iu.test(ref))) {
+    if (currentRequirement && currentRequirement.sourceRefs.some((ref) => /customer-confirmation:(?:brief-consistency|ux-direction)|system:brief-consistency/iu.test(ref))) {
       throw new BriefV3Error("BRIEF_V3_INVALID_COMBINATION", { target: change.target });
     }
     if (change.operation === "UPSERT" && isRequirementTarget(change.target)) {
@@ -652,9 +656,33 @@ function createPublicEmailOnlyCorrectionChangeSet(input: { brief: CanonicalBrief
   };
 }
 
+function createCustomerUxDirectionCorrectionChangeSet(input: { brief: CanonicalBriefV3; projectId: string; projectVersion: number; correction: CustomerUxDirectionCorrectionInput }): BriefChangeSet {
+  const brief = CanonicalBriefV3Schema.parse(input.brief);
+  const correction = CustomerUxDirectionCorrectionInputSchema.parse(input.correction);
+  const currentDigest = brief.customerUxDirection ? customerUxDirectionDigest(brief.customerUxDirection) : undefined;
+  if (currentDigest && currentDigest !== customerUxDirectionDigest(correction.direction) && correction.expectedPreviousDigest !== currentDigest) {
+    throw new BriefV3Error("BRIEF_V3_INVALID_COMBINATION", { target: SEMANTIC_TARGETS.CUSTOMER_UX_DIRECTION });
+  }
+  if (correction.expectedPreviousDigest && correction.expectedPreviousDigest !== currentDigest) {
+    throw new BriefV3Error("BRIEF_V3_INVALID_COMBINATION", { target: SEMANTIC_TARGETS.CUSTOMER_UX_DIRECTION });
+  }
+  const derived = deriveCustomerUxDirectionRequirements({ direction: correction.direction, projectId: input.projectId, projectVersion: input.projectVersion });
+  const changes: BriefChange[] = [
+    { operation: "SET", target: SEMANTIC_TARGETS.CUSTOMER_UX_DIRECTION, value: correction.direction, sourceRefs: ["customer-confirmation:ux-direction"] },
+  ];
+  for (const requirement of derived) {
+    const existing = brief.requirements.find((entry) => entry.id === requirement.id);
+    if (!existing || stableSerialize(existing) !== stableSerialize(requirement)) {
+      changes.push({ operation: "UPSERT", target: requirement.id as `REQUIREMENT:${string}`, value: { category: requirement.category, statement: requirement.statement, sourceRefs: requirement.sourceRefs }, sourceRefs: ["customer-confirmation:ux-direction"] });
+    }
+  }
+  return { contractVersion: 1, changes, unresolved: [] };
+}
+
 /** Deterministically creates a typed patch from confirmed customer facts. No provider is involved. */
 export function createBriefConsistencyCorrectionChangeSet(input: { brief: CanonicalBriefV3; projectId: string; projectVersion: number; correction: BriefConsistencyCorrectionInput }): BriefChangeSet {
   const correction = BriefConsistencyCorrectionInputSchema.parse(input.correction);
+  if (hasCustomerUxDirectionCorrection(correction)) return createCustomerUxDirectionCorrectionChangeSet({ ...input, correction });
   if (hasPublicationIdentityCorrection(correction)) return createPublicationIdentityCorrectionChangeSet({ brief: input.brief, correction });
   if (hasCompleteBriefConsistencyCorrection(correction)) return createCompleteBriefConsistencyCorrectionChangeSet({ ...input, correction });
   if (!hasBrandConsistencyCorrection(correction)) return createPublicEmailOnlyCorrectionChangeSet({ ...input, correction });

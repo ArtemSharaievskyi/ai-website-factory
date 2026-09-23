@@ -50,6 +50,7 @@ type ProviderWritableFixedSetTargetId = Exclude<FixedSetTargetId,
   | typeof SEMANTIC_TARGETS.UST_ID_STATUS
   | typeof SEMANTIC_TARGETS.W_ID_STATUS
   | typeof SEMANTIC_TARGETS.PROTECTED_FUNCTIONALITY
+  | typeof SEMANTIC_TARGETS.CUSTOMER_UX_DIRECTION
   | typeof SEMANTIC_TARGETS.LEGAL_PUBLICATION_INPUTS
 >;
 type ProviderFixedTargetBindings = { [Target in ProviderWritableFixedSetTargetId]: ProviderFixedTargetBinding };

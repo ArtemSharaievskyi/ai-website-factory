@@ -1,4 +1,5 @@
 export * from "./changeset";
+export * from "./customer-ux-direction";
 export * from "./errors";
 export * from "./history";
 export * from "./identity";

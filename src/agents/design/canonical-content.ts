@@ -72,6 +72,7 @@ export function buildDesignCanonicalContent(input: {
       suppliedInformation: input.brief.brand.suppliedInformation,
       suppliedLogoDescription: input.brief.brand.suppliedLogoDescription,
     },
+    ...(input.brief.customerUxDirection ? { customerUxDirection: input.brief.customerUxDirection } : {}),
     ...groups,
     productScope: {
       purpose: input.planning.productScope.purpose,

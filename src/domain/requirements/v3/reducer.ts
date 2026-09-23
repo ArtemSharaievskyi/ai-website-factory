@@ -213,6 +213,7 @@ function applySet(brief: CanonicalBriefV3, change: BriefSetChange): CanonicalBri
     case SEMANTIC_TARGETS.SEO_PRIMARY_KEYWORDS: return { ...brief, seo: { ...brief.seo, primaryKeywords: change.value } };
     case SEMANTIC_TARGETS.SEO_LOCATION_TARGETING: return { ...brief, seo: { ...brief.seo, locationTargeting: change.value } };
     case SEMANTIC_TARGETS.SEO_PAGE_METADATA: return { ...brief, seo: { ...brief.seo, pageMetadata: change.value } };
+    case SEMANTIC_TARGETS.CUSTOMER_UX_DIRECTION: return { ...brief, customerUxDirection: change.value };
     case SEMANTIC_TARGETS.LEGAL_PLACEHOLDER_POLICY: return { ...brief, legal: { ...brief.legal, placeholderPolicy: change.value } };
     case SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY: return { ...brief, legal: { ...brief.legal, inventedFactsPolicy: change.value } };
     case SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR: return change.value === null

@@ -13,7 +13,7 @@ const unknownTarget = (target: string): never => {
   throw new BriefV3Error("BRIEF_V3_UNKNOWN_TARGET", { target });
 };
 
-export type CanonicalDomain = "form" | "database" | "auth" | "analytics" | "route" | "brand" | "scope" | "seo" | "legal" | "contact" | "title" | "evidence" | "unresolved" | "requirements" | "assets" | "pages";
+export type CanonicalDomain = "form" | "database" | "auth" | "analytics" | "route" | "brand" | "scope" | "seo" | "legal" | "contact" | "title" | "evidence" | "unresolved" | "requirements" | "assets" | "pages" | "ux";
 
 export function targetDomain(target: SemanticTargetId): CanonicalDomain {
   if (isRequirementTarget(target)) return "requirements";
@@ -42,6 +42,7 @@ export function targetDomain(target: SemanticTargetId): CanonicalDomain {
     case SEMANTIC_TARGETS.SEO_PRIMARY_KEYWORDS:
     case SEMANTIC_TARGETS.SEO_LOCATION_TARGETING:
     case SEMANTIC_TARGETS.SEO_PAGE_METADATA: return "seo";
+    case SEMANTIC_TARGETS.CUSTOMER_UX_DIRECTION: return "ux";
     case SEMANTIC_TARGETS.LEGAL_PLACEHOLDER_POLICY:
     case SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY:
     case SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR: return "legal";
@@ -84,6 +85,7 @@ export function readSemanticTarget(brief: CanonicalBriefV3, target: SemanticTarg
     case SEMANTIC_TARGETS.SEO_PRIMARY_KEYWORDS: return brief.seo.primaryKeywords;
     case SEMANTIC_TARGETS.SEO_LOCATION_TARGETING: return brief.seo.locationTargeting;
     case SEMANTIC_TARGETS.SEO_PAGE_METADATA: return brief.seo.pageMetadata;
+    case SEMANTIC_TARGETS.CUSTOMER_UX_DIRECTION: return brief.customerUxDirection;
     case SEMANTIC_TARGETS.LEGAL_PLACEHOLDER_POLICY: return brief.legal.placeholderPolicy;
     case SEMANTIC_TARGETS.LEGAL_INVENTED_FACTS_POLICY: return brief.legal.inventedFactsPolicy;
     case SEMANTIC_TARGETS.LEGAL_CONFIRMED_PROPRIETOR: return brief.legal.confirmedProprietor ?? null;

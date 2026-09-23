@@ -16,7 +16,7 @@ import { FormSubmissionMechanismSchema, StoragePlanSchema, type StoragePlan } fr
 import { DataContractSchema, DependencyProposalEntrySchema, Phase7CContractPackageSchema, SafeEnvironmentMetadataSchema, TaskContractSchema } from "@/domain/contracts/phase7c";
 import { AstPatchOperationSchema, AstStructuralContextEntrySchema } from "@/domain/implementation/ast-patching";
 import { DecisionRecordSchema } from "@/domain/workflow/decision";
-import { CanonicalBriefV3Schema } from "@/domain/requirements/v3/schema";
+import { CanonicalBriefV3Schema, CustomerUxDirectionSchema } from "@/domain/requirements/v3/schema";
 import { BackendImplementationContractSchema, DatabaseImplementationContractSchema } from "@/domain/implementation/contracts";
 import { ImplementationSkillBindingSchema } from "@/domain/implementation/profiles";
 
@@ -37,6 +37,7 @@ export const ImplementationContextSchema = z.object({
   specialistProfile: z.object({ profileId: z.enum(["frontend-implementation", "backend-implementation", "database-implementation"]), domain: z.enum(["FRONTEND", "BACKEND", "DATABASE"]), version: z.string().regex(/^\d+\.\d+\.\d+$/), checksum: z.string().regex(/^[a-f0-9]{64}$/), normalizedGuidance: z.array(z.string().min(1).max(1_000)).min(1).max(20), skillBindings: z.array(ImplementationSkillBindingSchema) }).strict().optional(),
   acceptanceCriteria: z.array(z.string()), requirementReferences: z.array(z.string()), planningReferences: z.array(z.string()), selectedDesignReferences: z.array(z.string()),
   selectedDesignContract: DirectionDesignCapabilitySchema.optional(), frontendDesignResources: FrontendDesignResourcePlanSchema.optional(), architectureExcerpt: z.unknown(), contentExcerpt: z.unknown(), assetExcerpt: z.unknown(),
+  customerUxDirection: CustomerUxDirectionSchema.optional(),
   domainHandoffs: z.object({ database: DatabaseImplementationContractSchema.optional(), backend: BackendImplementationContractSchema.optional() }).strict().optional(),
   phase7c: z.object({ taskContract: TaskContractSchema, dataContracts: z.array(DataContractSchema), databaseDecisionId: z.string().uuid(), databaseMode: z.enum(["NONE", "SUPABASE_NEW", "SUPABASE_EXISTING"]), databaseConnectionStatus: z.enum(["NOT_REQUIRED", "MISSING", "PARTIAL", "READY", "INVALID"]), safeEnvironmentMetadata: z.array(SafeEnvironmentMetadataSchema), dependencyApprovals: z.array(DependencyProposalEntrySchema) }).strict().optional(),
   storagePlan: StoragePlanSchema.optional(),

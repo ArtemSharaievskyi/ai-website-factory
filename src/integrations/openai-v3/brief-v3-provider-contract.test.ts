@@ -120,6 +120,8 @@ describe("Brief Revision V3 provider boundary", () => {
       expect(ProviderBriefChangeSetSchema.safeParse({ contractVersion: 1, changes: [{ operation: "SET", target, value: "synthetic-host-owned" }] }).success).toBe(false);
       expect(providerTargetContract().some((entry) => entry.target === target)).toBe(false);
     }
+    expect(providerTargetContract().some((entry) => entry.target === "CUSTOMER_UX_DIRECTION")).toBe(false);
+    expect(ProviderBriefChangeSetSchema.safeParse({ contractVersion: 1, changes: [{ operation: "SET", target: "CUSTOMER_UX_DIRECTION", value: {} }] }).success).toBe(false);
     mark("Provider target/value map");
   });
 

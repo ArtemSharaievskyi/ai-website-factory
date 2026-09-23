@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CanonicalBriefV3Schema, FormBehaviorStateSchema, RequirementCategorySchema, type CanonicalBriefV3, type CanonicalRequirement } from "@/domain/requirements/v3/schema";
+import { CanonicalBriefV3Schema, CustomerUxDirectionSchema, FormBehaviorStateSchema, RequirementCategorySchema, type CanonicalBriefV3, type CanonicalRequirement } from "@/domain/requirements/v3/schema";
 import { NonEmptyStringSchema } from "@/domain/shared/schemas";
 
 const ChecksumSchema = z.string().regex(/^[a-f0-9]{64}$/);
@@ -140,6 +140,7 @@ export const DesignCanonicalContentSchema = z.object({
     suppliedInformation: z.string().trim().max(2000).nullable(),
     suppliedLogoDescription: z.string().trim().max(2000).nullable(),
   }).strict(),
+  customerUxDirection: CustomerUxDirectionSchema.optional(),
   services: z.array(DesignCanonicalRequirementRefSchema),
   businessGoals: z.array(DesignCanonicalRequirementRefSchema),
   contactFacts: z.array(DesignCanonicalRequirementRefSchema),

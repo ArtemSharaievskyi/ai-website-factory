@@ -5,6 +5,7 @@ import { FormSubmissionMechanismSchema, type PlanningPackage } from "@/agents/pl
 import { type RequirementSpecification } from "@/domain/requirements/schema";
 import { DocumentBaseSchema } from "@/domain/shared/schemas";
 import { RuntimeDiagnosticReferenceSchema } from "@/runtime/validation/contracts";
+import { CustomerUxDirectionSchema } from "@/domain/requirements/v3/schema";
 
 const Uuid = z.string().uuid();
 const Iso = z.string().datetime();
@@ -30,7 +31,7 @@ export const FunctionalQaAssertionSchema = z.object({ category: z.enum(["route",
 export const FunctionalQaScenarioSchema = z.object({ scenarioId: Ref, scenarioType: FunctionalQaScenarioTypeSchema.default("route"), title: Ref, actor: Ref, purpose: Ref, acceptanceCriteriaReferences: z.array(Ref).min(1), requirementReferences: z.array(Ref).min(1), planningReferences: z.array(Ref).default([]), userFlowReferences: z.array(Ref), artifactReferences: z.array(Ref).default([]), ownershipCandidates: z.array(z.enum(["implement-navigation", "implement-page", "implement-form", "implement-server-action", "implement-route-handler", "implement-authentication", "implement-shared-layout"])).default([]), startRoute: Route, preconditions: z.array(Ref), steps: z.array(FunctionalQaStepSchema).min(1), assertions: z.array(FunctionalQaAssertionSchema).min(1), expectedOutcome: Ref, failureCategory: z.string().regex(/^QA_[A-Z0-9_]+$/), requiresAuth: z.boolean(), requiresForm: z.boolean(), formSubmissionMechanism: FormSubmissionMechanismSchema.optional(), requiresDatabaseFixture: z.boolean(), timeoutMs: z.number().int().positive().max(120000) }).strict();
 export type FunctionalQaScenario = z.infer<typeof FunctionalQaScenarioSchema>;
 
-export const FunctionalQaPlanSchema = z.object({ planId: Uuid, projectId: Uuid, projectVersion: z.number().int().positive(), scenarios: z.array(FunctionalQaScenarioSchema), selectedBriefChecksum: z.string().regex(/^[a-f0-9]{64}$/), selectedPlanningChecksum: z.string().regex(/^[a-f0-9]{64}$/), selectedDesignChecksum: z.string().regex(/^[a-f0-9]{64}$/), policyVersion: Ref }).strict();
+export const FunctionalQaPlanSchema = z.object({ planId: Uuid, projectId: Uuid, projectVersion: z.number().int().positive(), scenarios: z.array(FunctionalQaScenarioSchema), customerUxDirection: CustomerUxDirectionSchema.optional(), selectedBriefChecksum: z.string().regex(/^[a-f0-9]{64}$/), selectedPlanningChecksum: z.string().regex(/^[a-f0-9]{64}$/), selectedDesignChecksum: z.string().regex(/^[a-f0-9]{64}$/), policyVersion: Ref }).strict();
 export type FunctionalQaPlan = z.infer<typeof FunctionalQaPlanSchema>;
 export type ScenarioDerivationInput = { projectId: string; projectVersion: number; brief: RequirementSpecification; planning: PlanningPackage; briefChecksum: string; planningChecksum: string; designChecksum: string; policyVersion?: string };
 

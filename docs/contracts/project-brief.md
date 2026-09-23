@@ -54,3 +54,36 @@ rapid-contact review remain publication/deployment concerns rather than
 automatic Planning blockers. Conditional tax, register, and supervisory
 authority fields do not become required unless an authorized customer-owned
 decision says they apply. No provider may invent or resolve these fields.
+
+## Customer-confirmed UX direction
+
+Canonical Brief V3 may carry an additive, typed `customerUxDirection` object
+when a customer explicitly confirms UX guidance. It is the authority for the
+customer's structured visual direction, audience and positioning, one-page
+section policy, conversion channels, evidence-image rules, trust signals,
+motion, accessibility, mobile, performance, SEO/local direction, and bounded
+creative freedom. Its semantic groups are schema-bound and bounded; they do
+not accept HTML, scripts, URIs, CSS, component code, or unbounded prose.
+
+The host-owned `DETERMINISTIC_CUSTOMER_UX_DIRECTION` correction normalizes the
+structured payload, derives exactly ten stable Planning requirement identities,
+records the normalized semantic and document checksums, and uses the normal
+currentness, idempotency, immutable-history, projection, and approval
+invalidation transaction. A replay is a no-op and a stale or conflicting
+confirmed value is rejected. The correction does not call a provider.
+
+Brief-revision providers cannot add, delete, rewrite, reinterpret, normalize,
+or supersede this customer-owned direction. They may receive it as immutable
+bounded context for authorized generative stages. Planning coverage, Design,
+asset planning, Orchestration, Implementation, and QA preserve the typed
+direction, including explicit omitted sections, no-fake-evidence rules,
+protected-logo authority, allowed conversion channels, accessibility and
+performance objectives, and non-evidentiary AI-image policy. Creative
+freedom remains broad within those hard invariants; the direction does not
+silently impose a UI library or implementation pattern.
+
+Legacy Briefs without `customerUxDirection` remain valid and do not receive a
+synthesized default style or implicit UX requirements. Canonical storage and
+authorized history may retain normalized confirmed directives, while generic
+operation IDs and diagnostics carry only bounded metadata and semantic
+digests, never arbitrary directive text.

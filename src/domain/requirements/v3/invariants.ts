@@ -53,6 +53,7 @@ export function validateCanonicalBriefV3(input: unknown): CanonicalBriefV3 {
   if (brief.decisions.routePolicy.mode === "MULTI_PAGE" && brief.pages.length < 2) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "multi-page-without-multiple-pages" });
   if (!brief.localization.locales.includes(brief.localization.defaultLocale)) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "default-locale-not-listed" });
   if (brief.assets.some((asset) => asset.id === "ASSET_COMPANY_LOGO" && asset.role !== "logo")) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "company-logo-role" });
+  if (brief.customerUxDirection && brief.customerUxDirection.metadata.status !== "ACTIVE") throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "current-customer-ux-direction-not-active" });
   const checksumInput = canonicalBriefChecksumInput(brief);
   if (checksumInput !== canonicalBriefChecksumInput(brief)) throw new BriefV3Error("BRIEF_V3_INVARIANT_VIOLATION", { invariant: "unstable-checksum-input" });
   return brief;
@@ -75,6 +76,7 @@ const topLevelForDomain: Record<CanonicalDomain, keyof CanonicalBriefV3 | "unres
   requirements: "requirements",
   assets: "assets",
   pages: "pages",
+  ux: "customerUxDirection",
 };
 
 /** Validate the post-reduction relationship between an old and new current state. */
@@ -93,7 +95,7 @@ export function validateReductionInvariants(current: CanonicalBriefV3, next: Can
       throw new BriefV3Error("BRIEF_V3_REDUCTION_INVALID", { invariant: "target-value-applied", target: change.target });
     }
   }
-  const topLevelKeys = ["summary", "title", "scope", "pages", "requirements", "decisions", "assets", "brand", "seo", "legal", "contact", "localization", "evidence", "unresolved"] as const;
+  const topLevelKeys = ["summary", "title", "scope", "pages", "requirements", "decisions", "assets", "brand", "seo", "legal", "contact", "customerUxDirection", "localization", "evidence", "unresolved"] as const;
   for (const key of topLevelKeys) {
     const domainTouched = key === "decisions"
       ? touchedDomains.has("form") || touchedDomains.has("database") || touchedDomains.has("auth") || touchedDomains.has("analytics") || touchedDomains.has("route")

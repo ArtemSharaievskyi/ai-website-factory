@@ -209,6 +209,7 @@ export const canonicalBriefToPlannerBrief = (
       { key: "analytics", value: canonical.decisions.analytics.mode, status: "CONFIRMED" as const, sourceRefs: ["canonical-v3:decisions.analytics"] },
       { key: "route-policy", value: canonical.decisions.routePolicy.mode, status: "CONFIRMED" as const, sourceRefs: ["canonical-v3:decisions.routePolicy"] },
     ],
+    ...(canonical.customerUxDirection ? { customerUxDirection: canonical.customerUxDirection } : {}),
   };
   return RequirementSpecificationSchema.parse(next);
 };

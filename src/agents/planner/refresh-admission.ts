@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { CanonicalBriefV3Schema, type CanonicalBriefV3, type CanonicalRequirement, type RequirementCategory } from "@/domain/requirements/v3/schema";
+import { CUSTOMER_UX_SOURCE_REF } from "@/domain/requirements/v3/customer-ux-direction";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { PlanningPackageSchema, type PlanningPackage } from "./contracts";
 import { CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY } from "./semantic-checksum";
@@ -561,7 +562,7 @@ function representedRequirementIds(candidate: PlanningPackage, brief: CanonicalB
 export function validatePlanningRequirementCoverage(input: { candidate: PlanningPackage; canonicalBrief: CanonicalBriefV3 }): PlanningRequirementCoverage[] {
   const brief = CanonicalBriefV3Schema.parse(input.canonicalBrief);
   const refs = referencesOf(input.candidate);
-  return canonicalRequirementEntries(brief).filter((entry) => !PLANNING_NON_OWNED_REQUIREMENT_CATEGORIES.has(entry.category)).flatMap((entry): PlanningRequirementCoverage[] => {
+  return canonicalRequirementEntries(brief).filter((entry) => !PLANNING_NON_OWNED_REQUIREMENT_CATEGORIES.has(entry.category) || entry.sourceRefs.includes(CUSTOMER_UX_SOURCE_REF)).flatMap((entry): PlanningRequirementCoverage[] => {
     if (!refs.has(entry.id)) return [{ requirementId: entry.id, category: entry.category, statement: entry.statement, reason: "MISSING_REFERENCE" as const }];
     if (!hasSemanticEvidence(input.candidate, entry)) return [{ requirementId: entry.id, category: entry.category, statement: entry.statement, reason: "MISSING_SEMANTIC_EVIDENCE" as const }];
     return [];

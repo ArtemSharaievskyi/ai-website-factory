@@ -402,6 +402,143 @@ export const CanonicalSeoSchema = z.object({
 }).strict();
 export type CanonicalSeo = z.infer<typeof CanonicalSeoSchema>;
 
+const UxTextSchema = z.string().trim().min(1).max(240).superRefine((value, context) => {
+  if (/[\u0000-\u001F\u007F<>`{}]/u.test(value)
+    || /(?:javascript|data|https?|mailto):/iu.test(value)
+    || /(?:^|\s)(?:www\.)/iu.test(value)
+    || /(?:className|style\s*=|<\/?script\b|<\/?[a-z][^>]*>|\b(?:const|let|var)\s+[A-Za-z_$][A-Za-z0-9_$]*\s*=|\bfunction\s+[A-Za-z_$][A-Za-z0-9_$]*\s*\(|\b(?:import|export)\s+(?:\{|[A-Za-z_$])|\bclass\s+[A-Za-z_$][A-Za-z0-9_$]*\s*\{|\breturn\s+[A-Za-z_$][A-Za-z0-9_$]*\s*;|=>|@(?:media|import)\b|--[a-z-]+\s*:|(?:display|position|color|background|font(?:-family|-size)?|margin|padding)\s*:[^,;]+;)/iu.test(value)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Customer UX direction text must be bounded semantic guidance, not markup, code, or a URI." });
+  }
+});
+const UxTextListSchema = z.array(UxTextSchema).max(16).superRefine((values, context) => {
+  if (new Set(values.map((value) => value.toLocaleLowerCase())).size !== values.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Customer UX direction lists must not contain duplicates." });
+  }
+});
+const UxSourceRefsSchema = z.array(SourceRefSchema).max(8).transform((values) => [...new Set(values)].sort());
+const UxIdentitySchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/);
+
+export const CustomerUxDirectionMetadataSchema = z.object({
+  schemaVersion: z.literal(1),
+  source: z.literal("CUSTOMER_CONFIRMATION"),
+  confirmation: z.literal("CUSTOMER_CONFIRMED"),
+  status: z.enum(["ACTIVE", "SUPERSEDED"]),
+  recordedRevisionId: UxIdentitySchema,
+  rationale: UxTextSchema.max(600).optional(),
+  evidenceRefs: UxSourceRefsSchema.optional(),
+}).strict();
+
+export const CustomerUxSectionIdSchema = z.enum([
+  "HEADER", "HERO", "SERVICE_ORIENTATION", "DETAILED_SERVICES", "CUSTOMER_SITUATIONS",
+  "PROCESS", "TRUST", "SERVICE_AREA", "FAQ", "FINAL_CTA", "FOOTER",
+  "BEFORE_AFTER", "REAL_PROJECT_GALLERY",
+]);
+export const CustomerUxSectionStateSchema = z.enum(["REQUIRED", "OPTIONAL", "OMITTED", "FUTURE_ONLY"]);
+export const CustomerUxSectionPolicySchema = z.object({
+  id: CustomerUxSectionIdSchema,
+  order: z.number().int().positive().max(32),
+  state: CustomerUxSectionStateSchema,
+}).strict();
+
+export const CustomerUxDirectionSchema = z.object({
+  metadata: CustomerUxDirectionMetadataSchema,
+  visual: z.object({
+    concept: z.string().regex(/^[A-Z][A-Z0-9_]{2,63}$/),
+    presentationAttributes: UxTextListSchema,
+    dominantSurfaceDirection: UxTextSchema,
+    contrastDirection: UxTextSchema,
+    accentTreatment: UxTextSchema,
+    typographyDirection: UxTextSchema,
+    brandAssetAuthority: z.enum(["AUTHORITATIVE_PROTECTED", "CUSTOMER_SUPPLIED_AUTHORITATIVE", "NONE"]),
+    avoidedPatterns: UxTextListSchema,
+  }).strict(),
+  audienceAndPositioning: z.object({
+    primaryAudienceOrientation: UxTextSchema,
+    audienceSegments: UxTextListSchema,
+    desiredPerception: UxTextListSchema,
+    copyDirection: UxTextSchema.optional(),
+    prohibitedUnsupportedClaims: UxTextListSchema,
+  }).strict(),
+  informationArchitecture: z.object({
+    onePage: z.literal(true),
+    sections: z.array(CustomerUxSectionPolicySchema).min(1).max(13),
+  }).strict(),
+  conversionPolicy: z.object({
+    allowedChannels: z.array(z.enum(["DIRECT_PHONE", "DIRECT_EMAIL", "CONTACT_FORM"])).max(3),
+    forbiddenChannels: z.array(z.enum(["DIRECT_PHONE", "DIRECT_EMAIL", "CONTACT_FORM"])).max(3),
+    primaryCtaIntent: UxTextSchema,
+    secondaryCtaIntent: UxTextSchema.optional(),
+    dataCollectionForm: z.enum(["PERMITTED", "FORBIDDEN", "UNRESOLVED"]),
+  }).strict(),
+  imageEvidencePolicy: z.object({
+    realProjectPhotography: z.enum(["AVAILABLE", "UNAVAILABLE", "UNKNOWN"]),
+    beforeAfter: CustomerUxSectionStateSchema,
+    aiSupportingImagery: z.enum(["FORBIDDEN", "ALLOWED_NON_EVIDENTIARY"]),
+    stockImagery: z.enum(["ALLOWED", "FORBIDDEN"]),
+    aiOrStockEmployeeRepresentation: z.enum(["FORBIDDEN", "ALLOWED_NON_EVIDENTIARY"]),
+    protectedLogo: z.literal("AUTHORITATIVE_NON_REPLACEABLE"),
+    missingImagery: z.enum(["BLOCKER", "NON_BLOCKER", "UNKNOWN"]),
+  }).strict(),
+  trustPolicy: z.object({
+    allowedTrustSignals: UxTextListSchema,
+    forbiddenUnsupportedTrustSignals: UxTextListSchema,
+  }).strict(),
+  motionAndInteraction: z.object({
+    allowedInteractionPatterns: UxTextListSchema,
+    avoidedInteractionPatterns: UxTextListSchema,
+    reducedMotion: z.enum(["REQUIRED", "PREFERRED", "NOT_REQUIRED"]),
+    keyboardOperability: z.literal("REQUIRED"),
+    noHoverOnlyCriticalActions: z.literal(true),
+  }).strict(),
+  mobileAccessibility: z.object({
+    mobileFirst: z.boolean(),
+    directTelephoneEmailActions: z.boolean(),
+    minimumTargetSizeDirection: UxTextSchema,
+    overflowAvoidance: z.literal("REQUIRED"),
+    focusVisibility: z.literal("REQUIRED"),
+    semanticHtml: z.literal("REQUIRED"),
+    accessibilityTarget: z.enum(["WCAG_2_2_AA", "WCAG_2_1_AA", "UNSPECIFIED"]),
+    altText: z.enum(["REQUIRED", "WHEN_APPLICABLE"]),
+    screenReaderKeyboardConsiderations: UxTextListSchema,
+  }).strict(),
+  performance: z.object({
+    coreWebVitalsOrientation: z.enum(["TARGET_ORIENTED", "OPTIMIZE", "UNSPECIFIED"]),
+    lcpTargetMs: z.number().int().positive().max(10000).optional(),
+    clsTarget: z.number().nonnegative().max(1).optional(),
+    inpTargetMs: z.number().int().positive().max(5000).optional(),
+    minimalUnnecessaryClientJavascript: z.literal(true),
+    responsiveImages: z.literal("REQUIRED"),
+    thirdPartyScriptPolicy: z.enum(["MINIMIZE", "FORBID_UNAPPROVED", "UNSPECIFIED"]),
+    targetsAreNonContractual: z.literal(true),
+  }).strict(),
+  seoAndLocalDirection: z.object({
+    contentLanguage: LocaleSchema,
+    headingHierarchy: z.enum(["SEMANTIC_ORDER", "UNSPECIFIED"]),
+    localRelevance: z.enum(["USE_CONFIRMED_GEOGRAPHY", "UNSPECIFIED"]),
+    structuredData: z.enum(["CONFIRMED_FACTS_ONLY", "FORBIDDEN", "UNSPECIFIED"]),
+    metadataPolicy: z.enum(["CONFIRMED_CONTENT_ONLY", "UNSPECIFIED"]),
+    sitemapRobotsCanonical: z.enum(["MAINTAIN_CANONICAL_METADATA", "UNSPECIFIED"]),
+    keywordStuffing: z.literal("FORBIDDEN"),
+  }).strict(),
+  creativeFreedom: z.object({
+    hardCustomerInvariants: UxTextListSchema,
+    creativeDirections: UxTextListSchema,
+    implementationFreedom: UxTextListSchema,
+    allowedUiLibrarySelection: z.literal("UNRESTRICTED_COMPATIBLE_LIBRARIES"),
+    allowedCustomComponents: z.literal(true),
+    boundedBy: UxTextListSchema,
+  }).strict(),
+}).strict().superRefine((value, context) => {
+  const sectionIds = value.informationArchitecture.sections.map((section) => section.id);
+  const orders = value.informationArchitecture.sections.map((section) => section.order);
+  if (new Set(sectionIds).size !== sectionIds.length) context.addIssue({ code: z.ZodIssueCode.custom, path: ["informationArchitecture", "sections"], message: "Section identities must be unique." });
+  if (new Set(orders).size !== orders.length) context.addIssue({ code: z.ZodIssueCode.custom, path: ["informationArchitecture", "sections"], message: "Section order values must be unique." });
+  const allowed = new Set(value.conversionPolicy.allowedChannels);
+  if (value.conversionPolicy.forbiddenChannels.some((channel) => allowed.has(channel))) context.addIssue({ code: z.ZodIssueCode.custom, path: ["conversionPolicy"], message: "A conversion channel cannot be both allowed and forbidden." });
+  if (value.imageEvidencePolicy.beforeAfter !== "OMITTED" && value.imageEvidencePolicy.beforeAfter !== "FUTURE_ONLY" && value.imageEvidencePolicy.realProjectPhotography === "UNAVAILABLE") context.addIssue({ code: z.ZodIssueCode.custom, path: ["imageEvidencePolicy"], message: "Unavailable real project photography cannot require current Before/After evidence." });
+});
+export type CustomerUxDirection = z.infer<typeof CustomerUxDirectionSchema>;
+
 export const CanonicalBriefV3Schema = z.object({
   schemaVersion: z.literal(V3_SCHEMA_VERSION),
   summary: NonEmptyStringSchema.max(6000),
@@ -426,6 +563,7 @@ export const CanonicalBriefV3Schema = z.object({
     suppliedLogoDescription: z.string().trim().max(2000).nullable(),
     marketingName: NonEmptyStringSchema.max(300).optional(),
   }).strict(),
+  customerUxDirection: CustomerUxDirectionSchema.optional(),
   seo: CanonicalSeoSchema,
   legal: z.object({
     placeholderPolicy: PlaceholderPolicySchema,
