@@ -386,6 +386,38 @@ function failingPlanningDatabase(inner: InMemoryPersistenceDatabase): Persistenc
 
 describe("staged Planner pipeline", () => {
   beforeEach(() => clearStagedPlanningOperations());
+  it("rejects a positive provider FORM element before the paid coverage stage when canonical form mode is NONE", () => {
+    const base = portalBrief();
+    const noFormBrief = CanonicalBriefV3Schema.parse({
+      ...base,
+      decisions: {
+        ...base.decisions,
+        form: {
+          mode: "NONE" as const,
+          formPresent: false,
+          validation: "NOT_REQUIRED" as const,
+          simulatedSuccessPolicy: "NOT_APPLICABLE" as const,
+          transmissionMode: "NONE" as const,
+          persistenceMode: "NONE" as const,
+          serverProcessingMode: "NONE" as const,
+          externalProviderMode: "NONE" as const,
+          privacyConsentMode: "NOT_APPLICABLE" as const,
+          interactionStates: [],
+        },
+      },
+    });
+    const decomposition = portalDecomposition(noFormBrief);
+    const { table } = portalTable(noFormBrief);
+
+    expect(() => admitPlanningDecomposition({
+      output: decomposition.output,
+      table,
+      brief: portalV1Brief(),
+      canonicalBrief: noFormBrief,
+      coverageRepresentabilityPlan: decomposition.coverageRepresentabilityPlan,
+    })).toThrowError(expect.objectContaining({ reasonCode: "PLANNING_FORM_OUTSIDE_CANONICAL_DECISION" }));
+  });
+
   it("derives deterministic grouped obligations and preserves target cardinality", () => {
     const { table } = portalTable();
     const plan = deriveCoverageRepresentabilityPlan(table);
@@ -1093,9 +1125,11 @@ describe("staged Planner pipeline", () => {
         }
       });
 
+      const operationId = (failure as { details: { operationId: string } }).details.operationId;
+      expect(operationId).toMatch(new RegExp(`^workbench-planning:${projectId}:version:1:brief:[a-f0-9]{64}$`));
       expect(failure).toMatchObject({
         details: {
-          operationId: `workbench-planning:${projectId}`,
+          operationId,
           attemptId: expect.stringMatching(/^[0-9a-f-]{36}$/),
           outerCode: "PLANNING_PACKAGE_INVALID",
           failureClass: "STAGED_DECOMPOSITION_FAILURE",
@@ -1104,15 +1138,15 @@ describe("staged Planner pipeline", () => {
         },
       });
       const attemptId = (failure as { details: { attemptId: string } }).details.attemptId;
-      const persistedAttempt = await readWorkbenchPlanningAttempt(fixture.database, `workbench-planning:${projectId}`, attemptId);
-      expect(persistedAttempt).toMatchObject({ status: "FAILED", result: { attemptId, correlationId, operationId: `workbench-planning:${projectId}`, admissionDiagnostics: { schemaVersion: 1, failurePredicate: testCase.predicate, parsedElementCount: expect.any(Number), normalizedElementCount: expect.any(Number), actualCountByDomain: expect.any(Object), minimumCountByDomain: expect.any(Object), actualCountByKind: expect.any(Object), minimumCountByKind: expect.any(Object), requiredStructuralPredicates: expect.any(Object), productScopePresent: expect.any(Boolean), pageOrRoutePresent: expect.any(Boolean), pageRouteBindingCount: expect.any(Number), unboundPageRouteCount: expect.any(Number), hostIssuedAnchorCount: expect.any(Number), hostIssuedAnchorCoverageCount: expect.any(Number), providerTermination: { responseReceived: true, parseStatus: "PASSED", rawResponseRetained: false } }, providerCallsTotal: 1, canonicalPlanningPersisted: false, lifecycleMutated: false } });
+      const persistedAttempt = await readWorkbenchPlanningAttempt(fixture.database, operationId, attemptId);
+      expect(persistedAttempt).toMatchObject({ status: "FAILED", result: { attemptId, correlationId, operationId, admissionDiagnostics: { schemaVersion: 1, failurePredicate: testCase.predicate, parsedElementCount: expect.any(Number), normalizedElementCount: expect.any(Number), actualCountByDomain: expect.any(Object), minimumCountByDomain: expect.any(Object), actualCountByKind: expect.any(Object), minimumCountByKind: expect.any(Object), requiredStructuralPredicates: expect.any(Object), productScopePresent: expect.any(Boolean), pageOrRoutePresent: expect.any(Boolean), pageRouteBindingCount: expect.any(Number), unboundPageRouteCount: expect.any(Number), hostIssuedAnchorCount: expect.any(Number), hostIssuedAnchorCoverageCount: expect.any(Number), providerTermination: { responseReceived: true, parseStatus: "PASSED", rawResponseRetained: false } }, providerCallsTotal: 1, canonicalPlanningPersisted: false, lifecycleMutated: false } });
       expect(JSON.stringify(persistedAttempt)).not.toContain("raw-provider-response");
 
-      const stable = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: projectId }));
+      const stable = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: operationId }));
       expect(stable).toMatchObject({ status: "FAILED", result: { admissionDiagnostics: { failurePredicate: testCase.predicate } } });
       const response = workbenchFailureResponse(failure, { action: "generate-planning", projectId, correlationId });
       expect(response.status).toBe(422);
-      expect(response.response).toMatchObject({ code: "PLANNING_PACKAGE_INVALID", category: "VALIDATION", operationId: `workbench-planning:${projectId}`, attemptId, admissionDiagnostics: { failurePredicate: testCase.predicate, parsedElementCount: expect.any(Number), normalizedElementCount: expect.any(Number), providerTermination: { responseReceived: true, parseStatus: "PASSED", rawResponseRetained: false } }, providerCallsTotal: 1, canonicalPlanningPersisted: false, lifecycleMutated: false });
+      expect(response.response).toMatchObject({ code: "PLANNING_PACKAGE_INVALID", category: "VALIDATION", operationId, attemptId, admissionDiagnostics: { failurePredicate: testCase.predicate, parsedElementCount: expect.any(Number), normalizedElementCount: expect.any(Number), providerTermination: { responseReceived: true, parseStatus: "PASSED", rawResponseRetained: false } }, providerCallsTotal: 1, canonicalPlanningPersisted: false, lifecycleMutated: false });
       expect(JSON.stringify(response.response)).not.toContain("raw-provider-response");
       expect((await new ProjectRepository(fixture.database).getWithVersion(projectId))?.project.workflowState).toBe("AWAITING_PLANNING_GENERATION");
       expect((await new ProjectRepository(fixture.database).getWithVersion(projectId))?.rowVersion).toBe(1);
@@ -1146,7 +1180,7 @@ describe("staged Planner pipeline", () => {
     expect(secondRecord).toMatchObject({ status: "FAILED", result: { attemptId: second.details.attemptId, correlationId: second.details.correlationId, admissionDiagnostics: { failurePredicate: "INSUFFICIENT_DATABASE_ELEMENTS" } } });
     expect(JSON.stringify(firstRecord)).not.toContain(second.details.attemptId);
     expect(JSON.stringify(secondRecord)).not.toContain(first.details.attemptId);
-    const latest = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: projectId }));
+    const latest = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: second.details.operationId }));
     expect(latest).toMatchObject({ status: "FAILED", result: { attemptId: second.details.attemptId, correlationId: second.details.correlationId } });
   });
 

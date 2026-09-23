@@ -13,6 +13,7 @@ import { PlannerArchitectService } from "./service";
 import type { PlannerAgentInput } from "./contracts";
 import { approvedBriefForDownstream } from "@/runtime/workbench/application";
 import { boundedRolePrompt } from "@/runtime/context/bridge";
+import { admitPlanningRefresh, planningRoutePolicyMatchesCanonicalBrief } from "./refresh-admission";
 
 const furniture = [
   "Haus & Montage — Transport von Möbeln",
@@ -78,6 +79,58 @@ const input = (brief: CanonicalBriefV3) => PlannerAgentInputSchema.parse({
 });
 
 describe("canonical Brief to Planner boundary", () => {
+  it("does not materialize a legacy form when the canonical decision is NONE", () => {
+    const baseBrief = canonical();
+    const noFormWithLegalRoutes = CanonicalBriefV3Schema.parse({
+      ...baseBrief,
+      pages: [
+        { id: "PAGE:home", slug: "/", purpose: "Primary synthetic site sections with direct phone and email contact; no contact form is approved.", sourceRefs: ["fixture:page:home"] },
+        { id: "PAGE:privacy", slug: "/datenschutz", purpose: "Synthetic legal auxiliary route.", sourceRefs: ["fixture:page:privacy"] },
+        { id: "PAGE:imprint", slug: "/impressum", purpose: "Synthetic legal auxiliary route.", sourceRefs: ["fixture:page:imprint"] },
+      ],
+      requirements: [
+        ...baseBrief.requirements,
+        { id: "REQUIREMENT:contact-fact", category: "FORM" as const, statement: "Use confirmed direct phone and email contact; no form is approved.", sourceRefs: ["fixture:contact"] },
+      ],
+      decisions: {
+        ...baseBrief.decisions,
+        form: {
+          mode: "NONE" as const,
+          formPresent: false,
+          validation: "NOT_REQUIRED" as const,
+          simulatedSuccessPolicy: "NOT_APPLICABLE" as const,
+          transmissionMode: "NONE" as const,
+          persistenceMode: "NONE" as const,
+          serverProcessingMode: "NONE" as const,
+          externalProviderMode: "NONE" as const,
+          privacyConsentMode: "NOT_APPLICABLE" as const,
+          interactionStates: [],
+        },
+        routePolicy: { mode: "SINGLE_PAGE" as const },
+      },
+    });
+    const plannerInput = input(noFormWithLegalRoutes);
+    const plannerBrief = canonicalBriefToPlannerBrief(noFormWithLegalRoutes, representativeV1Brief);
+    const planning = buildPlanningPackage({ ...plannerInput, approvedBrief: plannerBrief });
+
+    expect(plannerBrief.forms).toEqual([]);
+    expect(plannerBrief.formBehaviorRequirements?.formPresent).toBe(false);
+    expect(planning.forms.forms).toHaveLength(0);
+    expect(planning.pages.pages[0]?.forms).toEqual([]);
+    expect(planning.pages.pages[0]?.functionalComponents).toEqual([]);
+    expect(planningRoutePolicyMatchesCanonicalBrief(planning, noFormWithLegalRoutes)).toBe(true);
+    const shapeAdmission = admitPlanningRefresh({
+      candidate: planning,
+      canonicalBrief: noFormWithLegalRoutes,
+      projectId: plannerInput.projectId,
+      projectVersion: plannerInput.projectVersion,
+      approvedBriefChecksum: plannerInput.approvedBriefChecksum,
+      validateRequirementCoverage: false,
+    });
+    expect(shapeAdmission.blockers).not.toContain("PLANNING_FORM_OUTSIDE_CANONICAL_DECISION");
+    expect(shapeAdmission.blockers).not.toContain("PLANNING_ROUTE_POLICY_MISMATCH");
+  });
+
   it("keeps current V3 requirements authoritative over stale legacy fields", () => {
     const brief = canonical();
     const staleLegacy = { ...representativeV1Brief, features: ["STALE LEGACY SERVICE MUST NOT WIN"] };

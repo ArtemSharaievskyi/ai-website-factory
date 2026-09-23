@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { CanonicalBriefV3Schema, type CanonicalBriefV3, type CanonicalRequirement, type RequirementCategory } from "@/domain/requirements/v3/schema";
 import { CUSTOMER_UX_SOURCE_REF } from "@/domain/requirements/v3/customer-ux-direction";
+import { isLegalAuxiliarySlug } from "@/domain/requirements/v3/consistency";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { PlanningPackageSchema, type PlanningPackage } from "./contracts";
 import { CURRENT_PLANNING_SEMANTIC_CHECKSUM_POLICY } from "./semantic-checksum";
@@ -672,7 +673,10 @@ export function planningRoutePolicyMatchesCanonicalBrief(candidate: PlanningPack
   if (mode === "UNRESOLVED") return false;
   const expectedPaths = brief.pages.map((page) => canonicalPagePath(page.slug)).sort();
   const actualPaths = candidate.sitemap.routes.map((route) => route.path).sort();
-  const expectedMode = expectedPaths.length <= 1 ? "SINGLE_PAGE" : "MULTI_PAGE";
+  const mainSitePaths = brief.pages
+    .filter((page) => !isLegalAuxiliarySlug(canonicalPagePath(page.slug)))
+    .map((page) => canonicalPagePath(page.slug));
+  const expectedMode = mainSitePaths.length <= 1 ? "SINGLE_PAGE" : "MULTI_PAGE";
   return mode === expectedMode
     && expectedPaths.length === actualPaths.length
     && expectedPaths.every((path, index) => path === actualPaths[index]);

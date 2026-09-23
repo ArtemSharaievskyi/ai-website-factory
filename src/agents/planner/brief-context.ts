@@ -72,11 +72,11 @@ export const canonicalBriefToPlannerBrief = (
     ["OTHER", "FORM_INTERACTION", "DECISION", "DEFERRED_INTEGRATION", "ADMINISTRATION"].includes(entry.category),
   );
   const form = canonical.decisions.form;
-  const formStatements = statements("FORM").length > 0
-    ? statements("FORM")
-    : form.formPresent
-      ? ["Approved form interaction (behavior is defined by the canonical form decision)."]
-      : [];
+  const formStatements = form.mode !== "NONE" && form.formPresent
+    ? statements("FORM").length > 0
+      ? statements("FORM")
+      : ["Approved form interaction (behavior is defined by the canonical form decision)."]
+    : [];
   const formBehaviorRequirements = {
     formPresent: form.formPresent,
     validation: form.validation,

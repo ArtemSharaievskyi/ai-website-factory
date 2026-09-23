@@ -259,6 +259,16 @@ export function admitPlanningDecompositionSemantics(input: {
       negativeOnly: proposal.negativeOnly ?? false,
     }));
   }
+  if (input.canonicalBrief?.decisions.form.mode === "NONE") {
+    const prohibitedForm = elements.find((element) => element.kind === "FORM" && !element.negativeOnly);
+    if (prohibitedForm) {
+      throw new StagedPlanningAdmissionError(
+        "PLANNING_DECOMPOSITION_INVALID",
+        `elements.${prohibitedForm.elementId}`,
+        "PLANNING_FORM_OUTSIDE_CANONICAL_DECISION",
+      );
+    }
+  }
   const minimumContract = createDecompositionMinimumContract({ brief: input.brief, canonicalBrief: input.canonicalBrief });
   const hasPageOrRoute = seenKinds.has("PAGE") || seenKinds.has("ROUTE");
   const hasRequiredPageOrRouteBinding = parsed.elements.some((proposal) => hasRequiredPageOrRoute(proposal, table));
