@@ -94,6 +94,19 @@ export function legacyWorkbenchPlanningIntentHash(projectId: string, action: "ap
   return checksumPersistedDocument({ action, projectId, operationKind: "PLANNING_GENERATION", currentness });
 }
 
+/**
+ * Stable logical identity for one approved Brief generation frontier.
+ *
+ * The project version and semantic Brief checksum identify the canonical
+ * generation frontier.  The project row version is deliberately excluded:
+ * it remains part of the currentness guard, but unrelated row changes must
+ * not create another logical Planning operation for the same approved Brief.
+ */
+export function workbenchPlanningLogicalOperationId(projectId: string, projectVersion: number, approvedBriefChecksum: string) {
+  if (!Number.isInteger(projectVersion) || projectVersion < 1 || !/^[a-f0-9]{64}$/.test(approvedBriefChecksum)) throw new Error("WORKBENCH_PLANNING_IDENTITY_INVALID");
+  return `workbench-planning:${projectId}:version:${projectVersion}:brief:${approvedBriefChecksum}`;
+}
+
 /** Stable logical operation used for idempotency and current-result lookup. */
 export const WORKBENCH_PLANNING_OPERATION = "workbench.planning";
 /** Namespaced terminal records retain one bounded result per execution attempt. */
@@ -206,9 +219,13 @@ export class WorkbenchOperationLedger implements ProviderInvocationLedgerPort {
   private reserved = false;
   private attemptEvidencePersisted = false;
 
-  constructor(private readonly database: PersistenceDatabase, projectId: string, operationId = `workbench-planning:${projectId}`, correlationId: string = randomUUID(), runtimeProvenance: RuntimeProvenance = currentRuntimeProvenance(), private readonly responseSink?: { metadata?: WorkbenchResponseMetadata }) {
+  constructor(private readonly database: PersistenceDatabase, projectId: string, operationId = `workbench-planning:${projectId}`, correlationId: string = randomUUID(), runtimeProvenance: RuntimeProvenance = currentRuntimeProvenance(), private readonly responseSink?: { metadata?: WorkbenchResponseMetadata }, logicalOperationKey?: string) {
     this.record = initialRecord(operationId, projectId, correlationId, runtimeProvenance);
-    this.key = projectId;
+    this.key = logicalOperationKey ?? projectId;
+  }
+
+  get logicalOperationId() {
+    return this.record.operationId;
   }
 
   private appendTimeline(type: RecordState["attemptTimeline"][number]["type"], stage?: ProviderInvocationStage, invocationId?: string) {

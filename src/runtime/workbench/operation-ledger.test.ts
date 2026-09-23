@@ -9,7 +9,7 @@ import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from 
 import { WorkbenchApplication } from "./application";
 import { workbenchFailureResponse } from "./diagnostics";
 import { withWorkbenchOperationContext, WorkbenchOperationFailure } from "./operation-context";
-import { legacyWorkbenchPlanningIntentHash, readWorkbenchPlanningAttempt, readWorkbenchPlanningAttemptHistory, WorkbenchOperationLedger, safeOperationFingerprint, workbenchPlanningAttemptKey, workbenchPlanningIntentHash, type WorkbenchPlanningCurrentness } from "./operation-ledger";
+import { legacyWorkbenchPlanningIntentHash, readWorkbenchPlanningAttempt, readWorkbenchPlanningAttemptHistory, WorkbenchOperationLedger, safeOperationFingerprint, workbenchPlanningAttemptKey, workbenchPlanningIntentHash, workbenchPlanningLogicalOperationId, type WorkbenchPlanningCurrentness } from "./operation-ledger";
 import { currentRuntimeProvenance, type WorkbenchResponseMetadata } from "./observability";
 import { OpenAiStructuredClient } from "@/integrations/openai/client";
 import { AiProviderError } from "@/integrations/openai/errors";
@@ -79,6 +79,81 @@ function idempotencySnapshot(database: InMemoryPersistenceDatabase) {
 }
 
 describe("durable Workbench Planning operation envelope", () => {
+  it("selects a distinct logical identity for a newly approved Brief without rewriting the old failed frontier", async () => {
+    const fixture = await approvedPlanningFixture();
+    const historical = await seedFailedPlanningOperation(fixture.database, { projectVersion: 1, rowVersion: 4, briefChecksum: "b".repeat(64) });
+    const beforeHistorical = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: historical.operationId.replace(/^workbench-planning:/, "") }));
+    const responseSink: { metadata?: WorkbenchResponseMetadata } = {};
+    let failure: unknown;
+    try {
+      await withWorkbenchOperationContext({ correlationId: "49494949-4949-4494-8494-494949494949", runtimeProvenance: currentRuntimeProvenance(), responseSink }, () => fixture.app.handle({ action: "generate-planning", projectId }));
+    } catch (error) {
+      failure = error;
+    }
+    const logicalOperationId = workbenchPlanningLogicalOperationId(projectId, 1, fixture.briefChecksum);
+    expect(failure).toMatchObject({ details: { operationId: logicalOperationId, attemptCreated: true, providerCallsTotal: 0 } });
+    expect(fixture.planner.planApprovedProject).toHaveBeenCalledOnce();
+    expect(responseSink.metadata).toMatchObject({ responseOrigin: "NEW_EXECUTION", operationId: logicalOperationId, attemptCreated: true });
+    expect(await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: historical.operationId.replace(/^workbench-planning:/, "") }))).toEqual(beforeHistorical);
+    expect(await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: logicalOperationId }))).toMatchObject({ status: "FAILED", result: { operationId: logicalOperationId, currentness: { projectVersion: 1, rowVersion: 1, briefChecksum: fixture.briefChecksum } } });
+  });
+
+  it("preserves one logical identity while allowing an explicit retry on the same approved frontier", async () => {
+    const fixture = await approvedPlanningFixture();
+    const logicalOperationId = workbenchPlanningLogicalOperationId(projectId, 1, fixture.briefChecksum);
+    for (let attempt = 0; attempt < 2; attempt += 1) await expect(fixture.app.handle({ action: "generate-planning", projectId })).rejects.toMatchObject({ code: "WORKBENCH_INTERNAL_ERROR" });
+    expect(fixture.planner.planApprovedProject).toHaveBeenCalledTimes(2);
+    expect(await readWorkbenchPlanningAttemptHistory(fixture.database, logicalOperationId)).toHaveLength(2);
+    const records = await fixture.database.transaction((tx) => tx.listOperations({ operation: "workbench.planning" }));
+    expect(records.filter((record) => record.key === logicalOperationId)).toHaveLength(1);
+  });
+
+  it("protects active and successful current-frontier operations before any provider call", async () => {
+    const activeFixture = await approvedPlanningFixture();
+    const activeOperationId = workbenchPlanningLogicalOperationId(projectId, 1, activeFixture.briefChecksum);
+    const active = new WorkbenchOperationLedger(activeFixture.database, projectId, activeOperationId, undefined, undefined, undefined, activeOperationId);
+    await active.bindCurrentness({ projectVersion: 1, rowVersion: 1, briefChecksum: activeFixture.briefChecksum });
+    await active.reserve();
+    await expect(activeFixture.app.handle({ action: "generate-planning", projectId })).rejects.toMatchObject({ code: "WORKBENCH_OPERATION_IN_PROGRESS" });
+    expect(activeFixture.planner.planApprovedProject).not.toHaveBeenCalled();
+
+    const succeededFixture = await approvedPlanningFixture();
+    const succeededOperationId = workbenchPlanningLogicalOperationId(projectId, 1, succeededFixture.briefChecksum);
+    const succeeded = new WorkbenchOperationLedger(succeededFixture.database, projectId, succeededOperationId, undefined, undefined, undefined, succeededOperationId);
+    await succeeded.bindCurrentness({ projectVersion: 1, rowVersion: 1, briefChecksum: succeededFixture.briefChecksum });
+    await succeeded.reserve();
+    await succeeded.complete();
+    await expect(succeededFixture.app.handle({ action: "generate-planning", projectId })).rejects.toMatchObject({ code: "WORKBENCH_OPERATION_REPLAY" });
+    expect(succeededFixture.planner.planApprovedProject).not.toHaveBeenCalled();
+  });
+
+  it("rejects a changed unapproved Brief before reservation or provider dispatch", async () => {
+    const fixture = await approvedPlanningFixture();
+    const historical = await seedFailedPlanningOperation(fixture.database, { projectVersion: 1, rowVersion: 1, briefChecksum: fixture.briefChecksum });
+    const documents = new DocumentRepository(fixture.database);
+    const changedChecksum = await changeCurrentBrief(fixture.database);
+    const changed = await documents.get(projectId, 1, "brief-v3");
+    if (!changed || changed.documentType !== "brief-v3" || changed.briefChecksum !== changedChecksum) throw new Error("synthetic changed Brief fixture is missing");
+    await documents.save(createBriefV3Document({ projectId, projectVersion: 1, brief: changed.brief, createdAt: changed.createdAt, updatedAt: changed.updatedAt }));
+    const beforeHistorical = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: projectId }));
+    await expect(fixture.app.handle({ action: "generate-planning", projectId })).rejects.toMatchObject({ code: "BRIEF_APPROVAL_REQUIRED", details: { attemptCreated: false, providerCallsTotal: 0 } });
+    expect(fixture.planner.planApprovedProject).not.toHaveBeenCalled();
+    expect(await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: projectId }))).toEqual(beforeHistorical);
+    expect(await readWorkbenchPlanningAttemptHistory(fixture.database, historical.operationId)).toHaveLength(1);
+  });
+
+  it("serializes concurrent reservations for one Brief frontier", async () => {
+    const database = new InMemoryPersistenceDatabase();
+    const currentness = { projectVersion: 1, rowVersion: 1, briefChecksum: "a".repeat(64) };
+    const logicalOperationId = workbenchPlanningLogicalOperationId(projectId, currentness.projectVersion, currentness.briefChecksum);
+    const first = new WorkbenchOperationLedger(database, projectId, logicalOperationId, "44444444-4444-4444-8444-444444444444", undefined, undefined, logicalOperationId);
+    const second = new WorkbenchOperationLedger(database, projectId, logicalOperationId, "55555555-5555-4555-8555-555555555555", undefined, undefined, logicalOperationId);
+    await Promise.all([first.bindCurrentness(currentness), second.bindCurrentness(currentness)]);
+    const results = await Promise.allSettled([first.reserve(), second.reserve()]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected").map((result) => result.reason)).toEqual([expect.objectContaining({ code: "WORKBENCH_OPERATION_IN_PROGRESS" })]);
+  });
+
   it("wraps a raw Planner initialization fault at the real Workbench boundary", async () => {
     const fixture = await approvedPlanningFixture();
     const responseSink: { metadata?: WorkbenchResponseMetadata } = {};
@@ -92,10 +167,11 @@ describe("durable Workbench Planning operation envelope", () => {
     expect(failure).toBeInstanceOf(WorkbenchOperationFailure);
     if (!(failure instanceof WorkbenchOperationFailure)) throw new Error("synthetic Workbench failure was not preserved");
     const response = workbenchFailureResponse(failure, { action: "generate-planning", projectId });
+    const logicalOperationId = workbenchPlanningLogicalOperationId(projectId, 1, fixture.briefChecksum);
     expect(response.status).toBe(500);
     expect(response.response).toMatchObject({
       code: "WORKBENCH_INTERNAL_ERROR",
-      operationId: `workbench-planning:${projectId}`,
+      operationId: logicalOperationId,
       operationKind: "PLANNING_GENERATION",
       phase: "PLANNING",
       operationStage: "OPERATION_INITIALIZATION",
@@ -185,7 +261,8 @@ describe("durable Workbench Planning operation envelope", () => {
     const row = fixture.database.projects.get(projectId);
     if (!row) throw new Error("synthetic project was not created");
     row.workflow_state = "AWAITING_PLANNING_APPROVAL";
-    const ledger = new WorkbenchOperationLedger(fixture.database, projectId);
+    const logicalOperationId = workbenchPlanningLogicalOperationId(projectId, 1, fixture.briefChecksum);
+    const ledger = new WorkbenchOperationLedger(fixture.database, projectId, logicalOperationId, undefined, undefined, undefined, logicalOperationId);
     await ledger.bindCurrentness({ projectVersion: 1, rowVersion: 1, briefChecksum: fixture.briefChecksum });
     await ledger.reserve();
     await expect(fixture.app.handle({ action: "approve-planning", projectId })).rejects.toMatchObject({ code: "WORKBENCH_OPERATION_IN_PROGRESS" });
@@ -299,7 +376,7 @@ describe("durable Workbench Planning operation envelope", () => {
     { label: "changed row version", changeRowVersion: true, changeBrief: false, rowVersion: 2 },
     { label: "changed Brief semantic checksum", changeRowVersion: false, changeBrief: true, rowVersion: 1 },
     { label: "changed row version and Brief semantic checksum", changeRowVersion: true, changeBrief: true, rowVersion: 2 },
-  ])("rejects unbound legacy reexecution for $label before any new attempt", async ({ changeRowVersion, changeBrief, rowVersion }) => {
+  ])("selects a new Brief frontier instead of reexecuting an old failed row for $label", async ({ changeRowVersion, changeBrief, rowVersion }) => {
     const fixture = await approvedPlanningFixture();
     if (changeBrief) await changeCurrentBrief(fixture.database);
     if (changeRowVersion) {
@@ -310,15 +387,17 @@ describe("durable Workbench Planning operation envelope", () => {
     const seeded = await seedFailedPlanningOperation(fixture.database);
     const beforeOperation = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: projectId }));
     const beforeAttempt = await readWorkbenchPlanningAttempt(fixture.database, seeded.operationId, seeded.attemptId);
-    const beforeIdempotency = idempotencySnapshot(fixture.database);
     const beforeProject = structuredClone(fixture.database.projects.get(projectId));
 
-    await expect(fixture.app.handle({ action: "generate-planning", projectId })).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT", details: { outerCode: "IDEMPOTENCY_CONFLICT", providerCallsTotal: 0, canonicalPlanningPersisted: false, lifecycleMutated: false }, cause: { details: { reasonCode: "HISTORICAL_CURRENTNESS_UNAVAILABLE" } } });
+    await expect(fixture.app.handle({ action: "generate-planning", projectId })).rejects.toMatchObject({ code: "WORKBENCH_INTERNAL_ERROR", details: { providerCallsTotal: 0, canonicalPlanningPersisted: false, lifecycleMutated: false } });
 
-    expect(fixture.planner.planApprovedProject).not.toHaveBeenCalled();
+    expect(fixture.planner.planApprovedProject).toHaveBeenCalledOnce();
     expect(await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: projectId }))).toEqual(beforeOperation);
     expect(await readWorkbenchPlanningAttempt(fixture.database, seeded.operationId, seeded.attemptId)).toEqual(beforeAttempt);
-    expect(idempotencySnapshot(fixture.database)).toEqual(beforeIdempotency);
+    const currentBrief = await new DocumentRepository(fixture.database).get(projectId, 1, "brief-v3");
+    if (!currentBrief || currentBrief.documentType !== "brief-v3") throw new Error("synthetic Brief fixture is missing");
+    const logicalOperationId = workbenchPlanningLogicalOperationId(projectId, 1, currentBrief.briefChecksum);
+    expect(await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: logicalOperationId }))).toMatchObject({ status: "FAILED", result: { operationId: logicalOperationId } });
     expect(fixture.database.projects.get(projectId)).toEqual(beforeProject);
   });
 
@@ -332,13 +411,14 @@ describe("durable Workbench Planning operation envelope", () => {
     await expect(fixture.app.handle({ action: "generate-planning", projectId })).rejects.toMatchObject({ code: "WORKBENCH_INTERNAL_ERROR" });
 
     expect(fixture.planner.planApprovedProject).toHaveBeenCalledOnce();
-    const current = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: projectId }));
+    const logicalOperationId = workbenchPlanningLogicalOperationId(projectId, 1, fixture.briefChecksum);
+    const current = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.planning", key: logicalOperationId }));
     const attemptId = (current?.result as { attemptId?: string } | undefined)?.attemptId;
-    expect(current).toMatchObject({ status: "FAILED", payloadHash: seeded.historicalHash, result: { currentness, providerCallsTotal: 0, canonicalPlanningPersisted: false, lifecycleMutated: false } });
+    expect(current).toMatchObject({ status: "FAILED", result: { operationId: logicalOperationId, currentness, providerCallsTotal: 0, canonicalPlanningPersisted: false, lifecycleMutated: false } });
     expect(attemptId).toBeDefined();
     expect(attemptId).not.toBe(seeded.attemptId);
     expect(await readWorkbenchPlanningAttempt(fixture.database, seeded.operationId, seeded.attemptId)).toEqual(beforeAttempt);
-    expect(idempotencySnapshot(fixture.database)).toHaveLength(beforeIdempotency.length + 1);
+    expect(idempotencySnapshot(fixture.database)).toHaveLength(beforeIdempotency.length + 2);
   });
 
   it("keeps transient attempt metadata out of semantic idempotency while isolating attempt evidence", async () => {
