@@ -188,7 +188,7 @@ export class ArchitectureReviewService {
         skillSelection.contexts,
         skillSelection.identityChecksum,
         executionContext.correlationId
-          ? { operationId: input.idempotencyKey, correlationId: executionContext.correlationId, stage: "architecture-review", ...(executionContext.providerInvocationLedger ? { ledger: executionContext.providerInvocationLedger } : {}), ...(providerInvocation ? { invocation: providerInvocation } : {}) }
+          ? { operationId: input.idempotencyKey, correlationId: executionContext.correlationId, stage: "architecture-review", ...(executionContext.providerInvocationLedger ? { ledger: executionContext.providerInvocationLedger, ...(executionContext.providerInvocationLedger.recordProviderDiagnostic ? { recordDiagnostic: (diagnostic: Parameters<NonNullable<typeof executionContext.providerInvocationLedger.recordProviderDiagnostic>>[0], parseStatus: Parameters<NonNullable<typeof executionContext.providerInvocationLedger.recordProviderDiagnostic>>[1], failureDiagnostic: Parameters<NonNullable<typeof executionContext.providerInvocationLedger.recordProviderDiagnostic>>[2]) => executionContext.providerInvocationLedger?.recordProviderDiagnostic?.(diagnostic, parseStatus, failureDiagnostic) } : {}) } : {}), ...(providerInvocation ? { invocation: providerInvocation } : {}) }
           : undefined,
       );
       await providerInvocation?.responseReceived();

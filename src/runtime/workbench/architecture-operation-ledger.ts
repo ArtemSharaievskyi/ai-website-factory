@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import type { PersistenceDatabase, OperationReservation } from "@/persistence/database/types";
 import type { ArchitectureReviewInput } from "@/agents/reviewers/architecture/contracts";
-import type { ProviderInvocationLedgerHandle, ProviderInvocationLedgerPort, ProviderInvocationLedgerState, ProviderInvocationStage } from "@/integrations/openai/usage";
-import { providerFailureDiagnosticFromError } from "@/integrations/openai/failure-diagnostics";
-import type { ProviderFailureDiagnostic } from "@/domain/shared/provider-failure";
+import type { ProviderDiagnostic, ProviderInvocationLedgerHandle, ProviderInvocationLedgerPort, ProviderInvocationLedgerState, ProviderInvocationStage, ProviderTerminationParseStatus } from "@/integrations/openai/usage";
+import { createProviderFailureDiagnostic, providerFailureDiagnosticFromError } from "@/integrations/openai/failure-diagnostics";
+import { ProviderFailureDiagnosticSchema, type ProviderFailureDiagnostic } from "@/domain/shared/provider-failure";
 import { WorkbenchOperationFailure, type WorkbenchOperationFailureDetails, type WorkbenchOperationStage } from "./operation-context";
 import { WorkbenchOperationConflict, safeOperationFingerprint } from "./operation-ledger";
 import { attemptReadbackFromResult, currentRuntimeProvenance, MAX_WORKBENCH_ATTEMPT_HISTORY, type RuntimeProvenance, type WorkbenchAttemptReadback, type WorkbenchResponseMetadata, type WorkbenchResponseOrigin } from "./observability";
@@ -101,6 +101,11 @@ function hasErrorCode(error: unknown, code: string, depth = 0): boolean {
   if (depth > 6 || !error || typeof error !== "object") return false;
   const value = error as { code?: unknown; cause?: unknown };
   return value.code === code || hasErrorCode(value.cause, code, depth + 1);
+}
+
+function safeErrorClass(error: unknown) {
+  const name = error instanceof Error ? error.name : "UnknownError";
+  return /^[A-Za-z][A-Za-z0-9]{0,63}$/.test(name) ? name : "UnknownError";
 }
 
 /** Durable, one-call Workbench accounting for the Architecture Review boundary. */
@@ -241,6 +246,21 @@ export class ArchitectureReviewOperationLedger implements ProviderInvocationLedg
     return structuredClone({ providerCallsTotal: this.record.providerCallsTotal, providerCallsByStage: this.record.providerCallsByStage, ...(this.record.providerInvocationState ? { providerInvocationState: this.record.providerInvocationState } : {}) });
   }
 
+  async recordProviderDiagnostic(diagnostic: ProviderDiagnostic, parseStatus: ProviderTerminationParseStatus, failureDiagnostic?: ProviderFailureDiagnostic) {
+    if (!this.reserved || parseStatus === "PASSED") return;
+    const parsed = failureDiagnostic ? ProviderFailureDiagnosticSchema.safeParse(failureDiagnostic) : null;
+    this.record.providerDiagnostic = parsed?.success
+      ? parsed.data
+      : createProviderFailureDiagnostic({
+        errorCode: "AI_OUTPUT_INVALID",
+        model: "unknown",
+        schemaName: diagnostic.schemaName ?? this.record.providerContract ?? "architecture-review-result",
+        requestAttempted: diagnostic.requestAttempted,
+        diagnostic,
+      });
+    await this.persist();
+  }
+
   async markCanonicalArchitecturePersisted(lifecycleMutated: boolean) {
     this.record.canonicalArchitecturePersisted = true;
     this.record.lifecycleMutated = lifecycleMutated;
@@ -261,7 +281,23 @@ export class ArchitectureReviewOperationLedger implements ProviderInvocationLedg
     const operationStage = hasErrorCode(error, "PERSISTENCE_COMMIT_AMBIGUOUS") ? "PERSISTENCE" : this.record.stage;
     const failureClass = code === "WORKBENCH_INTERNAL_ERROR" ? "UNEXPECTED_EXCEPTION" : "KNOWN_WORKFLOW_FAILURE";
     const safeErrorFingerprint = safeOperationFingerprint(error, operationStage);
-    const providerDiagnostic = providerFailureDiagnosticFromError(error);
+    const providerDiagnostic = providerFailureDiagnosticFromError(error)
+      ?? this.record.providerDiagnostic
+      ?? (this.reserved && this.record.providerCallsTotal > 0
+        ? ProviderFailureDiagnosticSchema.parse({
+          version: 1,
+          category: "UNKNOWN",
+          stage: operationStage === "PROVIDER_TRANSPORT" ? "REQUEST_TRANSPORT" : "UNKNOWN",
+          requestAttempted: true,
+          responseReceived: false,
+          structuredParsingReached: false,
+          retryabilityHint: false,
+          provider: "openai",
+          sdkErrorClass: safeErrorClass(error),
+          ...(safeCode(error) ? { errorCode: safeCode(error) } : {}),
+          ...(this.record.providerContract ? { schemaName: this.record.providerContract } : {}),
+        })
+        : undefined);
     const mutationAmbiguous = hasErrorCode(error, "PERSISTENCE_COMMIT_AMBIGUOUS");
     this.record = { ...this.record, stage: operationStage, failureStage: operationStage, failureClass, outerCode: code, reasonCode: code, safeErrorFingerprint, providerDiagnostic: providerDiagnostic ?? this.record.providerDiagnostic, canonicalArchitecturePersisted: this.record.canonicalArchitecturePersisted || mutationAmbiguous, lifecycleMutated: this.record.lifecycleMutated || mutationAmbiguous };
     if (this.reserved) { this.record.failedAt = new Date().toISOString(); this.appendTimeline("EXECUTION_FAILED"); }

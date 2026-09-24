@@ -19,6 +19,9 @@ import { TrialEntryService } from "@/runtime/trial-entry/service";
 import { WorkbenchApplication } from "./application";
 import { WorkbenchRequestSchema, actionsForWorkbenchState } from "./contracts";
 import { workbenchFailureResponse } from "./diagnostics";
+import { ArchitectureReviewError } from "@/agents/reviewers/architecture/errors";
+import { ProviderFailureDiagnosticSchema } from "@/domain/shared/provider-failure";
+import type { ProviderDiagnostic } from "@/integrations/openai/usage";
 
 const timestamp = "2026-08-23T12:00:00.000Z";
 const projectId = "28282828-2828-4282-8282-282828282828";
@@ -101,7 +104,9 @@ describe("canonical Workbench Architecture Review boundary", () => {
     expect(result.project?.workflowState).toBe("AWAITING_DESIGN_SELECTION");
     expect(calls).toBe(1);
     expect(await new DocumentRepository(state.database).get(projectId, 1, "architecture-review")).not.toBeNull();
-    expect((await state.database.transaction((tx) => tx.getOperation({ operation: "workbench.architecture-review", key: projectId })))?.status).toBe("SUCCEEDED");
+    const operation = await state.database.transaction((tx) => tx.getOperation({ operation: "workbench.architecture-review", key: projectId }));
+    expect(operation?.status).toBe("SUCCEEDED");
+    expect(operation?.result).toMatchObject({ providerDiagnostic: null });
   });
 
   it("persists bounded transport diagnostics through the real Architecture Workbench failure envelope", async () => {
@@ -144,5 +149,68 @@ describe("canonical Workbench Architecture Review boundary", () => {
     expect(await new DocumentRepository(state.database).get(projectId, 1, "architecture-review")).toBeNull();
     const current = await new ProjectRepository(state.database).getWithVersion(projectId);
     expect(current).toMatchObject({ project: { workflowState: "ARCHITECTURE_REVIEW" }, rowVersion: 1 });
+  });
+
+  it("retains bounded provider diagnostics when the provider wrapper has no retained cause", async () => {
+    const state = await fixture();
+    const diagnostic = {
+      stage: "api_request",
+      outputStage: "PROVIDER_REQUEST_FAILED",
+      requestAttempted: true,
+      apiResponseReceived: false,
+      responseReceived: false,
+      outputComplete: false,
+      sdkErrorClass: "APIConnectionError",
+      transportPhase: "CONNECT",
+      transportFailureClass: "CONNECT_FAILED",
+      transportCauseCode: "ECONNREFUSED",
+      endpointClass: "OPENAI_CHAT_COMPLETIONS_API",
+      schemaName: "architecture-review-result",
+    } satisfies ProviderDiagnostic;
+    const failureDiagnostic = ProviderFailureDiagnosticSchema.parse({
+      version: 1,
+      category: "NETWORK",
+      stage: "REQUEST_TRANSPORT",
+      requestAttempted: true,
+      responseReceived: false,
+      structuredParsingReached: false,
+      retryabilityHint: true,
+      provider: "openai",
+      model: "synthetic-model",
+      schemaName: "architecture-review-result",
+      errorCode: "AI_NETWORK_ERROR",
+      sdkErrorClass: "APIConnectionError",
+      transportPhase: "CONNECT",
+      transportFailureClass: "CONNECT_FAILED",
+      transportCauseCode: "ECONNREFUSED",
+    });
+    const provider = {
+      promptVersion: "architecture-reviewer.v2",
+      review: async (_input: ArchitectureReviewInput, _signal: AbortSignal | undefined, _skills: readonly unknown[] | undefined, _identity: string | undefined, invocation: import("@/integrations/openai/usage").ProviderInvocationContext | undefined) => {
+        await invocation?.recordDiagnostic?.(diagnostic, "NOT_REACHED", failureDiagnostic);
+        throw new ArchitectureReviewError("ARCHITECTURE_REVIEW_PROVIDER_FAILED", "Synthetic provider failure.");
+      },
+    };
+    const service = new ArchitectureReviewOrchestrationService(state.database, new ArchitectureReviewService(state.database, { provider } as never));
+    const app = new WorkbenchApplication({ database: state.database, entry: state.entry, getWorkflowScope: () => ({ architectureReviewer: service, planner: undefined, design: undefined, orchestrator: undefined, contractAuditor: undefined } as never) });
+    let failure: unknown;
+    try {
+      await app.handle({ action: "generate-architecture-review", projectId });
+    } catch (error) {
+      failure = error;
+    }
+    expect(workbenchFailureResponse(failure, { action: "generate-architecture-review", projectId }).response).toMatchObject({ providerDiagnostic: { category: "NETWORK", transportFailureClass: "CONNECT_FAILED", transportCauseCode: "ECONNREFUSED", responseReceived: false } });
+    const operation = await state.database.transaction((tx) => tx.getOperation({ operation: "workbench.architecture-review", key: projectId }));
+    expect(operation?.result).toMatchObject({ providerDiagnostic: { category: "NETWORK", transportFailureClass: "CONNECT_FAILED", transportCauseCode: "ECONNREFUSED" } });
+  });
+
+  it("records a bounded unknown diagnostic when a provider-stage exception has no safe cause evidence", async () => {
+    const state = await fixture();
+    const provider = { promptVersion: "architecture-reviewer.v2", review: async () => { throw new ArchitectureReviewError("ARCHITECTURE_REVIEW_PROVIDER_FAILED", "Synthetic provider failure."); } };
+    const service = new ArchitectureReviewOrchestrationService(state.database, new ArchitectureReviewService(state.database, { provider } as never));
+    const app = new WorkbenchApplication({ database: state.database, entry: state.entry, getWorkflowScope: () => ({ architectureReviewer: service, planner: undefined, design: undefined, orchestrator: undefined, contractAuditor: undefined } as never) });
+    await expect(app.handle({ action: "generate-architecture-review", projectId })).rejects.toMatchObject({ code: "ARCHITECTURE_REVIEW_PROVIDER_FAILED" });
+    const operation = await state.database.transaction((tx) => tx.getOperation({ operation: "workbench.architecture-review", key: projectId }));
+    expect(operation?.result).toMatchObject({ providerDiagnostic: { category: "UNKNOWN", stage: "REQUEST_TRANSPORT", requestAttempted: true, responseReceived: false, structuredParsingReached: false, retryabilityHint: false, sdkErrorClass: "ArchitectureReviewError" } });
   });
 });

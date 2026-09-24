@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ContextBundle } from "@/runtime/context";
 import type { KnownTransportCauseCode, ProviderTransportElapsedBucket, ProviderTransportFailureClass, ProviderTransportPhase } from "@/domain/shared/provider-failure";
+import type { ProviderFailureDiagnostic } from "@/domain/shared/provider-failure";
 export type ProviderUsage = { inputTokens?: number; cachedInputTokens?: number; uncachedInputTokens?: number; outputTokens?: number; totalTokens?: number; actualUsageCaptured: boolean; cacheTelemetryUnavailable: boolean; requestCount: number; retryCount: number; correctionCount: number; provider: string; model: string; role: string; promptVersion: string; reasoningEffort?: "xhigh"; invocationId?: string; invocationFingerprint?: string; contextBundleId?: string; contextChecksum?: string; prefixChecksum?: string; prefixBytes?: number; contextMetrics?: ContextBundle["metrics"] };
 export type ProviderDiagnosticStage = "request_construction" | "api_request" | "api_response" | "structured_parse" | "domain_validation" | "provider_normalization";
 export const PROVIDER_OUTPUT_STAGES = [
@@ -119,10 +120,10 @@ export type ProviderInvocationLedgerHandle = {
 };
 export type ProviderInvocationLedgerPort = {
   reserveInvocation(input: { stage: ProviderInvocationStage; providerContract: string }): Promise<ProviderInvocationLedgerHandle>;
-  recordProviderDiagnostic?: (diagnostic: ProviderDiagnostic, parseStatus: ProviderTerminationParseStatus) => void | Promise<void>;
+  recordProviderDiagnostic?: (diagnostic: ProviderDiagnostic, parseStatus: ProviderTerminationParseStatus, failureDiagnostic?: ProviderFailureDiagnostic) => void | Promise<void>;
   snapshot(): { providerCallsTotal: number; providerCallsByStage: Record<ProviderInvocationStage, { attempted: number; started: number; responseReceived: number; structuredParsePassed: number; semanticAdmissionPassed: number; completed: number; failed: number }>; providerInvocationState?: ProviderInvocationLedgerState };
 };
-export type ProviderInvocationContext = { operationId: string; correlationId: string; stage: ProviderInvocationStage; ledger?: ProviderInvocationLedgerPort; invocation?: ProviderInvocationLedgerHandle; recordDiagnostic?: (diagnostic: ProviderDiagnostic, parseStatus: ProviderTerminationParseStatus) => void | Promise<void> };
+export type ProviderInvocationContext = { operationId: string; correlationId: string; stage: ProviderInvocationStage; ledger?: ProviderInvocationLedgerPort; invocation?: ProviderInvocationLedgerHandle; recordDiagnostic?: (diagnostic: ProviderDiagnostic, parseStatus: ProviderTerminationParseStatus, failureDiagnostic?: ProviderFailureDiagnostic) => void | Promise<void> };
 export type SafeProviderEvent = { type: "request.started" | "request.completed" | "request.failed"; provider: string; model: string; role: string; promptVersion: string; requestId?: string; code?: string; retryCount?: number; startedAt?: string; completedAt?: string; elapsedMs?: number; diagnostic?: ProviderDiagnostic; operationId?: string; correlationId?: string; operationStage?: ProviderInvocationStage };
 export type ProviderEventSink = (event: SafeProviderEvent) => void;
 export type ProviderUsageSink = (usage: ProviderUsage) => void | Promise<void>;

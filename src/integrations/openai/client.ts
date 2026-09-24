@@ -185,9 +185,9 @@ export class OpenAiStructuredClient {
         } catch (error) {
           const mapped = mapError(error, request.schemaName, transportStarted, this.config.model, { ...requestDiagnostic, elapsedBucket: elapsedBucket(Date.now() - started) });
           if (mapped.diagnostic && request.providerInvocation?.recordDiagnostic)
-            await Promise.resolve(request.providerInvocation.recordDiagnostic(mapped.diagnostic, (mapped.diagnostic.responseReceived ?? mapped.diagnostic.apiResponseReceived) ? "FAILED" : "NOT_REACHED")).catch(() => undefined);
+            await Promise.resolve(request.providerInvocation.recordDiagnostic(mapped.diagnostic, (mapped.diagnostic.responseReceived ?? mapped.diagnostic.apiResponseReceived) ? "FAILED" : "NOT_REACHED", mapped.failureDiagnostic)).catch(() => undefined);
           else if (mapped.diagnostic && request.providerInvocation?.ledger?.recordProviderDiagnostic)
-            await Promise.resolve(request.providerInvocation.ledger.recordProviderDiagnostic(mapped.diagnostic, (mapped.diagnostic.responseReceived ?? mapped.diagnostic.apiResponseReceived) ? "FAILED" : "NOT_REACHED")).catch(() => undefined);
+            await Promise.resolve(request.providerInvocation.ledger.recordProviderDiagnostic(mapped.diagnostic, (mapped.diagnostic.responseReceived ?? mapped.diagnostic.apiResponseReceived) ? "FAILED" : "NOT_REACHED", mapped.failureDiagnostic)).catch(() => undefined);
           if (invocation && (mapped.diagnostic?.responseReceived || mapped.diagnostic?.apiResponseReceived)) await invocation.responseReceived().catch(() => undefined);
           if (invocation) await invocation.failed().catch(() => undefined);
           if (mapped.code === "AI_OUTPUT_SCHEMA_MISMATCH" && !correction && maxCorrections > 0) {
