@@ -5,7 +5,7 @@ import { zodResponseFormat } from "openai/helpers/zod";
 import { AiProviderError, isAiProviderError } from "./errors";
 import { classifyProviderTransportFailure, createProviderFailureDiagnostic } from "./failure-diagnostics";
 import { FifoConcurrencyLimiter } from "./limiter";
-import { DEFAULT_AI_MAX_COMPLETION_TOKENS, LUNA_MODEL, LUNA_REASONING_EFFORT, reasoningConfigurationForRole, type AiProviderConfig, type AiReasoningConfiguration } from "./config";
+import { DEFAULT_AI_MAX_COMPLETION_TOKENS, DEFAULT_DESIGN_MAX_COMPLETION_TOKENS, LUNA_MODEL, LUNA_REASONING_EFFORT, reasoningConfigurationForRole, type AiProviderConfig, type AiReasoningConfiguration } from "./config";
 import type { ProviderDiagnostic, ProviderEventSink, ProviderInvocationContext, ProviderOutputStage, ProviderUsage, ProviderUsageSink } from "./usage";
 import type { ContextBundle } from "@/runtime/context";
 import { createInvocationFingerprint, createInvocationUsageRecord } from "@/runtime/context/telemetry";
@@ -307,12 +307,18 @@ export function parseProviderWireContent<T>(input: { content: string; schema: Zo
   return { ...input.response, content: input.content, value: parsed.data, diagnostic: { ...responseDiagnostic, jsonParseSucceeded: true, outputComplete: true, parsedPresent: true } };
 }
 
-function completionResponseDiagnostic<T>(completion: ChatCompletion, request: StructuredRequest<T>, parsedPresent: boolean, outputComplete: boolean): ProviderDiagnostic {
+function maxCompletionTokensFor<T>(request: StructuredRequest<T>, config: AiProviderConfig) {
+  if (request.maxCompletionTokens !== undefined) return request.maxCompletionTokens;
+  if (request.role === "design") return config.designMaxCompletionTokens ?? DEFAULT_DESIGN_MAX_COMPLETION_TOKENS;
+  return config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS;
+}
+
+function completionResponseDiagnostic<T>(completion: ChatCompletion, request: StructuredRequest<T>, config: AiProviderConfig, parsedPresent: boolean, outputComplete: boolean): ProviderDiagnostic {
   const choice = completion.choices[0];
   const message = choice?.message;
   const inputTokens = completion.usage?.prompt_tokens;
   const outputTokens = completion.usage?.completion_tokens;
-  const maxCompletionTokens = request.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS;
+  const maxCompletionTokens = maxCompletionTokensFor(request, config);
   return { stage: "api_response", requestAttempted: true, apiResponseReceived: true, responseReceived: true, outputComplete, tokenExhaustion: choice?.finish_reason === "length" || (outputTokens !== undefined && outputTokens >= maxCompletionTokens), requestId: completion.id, choicesCount: completion.choices.length, finishReason: choice?.finish_reason ?? null, refusalPresent: Boolean(message?.refusal), parsedPresent, contentPresent: typeof message?.content === "string", contentLength: typeof message?.content === "string" ? message.content.length : undefined, schemaName: request.schemaName, inputTokens, outputTokens, ...(inputTokens !== undefined && outputTokens !== undefined ? { totalTokens: inputTokens + outputTokens } : {}), maxCompletionTokens };
 }
 
@@ -352,7 +358,7 @@ async function responsesExecutor<T>(request: StructuredRequest<T>, client: OpenA
   const correctionInstruction = request.role === "design" ? "\nReturn exactly 3 directions. Repair only the structural deficiency; do not omit, clone, or add a fourth direction." : "\nCorrect the previous structured-output formatting.";
   const response = await client.responses.create({
     model: config.model,
-    max_output_tokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS,
+    max_output_tokens: maxCompletionTokensFor(request, config),
     instructions: `${request.system}${correction ? correctionInstruction : ""}`,
     input: request.user,
     reasoning: request.reasoning,
@@ -385,7 +391,7 @@ async function responsesExecutor<T>(request: StructuredRequest<T>, client: OpenA
     inputTokens,
     outputTokens,
     ...(inputTokens !== undefined && outputTokens !== undefined ? { totalTokens: inputTokens + outputTokens } : {}),
-    maxCompletionTokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS,
+    maxCompletionTokens: maxCompletionTokensFor(request, config),
     reasoningEffort: request.reasoning?.effort,
   };
   if (responseDiagnostic.refusalPresent) throw new AiProviderError("AI_OUTPUT_REFUSED", "The provider refused the structured request.", undefined, { ...responseDiagnostic, outputStage: "PROVIDER_REFUSAL", outputComplete: false });
@@ -399,13 +405,13 @@ async function manualExecutor<T>(request: StructuredRequest<T>, client: OpenAI, 
   if (request.reasoning) return responsesExecutor(request, client, config, correction);
   const responseSchema = buildProductionResponseFormat(request.schema, request.schemaName, { schemaDefinitions: request.schemaDefinitions });
   const correctionInstruction = request.role === "design" ? "\nReturn exactly 3 directions. Repair only the structural deficiency; do not omit, clone, or add a fourth direction." : "\nCorrect the previous structured-output formatting.";
-  const completion = await client.chat.completions.create({ model: config.model, max_completion_tokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, messages: [{ role: "system", content: `${request.system}${correction ? correctionInstruction : ""}` }, { role: "user", content: request.user }], response_format: responseSchema }, request.signal ? { signal: request.signal } : undefined) as unknown as ChatCompletion;
+  const completion = await client.chat.completions.create({ model: config.model, max_completion_tokens: maxCompletionTokensFor(request, config), messages: [{ role: "system", content: `${request.system}${correction ? correctionInstruction : ""}` }, { role: "user", content: request.user }], response_format: responseSchema }, request.signal ? { signal: request.signal } : undefined) as unknown as ChatCompletion;
   const choice = completion.choices[0];
   const message = choice?.message;
   const inputTokens = completion.usage?.prompt_tokens;
   const outputTokens = completion.usage?.completion_tokens;
   const cachedInputTokens = completion.usage?.prompt_tokens_details?.cached_tokens;
-  const responseDiagnostic = completionResponseDiagnostic(completion, request, false, false);
+  const responseDiagnostic = completionResponseDiagnostic(completion, request, config, false, false);
   await captureResponse({ requestId: completion.id, inputTokens, ...(cachedInputTokens === undefined ? {} : { cachedInputTokens }), outputTokens, diagnostic: responseDiagnostic });
   if (message?.refusal) throw new AiProviderError("AI_OUTPUT_REFUSED", "The provider refused the structured request.", undefined, { ...responseDiagnostic, outputStage: "PROVIDER_REFUSAL", outputComplete: false });
   if (choice?.finish_reason === "length" || choice?.finish_reason === "content_filter") throw new AiProviderError("AI_OUTPUT_TRUNCATED", "The provider output was incomplete.", undefined, { ...responseDiagnostic, outputStage: "PROVIDER_OUTPUT_INCOMPLETE", outputComplete: false, tokenExhaustion: choice?.finish_reason === "length" });
@@ -418,12 +424,12 @@ async function defaultExecutor<T>(request: StructuredRequest<T>, client: OpenAI,
   if (request.reasoning) return responsesExecutor(request, client, config, correction);
   const responseSchema = buildProductionResponseFormat(request.schema, request.schemaName, { schemaDefinitions: request.schemaDefinitions });
   const correctionInstruction = request.role === "design" ? "\nReturn exactly 3 directions. Repair only the structural deficiency; do not omit, clone, or add a fourth direction." : "\nCorrect the previous structured-output formatting.";
-  const completion = await client.chat.completions.parse({ model: config.model, max_completion_tokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, messages: [{ role: "system", content: `${request.system}${correction ? correctionInstruction : ""}` }, { role: "user", content: request.user }], response_format: responseSchema }, request.signal ? { signal: request.signal } : undefined);
+  const completion = await client.chat.completions.parse({ model: config.model, max_completion_tokens: maxCompletionTokensFor(request, config), messages: [{ role: "system", content: `${request.system}${correction ? correctionInstruction : ""}` }, { role: "user", content: request.user }], response_format: responseSchema }, request.signal ? { signal: request.signal } : undefined);
   const choice = completion.choices[0];
   const message = choice?.message;
   const inputTokens = completion.usage?.prompt_tokens;
   const outputTokens = completion.usage?.completion_tokens;
-  const maxCompletionTokens = request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS;
+  const maxCompletionTokens = maxCompletionTokensFor(request, config);
   const responseReceived = true;
   const outputComplete = choice?.finish_reason === "stop" && Boolean(message?.parsed);
   const responseDiagnostic: ProviderDiagnostic = { stage: "api_response", requestAttempted: true, apiResponseReceived: true, responseReceived, outputComplete, tokenExhaustion: choice?.finish_reason === "length" || (outputTokens !== undefined && outputTokens >= maxCompletionTokens), requestId: completion.id, choicesCount: completion.choices.length, finishReason: choice?.finish_reason ?? null, refusalPresent: Boolean(message?.refusal), parsedPresent: message?.parsed != null, contentPresent: typeof message?.content === "string", contentLength: typeof message?.content === "string" ? message.content.length : undefined, schemaName: request.schemaName, inputTokens, outputTokens, ...(inputTokens !== undefined && outputTokens !== undefined ? { totalTokens: inputTokens + outputTokens } : {}), maxCompletionTokens };
@@ -467,8 +473,8 @@ function requestMetadata<T>(request: StructuredRequest<T>, responseFormat: unkno
   const schemaJson = JSON.stringify(responseFormat);
   const schemaSizeBytes = schemaJson === undefined ? undefined : Buffer.byteLength(schemaJson, "utf8");
   const requestJson = JSON.stringify(request.reasoning
-    ? { model: config.model, max_output_tokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, instructions: system, input: request.user, reasoning: request.reasoning, text: { format: responseTextFormat(responseFormat) }, store: false, stream: false }
-    : { model: config.model, max_completion_tokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS, messages: [{ role: "system", content: system }, { role: "user", content: request.user }], response_format: responseFormat });
+    ? { model: config.model, max_output_tokens: maxCompletionTokensFor(request, config), instructions: system, input: request.user, reasoning: request.reasoning, text: { format: responseTextFormat(responseFormat) }, store: false, stream: false }
+    : { model: config.model, max_completion_tokens: maxCompletionTokensFor(request, config), messages: [{ role: "system", content: system }, { role: "user", content: request.user }], response_format: responseFormat });
   const requestSizeBytes = requestJson === undefined ? undefined : Buffer.byteLength(requestJson, "utf8");
   const timeoutConfiguredMs = typeof client.timeout === "number" && Number.isInteger(client.timeout) && client.timeout > 0 && client.timeout <= 86_400_000 ? client.timeout : undefined;
   const configuredMaxRetries = typeof client.maxRetries === "number" && Number.isInteger(client.maxRetries) && client.maxRetries >= 0 && client.maxRetries <= 8 ? client.maxRetries : config.maxRetries;
@@ -479,7 +485,7 @@ function requestMetadata<T>(request: StructuredRequest<T>, responseFormat: unkno
     ...(requestSizeBytes === undefined ? {} : { requestSizeBytes }),
     inputBytes,
     ...(schemaSizeBytes === undefined ? {} : { schemaSizeBytes }),
-    maxCompletionTokens: request.maxCompletionTokens ?? config.maxCompletionTokens ?? DEFAULT_AI_MAX_COMPLETION_TOKENS,
+    maxCompletionTokens: maxCompletionTokensFor(request, config),
     ...(request.reasoning ? { reasoningEffort: request.reasoning.effort } : {}),
   };
 }

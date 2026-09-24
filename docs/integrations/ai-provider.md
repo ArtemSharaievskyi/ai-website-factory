@@ -14,6 +14,8 @@ Production AI is an OpenAI-only, server-side provider configured by the exact `O
 
 `xhigh` is a typed provider field, never prompt text and never the label `extra high`. An explicit incompatible model/effort combination is rejected before transport. The client uses the Responses API for these structured requests and keeps the existing Chat Completions boundary for unrelated routes.
 
+Design directions use the explicit `OPENAI_DESIGN_MAX_COMPLETION_TOKENS` budget, defaulting to 64,000 and capped at 64,000 by the repository configuration. The general `OPENAI_MAX_COMPLETION_TOKENS` default remains 24,000 for other roles. An incomplete Responses result is still rejected; the larger Design ceiling only gives the strict three-direction contract enough bounded output capacity to complete.
+
 Luna `xhigh` and Flare `xhigh` can increase provider latency and reported usage cost; the Factory records provider usage when available and records cost as unavailable when the provider omits it. This capability change does not add an unbounded retry budget or silently change operation-ledger limits.
 
 Supporting website imagery uses the existing OpenAI abstraction and official Image API with family alias `gpt-image-2.5-flare` and pinned production snapshot `gpt-image-2.5-flare-2026-09-08`. Image quality defaults explicitly to `xhigh`; `max` requires an exceptional-asset request sourced from a Design direction or Asset Manifest. Background defaults to explicit `opaque`; `auto` is available only when selected in typed input. There is no older-model, other-provider, placeholder, or logo fallback. Returned bytes are decoded and checked for MIME, dimensions, size, checksum, and supported format before the existing project-asset storage pipeline accepts them.

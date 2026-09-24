@@ -9,6 +9,7 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import { DesignDirectionStructuredOutputSchema, OpenAiDesignProvider } from "./adapters";
 import { OpenAiStructuredClient } from "./client";
 import type { AiProviderError } from "./errors";
+import { DEFAULT_DESIGN_MAX_COMPLETION_TOKENS, LUNA_MODEL } from "./config";
 
 const config = { apiKey: "synthetic", model: "synthetic-design-model", modelLabel: "Synthetic", maxRetries: 0, maxConcurrentRequests: 1 };
 
@@ -53,7 +54,7 @@ describe("OpenAI Design provider boundary", () => {
     expect(result.directions).toHaveLength(3);
     expect(new Set(result.directions.map((direction) => direction.id)).size).toBe(3);
     expect(result.provider).toMatchObject({ name: "openai", used: true, model: "synthetic-design-model", requestId: "req_design_fixture", responseReceived: true, finishReason: "stop", inputTokens: 31, outputTokens: 17, totalTokens: 48, rawContentBytes: expect.any(Number), rawContentChecksum: expect.stringMatching(/^[a-f0-9]{64}$/) });
-    expect(sent).toMatchObject({ model: "synthetic-design-model", response_format: { type: "json_schema", json_schema: { name: "design-direction-set", strict: true } } });
+    expect(sent).toMatchObject({ model: "synthetic-design-model", max_completion_tokens: DEFAULT_DESIGN_MAX_COMPLETION_TOKENS, response_format: { type: "json_schema", json_schema: { name: "design-direction-set", strict: true } } });
     expect(sent).not.toHaveProperty("temperature");
     expect(JSON.stringify(sent)).not.toContain("$parseRaw");
     expect((sent?.response_format as { json_schema: { schema: { properties: Record<string, unknown> } } }).json_schema.schema.properties).toEqual({ directions: expect.anything() });
@@ -108,5 +109,27 @@ describe("OpenAI Design provider boundary", () => {
     } as never;
     const provider = new OpenAiStructuredClient(config, { client: failingClient });
     await expect(new OpenAiDesignProvider(provider).proposeDesignDirections(input)).rejects.toMatchObject({ code: "AI_PROVIDER_UNAVAILABLE", failureDiagnostic: { requestId: "req_design_api", httpStatus: 503 } });
+  });
+
+  it("rejects a Luna Responses response that reaches the bounded Design output ceiling", async () => {
+    const input = inputFor(brief());
+    let sent: Record<string, unknown> | undefined;
+    const client = new OpenAiStructuredClient({ ...config, model: LUNA_MODEL, designMaxCompletionTokens: DEFAULT_DESIGN_MAX_COMPLETION_TOKENS }, {
+      client: { responses: { create: async (request: Record<string, unknown>) => { sent = request; return { id: "resp_design_incomplete", status: "incomplete", output: [], usage: { input_tokens: 17062, output_tokens: DEFAULT_DESIGN_MAX_COMPLETION_TOKENS, total_tokens: 17062 + DEFAULT_DESIGN_MAX_COMPLETION_TOKENS } }; } } } as never,
+    });
+    await expect(new OpenAiDesignProvider(client).proposeDesignDirections(input)).rejects.toMatchObject({ code: "AI_OUTPUT_TRUNCATED", diagnostic: { requestId: "resp_design_incomplete", outputComplete: false, tokenExhaustion: true, outputTokens: DEFAULT_DESIGN_MAX_COMPLETION_TOKENS, maxCompletionTokens: DEFAULT_DESIGN_MAX_COMPLETION_TOKENS, reasoningEffort: "xhigh" } });
+    expect(sent).toMatchObject({ model: LUNA_MODEL, max_output_tokens: DEFAULT_DESIGN_MAX_COMPLETION_TOKENS, reasoning: { effort: "xhigh" } });
+  });
+
+  it("admits a complete Luna Responses Design set at the bounded output ceiling", async () => {
+    const input = inputFor(brief());
+    const wire = wireFixture(input);
+    let sent: Record<string, unknown> | undefined;
+    const client = new OpenAiStructuredClient({ ...config, model: LUNA_MODEL, designMaxCompletionTokens: DEFAULT_DESIGN_MAX_COMPLETION_TOKENS }, {
+      client: { responses: { create: async (request: Record<string, unknown>) => { sent = request; return { id: "resp_design_complete", status: "completed", output_text: JSON.stringify(wire), output: [{ type: "message" }], usage: { input_tokens: 17062, output_tokens: 31000, total_tokens: 48062 } }; } } } as never,
+    });
+    const result = await new OpenAiDesignProvider(client).proposeDesignDirections(input);
+    expect(result.directions).toHaveLength(3);
+    expect(sent).toMatchObject({ model: LUNA_MODEL, max_output_tokens: DEFAULT_DESIGN_MAX_COMPLETION_TOKENS, reasoning: { effort: "xhigh" } });
   });
 });
