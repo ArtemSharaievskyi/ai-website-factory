@@ -69,6 +69,7 @@ export const ApprovedDesignSkillEvidenceSchema = z.object({
   status: z.enum(["APPROVED_IMMUTABLE", "NOT_AVAILABLE", "CHECKSUM_MISMATCH"]),
   sourceChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   normalizedContentChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  retrievedContentChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   sourceCommit: z.string().regex(/^[a-f0-9]{40}$/).optional(),
   license: z.string().min(1).optional(),
   reviewedAt: z.string().datetime().optional(),

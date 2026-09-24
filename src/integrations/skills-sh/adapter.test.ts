@@ -454,6 +454,7 @@ describe("skills.sh source adapter", () => {
       ),
     );
     expect(record.source.externalSkillId).toBe(detail.id);
+    expect(record.source.commitSha).toBeUndefined();
     expect(record.source.retrievedContentChecksum).toBe(
       candidate.retrievedContentChecksum,
     );

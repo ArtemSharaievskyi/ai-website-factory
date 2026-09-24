@@ -27,16 +27,28 @@ export const REQUIRED_DESIGN_SKILL_CAPABILITIES = [
   "transitions-polish",
 ] as const;
 
-type RegistryRecord = { definition?: { id?: string; status?: string; sourceChecksum?: string; license?: string; reviewedAt?: string }; approvedDirectory?: string; source?: { sourceRepository?: string; externalSkillId?: string; commitSha?: string; normalizedContentChecksum?: string } };
+export type DesignSkillRegistryRecord = { definition?: { id?: string; status?: string; sourceChecksum?: string; license?: string; reviewedAt?: string }; approvedDirectory?: string; source?: { sourceType?: string; sourceRepository?: string; externalSkillId?: string; commitSha?: string; retrievedContentChecksum?: string; normalizedContentChecksum?: string } };
+
+export function normalizeDesignSkillSourceProvenance(record: DesignSkillRegistryRecord) {
+  const source = record.source;
+  const sourceCommit = source?.commitSha;
+  if (source?.sourceType === "skills-sh") {
+    if (!source.retrievedContentChecksum || !/^[a-f0-9]{64}$/.test(source.retrievedContentChecksum)) throw new Error("DESIGN_SKILL_PROVENANCE_INVALID");
+    if (sourceCommit !== undefined && sourceCommit !== source.retrievedContentChecksum) throw new Error("DESIGN_SKILL_PROVENANCE_INVALID");
+    return { sourceCommit: undefined, retrievedContentChecksum: source.retrievedContentChecksum };
+  }
+  if (sourceCommit !== undefined && !/^[a-f0-9]{40}$/.test(sourceCommit)) throw new Error("DESIGN_SKILL_PROVENANCE_INVALID");
+  return { sourceCommit, retrievedContentChecksum: source?.retrievedContentChecksum };
+}
 
 export async function inspectApprovedDesignSkills(root = process.cwd()): Promise<ApprovedDesignSkillEvidence[]> {
   const recordsRoot = path.join(root, "skills", "registry");
-  const records = new Map<string, RegistryRecord>();
+  const records = new Map<string, DesignSkillRegistryRecord>();
   try {
     for (const entry of await readDirectory(recordsRoot)) {
       const file = entry.name;
       if (!file.endsWith(".json") || file.startsWith("idempotency-")) continue;
-      const raw = JSON.parse(await readFile(path.join(recordsRoot, file), "utf8")) as RegistryRecord;
+      const raw = JSON.parse(await readFile(path.join(recordsRoot, file), "utf8")) as DesignSkillRegistryRecord;
       if (raw.source?.externalSkillId) {
         const current = records.get(raw.source.externalSkillId);
         const currentRevision = EMIL_SKILL_PROVENANCE.find((item) => `emilkowalski/skills/${item.skillId}` === raw.source?.externalSkillId)?.reviewedRevision;
@@ -53,7 +65,8 @@ export async function inspectApprovedDesignSkills(root = process.cwd()): Promise
     if (record?.definition?.status !== "approved" || !record.approvedDirectory || !record.definition.sourceChecksum) return [];
     const provenance = EMIL_SKILL_PROVENANCE.find((candidate) => `emilkowalski/skills/${candidate.skillId}` === item.externalSkillId);
     const normalizedMatches = !provenance || record.source?.normalizedContentChecksum === provenance.approvedContentChecksum;
-    return [ApprovedDesignSkillEvidenceSchema.parse({ skillId: record.definition.id ?? item.registrySkillId ?? item.skillId, officialRepository: item.officialRepository, externalSkillId: item.externalSkillId, status: normalizedMatches ? "APPROVED_IMMUTABLE" : "CHECKSUM_MISMATCH", sourceChecksum: record.definition.sourceChecksum, normalizedContentChecksum: record.source?.normalizedContentChecksum, sourceCommit: record.source?.commitSha, license: record.definition.license, reviewedAt: record.definition.reviewedAt, approvedDirectory: record.approvedDirectory })];
+    const sourceProvenance = normalizeDesignSkillSourceProvenance(record);
+    return [ApprovedDesignSkillEvidenceSchema.parse({ skillId: record.definition.id ?? item.registrySkillId ?? item.skillId, officialRepository: item.officialRepository, externalSkillId: item.externalSkillId, status: normalizedMatches ? "APPROVED_IMMUTABLE" : "CHECKSUM_MISMATCH", sourceChecksum: record.definition.sourceChecksum, normalizedContentChecksum: record.source?.normalizedContentChecksum, retrievedContentChecksum: sourceProvenance.retrievedContentChecksum, sourceCommit: sourceProvenance.sourceCommit, license: record.definition.license, reviewedAt: record.definition.reviewedAt, approvedDirectory: record.approvedDirectory })];
   });
 }
 

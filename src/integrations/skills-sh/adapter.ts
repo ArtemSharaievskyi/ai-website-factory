@@ -793,7 +793,6 @@ export class SkillsShSourceAdapter {
         version: parsed.descriptor.sourceVersion ?? "0.1.0",
         license: options.license,
         sourceRepository: `https://github.com/${parsed.descriptor.source}`,
-        sourceCommit: parsed.retrievedContentChecksum,
         reviewer: options.reviewer,
         idempotencyKey: options.idempotencyKey,
         externalSkillId: parsed.descriptor.externalSkillId,
