@@ -119,6 +119,33 @@ describe("canonical Workbench Design generation boundary", () => {
     expect((await state.database.transaction((tx) => tx.listOperations({ operation: "workbench.design" })))[0]?.status).toBe("SUCCEEDED");
   });
 
+  it("creates a fresh attempt after a terminal provider failure while preserving the failed attempt", async () => {
+    let calls = 0;
+    const state = await fixture({ provider: async (input) => {
+      calls += 1;
+      if (calls === 1) throw new Error("SYNTHETIC_PROVIDER_FAILURE");
+      return buildDesignDirectionSet(input);
+    } });
+    await expect(state.app.handle({ action: "generate-design", projectId })).rejects.toMatchObject({ code: "DESIGN_PROVIDER_FAILED" });
+    const failed = await state.documents.get(projectId, 1, "design-generation-attempt");
+    if (!failed || failed.documentType !== "design-generation-attempt") throw new Error("failed Design attempt missing");
+    const failedOperation = await state.database.transaction((tx) => tx.getOperation({ operation: "workbench.design", key: failed.operationKey }));
+    expect(failedOperation?.status).toBe("FAILED");
+
+    const result = await state.app.handle({ action: "generate-design", projectId });
+    const fresh = await state.documents.get(projectId, 1, "design-generation-attempt");
+    if (!fresh || fresh.documentType !== "design-generation-attempt") throw new Error("fresh Design attempt missing");
+    expect(calls).toBe(2);
+    expect(fresh.attemptId).not.toBe(failed.attemptId);
+    expect(fresh.state).toBe("PERSISTED");
+    expect(result.designs).toHaveLength(3);
+    const history = await state.documents.get(projectId, 1, "design-generation-attempt-history");
+    expect(history).toMatchObject({ records: [expect.objectContaining({ attemptId: failed.attemptId, state: expect.stringMatching(/FAILED/) })] });
+    const operation = await state.database.transaction((tx) => tx.getOperation({ operation: "workbench.design", key: fresh.operationKey }));
+    expect(operation?.status).toBe("SUCCEEDED");
+    expect(operation?.history).toEqual([expect.objectContaining({ status: "FAILED" })]);
+  });
+
   it("rejects a stale Architecture Review before the provider boundary", async () => {
     const state = await fixture();
     const currentReview = await state.documents.get(projectId, 1, "architecture-review");

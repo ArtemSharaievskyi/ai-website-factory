@@ -632,7 +632,11 @@ export class WorkbenchApplication {
     try {
       const scope = await this.scope(projectId);
       if (!scope.design) throw new WorkbenchActionError("DESIGN_RUNTIME_UNAVAILABLE", "The canonical Design runtime is not configured. The project was not changed.");
-      const result = await scope.design.generateDesignDirections(input);
+      const terminalAttempt = existingAttempt?.documentType === "design-generation-attempt" && ["PROVIDER_FAILED", "WIRE_FAILED", "DOMAIN_FAILED", "ADMISSION_FAILED", "PERSISTENCE_FAILED"].includes(existingAttempt.state);
+      const freshAttemptAuthorization = reservation.status === "NEW" && terminalAttempt
+        ? { schemaVersion: 1 as const, kind: "EXPLICIT_USER_AUTHORIZATION" as const, authorizationId: randomUUID(), authorizedBy: "workbench:top-level-dispatch", authorizedAt: new Date().toISOString() }
+        : undefined;
+      const result = await scope.design.generateDesignDirections(input, freshAttemptAuthorization ? { replaceExisting: true, freshAttemptAuthorization } : undefined);
       await this.dependencies.database.transaction((tx) => tx.completeOperation({ operation, key: operationKey, payloadHash, result: { status: "SUCCEEDED", directionSetId: result.directionSet.setId, directionSetChecksum: result.readiness.directionSetChecksum } }));
       await this.publishDesignResponse({ responseOrigin: existingDirectionsCurrent ? "REPLAY" : "NEW_EXECUTION", operationKey, payloadHash, projectId, attemptStatus: "SUCCEEDED", attemptCreated: true });
       return this.project(projectId);

@@ -679,7 +679,7 @@ export class DesignAgentService {
       ? DesignGenerationAttemptSchema.parse(existingAttemptDocument)
       : undefined;
     const freshAttemptAuthorization = options.freshAttemptAuthorization === undefined ? undefined : DesignFreshAttemptAuthorizationSchema.parse(options.freshAttemptAuthorization);
-    if (freshAttemptAuthorization && !options.replaceExisting) throw new DesignError("IDEMPOTENCY_CONFLICT", "A fresh Design attempt authorization must explicitly replace the indeterminate attempt frontier.");
+    if (freshAttemptAuthorization && !options.replaceExisting) throw new DesignError("IDEMPOTENCY_CONFLICT", "A fresh Design attempt authorization must explicitly replace the current attempt frontier.");
     if (attempt?.state === "OUTCOME_UNKNOWN" && !freshAttemptAuthorization) throw new DesignError("DESIGN_OUTCOME_UNKNOWN", "The Design provider outcome remains unknown. Explicit fresh-attempt authority is required before another provider call.");
     if (attempt && attempt.operationKey === input.idempotencyKey) {
       if (attempt.approvedBriefChecksum !== input.approvedBriefChecksum || attempt.acceptedPlanningChecksum !== input.acceptedPlanningChecksum || attempt.architectureChecksum !== architectureChecksum || attempt.expectedRowVersion !== input.expectedRowVersion) throw new DesignError("DESIGN_CONTRACT_STALE", "The Design operation is bound to stale canonical inputs.");
@@ -688,7 +688,7 @@ export class DesignAgentService {
         return DesignGenerationResultSchema.parse({ directionSet: persisted, readiness: { readyForSelection: persisted.readyForSelection, blockingReasons: persisted.blockingReasons ?? [], warnings: persisted.warnings ?? [], directionSetChecksum: directionSetChecksum(persisted) } });
       }
       if (attempt.state === "REPLAY_STARTED") throw new DesignError("DESIGN_PROVIDER_FAILED", "A zero-call Design candidate replay is already active and will not be replaced by provider generation.", attempt.failureDiagnostic, undefined, attempt.failureDiagnostic);
-      if (["PROVIDER_FAILED", "WIRE_FAILED", "DOMAIN_FAILED", "ADMISSION_FAILED", "PERSISTENCE_FAILED"].includes(attempt.state)) throw new DesignError((attempt.failureCode as DesignError["code"] | undefined) ?? "DESIGN_PROVIDER_FAILED", "The Design operation has a durable terminal failure and will not be retried.", attempt.failureDiagnostic, undefined, attempt.failureDiagnostic);
+      if (["PROVIDER_FAILED", "WIRE_FAILED", "DOMAIN_FAILED", "ADMISSION_FAILED", "PERSISTENCE_FAILED"].includes(attempt.state) && !freshAttemptAuthorization) throw new DesignError((attempt.failureCode as DesignError["code"] | undefined) ?? "DESIGN_PROVIDER_FAILED", "The Design operation has a durable terminal failure and will not be retried without explicit fresh-attempt authority.", attempt.failureDiagnostic, undefined, attempt.failureDiagnostic);
       if (attempt.state === "PROVIDER_STARTED" || (attempt.state === "OUTCOME_UNKNOWN" && !freshAttemptAuthorization)) throw new DesignError("DESIGN_OUTCOME_UNKNOWN", "The Design provider attempt has an indeterminate durable outcome and requires explicit fresh-attempt authority before another provider call.", attempt.failureDiagnostic, undefined, attempt.failureDiagnostic);
     } else if (attempt && !options.replaceExisting) {
       throw new DesignError("IDEMPOTENCY_CONFLICT", "A different Design generation operation is already bound to the current project.");
