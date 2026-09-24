@@ -102,7 +102,12 @@ history is read from the existing idempotency records; no migration is needed.
    `ARCHITECTURE_REVIEW` together; unchanged content and asset rows are not
    churned.
 4. Architecture review validates and routes the package.
-5. Design generates exactly three structured directions.
+5. When the approved Architecture Review has no current direction set,
+   Workbench action `generate-design` calls the configured Design service. The
+  host binds that operation to the approved Brief, accepted Planning, and
+  approved Architecture Review checksums, reserves one frontier identity, and
+  persists exactly three directions without selecting one. Once the set is
+   current, the only Design action is explicit `design-selection`.
 
 `approve-planning` is available only from `AWAITING_PLANNING_APPROVAL` when a
 current Planning package is present. It never starts Planning generation.

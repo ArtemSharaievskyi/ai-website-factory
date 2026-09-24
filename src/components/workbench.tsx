@@ -335,6 +335,37 @@ function ArchitectureReviewCard({
   );
 }
 
+function DesignPendingCard({
+  allowedActions,
+  onAction,
+  busy,
+}: {
+  allowedActions: WorkbenchAction[];
+  onAction: (action: WorkbenchAction) => void;
+  busy: boolean;
+}) {
+  if (!allowedActions.includes("GENERATE_DESIGN")) return null;
+  return (
+    <section className="artifact-card" aria-labelledby="design-generation-title">
+      <div className="card-eyebrow">DESIGN DIRECTIONS</div>
+      <div className="card-heading-row">
+        <div>
+          <h2 id="design-generation-title">Generate visual directions</h2>
+          <p className="card-summary">
+            The approved Architecture Review is current. Generate three distinct directions, then choose one explicitly.
+          </p>
+        </div>
+        <span className="badge">Next canonical step</span>
+      </div>
+      <div className="card-actions">
+        <button className="button button-primary" onClick={() => onAction("GENERATE_DESIGN")} disabled={busy}>
+          Generate Design directions
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function DecisionCards({
   projection,
   onAction,
@@ -922,6 +953,11 @@ export function Workbench() {
         action: "generate-architecture-review",
         projectId: projection.project.projectId,
       });
+    else if (value === "GENERATE_DESIGN")
+      void run({
+        action: "generate-design",
+        projectId: projection.project.projectId,
+      });
     else if (value === "DATABASE_DECISION")
       void run({
         action: "database-decision",
@@ -1175,6 +1211,11 @@ export function Workbench() {
             )}
             <DecisionCards
               projection={projection}
+              onAction={action}
+              busy={loading}
+            />
+            <DesignPendingCard
+              allowedActions={projection.status.allowedActions}
               onAction={action}
               busy={loading}
             />

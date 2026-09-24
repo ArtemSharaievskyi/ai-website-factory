@@ -29,6 +29,7 @@ export const WorkbenchActionSchema = z.enum([
   "APPROVE_PLANNING",
   "REQUEST_PLANNING_CHANGES",
   "GENERATE_ARCHITECTURE_REVIEW",
+  "GENERATE_DESIGN",
   "DATABASE_DECISION",
   "DEPENDENCY_APPROVAL",
   "DESIGN_SELECTION",
@@ -78,6 +79,7 @@ export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("approve-planning"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("request-planning-changes"), projectId: ProjectIdSchema, reason: z.string().trim().min(1).max(4000) }).strict(),
   z.object({ action: z.literal("generate-architecture-review"), projectId: ProjectIdSchema }).strict(),
+  z.object({ action: z.literal("generate-design"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("database-decision"), projectId: ProjectIdSchema, mode: z.enum(["NONE", "SUPABASE_NEW", "SUPABASE_EXISTING"]), reason: z.string().max(4000).optional() }).strict(),
   z.object({ action: z.literal("dependency-approval"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("design-selection"), projectId: ProjectIdSchema, selectedDirectionId: ProjectIdSchema }).strict(),
@@ -240,7 +242,7 @@ const STATUS: Record<WorkflowState, { label: string; detail: string; stage: Work
   AWAITING_BRIEF_APPROVAL: { label: "Project Brief ready", detail: "Review the current Brief, then approve it or request changes.", stage: "Brief" },
   AWAITING_PLANNING_GENERATION: { label: "Ready for Planning", detail: "The approved Brief is current and is ready for one Planner generation.", stage: "Planning" },
   AWAITING_PLANNING_APPROVAL: { label: "Planning ready", detail: "Review the current Planning candidate, then approve it or request changes.", stage: "Planning" },
-  AWAITING_DESIGN_SELECTION: { label: "Design selection", detail: "Architecture review is complete and a current Design Direction must be selected.", stage: "Planning" },
+  AWAITING_DESIGN_SELECTION: { label: "Design directions", detail: "Architecture review is complete; generate or select a current Design Direction.", stage: "Design" },
   ARCHITECTURE_REVIEW: { label: "Architecture review", detail: "The current planning package is with the read-only architecture gate.", stage: "Review" },
   READY_FOR_IMPLEMENTATION: { label: "Ready to implement", detail: "All current gates must pass before implementation can start.", stage: "Implementation" },
   CONTRACT_AUDIT: { label: "Contract audit", detail: "The pre-implementation contract chain is being checked.", stage: "Review" },
@@ -274,6 +276,7 @@ export function actionsForWorkbenchState(input: {
     case "AWAITING_PLANNING_APPROVAL": return input.hasPlanning ? ["APPROVE_PLANNING", "REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL"] : [];
     case "AWAITING_DESIGN_SELECTION":
       return [
+        ...(!input.hasDesigns ? ["GENERATE_DESIGN"] as WorkbenchAction[] : []),
         ...(input.hasPlanning ? ["REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL"] as WorkbenchAction[] : []),
         ...(input.hasDesigns ? ["DESIGN_SELECTION"] as WorkbenchAction[] : []),
       ];

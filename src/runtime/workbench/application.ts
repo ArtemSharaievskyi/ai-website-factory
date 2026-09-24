@@ -10,6 +10,7 @@ import type { ArchitectureReviewInput } from "@/agents/reviewers/architecture/co
 import { FACTORY_ARCHITECTURE_STACK } from "@/agents/reviewers/architecture/contracts";
 import { readCanonicalReviewContext } from "@/agents/reviewers/architecture/currentness";
 import type { DesignAgentService } from "@/agents/design/service";
+import { DesignAgentInputSchema, type DesignAgentInput } from "@/agents/design/contracts";
 import type { OrchestratorService } from "@/orchestration/orchestrator/service";
 import type { ContractAuditOrchestrationService } from "@/orchestration/contract-audit/service";
 import { DEFAULT_ORCHESTRATION_POLICY } from "@/orchestration/orchestrator/contracts";
@@ -41,6 +42,7 @@ import { canonicalBriefToPlannerBrief } from "@/agents/planner/brief-context";
 import { admitPlanningRefresh, PlanningAdmissionError } from "@/agents/planner/refresh-admission";
 import { CONTRACT_AUDIT_PROMPT_VERSION } from "@/agents/reviewers/contracts/contracts";
 import { currentWorkbenchOperationContext, isWorkbenchOperationFailure, withWorkbenchOperationContext, type WorkbenchOperationContext } from "./operation-context";
+import { currentRuntimeProvenance, type WorkbenchResponseMetadata } from "./observability";
 import { workbenchPlanningLogicalOperationId, WorkbenchOperationConflict, WorkbenchOperationLedger } from "./operation-ledger";
 import { ArchitectureReviewOperationLedger } from "./architecture-operation-ledger";
 
@@ -192,6 +194,8 @@ export class WorkbenchApplication {
         return this.project(request.projectId);
       case "generate-architecture-review":
         return this.generateArchitectureReview(request.projectId);
+      case "generate-design":
+        return this.generateDesign(request.projectId);
       case "request-planning-changes":
         await this.requestPlanningChanges(request.projectId, request.reason);
         return this.project(request.projectId);
@@ -516,6 +520,113 @@ export class WorkbenchApplication {
     } catch (error) {
       if (!reserved && error instanceof WorkbenchOperationConflict) throw error;
       throw await ledger.fail(error);
+    }
+  }
+
+  private async designGenerationInput(projectId: string, current: Awaited<ReturnType<ProjectRepository["getWithVersion"]>>): Promise<{ input: DesignAgentInput; operationKey: string; payloadHash: string; architectureChecksum: string }> {
+    if (!current) throw new WorkbenchActionError("PROJECT_NOT_FOUND", "We could not find that project.");
+    if (current.project.workflowState !== "AWAITING_DESIGN_SELECTION") throw new WorkbenchActionError("DESIGN_WORKFLOW_INVALID", "Design directions can only be generated from the canonical Design frontier.");
+    const version = current.project.currentVersion;
+    const persistedBrief = await this.documents.get(projectId, version, "requirements");
+    const briefV3Document = await this.documents.get(projectId, version, "brief-v3");
+    const planning = await this.documents.get(projectId, version, "planning-package");
+    const architectureReview = await this.documents.get(projectId, version, "architecture-review");
+    if (!persistedBrief || persistedBrief.documentType !== "requirements" || !briefV3Document || briefV3Document.documentType !== "brief-v3" || !planning || planning.documentType !== "planning-package" || !architectureReview || architectureReview.documentType !== "architecture-review")
+      throw new WorkbenchActionError("DESIGN_UPSTREAM_MISSING", "A current approved Brief, accepted Planning package, and Architecture Review are required before Design.");
+    const briefV3 = BriefV3DocumentSchema.parse(briefV3Document);
+    const brief = approvedBriefForDownstream(persistedBrief, briefV3);
+    const acceptedPlanningChecksum = checksumPersistedDocument(planning);
+    const architectureChecksum = checksumPersistedDocument(architectureReview);
+    if (!planning.accepted) throw new WorkbenchActionError("DESIGN_PLANNING_NOT_ACCEPTED", "Design requires the accepted current Planning package.");
+    if (architectureReview.result.verdict !== "APPROVED" || architectureReview.approvedBriefChecksum !== briefV3.briefChecksum || architectureReview.acceptedPlanningChecksum !== acceptedPlanningChecksum)
+      throw new WorkbenchActionError("DESIGN_ARCHITECTURE_REVIEW_STALE", "The Architecture Review is not approved and current for the Brief and Planning package.");
+    const decisions = await new DecisionRepository(this.dependencies.database).list(projectId, version);
+    const visualStatements = brief.brandVisualRequirements
+      ? Object.values(brief.brandVisualRequirements).flatMap((items) => items.flatMap((item) => typeof item === "object" && item && "statement" in item ? String(item.statement) : []))
+      : [];
+    const prohibitedStatements = brief.prohibitedRequirements?.map((item) => item.statement) ?? [];
+    const frontierChecksum = checksumPersistedDocument({ projectId, projectVersion: version, approvedBriefChecksum: briefV3.briefChecksum, acceptedPlanningChecksum, architectureChecksum });
+    const operationKey = `workbench-design:${projectId}:${version}:${frontierChecksum}`;
+    const input = DesignAgentInputSchema.parse({
+      projectId,
+      projectVersion: version,
+      approvedBrief: brief,
+      canonicalBrief: briefV3.brief,
+      approvedBriefChecksum: briefV3.briefChecksum,
+      acceptedPlanningPackage: planning,
+      acceptedPlanningChecksum,
+      contentPlan: planning.content,
+      assetManifest: planning.assets,
+      suppliedBrandMetadata: brief.brandVisualRequirements ?? {},
+      suppliedLogoMetadata: {
+        ...brief.suppliedLogoLocation,
+        ...(brief.assetRequirements ? { requiredAssets: brief.assetRequirements.requiredAssets.map((asset) => ({ reference: asset.reference, role: asset.role, replacementForbidden: asset.replacementForbidden })) } : {}),
+      },
+      imageSourceDecision: brief.imageSourceDecision,
+      designPreferences: visualStatements,
+      explicitDesignExclusions: [...brief.explicitExclusions, ...prohibitedStatements],
+      currentWorkflowState: current.project.workflowState,
+      existingDecisions: decisions,
+      allowedSkills: [],
+      idempotencyKey: operationKey,
+      expectedRowVersion: current.rowVersion,
+    });
+    const payloadHash = checksumPersistedDocument({ action: "generate-design", projectId, projectVersion: version, approvedBriefChecksum: briefV3.briefChecksum, acceptedPlanningChecksum, architectureChecksum, expectedRowVersion: current.rowVersion, providerContract: "design-directions" });
+    return { input, operationKey, payloadHash, architectureChecksum };
+  }
+
+  private async publishDesignResponse(input: { responseOrigin: WorkbenchResponseMetadata["responseOrigin"]; operationKey: string; payloadHash: string; projectId: string; attemptStatus?: WorkbenchResponseMetadata["attemptStatus"]; attemptCreated: boolean }) {
+    const context = currentWorkbenchOperationContext();
+    if (!context?.responseSink) return;
+    const current = await this.projects.getWithVersion(input.projectId);
+    const attempt = await this.documents.get(input.projectId, current?.project.currentVersion ?? 0, "design-generation-attempt");
+    const attemptId = attempt?.documentType === "design-generation-attempt" ? attempt.attemptId : undefined;
+    context.responseSink.metadata = {
+      schemaVersion: 1,
+      responseOrigin: input.responseOrigin,
+      attemptCreated: input.attemptCreated && Boolean(attemptId),
+      operationId: input.operationKey,
+      ...(attemptId ? { attemptId } : {}),
+      correlationId: context.correlationId,
+      semanticIntentHash: input.payloadHash,
+      ...(input.attemptStatus ? { attemptStatus: input.attemptStatus } : {}),
+      runtimeProvenance: context.runtimeProvenance ?? currentRuntimeProvenance(),
+    };
+  }
+
+  private async generateDesign(projectId: string) {
+    const current = await this.projects.getWithVersion(projectId);
+    const { input, operationKey, payloadHash, architectureChecksum } = await this.designGenerationInput(projectId, current);
+    const operation = "workbench.design";
+    const existingDirections = await this.documents.get(projectId, input.projectVersion, "design-directions");
+    const existingDirectionsCurrent = existingDirections?.documentType === "design-directions" && existingDirections.approvedBriefChecksum === input.approvedBriefChecksum && existingDirections.acceptedPlanningChecksum === input.acceptedPlanningChecksum && existingDirections.directions.every((direction) => direction.canonicalContent?.architectureChecksum === architectureChecksum);
+    if (existingDirections?.documentType === "design-directions" && !existingDirectionsCurrent)
+      throw new WorkbenchActionError("DESIGN_DIRECTION_SET_STALE", "The current Design direction set is not bound to the approved Architecture Review.");
+    const reservation = await this.dependencies.database.transaction((tx) => tx.reserveOperation({ operation, key: operationKey, payloadHash }));
+    if (reservation.status === "IN_PROGRESS") {
+      if (existingDirectionsCurrent) {
+        await this.dependencies.database.transaction((tx) => tx.completeOperation({ operation, key: operationKey, payloadHash, result: { status: "SUCCEEDED", replayed: true, directionSetId: existingDirections.setId, directionSetChecksum: directionSetChecksum(existingDirections) } }));
+        await this.publishDesignResponse({ responseOrigin: "REPLAY", operationKey, payloadHash, projectId, attemptStatus: "SUCCEEDED", attemptCreated: true });
+        return this.project(projectId);
+      }
+      throw new WorkbenchOperationConflict("WORKBENCH_OPERATION_IN_PROGRESS", "A current Design generation operation is already active.");
+    }
+    if (reservation.status === "SUCCEEDED") {
+      if (!existingDirectionsCurrent) throw new WorkbenchActionError("DESIGN_DIRECTION_SET_STALE", "The completed Design operation has no current direction set bound to the approved Architecture Review.");
+      await this.publishDesignResponse({ responseOrigin: "IDEMPOTENT_SUCCESS", operationKey, payloadHash, projectId, attemptStatus: "SUCCEEDED", attemptCreated: true });
+      return this.project(projectId);
+    }
+    try {
+      const scope = await this.scope(projectId);
+      if (!scope.design) throw new WorkbenchActionError("DESIGN_RUNTIME_UNAVAILABLE", "The canonical Design runtime is not configured. The project was not changed.");
+      const result = await scope.design.generateDesignDirections(input);
+      await this.dependencies.database.transaction((tx) => tx.completeOperation({ operation, key: operationKey, payloadHash, result: { status: "SUCCEEDED", directionSetId: result.directionSet.setId, directionSetChecksum: result.readiness.directionSetChecksum } }));
+      await this.publishDesignResponse({ responseOrigin: existingDirectionsCurrent ? "REPLAY" : "NEW_EXECUTION", operationKey, payloadHash, projectId, attemptStatus: "SUCCEEDED", attemptCreated: true });
+      return this.project(projectId);
+    } catch (error) {
+      await this.dependencies.database.transaction((tx) => tx.failOperation({ operation, key: operationKey, payloadHash, result: { status: "FAILED", code: error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : "DESIGN_GENERATION_FAILED" } })).catch(() => undefined);
+      await this.publishDesignResponse({ responseOrigin: "NEW_EXECUTION", operationKey, payloadHash, projectId, attemptStatus: "FAILED", attemptCreated: true });
+      throw error;
     }
   }
 

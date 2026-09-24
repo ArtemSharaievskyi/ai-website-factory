@@ -37,6 +37,7 @@ export const WorkbenchOperationSchema = z.enum([
   "APPROVE_PLANNING",
   "REQUEST_PLANNING_CHANGES",
   "GENERATE_ARCHITECTURE_REVIEW",
+  "GENERATE_DESIGN",
   "DATABASE_DECISION",
   "DEPENDENCY_APPROVAL",
   "DESIGN_SELECTION",
@@ -494,6 +495,7 @@ function operationForAction(action?: string): WorkbenchOperation {
     case "approve-planning": return "APPROVE_PLANNING";
     case "request-planning-changes": return "REQUEST_PLANNING_CHANGES";
     case "generate-architecture-review": return "GENERATE_ARCHITECTURE_REVIEW";
+    case "generate-design": return "GENERATE_DESIGN";
     case "database-decision": return "DATABASE_DECISION";
     case "dependency-approval": return "DEPENDENCY_APPROVAL";
     case "design-selection": return "DESIGN_SELECTION";

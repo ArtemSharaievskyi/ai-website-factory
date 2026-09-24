@@ -138,7 +138,7 @@ const readinessBlockerReason = (blocker: BriefReadinessApprovalBlocker): string 
   }
 };
 
-const actionForState = (state: WorkflowState) => {
+const actionForState = (state: WorkflowState, hasDesigns = false) => {
   switch (state) {
     case "DRAFT":
       return { pendingUserAction: "SUBMIT_TO_LEAD", nextAllowedActions: ["SUBMIT_TO_LEAD"] };
@@ -151,7 +151,9 @@ const actionForState = (state: WorkflowState) => {
     case "AWAITING_PLANNING_APPROVAL":
       return { pendingUserAction: "APPROVE_PLANNING", nextAllowedActions: ["APPROVE_PLANNING", "REQUEST_BRIEF_CHANGES", "REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL"] };
     case "AWAITING_DESIGN_SELECTION":
-      return { pendingUserAction: "DESIGN_SELECTION", nextAllowedActions: ["REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL", "DESIGN_SELECTION"] };
+      return hasDesigns
+        ? { pendingUserAction: "DESIGN_SELECTION", nextAllowedActions: ["REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL", "DESIGN_SELECTION"] }
+        : { pendingUserAction: "GENERATE_DESIGN", nextAllowedActions: ["GENERATE_DESIGN", "REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL"] };
     case "READY_FOR_IMPLEMENTATION":
       return { pendingUserAction: "START_IMPLEMENTATION", nextAllowedActions: ["START_IMPLEMENTATION"] };
     default:
@@ -383,7 +385,6 @@ export class TrialEntryService {
   async status(projectId: string): Promise<TrialEntryStatus> {
     const current = await this.projects.getWithVersion(projectId);
     if (!current) throw new Error("TRIAL_ENTRY_PROJECT_NOT_FOUND");
-    const actions = actionForState(current.project.workflowState);
     const session = await this.clarifications.getSession(
       projectId,
       current.project.currentVersion,
@@ -411,6 +412,12 @@ export class TrialEntryService {
       current.project.currentVersion,
       "brief-v3",
     );
+    const directions = await this.documents.get(
+      projectId,
+      current.project.currentVersion,
+      "design-directions",
+    );
+    const actions = actionForState(current.project.workflowState, directions?.documentType === "design-directions");
     const legacyBriefV3 = !briefV3 && requirements?.documentType === "requirements"
       ? (() => {
           try { return migrateLegacyBriefToCanonicalBriefV3(requirements); } catch { return undefined; }
