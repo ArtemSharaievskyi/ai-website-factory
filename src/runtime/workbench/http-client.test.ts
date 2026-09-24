@@ -8,7 +8,7 @@ import {
   postWorkbenchRequest,
 } from "@/runtime/workbench/http-client";
 
-const projectId = "ec5549cb-b4b5-4906-8667-7767ff71708e";
+const projectId = "11111111-1111-4111-8111-111111111111";
 const servers: ReturnType<typeof createServer>[] = [];
 
 afterEach(async () => {
