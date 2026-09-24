@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkbenchActionError } from "@/runtime/workbench/application";
 import { WorkbenchErrorResponseSchema, clearWorkbenchDiagnosticEvents, getWorkbenchDiagnosticEvents } from "@/runtime/workbench/diagnostics";
 import { createWorkbenchGenerateDesignRequest, MAX_BRIEF_REVISION_INSTRUCTION_BYTES } from "@/runtime/workbench/contracts";
+import { createSerializedWorkbenchRequest } from "@/runtime/workbench/http-client";
 import { StagedPlanningOperationTelemetry } from "@/agents/planner/staged-failures";
 import { planningFinalAdmissionDiagnostics } from "@/agents/planner/final-admission-diagnostics";
 
@@ -66,6 +67,39 @@ describe("Workbench route safe failure projection", () => {
     expect(response.status).toBe(200);
     expect(mockWorkbench.handle).toHaveBeenCalledWith(payload);
     expect(Object.keys(payload).sort()).toEqual(["action", "projectId"]);
+  });
+
+  it("accepts the exact strict two-field client bytes and reaches the Design boundary with matching fingerprints", async () => {
+    const payload = createWorkbenchGenerateDesignRequest(validRespondPayload.projectId);
+    const envelope = await createSerializedWorkbenchRequest(payload);
+    mockWorkbench.handle.mockResolvedValue({ mode: "PROJECT_WORKBENCH" });
+    const response = await POST(new Request("http://localhost/api/workbench", {
+      method: envelope.method,
+      headers: envelope.headers,
+      body: envelope.body,
+    }));
+    expect(response.status).toBe(200);
+    expect(mockWorkbench.handle).toHaveBeenCalledWith(payload);
+    expect(Object.keys(JSON.parse(envelope.body)).sort()).toEqual(["action", "projectId"]);
+  });
+
+  it("reports whether unknown array diagnostics were present in the route-entry bytes", async () => {
+    const payload = { ...createWorkbenchGenerateDesignRequest(validRespondPayload.projectId), unresolved: ["synthetic-customer-fact", "synthetic-publication-fact"] };
+    const rawBody = JSON.stringify(payload);
+    const response = await POST(new Request("http://localhost/api/workbench", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-workbench-client-body-bytes": String(Buffer.byteLength(rawBody, "utf8")),
+        "x-workbench-client-body-sha256": (await import("node:crypto")).createHash("sha256").update(rawBody, "utf8").digest("hex"),
+        "x-workbench-client-top-level-fields": "action,projectId,unresolved",
+      },
+      body: rawBody,
+    }));
+    const body = WorkbenchErrorResponseSchema.parse(await response.json());
+    expect(response.status).toBe(400);
+    expect(body.requestTransport).toMatchObject({ parsedTopLevelFields: ["action", "projectId", "unresolved"], byteLengthMatch: true, sha256Match: true });
+    expect(body.fieldPath).toBe("unresolved[0]");
   });
 
   it("rejects unresolved projection arrays on Design requests without dropping their indexed diagnostics", async () => {

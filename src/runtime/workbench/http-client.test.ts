@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createWorkbenchGenerateDesignRequest,
@@ -25,10 +26,13 @@ afterEach(async () => {
 describe("Workbench HTTP request boundary", () => {
   it("serializes and validates the same strict Design bytes sent to a local endpoint", async () => {
     const request = createWorkbenchGenerateDesignRequest(projectId);
-    const envelope = createSerializedWorkbenchRequest(request);
+    const envelope = await createSerializedWorkbenchRequest(request);
     const received = new Promise<{
       method?: string;
       contentType?: string;
+      clientBodyBytes?: string;
+      clientBodySha256?: string;
+      clientTopLevelFields?: string;
       body: string;
     }>((resolve) => {
       const server = createServer((incoming, response) => {
@@ -38,6 +42,9 @@ describe("Workbench HTTP request boundary", () => {
           resolve({
             method: incoming.method,
             contentType: incoming.headers["content-type"],
+            clientBodyBytes: typeof incoming.headers["x-workbench-client-body-bytes"] === "string" ? incoming.headers["x-workbench-client-body-bytes"] : undefined,
+            clientBodySha256: typeof incoming.headers["x-workbench-client-body-sha256"] === "string" ? incoming.headers["x-workbench-client-body-sha256"] : undefined,
+            clientTopLevelFields: typeof incoming.headers["x-workbench-client-top-level-fields"] === "string" ? incoming.headers["x-workbench-client-top-level-fields"] : undefined,
             body: Buffer.concat(chunks).toString("utf8"),
           });
           response.writeHead(200, { "content-type": "application/json" });
@@ -66,6 +73,9 @@ describe("Workbench HTTP request boundary", () => {
     expect(captured.method).toBe(envelope.method);
     expect(captured.contentType).toMatch(/^application\/json(?:;|$)/);
     expect(captured.body).toBe(envelope.body);
+    expect(captured.clientBodyBytes).toBe(String(Buffer.byteLength(envelope.body, "utf8")));
+    expect(captured.clientBodySha256).toBe(createHash("sha256").update(envelope.body, "utf8").digest("hex"));
+    expect(captured.clientTopLevelFields).toBe("action,projectId");
     expect(JSON.parse(captured.body)).toEqual(request);
   });
 });

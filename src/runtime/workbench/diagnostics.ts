@@ -55,6 +55,18 @@ const WorkbenchProviderCallsByStageSchema = z.union([
 ]);
 const SafeOperationIdSchema = z.string().min(1).max(256).regex(/^[A-Za-z0-9][A-Za-z0-9:_./-]*$/);
 const SafeFingerprintSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9]{0,63}@[A-Z_]+:[a-f0-9]{16}$/);
+const SafeTopLevelFieldSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/);
+export const WorkbenchRequestTransportDiagnosticsSchema = z.object({
+  clientBodyByteLength: z.number().int().nonnegative().optional(),
+  clientBodySha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  clientTopLevelFields: z.array(SafeTopLevelFieldSchema).max(32).optional(),
+  routeBodyByteLength: z.number().int().nonnegative(),
+  routeBodySha256: z.string().regex(/^[a-f0-9]{64}$/),
+  parsedTopLevelFields: z.array(SafeTopLevelFieldSchema).max(32),
+  byteLengthMatch: z.boolean().optional(),
+  sha256Match: z.boolean().optional(),
+}).strict();
+export type WorkbenchRequestTransportDiagnostics = z.infer<typeof WorkbenchRequestTransportDiagnosticsSchema>;
 const SafeProviderDiagnosticSchema = ProviderFailureDiagnosticSchema.omit({ safeProviderMessage: true }).partial().strict();
 
 export const WorkbenchSubsystemSchema = z.enum([
@@ -102,6 +114,7 @@ export const WorkbenchErrorResponseSchema = z
     admissionDiagnostics: PlanningAdmissionDiagnosticEnvelopeSchema.optional(),
     providerTermination: ProviderTerminationMetadataSchema.optional(),
     safeErrorFingerprint: SafeFingerprintSchema.optional(),
+    requestTransport: WorkbenchRequestTransportDiagnosticsSchema.optional(),
     providerContract: z.string().regex(/^[a-z0-9-]{1,100}$/).optional(),
     providerDiagnostic: SafeProviderDiagnosticSchema.optional(),
     sourceCurrentness: z.object({ disallowedPathCount: z.number().int().nonnegative(), paths: z.array(z.string().min(1).max(240)).max(8) }).strict().optional(),
@@ -132,6 +145,7 @@ export type WorkbenchDiagnosticContext = {
   correlationId?: string;
   runtimeProvenance?: RuntimeProvenance;
   responseMetadata?: import("./observability").WorkbenchResponseMetadata;
+  requestTransport?: WorkbenchRequestTransportDiagnostics;
 };
 
 type SafeValidationProjection = {
@@ -148,6 +162,7 @@ export type WorkbenchErrorProjection = Omit<WorkbenchErrorResponse, "responseOri
   errorClass: string;
   providerDiagnostic?: SafeProviderDiagnostic;
   sourceCurrentness?: { disallowedPathCount: number; paths: string[] };
+  requestTransport?: WorkbenchRequestTransportDiagnostics;
   stagedOperation?: StagedPlanningOperationSummary;
   kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
   minimumDiagnostics?: DecompositionMinimumDiagnostics;
@@ -243,6 +258,7 @@ export type WorkbenchDiagnosticEvent = {
   providerIssueCount?: number;
   providerDiagnostic?: SafeProviderDiagnostic;
   sourceCurrentness?: { disallowedPathCount: number; paths: string[] };
+  requestTransport?: WorkbenchRequestTransportDiagnostics;
   failureClass?: z.infer<typeof WorkbenchFailureClassSchema>;
   stage?: StagedPlanningStage | WorkbenchOperationStage;
   outerCode?: string;
@@ -812,6 +828,7 @@ export function normalizeWorkbenchError(error: unknown, context: WorkbenchDiagno
       operation: context.operation ?? operationForAction(context.action),
       runtimeProvenance,
       ...operationProjection,
+      ...(context.requestTransport ? { requestTransport: context.requestTransport } : {}),
     };
   }
   const code = error instanceof WorkbenchRequestValidationError || error instanceof z.ZodError ? "WORKBENCH_REQUEST_INVALID" : codeOf(error);
@@ -831,6 +848,7 @@ export function normalizeWorkbenchError(error: unknown, context: WorkbenchDiagno
     ...(context.responseMetadata?.attemptStatus ? { attemptStatus: context.responseMetadata.attemptStatus } : {}),
     runtimeProvenance,
     ...projection,
+    ...(context.requestTransport ? { requestTransport: context.requestTransport } : {}),
   };
 }
 
@@ -867,6 +885,7 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     ...(projection.admissionDiagnostics ? { admissionDiagnostics: projection.admissionDiagnostics } : {}),
     ...(projection.providerTermination ? { providerTermination: projection.providerTermination } : {}),
     ...(projection.safeErrorFingerprint ? { safeErrorFingerprint: projection.safeErrorFingerprint } : {}),
+    ...(projection.requestTransport ? { requestTransport: projection.requestTransport } : {}),
     ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
     ...(projection.providerDiagnostic && SafeProviderDiagnosticSchema.safeParse(projection.providerDiagnostic).success ? { providerDiagnostic: projection.providerDiagnostic } : {}),
     ...(projection.providerCallsTotal !== undefined ? { providerCallsTotal: projection.providerCallsTotal } : {}),
@@ -983,6 +1002,7 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     ...(projection.admissionDiagnostics ? { admissionDiagnostics: projection.admissionDiagnostics } : {}),
     ...(projection.providerTermination ? { providerTermination: projection.providerTermination } : {}),
     ...(projection.safeErrorFingerprint ? { safeErrorFingerprint: projection.safeErrorFingerprint } : {}),
+    ...(projection.requestTransport ? { requestTransport: projection.requestTransport } : {}),
     ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
     ...(projection.providerDiagnostic ? { providerDiagnostic: projection.providerDiagnostic } : {}),
     ...(projection.sourceCurrentness ? { sourceCurrentness: projection.sourceCurrentness } : {}),
@@ -1034,6 +1054,7 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     fallback.runtimeProvenance = RuntimeProvenanceSchema.parse(projection.runtimeProvenance ?? currentRuntimeProvenance());
     if (projection.attemptStatus) fallback.attemptStatus = projection.attemptStatus;
     if (projection.attemptHistory && z.array(WorkbenchAttemptReadbackSchema).max(8).safeParse(projection.attemptHistory).success) fallback.attemptHistory = projection.attemptHistory;
+    if (projection.requestTransport && WorkbenchRequestTransportDiagnosticsSchema.safeParse(projection.requestTransport).success) fallback.requestTransport = projection.requestTransport;
     if (safeProjectId) fallback.projectId = safeProjectId;
     if (projection.phase === "PLANNING" || projection.phase === "ARCHITECTURE_REVIEW") fallback.phase = projection.phase;
     if (projection.providerCallsByStage && WorkbenchProviderCallsByStageSchema.safeParse(projection.providerCallsByStage).success) fallback.providerCallsByStage = projection.providerCallsByStage;
