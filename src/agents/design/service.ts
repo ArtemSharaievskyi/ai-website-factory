@@ -323,7 +323,12 @@ export class DesignAgentService {
     if (!this.dependencies.source) return undefined;
     try {
       const current = await this.dependencies.source.read();
-      if (!current.trackedWorktreeClean) throw new DesignError("DESIGN_CONTRACT_STALE", "Design source currentness is not clean.");
+      if (!current.trackedWorktreeClean) throw new DesignError("DESIGN_CONTRACT_STALE", "Design source currentness is not clean.", undefined, {
+        sourceCurrentness: {
+          disallowedPathCount: current.disallowedPaths?.length ?? 0,
+          paths: (current.disallowedPaths ?? []).slice(0, 8),
+        },
+      });
       return current.head;
     } catch (error) {
       if (error instanceof DesignError) throw error;

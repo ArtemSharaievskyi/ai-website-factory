@@ -16,6 +16,7 @@ import { FakeDesignMemoryPort } from "@/agents/design/memory";
 import { buildDesignDirectionSet } from "@/agents/design/deterministic";
 import { WorkbenchApplication } from "./application";
 import { WorkbenchRequestSchema, actionsForWorkbenchState } from "./contracts";
+import type { SourceCurrentnessPort } from "@/domain/shared/source-head";
 
 const timestamp = "2026-09-01T00:00:00.000Z";
 const projectId = "73737373-7373-4373-8373-737373737373";
@@ -39,7 +40,7 @@ function brief(): RequirementSpecification {
   });
 }
 
-async function fixture(options: { provider?: (input: Parameters<typeof buildDesignDirectionSet>[0]) => Promise<ReturnType<typeof buildDesignDirectionSet>> } = {}) {
+async function fixture(options: { provider?: (input: Parameters<typeof buildDesignDirectionSet>[0]) => Promise<ReturnType<typeof buildDesignDirectionSet>>; source?: SourceCurrentnessPort } = {}) {
   const database = new InMemoryPersistenceDatabase();
   const legacyBrief = brief();
   const canonicalDraft = createBriefV3Document({ projectId, projectVersion: 1, brief: migrateLegacyBriefToCanonicalBriefV3(legacyBrief), createdAt: timestamp, updatedAt: timestamp });
@@ -66,7 +67,7 @@ async function fixture(options: { provider?: (input: Parameters<typeof buildDesi
   const entry = new TrialEntryService({ database, createLeadAgent: () => { throw new Error("SYNTHETIC_LEAD_NOT_EXPECTED"); } });
   let providerCalls = 0;
   const provider = { proposeDesignDirections: async (input: Parameters<typeof buildDesignDirectionSet>[0]) => { providerCalls += 1; return options.provider ? options.provider(input) : buildDesignDirectionSet(input); } };
-  const design = new DesignAgentService({ database, memory: new FakeDesignMemoryPort(), provider });
+  const design = new DesignAgentService({ database, memory: new FakeDesignMemoryPort(), provider, ...(options.source ? { source: options.source } : {}) });
   const app = new WorkbenchApplication({ database, entry, getWorkflowScope: () => ({ design, planner: undefined, architectureReviewer: undefined, orchestrator: undefined, contractAuditor: undefined } as never) });
   return { database, documents, entry, app, design, planning, review, providerCalls: () => providerCalls };
 }
@@ -128,5 +129,22 @@ describe("canonical Workbench Design generation boundary", () => {
     release();
     await first;
     expect(state.providerCalls()).toBe(1);
+  });
+
+  it("recovers a failed source-currentness preflight with a fresh attempt and no stale replay", async () => {
+    let clean = false;
+    const source: SourceCurrentnessPort = { read: async () => ({ head: "a".repeat(40), trackedWorktreeClean: clean, disallowedPaths: clean ? [] : ["supabase/.temp/cli-latest"] }) };
+    const state = await fixture({ source });
+    await expect(state.app.handle({ action: "generate-design", projectId })).rejects.toMatchObject({ code: "DESIGN_CONTRACT_STALE" });
+    expect(state.providerCalls()).toBe(0);
+    expect(await state.documents.get(projectId, 1, "design-generation-attempt")).toBeNull();
+    clean = true;
+    const result = await state.app.handle({ action: "generate-design", projectId });
+    expect(result.designs).toHaveLength(3);
+    expect(state.providerCalls()).toBe(1);
+    const attempt = await state.documents.get(projectId, 1, "design-generation-attempt");
+    expect(attempt?.documentType).toBe("design-generation-attempt");
+    if (attempt?.documentType !== "design-generation-attempt") throw new Error("design attempt missing");
+    expect(attempt.attemptId).toBeDefined();
   });
 });

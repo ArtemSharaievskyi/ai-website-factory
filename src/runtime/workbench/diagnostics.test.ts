@@ -13,6 +13,7 @@ import { WorkbenchApplication, WorkbenchActionError } from "./application";
 import { WorkbenchRequestSchema } from "./contracts";
 import { clearWorkbenchDiagnosticEvents, getWorkbenchDiagnosticEvents, workbenchFailureResponse } from "./diagnostics";
 import { PlannerError } from "@/agents/planner/errors";
+import { DesignError } from "@/agents/design/errors";
 
 const projectId = "00000000-0000-4000-8000-000000000000";
 const realProjectId = "b7a0829d-a077-487c-844a-3232efc21bc3";
@@ -51,6 +52,21 @@ describe("safe Web Workbench failure diagnostics D409-1..D409-24", () => {
   it("D409-3 real workflow conflict remains HTTP 409", () => {
     const result = failure(new WorkbenchActionError("WORKBENCH_ACTION_NOT_AVAILABLE", "private workflow detail"));
     expect(result).toMatchObject({ status: 409, response: { code: "WORKBENCH_ACTION_NOT_AVAILABLE", category: "WORKFLOW_CONFLICT", recoverable: true } });
+  });
+
+  it("maps Design source-currentness failures to bounded recoverable diagnostics", () => {
+    const result = failure(new DesignError("DESIGN_CONTRACT_STALE", "private source detail", undefined, {
+      sourceCurrentness: { disallowedPathCount: 2, paths: ["supabase/.temp/cli-latest", "private-source.ts"] },
+    }));
+    expect(result).toMatchObject({ status: 409, response: {
+      code: "DESIGN_CONTRACT_STALE",
+      category: "WORKFLOW_CONFLICT",
+      recoverable: true,
+      reasonCode: "DESIGN_SOURCE_CURRENTNESS_FAILED",
+      sourceCurrentness: { disallowedPathCount: 2, paths: ["supabase/.temp/cli-latest", "private-source.ts"] },
+    } });
+    expect(JSON.stringify(result.response)).not.toContain("private source detail");
+    expect(getWorkbenchDiagnosticEvents().at(-1)?.sourceCurrentness?.paths).toEqual(["supabase/.temp/cli-latest", "private-source.ts"]);
   });
 
   it("maps Planning admission blockers to a typed bounded validation response", () => {

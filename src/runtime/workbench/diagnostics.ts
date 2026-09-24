@@ -104,6 +104,7 @@ export const WorkbenchErrorResponseSchema = z
     safeErrorFingerprint: SafeFingerprintSchema.optional(),
     providerContract: z.string().regex(/^[a-z0-9-]{1,100}$/).optional(),
     providerDiagnostic: SafeProviderDiagnosticSchema.optional(),
+    sourceCurrentness: z.object({ disallowedPathCount: z.number().int().nonnegative(), paths: z.array(z.string().min(1).max(240)).max(8) }).strict().optional(),
     providerCallsTotal: z.number().int().nonnegative().optional(),
     providerCallsByStage: WorkbenchProviderCallsByStageSchema.optional(),
     providerInvocationState: z.enum(["RESERVED", "ATTEMPTING", "TRANSPORT_STARTED", "RESPONSE_RECEIVED", "PARSE_PASSED", "ADMISSION_PASSED", "FAILED"]).optional(),
@@ -146,6 +147,7 @@ export type WorkbenchErrorProjection = Omit<WorkbenchErrorResponse, "responseOri
   subsystem: WorkbenchSubsystem;
   errorClass: string;
   providerDiagnostic?: SafeProviderDiagnostic;
+  sourceCurrentness?: { disallowedPathCount: number; paths: string[] };
   stagedOperation?: StagedPlanningOperationSummary;
   kindDomainDiagnostics?: PlannerDecompositionKindDomainDiagnostics;
   minimumDiagnostics?: DecompositionMinimumDiagnostics;
@@ -240,6 +242,7 @@ export type WorkbenchDiagnosticEvent = {
   maxCompletionTokens?: number;
   providerIssueCount?: number;
   providerDiagnostic?: SafeProviderDiagnostic;
+  sourceCurrentness?: { disallowedPathCount: number; paths: string[] };
   failureClass?: z.infer<typeof WorkbenchFailureClassSchema>;
   stage?: StagedPlanningStage | WorkbenchOperationStage;
   outerCode?: string;
@@ -324,6 +327,7 @@ const CONFLICT_CODES = new Set([
   "ASSET_VERSION_STALE",
   "ASSET_CHECKSUM_MISMATCH",
   "ASSET_NOT_CURRENT",
+  "DESIGN_CONTRACT_STALE",
 ]);
 
 const NOT_FOUND_CODES = new Set([
@@ -459,6 +463,7 @@ const SAFE_ERROR_CLASSES = new Set([
   "BriefV3Error",
   "BriefV3ProviderError",
   "AssetIntakeError",
+  "DesignError",
 ]);
 
 export class WorkbenchRequestValidationError extends Error {
@@ -597,6 +602,19 @@ function safeProviderDiagnostic(error: unknown): SafeProviderDiagnostic | undefi
     ...(diagnostic.inputBytes !== undefined ? { inputBytes: diagnostic.inputBytes } : {}),
     ...(diagnostic.schemaSizeBytes !== undefined ? { schemaSizeBytes: diagnostic.schemaSizeBytes } : {}),
   };
+}
+
+function safeSourceCurrentness(error: unknown) {
+  if (!error || typeof error !== "object" || !("diagnostic" in error)) return undefined;
+  const diagnostic = (error as { diagnostic?: unknown }).diagnostic;
+  if (!diagnostic || typeof diagnostic !== "object" || !("sourceCurrentness" in diagnostic)) return undefined;
+  const source = (diagnostic as { sourceCurrentness?: unknown }).sourceCurrentness;
+  if (!source || typeof source !== "object") return undefined;
+  const count = (source as { disallowedPathCount?: unknown }).disallowedPathCount;
+  const paths = (source as { paths?: unknown }).paths;
+  if (!Number.isInteger(count) || (count as number) < 0 || !Array.isArray(paths)) return undefined;
+  const safePaths = paths.filter((value): value is string => typeof value === "string" && value.length > 0 && value.length <= 240 && !/[\r\n\0]/.test(value)).slice(0, 8);
+  return { disallowedPathCount: count as number, paths: safePaths };
 }
 
 const safeValidationPath = (path: PropertyKey[]) => path.map((segment) => typeof segment === "number" ? `[${segment}]` : String(segment)).join(".").replaceAll(".[", "[") || "request";
@@ -752,6 +770,10 @@ function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProject
   if (code === "LEAD_CLARIFICATION_LANGUAGE_INVALID") return { error: "Lead refresh output did not match the Factory operator language. The project was not changed.", httpStatus: 422, recoverable: true, category: "VALIDATION", subsystem: "LEAD", errorClass: errorClass(error) };
   if (code === "LEAD_ANALYSIS_INVALID") return { error: "Lead analysis did not match the current project contract. The project was not changed.", httpStatus: 422, recoverable: Boolean(safeValidationProjection(error).validationStage), category: "VALIDATION", subsystem: "LEAD", errorClass: errorClass(error), ...safeValidationProjection(error) };
   if (code === "WORKBENCH_ADVANCED_RUNTIME_UNAVAILABLE") return { error: "The workflow runtime is temporarily unavailable. The project was not changed.", httpStatus: 503, recoverable: true, category: "INTERNAL", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
+  if (code === "DESIGN_CONTRACT_STALE") {
+    const sourceCurrentness = safeSourceCurrentness(error);
+    return { error: "The Design source or canonical contract is stale. The project was not changed.", httpStatus: 409, recoverable: true, category: "WORKFLOW_CONFLICT", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), ...(sourceCurrentness ? { reasonCode: "DESIGN_SOURCE_CURRENTNESS_FAILED", sourceCurrentness } : {}) };
+  }
   if (["ARCHITECTURE_REVIEW_PROVIDER_FAILED", "ARCHITECTURE_REVIEW_OUTPUT_INVALID"].includes(code)) {
     return { error: "The Architecture Review provider could not complete this request. The project was not changed.", httpStatus: code === "ARCHITECTURE_REVIEW_OUTPUT_INVALID" ? 502 : 503, recoverable: false, category: "PROVIDER", subsystem: "PROVIDER", errorClass: errorClass(error), ...(safeProviderDiagnostic(error) ? { providerDiagnostic: safeProviderDiagnostic(error) } : {}) };
   }
@@ -877,6 +899,7 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     ...(projection.providerDiagnostic?.maxCompletionTokens !== undefined ? { maxCompletionTokens: projection.providerDiagnostic.maxCompletionTokens } : {}),
     ...(projection.providerDiagnostic?.issueCount !== undefined ? { providerIssueCount: projection.providerDiagnostic.issueCount } : {}),
     ...(projection.providerDiagnostic ? { providerDiagnostic: projection.providerDiagnostic } : {}),
+    ...(projection.sourceCurrentness ? { sourceCurrentness: projection.sourceCurrentness } : {}),
   };
 }
 
@@ -956,6 +979,7 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     ...(projection.safeErrorFingerprint ? { safeErrorFingerprint: projection.safeErrorFingerprint } : {}),
     ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
     ...(projection.providerDiagnostic ? { providerDiagnostic: projection.providerDiagnostic } : {}),
+    ...(projection.sourceCurrentness ? { sourceCurrentness: projection.sourceCurrentness } : {}),
     ...(projection.providerCallsTotal !== undefined ? { providerCallsTotal: projection.providerCallsTotal } : {}),
     ...(projection.providerCallsByStage ? { providerCallsByStage: projection.providerCallsByStage } : {}),
     ...(projection.providerInvocationState ? { providerInvocationState: projection.providerInvocationState } : {}),
