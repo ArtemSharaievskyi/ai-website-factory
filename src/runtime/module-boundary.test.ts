@@ -59,6 +59,7 @@ describe("runtime module boundaries", () => {
     expect(nextConfig).toContain('"/*": [".factory/tools/**"]');
     expect(launcher).toContain('path.join(root, ".next", "standalone", "server.js")');
     expect(launcher).toContain('loadEnvConfig(root, false)');
+    expect(launcher).toContain("SOURCE_WORKSPACE_ROOT_ENV");
     expect(launcher).not.toContain('runNext("start"');
   });
 

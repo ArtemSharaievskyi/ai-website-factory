@@ -12,6 +12,13 @@ import {
 
 const execFileAsync = promisify(execFile);
 const normalizePath = (value: string) => value.replaceAll("\\", "/").replace(/^\.\//, "");
+export const SOURCE_WORKSPACE_ROOT_ENV = "FACTORY_SOURCE_WORKSPACE_ROOT" as const;
+
+export function resolveSourceWorkspaceRoot(input: { env?: NodeJS.ProcessEnv; cwd?: string } = {}) {
+  const env = input.env ?? process.env;
+  const configuredRoot = env[SOURCE_WORKSPACE_ROOT_ENV]?.trim();
+  return path.resolve(configuredRoot || input.cwd || process.cwd());
+}
 
 function porcelainPaths(stdout: string) {
   return stdout.split(/\r?\n/).map((line) => line.trimEnd()).filter(Boolean).map((line) => {
@@ -65,7 +72,7 @@ async function baselineUntrackedPaths(root: string, entries: ReturnType<typeof p
 }
 
 export class GitSourceCurrentnessPort implements SourceCurrentnessPort {
-  constructor(private readonly root = process.cwd()) {}
+  constructor(private readonly root = resolveSourceWorkspaceRoot()) {}
 
   async read(): Promise<SourceCurrentness> {
     const headResult = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: this.root, windowsHide: true });
@@ -79,7 +86,7 @@ export class GitSourceCurrentnessPort implements SourceCurrentnessPort {
   }
 }
 
-export function createGitSourceCurrentnessPort(root = process.cwd()): SourceCurrentnessPort {
+export function createGitSourceCurrentnessPort(root = resolveSourceWorkspaceRoot()): SourceCurrentnessPort {
   return new GitSourceCurrentnessPort(path.resolve(root));
 }
 

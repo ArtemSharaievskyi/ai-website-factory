@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { loadEnvConfig } from "@next/env";
 import { RuntimeBuildProvenanceSchema, WORKBENCH_RUNTIME_CONTRACT_VERSION } from "../src/runtime/workbench/observability";
 import { assertBuiltWorkbenchWorkspace, assertSupportedWorkbenchWorkspace } from "../src/runtime/workbench/launch-contract";
+import { SOURCE_WORKSPACE_ROOT_ENV } from "../src/runtime/source-head";
 
 const root = assertSupportedWorkbenchWorkspace();
 const nextBin = path.join(root, "node_modules", "next", "dist", "bin", "next");
@@ -95,6 +96,7 @@ async function main() {
     process.exitCode = await runStandalone(args, {
       ...process.env,
       FACTORY_RUNTIME_ENVIRONMENT: "PRODUCTION",
+      [SOURCE_WORKSPACE_ROOT_ENV]: root,
       FACTORY_SERVER_GENERATION: randomUUID(),
       FACTORY_SERVER_STARTED_AT: processStartedAt,
       FACTORY_RUNTIME_PROVENANCE: JSON.stringify(build),
@@ -106,6 +108,7 @@ async function main() {
     process.exitCode = await runNext("dev", args, {
       ...process.env,
       FACTORY_RUNTIME_ENVIRONMENT: "DEVELOPMENT",
+      [SOURCE_WORKSPACE_ROOT_ENV]: root,
       FACTORY_SERVER_GENERATION: randomUUID(),
       FACTORY_SERVER_STARTED_AT: new Date().toISOString(),
       FACTORY_RUNTIME_PROVENANCE: JSON.stringify(launch),
