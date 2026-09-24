@@ -633,16 +633,21 @@ export class DesignAgentService {
     if (!architectureReview || architectureReview.documentType !== "architecture-review") throw new DesignError("DESIGN_ARCHITECTURE_REVIEW_REQUIRED", "A current approved Architecture Review is required before Design.");
     const architectureChecksum = checksumPersistedDocument(architectureReview);
     if (validated.canonicalBrief) {
-      providerInput = DesignAgentInputSchema.parse({
-        ...providerInput,
-        canonicalContent: buildDesignCanonicalContent({
-          brief: validated.canonicalBrief,
-          briefChecksum: input.approvedBriefChecksum,
-          planning: validated.planning,
-          planningChecksum: input.acceptedPlanningChecksum,
-          architectureChecksum,
-        }),
-      });
+      try {
+        providerInput = DesignAgentInputSchema.parse({
+          ...providerInput,
+          canonicalContent: buildDesignCanonicalContent({
+            brief: validated.canonicalBrief,
+            briefChecksum: input.approvedBriefChecksum,
+            planning: validated.planning,
+            planningChecksum: input.acceptedPlanningChecksum,
+            architectureChecksum,
+          }),
+        });
+      } catch (error) {
+        if (error instanceof DesignError) throw error;
+        throw new DesignError("DESIGN_INPUT_INVALID", "The host-owned Design canonical context did not match its strict contract.", error);
+      }
     }
     try { this.provider.preflight?.(); } catch (error) { throw designErrorFromProvider(error); }
     const existingAttemptDocument = await this.documents.get(input.projectId, input.projectVersion, "design-generation-attempt");

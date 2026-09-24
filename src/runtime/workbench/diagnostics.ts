@@ -369,6 +369,7 @@ const VALIDATION_CODES = new Set([
   "LEAD_INPUT_INVALID",
   "LEAD_ANALYSIS_INVALID",
   "LEAD_CLARIFICATION_LANGUAGE_INVALID",
+  "DESIGN_INPUT_INVALID",
   "IMAGE_SOURCE_PENDING",
   "AUTH_DECISION_PENDING",
   "DESIGN_DIRECTIONS_INVALID",
@@ -796,6 +797,7 @@ function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProject
     const sourceCurrentness = safeSourceCurrentness(error);
     return { error: "The Design source or canonical contract is stale. The project was not changed.", httpStatus: 409, recoverable: true, category: "WORKFLOW_CONFLICT", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), ...(sourceCurrentness ? { reasonCode: "DESIGN_SOURCE_CURRENTNESS_FAILED", sourceCurrentness } : {}) };
   }
+  if (code === "DESIGN_INPUT_INVALID") return { error: "The host-owned Design inputs did not match the current strict contract. The project was not changed.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
   if (["ARCHITECTURE_REVIEW_PROVIDER_FAILED", "ARCHITECTURE_REVIEW_OUTPUT_INVALID"].includes(code)) {
     return { error: "The Architecture Review provider could not complete this request. The project was not changed.", httpStatus: code === "ARCHITECTURE_REVIEW_OUTPUT_INVALID" ? 502 : 503, recoverable: false, category: "PROVIDER", subsystem: "PROVIDER", errorClass: errorClass(error), ...(safeProviderDiagnostic(error) ? { providerDiagnostic: safeProviderDiagnostic(error) } : {}) };
   }

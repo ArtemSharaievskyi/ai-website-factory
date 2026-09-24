@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CanonicalBriefV3Schema, CustomerUxDirectionSchema, FormBehaviorStateSchema, RequirementCategorySchema, type CanonicalBriefV3, type CanonicalRequirement } from "@/domain/requirements/v3/schema";
+import { CanonicalBriefV3Schema, CanonicalUnresolvedStatusSchema, CustomerUxDirectionSchema, FormBehaviorStateSchema, RequirementCategorySchema, type CanonicalBriefV3, type CanonicalRequirement } from "@/domain/requirements/v3/schema";
 import { NonEmptyStringSchema } from "@/domain/shared/schemas";
 
 const ChecksumSchema = z.string().regex(/^[a-f0-9]{64}$/);
@@ -161,7 +161,7 @@ export const DesignCanonicalContentSchema = z.object({
   assets: z.array(z.object({ reference: NonEmptyStringSchema.max(200), role: z.enum(["logo", "brand-reference", "photography", "illustration", "document", "other"]), usage: NonEmptyStringSchema.max(2000), replacementPolicy: z.enum(["FORBIDDEN", "ALLOWED", "UNRESOLVED"]) }).strict()),
   plannedAssets: z.array(DesignCanonicalPlannedAssetSchema),
   architecture: DesignCanonicalArchitectureSchema,
-  unresolved: z.array(z.object({ target: NonEmptyStringSchema.max(300), reason: NonEmptyStringSchema.max(2000), sourceRefs: z.array(SourceRefSchema).min(1), blockingStages: z.array(NonEmptyStringSchema.max(80)).optional() }).strict()),
+  unresolved: z.array(z.object({ target: NonEmptyStringSchema.max(300), reason: NonEmptyStringSchema.max(2000), sourceRefs: z.array(SourceRefSchema).min(1), status: CanonicalUnresolvedStatusSchema.optional(), blockingStages: z.array(NonEmptyStringSchema.max(80)).optional() }).strict()),
   contentChecksum: ChecksumSchema,
 }).strict();
 export type DesignCanonicalContent = z.infer<typeof DesignCanonicalContentSchema>;

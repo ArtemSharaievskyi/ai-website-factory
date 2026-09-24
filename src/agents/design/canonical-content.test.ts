@@ -106,6 +106,22 @@ describe("host-owned Design canonical content", () => {
     expect(withoutServiceWording.directions.every((direction) => direction.canonicalContent?.services.some((service) => service.id === "REQUIREMENT:moebeltransport"))).toBe(true);
   });
 
+  it("preserves canonical unresolved publication status in the Design handoff", () => {
+    const { input } = fixture();
+    const canonicalBrief = CanonicalBriefV3Schema.parse({
+      ...input.canonicalBrief,
+      unresolved: [{ target: "LEGAL:REGULATORY_AUTHORITY", reason: "Synthetic conditional publication review.", sourceRefs: ["fixture:publication"], status: "CONDITIONAL_IF_APPLICABLE", blockingStages: [] }],
+    });
+    const content = buildDesignCanonicalContent({
+      brief: canonicalBrief,
+      briefChecksum: canonicalBriefChecksum(canonicalBrief),
+      planning: input.acceptedPlanningPackage,
+      planningChecksum: input.acceptedPlanningChecksum,
+      architectureChecksum: "c".repeat(64),
+    });
+    expect(content.unresolved).toEqual([{ target: "LEGAL:REGULATORY_AUTHORITY", reason: "Synthetic conditional publication review.", sourceRefs: ["fixture:publication"], status: "CONDITIONAL_IF_APPLICABLE", blockingStages: [] }]);
+  });
+
   it("blocks only explicit typed contradictions and stale host bindings", () => {
     const { input } = fixture();
     const set = hostBind(input, buildDesignDirectionSet(input));

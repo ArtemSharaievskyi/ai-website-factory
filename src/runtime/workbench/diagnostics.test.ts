@@ -69,6 +69,12 @@ describe("safe Web Workbench failure diagnostics D409-1..D409-24", () => {
     expect(getWorkbenchDiagnosticEvents().at(-1)?.sourceCurrentness?.paths).toEqual(["supabase/.temp/cli-latest", "private-source.ts"]);
   });
 
+  it("maps host-owned Design input-contract failures as typed validation, not request-schema failure", () => {
+    const result = failure(new DesignError("DESIGN_INPUT_INVALID", "private canonical context detail"));
+    expect(result).toMatchObject({ status: 422, response: { code: "DESIGN_INPUT_INVALID", category: "VALIDATION", recoverable: false } });
+    expect(JSON.stringify(result.response)).not.toContain("private canonical context detail");
+  });
+
   it("maps Planning admission blockers to a typed bounded validation response", () => {
     const result = failure(new PlannerError("ARCHITECTURE_BLOCKED", "Planning refresh admission failed: PLANNING_TRACEABILITY_UNKNOWN_REFERENCE:brief:customerUxDirection."));
     expect(result).toMatchObject({ status: 422, response: { code: "ARCHITECTURE_BLOCKED", category: "VALIDATION", reasonCode: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE" } });

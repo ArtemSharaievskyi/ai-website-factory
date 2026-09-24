@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { RequirementSpecificationSchema, type RequirementSpecification } from "@/domain/requirements/schema";
 import { FactoryProjectSchema } from "@/domain/project/schema";
 import { migrateLegacyBriefToCanonicalBriefV3 } from "@/domain/requirements/v3/migrate";
+import { CanonicalBriefV3Schema } from "@/domain/requirements/v3/schema";
 import { createBriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
 import { buildPlanningPackage } from "@/agents/planner/deterministic";
 import type { PlannerAgentInput, PlanningPackage } from "@/agents/planner/contracts";
@@ -40,10 +41,14 @@ function brief(): RequirementSpecification {
   });
 }
 
-async function fixture(options: { provider?: (input: Parameters<typeof buildDesignDirectionSet>[0]) => Promise<ReturnType<typeof buildDesignDirectionSet>>; source?: SourceCurrentnessPort } = {}) {
+async function fixture(options: { provider?: (input: Parameters<typeof buildDesignDirectionSet>[0]) => Promise<ReturnType<typeof buildDesignDirectionSet>>; source?: SourceCurrentnessPort; canonicalUnresolved?: boolean } = {}) {
   const database = new InMemoryPersistenceDatabase();
   const legacyBrief = brief();
-  const canonicalDraft = createBriefV3Document({ projectId, projectVersion: 1, brief: migrateLegacyBriefToCanonicalBriefV3(legacyBrief), createdAt: timestamp, updatedAt: timestamp });
+  const migratedBrief = migrateLegacyBriefToCanonicalBriefV3(legacyBrief);
+  const canonicalBrief = options.canonicalUnresolved
+    ? CanonicalBriefV3Schema.parse({ ...migratedBrief, unresolved: [{ target: "LEGAL:REGULATORY_AUTHORITY", reason: "Synthetic conditional publication review.", sourceRefs: ["fixture:publication"], status: "CONDITIONAL_IF_APPLICABLE", blockingStages: [] }] })
+    : migratedBrief;
+  const canonicalDraft = createBriefV3Document({ projectId, projectVersion: 1, brief: canonicalBrief, createdAt: timestamp, updatedAt: timestamp });
   const briefV3 = { ...canonicalDraft, approval: { approved: true as const, approvedAt: timestamp, approvedBy: "synthetic-user", approvedCanonicalChecksum: canonicalDraft.briefChecksum } };
   const plannerInput: PlannerAgentInput = { projectId, projectVersion: 1, approvedBrief: legacyBrief, canonicalBrief: briefV3.brief, approvedBriefChecksum: briefV3.briefChecksum, originalPromptReference: "synthetic-prompt", clarificationEvidenceReferences: [], currentWorkflowState: "AWAITING_DESIGN_SELECTION", existingDecisions: [], suppliedFiles: [], allowedSkills: [], idempotencyKey: "synthetic-planning", expectedRowVersion: 1 };
   const builtPlanning = buildPlanningPackage(plannerInput);
@@ -95,6 +100,14 @@ describe("canonical Workbench Design generation boundary", () => {
     const operation = await state.database.transaction((tx) => tx.listOperations({ operation: "workbench.design" }));
     expect(operation).toHaveLength(1);
     expect(operation[0]?.status).toBe("SUCCEEDED");
+  });
+
+  it("passes canonical unresolved status through the strict Workbench Design boundary", async () => {
+    const state = await fixture({ canonicalUnresolved: true });
+    const result = await state.app.handle({ action: "generate-design", projectId });
+    expect(state.providerCalls()).toBe(1);
+    expect(result.designs).toHaveLength(3);
+    expect(result.status.allowedActions).toContain("DESIGN_SELECTION");
   });
 
   it("replays the same frontier without a second provider call", async () => {
