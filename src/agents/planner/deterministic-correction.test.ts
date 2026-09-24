@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { CustomerUxDirectionSchema, emptyFormBehaviorState, CanonicalBriefV3Schema } from "@/domain/requirements/v3/schema";
+import { deriveCustomerUxDirectionRequirements } from "@/domain/requirements/v3/customer-ux-direction";
 import { cleanBriefV3, representativeV1Brief } from "@/domain/requirements/v3/fixtures";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
@@ -9,8 +10,9 @@ import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
 import { ProjectRepository, ProjectVersionRepository, DocumentRepository } from "@/persistence/database/repositories";
 import { createBriefV3Document, BriefV3DocumentSchema } from "@/persistence/database/brief-revision-v3-contracts";
 import { PlanningPackageSchema, type PlannerAgentInput } from "./contracts";
-import { buildPlanningPackage, planningSemanticChecksum } from "./deterministic";
+import { buildPlanningPackage, planningDocumentChecksum, planningSemanticChecksum } from "./deterministic";
 import { correctUnapprovedPlanningPackage } from "./deterministic-correction";
+import { normalizePlanningPackageForHost } from "./refresh-admission";
 import { PlannerArchitectService } from "./service";
 import { FakePlannerMemoryPort } from "./memory";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
@@ -31,7 +33,7 @@ const direction = CustomerUxDirectionSchema.parse({
   creativeFreedom: { hardCustomerInvariants: ["Preserve the protected logo"], creativeDirections: ["Compose a distinctive hero"], implementationFreedom: ["Create custom components"], allowedUiLibrarySelection: "UNRESTRICTED_COMPATIBLE_LIBRARIES", allowedCustomComponents: true, boundedBy: ["Brand", "Accessibility"] },
 });
 
-const canonical = CanonicalBriefV3Schema.parse({
+const canonicalBase = {
   ...cleanBriefV3,
   decisions: { ...cleanBriefV3.decisions, form: emptyFormBehaviorState() },
   customerUxDirection: direction,
@@ -39,6 +41,13 @@ const canonical = CanonicalBriefV3Schema.parse({
     publicPhone: { e164: "+4915123456789", display: "+49 151 23456789", telUri: "tel:+4915123456789", confirmation: "CUSTOMER_CONFIRMED", source: "CUSTOMER_CONFIRMATION", publicationAuthorized: true, publicationScopes: ["CONTACT", "IMPRESSUM"] },
     publicEmail: { email: "kontakt@example.test", confirmation: "CUSTOMER_CONFIRMED", source: "CUSTOMER_CONFIRMATION", publicationAuthorized: true, publicationScopes: ["CONTACT", "IMPRESSUM"] },
   },
+};
+const canonical = CanonicalBriefV3Schema.parse({
+  ...canonicalBase,
+  requirements: [
+    ...canonicalBase.requirements,
+    ...deriveCustomerUxDirectionRequirements({ direction, projectId: "00000000-0000-4000-8000-000000000000", projectVersion: 1 }),
+  ],
 });
 
 function brief(projectId: string) {
@@ -89,20 +98,42 @@ describe("deterministic correction of an unapproved Planning package", () => {
     expect(canonical.contact).not.toHaveProperty("whatsapp");
   });
 
+  it("binds the stable customer UX and contact aliases to safe host references at generation admission", () => {
+    const projectId = randomUUID();
+    const approvedBrief = brief(projectId);
+    const input: PlannerAgentInput = { projectId, projectVersion: 1, approvedBrief, canonicalBrief: canonical, approvedBriefChecksum: canonicalBriefChecksum(canonical), originalPromptReference: "synthetic", clarificationEvidenceReferences: [], currentWorkflowState: "AWAITING_PLANNING_GENERATION", existingDecisions: [], suppliedFiles: [], allowedSkills: [], idempotencyKey: randomUUID(), expectedRowVersion: 1 };
+    const generated = buildPlanningPackage(input);
+    const admitted = normalizePlanningPackageForHost({ candidate: generated, projectId, projectVersion: 1, approvedBriefChecksum: canonicalBriefChecksum(canonical), canonicalBrief: canonical, timestamp });
+    const refs = admitted.traceability.flatMap((entry) => entry.requirementReferences);
+    expect(refs).not.toContain("brief:customerUxDirection");
+    expect(refs).not.toContain("brief:contact.publicPhone");
+    expect(refs).not.toContain("brief:contact.publicEmail");
+    expect(refs).toEqual(expect.arrayContaining(canonical.requirements.filter((entry) => entry.sourceRefs.includes("customer-confirmation:ux-direction")).map((entry) => entry.id)));
+    expect(refs).toContain("PLANNING:BRIEF_FIELD:contactpublicphone");
+    expect(refs).toContain("PLANNING:BRIEF_FIELD:contactpublicemail");
+    const unknown = PlanningPackageSchema.parse({ ...generated, traceability: [...generated.traceability, { ...generated.traceability[0], requirementReferences: ["brief:notARealBriefField"] }] });
+    expect(() => normalizePlanningPackageForHost({ candidate: unknown, projectId, projectVersion: 1, approvedBriefChecksum: canonicalBriefChecksum(canonical), canonicalBrief: canonical, timestamp })).toThrow("PLANNING_TRACEABILITY_UNKNOWN_REFERENCE");
+  });
+
   it("preserves scope and routes while correcting only the proven host defects", () => {
     const projectId = randomUUID();
     const current = badPackage(projectId);
     const corrected = correctUnapprovedPlanningPackage({ current, brief: brief(projectId), canonicalBrief: canonical, operationKey: "planning-correction:synthetic", timestamp });
-    expect(corrected.correctionKinds).toEqual(expect.arrayContaining(["PUBLIC_SITE_PROFILE", "REMOVE_FALSE_DATA_MODEL_BLOCKER", "DIRECT_CONTACT_CTA", "DIRECT_CONTACT_FLOW"]));
+    expect(corrected.correctionKinds).toEqual(expect.arrayContaining(["PUBLIC_SITE_PROFILE", "REMOVE_FALSE_DATA_MODEL_BLOCKER", "DIRECT_CONTACT_CTA", "DIRECT_CONTACT_FLOW", "NORMALIZE_TRACEABILITY_REFERENCES"]));
     expect(corrected.package.profile.selectedProfile).toBe("marketing-site");
     expect(corrected.package.architecture.applicationProfile).toBe("marketing-site");
     expect(corrected.package.blockers).not.toContain("DATA_MODEL_INCOMPLETE");
     expect(corrected.package.forms.forms).toHaveLength(0);
     expect(corrected.package.userFlows.flows).toHaveLength(1);
-    expect(corrected.package.productScope).toEqual(current.productScope);
+    expect(corrected.package.productScope.purpose).toBe(current.productScope.purpose);
+    expect(corrected.package.productScope.inScopeCapabilities).toEqual(current.productScope.inScopeCapabilities);
+    expect(corrected.package.productScope.outOfScopeCapabilities).toEqual(current.productScope.outOfScopeCapabilities);
     expect(corrected.package.sitemap.routes.map((route) => route.path)).toEqual(current.sitemap.routes.map((route) => route.path));
     expect(JSON.stringify(corrected.package.userFlows.flows)).not.toMatch(/whatsapp:/iu);
     expect(corrected.package.approvedBriefChecksum).toBe(canonicalBriefChecksum(canonical));
+    const correctedRefs = corrected.package.traceability.flatMap((entry) => entry.requirementReferences);
+    expect(correctedRefs).not.toContain("brief:customerUxDirection");
+    expect(correctedRefs).toEqual(expect.arrayContaining(canonical.requirements.filter((entry) => entry.sourceRefs.includes("customer-confirmation:ux-direction")).map((entry) => entry.id)));
   });
 
   it("persists one versioned correction with immutable prior evidence and replays idempotently without a provider", async () => {
@@ -128,11 +159,18 @@ describe("deterministic correction of an unapproved Planning package", () => {
     const second = await service.correctUnapprovedPlanningDeterministically({ projectId, projectVersion: 1, expectedProjectRowVersion: 1, expectedBriefChecksum: briefChecksum, expectedPlanningSemanticChecksum: baseChecksum, operationKey });
     expect(second.status).toBe("REPLAYED");
     expect(second.providerCalls).toBe(0);
+    const currentAfterCorrection = PlanningPackageSchema.parse(await new DocumentRepository(database).get(projectId, 1, "planning-package"));
+    const validation = await service.validatePlanningPackage(projectId, 1);
+    expect(validation.ready).toBe(true);
+    expect(validation.blockers).toEqual([]);
     const stored = await new DocumentRepository(database).getWithMetadata(projectId, 1, "planning-correction-history");
     expect(stored?.document.documentType).toBe("planning-correction-history");
     if (stored?.document.documentType === "planning-correction-history") expect(stored.document.entries).toHaveLength(1);
     expect((await new ProjectRepository(database).getWithVersion(projectId))?.project.workflowState).toBe("AWAITING_PLANNING_APPROVAL");
     expect((await new DocumentRepository(database).get(projectId, 1, "brief-v3"))?.documentType).toBe("brief-v3");
+    const accepted = await service.acceptPlanningPackage({ projectId, projectVersion: 1, planningChecksum: planningDocumentChecksum(currentAfterCorrection), acceptedBy: "synthetic-user", acceptedAt: timestamp, expectedRowVersion: 1, idempotencyKey: `planning-accept:${projectId}` });
+    expect(accepted.projectState).toBe("ARCHITECTURE_REVIEW");
+    expect((await new ProjectRepository(database).getWithVersion(projectId))?.project.workflowState).toBe("ARCHITECTURE_REVIEW");
     expect(checksumPersistedDocument(canonical)).toHaveLength(64);
   });
 });

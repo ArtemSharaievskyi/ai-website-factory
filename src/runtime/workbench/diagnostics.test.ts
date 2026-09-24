@@ -12,6 +12,7 @@ import { TrialEntryService } from "@/runtime/trial-entry/service";
 import { WorkbenchApplication, WorkbenchActionError } from "./application";
 import { WorkbenchRequestSchema } from "./contracts";
 import { clearWorkbenchDiagnosticEvents, getWorkbenchDiagnosticEvents, workbenchFailureResponse } from "./diagnostics";
+import { PlannerError } from "@/agents/planner/errors";
 
 const projectId = "00000000-0000-4000-8000-000000000000";
 const realProjectId = "b7a0829d-a077-487c-844a-3232efc21bc3";
@@ -50,6 +51,12 @@ describe("safe Web Workbench failure diagnostics D409-1..D409-24", () => {
   it("D409-3 real workflow conflict remains HTTP 409", () => {
     const result = failure(new WorkbenchActionError("WORKBENCH_ACTION_NOT_AVAILABLE", "private workflow detail"));
     expect(result).toMatchObject({ status: 409, response: { code: "WORKBENCH_ACTION_NOT_AVAILABLE", category: "WORKFLOW_CONFLICT", recoverable: true } });
+  });
+
+  it("maps Planning admission blockers to a typed bounded validation response", () => {
+    const result = failure(new PlannerError("ARCHITECTURE_BLOCKED", "Planning refresh admission failed: PLANNING_TRACEABILITY_UNKNOWN_REFERENCE:brief:customerUxDirection."));
+    expect(result).toMatchObject({ status: 422, response: { code: "ARCHITECTURE_BLOCKED", category: "VALIDATION", reasonCode: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE" } });
+    expect(JSON.stringify(result.response)).not.toContain("customerUxDirection");
   });
 
   it("D409-4 unknown exceptions do not automatically map to 409", () => {

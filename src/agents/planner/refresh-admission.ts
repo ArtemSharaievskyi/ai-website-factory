@@ -336,6 +336,12 @@ function canonicalReferences(brief: CanonicalBriefV3) {
   for (const [field, categories] of Object.entries(REF_ALIASES)) {
     aliases.set(field, requirements.filter((entry) => categories.includes(entry.category)).map((entry) => entry.id));
   }
+  const customerUxRequirementIds = requirements
+    .filter((entry) => entry.sourceRefs.includes(CUSTOMER_UX_SOURCE_REF))
+    .map((entry) => entry.id);
+  if (customerUxRequirementIds.length > 0 || brief.customerUxDirection) aliases.set("customeruxdirection", customerUxRequirementIds);
+  if (brief.contact?.publicPhone) aliases.set("contactpublicphone", []);
+  if (brief.contact?.publicEmail) aliases.set("contactpublicemail", []);
   aliases.set("pages", brief.pages.map((page) => page.id));
   aliases.set("assets", brief.assets.map((asset) => asset.id));
   const allowed = new Set([...requirements.map((entry) => entry.id), ...brief.pages.map((page) => page.id), ...brief.assets.map((asset) => asset.id)]);
@@ -366,7 +372,7 @@ function resolveReference(reference: string, brief: CanonicalBriefV3): string[] 
   if (planningMatch) {
     const key = planningMatch[2]!.toLocaleLowerCase("en");
     if (planningMatch[1] === "DECISION" && REF_HOST_DECISIONS.has(key)) return [reference];
-    if (planningMatch[1] === "BRIEF_FIELD" && (Object.hasOwn(REF_ALIASES, key) || key === "pages" || key === "assets" || Object.hasOwn(REF_DECISIONS, key))) return [reference];
+    if (planningMatch[1] === "BRIEF_FIELD" && (Object.hasOwn(REF_ALIASES, key) || aliases.has(key) || key === "pages" || key === "assets" || Object.hasOwn(REF_DECISIONS, key))) return [reference];
   }
   throw new PlanningAdmissionError("PLANNING_TRACEABILITY_UNKNOWN_REFERENCE", reference);
 }

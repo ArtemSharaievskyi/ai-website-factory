@@ -1413,10 +1413,17 @@ export class PlannerArchitectService {
       });
       if (correction.correctionKinds.length === 0)
         throw new PlannerError("PLANNING_PACKAGE_INVALID", "No proven deterministic Planning defect remains to correct.");
-      const admission = validatePlanningAdmission(correction.package);
-      if (!admission.ready)
-        throw new PlannerError("PLANNING_PACKAGE_INVALID", "The deterministic Planning correction failed host admission.", admission.blockers);
-      const savedPackage = PlanningPackageSchema.parse(await saveDocumentCASInTransaction(tx, correction.package, planningRow.rowVersion, planningRow.checksum));
+      const admission = admitPlanningRefresh({
+        candidate: correction.package,
+        canonicalBrief: canonical.brief,
+        projectId: input.projectId,
+        projectVersion: input.projectVersion,
+        approvedBriefChecksum: canonical.briefChecksum,
+        timestamp: correction.package.updatedAt,
+      });
+      if (admission.blockers.length > 0)
+        throw new PlannerError("PLANNING_PACKAGE_INVALID", `The deterministic Planning correction failed host admission: ${admission.blockers.slice(0, 10).join(", ")}.`, admission.blockers);
+      const savedPackage = PlanningPackageSchema.parse(await saveDocumentCASInTransaction(tx, admission.candidate, planningRow.rowVersion, planningRow.checksum));
       const appliedAt = correction.package.updatedAt;
       const entry: PlanningCorrectionHistoryEntry = {
         correctionId: randomUUID(),

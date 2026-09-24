@@ -2,7 +2,9 @@ import { createHash } from "node:crypto";
 import type { CanonicalBriefV3 } from "@/domain/requirements/v3/schema";
 import type { RequirementSpecification } from "@/domain/requirements/schema";
 import { PlanningPackageSchema, type PlanningPackage, type Traceability } from "./contracts";
+import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { isNoBackendBrief, selectApplicationProfile } from "./deterministic";
+import { normalizePlanningPackageForHost } from "./refresh-admission";
 
 const correctionId = (key: string) => {
   const bytes = Buffer.from(createHash("sha256").update(key).digest("hex").slice(0, 32), "hex");
@@ -137,5 +139,16 @@ export function correctUnapprovedPlanningPackage(input: {
     architecture: { ...current.architecture, applicationProfile: expectedProfile.selectedProfile },
     traceability: nextTraceability,
   });
-  return { package: corrected, correctionKinds: [...new Set(correctionKinds)] };
+  const hostNormalized = normalizePlanningPackageForHost({
+    candidate: corrected,
+    projectId: current.projectId,
+    projectVersion: current.projectVersion,
+    approvedBriefChecksum: current.approvedBriefChecksum,
+    canonicalBrief,
+    current,
+    timestamp,
+  });
+  if (checksumPersistedDocument(hostNormalized) !== checksumPersistedDocument(corrected))
+    correctionKinds.push("NORMALIZE_TRACEABILITY_REFERENCES");
+  return { package: hostNormalized, correctionKinds: [...new Set(correctionKinds)] };
 }

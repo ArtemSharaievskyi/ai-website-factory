@@ -368,6 +368,7 @@ const VALIDATION_CODES = new Set([
   "ARCHITECTURE_REVIEW_INPUT_INVALID",
   "ARCHITECTURE_REVIEW_BLOCKED",
   "ARCHITECTURE_REVIEW_CHANGES_REQUIRED",
+  "ARCHITECTURE_BLOCKED",
   "CHANGESET_INVALID",
   "REDUCTION_FAILED",
   "INVARIANT_FAILED",
@@ -514,6 +515,12 @@ function codeOf(error: unknown) {
     if (/^[A-Z][A-Z0-9_]+$/.test(candidate)) return candidate;
   }
   return undefined;
+}
+
+function safePlanningAdmissionReason(error: unknown) {
+  if (!(error instanceof Error)) return undefined;
+  const match = error.message.match(/\b(PLANNING_[A-Z0-9_]+)\b/);
+  return match?.[1];
 }
 
 function providerStatus(code: string) {
@@ -751,6 +758,7 @@ function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProject
     return { error: "The Brief revision provider could not complete this request. The project was not changed.", httpStatus: status, recoverable: code === "PROVIDER_FAILED" || code === "TRIAL_ENTRY_BRIEF_REVISION_V3_UNAVAILABLE", category: "PROVIDER", subsystem: "PROVIDER", errorClass: errorClass(error), providerContract: "brief-revision-v3", ...(safeProviderDiagnostic(error) ? { providerDiagnostic: safeProviderDiagnostic(error) } : {}) };
   }
   if (["ARCHITECTURE_REVIEW_INPUT_INVALID", "ARCHITECTURE_REVIEW_BLOCKED", "ARCHITECTURE_REVIEW_CHANGES_REQUIRED"].includes(code)) return { error: "The current Architecture Review evidence did not satisfy the canonical review contract. The project was not changed.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
+  if (code === "ARCHITECTURE_BLOCKED") return { error: "Planning approval is blocked by deterministic admission diagnostics. The project was not changed.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), ...(safePlanningAdmissionReason(error) ? { reasonCode: safePlanningAdmissionReason(error) } : {}) };
   if (NOT_FOUND_CODES.has(code)) return { error: "The requested project or workflow resource was not found.", httpStatus: 404, recoverable: false, category: "VALIDATION", subsystem: code === "PROJECT_NOT_FOUND" ? "WORKBENCH_APPLICATION" : code.startsWith("PERSISTENCE_") || code === "DOCUMENT_NOT_FOUND" ? "PERSISTENCE" : "TRIAL_ENTRY", errorClass: errorClass(error) };
   if (CONFLICT_CODES.has(code)) return { error: "The project changed or the requested workflow action is no longer current.", httpStatus: 409, recoverable: true, category: "WORKFLOW_CONFLICT", subsystem: code.startsWith("WORKBENCH_") ? "WORKBENCH_APPLICATION" : code.startsWith("PERSISTENCE_") || code === "IDEMPOTENCY_CONFLICT" ? "PERSISTENCE" : code.startsWith("AI_") ? "PROVIDER" : "TRIAL_ENTRY", errorClass: errorClass(error) };
   if (PROVIDER_CODES.has(code)) {
