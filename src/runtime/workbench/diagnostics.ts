@@ -68,6 +68,15 @@ export const WorkbenchRequestTransportDiagnosticsSchema = z.object({
 }).strict();
 export type WorkbenchRequestTransportDiagnostics = z.infer<typeof WorkbenchRequestTransportDiagnosticsSchema>;
 const SafeProviderDiagnosticSchema = ProviderFailureDiagnosticSchema.omit({ safeProviderMessage: true }).partial().strict();
+const SafePersistenceDiagnosticSchema = z.object({
+  stage: z.string().regex(/^[A-Za-z][A-Za-z0-9._:/-]{0,63}$/),
+  operation: z.string().regex(/^[A-Za-z][A-Za-z0-9._:/-]{0,63}$/),
+  sqlState: z.string().regex(/^[A-Za-z0-9._:/-]{1,32}$/),
+  table: z.string().regex(/^[A-Za-z0-9._:/-]{1,128}$/),
+  constraint: z.string().regex(/^[A-Za-z0-9._:/-]{1,128}$/),
+  errorClass: z.string().regex(/^[A-Za-z][A-Za-z0-9._:-]{0,63}$/),
+}).strict();
+type SafePersistenceDiagnostic = z.infer<typeof SafePersistenceDiagnosticSchema>;
 
 export const WorkbenchSubsystemSchema = z.enum([
   "ROUTE",
@@ -117,6 +126,7 @@ export const WorkbenchErrorResponseSchema = z
     requestTransport: WorkbenchRequestTransportDiagnosticsSchema.optional(),
     providerContract: z.string().regex(/^[a-z0-9-]{1,100}$/).optional(),
     providerDiagnostic: SafeProviderDiagnosticSchema.optional(),
+    persistenceDiagnostic: SafePersistenceDiagnosticSchema.optional(),
     sourceCurrentness: z.object({ disallowedPathCount: z.number().int().nonnegative(), paths: z.array(z.string().min(1).max(240)).max(8) }).strict().optional(),
     providerCallsTotal: z.number().int().nonnegative().optional(),
     providerCallsByStage: WorkbenchProviderCallsByStageSchema.optional(),
@@ -161,6 +171,7 @@ export type WorkbenchErrorProjection = Omit<WorkbenchErrorResponse, "responseOri
   subsystem: WorkbenchSubsystem;
   errorClass: string;
   providerDiagnostic?: SafeProviderDiagnostic;
+  persistenceDiagnostic?: SafePersistenceDiagnostic;
   sourceCurrentness?: { disallowedPathCount: number; paths: string[] };
   requestTransport?: WorkbenchRequestTransportDiagnostics;
   stagedOperation?: StagedPlanningOperationSummary;
@@ -257,6 +268,7 @@ export type WorkbenchDiagnosticEvent = {
   maxCompletionTokens?: number;
   providerIssueCount?: number;
   providerDiagnostic?: SafeProviderDiagnostic;
+  persistenceDiagnostic?: SafePersistenceDiagnostic;
   sourceCurrentness?: { disallowedPathCount: number; paths: string[] };
   requestTransport?: WorkbenchRequestTransportDiagnostics;
   failureClass?: z.infer<typeof WorkbenchFailureClassSchema>;
@@ -630,6 +642,14 @@ function safeProviderDiagnostic(error: unknown): SafeProviderDiagnostic | undefi
   };
 }
 
+function safePersistenceDiagnostic(error: unknown, depth = 0): SafePersistenceDiagnostic | undefined {
+  if (depth > 6 || !error || typeof error !== "object") return undefined;
+  const parsed = SafePersistenceDiagnosticSchema.safeParse((error as { diagnostic?: unknown }).diagnostic);
+  if (parsed.success) return parsed.data;
+  const cause = (error as { cause?: unknown }).cause;
+  return cause === undefined ? undefined : safePersistenceDiagnostic(cause, depth + 1);
+}
+
 function safeSourceCurrentness(error: unknown) {
   if (!error || typeof error !== "object" || !("diagnostic" in error)) return undefined;
   const diagnostic = (error as { diagnostic?: unknown }).diagnostic;
@@ -761,6 +781,7 @@ function operationFailureProjection(error: WorkbenchOperationFailure): Omit<Work
     providerRequestCount: details.providerCallsTotal,
     ...(details.providerContract ? { providerContract: details.providerContract } : {}),
     ...(durableProviderDiagnostic ? { providerDiagnostic: durableProviderDiagnostic } : {}),
+    ...(safePersistenceDiagnostic(cause) ? { persistenceDiagnostic: safePersistenceDiagnostic(cause) } : {}),
     ...(details.providerInvocationState ? { providerInvocationState: details.providerInvocationState } : {}),
     canonicalPlanningPersisted: details.canonicalPlanningPersisted,
     ...(details.canonicalArchitecturePersisted !== undefined ? { canonicalArchitecturePersisted: details.canonicalArchitecturePersisted } : {}),
@@ -818,8 +839,8 @@ function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProject
     const status = providerStatus(code);
     return { error: "The Lead service could not complete this request. The project was not changed.", ...status, category: "PROVIDER", subsystem: "PROVIDER", errorClass: errorClass(error), ...(safeProviderDiagnostic(error) ? { providerDiagnostic: safeProviderDiagnostic(error) } : {}) };
   }
-  if (code === "PERSISTENCE_COMMIT_AMBIGUOUS") return { error: "The database commit outcome could not be confirmed. Inspect the current project state before retrying.", httpStatus: 503, recoverable: true, category: "PERSISTENCE", subsystem: "PERSISTENCE", errorClass: errorClass(error) };
-  if (PERSISTENCE_CODES.has(code)) return { error: "The project could not be saved safely. The project was not changed.", httpStatus: 503, recoverable: true, category: "PERSISTENCE", subsystem: "PERSISTENCE", errorClass: errorClass(error) };
+  if (code === "PERSISTENCE_COMMIT_AMBIGUOUS") return { error: "The database commit outcome could not be confirmed. Inspect the current project state before retrying.", httpStatus: 503, recoverable: true, category: "PERSISTENCE", subsystem: "PERSISTENCE", errorClass: errorClass(error), ...(safePersistenceDiagnostic(error) ? { persistenceDiagnostic: safePersistenceDiagnostic(error) } : {}) };
+  if (PERSISTENCE_CODES.has(code)) return { error: "The project could not be saved safely. The project was not changed.", httpStatus: 503, recoverable: true, category: "PERSISTENCE", subsystem: "PERSISTENCE", errorClass: errorClass(error), ...(safePersistenceDiagnostic(error) ? { persistenceDiagnostic: safePersistenceDiagnostic(error) } : {}) };
   if (VALIDATION_CODES.has(code)) return { error: "The request could not be completed because its workflow data was invalid.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: code.startsWith("PERSISTENCE_") ? "PERSISTENCE" : code.startsWith("LEAD_") ? "LEAD" : code.startsWith("INITIAL_") ? "ROUTE" : "TRIAL_ENTRY", errorClass: errorClass(error) };
   return { error: "We couldn't complete this request. The project was not changed.", httpStatus: 500, recoverable: false, category: "INTERNAL", subsystem: "ROUTE", errorClass: errorClass(error), internalClassification: "UNEXPECTED_EXCEPTION" };
 }
@@ -895,6 +916,7 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     ...(projection.requestTransport ? { requestTransport: projection.requestTransport } : {}),
     ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
     ...(projection.providerDiagnostic && SafeProviderDiagnosticSchema.safeParse(projection.providerDiagnostic).success ? { providerDiagnostic: projection.providerDiagnostic } : {}),
+    ...(projection.persistenceDiagnostic && SafePersistenceDiagnosticSchema.safeParse(projection.persistenceDiagnostic).success ? { persistenceDiagnostic: projection.persistenceDiagnostic } : {}),
     ...(projection.providerCallsTotal !== undefined ? { providerCallsTotal: projection.providerCallsTotal } : {}),
     ...(projection.providerCallsByStage ? { providerCallsByStage: projection.providerCallsByStage } : {}),
     ...(projection.providerInvocationState ? { providerInvocationState: projection.providerInvocationState } : {}),
@@ -931,6 +953,7 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     ...(projection.providerDiagnostic?.maxCompletionTokens !== undefined ? { maxCompletionTokens: projection.providerDiagnostic.maxCompletionTokens } : {}),
     ...(projection.providerDiagnostic?.issueCount !== undefined ? { providerIssueCount: projection.providerDiagnostic.issueCount } : {}),
     ...(projection.providerDiagnostic ? { providerDiagnostic: projection.providerDiagnostic } : {}),
+    ...(projection.persistenceDiagnostic ? { persistenceDiagnostic: projection.persistenceDiagnostic } : {}),
     ...(projection.sourceCurrentness ? { sourceCurrentness: projection.sourceCurrentness } : {}),
   };
 }
@@ -1012,6 +1035,7 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     ...(projection.requestTransport ? { requestTransport: projection.requestTransport } : {}),
     ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
     ...(projection.providerDiagnostic ? { providerDiagnostic: projection.providerDiagnostic } : {}),
+    ...(projection.persistenceDiagnostic ? { persistenceDiagnostic: projection.persistenceDiagnostic } : {}),
     ...(projection.sourceCurrentness ? { sourceCurrentness: projection.sourceCurrentness } : {}),
     ...(projection.providerCallsTotal !== undefined ? { providerCallsTotal: projection.providerCallsTotal } : {}),
     ...(projection.providerCallsByStage ? { providerCallsByStage: projection.providerCallsByStage } : {}),
@@ -1066,6 +1090,7 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     if (projection.phase === "PLANNING" || projection.phase === "ARCHITECTURE_REVIEW") fallback.phase = projection.phase;
     if (projection.providerCallsByStage && WorkbenchProviderCallsByStageSchema.safeParse(projection.providerCallsByStage).success) fallback.providerCallsByStage = projection.providerCallsByStage;
     if (projection.providerDiagnostic && SafeProviderDiagnosticSchema.safeParse(projection.providerDiagnostic).success) fallback.providerDiagnostic = projection.providerDiagnostic;
+    if (projection.persistenceDiagnostic && SafePersistenceDiagnosticSchema.safeParse(projection.persistenceDiagnostic).success) fallback.persistenceDiagnostic = projection.persistenceDiagnostic;
     if (projection.admissionDiagnostics && PlanningAdmissionDiagnosticEnvelopeSchema.safeParse(projection.admissionDiagnostics).success) fallback.admissionDiagnostics = projection.admissionDiagnostics;
     if (projection.providerTermination && ProviderTerminationMetadataSchema.safeParse(projection.providerTermination).success) fallback.providerTermination = projection.providerTermination;
     if (safeProviderCallsTotal !== undefined) fallback.providerCallsTotal = safeProviderCallsTotal;

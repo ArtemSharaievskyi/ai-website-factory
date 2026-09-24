@@ -101,6 +101,30 @@ describe("safe Web Workbench failure diagnostics D409-1..D409-24", () => {
     expect(failure(new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "private SQL detail"))).toMatchObject({ status: 503, response: { code: "PERSISTENCE_PROVIDER_ERROR", category: "PERSISTENCE" } });
   });
 
+  it("D409-8b exposes only bounded persistence boundary diagnostics", () => {
+    const result = failure(new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "private SQL detail", undefined, new Error("private nested error"), {
+      stage: "database.query",
+      operation: "insert",
+      sqlState: "08006",
+      table: "idempotency_records",
+      constraint: "unknown",
+      errorClass: "Error",
+    }));
+    expect(result.response).toMatchObject({
+      code: "PERSISTENCE_PROVIDER_ERROR",
+      persistenceDiagnostic: {
+        stage: "database.query",
+        operation: "insert",
+        sqlState: "08006",
+        table: "idempotency_records",
+        constraint: "unknown",
+        errorClass: "Error",
+      },
+    });
+    expect(JSON.stringify(result.response)).not.toMatch(/private SQL detail|private nested error/);
+    expect(getWorkbenchDiagnosticEvents().at(-1)?.persistenceDiagnostic).toEqual(result.response.persistenceDiagnostic);
+  });
+
   it("D409-9 every failed operation has a correlation ID", () => {
     for (const error of [new Error("one"), new WorkbenchActionError("PROJECT_NOT_FOUND", "two"), new AiProviderError("AI_RATE_LIMITED", "three")]) expect(failure(error).response.correlationId).toMatch(/^[0-9a-f-]{36}$/);
   });
