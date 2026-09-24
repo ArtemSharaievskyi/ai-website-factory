@@ -8,6 +8,7 @@ import type { BriefRevisionFailureDiagnosticEntry } from "./brief-revision-failu
 import type { RequirementIdentityLineageRecord, RequirementIdentityMigrationRecord } from "@/domain/requirements/v3/identity";
 import type { RequirementIdentityLineage } from "@/domain/requirements/v3/identity";
 import type { PlanningRecoveryProviderAttemptStart, PlanningRecoveryProviderAttemptStartInput, PlanningRecoveryRunClaim, PlanningRecoveryRunRow, PlanningRecoveryRunTransition } from "@/agents/planner/recovery-runs";
+import type { OperationHistoryEntry } from "./operation-state";
 
 export type ProjectRow = ReturnType<typeof import("./mapping").mapProjectToRow>;
 export type ProjectAssetRow = ProjectAsset;
@@ -16,7 +17,7 @@ export type WorkflowEvent = { id: string; projectId: string; projectVersion: num
 export type CostRecord = { id: string; projectId: string; projectVersion: number; role: string; taskId?: string; provider: string; model: string; inputTokens: number; cachedInputTokens: number; outputTokens: number; estimatedCost: number; createdAt: string };
 export type IdempotencyRecord = { key: string; operation: string; payloadHash: string; result: unknown; createdAt?: string };
 export type OperationStatus = "IN_PROGRESS" | "SUCCEEDED" | "FAILED";
-export type OperationReadback = { key: string; operation: string; status: OperationStatus; payloadHash: string; result?: unknown; createdAt: string };
+export type OperationReadback = { key: string; operation: string; status: OperationStatus; payloadHash: string; result?: unknown; history?: readonly OperationHistoryEntry[]; createdAt: string };
 export type OperationReservation =
   | { status: "NEW"; key: string }
   | { status: "IN_PROGRESS"; key: string }

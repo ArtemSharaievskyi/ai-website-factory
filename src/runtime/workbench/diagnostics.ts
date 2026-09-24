@@ -473,12 +473,15 @@ export class WorkbenchRequestValidationError extends Error {
   }
 }
 
-/** Return only structural paths for the known projection-leak failure; never retain field values. */
-export function safeUnknownRespondArrayFieldPaths(body: unknown) {
+/** Return only structural paths for unknown arrays; never retain field values. */
+export function safeUnknownArrayFieldPaths(body: unknown) {
   if (!body || typeof body !== "object" || Array.isArray(body)) return [];
   const candidate = body as Record<string, unknown>;
-  if (candidate.action !== "respond") return [];
-  const allowed = new Set(["action", "projectId", "answers"]);
+  const allowedArrays = new Map<string, Set<string>>([
+    ["respond", new Set(["answers"])],
+    ["request-brief-changes", new Set(["requirementKeys", "assetBindings"])],
+  ]);
+  const allowed = allowedArrays.get(typeof candidate.action === "string" ? candidate.action : "") ?? new Set<string>();
   const paths: string[] = [];
   for (const [key, value] of Object.entries(candidate)) {
     if (allowed.has(key) || !Array.isArray(value)) continue;
@@ -486,6 +489,9 @@ export function safeUnknownRespondArrayFieldPaths(body: unknown) {
   }
   return paths;
 }
+
+/** @deprecated Use safeUnknownArrayFieldPaths; retained for callers outside the route boundary. */
+export const safeUnknownRespondArrayFieldPaths = safeUnknownArrayFieldPaths;
 
 function operationForAction(action?: string): WorkbenchOperation {
   switch (action) {

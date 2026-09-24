@@ -138,10 +138,17 @@ describe("canonical Workbench Design generation boundary", () => {
     await expect(state.app.handle({ action: "generate-design", projectId })).rejects.toMatchObject({ code: "DESIGN_CONTRACT_STALE" });
     expect(state.providerCalls()).toBe(0);
     expect(await state.documents.get(projectId, 1, "design-generation-attempt")).toBeNull();
+    const failedOperation = await state.database.transaction((tx) => tx.listOperations({ operation: "workbench.design" }));
+    expect(failedOperation[0]).toMatchObject({ status: "FAILED", result: { status: "FAILED", code: "DESIGN_CONTRACT_STALE" } });
     clean = true;
     const result = await state.app.handle({ action: "generate-design", projectId });
     expect(result.designs).toHaveLength(3);
     expect(state.providerCalls()).toBe(1);
+    const recoveredOperation = await state.database.transaction((tx) => tx.listOperations({ operation: "workbench.design" }));
+    expect(recoveredOperation[0]).toMatchObject({ status: "SUCCEEDED", result: { status: "SUCCEEDED" } });
+    expect(recoveredOperation[0]?.history).toEqual([
+      expect.objectContaining({ status: "FAILED", result: { status: "FAILED", code: "DESIGN_CONTRACT_STALE" } }),
+    ]);
     const attempt = await state.documents.get(projectId, 1, "design-generation-attempt");
     expect(attempt?.documentType).toBe("design-generation-attempt");
     if (attempt?.documentType !== "design-generation-attempt") throw new Error("design attempt missing");

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { WorkbenchRequestSchema, WORKBENCH_REQUEST_BYTES } from "@/runtime/workbench/contracts";
 import { WorkbenchActionError } from "@/runtime/workbench/application";
-import { safeUnknownRespondArrayFieldPaths, workbenchFailureResponse, WorkbenchRequestValidationError, type WorkbenchDiagnosticContext } from "@/runtime/workbench/diagnostics";
+import { safeUnknownArrayFieldPaths, workbenchFailureResponse, WorkbenchRequestValidationError, type WorkbenchDiagnosticContext } from "@/runtime/workbench/diagnostics";
 import { getProductionWorkbench } from "@/runtime/workbench/production";
 import { withWorkbenchOperationContext } from "@/runtime/workbench/operation-context";
 import { currentRuntimeProvenance, type WorkbenchResponseMetadata } from "@/runtime/workbench/observability";
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
       };
     }
     const parsedResult = WorkbenchRequestSchema.safeParse(body);
-    if (!parsedResult.success) throw new WorkbenchRequestValidationError(parsedResult.error, safeUnknownRespondArrayFieldPaths(body), typeof body === "object" && body !== null && typeof (body as Record<string, unknown>).action === "string" ? (body as Record<string, unknown>).action as string : undefined);
+    if (!parsedResult.success) throw new WorkbenchRequestValidationError(parsedResult.error, safeUnknownArrayFieldPaths(body), typeof body === "object" && body !== null && typeof (body as Record<string, unknown>).action === "string" ? (body as Record<string, unknown>).action as string : undefined);
     const parsed = parsedResult.data;
     diagnosticContext = {
       correlationId,

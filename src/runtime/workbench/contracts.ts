@@ -67,6 +67,16 @@ export const createWorkbenchRespondRequest = (input: Pick<WorkbenchRespondReques
   answers: input.answers,
 });
 
+/** Build the host-owned Design mutation DTO; projection fields such as unresolved answers never cross this boundary. */
+export const GenerateDesignRequestSchema = z.object({
+  action: z.literal("generate-design"),
+  projectId: ProjectIdSchema,
+}).strict();
+export type WorkbenchGenerateDesignRequest = z.infer<typeof GenerateDesignRequestSchema>;
+
+export const createWorkbenchGenerateDesignRequest = (projectId: string): WorkbenchGenerateDesignRequest =>
+  GenerateDesignRequestSchema.parse({ action: "generate-design", projectId });
+
 export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("create"), requestText: z.string().min(1).max(WORKBENCH_REQUEST_BYTES), languageHint: z.string().max(64).optional(), operatorLanguage: OperatorLanguageSchema.optional() }).strict(),
   z.object({ action: z.literal("status"), projectId: ProjectIdSchema }).strict(),
@@ -79,7 +89,7 @@ export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("approve-planning"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("request-planning-changes"), projectId: ProjectIdSchema, reason: z.string().trim().min(1).max(4000) }).strict(),
   z.object({ action: z.literal("generate-architecture-review"), projectId: ProjectIdSchema }).strict(),
-  z.object({ action: z.literal("generate-design"), projectId: ProjectIdSchema }).strict(),
+  GenerateDesignRequestSchema,
   z.object({ action: z.literal("database-decision"), projectId: ProjectIdSchema, mode: z.enum(["NONE", "SUPABASE_NEW", "SUPABASE_EXISTING"]), reason: z.string().max(4000).optional() }).strict(),
   z.object({ action: z.literal("dependency-approval"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("design-selection"), projectId: ProjectIdSchema, selectedDirectionId: ProjectIdSchema }).strict(),

@@ -10,6 +10,7 @@ import { assertPlanningRecoveryProviderAttemptStartCurrentness } from "./plannin
 import type { DecisionRecord } from "@/domain/workflow/decision";
 import { RequirementIdentityLineageRecordSchema, RequirementIdentityMigrationRecordSchema } from "@/domain/requirements/v3/identity";
 import { stableSerialize } from "@/domain/requirements/v3/serialization";
+import { nextOperationState, operationHistory, type StoredOperationState } from "./operation-state";
 
 const copy = <T>(value: T): T => structuredClone(value);
 
@@ -84,19 +85,19 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
           return { status: "NEW", key: input.key };
         }
         if (existing.payloadHash !== input.payloadHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key was already used with a different payload.");
-        const state = existing.result as { status?: string; result?: unknown };
+        const state = existing.result as StoredOperationState;
         if (state.status === "IN_PROGRESS") return { status: "IN_PROGRESS", key: input.key };
         if (state.status === "SUCCEEDED") return { status: "SUCCEEDED", key: input.key, result: copy(state.result) };
-        this.idempotency.set(recordKey, { ...existing, result: { status: "IN_PROGRESS", ...(input.initialResult === undefined ? {} : { result: copy(input.initialResult) }) } });
+        this.idempotency.set(recordKey, { ...existing, result: nextOperationState({ previous: state, status: "IN_PROGRESS", result: input.initialResult === undefined ? undefined : copy(input.initialResult) }) });
         return { status: "NEW", key: input.key };
       },
       getOperation: async (input) => {
         const existing = this.idempotency.get(`${input.operation}:${input.key}`);
         if (!existing) return null;
         if (input.payloadHash && existing.payloadHash !== input.payloadHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key was already used with a different payload.");
-        const state = existing.result as { status?: string; result?: unknown };
+        const state = existing.result as StoredOperationState;
         if (state.status !== "IN_PROGRESS" && state.status !== "SUCCEEDED" && state.status !== "FAILED") throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "The operation state is invalid.");
-        return { key: existing.key, operation: existing.operation, status: state.status, payloadHash: existing.payloadHash, ...(state.result === undefined ? {} : { result: copy(state.result) }), createdAt: existing.createdAt ?? "" };
+        return { key: existing.key, operation: existing.operation, status: state.status, ...(state.result === undefined ? {} : { result: copy(state.result) }), ...(operationHistory(state).length ? { history: copy(operationHistory(state)) } : {}), payloadHash: existing.payloadHash, createdAt: existing.createdAt ?? "" };
       },
       listOperations: async (input) => {
         const limit = Math.max(1, Math.min(input.limit ?? 8, 100));
@@ -105,31 +106,31 @@ export class InMemoryPersistenceDatabase implements PersistenceDatabase {
           .sort((left, right) => (left.createdAt ?? "").localeCompare(right.createdAt ?? "") || left.key.localeCompare(right.key))
           .slice(0, limit)
           .map((record) => {
-            const state = record.result as { status?: string; result?: unknown };
+            const state = record.result as StoredOperationState;
             if (state.status !== "IN_PROGRESS" && state.status !== "SUCCEEDED" && state.status !== "FAILED") throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "The operation state is invalid.");
-            return { key: record.key, operation: record.operation, status: state.status, payloadHash: record.payloadHash, ...(state.result === undefined ? {} : { result: copy(state.result) }), createdAt: record.createdAt ?? "" };
+            return { key: record.key, operation: record.operation, status: state.status, ...(state.result === undefined ? {} : { result: copy(state.result) }), ...(operationHistory(state).length ? { history: copy(operationHistory(state)) } : {}), payloadHash: record.payloadHash, createdAt: record.createdAt ?? "" };
           }));
       },
       updateOperationResult: async (input) => {
         const recordKey = `${input.operation}:${input.key}`;
         const existing = this.idempotency.get(recordKey);
-        const state = existing?.result as { status?: string; result?: { attemptId?: string } } | undefined;
+        const state = existing?.result as (StoredOperationState & { result?: { attemptId?: string } }) | undefined;
         if (!existing || existing.payloadHash !== input.payloadHash || state?.status !== "IN_PROGRESS" || input.leaseId !== undefined && state.result?.attemptId !== input.leaseId) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key is not current.");
-        this.idempotency.set(recordKey, { ...existing, result: { status: "IN_PROGRESS", result: copy(input.result) } });
+        this.idempotency.set(recordKey, { ...existing, result: nextOperationState({ previous: state!, status: "IN_PROGRESS", result: copy(input.result) }) });
       },
       completeOperation: async (input) => {
         const recordKey = `${input.operation}:${input.key}`;
         const existing = this.idempotency.get(recordKey);
-        const state = existing?.result as { status?: string; result?: { attemptId?: string } } | undefined;
+        const state = existing?.result as (StoredOperationState & { result?: { attemptId?: string } }) | undefined;
         if (!existing || existing.payloadHash !== input.payloadHash || state?.status !== "IN_PROGRESS" || input.leaseId !== undefined && state.result?.attemptId !== input.leaseId) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key is not current.");
-        this.idempotency.set(recordKey, { ...existing, result: { status: "SUCCEEDED", result: copy(input.result) } });
+        this.idempotency.set(recordKey, { ...existing, result: nextOperationState({ previous: state!, status: "SUCCEEDED", result: copy(input.result) }) });
       },
       failOperation: async (input) => {
         const recordKey = `${input.operation}:${input.key}`;
         const existing = this.idempotency.get(recordKey);
-        const state = existing?.result as { status?: string; result?: { attemptId?: string } } | undefined;
+        const state = existing?.result as (StoredOperationState & { result?: { attemptId?: string } }) | undefined;
         if (!existing || existing.payloadHash !== input.payloadHash || state?.status !== "IN_PROGRESS" || input.leaseId !== undefined && state.result?.attemptId !== input.leaseId) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key is not current.");
-        this.idempotency.set(recordKey, { ...existing, result: { status: "FAILED", ...(input.result === undefined ? {} : { result: copy(input.result) }) } });
+        this.idempotency.set(recordKey, { ...existing, result: nextOperationState({ previous: state!, status: "FAILED", result: input.result === undefined ? undefined : copy(input.result) }) });
       },
       getBriefRevisionAttempt: async (input) => {
         const row = [...this.briefRevisionAttempts.values()].find((candidate) => candidate.operationKind === input.operationKind && candidate.operationKey === input.operationKey) ?? null;

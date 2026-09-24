@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkbenchActionError } from "@/runtime/workbench/application";
 import { WorkbenchErrorResponseSchema, clearWorkbenchDiagnosticEvents, getWorkbenchDiagnosticEvents } from "@/runtime/workbench/diagnostics";
-import { MAX_BRIEF_REVISION_INSTRUCTION_BYTES } from "@/runtime/workbench/contracts";
+import { createWorkbenchGenerateDesignRequest, MAX_BRIEF_REVISION_INSTRUCTION_BYTES } from "@/runtime/workbench/contracts";
 import { StagedPlanningOperationTelemetry } from "@/agents/planner/staged-failures";
 import { planningFinalAdmissionDiagnostics } from "@/agents/planner/final-admission-diagnostics";
 
@@ -57,6 +57,24 @@ describe("Workbench route safe failure projection", () => {
     const response = await POST(request(payload));
     expect(response.status).toBe(200);
     expect(mockWorkbench.handle).toHaveBeenCalledWith(payload);
+  });
+
+  it("accepts exactly the supported Design request DTO", async () => {
+    const payload = createWorkbenchGenerateDesignRequest(validRespondPayload.projectId);
+    mockWorkbench.handle.mockResolvedValue({ mode: "PROJECT_WORKBENCH" });
+    const response = await POST(request(payload));
+    expect(response.status).toBe(200);
+    expect(mockWorkbench.handle).toHaveBeenCalledWith(payload);
+    expect(Object.keys(payload).sort()).toEqual(["action", "projectId"]);
+  });
+
+  it("rejects unresolved projection arrays on Design requests without dropping their indexed diagnostics", async () => {
+    const response = await POST(request({ ...createWorkbenchGenerateDesignRequest(validRespondPayload.projectId), unresolved: ["synthetic-customer-fact", "synthetic-publication-fact"] }));
+    const body = WorkbenchErrorResponseSchema.parse(await response.json());
+    expect(response.status).toBe(400);
+    expect(body).toMatchObject({ code: "WORKBENCH_REQUEST_INVALID", operation: "GENERATE_DESIGN", validationStage: "REQUEST_SCHEMA", issueCode: "UNKNOWN_FIELD", fieldPath: "unresolved[0]" });
+    expect(body.validationIssues?.map((issue) => issue.path)).toEqual(["unresolved[0]", "unresolved[1]"]);
+    expect(mockWorkbench.handle).not.toHaveBeenCalled();
   });
 
   it("rejects browser-authored available asset metadata with bounded indexed paths", async () => {

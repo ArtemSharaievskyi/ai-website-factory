@@ -12,6 +12,7 @@ import { RequirementIdentityLineageRecordSchema, RequirementIdentityMigrationRec
 import { stableSerialize } from "@/domain/requirements/v3/serialization";
 import { PlanningRecoveryRunSchema, assertPlanningRecoveryRunTransition, hasPlanningRecoveryRunImmutablePatch, hasValidNewPlanningRecoveryRunSourceBinding, isLeaseActive, isPlanningRecoveryRunTerminal, terminalOutcomeFor, type PlanningRecoveryProviderAttemptStart, type PlanningRecoveryProviderAttemptStartInput, type PlanningRecoveryRunClaim, type PlanningRecoveryRunRow, type PlanningRecoveryRunTransition } from "@/agents/planner/recovery-runs";
 import { assertPlanningRecoveryProviderAttemptStartCurrentness } from "./planning-recovery-currentness";
+import { nextOperationState, operationHistory, type StoredOperationState } from "./operation-state";
 
 type PersistenceQueryContext = Pick<PersistenceDiagnostic, "stage" | "operation"> & Partial<Pick<PersistenceDiagnostic, "table" | "constraint">>;
 const safeDiagnosticToken = (input: unknown) => { const token = typeof input === "string" ? input.slice(0, 160) : ""; return /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(token) ? token : "unknown"; };
@@ -227,16 +228,16 @@ class PostgresTransaction implements PersistenceTransaction {
     if (!existing || existing.payload_hash !== input.payloadHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key was already used with a different payload.");
     if (existing.result.status === "IN_PROGRESS") return { status: "IN_PROGRESS", key: input.key };
     if (existing.result.status === "SUCCEEDED") return { status: "SUCCEEDED", key: input.key, result: existing.result.result };
-    await this.query("UPDATE idempotency_records SET result = $1 WHERE operation = $2 AND idempotency_key = $3", [{ status: "IN_PROGRESS", ...(input.initialResult === undefined ? {} : { result: input.initialResult }) }, input.operation, input.key]);
+    await this.query("UPDATE idempotency_records SET result = $1 WHERE operation = $2 AND idempotency_key = $3", [nextOperationState({ previous: existing.result, status: "IN_PROGRESS", result: input.initialResult }), input.operation, input.key]);
     return { status: "NEW", key: input.key };
   }
   async getOperation(input: { operation: string; key: string; payloadHash?: string }) {
-    const existing = value<{ operation: string; key: string; payload_hash: string; result: { status?: string; result?: unknown }; created_at: string }>(await this.query("SELECT operation, idempotency_key AS key, payload_hash, result, created_at FROM idempotency_records WHERE operation = $1 AND idempotency_key = $2", [input.operation, input.key]));
+    const existing = value<{ operation: string; key: string; payload_hash: string; result: StoredOperationState; created_at: string }>(await this.query("SELECT operation, idempotency_key AS key, payload_hash, result, created_at FROM idempotency_records WHERE operation = $1 AND idempotency_key = $2", [input.operation, input.key]));
     if (!existing) return null;
     if (input.payloadHash && existing.payload_hash !== input.payloadHash) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key was already used with a different payload.");
     const status = existing.result.status;
     if (status !== "IN_PROGRESS" && status !== "SUCCEEDED" && status !== "FAILED") throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "The operation state is invalid.");
-    return { key: existing.key, operation: existing.operation, status: status as OperationStatus, payloadHash: existing.payload_hash, ...(existing.result.result === undefined ? {} : { result: existing.result.result }), createdAt: String(existing.created_at) };
+    return { key: existing.key, operation: existing.operation, status: status as OperationStatus, ...(existing.result.result === undefined ? {} : { result: existing.result.result }), ...(operationHistory(existing.result).length ? { history: operationHistory(existing.result) } : {}), payloadHash: existing.payload_hash, createdAt: String(existing.created_at) };
   }
   async listOperations(input: { operation: string; keyPrefix?: string; limit?: number }) {
     const limit = Math.max(1, Math.min(input.limit ?? 8, 100));
@@ -248,25 +249,28 @@ class PostgresTransaction implements PersistenceTransaction {
       prefix === undefined ? [input.operation, limit] : [input.operation, prefix, limit],
     );
     return result.rows.map((row) => {
-      const state = row.result && typeof row.result === "object" ? row.result as { status?: string; result?: unknown } : {};
+      const state = row.result && typeof row.result === "object" ? row.result as StoredOperationState : {};
       if (state.status !== "IN_PROGRESS" && state.status !== "SUCCEEDED" && state.status !== "FAILED") throw new PersistenceError("PERSISTENCE_PROVIDER_ERROR", "The operation state is invalid.");
       const status = state.status as OperationStatus;
-      return { key: String(row.key), operation: String(row.operation), status, payloadHash: String(row.payloadHash), ...(state.result === undefined ? {} : { result: state.result }), createdAt: String(row.createdAt) };
+      return { key: String(row.key), operation: String(row.operation), status, ...(state.result === undefined ? {} : { result: state.result }), ...(operationHistory(state).length ? { history: operationHistory(state) } : {}), payloadHash: String(row.payloadHash), createdAt: String(row.createdAt) };
     });
   }
   async updateOperationResult(input: { operation: string; key: string; payloadHash: string; result: unknown; leaseId?: string }) {
     const leaseClause = input.leaseId === undefined ? "" : " AND result->'result'->>'attemptId' = $5";
-    const updated = await this.query(`UPDATE idempotency_records SET result = $1 WHERE operation = $2 AND idempotency_key = $3 AND payload_hash = $4 AND result->>'status' = 'IN_PROGRESS'${leaseClause}`, [{ status: "IN_PROGRESS", result: input.result }, input.operation, input.key, input.payloadHash, ...(input.leaseId === undefined ? [] : [input.leaseId])]);
+    const current = value<{ result: StoredOperationState }>(await this.query("SELECT result FROM idempotency_records WHERE operation = $1 AND idempotency_key = $2 AND payload_hash = $3 FOR UPDATE", [input.operation, input.key, input.payloadHash]));
+    const updated = await this.query(`UPDATE idempotency_records SET result = $1 WHERE operation = $2 AND idempotency_key = $3 AND payload_hash = $4 AND result->>'status' = 'IN_PROGRESS'${leaseClause}`, [nextOperationState({ previous: current?.result ?? {}, status: "IN_PROGRESS", result: input.result }), input.operation, input.key, input.payloadHash, ...(input.leaseId === undefined ? [] : [input.leaseId])]);
     if (!updated.rowCount) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key is not current.");
   }
   async completeOperation(input: { operation: string; key: string; payloadHash: string; result: unknown; leaseId?: string }) {
     const leaseClause = input.leaseId === undefined ? "" : " AND result->'result'->>'attemptId' = $5";
-    const updated = await this.query(`UPDATE idempotency_records SET result = $1 WHERE operation = $2 AND idempotency_key = $3 AND payload_hash = $4 AND result->>'status' = 'IN_PROGRESS'${leaseClause}`, [{ status: "SUCCEEDED", result: input.result }, input.operation, input.key, input.payloadHash, ...(input.leaseId === undefined ? [] : [input.leaseId])]);
+    const current = value<{ result: StoredOperationState }>(await this.query("SELECT result FROM idempotency_records WHERE operation = $1 AND idempotency_key = $2 AND payload_hash = $3 FOR UPDATE", [input.operation, input.key, input.payloadHash]));
+    const updated = await this.query(`UPDATE idempotency_records SET result = $1 WHERE operation = $2 AND idempotency_key = $3 AND payload_hash = $4 AND result->>'status' = 'IN_PROGRESS'${leaseClause}`, [nextOperationState({ previous: current?.result ?? {}, status: "SUCCEEDED", result: input.result }), input.operation, input.key, input.payloadHash, ...(input.leaseId === undefined ? [] : [input.leaseId])]);
     if (!updated.rowCount) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key is not current.");
   }
   async failOperation(input: { operation: string; key: string; payloadHash: string; result?: unknown; leaseId?: string }) {
     const leaseClause = input.leaseId === undefined ? "" : " AND result->'result'->>'attemptId' = $5";
-    const updated = await this.query(`UPDATE idempotency_records SET result = $1 WHERE operation = $2 AND idempotency_key = $3 AND payload_hash = $4 AND result->>'status' = 'IN_PROGRESS'${leaseClause}`, [{ status: "FAILED", ...(input.result === undefined ? {} : { result: input.result }) }, input.operation, input.key, input.payloadHash, ...(input.leaseId === undefined ? [] : [input.leaseId])]);
+    const current = value<{ result: StoredOperationState }>(await this.query("SELECT result FROM idempotency_records WHERE operation = $1 AND idempotency_key = $2 AND payload_hash = $3 FOR UPDATE", [input.operation, input.key, input.payloadHash]));
+    const updated = await this.query(`UPDATE idempotency_records SET result = $1 WHERE operation = $2 AND idempotency_key = $3 AND payload_hash = $4 AND result->>'status' = 'IN_PROGRESS'${leaseClause}`, [nextOperationState({ previous: current?.result ?? {}, status: "FAILED", result: input.result }), input.operation, input.key, input.payloadHash, ...(input.leaseId === undefined ? [] : [input.leaseId])]);
     if (!updated.rowCount) throw new PersistenceError("IDEMPOTENCY_CONFLICT", "The operation key is not current.");
   }
   private async readBriefRevisionAttempt(input: { operationKind: string; operationKey: string; forUpdate?: boolean }) {

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import { createWorkbenchRespondRequest } from "@/runtime/workbench/contracts";
+import { createWorkbenchGenerateDesignRequest, createWorkbenchRespondRequest } from "@/runtime/workbench/contracts";
 import type {
   WorkbenchAction,
   WorkbenchAsset,
@@ -954,10 +954,7 @@ export function Workbench() {
         projectId: projection.project.projectId,
       });
     else if (value === "GENERATE_DESIGN")
-      void run({
-        action: "generate-design",
-        projectId: projection.project.projectId,
-      });
+      void run(createWorkbenchGenerateDesignRequest(projection.project.projectId));
     else if (value === "DATABASE_DECISION")
       void run({
         action: "database-decision",
