@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { createWorkbenchGenerateDesignRequest, createWorkbenchRespondRequest } from "@/runtime/workbench/contracts";
+import { postWorkbenchRequest } from "@/runtime/workbench/http-client";
 import type {
   WorkbenchAction,
   WorkbenchAsset,
@@ -41,11 +42,7 @@ const visibleRequestError = (caught: unknown, fallback: string) => {
 };
 
 async function request(input: WorkbenchRequest): Promise<WorkbenchProjection> {
-  const response = await fetch("/api/workbench", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(input),
-  });
+  const response = await postWorkbenchRequest(input);
   const body = (await response.json()) as Envelope;
   if (!response.ok || !body.ok || !body.data)
     throw new WorkbenchRequestError(
