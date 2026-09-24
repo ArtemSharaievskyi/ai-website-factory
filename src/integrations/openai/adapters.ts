@@ -81,7 +81,9 @@ import { ImplementationChangeProposalSchema } from "@/agents/implementation/cont
 import { OpenAiStructuredClient, buildProductionResponseFormat, type StructuredSchemaDefinition } from "./client";
 import { AiProviderError } from "./errors";
 import { boundedRolePrompt as rolePrompt } from "@/runtime/context/bridge";
+import { ContextAssemblyError } from "@/runtime/context/assembler";
 import type { ProviderDiagnostic, ProviderInvocationContext, ProviderUsageSink } from "./usage";
+import { createProviderFailureDiagnostic } from "./failure-diagnostics";
 import type { OrchestrationPlanningProvider } from "@/orchestration/orchestrator/service";
 import {
   ArchitectureReviewProviderOutputSchema,
@@ -2451,6 +2453,30 @@ export class OpenAiOrchestrationProvider implements OrchestrationPlanningProvide
     ).value as { tasks: unknown[] };
   }
 }
+async function recordArchitectureRequestConstructionFailure(error: unknown, providerInvocation?: ProviderInvocationContext) {
+  if (!(error instanceof ContextAssemblyError) || !providerInvocation?.recordDiagnostic) return;
+  const diagnostic: ProviderDiagnostic = {
+    stage: "request_construction",
+    outputStage: "PROVIDER_REQUEST_FAILED",
+    requestAttempted: false,
+    apiResponseReceived: false,
+    responseReceived: false,
+    outputComplete: false,
+    sdkErrorClass: "ContextAssemblyError",
+    schemaName: "architecture-review-result",
+    issueCode: error.blocker.code,
+  };
+  const failureDiagnostic = createProviderFailureDiagnostic({
+    errorCode: error.blocker.code === "CONTEXT_REQUIRED_BUDGET_EXCEEDED" ? "AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED" : "AI_OUTPUT_INVALID",
+    model: "unknown",
+    schemaName: "architecture-review-result",
+    requestAttempted: false,
+    diagnostic,
+    error,
+  });
+  await Promise.resolve(providerInvocation.recordDiagnostic(diagnostic, "NOT_REACHED", failureDiagnostic)).catch(() => undefined);
+}
+
 export class OpenAiArchitectureReviewerProvider implements ArchitectureReviewProvider {
   readonly promptVersion = "architecture-reviewer.v2";
   constructor(private readonly ai: OpenAiStructuredClient) {}
@@ -2461,12 +2487,18 @@ export class OpenAiArchitectureReviewerProvider implements ArchitectureReviewPro
     skillContextIdentity = "none",
     providerInvocation?: import("./usage").ProviderInvocationContext,
   ): Promise<ArchitectureReviewProviderOutput> {
-    const prompt = rolePrompt(
-      "architecture-reviewer",
-      input,
-      false,
-      approvedSkills,
-    );
+    let prompt: ReturnType<typeof rolePrompt>;
+    try {
+      prompt = rolePrompt(
+        "architecture-reviewer",
+        input,
+        false,
+        approvedSkills,
+      );
+    } catch (error) {
+      await recordArchitectureRequestConstructionFailure(error, providerInvocation);
+      throw error;
+    }
     return (
       await this.ai.request({
         ...prompt,

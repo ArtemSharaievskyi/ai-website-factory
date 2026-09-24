@@ -2,7 +2,7 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import { rolePrompt, type ApprovedProceduralSkillPromptContext } from "@/integrations/openai/prompts";
 import { buildDesignContext, designContextBudget } from "@/agents/design/context";
 import type { DesignAgentInput } from "@/agents/design/contracts";
-import { assembleContext, contextBundleMetadata, extractContextIdentity, inferCanonicalDocumentType, prepareRoleContext, renderContextItems, type ContextCandidate } from "./assembler";
+import { assembleContext, contextBundleMetadata, ContextAssemblyError, extractContextIdentity, inferCanonicalDocumentType, prepareRoleContext, renderContextItems, type ContextCandidate } from "./assembler";
 import { CONTEXT_BUDGET_PROFILES } from "./contracts";
 import { designCandidateContextCandidates, diagnosticContextCandidate, sliceApprovedSkill, sliceDiagnostics, documentationContextCandidate } from "./slicing";
 import { selectRelevantFiles, sourceContextCandidates, type SourceFileCandidate } from "./source";
@@ -89,7 +89,7 @@ export function boundedRolePrompt(role: Parameters<typeof rolePrompt>[0], input:
   const canonicalContent = JSON.stringify(preparedInput);
   const candidates: ContextCandidate[] = [{ kind: "CANONICAL_CONTRACT", authority: "CANONICAL_REQUIREMENT", canonicalDocumentType: inferCanonicalDocumentType(role, input), sourceRef: `canonical:${role}:${correction ? "correction" : "request"}`, selectionReason: "Full canonical role requirements are passed without token/context reduction.", priority: "HIGH", required: true, content: canonicalContent }, ...buildCandidates(input, approvedSkills, role)];
   const result = assembleContext({ agentId: role, agentRole: role, workflowStage: correction ? `${role}:correction` : role, ...identity, currentnessIdentity: checksumPersistedDocument(preparedInput), budget: role === "design" ? designContextBudget() : role.includes("reviewer") ? CONTEXT_BUDGET_PROFILES.reviewer : role === "implementation" ? CONTEXT_BUDGET_PROFILES.implementation : CONTEXT_BUDGET_PROFILES.default, candidates });
-  if (result.status === "BLOCKED") throw new Error(`CONTEXT_ASSEMBLY_BLOCKED:${result.blocker.code}`);
+  if (result.status === "BLOCKED") throw new ContextAssemblyError(result.blocker);
   const variableItems = result.bundle.selectedItems.filter((item) => item.kind !== "SKILL_SLICE");
   return { ...prompt, user: `${JSON.stringify(contextBundleMetadata(result.bundle))}\n${renderContextItems(variableItems)}`, contextBundle: result.bundle, promptPrefixChecksum: checksumPersistedDocument({ promptVersion: prompt.promptVersion, system: prompt.system }), promptPrefixBytes: Buffer.byteLength(prompt.system, "utf8") };
 }

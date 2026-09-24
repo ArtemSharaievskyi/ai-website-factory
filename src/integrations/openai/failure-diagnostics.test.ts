@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { APIConnectionError } from "openai";
 import { z } from "zod";
 import { ProviderFailureDiagnosticSchema } from "@/domain/shared/provider-failure";
 import { OpenAiStructuredClient } from "./client";
@@ -19,6 +20,13 @@ async function failureFor(error: unknown) {
 }
 
 describe("provider failure diagnostic normalization", () => {
+  it("maps the concrete OpenAI SDK connection error without losing bounded cause evidence", async () => {
+    const cause = Object.assign(new Error("SECRET_SDK_DNS"), { code: "ECONNREFUSED" });
+    const failure = await failureFor(new APIConnectionError({ message: "SECRET_SDK_CONNECTION", cause }));
+    expect(failure).toMatchObject({ code: "AI_NETWORK_ERROR", failureDiagnostic: { category: "NETWORK", stage: "REQUEST_TRANSPORT", requestAttempted: true, responseReceived: false, sdkErrorClass: "APIConnectionError", transportPhase: "CONNECT", transportFailureClass: "CONNECT_FAILED", transportCauseCode: "ECONNREFUSED" } });
+    expect(JSON.stringify(failure)).not.toContain("SECRET_");
+  });
+
   it.each([
     ["authentication", Object.assign(new Error("SECRET_AUTH_MESSAGE"), { status: 401, requestID: "req_auth", error: { type: "authentication_error", code: "invalid_api_key" } }), { category: "AUTHENTICATION", stage: "REQUEST_TRANSPORT", responseReceived: true, structuredParsingReached: false, httpStatus: 401, requestId: "req_auth", providerErrorCode: "invalid_api_key" }],
     ["rate limit", Object.assign(new Error("SECRET_RATE_MESSAGE"), { status: 429, requestID: "req_rate", error: { type: "rate_limit_error", code: "rate_limit_exceeded" } }), { category: "RATE_LIMIT", stage: "REQUEST_TRANSPORT", responseReceived: true, structuredParsingReached: false, retryabilityHint: true, httpStatus: 429, requestId: "req_rate" }],

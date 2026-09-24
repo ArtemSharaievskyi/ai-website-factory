@@ -102,6 +102,12 @@ describe("Phase 7G context architecture", () => {
     expect(prompt.user).not.toContain("far-away-body");
     expect(prompt.promptPrefixBytes).toBeGreaterThan(0);
   });
+  it("admits the observed bounded Architecture Review context without evicting canonical requirements", () => {
+    const prompt = boundedRolePrompt("architecture-reviewer", { acceptedPlanningPackage: { syntheticContext: "x".repeat(230_000) } });
+    expect(prompt.contextBundle.metrics.canonicalRequirementTruncated).toBe(false);
+    expect(prompt.contextBundle.totalBytes).toBeLessThanOrEqual(256_000);
+    expect(prompt.contextBundle.metrics.canonicalRequirementBytes).toBeGreaterThan(224_000);
+  });
   it("rejects stale derived content by binding source checksum", () => {
     const original = createSourceSkeleton("src/a.ts", "export const a = 1;");
     const changed = createSourceSkeleton("src/a.ts", "export const a = 2;");

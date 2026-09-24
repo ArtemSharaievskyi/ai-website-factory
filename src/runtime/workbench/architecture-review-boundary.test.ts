@@ -116,7 +116,7 @@ describe("canonical Workbench Architecture Review boundary", () => {
     const provider = new OpenAiArchitectureReviewerProvider(new OpenAiStructuredClient({ apiKey: "synthetic", model: "synthetic-model", modelLabel: "Synthetic", maxRetries: 0, maxConcurrentRequests: 1 }, {
       executor: async () => {
         providerCalls += 1;
-        throw Object.assign(new Error("SECRET_PROVIDER_WRAPPER"), { cause });
+        throw Object.assign(new Error("SECRET_PROVIDER_WRAPPER"), { name: "APIConnectionError", cause });
       },
     }));
     const service = new ArchitectureReviewOrchestrationService(state.database, new ArchitectureReviewService(state.database, { provider }));
@@ -149,6 +149,35 @@ describe("canonical Workbench Architecture Review boundary", () => {
     expect(await new DocumentRepository(state.database).get(projectId, 1, "architecture-review")).toBeNull();
     const current = await new ProjectRepository(state.database).getWithVersion(projectId);
     expect(current).toMatchObject({ project: { workflowState: "ARCHITECTURE_REVIEW" }, rowVersion: 1 });
+  });
+
+  it("retains a typed pre-SDK context blocker instead of collapsing it to unknown", async () => {
+    const state = await fixture();
+    let executorCalls = 0;
+    const architectureProvider = new OpenAiArchitectureReviewerProvider(new OpenAiStructuredClient({ apiKey: "synthetic", model: "synthetic-model", modelLabel: "Synthetic", maxRetries: 0, maxConcurrentRequests: 1 }, {
+      executor: async () => {
+        executorCalls += 1;
+        throw new Error("PROVIDER_MUST_NOT_RUN");
+      },
+    }));
+    const provider = {
+      promptVersion: architectureProvider.promptVersion,
+      review: async (input: ArchitectureReviewInput, signal?: AbortSignal, skills: readonly unknown[] = [], identity = "none", invocation?: import("@/integrations/openai/usage").ProviderInvocationContext) => architectureProvider.review({ ...input, acceptedPlanningPackage: { ...input.acceptedPlanningPackage, syntheticContext: "x".repeat(280_000) } } as never, signal, skills as never, identity, invocation),
+    };
+    const service = new ArchitectureReviewOrchestrationService(state.database, new ArchitectureReviewService(state.database, { provider: provider as never }));
+    const app = new WorkbenchApplication({ database: state.database, entry: state.entry, getWorkflowScope: () => ({ architectureReviewer: service, planner: undefined, design: undefined, orchestrator: undefined, contractAuditor: undefined } as never) });
+    let failure: unknown;
+    try {
+      await app.handle({ action: "generate-architecture-review", projectId });
+    } catch (error) {
+      failure = error;
+    }
+    expect(executorCalls).toBe(0);
+    const response = workbenchFailureResponse(failure, { action: "generate-architecture-review", projectId }).response;
+    expect(response).toMatchObject({ providerDiagnostic: { category: "REQUEST_CONSTRUCTION", stage: "REQUEST_CONSTRUCTION", requestAttempted: false, responseReceived: false, structuredParsingReached: false, errorCode: "AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED", sdkErrorClass: "ContextAssemblyError", schemaName: "architecture-review-result" } });
+    expect(JSON.stringify(response)).not.toContain("syntheticContext");
+    const operation = await state.database.transaction((tx) => tx.getOperation({ operation: "workbench.architecture-review", key: projectId }));
+    expect(operation?.result).toMatchObject({ providerCallsTotal: 1, providerDiagnostic: { category: "REQUEST_CONSTRUCTION", requestAttempted: false, errorCode: "AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED" }, canonicalArchitecturePersisted: false, lifecycleMutated: false });
   });
 
   it("retains bounded provider diagnostics when the provider wrapper has no retained cause", async () => {
