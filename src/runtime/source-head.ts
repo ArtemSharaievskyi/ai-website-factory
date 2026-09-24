@@ -1,13 +1,12 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import path from "node:path";
 import { parseSourceHead, type SourceCurrentness, type SourceCurrentnessPort } from "@/domain/shared/source-head";
+import { loadSession } from "../../scripts/codex/protected-state";
 import {
   compareBaselineFileIdentity,
   readBaselineFileIdentity,
   repositoryPathKey,
-  validateBaselineArtifacts,
   type ProtectedBaselineArtifact,
 } from "../../scripts/codex/worktree-baseline";
 
@@ -23,26 +22,9 @@ function porcelainPaths(stdout: string) {
   }).filter((entry) => Boolean(entry.path));
 }
 
-type ProtectedSessionMetadata = {
-  schemaVersion?: unknown;
-  baselineUntrackedFiles?: unknown;
-  baselineArtifacts?: unknown;
-};
-
 async function readProtectedBaseline(root: string): Promise<readonly ProtectedBaselineArtifact[]> {
-  let value: ProtectedSessionMetadata;
   try {
-    value = JSON.parse(await readFile(path.join(root, ".codex", "session.json"), "utf8")) as ProtectedSessionMetadata;
-  } catch {
-    return [];
-  }
-  if (value.schemaVersion !== 3 || !Array.isArray(value.baselineUntrackedFiles) || !Array.isArray(value.baselineArtifacts)) return [];
-  try {
-    const artifacts = validateBaselineArtifacts(value.baselineArtifacts);
-    const listed = new Set(value.baselineUntrackedFiles.filter((item): item is string => typeof item === "string").map((item) => repositoryPathKey(item)));
-    const artifactKeys = new Set(artifacts.map((artifact) => repositoryPathKey(artifact.path)));
-    if (listed.size !== artifactKeys.size || [...listed].some((key) => !artifactKeys.has(key))) return [];
-    return artifacts;
+    return (await loadSession(root)).baselineArtifacts;
   } catch {
     return [];
   }
