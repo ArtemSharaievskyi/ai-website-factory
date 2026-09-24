@@ -83,6 +83,8 @@ import type { TransitionContext } from "@/domain/workflow/engine";
 import { canonicalRequirementEntries } from "@/domain/requirements/v3/identity";
 import { assertPlannerReferenceTableCurrent, createPlannerReferenceTable, PlannerReferenceTableError } from "./reference-table";
 import { isAiProviderError } from "@/integrations/openai/errors";
+import { PlanningCorrectionHistorySchema, type PlanningCorrectionHistoryEntry } from "./correction-history";
+import { correctUnapprovedPlanningPackage } from "./deterministic-correction";
 import type { ProviderDiagnostic, ProviderInvocationLedgerHandle, ProviderInvocationLedgerPort, ProviderTerminationParseStatus } from "@/integrations/openai/usage";
 import {
   admitPlanningCoverage,
@@ -1366,6 +1368,111 @@ export class PlannerArchitectService {
     this.packages.set(this.packageKey(projectId, projectVersion), corrected);
     return corrected;
   }
+
+  async correctUnapprovedPlanningDeterministically(input: {
+    projectId: string;
+    projectVersion: number;
+    expectedProjectRowVersion: number;
+    expectedBriefChecksum: string;
+    expectedPlanningSemanticChecksum: string;
+    operationKey: string;
+  }) {
+    const result = await this.dependencies.database.transaction(async (tx) => {
+      const project = await tx.getProject(input.projectId);
+      if (!project || project.current_version !== input.projectVersion || project.row_version !== input.expectedProjectRowVersion || project.workflow_state !== "AWAITING_PLANNING_APPROVAL")
+        throw new PlannerError("PLANNING_STALE", "The protected project is not at the approved unaccepted Planning frontier.");
+      const briefRow = await tx.getDocument(input.projectId, input.projectVersion, "requirements");
+      const briefV3Row = await tx.getDocument(input.projectId, input.projectVersion, "brief-v3");
+      const planningRow = await tx.getDocument(input.projectId, input.projectVersion, "planning-package");
+      if (!briefRow || !briefV3Row || !planningRow)
+        throw new PlannerError("PLANNING_STALE", "The current Brief and Planning package could not be read.");
+      const brief = RequirementSpecificationSchema.parse(mapRowToDocument(briefRow));
+      const canonical = BriefV3DocumentSchema.parse(mapRowToDocument(briefV3Row));
+      const currentPlanning = PlanningPackageSchema.parse(mapRowToDocument(planningRow));
+      if (!canonical.approval?.approved || canonical.approval.approvedCanonicalChecksum !== canonical.briefChecksum || canonical.briefChecksum !== input.expectedBriefChecksum || currentPlanning.approvedBriefChecksum !== input.expectedBriefChecksum || currentPlanning.accepted)
+        throw new PlannerError("PLANNING_STALE", "The current approved Brief and unapproved Planning binding changed.");
+
+      const historyRow = await tx.getDocument(input.projectId, input.projectVersion, "planning-correction-history");
+      const history = historyRow ? PlanningCorrectionHistorySchema.parse(mapRowToDocument(historyRow)) : null;
+      const replay = history?.entries.find((entry) => entry.operationKey === input.operationKey);
+      if (replay) {
+        if (replay.briefSemanticChecksum !== input.expectedBriefChecksum || replay.basePlanningSemanticChecksum !== input.expectedPlanningSemanticChecksum || planningSemanticChecksum(currentPlanning) !== replay.nextPlanningSemanticChecksum)
+          throw new PlannerError("PLANNING_STALE", "The deterministic Planning correction replay does not match the current canonical package.");
+        return { status: "REPLAYED" as const, package: currentPlanning, history, entry: replay, previousPlanning: replay.previousPlanningPackage };
+      }
+
+      const basePlanningSemanticChecksum = planningSemanticChecksum(currentPlanning);
+      if (basePlanningSemanticChecksum !== input.expectedPlanningSemanticChecksum)
+        throw new PlannerError("PLANNING_STALE", "The persisted Planning package changed before deterministic correction.");
+      const correction = correctUnapprovedPlanningPackage({
+        current: currentPlanning,
+        brief,
+        canonicalBrief: canonical.brief,
+        operationKey: input.operationKey,
+        timestamp: now(),
+      });
+      if (correction.correctionKinds.length === 0)
+        throw new PlannerError("PLANNING_PACKAGE_INVALID", "No proven deterministic Planning defect remains to correct.");
+      const admission = validatePlanningAdmission(correction.package);
+      if (!admission.ready)
+        throw new PlannerError("PLANNING_PACKAGE_INVALID", "The deterministic Planning correction failed host admission.", admission.blockers);
+      const savedPackage = PlanningPackageSchema.parse(await saveDocumentCASInTransaction(tx, correction.package, planningRow.rowVersion, planningRow.checksum));
+      const appliedAt = correction.package.updatedAt;
+      const entry: PlanningCorrectionHistoryEntry = {
+        correctionId: randomUUID(),
+        operationKey: input.operationKey,
+        projectId: input.projectId,
+        projectVersion: input.projectVersion,
+        baseProjectRowVersion: project.row_version,
+        basePlanningRowVersion: planningRow.rowVersion,
+        basePlanningSemanticChecksum,
+        basePlanningDocumentChecksum: planningDocumentChecksum(currentPlanning),
+        briefSemanticChecksum: canonical.briefChecksum,
+        previousPlanningPackage: currentPlanning,
+        nextPlanningSemanticChecksum: planningSemanticChecksum(savedPackage),
+        nextPlanningDocumentChecksum: planningDocumentChecksum(savedPackage),
+        correctionKinds: correction.correctionKinds,
+        providerCalls: 0,
+        appliedAt,
+      };
+      const nextHistory = PlanningCorrectionHistorySchema.parse({
+        schemaVersion: 1,
+        documentType: "planning-correction-history",
+        projectId: input.projectId,
+        projectVersion: input.projectVersion,
+        createdAt: history?.createdAt ?? appliedAt,
+        updatedAt: appliedAt,
+        entries: [...(history?.entries ?? []), entry],
+      });
+      await saveDocumentCASInTransaction(tx, nextHistory, historyRow?.rowVersion ?? null, historyRow?.checksum ?? null);
+      const decision = DecisionRecordSchema.parse({
+        id: randomUUID(),
+        timestamp: appliedAt,
+        actorType: "system",
+        actorIdentifier: "planner-architect",
+        category: "planning-deterministic-correction",
+        decision: "Corrected the current unapproved Planning package at the host-owned assembly boundary.",
+        rationale: "The canonical Brief permits only confirmed direct phone and email conversion, no backend or form, and no active WhatsApp channel. The correction preserved the approved scope and legal routes while repairing the profile, false data-model blocker, and direct-contact handoff.",
+        affectedDocuments: ["planning-package.json", "planning-correction-history.json"],
+        requirementChange: false,
+        userApprovalRequired: false,
+        userApprovalStatus: "not-required",
+      });
+      await appendDecisionInTransaction(tx, input.projectId, input.projectVersion, decision);
+      return { status: "APPLIED" as const, package: savedPackage, history: nextHistory, entry, previousPlanning: currentPlanning };
+    });
+    if (result.status === "APPLIED") {
+      await this.dependencies.memory.writeSnapshot(input.projectId, input.projectVersion, {
+        "planning-package.json": result.package,
+        "architecture.json": result.package.architecture,
+        "content-plan.json": result.package.content,
+        "asset-manifest.json": result.package.assets,
+      });
+      this.packages.set(this.packageKey(input.projectId, input.projectVersion), result.package);
+    }
+    return { ...result, providerCalls: 0 };
+  }
+
   async validatePlanningPackage(projectId: string, projectVersion: number) {
     const status = await this.getPlanningStatus(projectId, projectVersion);
     const packageValue = PlanningPackageSchema.parse(status.package);

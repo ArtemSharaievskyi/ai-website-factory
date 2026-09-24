@@ -30,6 +30,7 @@
     "test:brief-revision:certify": "vitest run src/domain/requirements/v3/certification.test.ts src/domain/requirements/v3/identity.test.ts src/integrations/openai-v3/brief-v3-provider-contract.test.ts src/persistence/database/brief-revision-v3.migration.test.ts src/persistence/database/postgres.test.ts src/persistence/project-memory/store.test.ts src/runtime/brief-revision-v3/acceptance-window.test.ts src/runtime/brief-revision-v3/acceptance-verifier.test.ts src/runtime/brief-revision-v3/certification-evidence.test.ts src/runtime/brief-revision-v3/cleanup-policy.test.ts src/runtime/brief-revision-v3/source-fingerprint.test.ts src/runtime/brief-revision-v3/transaction.test.ts src/runtime/brief-revision-v3/postgres-transaction.test.ts src/runtime/brief-revision-v3/pre-switch-e2e.test.ts src/runtime/requirements-v3/identity-migration.test.ts",
     "brief-v3:live": "tsx scripts/brief-v3-live-acceptance.ts",
     "planning-recovery:pilot-certify": "tsx scripts/planning-recovery-pilot-certify.ts",
+    "planning:correct-deterministic": "tsx scripts/planning-deterministic-correction.ts",
     "test:reviewers": "vitest run src/agents/catalog.test.ts src/agents/reviewers src/integrations/openai/provider.test.ts",
     "db:validate": "node scripts/validate-migrations.mjs",
     "db:migrate": "node scripts/db-migrate.mjs",
