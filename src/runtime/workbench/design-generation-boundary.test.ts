@@ -18,6 +18,8 @@ import { buildDesignDirectionSet } from "@/agents/design/deterministic";
 import { WorkbenchApplication } from "./application";
 import { WorkbenchRequestSchema, actionsForWorkbenchState } from "./contracts";
 import type { SourceCurrentnessPort } from "@/domain/shared/source-head";
+import type { DesignAgentInput } from "@/agents/design/contracts";
+import type { AgentSkillSelection } from "@/skills/runtime/resolver";
 
 const timestamp = "2026-09-01T00:00:00.000Z";
 const projectId = "73737373-7373-4373-8373-737373737373";
@@ -41,7 +43,7 @@ function brief(): RequirementSpecification {
   });
 }
 
-async function fixture(options: { provider?: (input: Parameters<typeof buildDesignDirectionSet>[0]) => Promise<ReturnType<typeof buildDesignDirectionSet>>; source?: SourceCurrentnessPort; canonicalUnresolved?: boolean } = {}) {
+async function fixture(options: { provider?: (input: Parameters<typeof buildDesignDirectionSet>[0]) => Promise<ReturnType<typeof buildDesignDirectionSet>>; source?: SourceCurrentnessPort; canonicalUnresolved?: boolean; resolveSkills?: (input: DesignAgentInput) => Promise<AgentSkillSelection> } = {}) {
   const database = new InMemoryPersistenceDatabase();
   const legacyBrief = brief();
   const migratedBrief = migrateLegacyBriefToCanonicalBriefV3(legacyBrief);
@@ -72,7 +74,7 @@ async function fixture(options: { provider?: (input: Parameters<typeof buildDesi
   const entry = new TrialEntryService({ database, createLeadAgent: () => { throw new Error("SYNTHETIC_LEAD_NOT_EXPECTED"); } });
   let providerCalls = 0;
   const provider = { proposeDesignDirections: async (input: Parameters<typeof buildDesignDirectionSet>[0]) => { providerCalls += 1; return options.provider ? options.provider(input) : buildDesignDirectionSet(input); } };
-  const design = new DesignAgentService({ database, memory: new FakeDesignMemoryPort(), provider, ...(options.source ? { source: options.source } : {}) });
+  const design = new DesignAgentService({ database, memory: new FakeDesignMemoryPort(), provider, ...(options.source ? { source: options.source } : {}), ...(options.resolveSkills ? { resolveSkills: options.resolveSkills } : {}) });
   const app = new WorkbenchApplication({ database, entry, getWorkflowScope: () => ({ design, planner: undefined, architectureReviewer: undefined, orchestrator: undefined, contractAuditor: undefined } as never) });
   return { database, documents, entry, app, design, planning, review, providerCalls: () => providerCalls };
 }
@@ -144,6 +146,15 @@ describe("canonical Workbench Design generation boundary", () => {
     const operation = await state.database.transaction((tx) => tx.getOperation({ operation: "workbench.design", key: fresh.operationKey }));
     expect(operation?.status).toBe("SUCCEEDED");
     expect(operation?.history).toEqual([expect.objectContaining({ status: "FAILED" })]);
+  });
+
+  it("terminalizes a pre-provider setup failure after claim without recording provider activity", async () => {
+    const state = await fixture({ resolveSkills: async () => { throw new Error("SYNTHETIC_SKILL_RESOLUTION_FAILURE"); } });
+    await expect(state.app.handle({ action: "generate-design", projectId })).rejects.toMatchObject({ code: "DESIGN_PROVIDER_FAILED" });
+    const attempt = await state.documents.get(projectId, 1, "design-generation-attempt");
+    expect(attempt).toMatchObject({ state: "PROVIDER_FAILED", failureCode: "DESIGN_PROVIDER_FAILED", executionEvidence: { providerBoundary: "NOT_STARTED" } });
+    expect(state.providerCalls()).toBe(0);
+    expect(await state.documents.get(projectId, 1, "design-directions")).toBeNull();
   });
 
   it("rejects a stale Architecture Review before the provider boundary", async () => {

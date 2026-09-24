@@ -718,13 +718,24 @@ export class DesignAgentService {
     });
     attempt = await this.saveAttempt(attempt, previousAttempt);
     attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({ ...attempt, state: "CLAIMED", updatedAt: now() }), attempt);
-    const skillSelection = this.resolveSkills
-      ? await this.resolveSkills(providerInput)
-      : undefined;
-    attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({ ...attempt, selectedSkillIds: skillSelection?.selectedSkillIds ?? [], selectedSkillChecksums: skillSelection?.selectedSkillChecksums ?? [], updatedAt: now() }), attempt);
-    await this.skills.select({ role: "design", taskType: "visual-direction" });
-    await this.explorationTool.explore(providerInput).catch(() => null);
-    attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({ ...attempt, state: "PROVIDER_STARTED", executionEvidence: executionEvidence("STARTED", attempt.executionEvidence), updatedAt: now() }), attempt);
+    let skillSelection: AgentSkillSelection | undefined;
+    try {
+      skillSelection = this.resolveSkills
+        ? await this.resolveSkills(providerInput)
+        : undefined;
+      attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({ ...attempt, selectedSkillIds: skillSelection?.selectedSkillIds ?? [], selectedSkillChecksums: skillSelection?.selectedSkillChecksums ?? [], updatedAt: now() }), attempt);
+      await this.skills.select({ role: "design", taskType: "visual-direction" });
+      await this.explorationTool.explore(providerInput).catch(() => null);
+      attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({ ...attempt, state: "PROVIDER_STARTED", executionEvidence: executionEvidence("STARTED", attempt.executionEvidence), updatedAt: now() }), attempt);
+    } catch (error) {
+      const failure = designErrorFromProvider(error);
+      try {
+        await this.failAttempt(attempt, "PROVIDER_FAILED", failure);
+      } catch {
+        // Preserve the original setup failure; the operation ledger still records it.
+      }
+      throw failure;
+    }
     let set: DesignDirectionSet;
     try {
       set = DesignDirectionSetSchema.parse(
