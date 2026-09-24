@@ -300,6 +300,9 @@ const CONFLICT_CODES = new Set([
   "ARCHITECTURE_REVIEW_BLOCKED",
   "DESIGN_SET_NOT_READY",
   "DESIGN_DIRECTION_NOT_FOUND",
+  "DESIGN_RECONCILIATION_STALE",
+  "DESIGN_OUTCOME_UNKNOWN_REQUIRES_AUTHORIZATION",
+  "DESIGN_OUTCOME_UNKNOWN",
   "IMPLEMENTATION_START_BLOCKED",
   "PERSISTENCE_IMMUTABLE",
   "TRIAL_ENTRY_NOT_AWAITING_CLARIFICATION",
@@ -797,6 +800,8 @@ function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProject
     const sourceCurrentness = safeSourceCurrentness(error);
     return { error: "The Design source or canonical contract is stale. The project was not changed.", httpStatus: 409, recoverable: true, category: "WORKFLOW_CONFLICT", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), ...(sourceCurrentness ? { reasonCode: "DESIGN_SOURCE_CURRENTNESS_FAILED", sourceCurrentness } : {}) };
   }
+  if (code === "DESIGN_OUTCOME_UNKNOWN_REQUIRES_AUTHORIZATION") return { error: "The previous Design provider outcome is unknown. Explicit fresh-attempt authority is required before another provider call.", httpStatus: 409, recoverable: false, category: "WORKFLOW_CONFLICT", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), reasonCode: "OUTCOME_UNKNOWN" };
+  if (code === "DESIGN_OUTCOME_UNKNOWN") return { error: "The previous Design provider outcome is unknown and cannot be retried without explicit fresh-attempt authority. The project was not changed.", httpStatus: 409, recoverable: false, category: "WORKFLOW_CONFLICT", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), reasonCode: "OUTCOME_UNKNOWN" };
   if (code === "DESIGN_INPUT_INVALID") return { error: "The host-owned Design inputs did not match the current strict contract. The project was not changed.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
   if (["ARCHITECTURE_REVIEW_PROVIDER_FAILED", "ARCHITECTURE_REVIEW_OUTPUT_INVALID"].includes(code)) {
     return { error: "The Architecture Review provider could not complete this request. The project was not changed.", httpStatus: code === "ARCHITECTURE_REVIEW_OUTPUT_INVALID" ? 502 : 503, recoverable: false, category: "PROVIDER", subsystem: "PROVIDER", errorClass: errorClass(error), ...(safeProviderDiagnostic(error) ? { providerDiagnostic: safeProviderDiagnostic(error) } : {}) };

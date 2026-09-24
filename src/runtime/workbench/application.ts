@@ -196,6 +196,9 @@ export class WorkbenchApplication {
         return this.generateArchitectureReview(request.projectId);
       case "generate-design":
         return this.generateDesign(request.projectId);
+      case "reconcile-design-outcome-unknown":
+        await this.reconcileDesignOutcomeUnknown(request);
+        return this.project(request.projectId);
       case "request-planning-changes":
         await this.requestPlanningChanges(request.projectId, request.reason);
         return this.project(request.projectId);
@@ -312,6 +315,12 @@ export class WorkbenchApplication {
     const phase7cDocument = await this.documents.get(projectId, version, "phase-7c-contract-package");
     const phase7c = planning?.documentType === "planning-package" ? phase7cDocument : null;
     const directions = await this.documents.get(projectId, version, "design-directions");
+    const designAttempt = await this.documents.get(projectId, version, "design-generation-attempt");
+    const designOperation = designAttempt?.documentType === "design-generation-attempt"
+      ? await this.dependencies.database.transaction((tx) => tx.getOperation({ operation: "workbench.design", key: designAttempt.operationKey }))
+      : null;
+    const hasIndeterminateDesignAttempt = designAttempt?.documentType === "design-generation-attempt" && designAttempt.state === "PROVIDER_STARTED" && designOperation?.status === "IN_PROGRESS";
+    const designFreshAttemptBlocked = designAttempt?.documentType === "design-generation-attempt" && designAttempt.state === "OUTCOME_UNKNOWN";
     const selected = await this.documents.get(projectId, version, "selected-design");
     const contractPackage = phase7c;
     const contractAudit = await this.documents.get(projectId, version, "contract-audit");
@@ -339,6 +348,8 @@ export class WorkbenchApplication {
       hasDesigns: directions?.documentType === "design-directions",
       canRefreshClarifications,
       canGenerateArchitectureReview,
+      hasIndeterminateDesignAttempt,
+      designFreshAttemptBlocked,
       implementationReady: current.project.workflowState === "READY_FOR_IMPLEMENTATION" &&
         contractPackage?.documentType === "phase-7c-contract-package" && contractPackage.status === "APPROVED" &&
         selected?.documentType === "selected-design" &&
@@ -599,6 +610,8 @@ export class WorkbenchApplication {
     const { input, operationKey, payloadHash, architectureChecksum } = await this.designGenerationInput(projectId, current);
     const operation = "workbench.design";
     const existingDirections = await this.documents.get(projectId, input.projectVersion, "design-directions");
+    const existingAttempt = await this.documents.get(projectId, input.projectVersion, "design-generation-attempt");
+    if (existingAttempt?.documentType === "design-generation-attempt" && existingAttempt.state === "OUTCOME_UNKNOWN") throw new WorkbenchActionError("DESIGN_OUTCOME_UNKNOWN_REQUIRES_AUTHORIZATION", "The prior Design provider outcome is unknown. Explicit fresh-attempt authority is required before another provider call.");
     const existingDirectionsCurrent = existingDirections?.documentType === "design-directions" && existingDirections.approvedBriefChecksum === input.approvedBriefChecksum && existingDirections.acceptedPlanningChecksum === input.acceptedPlanningChecksum && existingDirections.directions.every((direction) => direction.canonicalContent?.architectureChecksum === architectureChecksum);
     if (existingDirections?.documentType === "design-directions" && !existingDirectionsCurrent)
       throw new WorkbenchActionError("DESIGN_DIRECTION_SET_STALE", "The current Design direction set is not bound to the approved Architecture Review.");
@@ -628,6 +641,24 @@ export class WorkbenchApplication {
       await this.publishDesignResponse({ responseOrigin: "NEW_EXECUTION", operationKey, payloadHash, projectId, attemptStatus: "FAILED", attemptCreated: true });
       throw error;
     }
+  }
+
+  private async reconcileDesignOutcomeUnknown(request: Extract<WorkbenchRequest, { action: "reconcile-design-outcome-unknown" }>) {
+    const current = await this.projects.getWithVersion(request.projectId);
+    if (!current || current.project.currentVersion !== request.projectVersion || current.rowVersion !== request.expectedRowVersion) throw new WorkbenchActionError("DESIGN_RECONCILIATION_STALE", "The Design reconciliation request is stale.");
+    const { operationKey, payloadHash } = await this.designGenerationInput(request.projectId, current);
+    if (operationKey !== request.operationKey) throw new WorkbenchActionError("DESIGN_RECONCILIATION_STALE", "The Design reconciliation request is bound to a different operation frontier.");
+    const scope = await this.scope(request.projectId);
+    if (!scope.design) throw new WorkbenchActionError("DESIGN_RUNTIME_UNAVAILABLE", "The canonical Design runtime is not configured. The project was not changed.");
+    await scope.design.reconcileIndeterminateDesignAttempt({
+      projectId: request.projectId,
+      projectVersion: request.projectVersion,
+      attemptId: request.attemptId,
+      operationKey,
+      operationPayloadHash: payloadHash,
+      expectedRowVersion: request.expectedRowVersion,
+      expectedAttemptChecksum: request.expectedAttemptChecksum,
+    });
   }
 
   private async databaseDecision(projectId: string, mode: "NONE" | "SUPABASE_NEW" | "SUPABASE_EXISTING", reason?: string) {
@@ -766,5 +797,5 @@ export class WorkbenchApplication {
 }
 
 export const isWorkbenchAction = (value: string): value is WorkbenchAction => [
-  "ANSWER_LEAD_CLARIFICATIONS", "REFRESH_LEAD_CLARIFICATIONS", "APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES", "GENERATE_PLANNING", "APPROVE_PLANNING", "REQUEST_PLANNING_CHANGES", "GENERATE_ARCHITECTURE_REVIEW", "DATABASE_DECISION", "DEPENDENCY_APPROVAL", "DESIGN_SELECTION", "START_IMPLEMENTATION",
+  "ANSWER_LEAD_CLARIFICATIONS", "REFRESH_LEAD_CLARIFICATIONS", "APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES", "GENERATE_PLANNING", "APPROVE_PLANNING", "REQUEST_PLANNING_CHANGES", "GENERATE_ARCHITECTURE_REVIEW", "GENERATE_DESIGN", "RECONCILE_DESIGN_OUTCOME_UNKNOWN", "DATABASE_DECISION", "DEPENDENCY_APPROVAL", "DESIGN_SELECTION", "START_IMPLEMENTATION",
 ].includes(value);

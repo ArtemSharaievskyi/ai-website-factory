@@ -144,6 +144,55 @@ describe("canonical Workbench Design generation boundary", () => {
     expect(state.providerCalls()).toBe(1);
   });
 
+  it("reconciles an indeterminate attempt, fences late provider completion, and preserves canonical Design absence", async () => {
+    let release!: () => void;
+    let providerStarted!: () => void;
+    const started = new Promise<void>((resolve) => { providerStarted = resolve; });
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const state = await fixture({ provider: async (input) => { providerStarted(); await gate; return buildDesignDirectionSet(input); } });
+    const generation = state.app.handle({ action: "generate-design", projectId });
+    await started;
+    expect((await state.app.handle({ action: "status", projectId })).status.allowedActions).toEqual(["RECONCILE_DESIGN_OUTCOME_UNKNOWN"]);
+    const before = await state.documents.get(projectId, 1, "design-generation-attempt");
+    if (!before || before.documentType !== "design-generation-attempt") throw new Error("active Design attempt missing");
+    const request = { action: "reconcile-design-outcome-unknown" as const, projectId, projectVersion: 1, expectedRowVersion: 1, attemptId: before.attemptId, operationKey: before.operationKey, expectedAttemptChecksum: checksumPersistedDocument(before) };
+    await state.app.handle(request);
+    await expect(state.app.handle({ action: "generate-design", projectId })).rejects.toMatchObject({ code: "DESIGN_OUTCOME_UNKNOWN_REQUIRES_AUTHORIZATION" });
+    release();
+    await expect(generation).rejects.toMatchObject({ code: "DESIGN_CONTRACT_STALE" });
+    const after = await state.documents.get(projectId, 1, "design-generation-attempt");
+    expect(after).toMatchObject({ state: "OUTCOME_UNKNOWN", failureCode: "OUTCOME_UNKNOWN", outcomeUnknown: { providerReceipt: "UNKNOWN", providerUsage: "UNKNOWN", providerCost: "UNKNOWN" } });
+    const history = await state.documents.get(projectId, 1, "design-generation-attempt-history");
+    expect(history).toMatchObject({ records: [{ attemptId: before.attemptId, state: "PROVIDER_STARTED" }] });
+    expect(await state.documents.get(projectId, 1, "design-directions")).toBeNull();
+    const operation = await state.database.transaction((tx) => tx.getOperation({ operation: "workbench.design", key: before.operationKey }));
+    expect(operation).toMatchObject({ status: "FAILED", result: { code: "OUTCOME_UNKNOWN", providerReceipt: "UNKNOWN", providerUsage: "UNKNOWN", providerCost: "UNKNOWN", canonicalDesignPersisted: false } });
+  });
+
+  it("makes reconciliation idempotent and rejects stale upstream currentness", async () => {
+    let release!: () => void;
+    let providerStarted!: () => void;
+    const started = new Promise<void>((resolve) => { providerStarted = resolve; });
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const state = await fixture({ provider: async (input) => { providerStarted(); await gate; return buildDesignDirectionSet(input); } });
+    const generation = state.app.handle({ action: "generate-design", projectId });
+    await started;
+    const before = await state.documents.get(projectId, 1, "design-generation-attempt");
+    if (!before || before.documentType !== "design-generation-attempt") throw new Error("active Design attempt missing");
+    const request = { action: "reconcile-design-outcome-unknown" as const, projectId, projectVersion: 1, expectedRowVersion: 1, attemptId: before.attemptId, operationKey: before.operationKey, expectedAttemptChecksum: checksumPersistedDocument(before) };
+    const results = await Promise.all([state.app.handle(request), state.app.handle(request)]);
+    expect(results).toHaveLength(2);
+    const repeated = await state.app.handle(request);
+    expect(repeated.status.allowedActions).not.toContain("GENERATE_DESIGN");
+    const history = await state.documents.get(projectId, 1, "design-generation-attempt-history");
+    expect(history?.documentType === "design-generation-attempt-history" ? history.records.filter((record) => record.attemptId === before.attemptId) : []).toHaveLength(1);
+    await new ProjectVersionRepository(state.database).reserveNextVersion(projectId, "stale-reconcile");
+    await expect(state.app.handle(request)).rejects.toMatchObject({ code: "DESIGN_RECONCILIATION_STALE" });
+    release();
+    await expect(generation).rejects.toMatchObject({ code: "DESIGN_CONTRACT_STALE" });
+    expect(await state.documents.get(projectId, 1, "design-directions")).toBeNull();
+  });
+
   it("recovers a failed source-currentness preflight with a fresh attempt and no stale replay", async () => {
     let clean = false;
     const source: SourceCurrentnessPort = { read: async () => ({ head: "a".repeat(40), trackedWorktreeClean: clean, disallowedPaths: clean ? [] : ["supabase/.temp/cli-latest"] }) };

@@ -8,6 +8,7 @@ import {
   WorkflowPersistenceService,
   appendDecisionInTransaction,
   saveDocumentInTransaction,
+  saveDocumentCASInTransaction,
   transitionWorkflowInTransaction,
 } from "@/persistence/database/repositories";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
@@ -33,9 +34,12 @@ import {
   DesignAdmissionFindingSchema,
   DesignAdmissionInvalidationRequestSchema,
   DesignCandidateReplayRequestSchema,
+  DesignAttemptExecutionEvidenceSchema,
   DesignGenerationAttemptHistorySchema,
   DesignGenerationResultSchema,
   DesignGenerationAttemptSchema,
+  DesignOutcomeUnknownReconciliationRequestSchema,
+  DesignFreshAttemptAuthorizationSchema,
   DesignProviderObservationSchema,
   DesignRevisionRequestSchema,
   DesignSelectionRequestSchema,
@@ -43,6 +47,7 @@ import {
   type DesignAdmissionFinding,
   type DesignAdmissionInvalidationRequest,
   type DesignCandidateReplayRequest,
+  type DesignOutcomeUnknownReconciliationRequest,
   type DesignGenerationAttempt,
   type DesignGenerationAttemptHistory,
   type DesignGenerationResult,
@@ -121,6 +126,19 @@ function observationFor(error: unknown, fallbackModel?: string) {
     zodIssueCount: diagnostic?.zodIssueCount ?? failure?.zodIssueCount ?? null,
     zodIssuesTruncated: diagnostic?.zodIssuesTruncated ?? failure?.zodIssuesTruncated ?? null,
     completeZodIssuesChecksum: diagnostic?.completeZodIssuesChecksum ?? failure?.completeZodIssuesChecksum ?? null,
+  });
+}
+
+function executionEvidence(boundary: "NOT_STARTED" | "STARTED" | "RESPONSE_RECEIVED" | "RESPONSE_UNKNOWN", previous?: DesignGenerationAttempt["executionEvidence"], at = now()) {
+  return DesignAttemptExecutionEvidenceSchema.parse({
+    schemaVersion: 1,
+    processId: Number.isSafeInteger(process.pid) && process.pid > 0 ? process.pid : null,
+    processGeneration: z.string().uuid().safeParse(process.env.FACTORY_SERVER_GENERATION).success ? process.env.FACTORY_SERVER_GENERATION : null,
+    processStartedAt: z.string().datetime().safeParse(process.env.FACTORY_SERVER_STARTED_AT).success ? process.env.FACTORY_SERVER_STARTED_AT : null,
+    configuredTimeoutMs: previous?.configuredTimeoutMs ?? null,
+    deadlineAt: previous?.deadlineAt ?? null,
+    providerBoundary: boundary,
+    providerBoundaryAt: at,
   });
 }
 
@@ -289,8 +307,14 @@ export class DesignAgentService {
       );
     }
   }
-  private async saveAttempt(attempt: DesignGenerationAttempt) {
-    return DesignGenerationAttemptSchema.parse(await this.documents.save(attempt));
+  private async saveAttempt(attempt: DesignGenerationAttempt, previous?: DesignGenerationAttempt) {
+    return this.dependencies.database.transaction(async (tx) => {
+      const currentRow = await tx.getDocument(attempt.projectId, attempt.projectVersion, "design-generation-attempt");
+      const expectedChecksum = previous ? checksumPersistedDocument(previous) : null;
+      if (previous && (!currentRow || currentRow.checksum !== expectedChecksum)) throw new DesignError("DESIGN_CONTRACT_STALE", "The Design attempt changed before its next durable transition.");
+      const saved = await saveDocumentCASInTransaction(tx, attempt, previous ? currentRow!.rowVersion : null, expectedChecksum);
+      return DesignGenerationAttemptSchema.parse(saved);
+    });
   }
   private async preserveAttemptHistory(attempt: DesignGenerationAttempt) {
     const existing = await this.documents.get(attempt.projectId, attempt.projectVersion, "design-generation-attempt-history");
@@ -348,7 +372,7 @@ export class DesignAgentService {
       ...(findings ? { admissionFindingCount: findings.length, admissionFindingsChecksum: checksumPersistedDocument(findings), admissionFindings: findings } : {}),
       ...(failureDiagnostic ? { failureDiagnostic } : {}),
       ...(errorHasProviderObservation ? { providerObservation: observationFor(error), ...providerAttemptFields(observationFor(error)) } : attempt.providerObservation ? { providerObservation: attempt.providerObservation, ...providerAttemptFields(attempt.providerObservation) } : {}),
-    }));
+    }), attempt);
   }
   private async commitDesignAdmission(input: DesignAgentInput, set: DesignDirectionSet, attempt: DesignGenerationAttempt, readiness: ReturnType<typeof validateDesignDirectionSet>, replaceExisting: boolean) {
     const generatedAt = now();
@@ -399,7 +423,7 @@ export class DesignAgentService {
         const existing = mapRowToDocument(existingRow);
         if (existing.documentType === "design-directions" && existing.approvedBriefChecksum === input.approvedBriefChecksum && existing.acceptedPlanningChecksum === input.acceptedPlanningChecksum) return existing;
       }
-      await saveDocumentInTransaction(tx, completedAttempt);
+      await saveDocumentCASInTransaction(tx, completedAttempt, attemptRow.rowVersion, attemptRow.checksum);
       return saveDocumentInTransaction(tx, committedSet, `design-directions-${input.projectId}-${input.projectVersion}-${input.idempotencyKey}`);
     }).catch(async (error) => {
       const failure = designErrorFromProvider(error);
@@ -595,7 +619,7 @@ export class DesignAgentService {
       );
     return { brief, planning, canonicalBrief: canonical?.brief };
   }
-  async generateDesignDirections(rawInput: DesignAgentInput, options: { replaceExisting?: boolean } = {}): Promise<DesignGenerationResult> {
+  async generateDesignDirections(rawInput: DesignAgentInput, options: { replaceExisting?: boolean; freshAttemptAuthorization?: unknown } = {}): Promise<DesignGenerationResult> {
     const input = this.parseInput(rawInput);
     assertWorkbenchStyleIsolation(input);
     const validated = await this.validateInput(input);
@@ -654,6 +678,9 @@ export class DesignAgentService {
     let attempt = existingAttemptDocument?.documentType === "design-generation-attempt"
       ? DesignGenerationAttemptSchema.parse(existingAttemptDocument)
       : undefined;
+    const freshAttemptAuthorization = options.freshAttemptAuthorization === undefined ? undefined : DesignFreshAttemptAuthorizationSchema.parse(options.freshAttemptAuthorization);
+    if (freshAttemptAuthorization && !options.replaceExisting) throw new DesignError("IDEMPOTENCY_CONFLICT", "A fresh Design attempt authorization must explicitly replace the indeterminate attempt frontier.");
+    if (attempt?.state === "OUTCOME_UNKNOWN" && !freshAttemptAuthorization) throw new DesignError("DESIGN_OUTCOME_UNKNOWN", "The Design provider outcome remains unknown. Explicit fresh-attempt authority is required before another provider call.");
     if (attempt && attempt.operationKey === input.idempotencyKey) {
       if (attempt.approvedBriefChecksum !== input.approvedBriefChecksum || attempt.acceptedPlanningChecksum !== input.acceptedPlanningChecksum || attempt.architectureChecksum !== architectureChecksum || attempt.expectedRowVersion !== input.expectedRowVersion) throw new DesignError("DESIGN_CONTRACT_STALE", "The Design operation is bound to stale canonical inputs.");
       if (attempt.state === "PERSISTED" && persisted?.documentType === "design-directions") {
@@ -662,11 +689,12 @@ export class DesignAgentService {
       }
       if (attempt.state === "REPLAY_STARTED") throw new DesignError("DESIGN_PROVIDER_FAILED", "A zero-call Design candidate replay is already active and will not be replaced by provider generation.", attempt.failureDiagnostic, undefined, attempt.failureDiagnostic);
       if (["PROVIDER_FAILED", "WIRE_FAILED", "DOMAIN_FAILED", "ADMISSION_FAILED", "PERSISTENCE_FAILED"].includes(attempt.state)) throw new DesignError((attempt.failureCode as DesignError["code"] | undefined) ?? "DESIGN_PROVIDER_FAILED", "The Design operation has a durable terminal failure and will not be retried.", attempt.failureDiagnostic, undefined, attempt.failureDiagnostic);
-      if (attempt.state === "PROVIDER_STARTED") throw new DesignError("DESIGN_PROVIDER_FAILED", "The Design provider attempt has an indeterminate durable outcome and will not be retried.", attempt.failureDiagnostic, undefined, attempt.failureDiagnostic);
+      if (attempt.state === "PROVIDER_STARTED" || (attempt.state === "OUTCOME_UNKNOWN" && !freshAttemptAuthorization)) throw new DesignError("DESIGN_OUTCOME_UNKNOWN", "The Design provider attempt has an indeterminate durable outcome and requires explicit fresh-attempt authority before another provider call.", attempt.failureDiagnostic, undefined, attempt.failureDiagnostic);
     } else if (attempt && !options.replaceExisting) {
       throw new DesignError("IDEMPOTENCY_CONFLICT", "A different Design generation operation is already bound to the current project.");
     }
-    if (attempt && attempt.operationKey !== input.idempotencyKey && options.replaceExisting) await this.preserveAttemptHistory(attempt);
+    const previousAttempt = attempt;
+    if (attempt && (attempt.operationKey !== input.idempotencyKey || Boolean(freshAttemptAuthorization)) && options.replaceExisting) await this.preserveAttemptHistory(attempt);
     attempt = DesignGenerationAttemptSchema.parse({
       schemaVersion: 1,
       documentType: "design-generation-attempt",
@@ -685,16 +713,18 @@ export class DesignAgentService {
       selectedSkillIds: [],
       selectedSkillChecksums: [],
       ...(sourceHead ? { sourceHead } : {}),
+      executionEvidence: executionEvidence("NOT_STARTED"),
+      ...(freshAttemptAuthorization ? { freshAttemptAuthorization } : {}),
     });
-    attempt = await this.saveAttempt(attempt);
-    attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({ ...attempt, state: "CLAIMED", updatedAt: now() }));
+    attempt = await this.saveAttempt(attempt, previousAttempt);
+    attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({ ...attempt, state: "CLAIMED", updatedAt: now() }), attempt);
     const skillSelection = this.resolveSkills
       ? await this.resolveSkills(providerInput)
       : undefined;
-    attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({ ...attempt, selectedSkillIds: skillSelection?.selectedSkillIds ?? [], selectedSkillChecksums: skillSelection?.selectedSkillChecksums ?? [], updatedAt: now() }));
+    attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({ ...attempt, selectedSkillIds: skillSelection?.selectedSkillIds ?? [], selectedSkillChecksums: skillSelection?.selectedSkillChecksums ?? [], updatedAt: now() }), attempt);
     await this.skills.select({ role: "design", taskType: "visual-direction" });
     await this.explorationTool.explore(providerInput).catch(() => null);
-    attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({ ...attempt, state: "PROVIDER_STARTED", updatedAt: now() }));
+    attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({ ...attempt, state: "PROVIDER_STARTED", executionEvidence: executionEvidence("STARTED", attempt.executionEvidence), updatedAt: now() }), attempt);
     let set: DesignDirectionSet;
     try {
       set = DesignDirectionSetSchema.parse(
@@ -715,13 +745,108 @@ export class DesignAgentService {
     attempt = await this.saveAttempt(DesignGenerationAttemptSchema.parse({
       ...attempt,
       ...(providerObservation ? { providerObservation, ...providerAttemptFields(providerObservation) } : { providerAttempted: true, responseReceived: true }),
+      executionEvidence: executionEvidence("RESPONSE_RECEIVED", attempt.executionEvidence),
       providerResultChecksum,
       normalizedCandidateSchemaVersion: 1,
       normalizedCandidateChecksum,
       normalizedCandidate: set,
       updatedAt: now(),
-    }));
+    }), attempt);
     return this.admitCandidate(providerInput, attempt, set, Boolean(options.replaceExisting));
+  }
+  async reconcileIndeterminateDesignAttempt(rawRequest: DesignOutcomeUnknownReconciliationRequest): Promise<DesignGenerationAttempt> {
+    let request: DesignOutcomeUnknownReconciliationRequest;
+    try {
+      request = DesignOutcomeUnknownReconciliationRequestSchema.parse(rawRequest);
+    } catch (error) {
+      throw new DesignError("DESIGN_INPUT_INVALID", "Design outcome reconciliation input did not match the strict contract.", error);
+    }
+    const reconciledAt = now();
+    return this.dependencies.database.transaction(async (tx) => {
+      const projectRow = await tx.getProject(request.projectId);
+      const versionRow = await tx.getVersion(request.projectId, request.projectVersion);
+      if (!projectRow || !versionRow || projectRow.current_version !== request.projectVersion || projectRow.workflow_state !== "AWAITING_DESIGN_SELECTION" || projectRow.row_version !== request.expectedRowVersion || versionRow.immutable) {
+        throw new DesignError("DESIGN_SELECTION_STALE", "The indeterminate Design attempt is not current for reconciliation.");
+      }
+      const briefRow = await tx.getDocument(request.projectId, request.projectVersion, "brief-v3");
+      const planningRow = await tx.getDocument(request.projectId, request.projectVersion, "planning-package");
+      const reviewRow = await tx.getDocument(request.projectId, request.projectVersion, "architecture-review");
+      const attemptRow = await tx.getDocument(request.projectId, request.projectVersion, "design-generation-attempt");
+      const directionsRow = await tx.getDocument(request.projectId, request.projectVersion, "design-directions");
+      if (!briefRow || !planningRow || !reviewRow || !attemptRow || directionsRow) throw new DesignError("DESIGN_CONTRACT_STALE", "The Design reconciliation inputs are incomplete or a canonical Design result already exists.");
+      const brief = BriefV3DocumentSchema.parse(mapRowToDocument(briefRow));
+      const planning = PlanningPackageSchema.parse(mapRowToDocument(planningRow));
+      const review = ArchitectureReviewRecordSchema.parse(mapRowToDocument(reviewRow));
+      const attempt = DesignGenerationAttemptSchema.parse(mapRowToDocument(attemptRow));
+      const planningChecksum = checksumPersistedDocument(planning);
+      const reviewChecksum = checksumPersistedDocument(review);
+      if (!brief.approval?.approved || brief.approval.approvedCanonicalChecksum !== brief.briefChecksum || attempt.approvedBriefChecksum !== brief.briefChecksum || !planning.accepted || attempt.acceptedPlanningChecksum !== planningChecksum || review.result.verdict !== "APPROVED" || review.approvedBriefChecksum !== brief.briefChecksum || review.acceptedPlanningChecksum !== planningChecksum || attempt.architectureChecksum !== reviewChecksum) {
+        throw new DesignError("DESIGN_CONTRACT_STALE", "An approved upstream Design input changed before outcome reconciliation.");
+      }
+      if (attempt.projectId !== request.projectId || attempt.projectVersion !== request.projectVersion || attempt.operationKey !== request.operationKey || attempt.expectedRowVersion !== request.expectedRowVersion || attempt.attemptId !== request.attemptId) {
+        throw new DesignError("DESIGN_CONTRACT_STALE", "The reconciliation request is not bound to the current Design attempt.");
+      }
+      const operation = await tx.getOperation({ operation: "workbench.design", key: request.operationKey, payloadHash: request.operationPayloadHash });
+      const operationResult = operation?.result && typeof operation.result === "object" && !Array.isArray(operation.result) ? operation.result as Record<string, unknown> : undefined;
+      const operationAttemptId = typeof operationResult?.attemptId === "string" ? operationResult.attemptId : undefined;
+      if (!operation || (operationAttemptId !== undefined && operationAttemptId !== request.attemptId)) throw new DesignError("DESIGN_CONTRACT_STALE", "The current Design operation is not fenced to the requested attempt.");
+      if (attempt.state === "OUTCOME_UNKNOWN") {
+        if (attempt.outcomeUnknown?.sourceAttemptChecksum !== request.expectedAttemptChecksum || operation.status !== "FAILED" || operationResult?.code !== "OUTCOME_UNKNOWN") throw new DesignError("DESIGN_CONTRACT_STALE", "The existing Design outcome reconciliation does not match this request.");
+        return attempt;
+      }
+      if (attempt.state !== "PROVIDER_STARTED" || attemptRow.checksum !== request.expectedAttemptChecksum || operation.status !== "IN_PROGRESS") throw new DesignError("DESIGN_CONTRACT_STALE", "The Design attempt is no longer eligible for outcome reconciliation.");
+      const outcomeUnknown = {
+        schemaVersion: 1 as const,
+        code: "OUTCOME_UNKNOWN" as const,
+        sourceState: "PROVIDER_STARTED" as const,
+        providerReceipt: "UNKNOWN" as const,
+        providerUsage: "UNKNOWN" as const,
+        providerCost: "UNKNOWN" as const,
+        reconciledAt,
+        reconciledBy: "workbench-design-reconciliation",
+        sourceAttemptChecksum: request.expectedAttemptChecksum,
+      };
+      const reconciledAttempt = DesignGenerationAttemptSchema.parse({
+        ...attempt,
+        state: "OUTCOME_UNKNOWN",
+        updatedAt: reconciledAt,
+        failureCode: "OUTCOME_UNKNOWN",
+        outcomeUnknown,
+        ...(attempt.executionEvidence ? { executionEvidence: executionEvidence("RESPONSE_UNKNOWN", attempt.executionEvidence, reconciledAt) } : {}),
+      });
+      const historyRow = await tx.getDocument(request.projectId, request.projectVersion, "design-generation-attempt-history");
+      const existingHistory = historyRow ? DesignGenerationAttemptHistorySchema.parse(mapRowToDocument(historyRow)) : undefined;
+      if (!existingHistory?.records.some((record) => record.attemptId === attempt.attemptId)) {
+        const history = DesignGenerationAttemptHistorySchema.parse({
+          schemaVersion: 1,
+          documentType: "design-generation-attempt-history",
+          projectId: request.projectId,
+          projectVersion: request.projectVersion,
+          createdAt: existingHistory?.createdAt ?? attempt.createdAt,
+          updatedAt: reconciledAt,
+          records: [...(existingHistory?.records ?? []), attempt],
+        });
+        await saveDocumentCASInTransaction(tx, history, historyRow?.rowVersion ?? null, historyRow?.checksum ?? null);
+      }
+      await saveDocumentCASInTransaction(tx, reconciledAttempt, attemptRow.rowVersion, attemptRow.checksum);
+      await tx.failOperation({
+        operation: "workbench.design",
+        key: request.operationKey,
+        payloadHash: request.operationPayloadHash,
+        result: {
+          status: "FAILED",
+          code: "OUTCOME_UNKNOWN",
+          outcome: "OUTCOME_UNKNOWN",
+          attemptId: request.attemptId,
+          providerReceipt: "UNKNOWN",
+          providerUsage: "UNKNOWN",
+          providerCost: "UNKNOWN",
+          canonicalDesignPersisted: false,
+          reconciledAt,
+        },
+      });
+      return reconciledAttempt;
+    });
   }
   async replayDesignCandidate(rawRequest: DesignCandidateReplayRequest): Promise<DesignGenerationResult> {
     let request: DesignCandidateReplayRequest;
@@ -792,6 +917,7 @@ export class DesignAgentService {
     if (candidate.projectId !== request.projectId || candidate.projectVersion !== request.projectVersion || candidateChecksum !== sourceAttempt.normalizedCandidateChecksum) throw new DesignError("DESIGN_CONTRACT_STALE", "The persisted Design candidate checksum or project binding is invalid.");
     let attempt = existingReplay;
     if (!attempt) {
+      const previousAttempt = currentAttempt;
       if (currentAttempt) await this.preserveAttemptHistory(currentAttempt);
       const observation = sourceAttempt.providerObservation;
       attempt = DesignGenerationAttemptSchema.parse({
@@ -829,7 +955,7 @@ export class DesignAgentService {
         replayNormalizedCandidateChecksum: candidateChecksum,
         ...(observation ? { providerObservation: observation } : {}),
       });
-      attempt = await this.saveAttempt(attempt);
+      attempt = await this.saveAttempt(attempt, previousAttempt);
     }
     return this.admitCandidate(admissionInput, attempt, candidate);
   }

@@ -30,6 +30,7 @@ export const WorkbenchActionSchema = z.enum([
   "REQUEST_PLANNING_CHANGES",
   "GENERATE_ARCHITECTURE_REVIEW",
   "GENERATE_DESIGN",
+  "RECONCILE_DESIGN_OUTCOME_UNKNOWN",
   "DATABASE_DECISION",
   "DEPENDENCY_APPROVAL",
   "DESIGN_SELECTION",
@@ -77,6 +78,17 @@ export type WorkbenchGenerateDesignRequest = z.infer<typeof GenerateDesignReques
 export const createWorkbenchGenerateDesignRequest = (projectId: string): WorkbenchGenerateDesignRequest =>
   GenerateDesignRequestSchema.parse({ action: "generate-design", projectId });
 
+export const ReconcileDesignOutcomeUnknownRequestSchema = z.object({
+  action: z.literal("reconcile-design-outcome-unknown"),
+  projectId: ProjectIdSchema,
+  projectVersion: z.number().int().positive(),
+  expectedRowVersion: z.number().int().positive(),
+  attemptId: ProjectIdSchema,
+  operationKey: z.string().min(1).max(180),
+  expectedAttemptChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
+export type WorkbenchReconcileDesignOutcomeUnknownRequest = z.infer<typeof ReconcileDesignOutcomeUnknownRequestSchema>;
+
 export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("create"), requestText: z.string().min(1).max(WORKBENCH_REQUEST_BYTES), languageHint: z.string().max(64).optional(), operatorLanguage: OperatorLanguageSchema.optional() }).strict(),
   z.object({ action: z.literal("status"), projectId: ProjectIdSchema }).strict(),
@@ -90,6 +102,7 @@ export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("request-planning-changes"), projectId: ProjectIdSchema, reason: z.string().trim().min(1).max(4000) }).strict(),
   z.object({ action: z.literal("generate-architecture-review"), projectId: ProjectIdSchema }).strict(),
   GenerateDesignRequestSchema,
+  ReconcileDesignOutcomeUnknownRequestSchema,
   z.object({ action: z.literal("database-decision"), projectId: ProjectIdSchema, mode: z.enum(["NONE", "SUPABASE_NEW", "SUPABASE_EXISTING"]), reason: z.string().max(4000).optional() }).strict(),
   z.object({ action: z.literal("dependency-approval"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("design-selection"), projectId: ProjectIdSchema, selectedDirectionId: ProjectIdSchema }).strict(),
@@ -276,6 +289,8 @@ export function actionsForWorkbenchState(input: {
   implementationReady?: boolean;
   canRefreshClarifications?: boolean;
   canGenerateArchitectureReview?: boolean;
+  hasIndeterminateDesignAttempt?: boolean;
+  designFreshAttemptBlocked?: boolean;
 }): WorkbenchAction[] {
   switch (input.workflowState) {
     case "CLARIFYING":
@@ -285,6 +300,8 @@ export function actionsForWorkbenchState(input: {
     case "AWAITING_PLANNING_GENERATION": return ["GENERATE_PLANNING", "REQUEST_BRIEF_CHANGES"];
     case "AWAITING_PLANNING_APPROVAL": return input.hasPlanning ? ["APPROVE_PLANNING", "REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL"] : [];
     case "AWAITING_DESIGN_SELECTION":
+      if (input.hasIndeterminateDesignAttempt) return ["RECONCILE_DESIGN_OUTCOME_UNKNOWN"];
+      if (input.designFreshAttemptBlocked) return [];
       return [
         ...(!input.hasDesigns ? ["GENERATE_DESIGN"] as WorkbenchAction[] : []),
         ...(input.hasPlanning ? ["REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL"] as WorkbenchAction[] : []),

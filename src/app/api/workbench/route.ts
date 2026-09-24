@@ -14,7 +14,7 @@ const safeTopLevelFieldNames = (value: unknown) => {
   const knownRequestFields = new Set([
     "action", "projectId", "requestText", "languageHint", "operatorLanguage", "answers", "requestId",
     "briefChecksum", "expectedRowVersion", "approvalNote", "projectVersion", "reason", "requirementKeys",
-    "assetBindings", "correction", "selectedDirectionId", "mode",
+    "assetBindings", "correction", "selectedDirectionId", "mode", "attemptId", "operationKey", "expectedAttemptChecksum",
   ]);
   return Object.entries(value as Record<string, unknown>)
     .filter(([key, fieldValue]) => knownRequestFields.has(key) || Array.isArray(fieldValue))
