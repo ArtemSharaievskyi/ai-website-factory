@@ -99,6 +99,7 @@ import { createGitSourceCurrentnessPort } from "@/runtime/source-head";
 import { buildDesignContext } from "@/agents/design/context";
 import { PlanningPackageSchema } from "@/agents/planner/contracts";
 import { parseDependencySpec } from "@/dependencies/authority";
+import { resolveSkillRegistryRoot } from "@/skills/runtime/registry-root";
 export const RUNTIME_MODES = ["DETERMINISTIC_TEST", "REAL_E2E"] as const;
 export type FactoryRuntimeMode = (typeof RUNTIME_MODES)[number];
 export type ProductionAdapterIdentity = {
@@ -234,7 +235,7 @@ export function createProductionFactoryRuntime(
     context7: context7Config.enabled ? "configured" : options.context7 ?? "not-needed",
     codebaseMemory: codebaseConfig.enabled ? "configured" : "not-needed",
   });
-  const skillRegistry = new SkillRegistry(path.join(process.cwd(), "skills"));
+  const skillRegistry = new SkillRegistry(resolveSkillRegistryRoot());
   const resolveArchitectureSkills = async (
     input: import("@/agents/reviewers/architecture/contracts").ArchitectureReviewInput,
   ) =>
