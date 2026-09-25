@@ -43,7 +43,7 @@ function brief(): RequirementSpecification {
   });
 }
 
-async function fixture(options: { provider?: (input: Parameters<typeof buildDesignDirectionSet>[0]) => Promise<ReturnType<typeof buildDesignDirectionSet>>; source?: SourceCurrentnessPort; canonicalUnresolved?: boolean; resolveSkills?: (input: DesignAgentInput) => Promise<AgentSkillSelection> } = {}) {
+async function fixture(options: { provider?: (input: Parameters<typeof buildDesignDirectionSet>[0]) => Promise<ReturnType<typeof buildDesignDirectionSet>>; source?: SourceCurrentnessPort; canonicalUnresolved?: boolean; resolveSkills?: (input: DesignAgentInput) => Promise<AgentSkillSelection>; professionalPipeline?: { run: (input: unknown) => Promise<unknown> } } = {}) {
   const database = new InMemoryPersistenceDatabase();
   const legacyBrief = brief();
   const migratedBrief = migrateLegacyBriefToCanonicalBriefV3(legacyBrief);
@@ -74,7 +74,7 @@ async function fixture(options: { provider?: (input: Parameters<typeof buildDesi
   const entry = new TrialEntryService({ database, createLeadAgent: () => { throw new Error("SYNTHETIC_LEAD_NOT_EXPECTED"); } });
   let providerCalls = 0;
   const provider = { proposeDesignDirections: async (input: Parameters<typeof buildDesignDirectionSet>[0]) => { providerCalls += 1; return options.provider ? options.provider(input) : buildDesignDirectionSet(input); } };
-  const design = new DesignAgentService({ database, memory: new FakeDesignMemoryPort(), provider, ...(options.source ? { source: options.source } : {}), ...(options.resolveSkills ? { resolveSkills: options.resolveSkills } : {}) });
+  const design = new DesignAgentService({ database, memory: new FakeDesignMemoryPort(), provider, ...(options.source ? { source: options.source } : {}), ...(options.resolveSkills ? { resolveSkills: options.resolveSkills } : {}), ...(options.professionalPipeline ? { professionalPipeline: options.professionalPipeline as never } : {}) });
   const app = new WorkbenchApplication({ database, entry, getWorkflowScope: () => ({ design, planner: undefined, architectureReviewer: undefined, orchestrator: undefined, contractAuditor: undefined } as never) });
   return { database, documents, entry, app, design, planning, review, providerCalls: () => providerCalls };
 }
@@ -146,6 +146,22 @@ describe("canonical Workbench Design generation boundary", () => {
     const operation = await state.database.transaction((tx) => tx.getOperation({ operation: "workbench.design", key: fresh.operationKey }));
     expect(operation?.status).toBe("SUCCEEDED");
     expect(operation?.history).toEqual([expect.objectContaining({ status: "FAILED" })]);
+  });
+
+  it("carries a Phase 7F inner predicate from Design through Workbench durable readback", async () => {
+    const state = await fixture({ professionalPipeline: { run: async () => { throw new Error("PHASE_7F_RECONCILIATION_EVIDENCE_INVALID:COMPONENT_SOURCE_EVIDENCE_MISSING"); } } });
+    await expect(state.app.handle({ action: "generate-design", projectId })).rejects.toMatchObject({ code: "DESIGN_ADMISSION_FAILED" });
+    const attempt = await state.documents.get(projectId, 1, "design-generation-attempt");
+    expect(attempt).toMatchObject({
+      state: "ADMISSION_FAILED",
+      admissionFindings: [{
+        code: "PHASE_7F_RECONCILIATION_EVIDENCE_INVALID",
+        actualCategory: "COMPONENT_SOURCE_EVIDENCE_MISSING",
+        diagnostic: { innerPredicate: "COMPONENT_SOURCE_EVIDENCE_MISSING", evidenceStatus: "MISSING" },
+      }],
+    });
+    expect(await state.documents.get(projectId, 1, "design-directions")).toBeNull();
+    expect(state.providerCalls()).toBe(1);
   });
 
   it("terminalizes a pre-provider setup failure after claim without recording provider activity", async () => {

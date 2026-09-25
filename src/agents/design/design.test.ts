@@ -96,6 +96,30 @@ describe("Design Agent workflow", () => {
     expect(attempt).toMatchObject({ state: "ADMISSION_FAILED", failureCode: "DESIGN_ADMISSION_FAILED", providerObservation: { model: "synthetic-design-model", requestId: "req_design_admission", inputTokens: 29, outputTokens: 13, totalTokens: 42, responseReceived: true }, providerAttempted: true, responseReceived: true, providerModel: "synthetic-design-model", providerRequestId: "req_design_admission", providerResultChecksum: expect.stringMatching(/^[a-f0-9]{64}$/), normalizedCandidateSchemaVersion: 1, normalizedCandidateChecksum: expect.stringMatching(/^[a-f0-9]{64}$/), normalizedCandidate: { directions: expect.any(Array) }, admissionFindingCount: 1, admissionFindings: [{ code: "FONTPAIR_SOURCE_UNAVAILABLE", fieldPath: "professionalDesign", validatorPredicate: "ProfessionalDesignCapabilityPipeline.run", diagnostic: { stage: "FONT_SOURCE_DISCOVERY", source: "FONTPAIR", code: "FONTPAIR_SOURCE_UNAVAILABLE" } }] });
     expect(attempt.admissionFindingsChecksum).toMatch(/^[a-f0-9]{64}$/);
   });
+  it("retains the Phase 7F inner predicate and evidence status", async () => {
+    const fixture = await designServiceFixture();
+    const providerSet = { ...buildDesignDirectionSet(fixture.input), provider: { name: "openai", used: true, model: "synthetic-design-model", requestId: "req_phase7f_inner", responseReceived: true, finishReason: "stop", refusalPresent: false, parsedPresent: true, inputTokens: 31, outputTokens: 17, totalTokens: 48 } };
+    const service = new DesignAgentService({
+      database: fixture.database,
+      memory: fixture.memory,
+      provider: { proposeDesignDirections: async () => providerSet },
+      professionalPipeline: { run: async () => { throw new Error("PHASE_7F_RECONCILIATION_EVIDENCE_INVALID:DESIGN_TOOL_EVIDENCE_MISSING"); } } as never,
+    });
+    await expect(service.generateDesignDirections(fixture.input)).rejects.toMatchObject({
+      code: "DESIGN_ADMISSION_FAILED",
+      admissionDiagnostic: {
+        code: "PHASE_7F_RECONCILIATION_EVIDENCE_INVALID",
+        innerPredicate: "DESIGN_TOOL_EVIDENCE_MISSING",
+        evidenceStatus: "MISSING",
+      },
+    });
+    const attempt = DesignGenerationAttemptSchema.parse(await new DocumentRepository(fixture.database).get(fixture.value.projectId, 1, "design-generation-attempt"));
+    expect(attempt.admissionFindings).toMatchObject([{
+      code: "PHASE_7F_RECONCILIATION_EVIDENCE_INVALID",
+      actualCategory: "DESIGN_TOOL_EVIDENCE_MISSING",
+      diagnostic: { innerPredicate: "DESIGN_TOOL_EVIDENCE_MISSING", evidenceStatus: "MISSING" },
+    }]);
+  });
   it("retains only bounded diagnostics when a professional admission cause is unknown", async () => {
     const fixture = await designServiceFixture();
     const providerSet = { ...buildDesignDirectionSet(fixture.input), provider: { name: "openai", used: true, model: "synthetic-design-model", requestId: "req_design_unknown_admission", responseReceived: true, finishReason: "stop", refusalPresent: false, parsedPresent: true, inputTokens: 29, outputTokens: 13, totalTokens: 42 } };

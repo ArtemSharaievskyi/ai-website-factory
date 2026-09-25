@@ -89,6 +89,29 @@ describe("safe Web Workbench failure diagnostics D409-1..D409-24", () => {
     expect(getWorkbenchDiagnosticEvents().at(-1)?.designAdmissionDiagnostic?.code).toBe("DESIGN_COMPONENT_CANDIDATE_SET_TOO_SMALL");
   });
 
+  it("projects the Phase 7F inner predicate without exposing admission details", () => {
+    const result = failure(new DesignError("DESIGN_ADMISSION_FAILED", "private admission detail", undefined, undefined, undefined, {
+      schemaVersion: 1,
+      boundary: "PROFESSIONAL_CAPABILITY_PIPELINE",
+      stage: "CAPABILITY_VALIDATION",
+      source: "CAPABILITY_VALIDATOR",
+      code: "PHASE_7F_RECONCILIATION_EVIDENCE_INVALID",
+      innerPredicate: "DESIGN_TOOL_EVIDENCE_MISSING",
+      evidenceStatus: "MISSING",
+      retryability: "REQUIRES_REASSESSMENT",
+    }));
+    expect(result).toMatchObject({ status: 422, response: {
+      code: "DESIGN_ADMISSION_FAILED",
+      reasonCode: "DESIGN_TOOL_EVIDENCE_MISSING",
+      designAdmissionDiagnostic: {
+        code: "PHASE_7F_RECONCILIATION_EVIDENCE_INVALID",
+        innerPredicate: "DESIGN_TOOL_EVIDENCE_MISSING",
+        evidenceStatus: "MISSING",
+      },
+    } });
+    expect(JSON.stringify(result.response)).not.toContain("private admission detail");
+  });
+
   it("maps Planning admission blockers to a typed bounded validation response", () => {
     const result = failure(new PlannerError("ARCHITECTURE_BLOCKED", "Planning refresh admission failed: PLANNING_TRACEABILITY_UNKNOWN_REFERENCE:brief:customerUxDirection."));
     expect(result).toMatchObject({ status: 422, response: { code: "ARCHITECTURE_BLOCKED", category: "VALIDATION", reasonCode: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE" } });

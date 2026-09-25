@@ -202,18 +202,28 @@ function admissionFindingForPipeline(code: string, diagnostic: DesignAdmissionDi
   return admissionFinding({
     code,
     expectedInvariant: "Professional Design capability admission must complete with current approved evidence.",
-    actualCategory: code,
+    actualCategory: diagnostic.innerPredicate ?? code,
     validatorPredicate: "ProfessionalDesignCapabilityPipeline.run",
     fieldPath: "professionalDesign",
     diagnostic,
   });
 }
 
+const safeAdmissionCode = (value: string | undefined) => value && /^[A-Z][A-Z0-9_:-]{0,119}$/.test(value) ? value : undefined;
+const evidenceStatusForPredicate = (predicate: string | undefined): DesignAdmissionDiagnostic["evidenceStatus"] => {
+  if (!predicate) return "UNKNOWN";
+  if (/(?:MISSING|UNAVAILABLE|NOT_FOUND|UNRESOLVED)/.test(predicate)) return "MISSING";
+  if (/(?:INVALID|MISMATCH|STALE|VIOLATION|FAILED|CONTRACT)/.test(predicate)) return "INVALID";
+  return "UNKNOWN";
+};
+
 function professionalAdmissionDiagnostic(error: unknown): DesignAdmissionDiagnostic {
   const message = error instanceof Error ? error.message : "";
   const objectCode = error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : undefined;
   const candidate = objectCode ?? message.split(":", 1)[0];
   const code = /^[A-Z][A-Z0-9_:-]{0,119}$/.test(candidate) ? candidate : "DESIGN_CAPABILITY_PIPELINE_UNKNOWN";
+  const phase7fPrefix = "PHASE_7F_RECONCILIATION_EVIDENCE_INVALID";
+  const innerPredicate = code === phase7fPrefix ? safeAdmissionCode(message.startsWith(`${phase7fPrefix}:`) ? message.slice(phase7fPrefix.length + 1).split(":", 1)[0] : undefined) : undefined;
   const stage = code.startsWith("DESIGN_SKILL_") || code.startsWith("PHASE_7F_REQUIRED_DESIGN_CAPABILITY")
     ? "SKILL_COVERAGE"
     : code.startsWith("FONTPAIR_")
@@ -228,7 +238,7 @@ function professionalAdmissionDiagnostic(error: unknown): DesignAdmissionDiagnos
               ? "CAPABILITY_VALIDATION"
               : "UNKNOWN";
   const source = stage === "SKILL_COVERAGE" ? "APPROVED_SKILL_REGISTRY" : stage === "FONT_SOURCE_DISCOVERY" ? "FONTPAIR" : stage === "COMPONENT_SOURCE_DISCOVERY" ? "DESIGN_COMPONENT_SOURCES" : stage === "CAPABILITY_ASSEMBLY" ? "DEPENDENCY_AUTHORITY" : stage === "CAPABILITY_VALIDATION" ? (code.startsWith("IMPECCABLE_") ? "IMPECCABLE" : "CAPABILITY_VALIDATOR") : "UNKNOWN";
-  return DesignAdmissionDiagnosticSchema.parse({ schemaVersion: 1, boundary: "PROFESSIONAL_CAPABILITY_PIPELINE", stage, source, code, retryability: "REQUIRES_REASSESSMENT" });
+  return DesignAdmissionDiagnosticSchema.parse({ schemaVersion: 1, boundary: "PROFESSIONAL_CAPABILITY_PIPELINE", stage, source, code, ...(code === phase7fPrefix ? { ...(innerPredicate ? { innerPredicate } : {}), evidenceStatus: evidenceStatusForPredicate(innerPredicate) } : {}), retryability: "REQUIRES_REASSESSMENT" });
 }
 
 function admissionFindingsForReadiness(set: DesignDirectionSet, readiness: { blockingReasons: readonly string[] }): DesignAdmissionFinding[] {

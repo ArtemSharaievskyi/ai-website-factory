@@ -26,6 +26,8 @@ export const DesignAdmissionDiagnosticSchema = z.object({
   stage: z.enum(["SKILL_COVERAGE", "FONT_SOURCE_DISCOVERY", "COMPONENT_SOURCE_DISCOVERY", "CAPABILITY_ASSEMBLY", "CAPABILITY_VALIDATION", "UNKNOWN"]),
   source: z.enum(["APPROVED_SKILL_REGISTRY", "FONTPAIR", "DESIGN_COMPONENT_SOURCES", "IMPECCABLE", "DEPENDENCY_AUTHORITY", "CAPABILITY_VALIDATOR", "UNKNOWN"]),
   code: z.string().min(1).max(120).regex(/^[A-Z][A-Z0-9_:-]*$/),
+  innerPredicate: z.string().min(1).max(120).regex(/^[A-Z][A-Z0-9_:-]*$/).optional(),
+  evidenceStatus: z.enum(["MISSING", "INVALID", "UNKNOWN"]).optional(),
   retryability: z.enum(["NOT_RETRYABLE", "REQUIRES_REASSESSMENT", "UNKNOWN"]),
 }).strict();
 export type DesignAdmissionDiagnostic = z.infer<typeof DesignAdmissionDiagnosticSchema>;
