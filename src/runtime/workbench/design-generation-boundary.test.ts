@@ -10,7 +10,7 @@ import type { PlannerAgentInput, PlanningPackage } from "@/agents/planner/contra
 import { ArchitectureReviewRecordSchema } from "@/domain/review/schema";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
-import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
+import { DocumentRepository, ProjectRepository, ProjectVersionRepository, saveDocumentCASInTransaction } from "@/persistence/database/repositories";
 import { TrialEntryService } from "@/runtime/trial-entry/service";
 import { DesignAgentService } from "@/agents/design/service";
 import { FakeDesignMemoryPort } from "@/agents/design/memory";
@@ -149,12 +149,41 @@ describe("canonical Workbench Design generation boundary", () => {
   });
 
   it("terminalizes a pre-provider setup failure after claim without recording provider activity", async () => {
-    const state = await fixture({ resolveSkills: async () => { throw new Error("SYNTHETIC_SKILL_RESOLUTION_FAILURE"); } });
-    await expect(state.app.handle({ action: "generate-design", projectId })).rejects.toMatchObject({ code: "DESIGN_PROVIDER_FAILED" });
+    const state = await fixture({ resolveSkills: async () => { throw new Error("SKILL_NOT_FOUND:synthetic"); } });
+    await expect(state.app.handle({ action: "generate-design", projectId })).rejects.toMatchObject({ code: "DESIGN_SETUP_FAILED" });
     const attempt = await state.documents.get(projectId, 1, "design-generation-attempt");
-    expect(attempt).toMatchObject({ state: "PROVIDER_FAILED", failureCode: "DESIGN_PROVIDER_FAILED", executionEvidence: { providerBoundary: "NOT_STARTED" } });
+    expect(attempt).toMatchObject({ state: "SETUP_FAILED", failureCode: "DESIGN_SETUP_FAILED", preProviderFailure: { code: "SKILL_NOT_FOUND", providerInvocation: "NOT_STARTED" }, failureDiagnostic: { requestAttempted: false, errorCode: "SKILL_NOT_FOUND" }, executionEvidence: { providerBoundary: "NOT_STARTED" } });
     expect(state.providerCalls()).toBe(0);
     expect(await state.documents.get(projectId, 1, "design-directions")).toBeNull();
+  });
+
+  it("reconciles a stranded claimed skill failure with CAS and permits exactly one fresh frontier", async () => {
+    const state = await fixture({ resolveSkills: async () => { throw new Error("SKILL_NOT_FOUND:synthetic"); } });
+    await expect(state.app.handle({ action: "generate-design", projectId })).rejects.toMatchObject({ code: "DESIGN_SETUP_FAILED" });
+    const failed = await state.documents.get(projectId, 1, "design-generation-attempt");
+    if (!failed || failed.documentType !== "design-generation-attempt") throw new Error("failed Design attempt missing");
+    const operation = await state.database.transaction((tx) => tx.getOperation({ operation: "workbench.design", key: failed.operationKey }));
+    if (!operation) throw new Error("Design operation missing");
+    await state.database.transaction((tx) => tx.reserveOperation({ operation: "workbench.design", key: failed.operationKey, payloadHash: operation.payloadHash }));
+    await state.database.transaction((tx) => tx.failOperation({ operation: "workbench.design", key: failed.operationKey, payloadHash: operation.payloadHash, result: { status: "FAILED", code: "SKILL_NOT_FOUND" } }));
+    const claimed = { ...failed, state: "CLAIMED" as const, updatedAt: timestamp, failureCode: undefined, failureDiagnostic: undefined, preProviderFailure: undefined };
+    await state.documents.save(claimed);
+    const stranded = await state.documents.get(projectId, 1, "design-generation-attempt");
+    if (!stranded || stranded.documentType !== "design-generation-attempt") throw new Error("stranded Design attempt missing");
+    const strandedRow = await state.database.transaction((tx) => tx.getDocument(projectId, 1, "design-generation-attempt"));
+    if (!strandedRow) throw new Error("stranded Design row missing");
+    const request = { action: "reconcile-design-pre-provider-failure" as const, projectId, projectVersion: 1, expectedRowVersion: 1, attemptId: stranded.attemptId, operationKey: stranded.operationKey, expectedAttemptChecksum: checksumPersistedDocument(stranded) };
+    expect(WorkbenchRequestSchema.safeParse(request).success).toBe(true);
+    await state.app.handle(request);
+    const reconciled = await state.documents.get(projectId, 1, "design-generation-attempt");
+    expect(reconciled).toMatchObject({ attemptId: stranded.attemptId, state: "SETUP_FAILED", failureCode: "SKILL_NOT_FOUND", preProviderFailure: { providerInvocation: "NOT_STARTED", providerReceipt: "NOT_ATTEMPTED", providerUsage: "NOT_AVAILABLE", providerCost: "NOT_AVAILABLE" } });
+    const history = await state.documents.get(projectId, 1, "design-generation-attempt-history");
+    expect(history).toMatchObject({ records: [expect.objectContaining({ attemptId: stranded.attemptId, state: "CLAIMED" })] });
+    const repeated = await state.app.handle(request);
+    expect(repeated.designs).toHaveLength(0);
+    expect(state.providerCalls()).toBe(0);
+    await expect(state.app.handle({ action: "generate-design", projectId })).rejects.toMatchObject({ code: "DESIGN_SETUP_FAILED" });
+    await expect(state.database.transaction((tx) => saveDocumentCASInTransaction(tx, { ...stranded, state: "PROVIDER_STARTED", updatedAt: timestamp }, strandedRow.rowVersion, strandedRow.checksum))).rejects.toMatchObject({ code: "PERSISTENCE_CONFLICT" });
   });
 
   it("rejects a stale Architecture Review before the provider boundary", async () => {

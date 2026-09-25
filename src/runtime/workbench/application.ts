@@ -199,6 +199,9 @@ export class WorkbenchApplication {
       case "reconcile-design-outcome-unknown":
         await this.reconcileDesignOutcomeUnknown(request);
         return this.project(request.projectId);
+      case "reconcile-design-pre-provider-failure":
+        await this.reconcileDesignPreProviderFailure(request);
+        return this.project(request.projectId);
       case "request-planning-changes":
         await this.requestPlanningChanges(request.projectId, request.reason);
         return this.project(request.projectId);
@@ -632,7 +635,7 @@ export class WorkbenchApplication {
     try {
       const scope = await this.scope(projectId);
       if (!scope.design) throw new WorkbenchActionError("DESIGN_RUNTIME_UNAVAILABLE", "The canonical Design runtime is not configured. The project was not changed.");
-      const terminalAttempt = existingAttempt?.documentType === "design-generation-attempt" && ["PROVIDER_FAILED", "WIRE_FAILED", "DOMAIN_FAILED", "ADMISSION_FAILED", "PERSISTENCE_FAILED"].includes(existingAttempt.state);
+      const terminalAttempt = existingAttempt?.documentType === "design-generation-attempt" && ["SETUP_FAILED", "PROVIDER_FAILED", "WIRE_FAILED", "DOMAIN_FAILED", "ADMISSION_FAILED", "PERSISTENCE_FAILED"].includes(existingAttempt.state);
       const freshAttemptAuthorization = reservation.status === "NEW" && terminalAttempt
         ? { schemaVersion: 1 as const, kind: "EXPLICIT_USER_AUTHORIZATION" as const, authorizationId: randomUUID(), authorizedBy: "workbench:top-level-dispatch", authorizedAt: new Date().toISOString() }
         : undefined;
@@ -655,6 +658,24 @@ export class WorkbenchApplication {
     const scope = await this.scope(request.projectId);
     if (!scope.design) throw new WorkbenchActionError("DESIGN_RUNTIME_UNAVAILABLE", "The canonical Design runtime is not configured. The project was not changed.");
     await scope.design.reconcileIndeterminateDesignAttempt({
+      projectId: request.projectId,
+      projectVersion: request.projectVersion,
+      attemptId: request.attemptId,
+      operationKey,
+      operationPayloadHash: payloadHash,
+      expectedRowVersion: request.expectedRowVersion,
+      expectedAttemptChecksum: request.expectedAttemptChecksum,
+    });
+  }
+
+  private async reconcileDesignPreProviderFailure(request: Extract<WorkbenchRequest, { action: "reconcile-design-pre-provider-failure" }>) {
+    const current = await this.projects.getWithVersion(request.projectId);
+    if (!current || current.project.currentVersion !== request.projectVersion || current.rowVersion !== request.expectedRowVersion) throw new WorkbenchActionError("DESIGN_RECONCILIATION_STALE", "The Design pre-provider reconciliation request is stale.");
+    const { operationKey, payloadHash } = await this.designGenerationInput(request.projectId, current);
+    if (operationKey !== request.operationKey) throw new WorkbenchActionError("DESIGN_RECONCILIATION_STALE", "The Design pre-provider reconciliation request is bound to a different operation frontier.");
+    const scope = await this.scope(request.projectId);
+    if (!scope.design) throw new WorkbenchActionError("DESIGN_RUNTIME_UNAVAILABLE", "The canonical Design runtime is not configured. The project was not changed.");
+    await scope.design.reconcilePreProviderFailure({
       projectId: request.projectId,
       projectVersion: request.projectVersion,
       attemptId: request.attemptId,
@@ -801,5 +822,5 @@ export class WorkbenchApplication {
 }
 
 export const isWorkbenchAction = (value: string): value is WorkbenchAction => [
-  "ANSWER_LEAD_CLARIFICATIONS", "REFRESH_LEAD_CLARIFICATIONS", "APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES", "GENERATE_PLANNING", "APPROVE_PLANNING", "REQUEST_PLANNING_CHANGES", "GENERATE_ARCHITECTURE_REVIEW", "GENERATE_DESIGN", "RECONCILE_DESIGN_OUTCOME_UNKNOWN", "DATABASE_DECISION", "DEPENDENCY_APPROVAL", "DESIGN_SELECTION", "START_IMPLEMENTATION",
+  "ANSWER_LEAD_CLARIFICATIONS", "REFRESH_LEAD_CLARIFICATIONS", "APPROVE_BRIEF", "REQUEST_BRIEF_CHANGES", "GENERATE_PLANNING", "APPROVE_PLANNING", "REQUEST_PLANNING_CHANGES", "GENERATE_ARCHITECTURE_REVIEW", "GENERATE_DESIGN", "RECONCILE_DESIGN_OUTCOME_UNKNOWN", "RECONCILE_DESIGN_PRE_PROVIDER_FAILURE", "DATABASE_DECISION", "DEPENDENCY_APPROVAL", "DESIGN_SELECTION", "START_IMPLEMENTATION",
 ].includes(value);

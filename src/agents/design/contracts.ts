@@ -19,7 +19,7 @@ export type DesignReadiness = z.infer<typeof DesignReadinessSchema>;
 export const DesignGenerationResultSchema = z.object({ directionSet: DesignDirectionSetSchema, readiness: DesignReadinessSchema }).strict();
 export type DesignGenerationResult = z.infer<typeof DesignGenerationResultSchema>;
 
-export const DesignGenerationAttemptStateSchema = z.enum(["CREATED", "CLAIMED", "REPLAY_STARTED", "PROVIDER_STARTED", "OUTCOME_UNKNOWN", "PROVIDER_FAILED", "WIRE_FAILED", "DOMAIN_FAILED", "ADMISSION_FAILED", "PERSISTENCE_FAILED", "PERSISTED"]);
+export const DesignGenerationAttemptStateSchema = z.enum(["CREATED", "CLAIMED", "REPLAY_STARTED", "PROVIDER_STARTED", "OUTCOME_UNKNOWN", "SETUP_FAILED", "PROVIDER_FAILED", "WIRE_FAILED", "DOMAIN_FAILED", "ADMISSION_FAILED", "PERSISTENCE_FAILED", "PERSISTED"]);
 export const DesignAdmissionFindingSchema = z.object({
   code: z.string().min(1).max(120).regex(/^[A-Za-z0-9_:-]+$/),
   severity: z.enum(["BLOCKING", "WARNING"]),
@@ -76,6 +76,19 @@ export const DesignOutcomeUnknownEvidenceSchema = z.object({
   sourceAttemptChecksum: z.string().regex(/^[a-f0-9]{64}$/),
 }).strict();
 export type DesignOutcomeUnknownEvidence = z.infer<typeof DesignOutcomeUnknownEvidenceSchema>;
+export const DesignPreProviderFailureEvidenceSchema = z.object({
+  schemaVersion: z.literal(1),
+  code: z.string().min(1).max(120).regex(/^[A-Za-z0-9_:-]+$/),
+  sourceState: z.literal("CLAIMED"),
+  providerInvocation: z.literal("NOT_STARTED"),
+  providerReceipt: z.literal("NOT_ATTEMPTED"),
+  providerUsage: z.literal("NOT_AVAILABLE"),
+  providerCost: z.literal("NOT_AVAILABLE"),
+  reconciledAt: z.string().datetime(),
+  reconciledBy: z.string().min(1).max(120).regex(/^[A-Za-z0-9:_-]+$/),
+  sourceAttemptChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
+export type DesignPreProviderFailureEvidence = z.infer<typeof DesignPreProviderFailureEvidenceSchema>;
 export const DesignFreshAttemptAuthorizationSchema = z.object({
   schemaVersion: z.literal(1),
   kind: z.literal("EXPLICIT_USER_AUTHORIZATION"),
@@ -125,6 +138,7 @@ export const DesignGenerationAttemptSchema = z.object({
   failureDiagnostic: ProviderFailureDiagnosticSchema.optional(),
   providerObservation: DesignProviderObservationSchema.optional(),
   outcomeUnknown: DesignOutcomeUnknownEvidenceSchema.optional(),
+  preProviderFailure: DesignPreProviderFailureEvidenceSchema.optional(),
   freshAttemptAuthorization: DesignFreshAttemptAuthorizationSchema.optional(),
 }).strict();
 export type DesignGenerationAttempt = z.infer<typeof DesignGenerationAttemptSchema>;
@@ -158,6 +172,17 @@ export const DesignOutcomeUnknownReconciliationRequestSchema = z.object({
   expectedAttemptChecksum: z.string().regex(/^[a-f0-9]{64}$/),
 }).strict();
 export type DesignOutcomeUnknownReconciliationRequest = z.input<typeof DesignOutcomeUnknownReconciliationRequestSchema>;
+
+export const DesignPreProviderFailureReconciliationRequestSchema = z.object({
+  projectId: z.string().uuid(),
+  projectVersion: z.number().int().positive(),
+  attemptId: z.string().uuid(),
+  operationKey: z.string().min(1).max(180),
+  operationPayloadHash: z.string().regex(/^[a-f0-9]{64}$/),
+  expectedRowVersion: z.number().int().positive(),
+  expectedAttemptChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
+export type DesignPreProviderFailureReconciliationRequest = z.input<typeof DesignPreProviderFailureReconciliationRequestSchema>;
 
 export const DesignAdmissionInvalidationRequestSchema = z.object({
   projectId: z.string().uuid(),

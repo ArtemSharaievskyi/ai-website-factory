@@ -31,6 +31,7 @@ export const WorkbenchActionSchema = z.enum([
   "GENERATE_ARCHITECTURE_REVIEW",
   "GENERATE_DESIGN",
   "RECONCILE_DESIGN_OUTCOME_UNKNOWN",
+  "RECONCILE_DESIGN_PRE_PROVIDER_FAILURE",
   "DATABASE_DECISION",
   "DEPENDENCY_APPROVAL",
   "DESIGN_SELECTION",
@@ -89,6 +90,17 @@ export const ReconcileDesignOutcomeUnknownRequestSchema = z.object({
 }).strict();
 export type WorkbenchReconcileDesignOutcomeUnknownRequest = z.infer<typeof ReconcileDesignOutcomeUnknownRequestSchema>;
 
+export const ReconcileDesignPreProviderFailureRequestSchema = z.object({
+  action: z.literal("reconcile-design-pre-provider-failure"),
+  projectId: ProjectIdSchema,
+  projectVersion: z.number().int().positive(),
+  expectedRowVersion: z.number().int().positive(),
+  attemptId: ProjectIdSchema,
+  operationKey: z.string().min(1).max(180),
+  expectedAttemptChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
+export type WorkbenchReconcileDesignPreProviderFailureRequest = z.infer<typeof ReconcileDesignPreProviderFailureRequestSchema>;
+
 export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("create"), requestText: z.string().min(1).max(WORKBENCH_REQUEST_BYTES), languageHint: z.string().max(64).optional(), operatorLanguage: OperatorLanguageSchema.optional() }).strict(),
   z.object({ action: z.literal("status"), projectId: ProjectIdSchema }).strict(),
@@ -103,6 +115,7 @@ export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("generate-architecture-review"), projectId: ProjectIdSchema }).strict(),
   GenerateDesignRequestSchema,
   ReconcileDesignOutcomeUnknownRequestSchema,
+  ReconcileDesignPreProviderFailureRequestSchema,
   z.object({ action: z.literal("database-decision"), projectId: ProjectIdSchema, mode: z.enum(["NONE", "SUPABASE_NEW", "SUPABASE_EXISTING"]), reason: z.string().max(4000).optional() }).strict(),
   z.object({ action: z.literal("dependency-approval"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("design-selection"), projectId: ProjectIdSchema, selectedDirectionId: ProjectIdSchema }).strict(),
