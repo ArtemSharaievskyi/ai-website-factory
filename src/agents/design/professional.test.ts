@@ -46,6 +46,20 @@ describe("professional design capability pipeline", () => {
     expect(result.directionSet.directions.every((direction) => direction.professionalDesign?.componentDiscovery.length === 4)).toBe(true);
   });
 
+  it("admits a provider direction that explicitly prohibits perpetual motion", async () => {
+    const base = directionSet();
+    const providerDirectionSet = DesignDirectionSetSchema.parse({
+      ...base,
+      directions: base.directions.map((item, index) => index === 2
+        ? { ...item, motionPolicy: "Short opacity transitions are allowed, but the page should not drift, parallax, or animate continuously." }
+        : item),
+    });
+    const result = await pipeline().run({ projectId: randomUUID(), projectVersion: 1, directionSet: providerDirectionSet, prompt: "A bounded design", idempotencyKey: "professional-negative-motion-language" });
+    expect(result.directionSet.directions).toHaveLength(3);
+    expect(result.impeccableDetector.status).toBe("PASS");
+    expect(result.directionSet.directions.every((direction) => direction.professionalDesign?.currentness.status === "CURRENT")).toBe(true);
+  });
+
   it("activates bounded typography, palette, and Aceternity discovery only when the direction requests it", async () => {
     const base = directionSet();
     const requested = DesignDirectionSetSchema.parse({

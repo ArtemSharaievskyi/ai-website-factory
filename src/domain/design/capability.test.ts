@@ -32,6 +32,26 @@ describe("professional design capability contracts", () => {
     expect(validateDirectionDesignCapability("direction", base, { requireLiveEvidence: true }).issues.some((issue) => issue.code === "DESIGN_TOOL_EVIDENCE_MISSING")).toBe(false);
   });
 
+  it("covers every inner Phase 7F capability predicate with bounded synthetic candidates", () => {
+    const base = capability("matrix");
+    const cases = [
+      ["DESIGN_CONTRACT_STALE", { ...base, currentness: { status: "STALE", checkedAt: base.currentness.checkedAt } }],
+      ["TYPOGRAPHY_CONTRACT_MISMATCH", { ...base, typography: { ...base.typography, normalizedPair: { display: "Other", body: base.typography.bodyFamily } } }],
+      ["VISUAL_TOKEN_VIOLATION", { ...base, visualSystem: { ...base.visualSystem, colorTokens: base.visualSystem.colorTokens.slice(0, 3) } }],
+      ["INTERACTION_CONTRACT_MISSING", { ...base, interactions: [] }],
+      ["UNAPPROVED_DESIGN_DEPENDENCY", capability("matrix-motion", "MOTION")],
+      ["MOTION_STRATEGY_MISMATCH", { ...base, motion: { ...base.motion, dependency: { packageName: "motion", versionSpec: "12.43.0" } } }],
+      ["DESIGN_RESOURCE_CONTRACT_INVALID", { ...base, frontendResources: { currentness: { status: "STALE", checkedAt: base.currentness.checkedAt } } }],
+      ["DESIGN_TOOL_EVIDENCE_MISSING", { ...base, toolProvenance: [{ ...base.toolProvenance[0]!, liveEvidence: false }] }],
+      ["IMPECCABLE_DETECTOR_FAILED", { ...base, passEvidence: base.passEvidence.map((item) => item.capabilityId === "impeccable-antipattern-detector" ? { ...item, status: "FAIL" as const } : item) }],
+      ["COMPONENT_SOURCE_EVIDENCE_MISSING", { ...base, componentDiscovery: base.componentDiscovery.slice(0, 3) }],
+    ] as const;
+    expect(validateDirectionDesignCapability("valid", base, { requireLiveEvidence: true }).valid).toBe(true);
+    for (const [code, candidate] of cases) expect(validateDirectionDesignCapability("synthetic", candidate as never, { requireLiveEvidence: true }).issues.some((issue) => issue.code === code)).toBe(true);
+    const duplicateVisuals = ["one", "two", "three"].map(() => ({ id: randomUUID(), professionalDesign: capability("matrix") }));
+    expect(validateExactThreeDesignCapabilities(duplicateVisuals, { requireLiveEvidence: true }).issues.some((issue) => issue.code === "VISUAL_TOKEN_VIOLATION")).toBe(true);
+  });
+
   it("binds a Motion amendment only after Dependency Authority approval", () => {
     const proposed = buildDesignDependencyAmendment({ amendmentId: randomUUID(), projectId: randomUUID(), projectVersion: 1, directionId: randomUUID(), reason: "The selected direction needs interruptible state transitions.", requestedBy: "user", requestedAt: "2026-01-01T00:00:00.000Z" });
     expect(proposed.status).toBe("PROPOSED");

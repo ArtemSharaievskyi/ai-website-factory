@@ -52,4 +52,13 @@ describe("Phase 7F bounded design integrations", () => {
     expect(unsafe.status).toBe("FAIL");
     expect(unsafe.findings.map((finding) => finding.ruleId)).toEqual(expect.arrayContaining(["generic-purple-gradient", "layout-property-animation", "decorative-perpetual-motion"]));
   });
+
+  it("does not classify an explicit prohibition of perpetual motion as an implementation violation", () => {
+    const result = detectImpeccableAntiPatterns([{
+      path: "direction/synthetic.design-contract",
+      content: "Short opacity transitions are allowed, but the page should not drift, parallax, or animate continuously.",
+    }]);
+    expect(result.status).toBe("PASS");
+    expect(result.findings).toEqual([]);
+  });
 });
