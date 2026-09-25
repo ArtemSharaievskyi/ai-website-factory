@@ -158,13 +158,13 @@ export class OpenAiStructuredClient {
         try {
           if (!invocation && request.providerInvocation?.ledger)
             invocation = await request.providerInvocation.ledger.reserveInvocation({ stage: request.providerInvocation.stage, providerContract: request.schemaName });
-          this.assertContextCapacity(request);
           // Build the exact production response format before consuming the
           // irreversible provider budget. The executor builds the same format
           // for the SDK call, but this preflight keeps schema failures at zero
           // transport calls.
           const responseFormat = buildProductionResponseFormat(request.schema, request.schemaName, { schemaDefinitions: request.schemaDefinitions });
           requestDiagnostic = requestMetadata(request, responseFormat, this.client, this.config, correction);
+          this.assertContextCapacity(request, responseFormat, requestDiagnostic);
           await invocation?.beforeTransport();
           transportStarted = true;
           const captureResponse: ProviderResponseCapture = async (response) => {
@@ -215,17 +215,20 @@ export class OpenAiStructuredClient {
     return usage;
   }
 
-  private assertContextCapacity(request: StructuredRequest<unknown>) {
+  private assertContextCapacity(request: StructuredRequest<unknown>, responseFormat: unknown, requestDiagnostic: Partial<ProviderDiagnostic> = {}) {
     const bundle = request.contextBundle;
     if (!bundle) return;
     const byteLength = (value: string) => Buffer.byteLength(value, "utf8");
     const estimatedTokens = (value: string) => Math.ceil(byteLength(value) / 4);
     const requestBytes = byteLength(request.system) + byteLength(request.user);
     const requestTokens = estimatedTokens(request.system) + estimatedTokens(request.user);
+    const schemaJson = JSON.stringify(responseFormat);
+    const schemaBytes = schemaJson === undefined ? 0 : byteLength(schemaJson);
+    const schemaTokens = Math.ceil(schemaBytes / 4);
     const maxBytes = bundle.budget.hardCeiling.bytes;
     const maxTokens = bundle.budget.hardCeiling.estimatedInputTokens;
-    const totalBytesWithReserve = requestBytes + bundle.budget.reservedResponseBytes;
-    const totalTokensWithReserve = requestTokens + bundle.budget.reservedResponseTokens;
+    const totalBytesWithReserve = requestBytes + schemaBytes + bundle.budget.reservedResponseBytes;
+    const totalTokensWithReserve = requestTokens + schemaTokens + bundle.budget.reservedResponseTokens;
     if (totalBytesWithReserve <= maxBytes && totalTokensWithReserve <= maxTokens) return;
     throw new AiProviderError(
       "AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED",
@@ -241,6 +244,8 @@ export class OpenAiStructuredClient {
           budgetProfile: bundle.budget.profileId,
           requestBytes,
           requestTokens,
+          schemaBytes,
+          schemaTokens,
           totalBytesWithReserve,
           totalTokensWithReserve,
           maxBytes,
@@ -248,6 +253,7 @@ export class OpenAiStructuredClient {
           canonicalRequirementBytes: bundle.metrics.canonicalRequirementBytes,
           supportingContextBytes: bundle.metrics.supportingContextIncludedBytes,
         },
+        ...requestDiagnostic,
       },
     );
   }

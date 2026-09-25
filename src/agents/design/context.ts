@@ -1,6 +1,13 @@
 import { designAgentDefinition } from "@/agents/catalog";
+import { DEFAULT_DESIGN_MAX_COMPLETION_TOKENS } from "@/integrations/openai/config";
 import { CONTEXT_BUDGET_PROFILES, ContextBudgetPolicySchema, type ContextBudgetPolicy } from "@/runtime/context/contracts";
 import type { DesignAgentInput } from "./contracts";
+
+/** The Design contract needs room for three complete directions at the role's explicit ceiling. */
+export const DESIGN_CONTEXT_RESERVED_RESPONSE_TOKENS = DEFAULT_DESIGN_MAX_COMPLETION_TOKENS;
+export const DESIGN_CONTEXT_RESERVED_RESPONSE_BYTES = DESIGN_CONTEXT_RESERVED_RESPONSE_TOKENS * 4;
+export const DESIGN_CONTEXT_INPUT_TARGET_TOKENS = 32_000;
+export const DESIGN_CONTEXT_INPUT_TARGET_BYTES = DESIGN_CONTEXT_INPUT_TARGET_TOKENS * 4;
 
 /**
  * Design receives the current canonical content manifest and the small set of
@@ -49,8 +56,8 @@ export function designContextBudget(): ContextBudgetPolicy {
     ...base,
     profileId: designAgentDefinition.contextPolicy.version,
     softTarget: {
-      estimatedInputTokens: Math.min(base.softTarget.estimatedInputTokens, maxEstimatedInputTokens),
-      bytes: Math.min(base.softTarget.bytes, maxBytes),
+      estimatedInputTokens: Math.min(DESIGN_CONTEXT_INPUT_TARGET_TOKENS, maxEstimatedInputTokens),
+      bytes: Math.min(DESIGN_CONTEXT_INPUT_TARGET_BYTES, maxBytes),
     },
     hardCeiling: {
       estimatedInputTokens: maxEstimatedInputTokens,
@@ -58,5 +65,7 @@ export function designContextBudget(): ContextBudgetPolicy {
     },
     maxEstimatedInputTokens,
     maxBytes,
+    reservedResponseTokens: DESIGN_CONTEXT_RESERVED_RESPONSE_TOKENS,
+    reservedResponseBytes: DESIGN_CONTEXT_RESERVED_RESPONSE_BYTES,
   });
 }

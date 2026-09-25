@@ -147,7 +147,7 @@ describe("lossless canonical requirements context policy", () => {
     let calls = 0;
     const client = new OpenAiStructuredClient({ apiKey: "test", model: "test-model", modelLabel: "GPT-5.6 Luna", maxRetries: 0, maxConcurrentRequests: 1 }, { executor: async <T>() => { calls++; return { value: { ok: true } as T, requestId: "should-not-send" }; } });
     const schema = z.object({ ok: z.boolean() });
-    await expect(client.request({ role: "lead", promptVersion: "lead.v1", system: "x".repeat(10_000), user: "safe", schemaName: "capacity", schema, contextBundle: result.bundle })).rejects.toMatchObject({ code: "AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED", diagnostic: { requestAttempted: false } });
+    await expect(client.request({ role: "lead", promptVersion: "lead.v1", system: "x".repeat(10_000), user: "safe", schemaName: "capacity", schema, contextBundle: result.bundle })).rejects.toMatchObject({ code: "AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED", diagnostic: { requestAttempted: false, inputBytes: expect.any(Number), schemaSizeBytes: expect.any(Number), contextCapacity: { schemaBytes: expect.any(Number), schemaTokens: expect.any(Number) } } });
     expect(calls).toBe(0);
     try { await client.request({ role: "lead", promptVersion: "lead.v1", system: "x".repeat(10_000), user: "safe", schemaName: "capacity", schema, contextBundle: result.bundle }); } catch (error) { expect(error).toBeInstanceOf(AiProviderError); expect(JSON.stringify(error)).not.toContain("FINAL_CRITICAL_REQUIREMENT"); }
   });

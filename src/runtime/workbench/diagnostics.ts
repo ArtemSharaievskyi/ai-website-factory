@@ -450,6 +450,7 @@ const PROVIDER_CODES = new Set([
   "AI_RETRY_EXHAUSTED",
   "AI_REQUEST_CANCELLED",
   "AI_CONCURRENCY_LIMIT_REACHED",
+  "DESIGN_CONTEXT_CAPACITY_EXCEEDED",
   "TRIAL_ENTRY_AI_NOT_CONFIGURED",
   "PLANNER_PROVIDER_FAILED",
   "PLANNER_PROVIDER_TIMEOUT",
@@ -822,6 +823,7 @@ function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProject
     return { error: "The Design source or canonical contract is stale. The project was not changed.", httpStatus: 409, recoverable: true, category: "WORKFLOW_CONFLICT", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), ...(sourceCurrentness ? { reasonCode: "DESIGN_SOURCE_CURRENTNESS_FAILED", sourceCurrentness } : {}) };
   }
   if (code === "DESIGN_SETUP_FAILED") return { error: "Design setup failed before provider invocation. The project was not changed.", httpStatus: 503, recoverable: true, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), reasonCode: "DESIGN_PRE_PROVIDER_SETUP_FAILED" };
+  if (code === "DESIGN_CONTEXT_CAPACITY_EXCEEDED") return { error: "The Design request exceeded its bounded context envelope before provider invocation. The project was not changed.", httpStatus: 422, recoverable: true, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), reasonCode: "AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED", ...(safeProviderDiagnostic(error) ? { providerDiagnostic: safeProviderDiagnostic(error) } : {}) };
   if (code === "DESIGN_OUTCOME_UNKNOWN_REQUIRES_AUTHORIZATION") return { error: "The previous Design provider outcome is unknown. Explicit fresh-attempt authority is required before another provider call.", httpStatus: 409, recoverable: false, category: "WORKFLOW_CONFLICT", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), reasonCode: "OUTCOME_UNKNOWN" };
   if (code === "DESIGN_OUTCOME_UNKNOWN") return { error: "The previous Design provider outcome is unknown and cannot be retried without explicit fresh-attempt authority. The project was not changed.", httpStatus: 409, recoverable: false, category: "WORKFLOW_CONFLICT", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), reasonCode: "OUTCOME_UNKNOWN" };
   if (code === "DESIGN_INPUT_INVALID") return { error: "The host-owned Design inputs did not match the current strict contract. The project was not changed.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };

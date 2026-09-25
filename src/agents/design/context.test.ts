@@ -16,6 +16,10 @@ describe("Design context budget", () => {
     const prompt = boundedRolePrompt("design", input, false, [skill]);
     const breakdown = designContextBreakdown(input);
     const budget = designContextBudget();
+    expect(budget.reservedResponseTokens).toBe(64_000);
+    expect(budget.reservedResponseBytes).toBe(256_000);
+    expect(budget.hardCeiling).toEqual({ estimatedInputTokens: 96_000, bytes: 384_000 });
+    expect(budget.hardCeiling.estimatedInputTokens - budget.reservedResponseTokens).toBe(32_000);
     expect(breakdown.legacyBriefBytes).toBe(0);
     expect(breakdown.duplicatedPlanningBytes).toBe(0);
     expect(breakdown.totalBytes).toBeLessThan(budget.maxBytes);

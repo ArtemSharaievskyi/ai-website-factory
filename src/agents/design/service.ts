@@ -244,7 +244,11 @@ function providerFailureState(error: unknown): DesignGenerationAttempt["state"] 
 
 function designErrorFromProvider(error: unknown) {
   if (error instanceof DesignError) return error;
-  if (isAiProviderError(error)) return new DesignError("DESIGN_PROVIDER_FAILED", "Design provider failed.", error, error.diagnostic, error.failureDiagnostic);
+  if (isAiProviderError(error)) {
+    const code = error.code === "AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED" ? "DESIGN_CONTEXT_CAPACITY_EXCEEDED" : "DESIGN_PROVIDER_FAILED";
+    const message = code === "DESIGN_CONTEXT_CAPACITY_EXCEEDED" ? "Design request context exceeded its role-scoped capacity before provider invocation." : "Design provider failed.";
+    return new DesignError(code, message, error, error.diagnostic, error.failureDiagnostic);
+  }
   if (error instanceof z.ZodError) {
     const directionIssue = error.issues.find((issue) => issue.path[0] === "directions");
     const countIssue = directionIssue && (directionIssue.code === "too_small" || directionIssue.code === "too_big");

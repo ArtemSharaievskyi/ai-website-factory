@@ -69,7 +69,9 @@ export const designAgentDefinition = definition({
   agentId: "design", displayName: "Design Agent", role: "generation", version: "1.0.0",
   capabilities: ["design.directions", "design.selection"], supportedTaskTypes: ["create-design-directions"],
   allowedTools: ["openai-generation", "fontpair-read", "design-quality-validation", "design-source-discovery"], allowedSkillIds: ["responsive-form-ux-design", "impeccable", EMIL_DESIGN_ENGINEERING_SKILL_ID, "animation-vocabulary", "transitions-dev", "ui-ux-pro-max-frontend", "taste-frontend-direction"],
-  contextPolicy: { version: "design-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "SUPPLIED_FILES_METADATA", "PREVIOUS_FINDINGS"], maxBytes: 120000, maxItems: 80 },
+  // Design directions use a role-scoped 64k response reserve. Keep this
+  // envelope local to Design; the other agent context policies are unchanged.
+  contextPolicy: { version: "design-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "SELECTED_DESIGN", "SUPPLIED_FILES_METADATA", "PREVIOUS_FINDINGS"], maxBytes: 384000, maxItems: 80 },
   inputContract: { schemaId: "design.input", version: "1" }, outputContract: { schemaId: "design.output", version: "1" },
   promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "design.v1", policyVersions: { context: "design-context-v1", execution: "design-execution-v1" },
   executionPolicy: { aiGenerationAllowed: true, retryClass: "bounded-provider", cancellationSupported: false, concurrencyClass: "single-flight", requiresExplicitApprovalBeforeTransition: true }, readOnly: false,

@@ -70,7 +70,7 @@ export type ProviderDiagnostic = {
   zodIssuesTruncated?: boolean;
   completeZodIssuesChecksum?: string;
   zodIssuesBounded?: Array<{ path: string; code: string; expected?: string; received?: string; message: string }>;
-  contextCapacity?: { budgetProfile: string; requestBytes: number; requestTokens: number; totalBytesWithReserve: number; totalTokensWithReserve: number; maxBytes: number; maxTokens: number; canonicalRequirementBytes: number; supportingContextBytes: number };
+  contextCapacity?: { budgetProfile: string; requestBytes: number; requestTokens: number; schemaBytes: number; schemaTokens: number; totalBytesWithReserve: number; totalTokensWithReserve: number; maxBytes: number; maxTokens: number; canonicalRequirementBytes: number; supportingContextBytes: number };
 };
 export const ProviderTerminationParseStatusSchema = z.enum(["NOT_REACHED", "FAILED", "PASSED"]);
 export type ProviderTerminationParseStatus = z.infer<typeof ProviderTerminationParseStatusSchema>;
