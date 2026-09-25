@@ -61,4 +61,26 @@ describe("Phase 7F bounded design integrations", () => {
     expect(result.status).toBe("PASS");
     expect(result.findings).toEqual([]);
   });
+
+  it("keeps serialized Design fields isolated when checking perpetual motion", () => {
+    const canonicalBoundContract = JSON.stringify({
+      motionDetails: {
+        microinteractions: "Use restrained transitions for pressed and focus feedback.",
+      },
+      canonicalContent: {
+        customerUxDirection: {
+          motionAndInteraction: {
+            avoidedInteractionPatterns: ["Excessive parallax", "Constant movement"],
+          },
+        },
+      },
+    });
+    expect(detectImpeccableAntiPatterns([{ path: "direction/bound.design-contract", content: canonicalBoundContract }])).toMatchObject({ status: "PASS", findings: [] });
+
+    const embeddedPolicyProse = JSON.stringify({ rationale: "Customer-confirmed motion policy: {\"allowedInteractionPatterns\":[\"Purposeful line or mask transitions\"],\"avoidedInteractionPatterns\":[\"Excessive parallax\"]}" });
+    expect(detectImpeccableAntiPatterns([{ path: "direction/embedded-policy.design-contract", content: embeddedPolicyProse }])).toMatchObject({ status: "PASS", findings: [] });
+
+    const unsupportedMotion = JSON.stringify({ motionDetails: { sectionEntrance: "animation: margin 2s infinite" } });
+    expect(detectImpeccableAntiPatterns([{ path: "direction/unsupported.design-contract", content: unsupportedMotion }])).toMatchObject({ status: "FAIL", findings: [{ ruleId: "layout-property-animation" }, { ruleId: "decorative-perpetual-motion" }] });
+  });
 });

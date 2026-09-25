@@ -6,6 +6,7 @@ import { buildDesignDirectionSet } from "./deterministic";
 import { GoogleFontsAdapter } from "@/integrations/design/google-fonts";
 import { ColorHuntAdapter } from "@/integrations/design/color-hunt";
 import { AceternityAdapter } from "@/integrations/design/aceternity";
+import { fixtureForContext } from "./context-test-fixture";
 
 const direction = (label: string) => ({ id: randomUUID(), label, concept: `${label} concept`, rationale: `${label} rationale`, mood: "Focused", colorStrategy: "Semantic roles", typographyStrategy: "Readable hierarchy", layoutStrategy: `${label} grid`, heroStrategy: "One clear action", sectionRhythm: "Deliberate", componentCharacter: "Purposeful", imageArtDirection: "Contextual", motionPolicy: "Purposeful", responsivePrinciples: ["Preserve reading order"], antiTemplateRules: ["No filler rows"], advantages: ["Clear"], risks: ["Needs content"], requirementReferences: [] });
 const directionSet = () => DesignDirectionSetSchema.parse({ schemaVersion: 1, documentType: "design-directions", projectId: randomUUID(), projectVersion: 1, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", setId: randomUUID(), directions: [direction("Editorial"), direction("Precision"), direction("Dynamic")], generatedAt: "2026-01-01T00:00:00.000Z", generatedBy: "fixture", readyForSelection: true });
@@ -75,6 +76,18 @@ describe("professional design capability pipeline", () => {
     expect(result.directionSet.directions).toHaveLength(3);
     expect(result.impeccableDetector.status).toBe("PASS");
     expect(result.directionSet.directions.every((direction) => direction.professionalDesign?.currentness.status === "CURRENT")).toBe(true);
+  });
+
+  it("admits a replay-shaped canonical-bound candidate without cross-field motion false positives", async () => {
+    const input = fixtureForContext();
+    const generated = buildDesignDirectionSet(input);
+    const canonicalBound = DesignDirectionSetSchema.parse({
+      ...generated,
+      directions: generated.directions.map((item) => ({ ...item, canonicalContent: input.canonicalContent })),
+    });
+    const result = await pipeline().run({ projectId: input.projectId, projectVersion: input.projectVersion, directionSet: canonicalBound, prompt: input.approvedBrief.projectSummary, idempotencyKey: "professional-canonical-bound" });
+    expect(result.impeccableDetector).toMatchObject({ status: "PASS", findings: [] });
+    expect(result.directionSet.directions).toHaveLength(3);
   });
 
   it("activates bounded typography, palette, and Aceternity discovery only when the direction requests it", async () => {
