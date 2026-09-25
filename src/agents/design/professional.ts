@@ -11,6 +11,7 @@ import { GoogleFontsAdapter } from "@/integrations/design/google-fonts";
 import { ColorHuntAdapter } from "@/integrations/design/color-hunt";
 import { AceternityAdapter } from "@/integrations/design/aceternity";
 import { FrontendDesignResourceActivationSchema, FrontendDesignResourcePlanSchema, createNextFontGoogleImplementation, evaluatePaletteSelection, validateTypographySelection, type AceternityComponentSelection, type FrontendDesignResourceActivation, type FrontendDesignResourcePlan, type PaletteSelection, type TypographySelection } from "@/domain/design/resources";
+import type { DesignAdmissionEvidenceGap } from "./contracts";
 
 export type ProfessionalDesignPipelineInput = { projectId: string; projectVersion: number; directionSet: DesignDirectionSet; prompt: string; idempotencyKey: string; approvedDependencies?: ReadonlySet<string>; signal?: AbortSignal; resourceActivation?: FrontendDesignResourceActivation; resourceSelections?: { typography?: TypographySelection; palette?: PaletteSelection; component?: AceternityComponentSelection } };
 export type ProfessionalDesignPipelineResult = { directionSet: DesignDirectionSet; dependencyRequests: Array<{ packageName: "motion"; versionSpec: "12.43.0"; directionIds: string[]; authorityCode: string }>; skillEvidence: ApprovedDesignSkillEvidence[]; fontpairCandidates: FontpairNormalizedPair[]; sourceResearch: Array<{ directionId: string; sources: DesignSourceResearch[]; deduplicatedCandidateCount: number }>; resourcePlans: Array<{ directionId: string; plan: FrontendDesignResourcePlan }>; impeccableDetector: ReturnType<typeof detectImpeccableAntiPatterns> };
@@ -108,6 +109,58 @@ const capabilityIds: DesignCapabilityPassEvidence["capabilityId"][] = [
   "transitions-polish",
   "motion-suitability",
 ];
+
+const passEvidenceSource: Record<string, { toolId: string; source: string }> = {
+  "fontpair-normalization": { toolId: "fontpair", source: "fontpair" },
+  "fontpair-multiple-candidates": { toolId: "fontpair", source: "fontpair" },
+  "twenty-first-discovery": { toolId: "twenty-first-dev", source: "twenty-first-dev" },
+  "react-bits-discovery": { toolId: "react-bits", source: "react-bits" },
+  "magic-ui-discovery": { toolId: "magic-ui", source: "magic-ui" },
+  "shadcn-base-discovery": { toolId: "shadcn-ui", source: "shadcn-ui" },
+  "impeccable-semantic-skill": { toolId: "impeccable", source: "approved-skill-registry" },
+  "impeccable-critique": { toolId: "impeccable", source: "approved-skill-registry" },
+  "impeccable-antipattern-detector": { toolId: "impeccable", source: "host-deterministic" },
+  "emil-design-review": { toolId: "emil-design-eng", source: "approved-skill-registry" },
+  "emil-animation-opportunities": { toolId: "emil-animation-opportunities", source: "approved-skill-registry" },
+  "emil-animation-review": { toolId: "emil-animation-review", source: "approved-skill-registry" },
+  "transitions-pattern-mapping": { toolId: "transitions-dev", source: "approved-skill-registry" },
+  "transitions-polish": { toolId: "transitions-dev", source: "approved-skill-registry" },
+  "motion-suitability": { toolId: "motion-for-react", source: "official-package" },
+};
+
+function collectEvidenceGaps(directions: Readonly<DesignDirectionSet["directions"]>) {
+  const gaps: DesignAdmissionEvidenceGap[] = [];
+  for (const direction of directions) {
+    const capability = direction.professionalDesign;
+    if (!capability) continue;
+    for (const capabilityId of capabilityIds) {
+      const pass = capability.passEvidence.find((item) => item.capabilityId === capabilityId);
+      if (pass?.status === "PASS") continue;
+      const source = passEvidenceSource[capabilityId] ?? { toolId: capabilityId, source: "capability-validator" };
+      gaps.push({ directionId: direction.id, stage: "PASS_EVIDENCE", toolId: source.toolId, source: source.source, status: pass ? "INVALID" : "MISSING", capabilityId, ...(pass?.sourceChecksum ? { sourceChecksum: pass.sourceChecksum } : {}) });
+    }
+    for (const tool of capability.toolProvenance) {
+      if (tool.status === "AVAILABLE" && tool.liveEvidence) continue;
+      gaps.push({ directionId: direction.id, stage: "TOOL_PROVENANCE", toolId: tool.toolId, source: tool.source, status: tool.status === "AVAILABLE" ? "LIVE_EVIDENCE_MISSING" : "UNAVAILABLE", observedStatus: tool.status, liveEvidence: tool.liveEvidence, ...(tool.sourceChecksum ? { sourceChecksum: tool.sourceChecksum } : {}) });
+    }
+  }
+  return gaps;
+}
+
+class Phase7fReconciliationEvidenceError extends Error {
+  readonly code = "PHASE_7F_RECONCILIATION_EVIDENCE_INVALID" as const;
+  readonly innerPredicate = "DESIGN_TOOL_EVIDENCE_MISSING" as const;
+  readonly evidenceStatus: "MISSING" | "INVALID";
+  readonly evidenceGaps: readonly DesignAdmissionEvidenceGap[];
+  readonly evidenceSnapshotChecksum: string;
+  constructor(evidenceGaps: readonly DesignAdmissionEvidenceGap[]) {
+    super("PHASE_7F_RECONCILIATION_EVIDENCE_INVALID:DESIGN_TOOL_EVIDENCE_MISSING");
+    this.name = "Phase7fReconciliationEvidenceError";
+    this.evidenceGaps = evidenceGaps;
+    this.evidenceStatus = evidenceGaps.some((gap) => gap.status === "INVALID") ? "INVALID" : "MISSING";
+    this.evidenceSnapshotChecksum = stableDesignChecksum(evidenceGaps);
+  }
+}
 
 // The provider transport deliberately omits the host-owned professional contract.
 // Start with a deterministic, direction-bound foundation, then replace its
@@ -295,7 +348,11 @@ export class ProfessionalDesignCapabilityPipeline {
     }
     const readiness = validateExactThreeDesignCapabilities(directions, { approvedDependencies: input.approvedDependencies, requireLiveEvidence: true });
     const nonDependencyIssues = readiness.issues.filter((issue) => issue.code !== "UNAPPROVED_DESIGN_DEPENDENCY");
-    if (nonDependencyIssues.length || (input.approvedDependencies && !readiness.valid)) throw new Error(`PHASE_7F_RECONCILIATION_EVIDENCE_INVALID:${(nonDependencyIssues[0] ?? readiness.issues[0])?.code ?? "DESIGN_CONTRACT_STALE"}`);
+    if (nonDependencyIssues.length || (input.approvedDependencies && !readiness.valid)) {
+      const innerPredicate = (nonDependencyIssues[0] ?? readiness.issues[0])?.code ?? "DESIGN_CONTRACT_STALE";
+      if (innerPredicate === "DESIGN_TOOL_EVIDENCE_MISSING") throw new Phase7fReconciliationEvidenceError(collectEvidenceGaps(directions));
+      throw new Error(`PHASE_7F_RECONCILIATION_EVIDENCE_INVALID:${innerPredicate}`);
+    }
     const packageBase = { schemaVersion: 1 as const, documentType: "professional-design-capability" as const, projectId: input.projectId, projectVersion: input.projectVersion, createdAt: input.directionSet.createdAt, updatedAt: checkedAt, capabilityPolicyVersion: "professional-design-capability-v1" as const, directionSetId: input.directionSet.setId, directions: directions.map((direction) => ({ directionId: direction.id, capability: direction.professionalDesign! })), dependencyRequests: dependencyDirectionIds.length ? [{ packageName: "motion" as const, versionSpec: "12.43.0" as const, reason: "Selected dynamic direction requires the approved Motion for React runtime.", directionIds: dependencyDirectionIds }] : [] };
     const professionalCapability = DesignCapabilityPackageSchema.parse({ ...packageBase, packageChecksum: stableDesignChecksum(packageBase) });
     return { directionSet: DesignDirectionSetSchema.parse({ ...input.directionSet, directions, professionalCapability, provider: { name: "professional-design-capability-pipeline", used: true } }), dependencyRequests: dependencyDirectionIds.length ? [{ packageName: "motion", versionSpec: "12.43.0", directionIds: dependencyDirectionIds, authorityCode: "APPROVED" }] : [], skillEvidence, fontpairCandidates: pairCandidates, sourceResearch, resourcePlans, impeccableDetector: detector };

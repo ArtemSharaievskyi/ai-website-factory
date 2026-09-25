@@ -103,7 +103,7 @@ describe("Design Agent workflow", () => {
       database: fixture.database,
       memory: fixture.memory,
       provider: { proposeDesignDirections: async () => providerSet },
-      professionalPipeline: { run: async () => { throw new Error("PHASE_7F_RECONCILIATION_EVIDENCE_INVALID:DESIGN_TOOL_EVIDENCE_MISSING"); } } as never,
+      professionalPipeline: { run: async () => { const error = new Error("PHASE_7F_RECONCILIATION_EVIDENCE_INVALID:DESIGN_TOOL_EVIDENCE_MISSING") as Error & { code: string; innerPredicate: string; evidenceStatus: "MISSING"; evidenceGaps: Array<Record<string, unknown>>; evidenceSnapshotChecksum: string }; error.code = "PHASE_7F_RECONCILIATION_EVIDENCE_INVALID"; error.innerPredicate = "DESIGN_TOOL_EVIDENCE_MISSING"; error.evidenceStatus = "MISSING"; error.evidenceGaps = [{ directionId: providerSet.directions[0]!.id, stage: "TOOL_PROVENANCE", toolId: "twenty-first-dev", source: "official-public-read-only", status: "LIVE_EVIDENCE_MISSING", liveEvidence: false, sourceChecksum: "a".repeat(64) }]; error.evidenceSnapshotChecksum = "b".repeat(64); throw error; } } as never,
     });
     await expect(service.generateDesignDirections(fixture.input)).rejects.toMatchObject({
       code: "DESIGN_ADMISSION_FAILED",
@@ -119,6 +119,10 @@ describe("Design Agent workflow", () => {
       actualCategory: "DESIGN_TOOL_EVIDENCE_MISSING",
       diagnostic: { innerPredicate: "DESIGN_TOOL_EVIDENCE_MISSING", evidenceStatus: "MISSING" },
     }]);
+    expect(attempt.admissionFindings?.[0]?.diagnostic).toMatchObject({
+      evidenceGaps: [{ directionId: providerSet.directions[0]?.id, stage: "TOOL_PROVENANCE", toolId: "twenty-first-dev", source: "official-public-read-only", status: "LIVE_EVIDENCE_MISSING", liveEvidence: false, sourceChecksum: "a".repeat(64) }],
+      evidenceSnapshotChecksum: "b".repeat(64),
+    });
   });
   it("retains only bounded diagnostics when a professional admission cause is unknown", async () => {
     const fixture = await designServiceFixture();

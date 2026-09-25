@@ -32,6 +32,7 @@ import type { PersistenceDatabase } from "@/persistence/database/types";
 import {
   DesignAgentInputSchema,
   DesignAdmissionFindingSchema,
+  DesignAdmissionEvidenceGapSchema,
   DesignAdmissionInvalidationRequestSchema,
   DesignCandidateReplayRequestSchema,
   DesignAttemptExecutionEvidenceSchema,
@@ -219,11 +220,17 @@ const evidenceStatusForPredicate = (predicate: string | undefined): DesignAdmiss
 
 function professionalAdmissionDiagnostic(error: unknown): DesignAdmissionDiagnostic {
   const message = error instanceof Error ? error.message : "";
-  const objectCode = error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : undefined;
+  const errorObject = error && typeof error === "object" ? error as Record<string, unknown> : undefined;
+  const objectCode = errorObject && typeof errorObject.code === "string" ? errorObject.code : undefined;
   const candidate = objectCode ?? message.split(":", 1)[0];
   const code = /^[A-Z][A-Z0-9_:-]{0,119}$/.test(candidate) ? candidate : "DESIGN_CAPABILITY_PIPELINE_UNKNOWN";
   const phase7fPrefix = "PHASE_7F_RECONCILIATION_EVIDENCE_INVALID";
-  const innerPredicate = code === phase7fPrefix ? safeAdmissionCode(message.startsWith(`${phase7fPrefix}:`) ? message.slice(phase7fPrefix.length + 1).split(":", 1)[0] : undefined) : undefined;
+  const innerPredicate = code === phase7fPrefix ? safeAdmissionCode(typeof errorObject?.innerPredicate === "string" ? errorObject.innerPredicate : message.startsWith(`${phase7fPrefix}:`) ? message.slice(phase7fPrefix.length + 1).split(":", 1)[0] : undefined) : undefined;
+  const evidenceGaps = code === phase7fPrefix && Array.isArray(errorObject?.evidenceGaps)
+    ? DesignAdmissionEvidenceGapSchema.array().max(64).safeParse(errorObject.evidenceGaps)
+    : undefined;
+  const evidenceSnapshotChecksum = code === phase7fPrefix && typeof errorObject?.evidenceSnapshotChecksum === "string" && /^[a-f0-9]{64}$/.test(errorObject.evidenceSnapshotChecksum) ? errorObject.evidenceSnapshotChecksum : undefined;
+  const evidenceStatus = code === phase7fPrefix && (errorObject?.evidenceStatus === "MISSING" || errorObject?.evidenceStatus === "INVALID" || errorObject?.evidenceStatus === "UNKNOWN") ? errorObject.evidenceStatus : evidenceStatusForPredicate(innerPredicate);
   const stage = code.startsWith("DESIGN_SKILL_") || code.startsWith("PHASE_7F_REQUIRED_DESIGN_CAPABILITY")
     ? "SKILL_COVERAGE"
     : code.startsWith("FONTPAIR_")
@@ -238,7 +245,7 @@ function professionalAdmissionDiagnostic(error: unknown): DesignAdmissionDiagnos
               ? "CAPABILITY_VALIDATION"
               : "UNKNOWN";
   const source = stage === "SKILL_COVERAGE" ? "APPROVED_SKILL_REGISTRY" : stage === "FONT_SOURCE_DISCOVERY" ? "FONTPAIR" : stage === "COMPONENT_SOURCE_DISCOVERY" ? "DESIGN_COMPONENT_SOURCES" : stage === "CAPABILITY_ASSEMBLY" ? "DEPENDENCY_AUTHORITY" : stage === "CAPABILITY_VALIDATION" ? (code.startsWith("IMPECCABLE_") ? "IMPECCABLE" : "CAPABILITY_VALIDATOR") : "UNKNOWN";
-  return DesignAdmissionDiagnosticSchema.parse({ schemaVersion: 1, boundary: "PROFESSIONAL_CAPABILITY_PIPELINE", stage, source, code, ...(code === phase7fPrefix ? { ...(innerPredicate ? { innerPredicate } : {}), evidenceStatus: evidenceStatusForPredicate(innerPredicate) } : {}), retryability: "REQUIRES_REASSESSMENT" });
+  return DesignAdmissionDiagnosticSchema.parse({ schemaVersion: 1, boundary: "PROFESSIONAL_CAPABILITY_PIPELINE", stage, source, code, ...(code === phase7fPrefix ? { ...(innerPredicate ? { innerPredicate } : {}), evidenceStatus, ...(evidenceGaps?.success ? { evidenceGaps: evidenceGaps.data } : {}), ...(evidenceSnapshotChecksum ? { evidenceSnapshotChecksum } : {}) } : {}), retryability: "REQUIRES_REASSESSMENT" });
 }
 
 function admissionFindingsForReadiness(set: DesignDirectionSet, readiness: { blockingReasons: readonly string[] }): DesignAdmissionFinding[] {

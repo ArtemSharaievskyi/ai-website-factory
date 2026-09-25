@@ -20,6 +20,18 @@ export const DesignGenerationResultSchema = z.object({ directionSet: DesignDirec
 export type DesignGenerationResult = z.infer<typeof DesignGenerationResultSchema>;
 
 export const DesignGenerationAttemptStateSchema = z.enum(["CREATED", "CLAIMED", "REPLAY_STARTED", "PROVIDER_STARTED", "OUTCOME_UNKNOWN", "SETUP_FAILED", "PROVIDER_FAILED", "WIRE_FAILED", "DOMAIN_FAILED", "ADMISSION_FAILED", "PERSISTENCE_FAILED", "PERSISTED"]);
+export const DesignAdmissionEvidenceGapSchema = z.object({
+  directionId: z.string().uuid(),
+  stage: z.enum(["PASS_EVIDENCE", "TOOL_PROVENANCE"]),
+  toolId: z.string().min(1).max(120),
+  source: z.string().min(1).max(160),
+  status: z.enum(["MISSING", "INVALID", "UNAVAILABLE", "LIVE_EVIDENCE_MISSING"]),
+  capabilityId: z.string().min(1).max(120).optional(),
+  observedStatus: z.string().min(1).max(80).optional(),
+  liveEvidence: z.boolean().optional(),
+  sourceChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+}).strict();
+export type DesignAdmissionEvidenceGap = z.infer<typeof DesignAdmissionEvidenceGapSchema>;
 export const DesignAdmissionDiagnosticSchema = z.object({
   schemaVersion: z.literal(1),
   boundary: z.literal("PROFESSIONAL_CAPABILITY_PIPELINE"),
@@ -28,6 +40,8 @@ export const DesignAdmissionDiagnosticSchema = z.object({
   code: z.string().min(1).max(120).regex(/^[A-Z][A-Z0-9_:-]*$/),
   innerPredicate: z.string().min(1).max(120).regex(/^[A-Z][A-Z0-9_:-]*$/).optional(),
   evidenceStatus: z.enum(["MISSING", "INVALID", "UNKNOWN"]).optional(),
+  evidenceGaps: z.array(DesignAdmissionEvidenceGapSchema).max(64).optional(),
+  evidenceSnapshotChecksum: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   retryability: z.enum(["NOT_RETRYABLE", "REQUIRES_REASSESSMENT", "UNKNOWN"]),
 }).strict();
 export type DesignAdmissionDiagnostic = z.infer<typeof DesignAdmissionDiagnosticSchema>;
