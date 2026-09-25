@@ -42,6 +42,7 @@ import {
   DesignPreProviderFailureReconciliationRequestSchema,
   DesignFreshAttemptAuthorizationSchema,
   DesignProviderObservationSchema,
+  DesignAdmissionDiagnosticSchema,
   DesignRevisionRequestSchema,
   DesignSelectionRequestSchema,
   type DesignAgentInput,
@@ -51,6 +52,7 @@ import {
   type DesignOutcomeUnknownReconciliationRequest,
   type DesignPreProviderFailureReconciliationRequest,
   type DesignGenerationAttempt,
+  type DesignAdmissionDiagnostic,
   type DesignGenerationAttemptHistory,
   type DesignGenerationResult,
   type DesignRevisionRequest,
@@ -103,6 +105,10 @@ function failureDiagnosticFor(error: unknown) {
   if (isAiProviderError(error) && error.failureDiagnostic) return ProviderFailureDiagnosticSchema.parse(error.failureDiagnostic);
   if (error instanceof DesignError && error.failureDiagnostic) return ProviderFailureDiagnosticSchema.parse(error.failureDiagnostic);
   return undefined;
+}
+
+function admissionDiagnosticFor(error: unknown) {
+  return error instanceof DesignError && error.admissionDiagnostic ? DesignAdmissionDiagnosticSchema.parse(error.admissionDiagnostic) : undefined;
 }
 
 function observationFor(error: unknown, fallbackModel?: string) {
@@ -178,6 +184,7 @@ const admissionFinding = (input: {
   validatorPredicate: string;
   directionIndex?: number | null;
   fieldPath?: string | null;
+  diagnostic?: DesignAdmissionDiagnostic;
 }) => DesignAdmissionFindingSchema.parse({
   code: input.code,
   severity: "BLOCKING",
@@ -188,16 +195,40 @@ const admissionFinding = (input: {
   actualCategory: input.actualCategory,
   relatedAuthorities: DESIGN_AUTHORITIES,
   validatorPredicate: input.validatorPredicate,
+  ...(input.diagnostic ? { diagnostic: input.diagnostic } : {}),
 });
 
-function admissionFindingForPipeline(code: string): DesignAdmissionFinding {
+function admissionFindingForPipeline(code: string, diagnostic: DesignAdmissionDiagnostic): DesignAdmissionFinding {
   return admissionFinding({
     code,
     expectedInvariant: "Professional Design capability admission must complete with current approved evidence.",
     actualCategory: code,
     validatorPredicate: "ProfessionalDesignCapabilityPipeline.run",
     fieldPath: "professionalDesign",
+    diagnostic,
   });
+}
+
+function professionalAdmissionDiagnostic(error: unknown): DesignAdmissionDiagnostic {
+  const message = error instanceof Error ? error.message : "";
+  const objectCode = error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : undefined;
+  const candidate = objectCode ?? message.split(":", 1)[0];
+  const code = /^[A-Z][A-Z0-9_:-]{0,119}$/.test(candidate) ? candidate : "DESIGN_CAPABILITY_PIPELINE_UNKNOWN";
+  const stage = code.startsWith("DESIGN_SKILL_") || code.startsWith("PHASE_7F_REQUIRED_DESIGN_CAPABILITY")
+    ? "SKILL_COVERAGE"
+    : code.startsWith("FONTPAIR_")
+      ? "FONT_SOURCE_DISCOVERY"
+      : code.startsWith("DESIGN_SOURCE_") || code.startsWith("MAGIC_UI_") || code.startsWith("ACETERNITY_") || code.startsWith("GOOGLE_FONTS_") || code.startsWith("COLOR_HUNT_") || code.startsWith("SHADCN_") || code === "DESIGN_COMPONENT_CANDIDATE_SET_TOO_SMALL"
+        ? "COMPONENT_SOURCE_DISCOVERY"
+        : code.startsWith("IMPECCABLE_")
+          ? "CAPABILITY_VALIDATION"
+          : code.startsWith("UNAPPROVED_DESIGN_DEPENDENCY")
+            ? "CAPABILITY_ASSEMBLY"
+            : code.startsWith("PHASE_7F_")
+              ? "CAPABILITY_VALIDATION"
+              : "UNKNOWN";
+  const source = stage === "SKILL_COVERAGE" ? "APPROVED_SKILL_REGISTRY" : stage === "FONT_SOURCE_DISCOVERY" ? "FONTPAIR" : stage === "COMPONENT_SOURCE_DISCOVERY" ? "DESIGN_COMPONENT_SOURCES" : stage === "CAPABILITY_ASSEMBLY" ? "DEPENDENCY_AUTHORITY" : stage === "CAPABILITY_VALIDATION" ? (code.startsWith("IMPECCABLE_") ? "IMPECCABLE" : "CAPABILITY_VALIDATOR") : "UNKNOWN";
+  return DesignAdmissionDiagnosticSchema.parse({ schemaVersion: 1, boundary: "PROFESSIONAL_CAPABILITY_PIPELINE", stage, source, code, retryability: "REQUIRES_REASSESSMENT" });
 }
 
 function admissionFindingsForReadiness(set: DesignDirectionSet, readiness: { blockingReasons: readonly string[] }): DesignAdmissionFinding[] {
@@ -395,6 +426,7 @@ export class DesignAgentService {
   private async failAttempt(attempt: DesignGenerationAttempt, state: DesignGenerationAttempt["state"], error: unknown, admissionFindings?: readonly DesignAdmissionFinding[]) {
     const designError = designErrorFromProvider(error);
     const failureDiagnostic = failureDiagnosticFor(error);
+    const admissionDiagnostic = admissionDiagnosticFor(error);
     const errorHasProviderObservation = diagnosticFor(error) !== undefined || failureDiagnostic !== undefined;
     const findings = admissionFindings?.length ? admissionFindings : attempt.admissionFindings;
     const settledAt = now();
@@ -408,6 +440,7 @@ export class DesignAgentService {
       ...(failureDiagnostic ? { failureDiagnostic } : {}),
       ...(errorHasProviderObservation ? { providerObservation: observationFor(error), ...providerAttemptFields(observationFor(error)) } : attempt.providerObservation ? { providerObservation: attempt.providerObservation, ...providerAttemptFields(attempt.providerObservation) } : {}),
       ...(setupCode ? { preProviderFailure: { schemaVersion: 1 as const, code: setupCode, sourceState: "CLAIMED" as const, providerInvocation: "NOT_STARTED" as const, providerReceipt: "NOT_ATTEMPTED" as const, providerUsage: "NOT_AVAILABLE" as const, providerCost: "NOT_AVAILABLE" as const, reconciledAt: settledAt, reconciledBy: "design-agent-pre-provider-failure", sourceAttemptChecksum: checksumPersistedDocument(attempt) } } : {}),
+      ...(admissionDiagnostic && findings?.length && !findings.some((finding) => finding.diagnostic) ? { admissionFindings: findings.map((finding) => ({ ...finding, diagnostic: admissionDiagnostic })) } : {}),
     }), attempt);
   }
   private async commitDesignAdmission(input: DesignAgentInput, set: DesignDirectionSet, attempt: DesignGenerationAttempt, readiness: ReturnType<typeof validateDesignDirectionSet>, replaceExisting: boolean) {
@@ -488,10 +521,9 @@ export class DesignAgentService {
       try {
         set = (await this.professionalPipeline.run({ projectId: input.projectId, projectVersion: input.projectVersion, directionSet: set, prompt: providerInput.approvedBrief.projectSummary, idempotencyKey: input.idempotencyKey })).directionSet;
       } catch (error) {
-        const message = error instanceof Error ? error.message : "";
-        const code = message.startsWith("DESIGN_SKILL_NOT_AVAILABLE_THROUGH_APPROVED_SOURCE") ? "DESIGN_SKILL_NOT_AVAILABLE_THROUGH_APPROVED_SOURCE" : message.startsWith("FONTPAIR_") ? "FONTPAIR_SOURCE_INTEGRATION_UNRESOLVED" : message.startsWith("IMPECCABLE_") ? "IMPECCABLE_DETECTOR_INTEGRATION_UNRESOLVED" : message.startsWith("PHASE_7F_EVIDENCE_INVALID") ? "PHASE_7F_EVIDENCE_INVALID" : message.startsWith("UNAPPROVED_DESIGN_DEPENDENCY") ? "UNAPPROVED_DESIGN_DEPENDENCY" : "DESIGN_PROVIDER_FAILED";
-        const failure = new DesignError(code, "Professional design capability pipeline failed.", error);
-        await this.failAttempt(attempt, "ADMISSION_FAILED", failure, [admissionFindingForPipeline(code)]);
+        const diagnostic = professionalAdmissionDiagnostic(error);
+        const failure = new DesignError("DESIGN_ADMISSION_FAILED", "Professional design capability admission failed.", error, undefined, undefined, diagnostic);
+        await this.failAttempt(attempt, "ADMISSION_FAILED", failure, [admissionFindingForPipeline(diagnostic.code, diagnostic)]);
         throw failure;
       }
     }

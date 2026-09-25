@@ -91,10 +91,19 @@ describe("Design Agent workflow", () => {
     const provider = { proposeDesignDirections: async () => providerSet };
     const pipeline = { run: async () => { throw new Error("FONTPAIR_SOURCE_UNAVAILABLE"); } };
     const service = new DesignAgentService({ database: fixture.database, memory: fixture.memory, provider, professionalPipeline: pipeline as never });
-    await expect(service.generateDesignDirections(fixture.input)).rejects.toMatchObject({ code: "FONTPAIR_SOURCE_INTEGRATION_UNRESOLVED" });
+    await expect(service.generateDesignDirections(fixture.input)).rejects.toMatchObject({ code: "DESIGN_ADMISSION_FAILED", admissionDiagnostic: { boundary: "PROFESSIONAL_CAPABILITY_PIPELINE", stage: "FONT_SOURCE_DISCOVERY", source: "FONTPAIR", code: "FONTPAIR_SOURCE_UNAVAILABLE" } });
     const attempt = DesignGenerationAttemptSchema.parse(await new DocumentRepository(fixture.database).get(fixture.value.projectId, 1, "design-generation-attempt"));
-    expect(attempt).toMatchObject({ state: "ADMISSION_FAILED", providerObservation: { model: "synthetic-design-model", requestId: "req_design_admission", inputTokens: 29, outputTokens: 13, totalTokens: 42, responseReceived: true }, providerAttempted: true, responseReceived: true, providerModel: "synthetic-design-model", providerRequestId: "req_design_admission", providerResultChecksum: expect.stringMatching(/^[a-f0-9]{64}$/), normalizedCandidateSchemaVersion: 1, normalizedCandidateChecksum: expect.stringMatching(/^[a-f0-9]{64}$/), normalizedCandidate: { directions: expect.any(Array) }, admissionFindingCount: 1, admissionFindings: [{ code: "FONTPAIR_SOURCE_INTEGRATION_UNRESOLVED", fieldPath: "professionalDesign", validatorPredicate: "ProfessionalDesignCapabilityPipeline.run" }] });
+    expect(attempt).toMatchObject({ state: "ADMISSION_FAILED", failureCode: "DESIGN_ADMISSION_FAILED", providerObservation: { model: "synthetic-design-model", requestId: "req_design_admission", inputTokens: 29, outputTokens: 13, totalTokens: 42, responseReceived: true }, providerAttempted: true, responseReceived: true, providerModel: "synthetic-design-model", providerRequestId: "req_design_admission", providerResultChecksum: expect.stringMatching(/^[a-f0-9]{64}$/), normalizedCandidateSchemaVersion: 1, normalizedCandidateChecksum: expect.stringMatching(/^[a-f0-9]{64}$/), normalizedCandidate: { directions: expect.any(Array) }, admissionFindingCount: 1, admissionFindings: [{ code: "FONTPAIR_SOURCE_UNAVAILABLE", fieldPath: "professionalDesign", validatorPredicate: "ProfessionalDesignCapabilityPipeline.run", diagnostic: { stage: "FONT_SOURCE_DISCOVERY", source: "FONTPAIR", code: "FONTPAIR_SOURCE_UNAVAILABLE" } }] });
     expect(attempt.admissionFindingsChecksum).toMatch(/^[a-f0-9]{64}$/);
+  });
+  it("retains only bounded diagnostics when a professional admission cause is unknown", async () => {
+    const fixture = await designServiceFixture();
+    const providerSet = { ...buildDesignDirectionSet(fixture.input), provider: { name: "openai", used: true, model: "synthetic-design-model", requestId: "req_design_unknown_admission", responseReceived: true, finishReason: "stop", refusalPresent: false, parsedPresent: true, inputTokens: 29, outputTokens: 13, totalTokens: 42 } };
+    const service = new DesignAgentService({ database: fixture.database, memory: fixture.memory, provider: { proposeDesignDirections: async () => providerSet }, professionalPipeline: { run: async () => { throw new Error("private provider and customer details"); } } as never });
+    await expect(service.generateDesignDirections(fixture.input)).rejects.toMatchObject({ code: "DESIGN_ADMISSION_FAILED", admissionDiagnostic: { code: "DESIGN_CAPABILITY_PIPELINE_UNKNOWN", stage: "UNKNOWN", source: "UNKNOWN" } });
+    const attempt = DesignGenerationAttemptSchema.parse(await new DocumentRepository(fixture.database).get(fixture.value.projectId, 1, "design-generation-attempt"));
+    expect(attempt).toMatchObject({ failureCode: "DESIGN_ADMISSION_FAILED", admissionFindings: [{ diagnostic: { code: "DESIGN_CAPABILITY_PIPELINE_UNKNOWN" } }] });
+    expect(JSON.stringify(attempt)).not.toContain("private provider and customer details");
   });
   it("keeps canonical Design absent when the provider reaches the bounded output ceiling", async () => {
     const fixture = await designServiceFixture();

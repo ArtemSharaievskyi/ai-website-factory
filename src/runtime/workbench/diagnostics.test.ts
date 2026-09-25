@@ -75,6 +75,20 @@ describe("safe Web Workbench failure diagnostics D409-1..D409-24", () => {
     expect(JSON.stringify(result.response)).not.toContain("private canonical context detail");
   });
 
+  it("maps bounded professional Design admission failures to typed validation", () => {
+    const result = failure(new DesignError("DESIGN_ADMISSION_FAILED", "private admission detail", undefined, undefined, undefined, {
+      schemaVersion: 1,
+      boundary: "PROFESSIONAL_CAPABILITY_PIPELINE",
+      stage: "COMPONENT_SOURCE_DISCOVERY",
+      source: "DESIGN_COMPONENT_SOURCES",
+      code: "DESIGN_COMPONENT_CANDIDATE_SET_TOO_SMALL",
+      retryability: "REQUIRES_REASSESSMENT",
+    }));
+    expect(result).toMatchObject({ status: 422, response: { code: "DESIGN_ADMISSION_FAILED", category: "VALIDATION", recoverable: false, reasonCode: "DESIGN_COMPONENT_CANDIDATE_SET_TOO_SMALL", designAdmissionDiagnostic: { source: "DESIGN_COMPONENT_SOURCES" } } });
+    expect(JSON.stringify(result.response)).not.toContain("private admission detail");
+    expect(getWorkbenchDiagnosticEvents().at(-1)?.designAdmissionDiagnostic?.code).toBe("DESIGN_COMPONENT_CANDIDATE_SET_TOO_SMALL");
+  });
+
   it("maps Planning admission blockers to a typed bounded validation response", () => {
     const result = failure(new PlannerError("ARCHITECTURE_BLOCKED", "Planning refresh admission failed: PLANNING_TRACEABILITY_UNKNOWN_REFERENCE:brief:customerUxDirection."));
     expect(result).toMatchObject({ status: 422, response: { code: "ARCHITECTURE_BLOCKED", category: "VALIDATION", reasonCode: "PLANNING_TRACEABILITY_UNKNOWN_REFERENCE" } });

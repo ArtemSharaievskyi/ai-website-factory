@@ -15,6 +15,7 @@ import { ProviderFailureDiagnosticSchema, type ProviderFailureDiagnostic } from 
 import { providerFailureDiagnosticFromError } from "@/integrations/openai/failure-diagnostics";
 import { PlanningAdmissionDiagnosticEnvelopeSchema, type PlanningAdmissionDiagnosticEnvelope } from "@/agents/planner/staged-admission-diagnostics";
 import { currentRuntimeProvenance, RuntimeProvenanceSchema, WorkbenchAttemptReadbackSchema, WorkbenchResponseOriginSchema, type RuntimeProvenance, type WorkbenchResponseOrigin } from "./observability";
+import { DesignAdmissionDiagnosticSchema, type DesignAdmissionDiagnostic } from "@/agents/design/contracts";
 
 export const WorkbenchErrorCategorySchema = z.enum([
   "VALIDATION",
@@ -126,6 +127,7 @@ export const WorkbenchErrorResponseSchema = z
     requestTransport: WorkbenchRequestTransportDiagnosticsSchema.optional(),
     providerContract: z.string().regex(/^[a-z0-9-]{1,100}$/).optional(),
     providerDiagnostic: SafeProviderDiagnosticSchema.optional(),
+    designAdmissionDiagnostic: DesignAdmissionDiagnosticSchema.optional(),
     persistenceDiagnostic: SafePersistenceDiagnosticSchema.optional(),
     sourceCurrentness: z.object({ disallowedPathCount: z.number().int().nonnegative(), paths: z.array(z.string().min(1).max(240)).max(8) }).strict().optional(),
     providerCallsTotal: z.number().int().nonnegative().optional(),
@@ -171,6 +173,7 @@ export type WorkbenchErrorProjection = Omit<WorkbenchErrorResponse, "responseOri
   subsystem: WorkbenchSubsystem;
   errorClass: string;
   providerDiagnostic?: SafeProviderDiagnostic;
+  designAdmissionDiagnostic?: DesignAdmissionDiagnostic;
   persistenceDiagnostic?: SafePersistenceDiagnostic;
   sourceCurrentness?: { disallowedPathCount: number; paths: string[] };
   requestTransport?: WorkbenchRequestTransportDiagnostics;
@@ -268,6 +271,7 @@ export type WorkbenchDiagnosticEvent = {
   maxCompletionTokens?: number;
   providerIssueCount?: number;
   providerDiagnostic?: SafeProviderDiagnostic;
+  designAdmissionDiagnostic?: DesignAdmissionDiagnostic;
   persistenceDiagnostic?: SafePersistenceDiagnostic;
   sourceCurrentness?: { disallowedPathCount: number; paths: string[] };
   requestTransport?: WorkbenchRequestTransportDiagnostics;
@@ -385,6 +389,7 @@ const VALIDATION_CODES = new Set([
   "LEAD_ANALYSIS_INVALID",
   "LEAD_CLARIFICATION_LANGUAGE_INVALID",
   "DESIGN_INPUT_INVALID",
+  "DESIGN_ADMISSION_FAILED",
   "IMAGE_SOURCE_PENDING",
   "AUTH_DECISION_PENDING",
   "DESIGN_DIRECTIONS_INVALID",
@@ -643,6 +648,12 @@ function safeProviderDiagnostic(error: unknown): SafeProviderDiagnostic | undefi
   };
 }
 
+function safeDesignAdmissionDiagnostic(error: unknown): DesignAdmissionDiagnostic | undefined {
+  if (!error || typeof error !== "object" || !("admissionDiagnostic" in error)) return undefined;
+  const parsed = DesignAdmissionDiagnosticSchema.safeParse((error as { admissionDiagnostic?: unknown }).admissionDiagnostic);
+  return parsed.success ? parsed.data : undefined;
+}
+
 function safePersistenceDiagnostic(error: unknown, depth = 0): SafePersistenceDiagnostic | undefined {
   if (depth > 6 || !error || typeof error !== "object") return undefined;
   const parsed = SafePersistenceDiagnosticSchema.safeParse((error as { diagnostic?: unknown }).diagnostic);
@@ -824,6 +835,10 @@ function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProject
   }
   if (code === "DESIGN_SETUP_FAILED") return { error: "Design setup failed before provider invocation. The project was not changed.", httpStatus: 503, recoverable: true, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), reasonCode: "DESIGN_PRE_PROVIDER_SETUP_FAILED" };
   if (code === "DESIGN_CONTEXT_CAPACITY_EXCEEDED") return { error: "The Design request exceeded its bounded context envelope before provider invocation. The project was not changed.", httpStatus: 422, recoverable: true, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), reasonCode: "AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED", ...(safeProviderDiagnostic(error) ? { providerDiagnostic: safeProviderDiagnostic(error) } : {}) };
+  if (code === "DESIGN_ADMISSION_FAILED") {
+    const diagnostic = safeDesignAdmissionDiagnostic(error);
+    return { error: "The Design provider response was received, but host-owned professional Design admission did not complete. The project was not changed.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), reasonCode: diagnostic?.code ?? "DESIGN_ADMISSION_FAILED", ...(diagnostic ? { designAdmissionDiagnostic: diagnostic } : {}) };
+  }
   if (code === "DESIGN_OUTCOME_UNKNOWN_REQUIRES_AUTHORIZATION") return { error: "The previous Design provider outcome is unknown. Explicit fresh-attempt authority is required before another provider call.", httpStatus: 409, recoverable: false, category: "WORKFLOW_CONFLICT", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), reasonCode: "OUTCOME_UNKNOWN" };
   if (code === "DESIGN_OUTCOME_UNKNOWN") return { error: "The previous Design provider outcome is unknown and cannot be retried without explicit fresh-attempt authority. The project was not changed.", httpStatus: 409, recoverable: false, category: "WORKFLOW_CONFLICT", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), reasonCode: "OUTCOME_UNKNOWN" };
   if (code === "DESIGN_INPUT_INVALID") return { error: "The host-owned Design inputs did not match the current strict contract. The project was not changed.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
@@ -919,6 +934,7 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     ...(projection.requestTransport ? { requestTransport: projection.requestTransport } : {}),
     ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
     ...(projection.providerDiagnostic && SafeProviderDiagnosticSchema.safeParse(projection.providerDiagnostic).success ? { providerDiagnostic: projection.providerDiagnostic } : {}),
+    ...(projection.designAdmissionDiagnostic && DesignAdmissionDiagnosticSchema.safeParse(projection.designAdmissionDiagnostic).success ? { designAdmissionDiagnostic: projection.designAdmissionDiagnostic } : {}),
     ...(projection.persistenceDiagnostic && SafePersistenceDiagnosticSchema.safeParse(projection.persistenceDiagnostic).success ? { persistenceDiagnostic: projection.persistenceDiagnostic } : {}),
     ...(projection.providerCallsTotal !== undefined ? { providerCallsTotal: projection.providerCallsTotal } : {}),
     ...(projection.providerCallsByStage ? { providerCallsByStage: projection.providerCallsByStage } : {}),
@@ -956,6 +972,7 @@ export function diagnosticEventFor(projection: WorkbenchErrorProjection, context
     ...(projection.providerDiagnostic?.maxCompletionTokens !== undefined ? { maxCompletionTokens: projection.providerDiagnostic.maxCompletionTokens } : {}),
     ...(projection.providerDiagnostic?.issueCount !== undefined ? { providerIssueCount: projection.providerDiagnostic.issueCount } : {}),
     ...(projection.providerDiagnostic ? { providerDiagnostic: projection.providerDiagnostic } : {}),
+    ...(projection.designAdmissionDiagnostic ? { designAdmissionDiagnostic: projection.designAdmissionDiagnostic } : {}),
     ...(projection.persistenceDiagnostic ? { persistenceDiagnostic: projection.persistenceDiagnostic } : {}),
     ...(projection.sourceCurrentness ? { sourceCurrentness: projection.sourceCurrentness } : {}),
   };
@@ -1038,6 +1055,7 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     ...(projection.requestTransport ? { requestTransport: projection.requestTransport } : {}),
     ...(projection.providerContract ? { providerContract: projection.providerContract } : {}),
     ...(projection.providerDiagnostic ? { providerDiagnostic: projection.providerDiagnostic } : {}),
+    ...(projection.designAdmissionDiagnostic ? { designAdmissionDiagnostic: projection.designAdmissionDiagnostic } : {}),
     ...(projection.persistenceDiagnostic ? { persistenceDiagnostic: projection.persistenceDiagnostic } : {}),
     ...(projection.sourceCurrentness ? { sourceCurrentness: projection.sourceCurrentness } : {}),
     ...(projection.providerCallsTotal !== undefined ? { providerCallsTotal: projection.providerCallsTotal } : {}),
@@ -1093,6 +1111,7 @@ export function workbenchFailureResponse(error: unknown, context: WorkbenchDiagn
     if (projection.phase === "PLANNING" || projection.phase === "ARCHITECTURE_REVIEW") fallback.phase = projection.phase;
     if (projection.providerCallsByStage && WorkbenchProviderCallsByStageSchema.safeParse(projection.providerCallsByStage).success) fallback.providerCallsByStage = projection.providerCallsByStage;
     if (projection.providerDiagnostic && SafeProviderDiagnosticSchema.safeParse(projection.providerDiagnostic).success) fallback.providerDiagnostic = projection.providerDiagnostic;
+    if (projection.designAdmissionDiagnostic && DesignAdmissionDiagnosticSchema.safeParse(projection.designAdmissionDiagnostic).success) fallback.designAdmissionDiagnostic = projection.designAdmissionDiagnostic;
     if (projection.persistenceDiagnostic && SafePersistenceDiagnosticSchema.safeParse(projection.persistenceDiagnostic).success) fallback.persistenceDiagnostic = projection.persistenceDiagnostic;
     if (projection.admissionDiagnostics && PlanningAdmissionDiagnosticEnvelopeSchema.safeParse(projection.admissionDiagnostics).success) fallback.admissionDiagnostics = projection.admissionDiagnostics;
     if (projection.providerTermination && ProviderTerminationMetadataSchema.safeParse(projection.providerTermination).success) fallback.providerTermination = projection.providerTermination;

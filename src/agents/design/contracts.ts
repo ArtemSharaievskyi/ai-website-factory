@@ -20,6 +20,15 @@ export const DesignGenerationResultSchema = z.object({ directionSet: DesignDirec
 export type DesignGenerationResult = z.infer<typeof DesignGenerationResultSchema>;
 
 export const DesignGenerationAttemptStateSchema = z.enum(["CREATED", "CLAIMED", "REPLAY_STARTED", "PROVIDER_STARTED", "OUTCOME_UNKNOWN", "SETUP_FAILED", "PROVIDER_FAILED", "WIRE_FAILED", "DOMAIN_FAILED", "ADMISSION_FAILED", "PERSISTENCE_FAILED", "PERSISTED"]);
+export const DesignAdmissionDiagnosticSchema = z.object({
+  schemaVersion: z.literal(1),
+  boundary: z.literal("PROFESSIONAL_CAPABILITY_PIPELINE"),
+  stage: z.enum(["SKILL_COVERAGE", "FONT_SOURCE_DISCOVERY", "COMPONENT_SOURCE_DISCOVERY", "CAPABILITY_ASSEMBLY", "CAPABILITY_VALIDATION", "UNKNOWN"]),
+  source: z.enum(["APPROVED_SKILL_REGISTRY", "FONTPAIR", "DESIGN_COMPONENT_SOURCES", "IMPECCABLE", "DEPENDENCY_AUTHORITY", "CAPABILITY_VALIDATOR", "UNKNOWN"]),
+  code: z.string().min(1).max(120).regex(/^[A-Z][A-Z0-9_:-]*$/),
+  retryability: z.enum(["NOT_RETRYABLE", "REQUIRES_REASSESSMENT", "UNKNOWN"]),
+}).strict();
+export type DesignAdmissionDiagnostic = z.infer<typeof DesignAdmissionDiagnosticSchema>;
 export const DesignAdmissionFindingSchema = z.object({
   code: z.string().min(1).max(120).regex(/^[A-Za-z0-9_:-]+$/),
   severity: z.enum(["BLOCKING", "WARNING"]),
@@ -30,6 +39,7 @@ export const DesignAdmissionFindingSchema = z.object({
   actualCategory: z.string().min(1).max(180),
   relatedAuthorities: z.array(z.string().min(1).max(160)).max(8),
   validatorPredicate: z.string().min(1).max(240),
+  diagnostic: DesignAdmissionDiagnosticSchema.optional(),
 }).strict();
 export type DesignAdmissionFinding = z.infer<typeof DesignAdmissionFindingSchema>;
 export const DesignProviderObservationSchema = z.object({
