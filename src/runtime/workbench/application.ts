@@ -45,6 +45,7 @@ import { currentWorkbenchOperationContext, isWorkbenchOperationFailure, withWork
 import { currentRuntimeProvenance, type WorkbenchResponseMetadata } from "./observability";
 import { workbenchPlanningLogicalOperationId, WorkbenchOperationConflict, WorkbenchOperationLedger } from "./operation-ledger";
 import { ArchitectureReviewOperationLedger } from "./architecture-operation-ledger";
+import { implementationReadiness } from "@/runtime/workflow/implementation-readiness";
 
 const list = (values: string[] | undefined, limit = 12) => (values ?? []).slice(0, limit).map((value) => value.slice(0, 500));
 const statements = (values: unknown, limit = 16): string[] => {
@@ -342,6 +343,13 @@ export class WorkbenchApplication {
         canGenerateArchitectureReview = false;
       }
     }
+    const implementationGate = implementationReadiness({
+      workflowState: current.project.workflowState,
+      ...(contractPackage?.documentType === "phase-7c-contract-package" ? { phase7c: contractPackage } : {}),
+      ...(selected?.documentType === "selected-design" ? { selectedDesign: selected } : {}),
+      ...(contractAudit?.documentType === "contract-audit" ? { contractAudit } : {}),
+      ...(taskGraph?.documentType === "task-graph" ? { taskGraph } : {}),
+    });
     const allowedActions = actionsForWorkbenchState({
       workflowState: current.project.workflowState,
       hasBlockingQuestions,
@@ -353,11 +361,7 @@ export class WorkbenchApplication {
       canGenerateArchitectureReview,
       hasIndeterminateDesignAttempt,
       designFreshAttemptBlocked,
-      implementationReady: current.project.workflowState === "READY_FOR_IMPLEMENTATION" &&
-        contractPackage?.documentType === "phase-7c-contract-package" && contractPackage.status === "APPROVED" &&
-        selected?.documentType === "selected-design" &&
-        contractAudit?.documentType === "contract-audit" && contractAudit.result.verdict === "APPROVED" &&
-        taskGraph?.documentType === "task-graph" && taskGraph.readyForExecution === true,
+      implementationReady: implementationGate.ready,
     });
     const brief = briefV3
       ? briefV3Projection(briefV3.brief, briefV3.briefChecksum, briefReady, briefV3.approval?.approved === true && briefV3.approval.approvedCanonicalChecksum === briefV3.briefChecksum)

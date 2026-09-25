@@ -41,6 +41,7 @@ import { currentWorkbenchOperationContext } from "@/runtime/workbench/operation-
 import { currentRuntimeProvenance } from "@/runtime/workbench/observability";
 import { evaluateBriefReadiness, type BriefReadinessApprovalBlocker } from "@/domain/requirements/v3/readiness";
 import { BriefApprovalService } from "./brief-approval";
+import { implementationReadiness } from "@/runtime/workflow/implementation-readiness";
 
 export type TrialEntryAnswer = {
   questionId: string;
@@ -418,6 +419,17 @@ export class TrialEntryService {
       "design-directions",
     );
     const actions = actionForState(current.project.workflowState, directions?.documentType === "design-directions");
+    const phase7c = await this.documents.get(projectId, current.project.currentVersion, "phase-7c-contract-package");
+    const selected = await this.documents.get(projectId, current.project.currentVersion, "selected-design");
+    const contractAudit = await this.documents.get(projectId, current.project.currentVersion, "contract-audit");
+    const taskGraph = await this.documents.get(projectId, current.project.currentVersion, "task-graph");
+    const implementationGate = implementationReadiness({
+      workflowState: current.project.workflowState,
+      ...(phase7c?.documentType === "phase-7c-contract-package" ? { phase7c } : {}),
+      ...(selected?.documentType === "selected-design" ? { selectedDesign: selected } : {}),
+      ...(contractAudit?.documentType === "contract-audit" ? { contractAudit } : {}),
+      ...(taskGraph?.documentType === "task-graph" ? { taskGraph } : {}),
+    });
     const legacyBriefV3 = !briefV3 && requirements?.documentType === "requirements"
       ? (() => {
           try { return migrateLegacyBriefToCanonicalBriefV3(requirements); } catch { return undefined; }
@@ -436,6 +448,7 @@ export class TrialEntryService {
         : requirements?.documentType === "requirements"
           ? [...requirements.unresolvedItems.filter((item) => item.blocking).map((item) => `REQUIREMENT_UNRESOLVED:${item.id}`), ...briefApprovalBlockers(requirements)]
           : []),
+      ...(current.project.workflowState === "READY_FOR_IMPLEMENTATION" && !implementationGate.ready ? implementationGate.blockers : []),
     ];
     const approvalLifecycle = current.project.workflowState === "CLARIFYING" || current.project.workflowState === "AWAITING_BRIEF_APPROVAL";
     const statusActions = readinessBrief && approvalLifecycle && briefV3Readiness?.readyForApproval === true && blockingReasons.length === 0
@@ -443,15 +456,16 @@ export class TrialEntryService {
       : readinessBrief && approvalLifecycle
         ? []
         : actions.nextAllowedActions;
+    const implementationBlocked = current.project.workflowState === "READY_FOR_IMPLEMENTATION" && !implementationGate.ready;
     return {
       projectId: current.project.id,
       slug: current.project.slug,
       projectVersion: current.project.currentVersion,
       workflowState: current.project.workflowState,
       rowVersion: current.rowVersion,
-      pendingUserAction: actions.pendingUserAction,
+      pendingUserAction: implementationBlocked ? "WAIT_FOR_WORKFLOW_OWNER" : actions.pendingUserAction,
       blockingReasons,
-      nextAllowedActions: statusActions,
+      nextAllowedActions: implementationBlocked ? [] : statusActions,
       operatorLanguage: session?.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE,
       siteLanguage: current.project.siteLanguage,
       ...(clarification ? { clarification } : {}),
