@@ -14,6 +14,7 @@ import { WorkbenchRequestSchema } from "./contracts";
 import { clearWorkbenchDiagnosticEvents, getWorkbenchDiagnosticEvents, workbenchFailureResponse } from "./diagnostics";
 import { PlannerError } from "@/agents/planner/errors";
 import { DesignError } from "@/agents/design/errors";
+import { ContractAuditError } from "@/agents/reviewers/contracts/errors";
 
 const projectId = "00000000-0000-4000-8000-000000000000";
 const realProjectId = "b7a0829d-a077-487c-844a-3232efc21bc3";
@@ -73,6 +74,14 @@ describe("safe Web Workbench failure diagnostics D409-1..D409-24", () => {
     const result = failure(new DesignError("DESIGN_INPUT_INVALID", "private canonical context detail"));
     expect(result).toMatchObject({ status: 422, response: { code: "DESIGN_INPUT_INVALID", category: "VALIDATION", recoverable: false } });
     expect(JSON.stringify(result.response)).not.toContain("private canonical context detail");
+  });
+
+  it("maps Contract Audit prerequisite/provider boundaries without a generic 500", () => {
+    const blocked = workbenchFailureResponse(new WorkbenchActionError("CONTRACT_AUDIT_PREREQUISITE_BLOCKED", "private prerequisite detail"), { action: "run-contract-audit", projectId });
+    expect(blocked).toMatchObject({ status: 409, response: { code: "CONTRACT_AUDIT_PREREQUISITE_BLOCKED", operation: "RUN_CONTRACT_AUDIT", category: "WORKFLOW_CONFLICT" } });
+    const provider = workbenchFailureResponse(new ContractAuditError("CONTRACT_AUDIT_PROVIDER_FAILED", "private provider detail"), { action: "run-contract-audit", projectId });
+    expect(provider).toMatchObject({ status: 503, response: { code: "CONTRACT_AUDIT_PROVIDER_FAILED", operation: "RUN_CONTRACT_AUDIT", category: "PROVIDER", providerContract: "contract-audit" } });
+    expect(JSON.stringify(provider.response)).not.toContain("private provider detail");
   });
 
   it("maps bounded professional Design admission failures to typed validation", () => {

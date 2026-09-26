@@ -134,12 +134,14 @@ describe("Factory Workbench projection and boundary", () => {
     expect(actionsForWorkbenchState({ workflowState: "READY_FOR_IMPLEMENTATION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, implementationReady: false, phase7cDatabaseDecisionPending: true })).toEqual(["DATABASE_DECISION"]);
     expect(actionsForWorkbenchState({ workflowState: "READY_FOR_IMPLEMENTATION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, implementationReady: false, phase7cDependencyApprovalPending: true })).toEqual(["DEPENDENCY_APPROVAL"]);
     expect(actionsForWorkbenchState({ workflowState: "READY_FOR_IMPLEMENTATION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, implementationReady: true })).toEqual(["START_IMPLEMENTATION"]);
+    expect(actionsForWorkbenchState({ workflowState: "READY_FOR_IMPLEMENTATION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, implementationReady: false, phase7cContractAuditPending: true })).toEqual(["RUN_CONTRACT_AUDIT"]);
   });
 
   it("separates Planning generation and approval frontiers", () => {
     const projectId = "00000000-0000-4000-8000-000000000000";
     expect(actionsForWorkbenchState({ workflowState: "AWAITING_PLANNING_GENERATION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: false, hasDesigns: false })).toEqual(["GENERATE_PLANNING", "REQUEST_BRIEF_CHANGES"]);
     expect(WorkbenchRequestSchema.safeParse({ action: "generate-planning", projectId }).success).toBe(true);
+    expect(WorkbenchRequestSchema.safeParse({ action: "run-contract-audit", projectId }).success).toBe(true);
     expect(actionsForWorkbenchState({ workflowState: "AWAITING_PLANNING_APPROVAL", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: false })).toContain("APPROVE_PLANNING");
     expect(actionsForWorkbenchState({ workflowState: "AWAITING_PLANNING_APPROVAL", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: false, hasDesigns: false })).toEqual([]);
     expect(actionsForWorkbenchState({ workflowState: "AWAITING_DESIGN_SELECTION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: false })).not.toContain("APPROVE_PLANNING");

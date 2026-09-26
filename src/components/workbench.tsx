@@ -449,6 +449,21 @@ function DecisionCards({
           </div>
         </section>
       )}
+      {projection.status.allowedActions.includes("RUN_CONTRACT_AUDIT") && (
+        <section className="artifact-card">
+          <div className="card-eyebrow">PHASE 7C PREREQUISITES</div>
+          <div className="card-heading-row">
+            <div>
+              <h2>Prepare implementation contract</h2>
+              <p className="card-summary">Create the current TaskGraph and run the guarded Contract Audit. Final Phase 7C approval remains a separate action.</p>
+            </div>
+            <span className="badge">Workflow owner</span>
+          </div>
+          <div className="card-actions">
+            <button className="button button-primary" onClick={() => onAction("RUN_CONTRACT_AUDIT")} disabled={busy}>Run Contract Audit</button>
+          </div>
+        </section>
+      )}
     </>
   );
 }
@@ -966,6 +981,11 @@ export function Workbench() {
     else if (value === "DEPENDENCY_APPROVAL")
       void run({
         action: "dependency-approval",
+        projectId: projection.project.projectId,
+      });
+    else if (value === "RUN_CONTRACT_AUDIT")
+      void run({
+        action: "run-contract-audit",
         projectId: projection.project.projectId,
       });
     else if (value === "START_IMPLEMENTATION")
