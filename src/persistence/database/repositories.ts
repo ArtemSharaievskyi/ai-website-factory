@@ -120,9 +120,9 @@ export class OperationRepository {
     const payloadHash = documentPayloadHash(payload);
     return this.db.transaction((tx) => tx.completeOperation({ operation, key, payloadHash, result }));
   }
-  async fail(operation: string, key: string, payload: unknown) {
+  async fail(operation: string, key: string, payload: unknown, result?: unknown) {
     const payloadHash = documentPayloadHash(payload);
-    return this.db.transaction((tx) => tx.failOperation({ operation, key, payloadHash }));
+    return this.db.transaction((tx) => tx.failOperation({ operation, key, payloadHash, ...(result === undefined ? {} : { result }) }));
   }
 }
 

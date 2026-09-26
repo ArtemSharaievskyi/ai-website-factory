@@ -10,7 +10,7 @@ import { cleanBriefV3, multiDomainChangeSet, pilotShapedV1Brief } from "@/domain
 import { migrateV1ToCanonicalBriefV3 } from "@/domain/requirements/v3/migrate-v1";
 import { applyBriefChangeSet } from "@/domain/requirements/v3/reducer";
 import { createBriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
-import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
+import { DocumentRepository, OperationRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
 import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
 import { WorkbenchApplication } from "./application";
 import { WorkbenchRequestSchema, actionsForWorkbenchState } from "./contracts";
@@ -135,6 +135,7 @@ describe("Factory Workbench projection and boundary", () => {
     expect(actionsForWorkbenchState({ workflowState: "READY_FOR_IMPLEMENTATION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, implementationReady: false, phase7cDependencyApprovalPending: true })).toEqual(["DEPENDENCY_APPROVAL"]);
     expect(actionsForWorkbenchState({ workflowState: "READY_FOR_IMPLEMENTATION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, implementationReady: true })).toEqual(["START_IMPLEMENTATION"]);
     expect(actionsForWorkbenchState({ workflowState: "READY_FOR_IMPLEMENTATION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, implementationReady: false, phase7cContractAuditPending: true })).toEqual(["RUN_CONTRACT_AUDIT"]);
+    expect(actionsForWorkbenchState({ workflowState: "CONTRACT_AUDIT", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, phase7cContractAuditRecoveryPending: true })).toEqual(["RECOVER_CONTRACT_AUDIT"]);
   });
 
   it("separates Planning generation and approval frontiers", () => {
@@ -142,9 +143,30 @@ describe("Factory Workbench projection and boundary", () => {
     expect(actionsForWorkbenchState({ workflowState: "AWAITING_PLANNING_GENERATION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: false, hasDesigns: false })).toEqual(["GENERATE_PLANNING", "REQUEST_BRIEF_CHANGES"]);
     expect(WorkbenchRequestSchema.safeParse({ action: "generate-planning", projectId }).success).toBe(true);
     expect(WorkbenchRequestSchema.safeParse({ action: "run-contract-audit", projectId }).success).toBe(true);
+    expect(WorkbenchRequestSchema.safeParse({ action: "recover-contract-audit", projectId }).success).toBe(true);
     expect(actionsForWorkbenchState({ workflowState: "AWAITING_PLANNING_APPROVAL", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: false })).toContain("APPROVE_PLANNING");
     expect(actionsForWorkbenchState({ workflowState: "AWAITING_PLANNING_APPROVAL", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: false, hasDesigns: false })).toEqual([]);
     expect(actionsForWorkbenchState({ workflowState: "AWAITING_DESIGN_SELECTION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: false })).not.toContain("APPROVE_PLANNING");
+  });
+
+  it("preserves a failed Contract Audit frontier while fencing a fresh recovery identity", async () => {
+    const database = new InMemoryPersistenceDatabase();
+    const operations = new OperationRepository(database);
+    const oldPayload = { projectId: "00000000-0000-4000-8000-000000000000", projectVersion: 1, frontier: "approved-chain" };
+    const oldKey = "workbench-contract-audit-prerequisite:old-frontier";
+    await expect(operations.reserve("workbench.contract-audit-prerequisite", oldKey, oldPayload)).resolves.toMatchObject({ status: "NEW" });
+    await operations.fail("workbench.contract-audit-prerequisite", oldKey, oldPayload, { outcome: "FAILED", code: "AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED", mutationPhase: "LIFECYCLE_TRANSITIONED", providerReceipt: "NOT_ATTEMPTED" });
+    const old = await database.transaction((tx) => tx.getOperation({ operation: "workbench.contract-audit-prerequisite", key: oldKey }));
+    const recoveryPayload = { ...oldPayload, priorOperationKey: oldKey, recoveryGeneration: 1 };
+    const recoveryKey = "workbench-contract-audit-recovery:fresh-frontier";
+    await expect(operations.reserve("workbench.contract-audit-recovery", recoveryKey, recoveryPayload)).resolves.toMatchObject({ status: "NEW" });
+    await expect(operations.reserve("workbench.contract-audit-recovery", recoveryKey, recoveryPayload)).resolves.toMatchObject({ status: "IN_PROGRESS" });
+    await operations.complete("workbench.contract-audit-recovery", recoveryKey, recoveryPayload, { outcome: "APPROVED" });
+    await expect(operations.reserve("workbench.contract-audit-recovery", recoveryKey, recoveryPayload)).resolves.toMatchObject({ status: "SUCCEEDED" });
+    const oldAfter = await database.transaction((tx) => tx.getOperation({ operation: "workbench.contract-audit-prerequisite", key: oldKey }));
+    expect(oldAfter).toEqual(old);
+    expect(oldAfter?.status).toBe("FAILED");
+    expect(oldAfter?.result).toMatchObject({ code: "AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED", providerReceipt: "NOT_ATTEMPTED" });
   });
 
   it("fails closed when Planning approval is requested before Planning exists", async () => {

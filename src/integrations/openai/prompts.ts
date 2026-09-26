@@ -1,5 +1,6 @@
 import type { ApprovedProceduralSkillContext } from "@/skills/runtime/resolver";
 import { assemblePromptContext, contextBundleMetadata, extractContextIdentity, prepareRoleContext, renderContextItems } from "@/runtime/context/assembler";
+import { CONTEXT_BUDGET_PROFILES } from "@/runtime/context/contracts";
 import { sliceApprovedSkill } from "@/runtime/context/slicing";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { buildDesignContext, designContextBudget } from "@/agents/design/context";
@@ -22,7 +23,7 @@ export function rolePrompt(role: keyof typeof PROMPT_VERSIONS, input: unknown, c
   const promptVersion = tokenizedPlannerProtocol ? PLANNER_TOKEN_PROTOCOL_PROMPT_VERSION : PROMPT_VERSIONS[role];
   const preparedInput = prepareRoleContext(contextInput);
   const identity = extractContextIdentity(preparedInput);
-  const contextBundle = assemblePromptContext({ agentId: role, agentRole: role, workflowStage: correction ? `${role}:correction` : role, ...identity, canonicalInput: preparedInput, skills: slicedSkills, ...(role === "design" ? { budget: designContextBudget() } : {}) });
+  const contextBundle = assemblePromptContext({ agentId: role, agentRole: role, workflowStage: correction ? `${role}:correction` : role, ...identity, canonicalInput: preparedInput, skills: slicedSkills, ...(role === "design" ? { budget: designContextBudget() } : role === "contract-auditor" ? { budget: CONTEXT_BUDGET_PROFILES.contractAudit } : {}) });
   const canonicalDesignPolicy = role === "design" ? " The host-provided canonicalDesignContent is the lossless content and service inventory for every direction: preserve all listed services, routes, page responsibilities, forms, legal constraints, exclusions, assets, and architecture decisions. Do not emit canonicalContent or host identity, checksum, approval, currentness, or lifecycle fields. If the supplied content is genuinely contradictory, report only the typed canonicalServiceConflictRefs signal; omission from a presentation sentence is not a contradiction and must not remove a host-bound service." : "";
   const designPolicy = role === "design" ? " Return exactly three design directions in the directions array—no fewer, no more, no preliminary or recommended fourth option. Each must satisfy every required field and be materially distinct across layout, typography, rhythm, components, imagery, density, whitespace, and motion." : "";
   const inputRecord = preparedInput && typeof preparedInput === "object" ? preparedInput as Record<string, unknown> : {};

@@ -25,6 +25,7 @@ import { PLANNER_DECOMPOSITION_CONTRACT_VERSION, PLANNER_DECOMPOSITION_PROVIDER_
 import { createDecompositionMinimumContract } from "@/agents/planner/decomposition-minimum";
 import { PLANNER_ELEMENT_KINDS_BY_DOMAIN, PlannerCoverageDomainSchema } from "@/agents/planner/coverage-contract";
 import type { SafeProviderEvent } from "./usage";
+import { OpenAiContractAuditorProvider } from "./adapters";
 
 const config = { apiKey: "test", model: "test-model", modelLabel: "GPT-5.6 Luna", maxRetries: 1, maxConcurrentRequests: 1 };
 const schema = z.object({ ok: z.boolean(), summary: z.string() }).strict();
@@ -347,6 +348,22 @@ const coverageSectionByKind: Record<string, string> = {
 };
 
 describe("production AI provider boundary", () => {
+  it("retains a typed pre-provider context-capacity diagnostic for Contract Audit", async () => {
+    let executorCalls = 0;
+    const client = new OpenAiStructuredClient({ ...config, model: "test-model", maxRetries: 0 }, {
+      executor: async <T>() => {
+        executorCalls += 1;
+        return { value: {} as T, requestId: "should-not-run" };
+      },
+    });
+    const provider = new OpenAiContractAuditorProvider(client);
+    await expect(provider.review({ approvedBrief: "x".repeat(700_000) } as never)).rejects.toMatchObject({
+      code: "AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED",
+      diagnostic: { requestAttempted: false, issueCode: "CONTEXT_REQUIRED_BUDGET_EXCEEDED", sdkErrorClass: "ContextAssemblyError" },
+      failureDiagnostic: { requestAttempted: false, stage: "REQUEST_CONSTRUCTION", errorCode: "AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED", contextCapacity: { budgetProfile: "contract-audit-v1", maxBytes: 640000, maxTokens: 160000 } },
+    });
+    expect(executorCalls).toBe(0);
+  });
   it("constructs every reviewer strict transport schema with required nullable metadata", () => {
     const schemas = [
       ["architecture-review-result", ArchitectureReviewProviderOutputSchema, "REQUIREMENT_TRACEABILITY"],

@@ -2477,6 +2477,48 @@ async function recordArchitectureRequestConstructionFailure(error: unknown, prov
   await Promise.resolve(providerInvocation.recordDiagnostic(diagnostic, "NOT_REACHED", failureDiagnostic)).catch(() => undefined);
 }
 
+function contractAuditRequestConstructionError(error: unknown) {
+  if (!(error instanceof ContextAssemblyError)) return error;
+  const code = error.blocker.code === "CONTEXT_REQUIRED_BUDGET_EXCEEDED"
+    ? "AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED"
+    : "AI_OUTPUT_INVALID";
+  const diagnostic: ProviderDiagnostic = {
+    stage: "request_construction",
+    outputStage: "PROVIDER_REQUEST_FAILED",
+    requestAttempted: false,
+    apiResponseReceived: false,
+    responseReceived: false,
+    outputComplete: false,
+    sdkErrorClass: "ContextAssemblyError",
+    schemaName: "contract-audit-result",
+    issueCode: error.blocker.code,
+    contextCapacity: error.blocker.code === "CONTEXT_REQUIRED_BUDGET_EXCEEDED"
+      ? {
+          budgetProfile: error.blocker.budgetProfile,
+          requestBytes: error.blocker.requiredBytes,
+          requestTokens: error.blocker.requiredEstimatedTokens,
+          schemaBytes: 0,
+          schemaTokens: 0,
+          totalBytesWithReserve: error.blocker.requiredBytes,
+          totalTokensWithReserve: error.blocker.requiredEstimatedTokens,
+          maxBytes: 640000,
+          maxTokens: 160000,
+          canonicalRequirementBytes: error.blocker.requiredBytes,
+          supportingContextBytes: 0,
+        }
+      : undefined,
+  };
+  const failureDiagnostic = createProviderFailureDiagnostic({
+    errorCode: code,
+    model: "unknown",
+    schemaName: "contract-audit-result",
+    requestAttempted: false,
+    diagnostic,
+    error,
+  });
+  return new AiProviderError(code, "Contract Audit request construction failed before provider invocation.", error, diagnostic, failureDiagnostic);
+}
+
 export class OpenAiArchitectureReviewerProvider implements ArchitectureReviewProvider {
   readonly promptVersion = "architecture-reviewer.v2";
   constructor(private readonly ai: OpenAiStructuredClient) {}
@@ -2521,7 +2563,12 @@ export class OpenAiContractAuditorProvider implements ContractAuditProvider {
     approvedSkills: readonly ApprovedProceduralSkillPromptContext[] = [],
     skillContextIdentity = "none",
   ): Promise<ContractAuditProviderOutput> {
-    const prompt = rolePrompt("contract-auditor", input, false, approvedSkills);
+    let prompt: ReturnType<typeof rolePrompt>;
+    try {
+      prompt = rolePrompt("contract-auditor", input, false, approvedSkills);
+    } catch (error) {
+      throw contractAuditRequestConstructionError(error);
+    }
     return (
       await this.ai.request({
         ...prompt,

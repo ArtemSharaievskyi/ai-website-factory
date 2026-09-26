@@ -42,6 +42,7 @@ export const WorkbenchOperationSchema = z.enum([
   "DATABASE_DECISION",
   "DEPENDENCY_APPROVAL",
   "RUN_CONTRACT_AUDIT",
+  "RECOVER_CONTRACT_AUDIT",
   "DESIGN_SELECTION",
   "START_IMPLEMENTATION",
   "WORKBENCH_REQUEST",
@@ -322,6 +323,7 @@ const CONFLICT_CODES = new Set([
   "DESIGN_OUTCOME_UNKNOWN",
   "IMPLEMENTATION_START_BLOCKED",
   "CONTRACT_AUDIT_PREREQUISITE_BLOCKED",
+  "CONTRACT_AUDIT_RECOVERY_BLOCKED",
   "CONTRACT_AUDIT_STALE",
   "CONTRACT_AUDIT_WORKFLOW_INVALID",
   "CONTRACT_AUDIT_IDEMPOTENCY_CONFLICT",
@@ -560,6 +562,7 @@ function operationForAction(action?: string): WorkbenchOperation {
     case "database-decision": return "DATABASE_DECISION";
     case "dependency-approval": return "DEPENDENCY_APPROVAL";
     case "run-contract-audit": return "RUN_CONTRACT_AUDIT";
+    case "recover-contract-audit": return "RECOVER_CONTRACT_AUDIT";
     case "design-selection": return "DESIGN_SELECTION";
     case "start-implementation": return "START_IMPLEMENTATION";
     default: return "WORKBENCH_REQUEST";
@@ -856,7 +859,11 @@ function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProject
   if (code === "DESIGN_OUTCOME_UNKNOWN") return { error: "The previous Design provider outcome is unknown and cannot be retried without explicit fresh-attempt authority. The project was not changed.", httpStatus: 409, recoverable: false, category: "WORKFLOW_CONFLICT", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), reasonCode: "OUTCOME_UNKNOWN" };
   if (code === "DESIGN_INPUT_INVALID") return { error: "The host-owned Design inputs did not match the current strict contract. The project was not changed.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
   if (["CONTRACT_AUDIT_INPUT_INVALID", "CONTRACT_AUDIT_BLOCKED", "CONTRACT_AUDIT_CHANGES_REQUIRED", "CONTRACT_AUDIT_PREREQUISITE_REJECTED"].includes(code)) return { error: "The current Contract Audit evidence did not satisfy the guarded prerequisite contract. The project was not advanced to implementation.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
-  if (["CONTRACT_AUDIT_PROVIDER_FAILED", "CONTRACT_AUDIT_OUTPUT_INVALID"].includes(code)) return { error: "The Contract Audit provider could not complete this prerequisite. The project was not advanced to implementation.", httpStatus: code === "CONTRACT_AUDIT_OUTPUT_INVALID" ? 502 : 503, recoverable: false, category: "PROVIDER", subsystem: "PROVIDER", errorClass: errorClass(error), providerContract: "contract-audit" };
+  if (["CONTRACT_AUDIT_PROVIDER_FAILED", "CONTRACT_AUDIT_OUTPUT_INVALID"].includes(code)) {
+    const diagnostic = safeProviderDiagnostic(error);
+    const reasonCode = diagnostic?.errorCode ?? diagnostic?.providerErrorCode ?? (diagnostic?.requestAttempted === false ? "CONTRACT_AUDIT_PRE_PROVIDER_FAILURE" : undefined);
+    return { error: "The Contract Audit provider could not complete this prerequisite. The project was not advanced to implementation.", httpStatus: code === "CONTRACT_AUDIT_OUTPUT_INVALID" ? 502 : 503, recoverable: false, category: "PROVIDER", subsystem: "PROVIDER", errorClass: errorClass(error), providerContract: "contract-audit", ...(reasonCode ? { reasonCode } : {}), ...(diagnostic ? { providerDiagnostic: diagnostic } : {}) };
+  }
   if (["ARCHITECTURE_REVIEW_PROVIDER_FAILED", "ARCHITECTURE_REVIEW_OUTPUT_INVALID"].includes(code)) {
     return { error: "The Architecture Review provider could not complete this request. The project was not changed.", httpStatus: code === "ARCHITECTURE_REVIEW_OUTPUT_INVALID" ? 502 : 503, recoverable: false, category: "PROVIDER", subsystem: "PROVIDER", errorClass: errorClass(error), ...(safeProviderDiagnostic(error) ? { providerDiagnostic: safeProviderDiagnostic(error) } : {}) };
   }

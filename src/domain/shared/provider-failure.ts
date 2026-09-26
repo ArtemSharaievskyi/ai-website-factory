@@ -119,6 +119,19 @@ export const ProviderFailureDiagnosticSchema = z.object({
   zodIssuesTruncated: z.boolean().optional(),
   completeZodIssuesChecksum: SafeDiagnosticChecksumSchema.optional(),
   zodIssuesBounded: z.array(SafeZodIssueSchema).max(20).optional(),
+  contextCapacity: z.object({
+    budgetProfile: SafeDiagnosticTokenSchema,
+    requestBytes: z.number().int().nonnegative().max(20_000_000),
+    requestTokens: z.number().int().nonnegative().max(5_000_000),
+    schemaBytes: z.number().int().nonnegative().max(20_000_000),
+    schemaTokens: z.number().int().nonnegative().max(5_000_000),
+    totalBytesWithReserve: z.number().int().nonnegative().max(20_000_000),
+    totalTokensWithReserve: z.number().int().nonnegative().max(5_000_000),
+    maxBytes: z.number().int().positive().max(20_000_000),
+    maxTokens: z.number().int().positive().max(5_000_000),
+    canonicalRequirementBytes: z.number().int().nonnegative().max(20_000_000),
+    supportingContextBytes: z.number().int().nonnegative().max(20_000_000),
+  }).strict().optional(),
 }).strict();
 
 export type ProviderFailureDiagnostic = z.infer<typeof ProviderFailureDiagnosticSchema>;

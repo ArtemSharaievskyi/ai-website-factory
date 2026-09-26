@@ -35,6 +35,7 @@ export const WorkbenchActionSchema = z.enum([
   "DATABASE_DECISION",
   "DEPENDENCY_APPROVAL",
   "RUN_CONTRACT_AUDIT",
+  "RECOVER_CONTRACT_AUDIT",
   "DESIGN_SELECTION",
   "START_IMPLEMENTATION",
 ]);
@@ -120,6 +121,7 @@ export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("database-decision"), projectId: ProjectIdSchema, mode: z.enum(["NONE", "SUPABASE_NEW", "SUPABASE_EXISTING"]), reason: z.string().max(4000).optional() }).strict(),
   z.object({ action: z.literal("dependency-approval"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("run-contract-audit"), projectId: ProjectIdSchema }).strict(),
+  z.object({ action: z.literal("recover-contract-audit"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("design-selection"), projectId: ProjectIdSchema, selectedDirectionId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("start-implementation"), projectId: ProjectIdSchema }).strict(),
 ]);
@@ -305,6 +307,7 @@ export function actionsForWorkbenchState(input: {
   phase7cDatabaseDecisionPending?: boolean;
   phase7cDependencyApprovalPending?: boolean;
   phase7cContractAuditPending?: boolean;
+  phase7cContractAuditRecoveryPending?: boolean;
   canRefreshClarifications?: boolean;
   canGenerateArchitectureReview?: boolean;
   hasIndeterminateDesignAttempt?: boolean;
@@ -332,6 +335,8 @@ export function actionsForWorkbenchState(input: {
         ...(input.phase7cDependencyApprovalPending ? ["DEPENDENCY_APPROVAL"] as WorkbenchAction[] : []),
         ...(input.phase7cContractAuditPending ? ["RUN_CONTRACT_AUDIT"] as WorkbenchAction[] : []),
       ];
+    case "CONTRACT_AUDIT":
+      return input.phase7cContractAuditRecoveryPending ? ["RECOVER_CONTRACT_AUDIT"] : [];
     case "ARCHITECTURE_REVIEW": return input.canGenerateArchitectureReview ? ["GENERATE_ARCHITECTURE_REVIEW"] : [];
     default: return [];
   }

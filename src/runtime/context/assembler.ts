@@ -167,7 +167,7 @@ export class ContextAssembler {
   }
 }
 
-const profileFor = (agentRole: string, budget?: ContextBudgetPolicy) => budget ?? (agentRole.includes("reviewer") || agentRole === "review" ? CONTEXT_BUDGET_PROFILES.reviewer : agentRole === "implementation" ? CONTEXT_BUDGET_PROFILES.implementation : CONTEXT_BUDGET_PROFILES.default);
+const profileFor = (agentRole: string, budget?: ContextBudgetPolicy) => budget ?? (agentRole === "contract-auditor" ? CONTEXT_BUDGET_PROFILES.contractAudit : agentRole.includes("reviewer") || agentRole === "review" ? CONTEXT_BUDGET_PROFILES.reviewer : agentRole === "implementation" ? CONTEXT_BUDGET_PROFILES.implementation : CONTEXT_BUDGET_PROFILES.default);
 const effectiveInputTokens = (budget: ContextBudgetPolicy) => Math.min(budget.maxEstimatedInputTokens, budget.hardCeiling.estimatedInputTokens - budget.reservedResponseTokens);
 const effectiveBytes = (budget: ContextBudgetPolicy) => Math.min(budget.maxBytes, budget.hardCeiling.bytes - budget.reservedResponseBytes);
 const candidateKey = (candidate: ContextCandidate, contentChecksum: string) => `${candidate.kind}|${candidate.sourceRef}|${candidate.sourceChecksum ?? contentChecksum}|${contentChecksum}`;

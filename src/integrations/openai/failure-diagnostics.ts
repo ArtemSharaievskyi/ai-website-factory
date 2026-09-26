@@ -159,6 +159,37 @@ function safePositiveInt(value: unknown) {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
 }
 
+function safeContextCapacity(value: ProviderDiagnostic["contextCapacity"]) {
+  if (!value || !safeToken(value.budgetProfile)) return undefined;
+  const fields = [
+    value.requestBytes,
+    value.requestTokens,
+    value.schemaBytes,
+    value.schemaTokens,
+    value.totalBytesWithReserve,
+    value.totalTokensWithReserve,
+    value.maxBytes,
+    value.maxTokens,
+    value.canonicalRequirementBytes,
+    value.supportingContextBytes,
+  ];
+  if (fields.some((candidate) => safeNonnegativeInt(candidate) === undefined)) return undefined;
+  if (value.maxBytes <= 0 || value.maxTokens <= 0) return undefined;
+  return {
+    budgetProfile: value.budgetProfile,
+    requestBytes: value.requestBytes,
+    requestTokens: value.requestTokens,
+    schemaBytes: value.schemaBytes,
+    schemaTokens: value.schemaTokens,
+    totalBytesWithReserve: value.totalBytesWithReserve,
+    totalTokensWithReserve: value.totalTokensWithReserve,
+    maxBytes: value.maxBytes,
+    maxTokens: value.maxTokens,
+    canonicalRequirementBytes: value.canonicalRequirementBytes,
+    supportingContextBytes: value.supportingContextBytes,
+  };
+}
+
 function safeChecksum(value: unknown) {
   return typeof value === "string" && /^[a-f0-9]{64}$/.test(value) ? value : undefined;
 }
@@ -271,5 +302,6 @@ export function createProviderFailureDiagnostic(input: ProviderFailureDiagnostic
     ...(typeof diagnostic?.zodIssuesTruncated === "boolean" ? { zodIssuesTruncated: diagnostic.zodIssuesTruncated } : {}),
     ...(safeChecksum(diagnostic?.completeZodIssuesChecksum) ? { completeZodIssuesChecksum: safeChecksum(diagnostic?.completeZodIssuesChecksum) } : {}),
     ...(zodIssuesBounded ? { zodIssuesBounded } : {}),
+    ...(safeContextCapacity(diagnostic?.contextCapacity) ? { contextCapacity: safeContextCapacity(diagnostic?.contextCapacity) } : {}),
   });
 }

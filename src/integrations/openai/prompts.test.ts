@@ -61,6 +61,14 @@ describe("approved procedural prompt guidance", () => {
     expect(prompt.system).toContain("Zod is a fixed Factory baseline dependency");
   });
 
+  it("uses the measured role-specific envelope for a lossless Contract Audit context", () => {
+    const prompt = rolePrompt("contract-auditor", { approvedBrief: "x".repeat(400_000) });
+    expect(prompt.contextBundle.budget.profileId).toBe("contract-audit-v1");
+    expect(prompt.contextBundle.metrics.canonicalRequirementTruncated).toBe(false);
+    expect(prompt.contextBundle.totalBytes).toBeGreaterThan(400_000);
+    expect(prompt.contextBundle.budget.hardCeiling.bytes).toBe(640_000);
+  });
+
   it("binds implementation proposals to the advertised edit strategies", () => {
     const prompt = rolePrompt("implementation", {});
     expect(prompt.promptVersion).toBe("implementation.v3");
