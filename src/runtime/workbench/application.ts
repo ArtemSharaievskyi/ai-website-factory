@@ -1,6 +1,6 @@
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { randomUUID } from "node:crypto";
-import { DecisionRepository, DocumentRepository, ProjectRepository } from "@/persistence/database/repositories";
+import { DecisionRepository, DocumentRepository, OperationRepository, ProjectRepository } from "@/persistence/database/repositories";
 import type { PersistenceDatabase } from "@/persistence/database/types";
 import type { WorkflowState } from "@/domain/workflow/engine";
 import { evaluatePlanningAcceptanceReadiness, planningDocumentChecksum } from "@/agents/planner/deterministic";
@@ -797,6 +797,14 @@ export class WorkbenchApplication {
     const briefV3 = BriefV3DocumentSchema.parse(briefV3Document);
     const brief = approvedBriefForDownstream(persistedBrief, briefV3);
     const decisions = await new DecisionRepository(this.dependencies.database).list(projectId, version);
+    const auditFrontierPayload = { projectId, projectVersion: version, approvedBriefChecksum: briefV3.briefChecksum, planningChecksum: phase7c.planningChecksum, architectureChecksum: phase7c.architectureChecksum, designChecksum: phase7c.designChecksum, databaseDecisionChecksum: phase7c.databaseDecision.checksum, dependencyProposalChecksum: phase7c.dependencyProposal.checksum };
+    const auditOperationKey = `workbench-contract-audit-prerequisite:${projectId}:${version}:${checksumPersistedDocument(auditFrontierPayload)}`;
+    const auditOperations = new OperationRepository(this.dependencies.database);
+    const reservation = await auditOperations.reserve("workbench.contract-audit-prerequisite", auditOperationKey, auditFrontierPayload);
+    if (reservation.status === "IN_PROGRESS") throw new WorkbenchOperationConflict("WORKBENCH_OPERATION_IN_PROGRESS", "A current Contract Audit prerequisite is already active.");
+    if (reservation.status === "SUCCEEDED") throw new WorkbenchOperationConflict("WORKBENCH_OPERATION_REPLAY", "The current Contract Audit prerequisite was already completed.");
+    let prerequisiteReserved = true;
+    try {
     const input = { projectId, projectVersion: version, approvedBrief: brief, canonicalBrief: briefV3.brief, approvedBriefChecksum: briefV3.briefChecksum, acceptedPlanningPackage: planning, acceptedPlanningChecksum: planningDocumentChecksum(planning), selectedDesign: selected, selectedDesignChecksum: checksumPersistedDocument(selected), technicalArchitecture: planning.architecture, contentPlan: planning.content, assetManifest: planning.assets, currentWorkflowState: "READY_FOR_IMPLEMENTATION" as const, existingDecisions: decisions, allowedRoles: ["lead", "planner-architect", "design", "implementation", "qa-release"] as ("lead" | "planner-architect" | "design" | "implementation" | "qa-release")[], approvedSkillRegistrySnapshot: { schemaVersion: 1 as const, checksum: "0".repeat(64), skills: [] }, toolPolicyVersion: "tools-v1", orchestrationPolicyVersion: DEFAULT_ORCHESTRATION_POLICY.version, idempotencyKey: `workbench-orchestrator:${projectId}:${checksumPersistedDocument(phase7c)}`, expectedRowVersion: current.rowVersion, workspaceReserved: true, projectImmutable: false, phase7cContractPackage: phase7c };
     const priorAudit = await this.documents.get(projectId, version, "contract-audit");
     if (priorAudit) throw new WorkbenchActionError("CONTRACT_AUDIT_PREREQUISITE_BLOCKED", "A Contract Audit already exists for the current Phase 7C frontier.");
@@ -813,6 +821,14 @@ export class WorkbenchApplication {
     const auditIdempotencyKey = `workbench-contract-audit:${projectId}:${graph.taskGraph.graphChecksum}:${CONTRACT_AUDIT_PROMPT_VERSION}`;
     const audit = await scope.contractAuditor.auditAndRoute({ projectId, projectVersion: version, approvedBrief: brief, canonicalBrief: briefV3.brief, briefChecksum: briefV3.briefChecksum, acceptedPlanningPackage: planning, planningChecksum: planningDocumentChecksum(planning), approvedArchitectureReview: architectureReview, architectureReviewChecksum: checksumPersistedDocument(architectureReview), selectedDesign: selected, designChecksum: checksumPersistedDocument(selected), taskGraph: graph.taskGraph, taskGraphChecksum: graph.taskGraph.graphChecksum!, executorCatalog, currentAssetReferences, idempotencyKey: auditIdempotencyKey, expectedRowVersion: auditEntry.rowVersion });
     if (audit.result.verdict !== "APPROVED") throw new WorkbenchActionError("CONTRACT_AUDIT_PREREQUISITE_REJECTED", "Contract Audit did not approve the current implementation contract chain.");
+    await auditOperations.complete("workbench.contract-audit-prerequisite", auditOperationKey, auditFrontierPayload, { taskGraphChecksum: graph.taskGraph.graphChecksum, auditResultChecksum: checksumPersistedDocument(audit.result), projectState: audit.projectState });
+    prerequisiteReserved = false;
+    } catch (error) {
+      if (prerequisiteReserved) {
+        await auditOperations.fail("workbench.contract-audit-prerequisite", auditOperationKey, auditFrontierPayload).catch(() => undefined);
+      }
+      throw error;
+    }
   }
 
   private brief(requirements: Extract<Awaited<ReturnType<DocumentRepository["get"]>>, { documentType: "requirements" }>, checksum: string, readyForApproval: boolean): WorkbenchBrief {
