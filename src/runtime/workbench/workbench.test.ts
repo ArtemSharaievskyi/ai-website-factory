@@ -131,6 +131,8 @@ describe("Factory Workbench projection and boundary", () => {
     expect(actionsForWorkbenchState({ workflowState: "CLARIFYING", hasBlockingQuestions: true, hasBrief: false, briefReady: false, hasPlanning: false, hasDesigns: false })).toEqual(["ANSWER_LEAD_CLARIFICATIONS"]);
     expect(actionsForWorkbenchState({ workflowState: "DRAFT", hasBlockingQuestions: false, hasBrief: false, briefReady: false, hasPlanning: false, hasDesigns: false })).toEqual([]);
     expect(actionsForWorkbenchState({ workflowState: "READY_FOR_IMPLEMENTATION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, implementationReady: false })).toEqual([]);
+    expect(actionsForWorkbenchState({ workflowState: "READY_FOR_IMPLEMENTATION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, implementationReady: false, phase7cDatabaseDecisionPending: true })).toEqual(["DATABASE_DECISION"]);
+    expect(actionsForWorkbenchState({ workflowState: "READY_FOR_IMPLEMENTATION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, implementationReady: false, phase7cDependencyApprovalPending: true })).toEqual(["DEPENDENCY_APPROVAL"]);
     expect(actionsForWorkbenchState({ workflowState: "READY_FOR_IMPLEMENTATION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, implementationReady: true })).toEqual(["START_IMPLEMENTATION"]);
   });
 

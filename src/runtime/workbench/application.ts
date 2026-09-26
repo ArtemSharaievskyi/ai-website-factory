@@ -350,6 +350,8 @@ export class WorkbenchApplication {
       ...(contractAudit?.documentType === "contract-audit" ? { contractAudit } : {}),
       ...(taskGraph?.documentType === "task-graph" ? { taskGraph } : {}),
     });
+    const phase7cDatabaseDecisionPending = contractPackage?.documentType === "phase-7c-contract-package" && contractPackage.databaseDecision.approval.status === "PENDING";
+    const phase7cDependencyApprovalPending = contractPackage?.documentType === "phase-7c-contract-package" && contractPackage.dependencyProposal.dependencies.some((dependency) => dependency.approvalRequired && dependency.approvalStatus === "PENDING");
     const allowedActions = actionsForWorkbenchState({
       workflowState: current.project.workflowState,
       hasBlockingQuestions,
@@ -362,6 +364,8 @@ export class WorkbenchApplication {
       hasIndeterminateDesignAttempt,
       designFreshAttemptBlocked,
       implementationReady: implementationGate.ready,
+      phase7cDatabaseDecisionPending,
+      phase7cDependencyApprovalPending,
     });
     const brief = briefV3
       ? briefV3Projection(briefV3.brief, briefV3.briefChecksum, briefReady, briefV3.approval?.approved === true && briefV3.approval.approvedCanonicalChecksum === briefV3.briefChecksum)

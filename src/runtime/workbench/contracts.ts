@@ -300,6 +300,8 @@ export function actionsForWorkbenchState(input: {
   hasPlanning: boolean;
   hasDesigns: boolean;
   implementationReady?: boolean;
+  phase7cDatabaseDecisionPending?: boolean;
+  phase7cDependencyApprovalPending?: boolean;
   canRefreshClarifications?: boolean;
   canGenerateArchitectureReview?: boolean;
   hasIndeterminateDesignAttempt?: boolean;
@@ -320,7 +322,12 @@ export function actionsForWorkbenchState(input: {
         ...(input.hasPlanning ? ["REQUEST_PLANNING_CHANGES", "DATABASE_DECISION", "DEPENDENCY_APPROVAL"] as WorkbenchAction[] : []),
         ...(input.hasDesigns ? ["DESIGN_SELECTION"] as WorkbenchAction[] : []),
       ];
-    case "READY_FOR_IMPLEMENTATION": return input.implementationReady ? ["START_IMPLEMENTATION"] : [];
+    case "READY_FOR_IMPLEMENTATION":
+      if (input.implementationReady) return ["START_IMPLEMENTATION"];
+      return [
+        ...(input.phase7cDatabaseDecisionPending ? ["DATABASE_DECISION"] as WorkbenchAction[] : []),
+        ...(input.phase7cDependencyApprovalPending ? ["DEPENDENCY_APPROVAL"] as WorkbenchAction[] : []),
+      ];
     case "ARCHITECTURE_REVIEW": return input.canGenerateArchitectureReview ? ["GENERATE_ARCHITECTURE_REVIEW"] : [];
     default: return [];
   }
