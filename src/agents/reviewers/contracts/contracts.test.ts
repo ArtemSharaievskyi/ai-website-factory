@@ -15,7 +15,7 @@ import { contractAuditorAgentDefinition } from "@/agents/catalog";
 import { ContractAuditError } from "./errors";
 import { CONTRACT_AUDIT_POLICY_VERSION, ContractAuditInputSchema, type ContractAuditInput } from "./contracts";
 import { deterministicContractAudit } from "./deterministic";
-import { ContractAuditService } from "./service";
+import { ContractAuditService, type ContractAuditExecutionEvidence } from "./service";
 import { ContractAuditOrchestrationService } from "@/orchestration/contract-audit/service";
 import { evidenceIdFor } from "../evidence";
 
@@ -41,6 +41,40 @@ describe("Contract Auditor", () => {
   it("persists an approved audit and provides stable idempotency", async () => { const value = chain(); const database = new InMemoryPersistenceDatabase(); await projectInAudit(database, value.input.projectId); const service = new ContractAuditService(database); const input = { ...value.input, idempotencyKey: "same-audit" }; const first = await service.audit(input); const second = await service.audit(input); expect(second).toEqual(first); expect((await new DocumentRepository(database).get(value.input.projectId, 1, "contract-audit"))?.documentType).toBe("contract-audit"); expect((await service.getCurrentAudit(value.input.projectId, 1, { brief: input.briefChecksum, planning: input.planningChecksum, architectureReview: input.architectureReviewChecksum, design: input.designChecksum, taskGraph: input.taskGraphChecksum }))?.result.verdict).toBe("APPROVED"); });
   it("rejects actionable provider findings without correction targets or invented evidence", async () => { const value = chain(); const database = new InMemoryPersistenceDatabase(); await projectInAudit(database, value.input.projectId); const provider = { promptVersion: "contract-auditor.v1", review: async () => ({ verdict: "CHANGES_REQUIRED" as const, findings: [{ findingId: "semantic-gap", severity: "ERROR" as const, category: "REQUIREMENT_CONTRADICTION" as const, summary: "Meaning changed", evidenceRefs: ["requirements"], affectedArtifacts: ["task-graph"], recommendedAction: "Correct the task." }], reviewedArtifactRefs: ["requirements"], policyVersion: CONTRACT_AUDIT_POLICY_VERSION }) }; await expect(new ContractAuditService(database, { provider }).audit(value.input)).rejects.toMatchObject({ code: "CONTRACT_AUDIT_OUTPUT_INVALID" }); });
   it("keeps semantic review separate from deterministic facts", async () => { const value = chain(); const database = new InMemoryPersistenceDatabase(); await projectInAudit(database, value.input.projectId); const provider = { promptVersion: "contract-auditor.v1", review: async (reviewInput: ContractAuditInput) => { const requirements = evidenceIdFor(reviewInput, "requirements"); const taskGraph = evidenceIdFor(reviewInput, "task-graph"); return { verdict: "CHANGES_REQUIRED" as const, findings: [{ findingId: "semantic-gap", severity: "ERROR" as const, category: "REQUIREMENT_CONTRADICTION" as const, summary: "The downstream task changes the approved meaning.", evidenceRefs: [requirements], affectedArtifacts: [taskGraph], recommendedAction: "Correct the task contract.", correctionTarget: "TASKGRAPH" as const }], reviewedArtifactRefs: [requirements, taskGraph] }; } }; const result = await new ContractAuditService(database, { provider }).audit(value.input); expect(result.verdict).toBe("CHANGES_REQUIRED"); expect(result.policyVersion).toBe(CONTRACT_AUDIT_POLICY_VERSION); expect(result.findings[0]?.correctionTarget).toBe("TASKGRAPH"); });
+  it("maps the selected direction into an opaque provider catalog reference while preserving the canonical identity internally", async () => {
+    const value = chain();
+    const database = new InMemoryPersistenceDatabase();
+    await projectInAudit(database, value.input.projectId);
+    let providerCatalog: Array<{ canonicalRef: string }> = [];
+    const provider = { promptVersion: "contract-auditor.v1", review: async (reviewInput: ContractAuditInput) => {
+      providerCatalog = (reviewInput as unknown as { evidenceCatalog?: { entries: Array<{ canonicalRef: string }> } }).evidenceCatalog?.entries ?? [];
+      const requirements = evidenceIdFor(reviewInput, "requirements");
+      return { verdict: "CHANGES_REQUIRED" as const, findings: [{ findingId: "synthetic-selected-design-review", severity: "INFO" as const, category: "REQUIREMENT_NOT_TRACED" as const, summary: "Synthetic bounded finding.", evidenceRefs: [requirements], affectedArtifacts: [requirements], recommendedAction: "Review the synthetic evidence." }], reviewedArtifactRefs: [requirements] };
+    } };
+    await new ContractAuditService(database, { provider }).audit(value.input);
+    const selectedEntry = providerCatalog.find((entry) => entry.canonicalRef.startsWith("selected-design-evidence:"));
+    expect(selectedEntry).toBeDefined();
+    expect(providerCatalog.some((entry) => entry.canonicalRef === value.selected.selectedDirectionId)).toBe(false);
+  });
+  it("retains bounded provider-boundary evidence without retaining provider content", async () => {
+    const value = chain();
+    const database = new InMemoryPersistenceDatabase();
+    await projectInAudit(database, value.input.projectId);
+    const execution: ContractAuditExecutionEvidence = { providerBoundary: "NOT_STARTED", providerCallsTotal: 0, responseReceived: false, parsed: false, persisted: false };
+    const provider = { promptVersion: "contract-auditor.v1", review: async () => { throw new Error("private synthetic provider detail"); } };
+    await expect(new ContractAuditService(database, { provider }).audit(value.input, undefined, execution)).rejects.toMatchObject({ code: "CONTRACT_AUDIT_PROVIDER_FAILED" });
+    expect(execution).toMatchObject({ providerBoundary: "STARTED", providerCallsTotal: 1, responseReceived: false, parsed: false, persisted: false, requestBytes: expect.any(Number), requestFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/) });
+    expect(JSON.stringify(execution)).not.toContain("private synthetic provider detail");
+  });
+  it("distinguishes response, parse, and persistence completion on a synthetic provider response", async () => {
+    const value = chain();
+    const database = new InMemoryPersistenceDatabase();
+    await projectInAudit(database, value.input.projectId);
+    const execution: ContractAuditExecutionEvidence = { providerBoundary: "NOT_STARTED", providerCallsTotal: 0, responseReceived: false, parsed: false, persisted: false };
+    const provider = { promptVersion: "contract-auditor.v1", review: async (reviewInput: ContractAuditInput) => ({ verdict: "APPROVED" as const, findings: [], reviewedArtifactRefs: [evidenceIdFor(reviewInput, "requirements")] }) };
+    await new ContractAuditService(database, { provider }).audit(value.input, undefined, execution);
+    expect(execution).toMatchObject({ providerBoundary: "RESPONSE_RECEIVED", providerCallsTotal: 1, responseReceived: true, parsed: true, persisted: true });
+  });
   it("exhausts TaskGraph regeneration after one bounded cycle", () => { const service = new ContractAuditService(new InMemoryPersistenceDatabase()); const projectId = id(); service.recordTaskGraphRegeneration(projectId, 1); expect(() => service.recordTaskGraphRegeneration(projectId, 1)).toThrowError(ContractAuditError); });
   it("unlocks implementation only through orchestration after approval", async () => { const value = chain(); const database = new InMemoryPersistenceDatabase(); await projectInAudit(database, value.input.projectId); const result = await new ContractAuditOrchestrationService(database).auditAndRoute(value.input); expect(result.result.verdict).toBe("APPROVED"); expect(result.projectState).toBe("READY_FOR_IMPLEMENTATION"); expect((await new ProjectRepository(database).getWithVersion(value.input.projectId))?.project.workflowState).toBe("READY_FOR_IMPLEMENTATION"); });
 });

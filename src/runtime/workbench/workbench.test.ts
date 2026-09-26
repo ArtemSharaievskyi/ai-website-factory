@@ -6,7 +6,8 @@ import { DeterministicLeadProvider } from "@/agents/lead/ports";
 import { LeadAgentService } from "@/agents/lead/service";
 import { analyzePromptDeterministically, assembleRequirements, planClarificationsDeterministically } from "@/agents/lead/deterministic";
 import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
-import { cleanBriefV3, multiDomainChangeSet, pilotShapedV1Brief } from "@/domain/requirements/v3/fixtures";
+import { cleanBriefV3, multiDomainChangeSet, pilotShapedV1Brief, representativeV1Brief } from "@/domain/requirements/v3/fixtures";
+import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
 import { migrateV1ToCanonicalBriefV3 } from "@/domain/requirements/v3/migrate-v1";
 import { applyBriefChangeSet } from "@/domain/requirements/v3/reducer";
 import { createBriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
@@ -16,14 +17,14 @@ import { WorkbenchApplication } from "./application";
 import { WorkbenchRequestSchema, actionsForWorkbenchState } from "./contracts";
 import { TrialEntryService } from "@/runtime/trial-entry/service";
 
-const syntheticPrompt = "Create a synthetic local test business website with a home page and contact path. Forms: contact form with simulated success after validation and no transmission.";
+const syntheticPrompt = "Create a synthetic local test business website with a home page and direct phone and email contact actions. No contact form, database, authentication, or persistence.";
 const answerFor = (key: string | undefined) => {
   switch (key) {
     case "business-purpose": return "A local synthetic test business website.";
     case "target-audience": return "Synthetic local customers.";
     case "languages": return "en-US";
     case "pages": return "Home and Contact";
-    case "functionality": return "A contact form.";
+    case "functionality": return "Direct phone and email contact actions; no contact form.";
     case "contact": return "Synthetic contact details only.";
     case "image-source": return "placeholders";
     case "logo": return "no logo";
@@ -53,6 +54,23 @@ async function createBriefReadyProject(app: WorkbenchApplication) {
   if (answers.length) await app.handle({ action: "respond", projectId: created.project.projectId, answers });
   const ready = await app.handle({ action: "status", projectId: created.project.projectId });
   return ready;
+}
+
+async function createCanonicalBriefReadyProject() {
+  const database = new InMemoryPersistenceDatabase();
+  const projectId = "26262626-2626-4262-8262-262626262626";
+  const timestamp = "2026-08-17T00:00:00.000Z";
+  const legacyBrief = RequirementSpecificationSchema.parse({ ...representativeV1Brief, projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp });
+  const canonicalBrief = cleanBriefV3;
+  const briefV3Document = createBriefV3Document({ projectId, projectVersion: 1, brief: canonicalBrief, createdAt: timestamp, updatedAt: timestamp });
+  const project = { schemaVersion: 1 as const, documentType: "factory-project" as const, projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp, id: projectId, slug: "workbench-canonical", origin: "TEST" as const, siteLanguage: "en" as const, originalPrompt: "Synthetic canonical Workbench project.", currentVersion: 1, workflowState: "AWAITING_BRIEF_APPROVAL" as const };
+  await new ProjectRepository(database).create(project);
+  await new ProjectVersionRepository(database).create({ id: "27272727-2727-4272-8272-272727272727", projectId, versionNumber: 1, state: project.workflowState, memoryRootPath: null, requirementsChecksum: briefV3Document.briefChecksum, selectedDesignChecksum: null, architectureChecksum: null, releasedAt: null, immutable: false, createdAt: timestamp, updatedAt: timestamp, rowVersion: 1 });
+  await new DocumentRepository(database).save(legacyBrief);
+  await new DocumentRepository(database).save(briefV3Document);
+  const entry = new TrialEntryService({ database, createLeadAgent: () => { throw new Error("LEGACY_LEAD_REACHED"); } });
+  const app = new WorkbenchApplication({ database, entry });
+  return { app, database, entry, ready: await app.handle({ action: "status", projectId }) };
 }
 
 describe("Factory Workbench projection and boundary", () => {
@@ -136,6 +154,9 @@ describe("Factory Workbench projection and boundary", () => {
     expect(actionsForWorkbenchState({ workflowState: "READY_FOR_IMPLEMENTATION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, implementationReady: true })).toEqual(["START_IMPLEMENTATION"]);
     expect(actionsForWorkbenchState({ workflowState: "READY_FOR_IMPLEMENTATION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, implementationReady: false, phase7cContractAuditPending: true })).toEqual(["RUN_CONTRACT_AUDIT"]);
     expect(actionsForWorkbenchState({ workflowState: "CONTRACT_AUDIT", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, phase7cContractAuditRecoveryPending: true })).toEqual(["RECOVER_CONTRACT_AUDIT"]);
+    expect(actionsForWorkbenchState({ workflowState: "CONTRACT_AUDIT", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, phase7cContractAuditCorrectionPending: true })).toEqual(["CORRECT_CONTRACT_AUDIT"]);
+    expect(actionsForWorkbenchState({ workflowState: "CONTRACT_AUDIT", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, phase7cContractAuditReassessmentPending: true })).toEqual(["REASSESS_CONTRACT_AUDIT"]);
+    expect(actionsForWorkbenchState({ workflowState: "READY_FOR_IMPLEMENTATION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: true, implementationReady: false, phase7cApprovalPending: true })).toEqual(["APPROVE_PHASE7C"]);
   });
 
   it("separates Planning generation and approval frontiers", () => {
@@ -144,6 +165,9 @@ describe("Factory Workbench projection and boundary", () => {
     expect(WorkbenchRequestSchema.safeParse({ action: "generate-planning", projectId }).success).toBe(true);
     expect(WorkbenchRequestSchema.safeParse({ action: "run-contract-audit", projectId }).success).toBe(true);
     expect(WorkbenchRequestSchema.safeParse({ action: "recover-contract-audit", projectId }).success).toBe(true);
+    expect(WorkbenchRequestSchema.safeParse({ action: "correct-contract-audit", projectId }).success).toBe(true);
+    expect(WorkbenchRequestSchema.safeParse({ action: "reassess-contract-audit", projectId }).success).toBe(true);
+    expect(WorkbenchRequestSchema.safeParse({ action: "approve-phase7c", projectId }).success).toBe(true);
     expect(actionsForWorkbenchState({ workflowState: "AWAITING_PLANNING_APPROVAL", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: false })).toContain("APPROVE_PLANNING");
     expect(actionsForWorkbenchState({ workflowState: "AWAITING_PLANNING_APPROVAL", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: false, hasDesigns: false })).toEqual([]);
     expect(actionsForWorkbenchState({ workflowState: "AWAITING_DESIGN_SELECTION", hasBlockingQuestions: false, hasBrief: true, briefReady: true, hasPlanning: true, hasDesigns: false })).not.toContain("APPROVE_PLANNING");
@@ -170,8 +194,7 @@ describe("Factory Workbench projection and boundary", () => {
   });
 
   it("fails closed when Planning approval is requested before Planning exists", async () => {
-    const { app } = fixture();
-    const ready = await createBriefReadyProject(app);
+    const { app, ready } = await createCanonicalBriefReadyProject();
     if (!ready.project || !ready.brief) throw new Error("fixture Brief was not ready");
     const approved = await app.handle({ action: "approve-brief", projectId: ready.project.projectId, briefChecksum: ready.brief.checksum, expectedRowVersion: ready.project.rowVersion });
     await expect(app.handle({ action: "approve-planning", projectId: approved.project!.projectId })).rejects.toMatchObject({ code: "PLANNING_WORKFLOW_INVALID" });
@@ -180,8 +203,8 @@ describe("Factory Workbench projection and boundary", () => {
   it("dispatches generation to the existing Planner service entry point", async () => {
     const planApprovedProject = vi.fn().mockResolvedValue(undefined);
     const workflowScope = { planner: { planApprovedProject, acceptPlanningPackage: vi.fn() } } as never;
-    const { app, entry } = fixture({ getWorkflowScope: () => workflowScope });
-    const ready = await createBriefReadyProject(app);
+    const { database, entry, ready } = await createCanonicalBriefReadyProject();
+    const app = new WorkbenchApplication({ database, entry, getWorkflowScope: () => workflowScope });
     if (!ready.project || !ready.brief) throw new Error("fixture Brief was not ready");
     const approved = await app.handle({ action: "approve-brief", projectId: ready.project.projectId, briefChecksum: ready.brief.checksum, expectedRowVersion: ready.project.rowVersion });
     expect((await entry.status(approved.project!.projectId)).nextAllowedActions).toContain("GENERATE_PLANNING");

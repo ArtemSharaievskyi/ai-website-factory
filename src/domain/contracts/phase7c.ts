@@ -284,6 +284,25 @@ export function checksumPlanningAcceptance(value: PlanningAcceptance | Omit<Plan
   return hash(omit(value as PlanningAcceptance, "checksum", "currentness")).toString();
 }
 
+/**
+ * Binds a newly rebuilt Phase 7C package to the exact contract frontier that
+ * was rebuilt from the current graph. The package document checksum is not
+ * used here because it includes this currentness record and would be cyclic.
+ */
+export function checksumPhase7CBinding(value: Phase7CContractPackage) {
+  return hash({
+    approvedBriefChecksum: value.approvedBriefChecksum,
+    planningChecksum: value.planningChecksum,
+    architectureChecksum: value.architectureChecksum,
+    designChecksum: value.designChecksum,
+    databaseDecisionChecksum: value.databaseDecision.checksum,
+    dependencyProposalChecksum: value.dependencyProposal.checksum,
+    planningAcceptanceChecksum: value.planningAcceptance.checksum,
+    dataContractChecksums: value.dataContracts.map((contract) => contract.checksum),
+    taskContractChecksums: value.taskContracts.map((contract) => contract.checksum),
+  });
+}
+
 function secretKey(key: string) {
   return /^(?:value|rawValue|secretValue|token|password|privateKey|connectionString|secret)$/i.test(key);
 }
@@ -368,7 +387,7 @@ export function validatePhase7CContractPackage(value: unknown, authorityContext:
   validateDependencyProposal(pkg.dependencyProposal, resolvedAuthorityContext, pkg.status !== "APPROVED");
   if (pkg.planningAcceptance.databaseDecisionRef.id !== decision.databaseDecisionId || pkg.planningAcceptance.databaseDecisionRef.checksum !== decision.checksum) throw new Phase7CContractError("PLANNING_ACCEPTANCE_STALE", "Planning Acceptance is not bound to the current DatabaseDecision.");
   if (pkg.planningAcceptance.checksum !== checksumPlanningAcceptance(pkg.planningAcceptance) || pkg.planningAcceptance.currentness.status !== "CURRENT" || pkg.planningAcceptance.currentness.derivedFromChecksum !== pkg.planningAcceptance.checksum) throw new Phase7CContractError("PLANNING_ACCEPTANCE_STALE", "Planning Acceptance checksum or currentness is stale.");
-  if (pkg.currentness.status !== "CURRENT" || pkg.currentness.derivedFromChecksum !== pkg.planningChecksum) throw new Phase7CContractError("CONTRACT_PACKAGE_STALE", "Phase 7C contract package is stale.");
+  if (pkg.currentness.status !== "CURRENT" || pkg.currentness.derivedFromChecksum !== checksumPhase7CBinding(pkg)) throw new Phase7CContractError("CONTRACT_PACKAGE_STALE", "Phase 7C contract package is stale.");
   if (pkg.databaseDecision.mode === "NONE" && pkg.dataContracts.some((contract) => contract.persistence === "DATABASE_PERSISTED")) throw new Phase7CContractError("DATABASE_REQUIRED_BY_DATA_CONTRACT", "NONE cannot coexist with persisted DataContracts.");
   if (pkg.dataContracts.some((contract) => contract.persistence === "DATABASE_PERSISTED" && (!contract.databaseDecisionRef || contract.databaseDecisionRef.id !== decision.databaseDecisionId || contract.databaseDecisionRef.checksum !== decision.checksum))) throw new Phase7CContractError("DATABASE_REQUIRED_BY_DATA_CONTRACT", "Every persisted DataContract must bind the current DatabaseDecision.");
   return pkg;
@@ -487,6 +506,47 @@ export function bindTaskContractsToPackage(pkg: Phase7CContractPackage, tasks: R
   return Phase7CContractPackageSchema.parse({ ...pkg, taskContracts: contracts, updatedAt: pkg.updatedAt });
 }
 
+/** Rebuild every task contract from the current graph; task IDs are not evidence of contract currentness. */
+export function rebindTaskContractsToPackage(pkg: Phase7CContractPackage, tasks: ReadonlyArray<{ id: string; projectId: string; projectVersion: number; taskType: string; implementationDomain?: "FRONTEND" | "BACKEND" | "DATABASE"; specialistProfileId?: "frontend-implementation" | "backend-implementation" | "database-implementation"; requirementReferences?: string[]; planningReferences?: string[]; requiredCapabilities?: string[]; allowedTools: string[]; allowedSkills: string[]; fileScopes: string[]; expectedArtifactTypes?: string[]; acceptanceCriteria?: string[]; dependencies: string[]; selectedDesignReferences?: string[] }>) {
+  const rebound = bindTaskContractsToPackage({ ...pkg, taskContracts: [] }, tasks);
+  return Phase7CContractPackageSchema.parse({
+    ...rebound,
+    currentness: {
+      ...rebound.currentness,
+      derivedFromChecksum: checksumPhase7CBinding(rebound),
+      checkedAt: rebound.updatedAt,
+    },
+  });
+}
+
+/** Bind the pending package to the selected Design before graph contracts are persisted. */
+export function rebindPhase7CToSelectedDesign(pkg: Phase7CContractPackage, selectedDesignChecksum: string, updatedAt = pkg.updatedAt) {
+  if (pkg.designChecksum === selectedDesignChecksum && pkg.planningAcceptance.designChecksum === selectedDesignChecksum) return pkg;
+  if (pkg.status === "APPROVED" || pkg.architectureAccepted || pkg.contractAuditAccepted || pkg.designSelected) throw new Phase7CContractError("CONTRACT_PACKAGE_STALE", "An approved Phase 7C package cannot be rebound to a different selected Design.");
+  const planningAcceptance = createPlanningAcceptance({
+    planningAcceptanceId: pkg.planningAcceptance.planningAcceptanceId,
+    projectId: pkg.projectId,
+    projectVersion: pkg.projectVersion,
+    planningChecksum: pkg.planningChecksum,
+    databaseDecision: pkg.databaseDecision,
+    dependencyProposal: pkg.dependencyProposal,
+    architectureChecksum: pkg.architectureChecksum,
+    designChecksum: selectedDesignChecksum,
+    createdAt: pkg.createdAt,
+  });
+  const rebound = {
+    ...pkg,
+    designChecksum: selectedDesignChecksum,
+    planningAcceptance,
+    updatedAt,
+    currentness: { ...pkg.currentness, status: "CURRENT" as const, checkedAt: updatedAt, derivedFromChecksum: "0".repeat(64) },
+  };
+  return Phase7CContractPackageSchema.parse({
+    ...rebound,
+    currentness: { ...rebound.currentness, derivedFromChecksum: checksumPhase7CBinding(rebound as Phase7CContractPackage) },
+  });
+}
+
 export function approveDependencyProposal(proposal: DependencyProposal, input: { actorId: string; approvedAt: string }) {
   const dependencies = proposal.dependencies.map((dependency) => dependency.approvalRequired ? { ...dependency, approvalStatus: "APPROVED" as const, approvedBy: input.actorId, approvedAt: input.approvedAt } : dependency);
   const base: Omit<DependencyProposal, "checksum"> = { ...proposal, dependencies, currentness: { ...proposal.currentness, status: "CURRENT", checkedAt: input.approvedAt, derivedFromChecksum: "0".repeat(64) } };
@@ -513,13 +573,23 @@ export function buildPhase7CContractPackage(input: { projectId: string; projectV
   const dataContracts = input.dataContracts ?? input.planning.dataModel.entities.map((entity, index) => createDataContract({ dataContractId: entityIds[index], projectId: input.projectId, projectVersion: input.projectVersion, createdAt: input.createdAt, name: entity.name, requirementReferences: entity.requirementReferences, fields: entity.fields.map((field) => ({ fieldId: field.name.replace(/[^A-Za-z0-9_]/g, "_").replace(/^[^a-z]/, "field_"), type: field.type, required: field.required, sensitivity: field.public ? "PUBLIC" as const : "CONFIDENTIAL" as const })), persistence: "DATABASE_PERSISTED", databaseDecisionRef: decisionRef, databaseEntity: entity.name, validationRules: ["Strict schema validation before persistence"], trustBoundary: "SERVER" }));
   const dependencyProposal = input.dependencyProposal ?? buildDependencyProposal({ dependencyProposalId: randomUUID(), projectId: input.projectId, projectVersion: input.projectVersion, createdAt: input.createdAt, planningChecksum: input.planningChecksum, dependencies: input.planning.dependencies.dependencies.map((dependency) => { const parsed = parseDependencySpec(dependency.name); return { packageName: parsed.packageName, versionSpec: parsed.versionSpec ?? getDependencyCatalogEntry(parsed.packageName)?.allowedVersionSpec ?? "*", section: dependency.runtime === "runtime" ? "dependencies" as const : "devDependencies" as const, required: dependency.required, requirementReferences: dependency.requirementReferences, rationale: dependency.purpose }; }) }, { projectId: input.projectId, projectVersion: input.projectVersion, planningChecksum: input.planningChecksum, plannedDependencies: input.planning.dependencies.dependencies.map((dependency) => ({ name: dependency.name, runtime: dependency.runtime, required: dependency.required })) });
   const planningAcceptance = createPlanningAcceptance({ projectId: input.projectId, projectVersion: input.projectVersion, planningChecksum: input.planningChecksum, databaseDecision, dependencyProposal, architectureChecksum: input.architectureChecksum, designChecksum: input.designChecksum, createdAt: input.createdAt });
-  const base = { schemaVersion: PHASE_7C_SCHEMA_VERSION, documentType: "phase-7c-contract-package" as const, projectId: input.projectId, projectVersion: input.projectVersion, createdAt: input.createdAt, updatedAt: input.createdAt, phaseId: "PHASE_7C" as const, contractPolicyVersion: PHASE_7C_POLICY_VERSION, approvedBriefChecksum: input.approvedBriefChecksum, planningChecksum: input.planningChecksum, architectureChecksum: input.architectureChecksum, designChecksum: input.designChecksum, status: "PENDING_USER_APPROVAL" as const, databaseDecision, dataContracts, taskContracts: [] as TaskContract[], dependencyProposal, planningAcceptance, safeEnvironmentMetadata: databaseDecision.connectionRequirements, traceability: dataContracts.flatMap((contract) => contract.requirementReferences.map((requirementReference) => ({ requirementReference, planningReference: `data:${contract.name}`, taskContractId: "00000000-0000-4000-8000-000000000000", dataContractIds: [contract.dataContractId], artifactPaths: [], validationIds: ["validate-contracts"] }))), architectureAccepted: false, contractAuditAccepted: false, designSelected: false, currentness: { status: "CURRENT" as const, derivedFromChecksum: input.planningChecksum, checkedAt: input.createdAt } };
-  return Phase7CContractPackageSchema.parse(base);
+  const base = { schemaVersion: PHASE_7C_SCHEMA_VERSION, documentType: "phase-7c-contract-package" as const, projectId: input.projectId, projectVersion: input.projectVersion, createdAt: input.createdAt, updatedAt: input.createdAt, phaseId: "PHASE_7C" as const, contractPolicyVersion: PHASE_7C_POLICY_VERSION, approvedBriefChecksum: input.approvedBriefChecksum, planningChecksum: input.planningChecksum, architectureChecksum: input.architectureChecksum, designChecksum: input.designChecksum, status: "PENDING_USER_APPROVAL" as const, databaseDecision, dataContracts, taskContracts: [] as TaskContract[], dependencyProposal, planningAcceptance, safeEnvironmentMetadata: databaseDecision.connectionRequirements, traceability: dataContracts.flatMap((contract) => contract.requirementReferences.map((requirementReference) => ({ requirementReference, planningReference: `data:${contract.name}`, taskContractId: "00000000-0000-4000-8000-000000000000", dataContractIds: [contract.dataContractId], artifactPaths: [], validationIds: ["validate-contracts"] }))), architectureAccepted: false, contractAuditAccepted: false, designSelected: false, currentness: { status: "CURRENT" as const, derivedFromChecksum: "0".repeat(64), checkedAt: input.createdAt } };
+  const bindingChecksum = checksumPhase7CBinding(base as Phase7CContractPackage);
+  return Phase7CContractPackageSchema.parse({ ...base, currentness: { ...base.currentness, derivedFromChecksum: bindingChecksum } });
 }
 
 export function approvePhase7CContractPackage(pkg: Phase7CContractPackage, input: { actorId: string; approvedAt: string }) {
   const dependencyProposal = validateDependencyProposal(pkg.dependencyProposal, dependencyAuthorityContextFromProposal(pkg.dependencyProposal));
   const databaseDecision = validateDatabaseDecision(pkg.databaseDecision);
   const planningAcceptance = approvePlanningAcceptance(pkg.planningAcceptance, input);
-  return validatePhase7CContractPackage({ ...pkg, status: "APPROVED", databaseDecision, dependencyProposal, planningAcceptance, updatedAt: input.approvedAt });
+  const next = { ...pkg, status: "APPROVED" as const, databaseDecision, dependencyProposal, planningAcceptance, updatedAt: input.approvedAt };
+  return validatePhase7CContractPackage({
+    ...next,
+    currentness: {
+      ...next.currentness,
+      status: "CURRENT",
+      checkedAt: input.approvedAt,
+      derivedFromChecksum: checksumPhase7CBinding(next),
+    },
+  });
 }

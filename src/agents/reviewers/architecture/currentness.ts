@@ -5,6 +5,7 @@ import { checksumPersistedDocument } from "@/persistence/database/serialization"
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { PlanningPackageSchema } from "@/agents/planner/contracts";
 import { planningSemanticChecksum } from "@/agents/planner/deterministic";
+import { checksumPhase7CBinding } from "@/domain/contracts/phase7c";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
 import type { ArchitectureReviewInput } from "./contracts";
 import { ArchitectureReviewError } from "./errors";
@@ -117,7 +118,7 @@ export async function readCanonicalReviewContext(
   if (
     phase7c.approvedBriefChecksum !== input.approvedBriefChecksum ||
     phase7cPlanningSemanticChecksum !== currentPlanningSemanticChecksum ||
-    phase7c.currentness.derivedFromChecksum !== currentPlanningSemanticChecksum ||
+    phase7c.currentness.derivedFromChecksum !== checksumPhase7CBinding(phase7c) ||
     phase7c.architectureChecksum !== architectureRow.checksum ||
     phase7c.currentness.status !== "CURRENT" ||
     phase7cRow.checksum !== checksumPersistedDocument(phase7c)

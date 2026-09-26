@@ -6,7 +6,7 @@ import { RequirementSpecificationSchema, type RequirementSpecification } from "@
 import { createBriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
 import { migrateLegacyBriefToCanonicalBriefV3 } from "@/domain/requirements/v3/migrate";
 import { FactoryProjectSchema } from "@/domain/project/schema";
-import { buildPhase7CContractPackage } from "@/domain/contracts/phase7c";
+import { buildPhase7CContractPackage, checksumPhase7CBinding, validatePhase7CContractPackage } from "@/domain/contracts/phase7c";
 import { FakeProjectMemorySyncPort } from "@/persistence/database/sync";
 import type { ArchitectureReviewResult } from "@/domain/review/schema";
 import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
@@ -274,7 +274,9 @@ describe("Architecture Reviewer", () => {
     await expect(new ArchitectureReviewOrchestrationService(fixture.database, new ArchitectureReviewService(fixture.database, { provider })).reviewAndRoute(input)).resolves.toMatchObject({ projectState: "AWAITING_DESIGN_SELECTION" });
     const state = await stateOf(fixture.database, fixture.brief.projectId);
     expect(providerCalls).toBe(1);
-    expect(state.phase7c?.payload).toMatchObject({ planningChecksum: planningSemanticChecksum(current), currentness: { status: "CURRENT", derivedFromChecksum: planningSemanticChecksum(current) } });
+    if (!state.phase7c || state.phase7c.documentType !== "phase-7c-contract-package") throw new Error("Phase 7C package missing");
+    const phase7c = validatePhase7CContractPackage(state.phase7c.payload);
+    expect(phase7c).toMatchObject({ planningChecksum: planningSemanticChecksum(current), currentness: { status: "CURRENT", derivedFromChecksum: checksumPhase7CBinding(phase7c) } });
   });
 
   it("rejects a semantic PlanningPackage change before provider execution", async () => {

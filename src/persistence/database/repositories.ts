@@ -112,17 +112,17 @@ export class ClarificationRepository extends DocumentRepository {
 
 export class OperationRepository {
   constructor(private readonly db: PersistenceDatabase) {}
-  async reserve(operation: string, key: string, payload: unknown) {
+  async reserve(operation: string, key: string, payload: unknown, initialResult?: unknown) {
     const payloadHash = documentPayloadHash(payload);
-    return this.db.transaction((tx) => tx.reserveOperation({ operation, key, payloadHash }));
+    return this.db.transaction((tx) => tx.reserveOperation({ operation, key, payloadHash, ...(initialResult === undefined ? {} : { initialResult }) }));
   }
-  async complete(operation: string, key: string, payload: unknown, result: unknown) {
+  async complete(operation: string, key: string, payload: unknown, result: unknown, leaseId?: string) {
     const payloadHash = documentPayloadHash(payload);
-    return this.db.transaction((tx) => tx.completeOperation({ operation, key, payloadHash, result }));
+    return this.db.transaction((tx) => tx.completeOperation({ operation, key, payloadHash, result, ...(leaseId ? { leaseId } : {}) }));
   }
-  async fail(operation: string, key: string, payload: unknown, result?: unknown) {
+  async fail(operation: string, key: string, payload: unknown, result?: unknown, leaseId?: string) {
     const payloadHash = documentPayloadHash(payload);
-    return this.db.transaction((tx) => tx.failOperation({ operation, key, payloadHash, ...(result === undefined ? {} : { result }) }));
+    return this.db.transaction((tx) => tx.failOperation({ operation, key, payloadHash, ...(result === undefined ? {} : { result }), ...(leaseId ? { leaseId } : {}) }));
   }
 }
 

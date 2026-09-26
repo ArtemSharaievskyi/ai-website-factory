@@ -42,7 +42,7 @@ export function validateImplementationTaskGraph(graph: TaskGraph, input?: Orches
   if (input) {
     const skillIds = new Set(input.approvedSkillRegistrySnapshot.skills.filter((skill) => skill.status === "approved").map((skill) => skill.id));
     for (const task of graph.tasks) for (const skill of task.allowedSkills) if (!skillIds.has(skill)) errors.push("TASK_SKILL_NOT_APPROVED");
-    if (input.currentWorkflowState !== "READY_FOR_IMPLEMENTATION") errors.push("ORCHESTRATOR_WORKFLOW_STATE_INVALID");
+    if (input.currentWorkflowState !== "READY_FOR_IMPLEMENTATION" && input.currentWorkflowState !== "CONTRACT_AUDIT") errors.push("ORCHESTRATOR_WORKFLOW_STATE_INVALID");
   }
   return { valid: errors.length === 0, errors: [...new Set(errors)], warnings: [...new Set(warnings)], graphChecksum: checksumPersistedDocument({ ...graph, graphChecksum: undefined }) };
 }

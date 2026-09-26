@@ -36,6 +36,7 @@ import {
   resolveProviderReviewEvidence,
 } from "../evidence";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
+import { Buffer } from "node:buffer";
 
 const now = () => new Date().toISOString();
 const findingKey = (value: unknown) => JSON.stringify(value);
@@ -54,6 +55,15 @@ const briefEvidenceRefs = (brief: unknown) => {
   };
   visit(brief);
   return refs;
+};
+export type ContractAuditExecutionEvidence = {
+  requestFingerprint?: string;
+  requestBytes?: number;
+  providerBoundary: "NOT_STARTED" | "STARTED" | "RESPONSE_RECEIVED";
+  providerCallsTotal: number;
+  responseReceived: boolean;
+  parsed: boolean;
+  persisted: boolean;
 };
 export function canonicalContractEvidence(input: ContractAuditInput) {
   return new Set([
@@ -74,6 +84,7 @@ export function canonicalContractEvidence(input: ContractAuditInput) {
     "supabase-plan",
     "requirements.authenticationDecision",
     "authentication-plan",
+    input.selectedDesign.selectedDirectionId,
     ...briefEvidenceRefs(input.approvedBrief),
     ...input.acceptedPlanningPackage.sitemap.routes.flatMap((route) => [
       `route:${route.id}`,
@@ -103,6 +114,7 @@ export function canonicalContractEvidence(input: ContractAuditInput) {
       ...task.fileScopes.map((scope) => `scope:${scope}`),
       ...(task.requirementReferences ?? []),
       ...(task.planningReferences ?? []),
+      ...(task.selectedDesignReferences ?? []),
     ]),
     ...input.executorCatalog.flatMap((executor) => [
       `executor:${executor.executorId}`,
@@ -114,6 +126,25 @@ export function canonicalContractEvidence(input: ContractAuditInput) {
       `asset-category:${asset.category}`,
     ])),
   ]);
+}
+
+function selectedDesignProviderReferences(input: ContractAuditInput, evidenceRefs: Iterable<string>) {
+  const selectedDirectionRefs = new Set([
+    input.selectedDesign.selectedDirectionId,
+    ...input.taskGraph.tasks.flatMap((task) => task.selectedDesignReferences ?? []),
+  ]);
+  const opaqueReference = checksumPersistedDocument({
+    projectId: input.projectId,
+    projectVersion: input.projectVersion,
+    directionSetId: input.selectedDesign.directionSetId,
+    selectedDirectionId: input.selectedDesign.selectedDirectionId,
+    selectedDirectionChecksum: input.selectedDesign.selectedDirectionChecksum,
+    selectedDesignChecksum: input.designChecksum,
+  });
+  return [...evidenceRefs].reduce<Record<string, string>>((mapping, reference) => {
+    if (selectedDirectionRefs.has(reference)) mapping[reference] = `selected-design-evidence:${opaqueReference.slice(0, 32)}`;
+    return mapping;
+  }, {});
 }
 
 export class ContractAuditService {
@@ -163,6 +194,7 @@ export class ContractAuditService {
   async audit(
     rawInput: ContractAuditInput,
     signal?: AbortSignal,
+    execution?: ContractAuditExecutionEvidence,
   ): Promise<ContractAuditResult> {
     const input = this.parseInput(rawInput);
     const evidenceCatalog = createReviewEvidenceCatalog({
@@ -170,8 +202,15 @@ export class ContractAuditService {
       projectVersion: input.projectVersion,
       evidenceRefs: canonicalContractEvidence(input),
       requestContext: input,
+      providerReferences: selectedDesignProviderReferences(input, canonicalContractEvidence(input)),
     });
     const providerInput = { ...input, evidenceCatalog: providerEvidenceCatalog(evidenceCatalog) };
+    if (execution) {
+      const serializedInput = JSON.stringify(providerInput);
+      execution.requestFingerprint = checksumPersistedDocument(providerInput);
+      execution.requestBytes = Buffer.byteLength(serializedInput, "utf8");
+      execution.providerBoundary = "NOT_STARTED";
+    }
     const project = await this.projects.getWithVersion(input.projectId);
     if (
       !project ||
@@ -209,11 +248,26 @@ export class ContractAuditService {
     }
     try {
       const deterministic = deterministicContractAudit(providerInput);
-      const providerResult =
-        deterministic.verdict === "APPROVED"
-          ? await this.provider.review(providerInput, signal, skillSelection.contexts, skillSelection.identityChecksum)
-          : deterministic;
+      let providerResult: ContractAuditProviderOutput;
+      if (deterministic.verdict !== "APPROVED") {
+        providerResult = deterministic;
+      } else {
+        if (execution) {
+          execution.providerCallsTotal = 1;
+          execution.providerBoundary = "STARTED";
+        }
+        try {
+          providerResult = await this.provider.review(providerInput, signal, skillSelection.contexts, skillSelection.identityChecksum);
+          if (execution) {
+            execution.providerBoundary = "RESPONSE_RECEIVED";
+            execution.responseReceived = true;
+          }
+        } catch (error) {
+          throw error;
+        }
+      }
       const normalized = this.normalize(providerResult, input, evidenceCatalog);
+      if (execution) execution.parsed = true;
       const result = normalized.result;
       const record = ContractAuditRecordSchema.parse({
         schemaVersion: 1,
@@ -272,6 +326,7 @@ export class ContractAuditService {
         await saveDocumentInTransaction(tx, historyDocument, `contract-audit-history:${input.idempotencyKey}`);
         await saveDocumentInTransaction(tx, record, `contract-audit:${input.idempotencyKey}`);
       });
+      if (execution) execution.persisted = true;
       this.idempotency.set(input.idempotencyKey, { inputHash, result });
       return result;
     } catch (error) {

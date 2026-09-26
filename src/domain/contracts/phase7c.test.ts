@@ -6,10 +6,13 @@ import {
   approveDependencyProposal,
   approvePhase7CContractPackage,
   bindTaskContractsToPackage,
+  rebindTaskContractsToPackage,
+  rebindPhase7CToSelectedDesign,
   approvePlanningAcceptance,
   buildDependencyProposal,
   buildPhase7CContractPackage,
   checksumDatabaseDecision,
+  checksumPhase7CBinding,
   createDatabaseDecisionProposal,
   createPlanningAcceptance,
   createTaskContract,
@@ -43,7 +46,8 @@ function packageFixture(): Phase7CContractPackage {
   const planningAcceptance = createPlanningAcceptance({ projectId, projectVersion: 1, planningChecksum: checksum, databaseDecision, dependencyProposal: pending.dependencyProposal, architectureChecksum: pending.architectureChecksum, designChecksum: pending.designChecksum, createdAt: now });
   const acceptance = approvePlanningAcceptance(planningAcceptance, { actorId: "user-1", approvedAt: now });
   const taskContract = createTaskContract({ taskId, projectId, projectVersion: 1, createdAt: now, taskType: "prepare-workspace", allowedTools: ["filesystem-read"], fileScopes: ["src/**"], ownedArtifactTypes: ["workspace-reservation"], acceptanceCriteria: ["Workspace is reserved"], validationRequirements: ["deterministic validation"] });
-  return validatePhase7CContractPackage({ ...pending, status: "APPROVED", databaseDecision, planningAcceptance: acceptance, taskContracts: [taskContract], architectureAccepted: true, contractAuditAccepted: true, designSelected: true });
+  const candidate = { ...pending, status: "APPROVED" as const, databaseDecision, planningAcceptance: acceptance, taskContracts: [taskContract], architectureAccepted: true, contractAuditAccepted: true, designSelected: true };
+  return validatePhase7CContractPackage({ ...candidate, currentness: { ...candidate.currentness, derivedFromChecksum: checksumPhase7CBinding(candidate) } });
 }
 
 describe("Phase 7C typed contracts", () => {
@@ -112,7 +116,8 @@ describe("Phase 7C typed contracts", () => {
     const pkg = packageFixture();
     const databaseTask = createTaskContract({ taskId, projectId, projectVersion: 1, createdAt: now, taskType: "implement-database-schema", allowedTools: ["filesystem-write"], fileScopes: ["supabase/migrations/**"], ownedArtifactTypes: ["database-schema"], acceptanceCriteria: ["Only approved schema is represented"], validationRequirements: ["migration validation"], databaseDecisionRef: { id: pkg.databaseDecision.databaseDecisionId, checksum: pkg.databaseDecision.checksum } });
     const withDatabaseTask = { ...pkg, taskContracts: [databaseTask] };
-    expect(() => validateStartImplementationGate({ contractPackage: withDatabaseTask, databaseTask: true })).toThrow(/NONE|database/i);
+    const currentWithDatabaseTask = { ...withDatabaseTask, currentness: { ...withDatabaseTask.currentness, derivedFromChecksum: checksumPhase7CBinding(withDatabaseTask) } };
+    expect(() => validateStartImplementationGate({ contractPackage: currentWithDatabaseTask, databaseTask: true })).toThrow(/NONE|database/i);
   });
 
   it("keeps optional dependency approval distinct from Foundation dependency authority", () => {
@@ -162,6 +167,54 @@ describe("Phase 7C typed contracts", () => {
     const first = bindTaskContractsToPackage(pending, [task]);
     const second = bindTaskContractsToPackage(pending, [task]);
     expect(second.taskContracts[0]).toEqual(first.taskContracts[0]);
+  });
+
+  it("rebinds changed and removed task identities from the current graph", () => {
+    const pending = buildPhase7CContractPackage({ projectId, projectVersion: 1, createdAt: now, approvedBriefChecksum: checksum, planningChecksum: checksum, architectureChecksum: "b".repeat(64), designChecksum: "c".repeat(64), planning });
+    const firstTask = { id: taskId, projectId, projectVersion: 1, taskType: "prepare-workspace", allowedTools: ["filesystem-read"], allowedSkills: [], fileScopes: ["src/**"], expectedArtifactTypes: ["workspace-reservation"], dependencies: [] };
+    const removedTask = { ...firstTask, id: "33333333-3333-4333-8333-333333333333", taskType: "implement-page" };
+    const initial = rebindTaskContractsToPackage(pending, [firstTask, removedTask]);
+    const changed = rebindTaskContractsToPackage(initial, [{ ...firstTask, taskType: "implement-shared-component", expectedArtifactTypes: ["shared-component"] }]);
+    expect(changed.taskContracts).toHaveLength(1);
+    expect(changed.taskContracts[0]?.taskId).toBe(taskId);
+    expect(changed.taskContracts[0]?.taskType).toBe("implement-shared-component");
+    expect(changed.taskContracts[0]?.checksum).not.toBe(initial.taskContracts[0]?.checksum);
+    expect(changed.databaseDecision).toEqual(pending.databaseDecision);
+    expect(changed.currentness.derivedFromChecksum).toBe(checksumPhase7CBinding(changed));
+    expect(validatePhase7CContractPackage(changed)).toEqual(changed);
+  });
+
+  it("binds a pending Phase 7C package to the selected Design before graph persistence", () => {
+    const pending = buildPhase7CContractPackage({ projectId, projectVersion: 1, createdAt: now, approvedBriefChecksum: checksum, planningChecksum: checksum, architectureChecksum: "b".repeat(64), designChecksum: "0".repeat(64), planning });
+    const selectedDesignChecksum = "d".repeat(64);
+    const rebound = rebindPhase7CToSelectedDesign(pending, selectedDesignChecksum);
+    expect(rebound.designChecksum).toBe(selectedDesignChecksum);
+    expect(rebound.planningAcceptance.designChecksum).toBe(selectedDesignChecksum);
+    expect(rebound.planningAcceptance.status).toBe("PENDING");
+    expect(validatePhase7CContractPackage(rebound)).toEqual(rebound);
+    expect(() => rebindPhase7CToSelectedDesign({ ...rebound, status: "APPROVED" }, "e".repeat(64))).toThrow(/approved/i);
+  });
+
+  it("accepts a supported non-NONE database mode only with its mode-specific connection contract", () => {
+    const proposed = createDatabaseDecisionProposal({
+      databaseDecisionId: "44444444-4444-4444-8444-444444444444",
+      projectId,
+      projectVersion: 1,
+      createdAt: now,
+      planningChecksum: checksum,
+      recommendation: "REQUIRED",
+      rationale: "Synthetic persisted records require a database.",
+      mode: "SUPABASE_EXISTING",
+      connectionRequirements: [
+        { name: "NEXT_PUBLIC_SUPABASE_URL", purpose: "database URL", required: true, visibility: "PUBLIC", requiredFor: ["DATABASE"], presence: "PRESENT", connectionVerification: "PASSED", source: "synthetic" },
+        { name: "NEXT_PUBLIC_SUPABASE_ANON_KEY", purpose: "database key", required: true, visibility: "PUBLIC", requiredFor: ["DATABASE"], presence: "PRESENT", connectionVerification: "PASSED", source: "synthetic" },
+      ],
+    });
+    const approved = approveDatabaseDecision(proposed, { actorId: "user-1", approvedAt: now, mode: "SUPABASE_EXISTING" });
+    expect(validateDatabaseDecision(approved).mode).toBe("SUPABASE_EXISTING");
+    expect(approved.provider).toBe("SUPABASE_POSTGRESQL");
+    expect(approved.connectionStatus).toBe("READY");
+    expect(() => validateDatabaseDecision({ ...approved, connectionRequirements: [] })).toThrow(/connection/i);
   });
 
   it("requires explicit planning acceptance and supports a stable persistence round trip", () => {

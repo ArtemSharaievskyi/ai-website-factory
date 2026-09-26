@@ -11,7 +11,7 @@ export const ReviewEvidenceCatalogSchema = z.object({
   contextChecksum: z.string().regex(/^[a-f0-9]{64}$/),
   projectId: z.string().uuid(),
   projectVersion: z.number().int().positive(),
-  entries: z.array(z.object({ id: ReviewEvidenceIdSchema, canonicalRef: ReviewEvidenceReferenceSchema }).strict()).min(1),
+  entries: z.array(z.object({ id: ReviewEvidenceIdSchema, canonicalRef: ReviewEvidenceReferenceSchema, providerRef: ReviewEvidenceReferenceSchema.optional() }).strict()).min(1),
 }).strict();
 export type ReviewEvidenceCatalog = z.infer<typeof ReviewEvidenceCatalogSchema>;
 export const ReviewEvidenceProvenanceSchema = z.object({ evidenceId: ReviewEvidenceIdSchema, canonicalRef: ReviewEvidenceReferenceSchema }).strict();

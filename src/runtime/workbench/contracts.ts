@@ -36,6 +36,9 @@ export const WorkbenchActionSchema = z.enum([
   "DEPENDENCY_APPROVAL",
   "RUN_CONTRACT_AUDIT",
   "RECOVER_CONTRACT_AUDIT",
+  "CORRECT_CONTRACT_AUDIT",
+  "REASSESS_CONTRACT_AUDIT",
+  "APPROVE_PHASE7C",
   "DESIGN_SELECTION",
   "START_IMPLEMENTATION",
 ]);
@@ -103,6 +106,17 @@ export const ReconcileDesignPreProviderFailureRequestSchema = z.object({
 }).strict();
 export type WorkbenchReconcileDesignPreProviderFailureRequest = z.infer<typeof ReconcileDesignPreProviderFailureRequestSchema>;
 
+const ContractAuditActionRequestFields = {
+  projectId: ProjectIdSchema,
+  idempotencyKey: z.string().min(1).max(180).optional(),
+} as const;
+export const CorrectContractAuditRequestSchema = z.object({ action: z.literal("correct-contract-audit"), ...ContractAuditActionRequestFields }).strict();
+export type WorkbenchCorrectContractAuditRequest = z.infer<typeof CorrectContractAuditRequestSchema>;
+export const ReassessContractAuditRequestSchema = z.object({ action: z.literal("reassess-contract-audit"), ...ContractAuditActionRequestFields }).strict();
+export type WorkbenchReassessContractAuditRequest = z.infer<typeof ReassessContractAuditRequestSchema>;
+export const ApprovePhase7CRequestSchema = z.object({ action: z.literal("approve-phase7c"), ...ContractAuditActionRequestFields }).strict();
+export type WorkbenchApprovePhase7CRequest = z.infer<typeof ApprovePhase7CRequestSchema>;
+
 export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("create"), requestText: z.string().min(1).max(WORKBENCH_REQUEST_BYTES), languageHint: z.string().max(64).optional(), operatorLanguage: OperatorLanguageSchema.optional() }).strict(),
   z.object({ action: z.literal("status"), projectId: ProjectIdSchema }).strict(),
@@ -122,6 +136,9 @@ export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("dependency-approval"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("run-contract-audit"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("recover-contract-audit"), projectId: ProjectIdSchema }).strict(),
+  CorrectContractAuditRequestSchema,
+  ReassessContractAuditRequestSchema,
+  ApprovePhase7CRequestSchema,
   z.object({ action: z.literal("design-selection"), projectId: ProjectIdSchema, selectedDirectionId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("start-implementation"), projectId: ProjectIdSchema }).strict(),
 ]);
@@ -308,6 +325,9 @@ export function actionsForWorkbenchState(input: {
   phase7cDependencyApprovalPending?: boolean;
   phase7cContractAuditPending?: boolean;
   phase7cContractAuditRecoveryPending?: boolean;
+  phase7cContractAuditCorrectionPending?: boolean;
+  phase7cContractAuditReassessmentPending?: boolean;
+  phase7cApprovalPending?: boolean;
   canRefreshClarifications?: boolean;
   canGenerateArchitectureReview?: boolean;
   hasIndeterminateDesignAttempt?: boolean;
@@ -334,8 +354,11 @@ export function actionsForWorkbenchState(input: {
         ...(input.phase7cDatabaseDecisionPending ? ["DATABASE_DECISION"] as WorkbenchAction[] : []),
         ...(input.phase7cDependencyApprovalPending ? ["DEPENDENCY_APPROVAL"] as WorkbenchAction[] : []),
         ...(input.phase7cContractAuditPending ? ["RUN_CONTRACT_AUDIT"] as WorkbenchAction[] : []),
+        ...(input.phase7cApprovalPending ? ["APPROVE_PHASE7C"] as WorkbenchAction[] : []),
       ];
     case "CONTRACT_AUDIT":
+      if (input.phase7cContractAuditCorrectionPending) return ["CORRECT_CONTRACT_AUDIT"];
+      if (input.phase7cContractAuditReassessmentPending) return ["REASSESS_CONTRACT_AUDIT"];
       return input.phase7cContractAuditRecoveryPending ? ["RECOVER_CONTRACT_AUDIT"] : [];
     case "ARCHITECTURE_REVIEW": return input.canGenerateArchitectureReview ? ["GENERATE_ARCHITECTURE_REVIEW"] : [];
     default: return [];

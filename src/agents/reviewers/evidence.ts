@@ -21,6 +21,7 @@ export function createReviewEvidenceCatalog(input: {
   projectVersion: number;
   evidenceRefs: Iterable<string>;
   requestContext?: unknown;
+  providerReferences?: Readonly<Record<string, string>>;
 }): ReviewEvidenceCatalog {
   const refs = [...new Set(input.evidenceRefs)].sort((left, right) => left.localeCompare(right));
   const contextChecksum = checksumPersistedDocument({
@@ -33,6 +34,7 @@ export function createReviewEvidenceCatalog(input: {
   const entries = refs.map((canonicalRef, index) => ({
     id: `E${contextChecksum.slice(0, 16)}-${String(index + 1).padStart(3, "0")}`,
     canonicalRef,
+    ...(input.providerReferences?.[canonicalRef] ? { providerRef: input.providerReferences[canonicalRef] } : {}),
   }));
   return ReviewEvidenceCatalogSchema.parse({
     catalogId,
@@ -47,7 +49,7 @@ export function providerEvidenceCatalog(catalog: ReviewEvidenceCatalog) {
   return {
     catalogId: catalog.catalogId,
     contextChecksum: catalog.contextChecksum,
-    entries: catalog.entries.map(({ id, canonicalRef }) => ({ id, canonicalRef })),
+    entries: catalog.entries.map(({ id, canonicalRef, providerRef }) => ({ id, canonicalRef: providerRef ?? canonicalRef })),
   };
 }
 

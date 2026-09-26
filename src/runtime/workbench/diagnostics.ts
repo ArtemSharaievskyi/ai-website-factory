@@ -43,6 +43,9 @@ export const WorkbenchOperationSchema = z.enum([
   "DEPENDENCY_APPROVAL",
   "RUN_CONTRACT_AUDIT",
   "RECOVER_CONTRACT_AUDIT",
+  "CORRECT_CONTRACT_AUDIT",
+  "REASSESS_CONTRACT_AUDIT",
+  "APPROVE_PHASE7C",
   "DESIGN_SELECTION",
   "START_IMPLEMENTATION",
   "WORKBENCH_REQUEST",
@@ -55,6 +58,7 @@ export const WorkbenchProviderCallCountersSchema = z.object({ attempted: z.numbe
 const WorkbenchProviderCallsByStageSchema = z.union([
   z.object({ decomposition: WorkbenchProviderCallCountersSchema, coverage: WorkbenchProviderCallCountersSchema }).strict(),
   z.object({ decomposition: WorkbenchProviderCallCountersSchema, coverage: WorkbenchProviderCallCountersSchema, "architecture-review": WorkbenchProviderCallCountersSchema }).strict(),
+  z.object({ decomposition: WorkbenchProviderCallCountersSchema, coverage: WorkbenchProviderCallCountersSchema, "contract-audit": WorkbenchProviderCallCountersSchema }).strict(),
 ]);
 const SafeOperationIdSchema = z.string().min(1).max(256).regex(/^[A-Za-z0-9][A-Za-z0-9:_./-]*$/);
 const SafeFingerprintSchema = z.string().regex(/^[A-Za-z][A-Za-z0-9]{0,63}@[A-Z_]+:[a-f0-9]{16}$/);
@@ -327,6 +331,9 @@ const CONFLICT_CODES = new Set([
   "CONTRACT_AUDIT_STALE",
   "CONTRACT_AUDIT_WORKFLOW_INVALID",
   "CONTRACT_AUDIT_IDEMPOTENCY_CONFLICT",
+  "CONTRACT_AUDIT_CORRECTION_BLOCKED",
+  "CONTRACT_AUDIT_REASSESSMENT_BLOCKED",
+  "PHASE7C_APPROVAL_BLOCKED",
   "PERSISTENCE_IMMUTABLE",
   "TRIAL_ENTRY_NOT_AWAITING_CLARIFICATION",
   "TRIAL_ENTRY_NOT_AWAITING_BRIEF_APPROVAL",
@@ -563,6 +570,9 @@ function operationForAction(action?: string): WorkbenchOperation {
     case "dependency-approval": return "DEPENDENCY_APPROVAL";
     case "run-contract-audit": return "RUN_CONTRACT_AUDIT";
     case "recover-contract-audit": return "RECOVER_CONTRACT_AUDIT";
+    case "correct-contract-audit": return "CORRECT_CONTRACT_AUDIT";
+    case "reassess-contract-audit": return "REASSESS_CONTRACT_AUDIT";
+    case "approve-phase7c": return "APPROVE_PHASE7C";
     case "design-selection": return "DESIGN_SELECTION";
     case "start-implementation": return "START_IMPLEMENTATION";
     default: return "WORKBENCH_REQUEST";

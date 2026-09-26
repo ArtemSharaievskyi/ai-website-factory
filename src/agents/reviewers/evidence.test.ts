@@ -5,6 +5,7 @@ import {
 } from "@/domain/review/schema";
 import {
   createReviewEvidenceCatalog,
+  providerEvidenceCatalog,
   resolveProviderEvidenceRefs,
   resolveProviderReviewEvidence,
 } from "./evidence";
@@ -63,5 +64,12 @@ describe("host-issued reviewer evidence catalogs", () => {
     expect(resolved.findings[0]?.evidenceRefs).toEqual([current.entries[0]!.canonicalRef]);
     expect(resolved.findings[0]?.affectedArtifacts).toEqual([current.entries[0]!.canonicalRef]);
     expect(resolved.provenance).toHaveLength(1);
+  });
+
+  it("keeps selected Design references canonical internally while using an opaque provider reference", () => {
+    const current = createReviewEvidenceCatalog({ projectId, projectVersion: 1, evidenceRefs: ["requirements", "selected-direction-1"], providerReferences: { "selected-direction-1": "selected-design-evidence:opaque" } });
+    const selected = current.entries.find((entry) => entry.canonicalRef === "selected-direction-1")!;
+    expect(providerEvidenceCatalog(current).entries.find((entry) => entry.id === selected.id)?.canonicalRef).toBe("selected-design-evidence:opaque");
+    expect(resolveProviderEvidenceRefs(current, [selected.id]).canonicalRefs).toEqual(["selected-direction-1"]);
   });
 });
