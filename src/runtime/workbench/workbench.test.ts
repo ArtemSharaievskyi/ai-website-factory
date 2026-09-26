@@ -197,6 +197,7 @@ describe("Factory Workbench projection and boundary", () => {
     ["W26 start action is separate", async () => { expect(await source("src/components/workbench.tsx")).toContain("Start implementation"); }],
     ["W27 implementation authority remains orchestrator", async () => { expect(await source("src/orchestration/orchestrator/service.ts")).toContain("startImplementation"); }],
     ["W28 client state cannot override server mapper", async () => { expect(await source("src/runtime/workbench/application.ts")).toContain("WORKBENCH_ACTION_NOT_AVAILABLE"); }],
+    ["W28a CLI status exposes the guarded Contract Audit prerequisite", async () => { expect(await source("src/runtime/trial-entry/service.ts")).toContain('"RUN_CONTRACT_AUDIT"'); }],
     ["W29 project list uses durable repository", async () => { expect(await source("src/persistence/database/repositories.ts")).toContain("async list()"); }],
     ["W30 no secrets in client source", async () => { const value = await source("src/components/workbench.tsx"); expect(value).not.toMatch(/OPENAI_API_KEY|DATABASE_URL|SUPABASE_SERVICE_ROLE/); }],
     ["W31 no raw HTML execution", async () => { expect(await source("src/components/workbench.tsx")).not.toContain("dangerouslySetInnerHTML"); }],

@@ -457,15 +457,17 @@ export class TrialEntryService {
         ? []
         : actions.nextAllowedActions;
     const implementationBlocked = current.project.workflowState === "READY_FOR_IMPLEMENTATION" && !implementationGate.ready;
+    const contractAuditPrerequisitePending = implementationBlocked && phase7c?.documentType === "phase-7c-contract-package" && phase7c.status === "PENDING_USER_APPROVAL" && phase7c.databaseDecision.approval.status === "APPROVED" && !phase7c.dependencyProposal.dependencies.some((dependency) => dependency.approvalRequired && dependency.approvalStatus === "PENDING") && !contractAudit;
+    const implementationStatusActions = contractAuditPrerequisitePending ? ["RUN_CONTRACT_AUDIT"] : [];
     return {
       projectId: current.project.id,
       slug: current.project.slug,
       projectVersion: current.project.currentVersion,
       workflowState: current.project.workflowState,
       rowVersion: current.rowVersion,
-      pendingUserAction: implementationBlocked ? "WAIT_FOR_WORKFLOW_OWNER" : actions.pendingUserAction,
+      pendingUserAction: implementationBlocked ? contractAuditPrerequisitePending ? "RUN_CONTRACT_AUDIT" : "WAIT_FOR_WORKFLOW_OWNER" : actions.pendingUserAction,
       blockingReasons,
-      nextAllowedActions: implementationBlocked ? [] : statusActions,
+      nextAllowedActions: implementationBlocked ? implementationStatusActions : statusActions,
       operatorLanguage: session?.operatorLanguage ?? FACTORY_OPERATOR_LANGUAGE,
       siteLanguage: current.project.siteLanguage,
       ...(clarification ? { clarification } : {}),
