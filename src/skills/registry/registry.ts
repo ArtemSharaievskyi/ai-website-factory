@@ -137,7 +137,7 @@ export class SkillRegistry {
     const target = path.join(this.dir("registry"), "audit.jsonl");
     let previous = "";
     try {
-      previous = await readFile(target, "utf8");
+      previous = await readFile(/* turbopackIgnore: true */ target, "utf8");
     } catch (error) {
       if (!isMissing(error)) throw error;
     }
@@ -151,8 +151,9 @@ export class SkillRegistry {
   }
   private async read(id: string) {
     try {
+      const recordPath = this.recordPath(id);
       return RecordSchema.parse(
-        JSON.parse(await readFile(this.recordPath(id), "utf8")),
+        JSON.parse(await readFile(/* turbopackIgnore: true */ recordPath, "utf8")),
       );
     } catch (error) {
       if (isMissing(error))
@@ -210,7 +211,7 @@ export class SkillRegistry {
             "SKILL_LIMIT_EXCEEDED",
             "Skill individual-file limit was exceeded.",
           );
-        const bytes = await readFile(full);
+        const bytes = await readFile(/* turbopackIgnore: true */ full);
         if (bytes.includes(0) || /\.(zip|tar|gz|7z|rar)$/i.test(rel))
           throw new SkillError(
             "SKILL_SOURCE_INVALID",
@@ -267,10 +268,11 @@ export class SkillRegistry {
       for (const file of files) {
         const relative = safeSkillRelativePath(file.relativePath);
         const target = path.join(temporary, relative);
+        const sourceFile = path.join(source, relative);
         await mkdir(path.dirname(target), { recursive: true });
         await writeFile(
           target,
-          await readFile(path.join(source, relative)),
+          await readFile(/* turbopackIgnore: true */ sourceFile),
           { flag: "wx", mode: 0o600 },
         );
         if (file.executable) await chmod(target, 0o600);
@@ -492,11 +494,12 @@ export class SkillRegistry {
     key: string,
   ): Promise<{ skillId: string; manifestChecksum: string } | undefined> {
     try {
+      const idempotencyPath = path.join(
+        this.dir("registry"),
+        `idempotency-${digest(key)}.json`,
+      );
       return JSON.parse(
-        await readFile(
-          path.join(this.dir("registry"), `idempotency-${digest(key)}.json`),
-          "utf8",
-        ),
+        await readFile(/* turbopackIgnore: true */ idempotencyPath, "utf8"),
       ) as { skillId: string; manifestChecksum: string };
     } catch (error) {
       if (isMissing(error)) return undefined;
@@ -1026,10 +1029,12 @@ export class SkillRegistry {
     return current;
   }
   private async readApprovedFile(record: RegistryRecord, relativePath: string) {
-    return readFile(await this.approvedFilePath(record, relativePath));
+    const approvedPath = await this.approvedFilePath(record, relativePath);
+    return readFile(/* turbopackIgnore: true */ approvedPath);
   }
   private async readApprovedText(record: RegistryRecord, relativePath: string) {
-    return readFile(await this.approvedFilePath(record, relativePath), "utf8");
+    const approvedPath = await this.approvedFilePath(record, relativePath);
+    return readFile(/* turbopackIgnore: true */ approvedPath, "utf8");
   }
   private async readApprovedManifest(record: RegistryRecord) {
     try {
@@ -1074,8 +1079,9 @@ export class SkillRegistry {
   }
   async listAuditEvents() {
     try {
+      const auditPath = path.join(this.dir("registry"), "audit.jsonl");
       return (
-        await readFile(path.join(this.dir("registry"), "audit.jsonl"), "utf8")
+        await readFile(/* turbopackIgnore: true */ auditPath, "utf8")
       )
         .trim()
         .split("\n")
