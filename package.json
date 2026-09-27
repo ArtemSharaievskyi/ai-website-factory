@@ -59,7 +59,8 @@
     "codebase-memory:smoke": "tsx scripts/codebase-memory-smoke.ts",
     "phase7f:live-check": "tsx scripts/phase7f-live-check.ts",
     "phase7g:efficiency-report": "tsx scripts/phase7g-efficiency-report.ts",
-    "phase7c:recovery:standalone": "tsx scripts/phase7c-recovery-standalone.ts"
+    "phase7c:recovery:standalone": "tsx scripts/phase7c-recovery-standalone.ts",
+    "test:turbopack-skill-registry": "tsx scripts/turbopack-skill-registry-regression.ts"
   },
   "dependencies": {
     "next": "16.2.12",

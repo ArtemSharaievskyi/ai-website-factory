@@ -112,29 +112,29 @@ export class SkillRegistry {
     return path.join(this.root, name);
   }
   private recordPath(id: string) {
-    return path.join(this.dir("registry"), `${id}.json`);
+    return path.join(/* turbopackIgnore: true */ this.dir("registry"), `${id}.json`);
   }
   private async initialize() {
     for (const name of ["staging", "approved", "rejected", "registry"] as const)
-      await mkdir(this.dir(name), { recursive: true });
+      await mkdir(/* turbopackIgnore: true */ this.dir(name), { recursive: true });
   }
   private async atomic(target: string, content: string) {
     const temp = `${target}.${randomUUID()}.tmp`;
-    await writeFile(temp, content, { flag: "wx", mode: 0o600 });
+    await writeFile(/* turbopackIgnore: true */ temp, content, { flag: "wx", mode: 0o600 });
     try {
-      const handle = await open(temp, constants.O_RDWR);
+      const handle = await open(/* turbopackIgnore: true */ temp, constants.O_RDWR);
       await handle.sync();
       await handle.close();
-      await rename(temp, target);
+      await rename(/* turbopackIgnore: true */ temp, target);
     } catch (error) {
-      await rm(temp, { force: true });
+      await rm(/* turbopackIgnore: true */ temp, { force: true });
       throw error;
     }
   }
   private async audit(event: Omit<SkillAuditEvent, "id" | "timestamp">) {
-    await mkdir(this.dir("registry"), { recursive: true });
+    await mkdir(/* turbopackIgnore: true */ this.dir("registry"), { recursive: true });
     const line = `${JSON.stringify(SkillAuditEventSchema.parse({ ...event, id: randomUUID(), timestamp: now() }))}\n`;
-    const target = path.join(this.dir("registry"), "audit.jsonl");
+    const target = path.join(/* turbopackIgnore: true */ this.dir("registry"), "audit.jsonl");
     let previous = "";
     try {
       previous = await readFile(/* turbopackIgnore: true */ target, "utf8");
@@ -261,25 +261,25 @@ export class SkillRegistry {
     destination: string,
     files: SkillFile[],
   ) {
-    await mkdir(path.dirname(destination), { recursive: true });
+    await mkdir(path.dirname(/* turbopackIgnore: true */ destination), { recursive: true });
     const temporary = `${destination}.${randomUUID()}.copy`;
-    await mkdir(temporary, { recursive: true });
+    await mkdir(/* turbopackIgnore: true */ temporary, { recursive: true });
     try {
       for (const file of files) {
         const relative = safeSkillRelativePath(file.relativePath);
-        const target = path.join(temporary, relative);
-        const sourceFile = path.join(source, relative);
-        await mkdir(path.dirname(target), { recursive: true });
+        const target = path.join(/* turbopackIgnore: true */ temporary, relative);
+        const sourceFile = path.join(/* turbopackIgnore: true */ source, relative);
+        await mkdir(path.dirname(/* turbopackIgnore: true */ target), { recursive: true });
         await writeFile(
-          target,
+          /* turbopackIgnore: true */ target,
           await readFile(/* turbopackIgnore: true */ sourceFile),
           { flag: "wx", mode: 0o600 },
         );
         if (file.executable) await chmod(target, 0o600);
       }
-      await rename(temporary, destination);
+      await rename(/* turbopackIgnore: true */ temporary, destination);
     } catch (error) {
-      await rm(temporary, { recursive: true, force: true });
+      await rm(/* turbopackIgnore: true */ temporary, { recursive: true, force: true });
       throw error;
     }
   }
@@ -308,10 +308,10 @@ export class SkillRegistry {
     } = {},
   ) {
     await this.initialize();
-    const source = path.resolve(sourcePath);
+    const source = path.resolve(/* turbopackIgnore: true */ sourcePath);
     let info;
     try {
-      info = await lstat(source);
+      info = await lstat(/* turbopackIgnore: true */ source);
     } catch (error) {
       throw new SkillError(
         "SKILL_SOURCE_INVALID",
@@ -339,7 +339,7 @@ export class SkillRegistry {
         "Internal skills cannot carry external provenance fields.",
       );
     try {
-      const entry = await lstat(path.join(source, "SKILL.md"));
+      const entry = await lstat(/* turbopackIgnore: true */ path.join(/* turbopackIgnore: true */ source, "SKILL.md"));
       if (!entry.isFile() || entry.isSymbolicLink()) throw new SkillError("SKILL_SOURCE_INVALID", "Skill import requires a regular root SKILL.md file.");
     } catch (error) {
       if (error instanceof SkillError) throw error;
@@ -395,7 +395,7 @@ export class SkillRegistry {
       }
     }
     const operation = `${id}-${randomUUID()}`;
-    const staged = path.join(this.dir("staging"), operation);
+    const staged = path.join(/* turbopackIgnore: true */ this.dir("staging"), operation);
     await this.copyFiles(source, staged, files);
     const review = reviewSkill(files, this.policy, summary.unresolved);
     const definition = SkillDefinitionSchema.parse({
@@ -465,7 +465,7 @@ export class SkillRegistry {
     if (options.idempotencyKey)
       await this.atomic(
         path.join(
-          this.dir("registry"),
+          /* turbopackIgnore: true */ this.dir("registry"),
           `idempotency-${digest(options.idempotencyKey)}.json`,
         ),
         JSON.stringify({
@@ -495,7 +495,7 @@ export class SkillRegistry {
   ): Promise<{ skillId: string; manifestChecksum: string } | undefined> {
     try {
       const idempotencyPath = path.join(
-        this.dir("registry"),
+        /* turbopackIgnore: true */ this.dir("registry"),
         `idempotency-${digest(key)}.json`,
       );
       return JSON.parse(
@@ -769,7 +769,7 @@ export class SkillRegistry {
       );
     const short = record.definition.sourceChecksum.slice(0, 12);
     const destination = path.join(
-      this.dir("approved"),
+      /* turbopackIgnore: true */ this.dir("approved"),
       record.definition.slug,
       `${record.definition.version}-${short}`,
     );
@@ -790,7 +790,7 @@ export class SkillRegistry {
       createdAt: now(),
     };
     await this.atomic(
-      path.join(destination, "manifest.json"),
+      path.join(/* turbopackIgnore: true */ destination, "manifest.json"),
       JSON.stringify(approvedManifest, null, 2) + "\n",
     );
     const next: RegistryRecord = {
@@ -1020,8 +1020,8 @@ export class SkillRegistry {
     let current = root;
     const parts = safe.split("/");
     for (const [index, part] of parts.entries()) {
-      current = path.join(current, part);
-      const info = await lstat(current);
+      current = path.join(/* turbopackIgnore: true */ current, part);
+      const info = await lstat(/* turbopackIgnore: true */ current);
       if (info.isSymbolicLink()) throw new SkillError("SKILL_CHECKSUM_MISMATCH", "Approved skill content contains a symbolic link.");
       if (index < parts.length - 1 && !info.isDirectory()) throw new SkillError("SKILL_CHECKSUM_MISMATCH", "Approved skill path is not a directory chain.");
       if (index === parts.length - 1 && !info.isFile()) throw new SkillError("SKILL_CHECKSUM_MISMATCH", "Approved skill content is not a regular file.");
@@ -1079,7 +1079,7 @@ export class SkillRegistry {
   }
   async listAuditEvents() {
     try {
-      const auditPath = path.join(this.dir("registry"), "audit.jsonl");
+      const auditPath = path.join(/* turbopackIgnore: true */ this.dir("registry"), "audit.jsonl");
       return (
         await readFile(/* turbopackIgnore: true */ auditPath, "utf8")
       )
