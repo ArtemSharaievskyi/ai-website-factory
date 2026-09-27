@@ -60,6 +60,15 @@ describe("Codebase Memory build boundary", () => {
       expect(source).not.toMatch(/\breaddir(?:Sync)?\s*\(/);
       expect(source).toContain("readDirectory");
     }
+    const directorySource = await readFile("src/runtime/filesystem/directory.ts", "utf8");
+    expect(directorySource).toContain("opendir(/* turbopackIgnore: true */ directory)");
+    expect(directorySource).toContain("opendirSync(/* turbopackIgnore: true */ directory)");
+  });
+
+  it("keeps runtime-configured roots out of Turbopack module tracing", async () => {
+    const source = await readFile("src/runtime/workbench/production.ts", "utf8");
+    expect(source).toMatch(/path\.resolve\(\/\* turbopackIgnore: true \*\/ env\.GENERATED_PROJECTS_ROOT/);
+    expect(source).toMatch(/path\.resolve\(\/\* turbopackIgnore: true \*\/ env\.FACTORY_ASSET_ROOT/);
   });
 });
 

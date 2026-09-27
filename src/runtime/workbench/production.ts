@@ -16,8 +16,8 @@ let runtime: ProductionWorkbench | undefined;
 export function getProductionWorkbench(): WorkbenchApplication {
   if (!runtime) {
     const env = process.env;
-    const generatedProjectsRoot = path.resolve(env.GENERATED_PROJECTS_ROOT ?? ".factory-generated");
-    const assetRoot = path.resolve(env.FACTORY_ASSET_ROOT ?? ".factory-assets");
+    const generatedProjectsRoot = path.resolve(/* turbopackIgnore: true */ env.GENERATED_PROJECTS_ROOT ?? ".factory-generated");
+    const assetRoot = path.resolve(/* turbopackIgnore: true */ env.FACTORY_ASSET_ROOT ?? ".factory-assets");
     const factory = createProductionFactoryRuntime({ env, generatedProjectsRoot, allowWeb: true });
     const assets = new ProjectAssetService({ database: factory.database, root: assetRoot });
     const scopes = new Map<string, ProductionFactoryProjectScope>();

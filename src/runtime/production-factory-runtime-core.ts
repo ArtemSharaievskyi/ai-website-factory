@@ -225,7 +225,7 @@ export function createProductionFactoryRuntime(
         createContext7McpTransport(context7Config),
         context7Config,
         new Context7Cache(
-          path.join(process.cwd(), ".factory", "context7-cache"),
+          path.join(/* turbopackIgnore: true */ process.cwd(), ".factory", "context7-cache"),
           context7Config.cacheTtlSeconds,
         ),
       )

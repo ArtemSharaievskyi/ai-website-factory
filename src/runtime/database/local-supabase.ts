@@ -20,16 +20,16 @@ const forbiddenSql = /\b(?:drop\s+(?:database|schema)|alter\s+system|copy\s+.*\b
 const bounded = (value: string) => value.replaceAll(/\s+/g, " ").trim().slice(0, SUMMARY_BYTES);
 
 function assertWorkspace(workspacePath: string, generatedProjectsRoot: string) {
-  const workspace = path.resolve(workspacePath);
-  const root = path.resolve(generatedProjectsRoot);
-  const relative = path.relative(root, workspace);
-  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("GENERATED_DATABASE_WORKSPACE_SCOPE_INVALID");
+  const workspace = path.resolve(/* turbopackIgnore: true */ workspacePath);
+  const root = path.resolve(/* turbopackIgnore: true */ generatedProjectsRoot);
+  const relative = path.relative(/* turbopackIgnore: true */ root, workspace);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(/* turbopackIgnore: true */ relative)) throw new Error("GENERATED_DATABASE_WORKSPACE_SCOPE_INVALID");
   return workspace;
 }
 
 const commandSpec = (command: GeneratedDatabaseCommand, factoryRoot: string) => {
   if (command === "docker-info") return { executable: "docker", args: ["info", "--format", "{{json .ServerVersion}}"] };
-  const cli = path.join(factoryRoot, "node_modules", "supabase", "dist", "supabase.js");
+  const cli = path.join(/* turbopackIgnore: true */ factoryRoot, "node_modules", "supabase", "dist", "supabase.js");
   const args: Record<Exclude<GeneratedDatabaseCommand, "docker-info">, string[]> = {
     "supabase-version": [cli, "--version"],
     "supabase-init": [cli, "init", "--force"],
@@ -111,16 +111,16 @@ export class LocalSupabaseDatabaseValidator implements GeneratedDatabaseValidato
       return result;
     };
 
-    try { await access(path.join(workspacePath, "supabase", "config.toml")); }
+    try { await access(path.join(/* turbopackIgnore: true */ workspacePath, "supabase", "config.toml")); }
     catch { return finish("STATIC_VALIDATION_FAILED", "Generated Supabase configuration is missing.", "GENERATED_DATABASE_NOT_INITIALIZED"); }
-    const migrationsPath = path.join(workspacePath, "supabase", "migrations");
-    const testsPath = path.join(workspacePath, "supabase", "tests");
-    const migrations = (await readDirectory(migrationsPath).catch(() => [])).map((entry) => entry.name).filter((name) => /^\d{14}_[a-z0-9_]+\.sql$/.test(name)).sort();
-    const tests = (await readDirectoryTree(testsPath).catch(() => [])).filter((name) => /\.sql$/.test(name));
+    const migrationsPath = path.join(/* turbopackIgnore: true */ workspacePath, "supabase", "migrations");
+    const testsPath = path.join(/* turbopackIgnore: true */ workspacePath, "supabase", "tests");
+    const migrations = (await readDirectory(/* turbopackIgnore: true */ migrationsPath).catch(() => [])).map((entry) => entry.name).filter((name) => /^\d{14}_[a-z0-9_]+\.sql$/.test(name)).sort();
+    const tests = (await readDirectoryTree(/* turbopackIgnore: true */ testsPath).catch(() => [])).filter((name) => /\.sql$/.test(name));
     if (!migrations.length) return finish("STATIC_VALIDATION_FAILED", "No ordered generated migration is available.", "GENERATED_DATABASE_MIGRATION_INVALID");
-    for (const migration of migrations) if (forbiddenSql.test(await readFile(path.join(migrationsPath, migration), "utf8"))) return finish("STATIC_VALIDATION_FAILED", "A generated migration violates the local database safety policy.", "GENERATED_DATABASE_MIGRATION_INVALID", migrations.length, tests.length);
+    for (const migration of migrations) if (forbiddenSql.test(await readFile(/* turbopackIgnore: true */ path.join(/* turbopackIgnore: true */ migrationsPath, migration), "utf8"))) return finish("STATIC_VALIDATION_FAILED", "A generated migration violates the local database safety policy.", "GENERATED_DATABASE_MIGRATION_INVALID", migrations.length, tests.length);
     if (!tests.length) return finish("STATIC_VALIDATION_FAILED", "Generated database tests are required.", "GENERATED_DATABASE_TESTS_MISSING", migrations.length, tests.length);
-    const behavioralTests = await Promise.all(tests.map(async (name) => readFile(path.join(testsPath, name), "utf8").catch(() => "")));
+    const behavioralTests = await Promise.all(tests.map(async (name) => readFile(/* turbopackIgnore: true */ path.join(/* turbopackIgnore: true */ testsPath, name), "utf8").catch(() => "")));
     if (!behavioralTests.some(isBehavioralSecurityFixture)) return finish("STATIC_VALIDATION_FAILED", "Generated behavioral access-control security tests are required.", "GENERATED_DATABASE_TESTS_MISSING", migrations.length, tests.length);
     const docker = await run("docker-info");
     if (docker.exitCode !== 0) return finish("BEHAVIORAL_VALIDATION_RUNTIME_UNAVAILABLE", "Docker-compatible local runtime is unavailable after static database and behavioral-security discovery.", "LOCAL_SUPABASE_RUNTIME_UNAVAILABLE", migrations.length, tests.length);

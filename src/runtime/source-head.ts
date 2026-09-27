@@ -17,7 +17,7 @@ export const SOURCE_WORKSPACE_ROOT_ENV = "FACTORY_SOURCE_WORKSPACE_ROOT" as cons
 export function resolveSourceWorkspaceRoot(input: { env?: NodeJS.ProcessEnv; cwd?: string } = {}) {
   const env = input.env ?? process.env;
   const configuredRoot = env[SOURCE_WORKSPACE_ROOT_ENV]?.trim();
-  return path.resolve(configuredRoot || input.cwd || process.cwd());
+  return path.resolve(/* turbopackIgnore: true */ configuredRoot || input.cwd || process.cwd());
 }
 
 function porcelainPaths(stdout: string) {
@@ -87,7 +87,7 @@ export class GitSourceCurrentnessPort implements SourceCurrentnessPort {
 }
 
 export function createGitSourceCurrentnessPort(root = resolveSourceWorkspaceRoot()): SourceCurrentnessPort {
-  return new GitSourceCurrentnessPort(path.resolve(root));
+  return new GitSourceCurrentnessPort(path.resolve(/* turbopackIgnore: true */ root));
 }
 
 export function createStaticSourceCurrentnessPort(head: string, trackedWorktreeClean = true): SourceCurrentnessPort {
