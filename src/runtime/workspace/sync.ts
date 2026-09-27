@@ -10,7 +10,7 @@ import type { DecisionRecord } from "@/domain/workflow/decision";
 export class FilesystemProjectMemorySyncPort implements ProjectMemorySyncPort {
   private readonly projectRoot: string;
   constructor(workspaceRoot: string, slug: string) { this.projectRoot = resolveWorkspaceProjectRoot(workspaceRoot, slug); }
-  private store(projectVersion: number) { return new ProjectMemoryStore(path.join(this.projectRoot, versionDirectoryName(projectVersion), ".factory")); }
+  private store(projectVersion: number) { return new ProjectMemoryStore(path.join(/* turbopackIgnore: true */ this.projectRoot, versionDirectoryName(projectVersion), ".factory")); }
   async writeVersionSnapshot(_projectId: string, projectVersion: number, documents: Record<string, unknown>) {
     const store = await this.store(projectVersion).initialize();
     try {
@@ -25,6 +25,6 @@ export class FilesystemProjectMemorySyncPort implements ProjectMemorySyncPort {
   async verifyVersionSnapshot(_projectId: string, projectVersion: number) { try { return await this.store(projectVersion).verifyIntegrity(); } catch (error) { throw new WorkspaceError("MEMORY_SYNC_DOCUMENT_MISSING", "Project Memory integrity verification failed.", undefined, error); } }
   async compareDatabaseAndFilesystemChecksums(databaseChecksums: Record<string, string>, filesystemChecksums: Record<string, string>) { const names = new Set([...Object.keys(databaseChecksums), ...Object.keys(filesystemChecksums)]); const mismatches = [...names].filter((name) => databaseChecksums[name] !== filesystemChecksums[name]); return { matches: mismatches.length === 0, mismatches }; }
   async filesystemChecksums(projectVersion: number) { const manifest = await this.store(projectVersion).readDocument("manifest.json"); return Object.fromEntries(manifest.documents.map((entry) => [entry.relativePath, entry.sha256])); }
-  async removeVersionDocument(_projectId: string, projectVersion: number, documentName: string) { if (documentName !== "selected-design.json") throw new WorkspaceError("MEMORY_SYNC_SCHEMA_MISMATCH", "Only the selected design may be invalidated by the Design Agent."); const store = await this.store(projectVersion).initialize(); await rm(path.join(store.root, documentName), { force: true }); await store.rebuildManifest(); }
-  async readOriginalPrompt(projectVersion: number) { return readFile(path.join(this.projectRoot, versionDirectoryName(projectVersion), ".factory", "original-prompt.md"), "utf8"); }
+  async removeVersionDocument(_projectId: string, projectVersion: number, documentName: string) { if (documentName !== "selected-design.json") throw new WorkspaceError("MEMORY_SYNC_SCHEMA_MISMATCH", "Only the selected design may be invalidated by the Design Agent."); const store = await this.store(projectVersion).initialize(); await rm(/* turbopackIgnore: true */ path.join(/* turbopackIgnore: true */ store.root, documentName), { force: true }); await store.rebuildManifest(); }
+  async readOriginalPrompt(projectVersion: number) { return readFile(/* turbopackIgnore: true */ path.join(/* turbopackIgnore: true */ this.projectRoot, versionDirectoryName(projectVersion), ".factory", "original-prompt.md"), "utf8"); }
 }

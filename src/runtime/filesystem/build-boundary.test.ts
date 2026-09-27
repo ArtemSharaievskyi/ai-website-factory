@@ -74,6 +74,15 @@ describe("Codebase Memory build boundary", () => {
     expect(workspaceSource).toContain("readDirectory(/* turbopackIgnore: true */ root)");
     expect(workspaceSource).toContain("readDirectory(/* turbopackIgnore: true */ source)");
     expect(workspaceSource).toContain("path.join(/* turbopackIgnore: true */ source, entry.name)");
+    const workspaceSchemaSource = await readFile("src/runtime/workspace/schemas.ts", "utf8");
+    expect(workspaceSchemaSource).toContain("path.resolve(/* turbopackIgnore: true */ workspaceRoot)");
+    const projectMemorySource = await readFile("src/persistence/project-memory/store.ts", "utf8");
+    expect(projectMemorySource).toContain("path.resolve(/* turbopackIgnore: true */ rootDirectory)");
+    expect(projectMemorySource).toContain("readDirectory(/* turbopackIgnore: true */ this.root)");
+    const syncSource = await readFile("src/runtime/workspace/sync.ts", "utf8");
+    expect(syncSource).toContain("readFile(/* turbopackIgnore: true */ path.join(");
+    const executionAdapterSource = await readFile("src/orchestration/execution/production-adapters.ts", "utf8");
+    expect(executionAdapterSource).toContain("readFile(/* turbopackIgnore: true */ path.join(");
   });
 
   it("still enumerates an explicitly supplied synthetic skill source", async () => {

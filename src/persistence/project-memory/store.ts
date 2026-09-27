@@ -25,7 +25,7 @@ const now = () => new Date().toISOString();
 export class ProjectMemoryStore {
   readonly root: string;
   private readonly hooks?: { beforeManifestRename?: () => Promise<void> };
-  constructor(rootDirectory: string, hooks?: { beforeManifestRename?: () => Promise<void> }) { this.root = path.resolve(rootDirectory); this.hooks = hooks; }
+  constructor(rootDirectory: string, hooks?: { beforeManifestRename?: () => Promise<void> }) { this.root = path.resolve(/* turbopackIgnore: true */ rootDirectory); this.hooks = hooks; }
 
   private safeName(name: string) {
     const normalized = name.replaceAll("\\", "/");
@@ -35,11 +35,11 @@ export class ProjectMemoryStore {
     return normalized;
   }
 
-  private file(name: string) { const safe = this.safeName(name); const candidate = path.resolve(this.root, safe); if (candidate !== this.root && !candidate.startsWith(`${this.root}${path.sep}`)) throw new DomainError("PATH_TRAVERSAL_REJECTED", "Document path escapes Project Memory."); return candidate; }
+  private file(name: string) { const safe = this.safeName(name); const candidate = path.resolve(/* turbopackIgnore: true */ this.root, safe); if (candidate !== this.root && !candidate.startsWith(`${this.root}${path.sep}`)) throw new DomainError("PATH_TRAVERSAL_REJECTED", "Document path escapes Project Memory."); return candidate; }
 
   private async ensureSafeRoot() {
-    await mkdir(this.root, { recursive: true });
-    const rootStat = await stat(this.root);
+    await mkdir(/* turbopackIgnore: true */ this.root, { recursive: true });
+    const rootStat = await stat(/* turbopackIgnore: true */ this.root);
     if (!rootStat.isDirectory()) throw new DomainError("PATH_TRAVERSAL_REJECTED", "Project Memory root is not a directory.");
   }
 
@@ -47,7 +47,7 @@ export class ProjectMemoryStore {
 
   private async assertMutable() {
     try {
-      const project = JSON.parse(await readFile(this.file("project.json"), "utf8")) as { workflowState?: string };
+      const project = JSON.parse(await readFile(/* turbopackIgnore: true */ this.file("project.json"), "utf8")) as { workflowState?: string };
       if (project.workflowState === "PROJECT_READY") throw new DomainError("PROJECT_VERSION_IMMUTABLE", "Released Project Memory is immutable.");
     } catch (error) {
       if (error instanceof DomainError) throw error;
@@ -58,24 +58,24 @@ export class ProjectMemoryStore {
   private async atomicWrite(name: string, bytes: Buffer) {
     await this.ensureSafeRoot();
     const target = this.file(name); const temp = `${target}.${process.pid}.${Date.now()}.tmp`;
-    try { if ((await lstat(target)).isSymbolicLink()) throw new DomainError("PATH_TRAVERSAL_REJECTED", "Symbolic-link document paths are not allowed."); } catch (error) { if (error instanceof DomainError) throw error; if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    try { if ((await lstat(/* turbopackIgnore: true */ target)).isSymbolicLink()) throw new DomainError("PATH_TRAVERSAL_REJECTED", "Symbolic-link document paths are not allowed."); } catch (error) { if (error instanceof DomainError) throw error; if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     let previous: Buffer | undefined;
-    try { previous = await readFile(target); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
-    await writeFile(temp, bytes, { flag: "wx", mode: 0o600 });
-    const handle = await open(temp, constants.O_RDWR); try { await handle.sync(); } finally { await handle.close(); }
-    try { await rename(temp, target); } catch (error) { await rm(temp, { force: true }); throw new DomainError("VALIDATION_FAILED", "Atomic Project Memory write failed.", undefined, error); }
+    try { previous = await readFile(/* turbopackIgnore: true */ target); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    await writeFile(/* turbopackIgnore: true */ temp, bytes, { flag: "wx", mode: 0o600 });
+    const handle = await open(/* turbopackIgnore: true */ temp, constants.O_RDWR); try { await handle.sync(); } finally { await handle.close(); }
+    try { await rename(/* turbopackIgnore: true */ temp, target); } catch (error) { await rm(/* turbopackIgnore: true */ temp, { force: true }); throw new DomainError("VALIDATION_FAILED", "Atomic Project Memory write failed.", undefined, error); }
     if (previous) return previous;
     return undefined;
   }
 
   private async readManifest(): Promise<ProjectMemoryManifest | undefined> {
-    try { const value = JSON.parse(await readFile(this.file("manifest.json"), "utf8")); return ProjectMemoryManifestSchema.parse(value); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; if (error instanceof z.ZodError) throw new DomainError("VALIDATION_FAILED", "Project Memory manifest is invalid."); throw error; }
+    try { const value = JSON.parse(await readFile(/* turbopackIgnore: true */ this.file("manifest.json"), "utf8")); return ProjectMemoryManifestSchema.parse(value); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; if (error instanceof z.ZodError) throw new DomainError("VALIDATION_FAILED", "Project Memory manifest is invalid."); throw error; }
   }
 
   private async rebuildManifestInternal() {
     const entries: ProjectMemoryManifest["documents"] = [];
     for (const name of REQUIRED_DOCUMENTS) {
-      try { const bytes = await readFile(this.file(name)); const info = await stat(this.file(name)); let documentType = "decisions"; if (name === "original-prompt.md") documentType = "original-prompt"; else if (name !== JSONL_NAME) documentType = this.parse(name, JSON.parse(bytes.toString("utf8"))).documentType; entries.push({ relativePath: name, documentType, schemaVersion: SCHEMA_VERSION, sha256: checksum(bytes), byteSize: info.size, updatedAt: info.mtime.toISOString() }); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+      try { const bytes = await readFile(/* turbopackIgnore: true */ this.file(name)); const info = await stat(/* turbopackIgnore: true */ this.file(name)); let documentType = "decisions"; if (name === "original-prompt.md") documentType = "original-prompt"; else if (name !== JSONL_NAME) documentType = this.parse(name, JSON.parse(bytes.toString("utf8"))).documentType; entries.push({ relativePath: name, documentType, schemaVersion: SCHEMA_VERSION, sha256: checksum(bytes), byteSize: info.size, updatedAt: info.mtime.toISOString() }); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     }
     const baseEntry = entries.find((entry) => entry.relativePath !== "original-prompt.md" && entry.relativePath !== JSONL_NAME);
     const base = baseEntry ? await this.readDocumentBase(baseEntry.relativePath) : undefined;
@@ -92,7 +92,7 @@ export class ProjectMemoryStore {
   async writeDocument<T extends StructuredDocumentName>(name: T, data: unknown) {
     await this.assertMutable(); const parsed = this.parse(name, data); const previousManifest = await this.readManifest();
     const previous = await this.atomicWrite(name, Buffer.from(toJson(parsed), "utf8"));
-    try { await this.rebuildManifestInternal(); } catch (error) { if (previous) await writeFile(this.file(name), previous, { mode: 0o600 }); else await rm(this.file(name), { force: true }); if (previousManifest) await this.atomicWrite("manifest.json", Buffer.from(toJson(previousManifest), "utf8")); throw error; }
+    try { await this.rebuildManifestInternal(); } catch (error) { if (previous) await writeFile(/* turbopackIgnore: true */ this.file(name), previous, { mode: 0o600 }); else await rm(/* turbopackIgnore: true */ this.file(name), { force: true }); if (previousManifest) await this.atomicWrite("manifest.json", Buffer.from(toJson(previousManifest), "utf8")); throw error; }
     return parsed as z.infer<(typeof DOCUMENT_SCHEMAS)[T]>;
   }
 
@@ -102,10 +102,10 @@ export class ProjectMemoryStore {
     const normalized = prompt.replace(/\r\n?/g, "\n");
     const previousManifest = await this.readManifest();
     let previous: Buffer | undefined;
-    try { previous = await readFile(this.file("original-prompt.md")); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    try { previous = await readFile(/* turbopackIgnore: true */ this.file("original-prompt.md")); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     await this.atomicWrite("original-prompt.md", Buffer.from(normalized, "utf8"));
     try { await this.rebuildManifestInternal(); } catch (error) {
-      if (previous) await this.atomicWrite("original-prompt.md", previous); else await rm(this.file("original-prompt.md"), { force: true });
+      if (previous) await this.atomicWrite("original-prompt.md", previous); else await rm(/* turbopackIgnore: true */ this.file("original-prompt.md"), { force: true });
       if (previousManifest) await this.atomicWrite("manifest.json", Buffer.from(toJson(previousManifest), "utf8"));
       throw error;
     }
@@ -113,7 +113,7 @@ export class ProjectMemoryStore {
   }
 
   async readDocument<T extends StructuredDocumentName>(name: T): Promise<z.infer<(typeof DOCUMENT_SCHEMAS)[T]>> {
-    try { const value = JSON.parse(await readFile(this.file(name), "utf8")); const expectedSchemaVersion = DOCUMENT_SCHEMA_VERSIONS[name] ?? SCHEMA_VERSION; if (value?.schemaVersion !== expectedSchemaVersion) throw new DomainError("SCHEMA_VERSION_MISMATCH", "Project Memory schema version is unsupported."); const parsed = this.parse(name, value); return parsed as z.infer<(typeof DOCUMENT_SCHEMAS)[T]>; } catch (error) { if (error instanceof DomainError) throw error; if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new DomainError("DOCUMENT_NOT_FOUND", "Project Memory document was not found."); throw new DomainError("VALIDATION_FAILED", "Project Memory document could not be read.", undefined, error); }
+    try { const value = JSON.parse(await readFile(/* turbopackIgnore: true */ this.file(name), "utf8")); const expectedSchemaVersion = DOCUMENT_SCHEMA_VERSIONS[name] ?? SCHEMA_VERSION; if (value?.schemaVersion !== expectedSchemaVersion) throw new DomainError("SCHEMA_VERSION_MISMATCH", "Project Memory schema version is unsupported."); const parsed = this.parse(name, value); return parsed as z.infer<(typeof DOCUMENT_SCHEMAS)[T]>; } catch (error) { if (error instanceof DomainError) throw error; if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new DomainError("DOCUMENT_NOT_FOUND", "Project Memory document was not found."); throw new DomainError("VALIDATION_FAILED", "Project Memory document could not be read.", undefined, error); }
   }
 
   async appendDecision(record: DecisionRecord) {
@@ -122,7 +122,7 @@ export class ProjectMemoryStore {
     try { parsed = DecisionRecordSchema.parse(record); } catch (error) { if (error instanceof z.ZodError) throw new DomainError("VALIDATION_FAILED", "Invalid decision record.", undefined, error); throw error; }
     const previousManifest = await this.readManifest();
     let previous: Buffer | undefined;
-    try { previous = await readFile(this.file(JSONL_NAME)); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    try { previous = await readFile(/* turbopackIgnore: true */ this.file(JSONL_NAME)); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     if (previous) {
       const existing = previous.toString("utf8").split(/\r?\n/).filter(Boolean).map((line) => { try { return DecisionRecordSchema.parse(JSON.parse(line)); } catch { return undefined; } }).find((candidate) => candidate?.id === parsed.id);
       if (existing) return existing;
@@ -130,19 +130,19 @@ export class ProjectMemoryStore {
     const bytes = Buffer.from(`${JSON.stringify(stableValue(parsed))}\n`, "utf8");
     await this.atomicWrite(JSONL_NAME, Buffer.concat([previous ?? Buffer.alloc(0), bytes]));
     try { await this.rebuildManifestInternal(); } catch (error) {
-      if (previous) await this.atomicWrite(JSONL_NAME, previous); else await rm(this.file(JSONL_NAME), { force: true });
+      if (previous) await this.atomicWrite(JSONL_NAME, previous); else await rm(/* turbopackIgnore: true */ this.file(JSONL_NAME), { force: true });
       if (previousManifest) await this.atomicWrite("manifest.json", Buffer.from(toJson(previousManifest), "utf8"));
       throw error;
     }
     return parsed;
   }
   async rebuildManifest() { await this.assertMutable(); return this.rebuildManifestInternal(); }
-  async listAvailableDocuments() { await this.ensureSafeRoot(); return (await readDirectory(this.root)).map((entry) => entry.name).filter((name) => name.endsWith(".json") || name.endsWith(".jsonl") || name === "original-prompt.md"); }
+  async listAvailableDocuments() { await this.ensureSafeRoot(); return (await readDirectory(/* turbopackIgnore: true */ this.root)).map((entry) => entry.name).filter((name) => name.endsWith(".json") || name.endsWith(".jsonl") || name === "original-prompt.md"); }
   async detectMissingRequiredDocuments() { const available = new Set(await this.listAvailableDocuments()); return REQUIRED_DOCUMENTS.filter((name) => !available.has(name)); }
   async detectUnknownCanonicalDocuments() { const available = await this.listAvailableDocuments(); return available.filter((name) => (name.endsWith(".json") || name.endsWith(".jsonl") || name === "original-prompt.md") && !CANONICAL_DOCUMENT_NAMES.includes(name as typeof CANONICAL_DOCUMENT_NAMES[number])); }
   async verifyIntegrity() {
     const manifest = await this.readDocument("manifest.json"); const failures: string[] = [];
-    for (const entry of manifest.documents) { try { const bytes = await readFile(this.file(entry.relativePath)); if (checksum(bytes) !== entry.sha256) failures.push(entry.relativePath); } catch { failures.push(entry.relativePath); } }
+    for (const entry of manifest.documents) { try { const bytes = await readFile(/* turbopackIgnore: true */ this.file(entry.relativePath)); if (checksum(bytes) !== entry.sha256) failures.push(entry.relativePath); } catch { failures.push(entry.relativePath); } }
     if (failures.length) throw new DomainError("INTEGRITY_CHECK_FAILED", "Project Memory integrity verification failed.", { documents: failures.join(",") });
     return true;
   }

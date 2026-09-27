@@ -25,7 +25,7 @@ export async function readDirectoryTree(directory: string): Promise<string[]> {
   const walk = async (current: string, relative: string) => {
     for (const entry of await readDirectory(/* turbopackIgnore: true */ current)) {
       const name = relative ? `${relative}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) await walk(`${current}/${entry.name}`, name);
+      if (entry.isDirectory()) await walk(/* turbopackIgnore: true */ `${current}/${entry.name}`, name);
       else names.push(name);
     }
   };
