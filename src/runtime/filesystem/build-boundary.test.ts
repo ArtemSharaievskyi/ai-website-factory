@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import nextConfig from "../../../next.config";
 import { CODEBASE_MEMORY_RELEASE_VERSION, readCodebaseMemoryConfig } from "@/integrations/codebase-memory/config";
 import { assertSafeRelativePath } from "@/integrations/codebase-memory/policy";
+import { readDirectory } from "@/runtime/filesystem/directory";
 
 describe("Codebase Memory build boundary", () => {
   it("excludes only the legacy Factory runtime-tool tree from server traces", () => {
@@ -63,6 +64,22 @@ describe("Codebase Memory build boundary", () => {
     const directorySource = await readFile("src/runtime/filesystem/directory.ts", "utf8");
     expect(directorySource).toContain("opendir(/* turbopackIgnore: true */ directory)");
     expect(directorySource).toContain("opendirSync(/* turbopackIgnore: true */ directory)");
+    const registrySource = await readFile("src/skills/registry/registry.ts", "utf8");
+    expect(registrySource).toContain("readDirectory(/* turbopackIgnore: true */ current)");
+    expect(registrySource).toContain("path.join(/* turbopackIgnore: true */ current, entry.name)");
+  });
+
+  it("still enumerates an explicitly supplied synthetic skill source", async () => {
+    const root = await fsRoot();
+    try {
+      await mkdir(path.join(root, "references"), { recursive: true });
+      await writeFile(path.join(root, "SKILL.md"), "# Synthetic skill\n");
+      await writeFile(path.join(root, "references", "bounded.md"), "bounded");
+      const entries = await readDirectory(root);
+      expect(entries.map((entry) => entry.name).sort()).toEqual(["SKILL.md", "references"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("keeps runtime-configured roots out of Turbopack module tracing", async () => {

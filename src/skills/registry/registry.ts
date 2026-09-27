@@ -175,12 +175,12 @@ export class SkillRegistry {
   private async scan(source: string): Promise<SkillFile[]> {
     const files: SkillFile[] = [];
     const walk = async (current: string, relative: string) => {
-      for (const entry of await readDirectory(current)) {
+      for (const entry of await readDirectory(/* turbopackIgnore: true */ current)) {
         const rel = safePath(
           relative ? `${relative}/${entry.name}` : entry.name,
         );
-        const full = path.join(current, entry.name);
-        const info = await lstat(full);
+        const full = path.join(/* turbopackIgnore: true */ current, entry.name);
+        const info = await lstat(/* turbopackIgnore: true */ full);
         if (info.isSymbolicLink())
           throw new SkillError(
             "SKILL_SOURCE_INVALID",
