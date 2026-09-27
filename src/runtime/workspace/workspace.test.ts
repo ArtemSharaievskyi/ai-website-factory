@@ -28,6 +28,14 @@ describe("WorkspaceManager", () => {
     const { root, value, manager } = await fixture(); const first = await manager.createInitialVersion(value, { idempotencyKey: "initial-version-key" }); const second = await manager.createInitialVersion(value, { idempotencyKey: "initial-version-key" }); expect(first.version.versionNumber).toBe(1); expect(second.path).toBe(first.path); expect(await manager.listProjectVersions(value.slug)).toEqual([1]); expect(await readFile(path.join(first.path, ".factory", "original-prompt.md"), "utf8")).toBe(value.originalPrompt); expect(await new ProjectMemoryStore(path.join(first.path, ".factory")).verifyIntegrity()).toBe(true); expect((await readdir(path.join(root, value.slug, ".staging"))).length).toBe(0);
   });
 
+  it("keeps runtime workspace enumeration bounded to the project root", async () => {
+    const { root, value, manager } = await fixture();
+    await manager.createInitialVersion(value);
+    await mkdir(path.join(root, ".factory", "tools", "unrelated-runtime-tool"), { recursive: true });
+    await writeFile(path.join(root, ".factory", "tools", "unrelated-runtime-tool", "marker.txt"), "outside the workspace");
+    expect(await manager.listProjectVersions(value.slug)).toEqual([1]);
+  });
+
   it("reserves concurrent versions through the persistence port and compares compatible checksums", async () => {
     const { root, value, manager } = await fixture(); const reservations = await Promise.all([manager.reserveNextVersion(value.id, "reserve-one"), manager.reserveNextVersion(value.id, "reserve-two")]); expect(reservations.map((row) => row.versionNumber).sort((a, b) => a - b)).toEqual([1, 2]); const initial = await manager.createInitialVersion(value, { idempotencyKey: "reserve-one" }); expect(initial.version.versionNumber).toBe(1);
     const sync = new FilesystemProjectMemorySyncPort(root, value.slug); const memory = new ProjectMemoryStore(path.join(await manager.getProjectRoot(value.slug), "v1", ".factory")); const document = await memory.readDocument("project.json"); const databaseChecksum = checksumPersistedDocument(document); const filesystem = await sync.filesystemChecksums(1); const promptChecksum = createHash("sha256").update(value.originalPrompt, "utf8").digest("hex"); expect(databaseChecksum).toBe(filesystem["project.json"]); expect((await sync.compareDatabaseAndFilesystemChecksums({ "project.json": databaseChecksum, "original-prompt.md": promptChecksum }, filesystem)).matches).toBe(true);

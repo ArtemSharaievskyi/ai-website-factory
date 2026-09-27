@@ -67,6 +67,10 @@ describe("Codebase Memory build boundary", () => {
     const registrySource = await readFile("src/skills/registry/registry.ts", "utf8");
     expect(registrySource).toContain("readDirectory(/* turbopackIgnore: true */ current)");
     expect(registrySource).toContain("path.join(/* turbopackIgnore: true */ current, entry.name)");
+    const workspaceSource = await readFile("src/runtime/workspace/manager.ts", "utf8");
+    expect(workspaceSource).toContain("readDirectory(/* turbopackIgnore: true */ root)");
+    expect(workspaceSource).toContain("readDirectory(/* turbopackIgnore: true */ source)");
+    expect(workspaceSource).toContain("path.join(/* turbopackIgnore: true */ source, entry.name)");
   });
 
   it("still enumerates an explicitly supplied synthetic skill source", async () => {
