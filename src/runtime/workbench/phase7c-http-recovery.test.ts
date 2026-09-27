@@ -283,6 +283,18 @@ async function post(input: Parameters<typeof createSerializedWorkbenchRequest>[0
   return POST(new Request("http://localhost/api/workbench", { method: envelope.method, headers: envelope.headers, body: envelope.body }));
 }
 
+async function readyForPhase7CApproval() {
+  const fixture = await seedFixture();
+  mockWorkbench.handle.mockImplementation((request) => fixture.app.handle(request));
+  const correction = await post({ action: "correct-contract-audit", projectId: fixture.projectId, idempotencyKey: `synthetic-correction-${fixture.projectId}` });
+  expect(correction.status).toBe(200);
+  const reassessment = await post({ action: "reassess-contract-audit", projectId: fixture.projectId, idempotencyKey: `synthetic-reassessment-${fixture.projectId}` });
+  expect(reassessment.status).toBe(200);
+  const status = await fixture.app.handle({ action: "status", projectId: fixture.projectId });
+  expect(status.status.allowedActions).toEqual(["APPROVE_PHASE7C"]);
+  return fixture;
+}
+
 describe("Phase 7C recovery through the serialized Workbench route", () => {
   it("runs correction, reassessment, audit approval, and Phase 7C approval without entering Implementation", async () => {
     const fixture = await seedFixture();
@@ -323,11 +335,48 @@ describe("Phase 7C recovery through the serialized Workbench route", () => {
 
     const phase7c = await new DocumentRepository(fixture.database).get(fixture.projectId, 1, "phase-7c-contract-package");
     expect(phase7c?.documentType === "phase-7c-contract-package" ? phase7c.status : undefined).toBe("APPROVED");
+    const selectedDesign = await new DocumentRepository(fixture.database).get(fixture.projectId, 1, "selected-design");
+    const directionSet = await new DocumentRepository(fixture.database).get(fixture.projectId, 1, "design-directions");
+    expect(selectedDesign?.documentType).toBe("selected-design");
+    expect(directionSet).toBeNull();
     expect(fixture.providerCalls).toHaveLength(1);
 
     const correctionOperation = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.contract-audit.correct_contract_audit", key: correctionBody.meta.operationId! }));
     const reassessmentOperation = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.contract-audit.reassess_contract_audit", key: reassessmentBody.meta.operationId! }));
     expect(correctionOperation).toMatchObject({ status: "SUCCEEDED", result: { outcome: "CORRECTION_COMMITTED", providerCallsTotal: 0 } });
     expect(reassessmentOperation).toMatchObject({ status: "SUCCEEDED", result: { outcome: "AUDIT_APPROVED", providerCallsTotal: 1, execution: { providerBoundary: "RESPONSE_RECEIVED", responseReceived: true, parsed: true, persisted: true } } });
+  });
+
+  it("rejects Phase 7C approval when the selected-design document is missing before any new provider dispatch", async () => {
+    const fixture = await readyForPhase7CApproval();
+    const documents = new DocumentRepository(fixture.database);
+    await documents.delete(fixture.projectId, 1, "selected-design");
+
+    const response = await post({ action: "approve-phase7c", projectId: fixture.projectId, idempotencyKey: `synthetic-missing-selected-${fixture.projectId}` });
+    expect(response.status).toBe(422);
+    expect((await response.json() as { code?: string }).code).toBe("CONTRACT_AUDIT_INPUT_INVALID");
+    const phase7c = await documents.get(fixture.projectId, 1, "phase-7c-contract-package");
+    const status = await fixture.app.handle({ action: "status", projectId: fixture.projectId });
+    expect(phase7c?.documentType === "phase-7c-contract-package" ? phase7c.status : undefined).toBe("PENDING_USER_APPROVAL");
+    expect(status.status.allowedActions).toEqual(["APPROVE_PHASE7C"]);
+    expect(fixture.providerCalls).toHaveLength(1);
+  });
+
+  it("rejects Phase 7C approval when the selected-design binding is stale and keeps implementation ineligible", async () => {
+    const fixture = await readyForPhase7CApproval();
+    const documents = new DocumentRepository(fixture.database);
+    const selected = await documents.get(fixture.projectId, 1, "selected-design");
+    if (!selected || selected.documentType !== "selected-design") throw new Error("SYNTHETIC_SELECTED_DESIGN_MISSING");
+    await documents.save({ ...selected, selectedDirectionChecksum: "d".repeat(64) }, `synthetic-stale-selected-${fixture.projectId}`);
+
+    const response = await post({ action: "approve-phase7c", projectId: fixture.projectId, idempotencyKey: `synthetic-stale-selected-approval-${fixture.projectId}` });
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ code: "PLANNING_ACCEPTANCE_STALE", category: "VALIDATION" });
+    const phase7c = await documents.get(fixture.projectId, 1, "phase-7c-contract-package");
+    const status = await fixture.app.handle({ action: "status", projectId: fixture.projectId });
+    expect(phase7c?.documentType === "phase-7c-contract-package" ? phase7c.status : undefined).toBe("PENDING_USER_APPROVAL");
+    expect(status.status.allowedActions).toEqual(["APPROVE_PHASE7C"]);
+    expect(status.status.allowedActions).not.toContain("START_IMPLEMENTATION");
+    expect(fixture.providerCalls).toHaveLength(1);
   });
 });
