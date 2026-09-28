@@ -10,6 +10,11 @@ This repository contains the Factory application and its typed workflow runtime.
 Keep Factory infrastructure separate from generated customer projects and from
 transient local artifacts.
 
+## Technical language policy
+
+- Use English for technical communication, reports, documentation, plans, commit messages, and new code comments.
+- Preserve customer-facing content in its specified language.
+
 ## Codex execution invariants
 
 - Execution may use `SINGLE`, `BOUNDED_PARALLEL`, or `READ_ONLY_SWARM` agent
