@@ -393,6 +393,26 @@ export function validatePhase7CContractPackage(value: unknown, authorityContext:
   return pkg;
 }
 
+/** Accept only the pre-binding-checksum pending package for guarded TaskGraph correction. */
+export function phase7CForLegacyTaskGraphCorrection(value: unknown): Phase7CContractPackage {
+  const pkg = Phase7CContractPackageSchema.parse(value);
+  if (pkg.currentness.derivedFromChecksum === checksumPhase7CBinding(pkg)) return validatePhase7CContractPackage(pkg);
+  if (pkg.currentness.status !== "CURRENT"
+    || pkg.currentness.derivedFromChecksum !== pkg.planningChecksum
+    || pkg.status !== "PENDING_USER_APPROVAL"
+    || pkg.planningAcceptance.status !== "PENDING"
+    || pkg.databaseDecision.approval.status !== "APPROVED"
+    || pkg.designChecksum !== "0".repeat(64)
+    || pkg.planningAcceptance.designChecksum !== pkg.designChecksum
+    || pkg.architectureAccepted || pkg.contractAuditAccepted || pkg.designSelected) {
+    throw new Phase7CContractError("CONTRACT_PACKAGE_STALE", "The pending Phase 7C package is not an eligible legacy TaskGraph correction input.");
+  }
+  return validatePhase7CContractPackage({
+    ...pkg,
+    currentness: { ...pkg.currentness, derivedFromChecksum: checksumPhase7CBinding(pkg) },
+  });
+}
+
 export type StartImplementationGateInput = {
   contractPackage: Phase7CContractPackage;
   taskContracts?: readonly TaskContract[];

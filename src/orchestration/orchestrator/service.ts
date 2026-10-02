@@ -10,7 +10,7 @@ import { buildImplementationTaskGraph } from "./graph";
 import { taskGraphReady, validateImplementationTaskGraph } from "./validation";
 import { ownershipForTask, UNIT_TEST_ARTIFACT_POLICY_VERSION } from "@/domain/tasks/ownership";
 import { FUNCTIONAL_QA_DIAGNOSTIC_POLICY_VERSION } from "../../runtime/qa/contracts";
-import { rebindPhase7CToSelectedDesign, rebindTaskContractsToPackage, validatePhase7CContractPackage, validateStartImplementationGate } from "@/domain/contracts/phase7c";
+import { phase7CForLegacyTaskGraphCorrection, rebindPhase7CToSelectedDesign, rebindTaskContractsToPackage, validatePhase7CContractPackage, validateStartImplementationGate } from "@/domain/contracts/phase7c";
 import { DesignDependencyAmendmentSchema, validateDirectionDesignCapability } from "@/domain/design/capability";
 import { evaluatePlanningAcceptanceReadiness, planningSemanticChecksum } from "@/agents/planner/deterministic";
 import { BriefV3DocumentSchema } from "@/persistence/database/brief-revision-v3-contracts";
@@ -107,8 +107,9 @@ export class OrchestratorService {
     if (input.phase7cContractPackage && (!phase7c || phase7c.documentType !== "phase-7c-contract-package" || phase7c.currentness.status !== "CURRENT" || phase7c.approvedBriefChecksum !== input.approvedBriefChecksum || phase7c.planningChecksum !== planningSemanticChecksum(planning) || phase7c.architectureChecksum !== checksumPersistedDocument(architecture))) throw new OrchestratorError("ORCHESTRATOR_PLANNING_STALE", "The persisted Phase 7C package is stale.");
   }
   async createImplementationTaskGraph(raw: OrchestratorInput): Promise<OrchestrationResult> { const input = this.input(raw); await this.assertCurrentCanonicalInputs(input); const graph = buildImplementationTaskGraph(input, this.policy); const validation = validateImplementationTaskGraph(graph, input, this.policy); const readiness = taskGraphReady(graph, { ...input, workspaceReserved: input.workspaceReserved }); const graphValidation = { valid: validation.valid, errors: validation.errors, warnings: validation.warnings }; const result = TaskGraphSchema.parse({ ...graph, graphChecksum: graph.graphChecksum, validation: graphValidation, readyForExecution: readiness.readyForExecution, blockingReasons: readiness.blockingReasons, warnings: readiness.warnings, checkpoint: "graph-validated" }); const phase7c = input.phase7cContractPackage ? rebindTaskContractsToPackage(rebindPhase7CToSelectedDesign(input.phase7cContractPackage, input.selectedDesignChecksum), graph.tasks) : undefined; await this.database.transaction(async (tx) => { if (phase7c) await saveDocumentInTransaction(tx, phase7c, `${input.idempotencyKey}:phase-7c-task-contracts`); await saveDocumentInTransaction(tx, result, input.idempotencyKey); }); return { taskGraph: result, ...validation, readyForExecution: readiness.readyForExecution, blockingReasons: readiness.blockingReasons, warnings: readiness.warnings, graphChecksum: result.graphChecksum ?? validation.graphChecksum }; }
-  async regenerateImplementationTaskGraph(raw: OrchestratorInput, expectedPersistedGraphChecksum: string, idempotencyKey: string): Promise<OrchestrationResult> {
-    const input = this.input(raw);
+  async regenerateImplementationTaskGraph(raw: OrchestratorInput, expectedPersistedGraphChecksum: string, idempotencyKey: string, expectedPersistedPhase7CRowVersion: number): Promise<OrchestrationResult> {
+    const expectedPhase7CChecksum = raw.phase7cContractPackage ? checksumPersistedDocument(raw.phase7cContractPackage) : undefined;
+    const input = this.input(raw.phase7cContractPackage ? { ...raw, phase7cContractPackage: phase7CForLegacyTaskGraphCorrection(raw.phase7cContractPackage) } : raw);
     await this.assertCurrentCanonicalInputs(input, "CONTRACT_AUDIT");
     const currentGraph = await this.documents.get(input.projectId, input.projectVersion, "task-graph");
     if (!currentGraph || currentGraph.documentType !== "task-graph") throw new OrchestratorError("ORCHESTRATOR_GRAPH_NOT_READY", "A prior implementation task graph is required before regeneration.");
@@ -124,14 +125,18 @@ export class OrchestratorService {
     const graphValidation = { valid: validation.valid, errors: validation.errors, warnings: validation.warnings };
     const result = TaskGraphSchema.parse({ ...graph, graphChecksum: graph.graphChecksum, validation: graphValidation, readyForExecution: readiness.readyForExecution, blockingReasons: readiness.blockingReasons, warnings: readiness.warnings, checkpoint: "graph-validated" });
     if (!validation.valid || !readiness.readyForExecution) throw new OrchestratorError("ORCHESTRATOR_GRAPH_INVALID", "The regenerated implementation graph is not ready for execution.", { validationErrors: validation.errors.slice(0, 16), blockingReasons: readiness.blockingReasons.slice(0, 16) });
-    if (checksumPersistedDocument(currentGraph) === checksumPersistedDocument(result)) return { taskGraph: result, ...validation, readyForExecution: readiness.readyForExecution, blockingReasons: readiness.blockingReasons, warnings: readiness.warnings, graphChecksum: result.graphChecksum ?? validation.graphChecksum };
+    if (checksumPersistedDocument(currentGraph) === checksumPersistedDocument(result)) throw new OrchestratorError("ORCHESTRATOR_GRAPH_INVALID", "TaskGraph regeneration produced no correction for the current audit.");
     const phase7c = input.phase7cContractPackage ? rebindTaskContractsToPackage(rebindPhase7CToSelectedDesign(input.phase7cContractPackage, input.selectedDesignChecksum), graph.tasks) : undefined;
     const decision = DecisionRecordSchema.parse({ id: randomUUID(), timestamp: now(), actorType: "system", actorIdentifier: "orchestrator", category: "task-graph-regeneration", decision: "Regenerated the implementation TaskGraph after bounded Contract Audit correction.", rationale: "The Orchestrator authorized one bounded TaskGraph-only regeneration; upstream canonical artifacts remain unchanged.", affectedDocuments: ["task-graph.json", "contract-audit.json"], requirementChange: false, userApprovalRequired: false, userApprovalStatus: "not-required" });
     await this.database.transaction(async (tx) => {
       const current = await tx.getProject(input.projectId);
       const graphRow = await tx.getDocument(input.projectId, input.projectVersion, "task-graph");
       if (!current || current.current_version !== input.projectVersion || current.workflow_state !== "CONTRACT_AUDIT" || current.row_version !== input.expectedRowVersion || !graphRow || graphRow.checksum !== expectedPersistedGraphChecksum) throw new Error("TASKGRAPH_REGENERATION_STALE");
-      if (phase7c) await saveDocumentInTransaction(tx, phase7c, `${idempotencyKey}:phase-7c-task-contracts`);
+      if (phase7c) {
+        const phase7cRow = await tx.getDocument(input.projectId, input.projectVersion, "phase-7c-contract-package");
+        if (!phase7cRow || phase7cRow.rowVersion !== expectedPersistedPhase7CRowVersion || phase7cRow.checksum !== expectedPhase7CChecksum) throw new OrchestratorError("ORCHESTRATOR_PLANNING_STALE", "The Phase 7C package changed before TaskGraph correction.");
+        await saveDocumentCASInTransaction(tx, phase7c, expectedPersistedPhase7CRowVersion, expectedPhase7CChecksum!);
+      }
       await saveDocumentInTransaction(tx, result, idempotencyKey);
       await appendDecisionInTransaction(tx, input.projectId, input.projectVersion, decision);
     });

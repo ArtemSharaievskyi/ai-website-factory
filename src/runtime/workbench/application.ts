@@ -14,6 +14,8 @@ import { DesignAgentInputSchema, type DesignAgentInput } from "@/agents/design/c
 import type { OrchestratorService } from "@/orchestration/orchestrator/service";
 import type { ContractAuditOrchestrationService } from "@/orchestration/contract-audit/service";
 import { DEFAULT_ORCHESTRATION_POLICY } from "@/orchestration/orchestrator/contracts";
+import { OrchestratorError } from "@/orchestration/orchestrator/errors";
+import { Phase7CContractError } from "@/domain/contracts/phase7c";
 import { Phase7CContractService } from "@/operations/phase7c";
 import { directionSetChecksum } from "@/agents/design/deterministic";
 import type { TrialEntryService } from "@/runtime/trial-entry/service";
@@ -496,22 +498,23 @@ export class WorkbenchApplication {
     if (current.project.workflowState !== expectedState) throw new WorkbenchActionError("CONTRACT_AUDIT_WORKFLOW_INVALID", `Contract Audit action requires ${expectedState}.`);
     const scope = await this.scope(projectId);
     const version = current.project.currentVersion;
-    const [persistedBrief, briefV3Document, planning, selected, phase7c, architectureReview, taskGraph, priorAudit] = await Promise.all([
+    const [persistedBrief, briefV3Document, planning, selected, phase7cEntry, architectureReview, taskGraph, priorAudit] = await Promise.all([
       this.documents.get(projectId, version, "requirements"),
       this.documents.get(projectId, version, "brief-v3"),
       this.documents.get(projectId, version, "planning-package"),
       this.documents.get(projectId, version, "selected-design"),
-      this.documents.get(projectId, version, "phase-7c-contract-package"),
+      this.documents.getWithMetadata(projectId, version, "phase-7c-contract-package"),
       this.documents.get(projectId, version, "architecture-review"),
       this.documents.get(projectId, version, "task-graph"),
       this.documents.get(projectId, version, "contract-audit"),
     ]);
-    if (!persistedBrief || persistedBrief.documentType !== "requirements" || !briefV3Document || briefV3Document.documentType !== "brief-v3" || !planning || planning.documentType !== "planning-package" || !selected || selected.documentType !== "selected-design" || !phase7c || phase7c.documentType !== "phase-7c-contract-package" || !architectureReview || architectureReview.documentType !== "architecture-review" || !taskGraph || taskGraph.documentType !== "task-graph")
+    const phase7c = phase7cEntry?.document;
+    if (!persistedBrief || persistedBrief.documentType !== "requirements" || !briefV3Document || briefV3Document.documentType !== "brief-v3" || !planning || planning.documentType !== "planning-package" || !selected || selected.documentType !== "selected-design" || !phase7cEntry || !phase7c || phase7c.documentType !== "phase-7c-contract-package" || !architectureReview || architectureReview.documentType !== "architecture-review" || !taskGraph || taskGraph.documentType !== "task-graph")
       throw new WorkbenchActionError("CONTRACT_AUDIT_INPUT_INVALID", "The current approved upstream artifacts, Phase 7C package, and TaskGraph are required.");
     const briefV3 = BriefV3DocumentSchema.parse(briefV3Document);
     const brief = approvedBriefForDownstream(persistedBrief, briefV3);
     const decisions = await new DecisionRepository(this.dependencies.database).list(projectId, version);
-    return { current, scope, version, persistedBrief, briefV3, brief, planning, selected, phase7c, architectureReview, taskGraph, priorAudit: priorAudit?.documentType === "contract-audit" ? priorAudit : null, decisions };
+    return { current, scope, version, persistedBrief, briefV3, brief, planning, selected, phase7c, phase7cRowVersion: phase7cEntry.rowVersion, architectureReview, taskGraph, priorAudit: priorAudit?.documentType === "contract-audit" ? priorAudit : null, decisions };
   }
 
   private async reserveContractAuditAction(action: "CORRECT_CONTRACT_AUDIT" | "REASSESS_CONTRACT_AUDIT" | "APPROVE_PHASE7C", projectId: string, frontier: Record<string, unknown>, requestKey?: string) {
@@ -920,14 +923,15 @@ export class WorkbenchApplication {
     let completed = false;
     try {
       const input = { projectId, projectVersion: context.version, approvedBrief: context.brief, canonicalBrief: context.briefV3.brief, approvedBriefChecksum: context.briefV3.briefChecksum, acceptedPlanningPackage: context.planning, acceptedPlanningChecksum: planningDocumentChecksum(context.planning), selectedDesign: context.selected, selectedDesignChecksum: checksumPersistedDocument(context.selected), technicalArchitecture: context.planning.architecture, contentPlan: context.planning.content, assetManifest: context.planning.assets, currentWorkflowState: "CONTRACT_AUDIT" as const, existingDecisions: context.decisions, allowedRoles: ["lead", "planner-architect", "design", "implementation", "qa-release"] as ("lead" | "planner-architect" | "design" | "implementation" | "qa-release")[], approvedSkillRegistrySnapshot: { schemaVersion: 1 as const, checksum: "0".repeat(64), skills: [] }, toolPolicyVersion: "tools-v1", orchestrationPolicyVersion: DEFAULT_ORCHESTRATION_POLICY.version, idempotencyKey: reservation.actionKey, expectedRowVersion: context.current.rowVersion, workspaceReserved: true, projectImmutable: false, phase7cContractPackage: context.phase7c };
-      const graph = await context.scope.orchestrator.regenerateImplementationTaskGraph(input, persistedGraphChecksum, reservation.actionKey);
+      const graph = await context.scope.orchestrator.regenerateImplementationTaskGraph(input, persistedGraphChecksum, reservation.actionKey, context.phase7cRowVersion);
       const nextPhase7C = await this.documents.get(projectId, context.version, "phase-7c-contract-package");
       await this.completeContractAuditAction(reservation, { outcome: "CORRECTION_COMMITTED", providerCallsTotal: 0, graphChecksum: graph.graphChecksum, phase7cChecksum: nextPhase7C ? checksumPersistedDocument(nextPhase7C) : undefined });
       this.publishContractAuditActionResponse(reservation, "SUCCEEDED");
       completed = true;
     } catch (error) {
       if (!completed) {
-        await this.failContractAuditAction(reservation, { outcome: "FAILED", code: error instanceof WorkbenchActionError ? error.code : "CONTRACT_AUDIT_CORRECTION_FAILED", providerCallsTotal: 0 });
+        const code = error instanceof WorkbenchActionError || error instanceof OrchestratorError || error instanceof Phase7CContractError ? error.code : "CONTRACT_AUDIT_CORRECTION_FAILED";
+        await this.failContractAuditAction(reservation, { outcome: "FAILED", code, providerCallsTotal: 0 });
         this.publishContractAuditActionResponse(reservation, "FAILED");
       }
       throw error;

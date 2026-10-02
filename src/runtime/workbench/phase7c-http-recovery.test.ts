@@ -9,13 +9,14 @@ import { PlanningPackageSchema, type PlannerAgentInput, type PlanningPackage } f
 import { buildPlanningPackage, planningSemanticChecksum } from "@/agents/planner/deterministic";
 import { buildImplementationTaskGraph } from "@/orchestration/orchestrator/graph";
 import { DEFAULT_ORCHESTRATION_POLICY, type OrchestratorInput } from "@/orchestration/orchestrator/contracts";
-import { rebindTaskContractsToPackage, buildPhase7CContractPackage, approveDatabaseDecision, approveDependencyProposal, createPlanningAcceptance } from "@/domain/contracts/phase7c";
+import type { TaskGraph } from "@/domain/tasks/schema";
+import { phase7CForLegacyTaskGraphCorrection, rebindTaskContractsToPackage, buildPhase7CContractPackage, approveDatabaseDecision, approveDependencyProposal, createPlanningAcceptance } from "@/domain/contracts/phase7c";
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { ArchitectureReviewRecordSchema, ArchitectureReviewResultSchema, ContractAuditRecordSchema, ContractAuditResultSchema } from "@/domain/review/schema";
 import { DocumentRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
 import { InMemoryPersistenceDatabase } from "@/persistence/database/fake";
 import { TrialEntryService } from "@/runtime/trial-entry/service";
-import { WorkbenchApplication } from "./application";
+import { WorkbenchApplication, approvedBriefForDownstream } from "./application";
 import { ContractAuditService } from "@/agents/reviewers/contracts/service";
 import { ContractAuditOrchestrationService } from "@/orchestration/contract-audit/service";
 import { OrchestratorService } from "@/orchestration/orchestrator/service";
@@ -155,7 +156,7 @@ function approvedArchitectureReview(brief: RequirementSpecification, planning: P
   });
 }
 
-async function seedFixture() {
+async function seedFixture(options: { legacyPhase7C?: boolean; invalidLegacyBinding?: boolean; unchangedGraph?: boolean } = {}) {
   const database = new InMemoryPersistenceDatabase();
   const brief = syntheticBrief();
   const migratedCanonicalBrief = migrateLegacyBriefToCanonicalBriefV3(brief);
@@ -210,7 +211,7 @@ async function seedFixture() {
   };
   const oldGraphWithoutChecksum = { ...oldGraph };
   delete oldGraphWithoutChecksum.graphChecksum;
-  const taskGraph = { ...oldGraph, graphChecksum: checksumPersistedDocument(oldGraphWithoutChecksum) };
+  let taskGraph: TaskGraph = { ...oldGraph, graphChecksum: checksumPersistedDocument(oldGraphWithoutChecksum) };
   const phaseDraft = buildPhase7CContractPackage({
     projectId: brief.projectId,
     projectVersion: 1,
@@ -218,13 +219,22 @@ async function seedFixture() {
     approvedBriefChecksum: briefV3.briefChecksum,
     planningChecksum: planningSemanticChecksum(planning),
     architectureChecksum: checksumPersistedDocument(planning.architecture),
-    designChecksum: checksumPersistedDocument(selected),
+    designChecksum: options.legacyPhase7C ? "0".repeat(64) : checksumPersistedDocument(selected),
     planning,
   });
   const databaseDecision = approveDatabaseDecision(phaseDraft.databaseDecision, { actorId: "synthetic-user", approvedAt: timestamp, mode: "NONE" });
   const dependencyProposal = approveDependencyProposal(phaseDraft.dependencyProposal, { actorId: "synthetic-user", approvedAt: timestamp });
   const planningAcceptance = createPlanningAcceptance({ projectId: brief.projectId, projectVersion: 1, planningChecksum: phaseDraft.planningChecksum, databaseDecision, dependencyProposal, architectureChecksum: phaseDraft.architectureChecksum, designChecksum: phaseDraft.designChecksum, createdAt: timestamp });
-  const phase7c = rebindTaskContractsToPackage({ ...phaseDraft, databaseDecision, dependencyProposal, planningAcceptance, safeEnvironmentMetadata: databaseDecision.connectionRequirements }, taskGraph.tasks);
+  const currentPhase7C = rebindTaskContractsToPackage({ ...phaseDraft, databaseDecision, dependencyProposal, planningAcceptance, safeEnvironmentMetadata: databaseDecision.connectionRequirements }, taskGraph.tasks);
+  const phase7c = options.legacyPhase7C
+    ? { ...currentPhase7C, currentness: { ...currentPhase7C.currentness, derivedFromChecksum: options.invalidLegacyBinding ? "e".repeat(64) : currentPhase7C.planningChecksum } }
+    : currentPhase7C;
+  if (options.unchangedGraph) taskGraph = buildImplementationTaskGraph({
+    ...input,
+    approvedBrief: approvedBriefForDownstream(brief, briefV3),
+    approvedSkillRegistrySnapshot: { schemaVersion: 1, checksum: "0".repeat(64), skills: [] },
+    phase7cContractPackage: phase7CForLegacyTaskGraphCorrection(phase7c),
+  }, DEFAULT_ORCHESTRATION_POLICY);
   const badAuditResult = ContractAuditResultSchema.parse({
     verdict: "CHANGES_REQUIRED",
     findings: [{ findingId: "legacy-form-template", severity: "ERROR", category: "FORM_CONTRACT_MISMATCH", summary: "Synthetic stale form criterion requires correction.", evidenceRefs: ["task-graph"], affectedArtifacts: ["task-graph"], recommendedAction: "Rebuild the current TaskGraph.", correctionTarget: "TASKGRAPH" }],
@@ -275,7 +285,7 @@ async function seedFixture() {
   const scope = { planner: {} as never, architectureReviewer: {} as never, design: {} as never, orchestrator, contractAuditor };
   const entry = new TrialEntryService({ database, createLeadAgent: () => { throw new Error("SYNTHETIC_LEAD_NOT_USED"); } });
   const app = new WorkbenchApplication({ database, entry, getWorkflowScope: () => scope });
-  return { database, app, projectId: brief.projectId, providerCalls, oldGraphChecksum: taskGraph.graphChecksum };
+  return { database, app, orchestrator, projectId: brief.projectId, providerCalls, oldGraphChecksum: taskGraph.graphChecksum };
 }
 
 async function post(input: Parameters<typeof createSerializedWorkbenchRequest>[0]) {
@@ -296,6 +306,79 @@ async function readyForPhase7CApproval() {
 }
 
 describe("Phase 7C recovery through the serialized Workbench route", () => {
+  it("corrects a pending legacy planning-bound Phase 7C package atomically without a provider call", async () => {
+    const fixture = await seedFixture({ legacyPhase7C: true });
+    mockWorkbench.handle.mockImplementation((request) => fixture.app.handle(request));
+    const response = await post({ action: "correct-contract-audit", projectId: fixture.projectId, idempotencyKey: `synthetic-legacy-correction-${fixture.projectId}` });
+    expect(response.status).toBe(200);
+    const documents = new DocumentRepository(fixture.database);
+    const graph = await documents.get(fixture.projectId, 1, "task-graph");
+    const phase7c = await documents.get(fixture.projectId, 1, "phase-7c-contract-package");
+    expect(graph?.documentType === "task-graph" ? graph.graphChecksum : undefined).not.toBe(fixture.oldGraphChecksum);
+    expect(phase7c?.documentType === "phase-7c-contract-package" ? phase7c.designChecksum : undefined).not.toBe("0".repeat(64));
+    expect(fixture.providerCalls).toEqual([]);
+  });
+
+  it("rejects an unrecognized stale Phase 7C binding with a typed durable failure and no canonical write", async () => {
+    const fixture = await seedFixture({ legacyPhase7C: true, invalidLegacyBinding: true });
+    mockWorkbench.handle.mockImplementation((request) => fixture.app.handle(request));
+    const response = await post({ action: "correct-contract-audit", projectId: fixture.projectId, idempotencyKey: `synthetic-invalid-binding-${fixture.projectId}` });
+    expect(response.status).toBe(422);
+    const body = await response.json() as { code: string; attemptId: string; operationId: string };
+    expect(body.code).toBe("CONTRACT_PACKAGE_STALE");
+    const documents = new DocumentRepository(fixture.database);
+    const graph = await documents.get(fixture.projectId, 1, "task-graph");
+    const phase7c = await documents.get(fixture.projectId, 1, "phase-7c-contract-package");
+    expect(graph?.documentType === "task-graph" ? graph.graphChecksum : undefined).toBe(fixture.oldGraphChecksum);
+    expect(phase7c?.documentType === "phase-7c-contract-package" ? phase7c.currentness.derivedFromChecksum : undefined).toBe("e".repeat(64));
+    const operation = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.contract-audit.correct_contract_audit", key: body.operationId }));
+    expect(operation).toMatchObject({ status: "FAILED", result: { code: "CONTRACT_PACKAGE_STALE", providerCallsTotal: 0, attemptId: body.attemptId } });
+    expect(fixture.providerCalls).toEqual([]);
+  });
+
+  it("fences a same-checksum Phase 7C row-version change after Workbench read", async () => {
+    const fixture = await seedFixture({ legacyPhase7C: true });
+    const regenerate = fixture.orchestrator.regenerateImplementationTaskGraph.bind(fixture.orchestrator);
+    vi.spyOn(fixture.orchestrator, "regenerateImplementationTaskGraph").mockImplementation(async (...args) => {
+      await fixture.database.transaction(async (tx) => {
+        const row = await tx.getDocument(fixture.projectId, 1, "phase-7c-contract-package");
+        if (!row) throw new Error("SYNTHETIC_PACKAGE_MISSING");
+        const next = await tx.saveDocumentCAS({ row, expectedRowVersion: row.rowVersion, expectedChecksum: row.checksum });
+        expect(next.rowVersion).toBe(row.rowVersion + 1);
+        expect(next.checksum).toBe(row.checksum);
+      });
+      return regenerate(...args);
+    });
+    mockWorkbench.handle.mockImplementation((request) => fixture.app.handle(request));
+    const response = await post({ action: "correct-contract-audit", projectId: fixture.projectId, idempotencyKey: `synthetic-racing-correction-${fixture.projectId}` });
+    expect(response.status).toBe(409);
+    const body = await response.json() as { code: string; operationId: string };
+    expect(body.code).toBe("ORCHESTRATOR_PLANNING_STALE");
+    const graph = await new DocumentRepository(fixture.database).get(fixture.projectId, 1, "task-graph");
+    expect(graph?.documentType === "task-graph" ? graph.graphChecksum : undefined).toBe(fixture.oldGraphChecksum);
+    const operation = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.contract-audit.correct_contract_audit", key: body.operationId }));
+    expect(operation).toMatchObject({ status: "FAILED", result: { code: "ORCHESTRATOR_PLANNING_STALE", providerCallsTotal: 0 } });
+    expect(fixture.providerCalls).toEqual([]);
+  });
+
+  it("does not mark correction successful when the current TaskGraph is unchanged", async () => {
+    const fixture = await seedFixture({ legacyPhase7C: true, unchangedGraph: true });
+    mockWorkbench.handle.mockImplementation((request) => fixture.app.handle(request));
+    const response = await post({ action: "correct-contract-audit", projectId: fixture.projectId, idempotencyKey: `synthetic-noop-correction-${fixture.projectId}` });
+    expect(response.status).toBe(422);
+    const body = await response.json() as { code: string; operationId: string };
+    expect(body.code).toBe("ORCHESTRATOR_GRAPH_INVALID");
+    const documents = new DocumentRepository(fixture.database);
+    const graph = await documents.get(fixture.projectId, 1, "task-graph");
+    const phase7c = await documents.get(fixture.projectId, 1, "phase-7c-contract-package");
+    expect(graph?.documentType === "task-graph" ? graph.graphChecksum : undefined).toBe(fixture.oldGraphChecksum);
+    expect(phase7c?.documentType === "phase-7c-contract-package" ? phase7c.currentness.derivedFromChecksum : undefined)
+      .toBe(phase7c?.documentType === "phase-7c-contract-package" ? phase7c.planningChecksum : undefined);
+    const operation = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.contract-audit.correct_contract_audit", key: body.operationId }));
+    expect(operation).toMatchObject({ status: "FAILED", result: { code: "ORCHESTRATOR_GRAPH_INVALID", providerCallsTotal: 0 } });
+    expect(fixture.providerCalls).toEqual([]);
+  });
+
   it("runs correction, reassessment, audit approval, and Phase 7C approval without entering Implementation", async () => {
     const fixture = await seedFixture();
     mockWorkbench.handle.mockImplementation((request) => fixture.app.handle(request));

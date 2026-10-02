@@ -13,6 +13,7 @@ import {
   buildPhase7CContractPackage,
   checksumDatabaseDecision,
   checksumPhase7CBinding,
+  phase7CForLegacyTaskGraphCorrection,
   createDatabaseDecisionProposal,
   createPlanningAcceptance,
   createTaskContract,
@@ -51,6 +52,12 @@ function packageFixture(): Phase7CContractPackage {
 }
 
 describe("Phase 7C typed contracts", () => {
+  it("never treats an approved package or arbitrary checksum as a legacy correction input", () => {
+    const approved = packageFixture();
+    expect(() => phase7CForLegacyTaskGraphCorrection({ ...approved, currentness: { ...approved.currentness, derivedFromChecksum: approved.planningChecksum } })).toThrowError(/legacy TaskGraph correction input/);
+    expect(() => phase7CForLegacyTaskGraphCorrection({ ...approved, currentness: { ...approved.currentness, derivedFromChecksum: "f".repeat(64) } })).toThrowError(/legacy TaskGraph correction input/);
+  });
+
   it("keeps the planner recommendation separate from explicit user database approval", () => {
     const decision = createDatabaseDecisionProposal({ databaseDecisionId: "33333333-3333-4333-8333-333333333333", projectId, projectVersion: 1, createdAt: now, planningChecksum: checksum, recommendation: "REQUIRED", rationale: "The approved brief contains persistent data." });
     expect(decision.userDecision).toBe("PENDING");

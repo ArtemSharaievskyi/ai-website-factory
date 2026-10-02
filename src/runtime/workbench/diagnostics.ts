@@ -16,6 +16,7 @@ import { providerFailureDiagnosticFromError } from "@/integrations/openai/failur
 import { PlanningAdmissionDiagnosticEnvelopeSchema, type PlanningAdmissionDiagnosticEnvelope } from "@/agents/planner/staged-admission-diagnostics";
 import { currentRuntimeProvenance, RuntimeProvenanceSchema, WorkbenchAttemptReadbackSchema, WorkbenchResponseOriginSchema, type RuntimeProvenance, type WorkbenchResponseOrigin } from "./observability";
 import { DesignAdmissionDiagnosticSchema, type DesignAdmissionDiagnostic } from "@/agents/design/contracts";
+import { OrchestratorError } from "@/orchestration/orchestrator/errors";
 
 export const WorkbenchErrorCategorySchema = z.enum([
   "VALIDATION",
@@ -537,6 +538,7 @@ const SAFE_ERROR_CLASSES = new Set([
   "DesignError",
   "ContractAuditError",
   "Phase7CContractError",
+  "OrchestratorError",
 ]);
 
 export class WorkbenchRequestValidationError extends Error {
@@ -857,9 +859,13 @@ function operationFailureProjection(error: WorkbenchOperationFailure): Omit<Work
   };
 }
 
-function definitionFor(code: string, error: unknown): Omit<WorkbenchErrorProjection, "ok" | "code" | "correlationId" | "operation"> {
+function definitionFor(code: string, error: unknown, action?: string): Omit<WorkbenchErrorProjection, "ok" | "code" | "correlationId" | "operation"> {
   const staged = stagedFailureProjection(error);
   if (staged) return staged;
+  if (action === "correct-contract-audit" && error instanceof OrchestratorError && code === error.code) {
+    const stale = code.endsWith("_STALE") || code.endsWith("_CHECKSUM_MISMATCH") || code === "ORCHESTRATOR_WORKFLOW_STATE_INVALID";
+    return { error: "Contract Audit correction did not satisfy the current orchestration contract. The project was not changed.", httpStatus: stale ? 409 : 422, recoverable: false, category: stale ? "WORKFLOW_CONFLICT" : "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
+  }
   if (code === "WORKBENCH_REQUEST_TOO_LARGE") return { error: "The request is too large.", httpStatus: 413, recoverable: false, category: "VALIDATION", subsystem: "ROUTE", errorClass: errorClass(error) };
   if (code === "WORKBENCH_REQUEST_INVALID") {
     const validation = safeValidationProjection(error);
@@ -924,8 +930,8 @@ export function normalizeWorkbenchError(error: unknown, context: WorkbenchDiagno
     };
   }
   const code = error instanceof WorkbenchRequestValidationError || error instanceof z.ZodError ? "WORKBENCH_REQUEST_INVALID" : codeOf(error);
-  const knownCode = code && (CONFLICT_CODES.has(code) || NOT_FOUND_CODES.has(code) || VALIDATION_CODES.has(code) || PROVIDER_CODES.has(code) || PERSISTENCE_CODES.has(code) || code === "WORKBENCH_REQUEST_INVALID" || code === "WORKBENCH_REQUEST_TOO_LARGE" || code === "WORKBENCH_ADVANCED_RUNTIME_UNAVAILABLE" || isStagedPlanningFailure(error)) ? code : undefined;
-  const projection = definitionFor(knownCode ?? "WORKBENCH_INTERNAL_ERROR", error);
+  const knownCode = code && ((context.action === "correct-contract-audit" && error instanceof OrchestratorError) || CONFLICT_CODES.has(code) || NOT_FOUND_CODES.has(code) || VALIDATION_CODES.has(code) || PROVIDER_CODES.has(code) || PERSISTENCE_CODES.has(code) || code === "WORKBENCH_REQUEST_INVALID" || code === "WORKBENCH_REQUEST_TOO_LARGE" || code === "WORKBENCH_ADVANCED_RUNTIME_UNAVAILABLE" || isStagedPlanningFailure(error)) ? code : undefined;
+  const projection = definitionFor(knownCode ?? "WORKBENCH_INTERNAL_ERROR", error, context.action);
   const operation = context.operation ?? operationForAction(context.action);
   const errorCorrelationId = isStagedPlanningFailure(error) ? error.details.operation.correlationId : undefined;
   return {

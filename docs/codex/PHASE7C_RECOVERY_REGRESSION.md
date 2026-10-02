@@ -42,6 +42,19 @@ Only the external AI transport is intercepted. The test-only preload returns a s
 
 The permanent SDK contract fixture is `src/integrations/openai/contract-audit-transport.test.ts`. It also proves that the host-owned `policyVersion` field is rejected by the installed SDK parser. The existing in-memory serialized-route regression remains in `src/runtime/workbench/phase7c-http-recovery.test.ts`.
 
+The serialized-route regression also covers a pending Phase 7C package written
+before full contract-frontier checksums were introduced. Correction accepts
+that legacy planning-checksum binding only while the database decision is
+approved, Design remains an unpublished placeholder, and all Phase 7C approval
+flags are pending. The host validates the complete normalized package in
+memory, then compare-and-swaps the persisted package using the row version and
+checksum captured by Workbench before correction, together with the corrected
+TaskGraph. Arbitrary stale bindings and approved packages remain
+ineligible; no historical package is rewritten by the test.
+If regeneration makes no TaskGraph change, the correction fails with a typed
+graph finding instead of reporting a successful correction while Phase 7C
+remains stale.
+
 That route regression also covers two invalid approval frontiers: a missing
 `selected-design` document and a selected-design checksum that no longer
 matches the Phase 7C/audit frontier. Both are rejected through the public
