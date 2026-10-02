@@ -429,6 +429,7 @@ const VALIDATION_CODES = new Set([
   "CONTRACT_AUDIT_BLOCKED",
   "CONTRACT_AUDIT_CHANGES_REQUIRED",
   "CONTRACT_AUDIT_PREREQUISITE_REJECTED",
+  "CONTRACT_AUDIT_UPSTREAM_CORRECTION_REQUIRED",
   "DATABASE_DECISION_MISSING",
   "DATABASE_NOT_APPROVED",
   "DATABASE_DECISION_STALE",
@@ -889,6 +890,7 @@ function definitionFor(code: string, error: unknown, action?: string): Omit<Work
   if (code === "DESIGN_OUTCOME_UNKNOWN") return { error: "The previous Design provider outcome is unknown and cannot be retried without explicit fresh-attempt authority. The project was not changed.", httpStatus: 409, recoverable: false, category: "WORKFLOW_CONFLICT", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), reasonCode: "OUTCOME_UNKNOWN" };
   if (code === "DESIGN_INPUT_INVALID") return { error: "The host-owned Design inputs did not match the current strict contract. The project was not changed.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
   if (["CONTRACT_AUDIT_INPUT_INVALID", "CONTRACT_AUDIT_BLOCKED", "CONTRACT_AUDIT_CHANGES_REQUIRED", "CONTRACT_AUDIT_PREREQUISITE_REJECTED"].includes(code)) return { error: "The current Contract Audit evidence did not satisfy the guarded prerequisite contract. The project was not advanced to implementation.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
+  if (code === "CONTRACT_AUDIT_UPSTREAM_CORRECTION_REQUIRED") return { error: "The current Contract Audit requires an upstream artifact correction; TaskGraph correction is not eligible. The project was not changed.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), reasonCode: code };
   if (["CONTRACT_AUDIT_PROVIDER_FAILED", "CONTRACT_AUDIT_OUTPUT_INVALID"].includes(code)) {
     const diagnostic = safeProviderDiagnostic(error);
     const reasonCode = diagnostic?.errorCode ?? diagnostic?.providerErrorCode ?? (diagnostic?.requestAttempted === false ? "CONTRACT_AUDIT_PRE_PROVIDER_FAILURE" : undefined);

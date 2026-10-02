@@ -44,6 +44,7 @@ import { canonicalBriefToPlannerBrief } from "@/agents/planner/brief-context";
 import { admitPlanningRefresh, PlanningAdmissionError } from "@/agents/planner/refresh-admission";
 import { CONTRACT_AUDIT_PROMPT_VERSION } from "@/agents/reviewers/contracts/contracts";
 import type { ContractAuditExecutionEvidence } from "@/agents/reviewers/contracts/service";
+import type { ContractAuditRecord } from "@/domain/review/schema";
 import { currentWorkbenchOperationContext, isWorkbenchOperationFailure, withWorkbenchOperationContext, type WorkbenchOperationContext } from "./operation-context";
 import { currentRuntimeProvenance, type WorkbenchResponseMetadata } from "./observability";
 import { providerFailureDiagnosticFromError } from "@/integrations/openai/failure-diagnostics";
@@ -75,6 +76,11 @@ const contractAuditFailureResult = (error: unknown, mutationPhase: ContractAudit
     taskGraphPersisted: mutationPhase !== "BEFORE_TASKGRAPH_PERSISTENCE",
     lifecycleMutated: mutationPhase === "LIFECYCLE_TRANSITIONED" || mutationPhase === "AUDIT_RESULT_RECEIVED",
   };
+};
+
+const contractAuditAllowsTaskGraphCycle = (audit: ContractAuditRecord) => {
+  const actionable = audit.result.findings.filter((finding) => finding.severity !== "INFO");
+  return actionable.length > 0 && actionable.every((finding) => finding.correctionTarget === "TASKGRAPH");
 };
 
 /** Host approval is persisted on V3; this V1-shaped value is only an in-memory compatibility view. */
@@ -390,8 +396,8 @@ export class WorkbenchApplication {
     const phase7cDependencyApprovalPending = contractPackage?.documentType === "phase-7c-contract-package" && contractPackage.dependencyProposal.dependencies.some((dependency) => dependency.approvalRequired && dependency.approvalStatus === "PENDING");
     const phase7cContractAuditPending = contractPackage?.documentType === "phase-7c-contract-package" && contractPackage.status === "PENDING_USER_APPROVAL" && contractPackage.databaseDecision.approval.status === "APPROVED" && !phase7cDependencyApprovalPending && !contractAudit;
     const currentTaskGraphChecksum = taskGraph?.documentType === "task-graph" ? taskGraph.graphChecksum ?? checksumPersistedDocument(taskGraph) : undefined;
-    const phase7cContractAuditCorrectionPending = current.project.workflowState === "CONTRACT_AUDIT" && contractPackage?.documentType === "phase-7c-contract-package" && contractAudit?.documentType === "contract-audit" && ["CHANGES_REQUIRED", "BLOCKED"].includes(contractAudit.result.verdict) && taskGraph?.documentType === "task-graph" && taskGraph.validation?.valid === true && taskGraph.readyForExecution === true && contractAudit.taskGraphChecksum === currentTaskGraphChecksum;
-    const phase7cContractAuditReassessmentPending = current.project.workflowState === "CONTRACT_AUDIT" && contractPackage?.documentType === "phase-7c-contract-package" && contractAudit?.documentType === "contract-audit" && ["CHANGES_REQUIRED", "BLOCKED"].includes(contractAudit.result.verdict) && taskGraph?.documentType === "task-graph" && taskGraph.validation?.valid === true && taskGraph.readyForExecution === true && contractAudit.taskGraphChecksum !== currentTaskGraphChecksum;
+    const phase7cContractAuditCorrectionPending = current.project.workflowState === "CONTRACT_AUDIT" && contractPackage?.documentType === "phase-7c-contract-package" && contractAudit?.documentType === "contract-audit" && ["CHANGES_REQUIRED", "BLOCKED"].includes(contractAudit.result.verdict) && contractAuditAllowsTaskGraphCycle(contractAudit) && taskGraph?.documentType === "task-graph" && taskGraph.validation?.valid === true && taskGraph.readyForExecution === true && contractAudit.taskGraphChecksum === currentTaskGraphChecksum;
+    const phase7cContractAuditReassessmentPending = current.project.workflowState === "CONTRACT_AUDIT" && contractPackage?.documentType === "phase-7c-contract-package" && contractAudit?.documentType === "contract-audit" && ["CHANGES_REQUIRED", "BLOCKED"].includes(contractAudit.result.verdict) && contractAuditAllowsTaskGraphCycle(contractAudit) && taskGraph?.documentType === "task-graph" && taskGraph.validation?.valid === true && taskGraph.readyForExecution === true && contractAudit.taskGraphChecksum !== currentTaskGraphChecksum;
     const phase7cApprovalPending = current.project.workflowState === "READY_FOR_IMPLEMENTATION" && contractPackage?.documentType === "phase-7c-contract-package" && contractPackage.status === "PENDING_USER_APPROVAL" && contractAudit?.documentType === "contract-audit" && contractAudit.result.verdict === "APPROVED" && taskGraph?.documentType === "task-graph" && contractAudit.taskGraphChecksum === currentTaskGraphChecksum;
     let phase7cContractAuditRecoveryPending = false;
     if (current.project.workflowState === "CONTRACT_AUDIT" && contractPackage?.documentType === "phase-7c-contract-package" && !contractAudit && taskGraph?.documentType === "task-graph" && taskGraph.validation?.valid && taskGraph.readyForExecution) {
@@ -911,6 +917,7 @@ export class WorkbenchApplication {
   private async correctContractAudit(projectId: string, requestKey?: string) {
     const context = await this.contractAuditContext(projectId, "CONTRACT_AUDIT");
     if (!context.priorAudit || !["CHANGES_REQUIRED", "BLOCKED"].includes(context.priorAudit.result.verdict)) throw new WorkbenchActionError("CONTRACT_AUDIT_CORRECTION_BLOCKED", "TaskGraph correction requires a current Contract Audit with changes required.");
+    if (!contractAuditAllowsTaskGraphCycle(context.priorAudit)) throw new WorkbenchActionError("CONTRACT_AUDIT_UPSTREAM_CORRECTION_REQUIRED", "The current Contract Audit requires correction by an upstream artifact owner before TaskGraph correction can run.");
     if (!context.taskGraph.validation?.valid || !context.taskGraph.readyForExecution) throw new WorkbenchActionError("CONTRACT_AUDIT_CORRECTION_BLOCKED", "TaskGraph correction requires a valid current graph.");
     const graphChecksum = context.taskGraph.graphChecksum ?? checksumPersistedDocument(context.taskGraph);
     const persistedGraphChecksum = checksumPersistedDocument(context.taskGraph);
@@ -941,6 +948,7 @@ export class WorkbenchApplication {
   private async reassessContractAudit(projectId: string, requestKey?: string) {
     const context = await this.contractAuditContext(projectId, "CONTRACT_AUDIT");
     if (!context.priorAudit) throw new WorkbenchActionError("CONTRACT_AUDIT_REASSESSMENT_BLOCKED", "Contract Audit reassessment requires a prior audit result.");
+    if (!contractAuditAllowsTaskGraphCycle(context.priorAudit)) throw new WorkbenchActionError("CONTRACT_AUDIT_UPSTREAM_CORRECTION_REQUIRED", "The current Contract Audit requires correction by an upstream artifact owner before reassessment can run.");
     const graphChecksum = context.taskGraph.graphChecksum ?? checksumPersistedDocument(context.taskGraph);
     if (context.priorAudit.taskGraphChecksum === graphChecksum) throw new WorkbenchActionError("CONTRACT_AUDIT_REASSESSMENT_BLOCKED", "Reassessment requires a corrected TaskGraph frontier.");
     const frontier = { projectId, projectVersion: context.version, rowVersion: context.current.rowVersion, briefChecksum: context.briefV3.briefChecksum, planningChecksum: planningDocumentChecksum(context.planning), architectureReviewChecksum: checksumPersistedDocument(context.architectureReview), selectedDesignChecksum: checksumPersistedDocument(context.selected), phase7cChecksum: checksumPersistedDocument(context.phase7c), taskGraphChecksum: graphChecksum, priorAuditChecksum: checksumPersistedDocument(context.priorAudit), priorAuditStatus: context.priorAudit.result.verdict };

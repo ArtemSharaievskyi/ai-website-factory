@@ -156,7 +156,7 @@ function approvedArchitectureReview(brief: RequirementSpecification, planning: P
   });
 }
 
-async function seedFixture(options: { legacyPhase7C?: boolean; invalidLegacyBinding?: boolean; unchangedGraph?: boolean } = {}) {
+async function seedFixture(options: { legacyPhase7C?: boolean; invalidLegacyBinding?: boolean; unchangedGraph?: boolean; upstreamPlanningFinding?: boolean; staleAuditGraphBinding?: boolean } = {}) {
   const database = new InMemoryPersistenceDatabase();
   const brief = syntheticBrief();
   const migratedCanonicalBrief = migrateLegacyBriefToCanonicalBriefV3(brief);
@@ -237,7 +237,12 @@ async function seedFixture(options: { legacyPhase7C?: boolean; invalidLegacyBind
   }, DEFAULT_ORCHESTRATION_POLICY);
   const badAuditResult = ContractAuditResultSchema.parse({
     verdict: "CHANGES_REQUIRED",
-    findings: [{ findingId: "legacy-form-template", severity: "ERROR", category: "FORM_CONTRACT_MISMATCH", summary: "Synthetic stale form criterion requires correction.", evidenceRefs: ["task-graph"], affectedArtifacts: ["task-graph"], recommendedAction: "Rebuild the current TaskGraph.", correctionTarget: "TASKGRAPH" }],
+    findings: options.upstreamPlanningFinding
+      ? [
+        { findingId: "synthetic-planning-gap", severity: "ERROR", category: "REQUIREMENT_NOT_TRACED", summary: "Synthetic Planning evidence requires upstream correction.", evidenceRefs: ["requirements"], affectedArtifacts: ["planning-package"], recommendedAction: "Correct the Planning package.", correctionTarget: "PLANNING" },
+        { findingId: "synthetic-taskgraph-warning", severity: "WARNING", category: "ARTIFACT_MULTIPLE_OWNERS", summary: "Synthetic TaskGraph ownership warning.", evidenceRefs: ["task-graph"], affectedArtifacts: ["task-graph"], recommendedAction: "Review TaskGraph ownership.", correctionTarget: "TASKGRAPH" },
+      ]
+      : [{ findingId: "legacy-form-template", severity: "ERROR", category: "FORM_CONTRACT_MISMATCH", summary: "Synthetic stale form criterion requires correction.", evidenceRefs: ["task-graph"], affectedArtifacts: ["task-graph"], recommendedAction: "Rebuild the current TaskGraph.", correctionTarget: "TASKGRAPH" }],
     reviewedArtifactRefs: ["task-graph"],
     policyVersion: CONTRACT_AUDIT_POLICY_VERSION,
   });
@@ -259,7 +264,7 @@ async function seedFixture(options: { legacyPhase7C?: boolean; invalidLegacyBind
     architectureReviewId: architectureReview.reviewId,
     architectureReviewChecksum: checksumPersistedDocument(architectureReview),
     designChecksum: checksumPersistedDocument(selected),
-    taskGraphChecksum: taskGraph.graphChecksum,
+    taskGraphChecksum: options.staleAuditGraphBinding ? "f".repeat(64) : taskGraph.graphChecksum,
     resultChecksum: checksumPersistedDocument(badAuditResult),
     result: badAuditResult,
   });
@@ -376,6 +381,45 @@ describe("Phase 7C recovery through the serialized Workbench route", () => {
       .toBe(phase7c?.documentType === "phase-7c-contract-package" ? phase7c.planningChecksum : undefined);
     const operation = await fixture.database.transaction((tx) => tx.getOperation({ operation: "workbench.contract-audit.correct_contract_audit", key: body.operationId }));
     expect(operation).toMatchObject({ status: "FAILED", result: { code: "ORCHESTRATOR_GRAPH_INVALID", providerCallsTotal: 0 } });
+    expect(fixture.providerCalls).toEqual([]);
+  });
+
+  it("does not advertise or reserve TaskGraph correction for an upstream Planning finding", async () => {
+    const fixture = await seedFixture({ upstreamPlanningFinding: true });
+    mockWorkbench.handle.mockImplementation((request) => fixture.app.handle(request));
+
+    const status = await fixture.app.handle({ action: "status", projectId: fixture.projectId });
+    expect(status.status.allowedActions).toEqual([]);
+    expect(status.status.pendingUserAction).toBe("WAIT_FOR_WORKFLOW_OWNER");
+
+    const response = await post({ action: "correct-contract-audit", projectId: fixture.projectId, idempotencyKey: `synthetic-upstream-correction-${fixture.projectId}` });
+    expect(response.status).toBe(422);
+    const body = await response.json() as { code: string; reasonCode?: string; attemptCreated: boolean; operationId?: string; attemptId?: string };
+    expect(body).toMatchObject({ code: "CONTRACT_AUDIT_UPSTREAM_CORRECTION_REQUIRED", reasonCode: "CONTRACT_AUDIT_UPSTREAM_CORRECTION_REQUIRED", attemptCreated: false });
+    expect(body.operationId).toBeUndefined();
+    expect(body.attemptId).toBeUndefined();
+
+    const corrections = await fixture.database.transaction((tx) => tx.listOperations({ operation: "workbench.contract-audit.correct_contract_audit" }));
+    expect(corrections).toEqual([]);
+    expect(fixture.providerCalls).toEqual([]);
+  });
+
+  it("does not advertise or reserve reassessment for unresolved upstream findings", async () => {
+    const fixture = await seedFixture({ upstreamPlanningFinding: true, staleAuditGraphBinding: true });
+    mockWorkbench.handle.mockImplementation((request) => fixture.app.handle(request));
+
+    const status = await fixture.app.handle({ action: "status", projectId: fixture.projectId });
+    expect(status.status.allowedActions).toEqual([]);
+
+    const response = await post({ action: "reassess-contract-audit", projectId: fixture.projectId, idempotencyKey: `synthetic-upstream-reassessment-${fixture.projectId}` });
+    expect(response.status).toBe(422);
+    const body = await response.json() as { code: string; reasonCode?: string; attemptCreated: boolean; operationId?: string; attemptId?: string };
+    expect(body).toMatchObject({ code: "CONTRACT_AUDIT_UPSTREAM_CORRECTION_REQUIRED", reasonCode: "CONTRACT_AUDIT_UPSTREAM_CORRECTION_REQUIRED", attemptCreated: false });
+    expect(body.operationId).toBeUndefined();
+    expect(body.attemptId).toBeUndefined();
+
+    const reassessments = await fixture.database.transaction((tx) => tx.listOperations({ operation: "workbench.contract-audit.reassess_contract_audit" }));
+    expect(reassessments).toEqual([]);
     expect(fixture.providerCalls).toEqual([]);
   });
 
