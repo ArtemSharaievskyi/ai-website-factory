@@ -42,7 +42,7 @@ const refsForRequirements = (input: ContractAuditInput) => {
   ]);
 };
 const taskText = (task: ContractAuditInput["taskGraph"]["tasks"][number]) => text({ objective: task.objective, inputs: task.inputs, outputs: task.expectedOutputs, acceptance: task.acceptanceCriteria });
-const finding = (findingId: string, category: ContractAuditFinding["category"], summary: string, evidenceRefs: string[], affectedArtifacts: string[], recommendedAction: string, correctionTarget: ContractAuditFinding["correctionTarget"] = "TASKGRAPH", severity: ContractAuditFinding["severity"] = "ERROR"): ContractAuditFinding => ({ findingId: findingId.toLowerCase().replace(/[^a-z0-9_.-]+/g, "-"), severity, category, summary, evidenceRefs, affectedArtifacts, recommendedAction, correctionTarget });
+const finding = (findingId: string, category: ContractAuditFinding["category"], summary: string, evidenceRefs: string[], affectedArtifacts: string[], recommendedAction: string, correctionTarget: ContractAuditFinding["correctionTarget"] = "TASKGRAPH", severity: ContractAuditFinding["severity"] = "ERROR"): ContractAuditFinding => ({ findingId: findingId.toLowerCase().replace(/[^a-z0-9_.-]+/g, "-"), severity, category, summary, evidenceRefs, affectedArtifacts, recommendedAction, correctionTarget, routeMismatchAspect: category === "ROUTE_CONTRACT_MISMATCH" ? "ROUTE_OWNERSHIP" : null });
 
 export function deterministicContractAudit(rawInput: ContractAuditInput) {
   const input = withoutProviderEvidenceCatalog(rawInput);

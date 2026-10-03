@@ -379,7 +379,7 @@ describe("production AI provider boundary", () => {
       expect(schema.safeParse(zeroFinding).success).toBe(true);
       expect(schema.safeParse({ ...zeroFinding, policyVersion: "provider-authored-old-policy" }).success).toBe(false);
       expect(schema.safeParse({ ...zeroFinding, targetWorkflowState: "AWAITING_DESIGN_SELECTION" }).success).toBe(false);
-      const oneFinding = { ...zeroFinding, verdict: "CHANGES_REQUIRED", findings: [{ findingId: "finding-1", severity: "INFO", category, summary: "Bounded finding.", evidenceRefs: [evidenceId], affectedArtifacts: [], recommendedAction: "Review the cited evidence.", ...(category === "REQUIREMENT_NOT_TRACED" ? { correctionTarget: "PLANNING" } : {}), ...(category === "CONTRACT_IMPLEMENTATION_MISMATCH" ? { correctionTarget: "IMPLEMENTATION_TASK", ownerTaskId: null } : {}), ...(category === "TRUST_BOUNDARY" ? { correctionTarget: "IMPLEMENTATION_TASK", ownerTaskId: null } : {}), ...(category === "REQUIREMENT_NOT_VERIFIED" ? { correctionTarget: "TEST_TASK", ownerTaskId: null } : {}) }] };
+      const oneFinding = { ...zeroFinding, verdict: "CHANGES_REQUIRED", findings: [{ findingId: "finding-1", severity: "INFO", category, summary: "Bounded finding.", evidenceRefs: [evidenceId], affectedArtifacts: [], recommendedAction: "Review the cited evidence.", ...(category === "REQUIREMENT_NOT_TRACED" ? { correctionTarget: "PLANNING", routeMismatchAspect: null } : {}), ...(category === "CONTRACT_IMPLEMENTATION_MISMATCH" ? { correctionTarget: "IMPLEMENTATION_TASK", ownerTaskId: null } : {}), ...(category === "TRUST_BOUNDARY" ? { correctionTarget: "IMPLEMENTATION_TASK", ownerTaskId: null } : {}), ...(category === "REQUIREMENT_NOT_VERIFIED" ? { correctionTarget: "TEST_TASK", ownerTaskId: null } : {}) }] };
       expect(schema.safeParse(oneFinding).success).toBe(true);
     }
   });
@@ -400,7 +400,7 @@ describe("production AI provider boundary", () => {
         evidenceRefs: ["file:src/app.ts"],
         affectedArtifacts: [],
         recommendedAction: "Review the cited evidence.",
-        ...(category === "REQUIREMENT_NOT_TRACED" ? { correctionTarget: "PLANNING" } : {}),
+        ...(category === "REQUIREMENT_NOT_TRACED" ? { correctionTarget: "PLANNING", routeMismatchAspect: null } : {}),
         ...(category === "CONTRACT_IMPLEMENTATION_MISMATCH" ? { correctionTarget: "IMPLEMENTATION_TASK", ownerTaskId: null } : {}),
         ...(category === "TRUST_BOUNDARY" ? { correctionTarget: "IMPLEMENTATION_TASK", ownerTaskId: null } : {}),
         ...(category === "REQUIREMENT_NOT_VERIFIED" ? { correctionTarget: "TEST_TASK", ownerTaskId: null } : {}),
@@ -410,6 +410,13 @@ describe("production AI provider boundary", () => {
       expect(schema.safeParse({ ...valid, verdict: "UNKNOWN" }).success).toBe(false);
       expect(schema.safeParse({ ...valid, findings: [{ ...finding, evidenceRefs: [] }] }).success).toBe(false);
     }
+  });
+  it("requires explicit nullable route-mismatch metadata on Contract Audit findings", () => {
+    const evidenceId = `E${"0".repeat(16)}-001`;
+    const baseFinding = { findingId: "route-finding", severity: "ERROR", category: "ROUTE_CONTRACT_MISMATCH", summary: "Bounded route finding.", evidenceRefs: [evidenceId], affectedArtifacts: [evidenceId], recommendedAction: "Review the cited route contract.", correctionTarget: "PLANNING" };
+    const payload = { verdict: "CHANGES_REQUIRED", reviewedArtifactRefs: [evidenceId], blockedReason: null };
+    expect(ContractAuditProviderOutputSchema.safeParse({ ...payload, findings: [baseFinding] }).success).toBe(false);
+    expect(ContractAuditProviderOutputSchema.safeParse({ ...payload, findings: [{ ...baseFinding, routeMismatchAspect: "PAGE_PURPOSE" }] }).success).toBe(true);
   });
   it("uses a strict Brief transport schema while preserving nullable optional domain values", () => {
     expect(() => zodResponseFormat(BriefDraftStructuredOutputSchema, "brief-draft")).not.toThrow();

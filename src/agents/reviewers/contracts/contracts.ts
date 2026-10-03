@@ -9,7 +9,7 @@ import { CanonicalBriefV3Schema } from "@/domain/requirements/v3/schema";
 import { ProjectAssetReferenceSchema } from "@/domain/assets/project";
 
 export const CONTRACT_AUDIT_POLICY_VERSION = "contract-audit-v1";
-export const CONTRACT_AUDIT_PROMPT_VERSION = "contract-auditor.v3";
+export const CONTRACT_AUDIT_PROMPT_VERSION = "contract-auditor.v4";
 export const ContractExecutorSchema = z.object({ executorId: AgentIdSchema, kind: z.enum(["agent", "runtime"]), current: z.boolean(), capabilities: z.array(z.union([AgentCapabilityIdSchema, z.string().regex(/^[a-z][a-z0-9-]*$/)])).min(1) }).strict();
 export type CanonicalProjectIdentity = { projectId: string; projectVersion: number };
 export function projectIdentityMismatches(

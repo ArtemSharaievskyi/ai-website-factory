@@ -20,7 +20,7 @@ import { WorkbenchApplication, approvedBriefForDownstream } from "./application"
 import { ContractAuditService } from "@/agents/reviewers/contracts/service";
 import { ContractAuditOrchestrationService } from "@/orchestration/contract-audit/service";
 import { OrchestratorService } from "@/orchestration/orchestrator/service";
-import { CONTRACT_AUDIT_POLICY_VERSION } from "@/agents/reviewers/contracts/contracts";
+import { CONTRACT_AUDIT_POLICY_VERSION, CONTRACT_AUDIT_PROMPT_VERSION } from "@/agents/reviewers/contracts/contracts";
 import { evidenceIdFor } from "@/agents/reviewers/evidence";
 import { createSerializedWorkbenchRequest } from "./http-client";
 
@@ -258,7 +258,7 @@ async function seedFixture(options: { legacyPhase7C?: boolean; invalidLegacyBind
     auditorVersion: "synthetic",
     capability: "review.contracts",
     policyVersion: CONTRACT_AUDIT_POLICY_VERSION,
-    promptVersion: "contract-auditor.v3",
+    promptVersion: CONTRACT_AUDIT_PROMPT_VERSION,
     briefChecksum: briefV3.briefChecksum,
     planningChecksum: checksumPersistedDocument(planning),
     architectureReviewId: architectureReview.reviewId,
@@ -284,7 +284,7 @@ async function seedFixture(options: { legacyPhase7C?: boolean; invalidLegacyBind
   await documents.save(taskGraph);
   await documents.save(badAudit);
   const providerCalls: string[] = [];
-  const auditor = new ContractAuditService(database, { provider: { promptVersion: "contract-auditor.v3", review: async (providerInput) => { providerCalls.push("contract-audit"); return { verdict: "APPROVED", findings: [], reviewedArtifactRefs: [evidenceIdFor(providerInput, "requirements")] }; } } });
+  const auditor = new ContractAuditService(database, { provider: { promptVersion: CONTRACT_AUDIT_PROMPT_VERSION, review: async (providerInput) => { providerCalls.push("contract-audit"); return { verdict: "APPROVED", findings: [], reviewedArtifactRefs: [evidenceIdFor(providerInput, "requirements")] }; } } });
   const contractAuditor = new ContractAuditOrchestrationService(database, auditor);
   const orchestrator = new OrchestratorService(database);
   const scope = { planner: {} as never, architectureReviewer: {} as never, design: {} as never, orchestrator, contractAuditor };

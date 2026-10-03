@@ -59,6 +59,8 @@ describe("approved procedural prompt guidance", () => {
     const prompt = rolePrompt("contract-auditor", {});
     expect(prompt.system).toContain("historical evidence catalog");
     expect(prompt.system).toContain("Zod is a fixed Factory baseline dependency");
+    expect(prompt.system).toContain("Every finding must set routeMismatchAspect to null unless category is ROUTE_CONTRACT_MISMATCH");
+    expect(prompt.system).toContain("do not use a structural aspect for a semantic concern");
   });
 
   it("uses the measured role-specific envelope for a lossless Contract Audit context", () => {

@@ -34,7 +34,7 @@ function sdkClient(response: Record<string, unknown>) {
 
 const request = {
   role: "contract-auditor",
-  promptVersion: "contract-auditor.v3",
+  promptVersion: "contract-auditor.v4",
   system: "Synthetic contract-audit system instruction.",
   user: "Synthetic contract-audit user input.",
   schemaName: "contract-audit-result",
@@ -56,5 +56,13 @@ describe("Contract Audit installed SDK transport contract", () => {
       code: "AI_STRUCTURED_PARSE_FAILED",
       diagnostic: { responseReceived: false, sdkErrorClass: "ZodError" },
     });
+  });
+
+  it("preserves required nullable route-mismatch metadata through the installed SDK parser", async () => {
+    const finding = { findingId: "semantic-route", severity: "ERROR", category: "ROUTE_CONTRACT_MISMATCH", summary: "Synthetic route semantics finding.", evidenceRefs: [evidenceRef], affectedArtifacts: [evidenceRef], recommendedAction: "Review the route purpose.", correctionTarget: "PLANNING", routeMismatchAspect: "PAGE_PURPOSE" };
+    const payload = { verdict: "CHANGES_REQUIRED", findings: [finding], reviewedArtifactRefs: [evidenceRef], blockedReason: null };
+    const response = { ...validWireResponse, choices: [{ ...(validWireResponse.choices as Array<Record<string, unknown>>)[0], message: { role: "assistant", content: JSON.stringify(payload) } }] };
+    const result = await sdkClient(response).request(request);
+    expect(result.value).toEqual(payload);
   });
 });

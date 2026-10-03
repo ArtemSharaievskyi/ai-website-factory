@@ -13,9 +13,10 @@ import { applyBriefChangeSet } from "@/domain/requirements/v3/reducer";
 import { createBriefV3Document } from "@/persistence/database/brief-revision-v3-contracts";
 import { DocumentRepository, OperationRepository, ProjectRepository, ProjectVersionRepository } from "@/persistence/database/repositories";
 import { BriefV3TransactionService } from "@/runtime/brief-revision-v3/service";
-import { WorkbenchApplication } from "./application";
+import { WorkbenchApplication, contractAuditPrerequisiteIdentity, legacyContractAuditPrerequisiteIdentity, selectContractAuditPrerequisiteOperation } from "./application";
 import { WorkbenchRequestSchema, actionsForWorkbenchState } from "./contracts";
 import { TrialEntryService } from "@/runtime/trial-entry/service";
+import { checksumPersistedDocument } from "@/persistence/database/serialization";
 
 const syntheticPrompt = "Create a synthetic local test business website with a home page and direct phone and email contact actions. No contact form, database, authentication, or persistence.";
 const answerFor = (key: string | undefined) => {
@@ -191,6 +192,35 @@ describe("Factory Workbench projection and boundary", () => {
     expect(oldAfter).toEqual(old);
     expect(oldAfter?.status).toBe("FAILED");
     expect(oldAfter?.result).toMatchObject({ code: "AI_REQUEST_CONTEXT_CAPACITY_EXCEEDED", providerReceipt: "NOT_ATTEMPTED" });
+  });
+
+  it("opens a fresh Contract Audit prerequisite frontier for a new provider protocol", async () => {
+    const database = new InMemoryPersistenceDatabase();
+    const operations = new OperationRepository(database);
+    const frontier = { projectId: "00000000-0000-4000-8000-000000000000", projectVersion: 1, approvedBriefChecksum: "a".repeat(64), planningChecksum: "b".repeat(64), architectureChecksum: "c".repeat(64), designChecksum: "d".repeat(64), databaseDecisionChecksum: "e".repeat(64), dependencyProposalChecksum: "f".repeat(64) };
+    const v3 = legacyContractAuditPrerequisiteIdentity(frontier);
+    const v4 = contractAuditPrerequisiteIdentity(frontier, "contract-auditor.v4");
+    expect(v4.key).not.toBe(v3.key);
+    await expect(operations.reserve("workbench.contract-audit-prerequisite", v3.key, v3.payload)).resolves.toMatchObject({ status: "NEW" });
+    await operations.fail("workbench.contract-audit-prerequisite", v3.key, v3.payload, { outcome: "FAILED" });
+    await expect(operations.reserve("workbench.contract-audit-prerequisite", v4.key, v4.payload)).resolves.toMatchObject({ status: "NEW" });
+    await expect(operations.reserve("workbench.contract-audit-prerequisite", v4.key, v4.payload)).resolves.toMatchObject({ status: "IN_PROGRESS" });
+    const preservedV3 = await database.transaction((tx) => tx.getOperation({ operation: "workbench.contract-audit-prerequisite", key: v3.key }));
+    expect(preservedV3).toMatchObject({ status: "FAILED", payloadHash: checksumPersistedDocument(v3.payload), result: { outcome: "FAILED" } });
+  });
+
+  it("uses a legacy Contract Audit failure only when no current protocol operation exists", async () => {
+    const frontier = { projectId: "00000000-0000-4000-8000-000000000000", projectVersion: 1, approvedBriefChecksum: "a".repeat(64), planningChecksum: "b".repeat(64), architectureChecksum: "c".repeat(64), designChecksum: "d".repeat(64), databaseDecisionChecksum: "e".repeat(64), dependencyProposalChecksum: "f".repeat(64) };
+    const current = contractAuditPrerequisiteIdentity(frontier);
+    const legacy = legacyContractAuditPrerequisiteIdentity(frontier);
+    const failed = { status: "FAILED" as const };
+    const active = { status: "IN_PROGRESS" as const };
+    const succeeded = { status: "SUCCEEDED" as const };
+
+    expect(selectContractAuditPrerequisiteOperation({ key: current.key, operation: undefined }, { key: legacy.key, operation: failed })).toMatchObject({ source: "LEGACY", key: legacy.key, operation: failed });
+    expect(selectContractAuditPrerequisiteOperation({ key: current.key, operation: active }, { key: legacy.key, operation: failed })).toMatchObject({ source: "CURRENT", operation: active });
+    expect(selectContractAuditPrerequisiteOperation({ key: current.key, operation: succeeded }, { key: legacy.key, operation: failed })).toMatchObject({ source: "CURRENT", operation: succeeded });
+    expect(selectContractAuditPrerequisiteOperation({ key: current.key, operation: failed }, { key: legacy.key, operation: failed })).toMatchObject({ source: "CURRENT", key: current.key, operation: failed });
   });
 
   it("fails closed when Planning approval is requested before Planning exists", async () => {

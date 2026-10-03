@@ -37,6 +37,8 @@ import {
 } from "../evidence";
 import { canonicalBriefChecksum } from "@/domain/requirements/v3/normalize";
 import { Buffer } from "node:buffer";
+import { planningRoutePolicyMatchesCanonicalBrief, validatePlanningRecoveryRouteManifest } from "@/agents/planner/refresh-admission";
+import { createCanonicalPlanningRouteManifest } from "@/agents/planner/recovery-manifests";
 
 const now = () => new Date().toISOString();
 const findingKey = (value: unknown) => JSON.stringify(value);
@@ -484,6 +486,22 @@ export class ContractAuditService {
         throw new ContractAuditError(
           "CONTRACT_AUDIT_OUTPUT_INVALID",
           `Actionable finding ${item.findingId} requires a correction target.`,
+        );
+      if ((item.category === "ROUTE_CONTRACT_MISMATCH") !== (item.routeMismatchAspect !== null))
+        throw new ContractAuditError(
+          "CONTRACT_AUDIT_OUTPUT_INVALID",
+          `Finding ${item.findingId} has an invalid route mismatch aspect binding.`,
+        );
+      const routePolicyContradicted = item.routeMismatchAspect === "ROUTE_POLICY"
+        && input.canonicalBrief
+        && planningRoutePolicyMatchesCanonicalBrief(input.acceptedPlanningPackage, input.canonicalBrief);
+      const routeIdentityContradicted = item.routeMismatchAspect === "PATH_IDENTITY"
+        && input.canonicalBrief
+        && validatePlanningRecoveryRouteManifest({ candidate: input.acceptedPlanningPackage, manifest: createCanonicalPlanningRouteManifest(input.canonicalBrief) }).length === 0;
+      if (item.correctionTarget === "PLANNING" && (routePolicyContradicted || routeIdentityContradicted))
+        throw new ContractAuditError(
+          "CONTRACT_AUDIT_FINDING_CONTRADICTS_HOST_EVIDENCE",
+          `Planning-targeted route finding ${item.findingId} contradicts the current host-owned ${item.routeMismatchAspect === "ROUTE_POLICY" ? "route policy" : "route identity"} contract.`,
         );
       const key = findingKey(resolvedItem);
       if (ids.has(item.findingId)) {

@@ -84,6 +84,12 @@ describe("safe Web Workbench failure diagnostics D409-1..D409-24", () => {
     expect(JSON.stringify(provider.response)).not.toContain("private provider detail");
   });
 
+  it("maps a Contract Audit finding contradicted by host evidence to a bounded typed response", () => {
+    const result = workbenchFailureResponse(new ContractAuditError("CONTRACT_AUDIT_FINDING_CONTRADICTS_HOST_EVIDENCE", "private route detail"), { action: "run-contract-audit", projectId });
+    expect(result).toMatchObject({ status: 502, response: { code: "CONTRACT_AUDIT_FINDING_CONTRADICTS_HOST_EVIDENCE", operation: "RUN_CONTRACT_AUDIT", category: "PROVIDER", providerContract: "contract-audit", reasonCode: "CONTRACT_AUDIT_FINDING_CONTRADICTS_HOST_EVIDENCE" } });
+    expect(JSON.stringify(result.response)).not.toContain("private route detail");
+  });
+
   it("maps bounded professional Design admission failures to typed validation", () => {
     const result = failure(new DesignError("DESIGN_ADMISSION_FAILED", "private admission detail", undefined, undefined, undefined, {
       schemaVersion: 1,

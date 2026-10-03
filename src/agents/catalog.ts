@@ -100,7 +100,7 @@ export const contractAuditorAgentDefinition = definition({
   allowedTools: ["openai-generation"], allowedSkillIds: ["acceptance-criteria-80493e317476", "requirements-evidence-traceability"],
   contextPolicy: { version: "contract-audit-context-v1", allowedCategories: ["PROJECT_BRIEF", "PLANNING_PACKAGE", "PREVIOUS_FINDINGS"], maxBytes: 160000, maxItems: 80 },
   inputContract: { schemaId: "contract-auditor.input", version: "1" }, outputContract: { schemaId: "review.output", version: "1" },
-  promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "contract-auditor.v3", policyVersions: { context: "contract-audit-context-v1", execution: "contract-audit-execution-v1" },
+  promptOwner: "src/integrations/openai/prompts.ts", promptVersion: "contract-auditor.v4", policyVersions: { context: "contract-audit-context-v1", execution: "contract-audit-execution-v1" },
   executionPolicy: { aiGenerationAllowed: true, retryClass: "bounded-provider", cancellationSupported: true, concurrencyClass: "single-flight", requiresExplicitApprovalBeforeTransition: false }, readOnly: true,
 });
 export const codeIntegrationReviewerAgentDefinition = definition({

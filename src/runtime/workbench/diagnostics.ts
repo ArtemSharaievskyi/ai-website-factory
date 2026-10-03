@@ -495,6 +495,7 @@ const PROVIDER_CODES = new Set([
   "ARCHITECTURE_REVIEW_PROVIDER_FAILED",
   "CONTRACT_AUDIT_PROVIDER_FAILED",
   "CONTRACT_AUDIT_OUTPUT_INVALID",
+  "CONTRACT_AUDIT_FINDING_CONTRADICTS_HOST_EVIDENCE",
   "ARCHITECTURE_REVIEW_OUTPUT_INVALID",
   "PROVIDER_FAILED",
   "PROVIDER_REFUSED",
@@ -891,10 +892,10 @@ function definitionFor(code: string, error: unknown, action?: string): Omit<Work
   if (code === "DESIGN_INPUT_INVALID") return { error: "The host-owned Design inputs did not match the current strict contract. The project was not changed.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
   if (["CONTRACT_AUDIT_INPUT_INVALID", "CONTRACT_AUDIT_BLOCKED", "CONTRACT_AUDIT_CHANGES_REQUIRED", "CONTRACT_AUDIT_PREREQUISITE_REJECTED"].includes(code)) return { error: "The current Contract Audit evidence did not satisfy the guarded prerequisite contract. The project was not advanced to implementation.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
   if (code === "CONTRACT_AUDIT_UPSTREAM_CORRECTION_REQUIRED") return { error: "The current Contract Audit requires an upstream artifact correction; TaskGraph correction is not eligible. The project was not changed.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), reasonCode: code };
-  if (["CONTRACT_AUDIT_PROVIDER_FAILED", "CONTRACT_AUDIT_OUTPUT_INVALID"].includes(code)) {
+  if (["CONTRACT_AUDIT_PROVIDER_FAILED", "CONTRACT_AUDIT_OUTPUT_INVALID", "CONTRACT_AUDIT_FINDING_CONTRADICTS_HOST_EVIDENCE"].includes(code)) {
     const diagnostic = safeProviderDiagnostic(error);
     const reasonCode = diagnostic?.errorCode ?? diagnostic?.providerErrorCode ?? (diagnostic?.requestAttempted === false ? "CONTRACT_AUDIT_PRE_PROVIDER_FAILURE" : undefined);
-    return { error: "The Contract Audit provider could not complete this prerequisite. The project was not advanced to implementation.", httpStatus: code === "CONTRACT_AUDIT_OUTPUT_INVALID" ? 502 : 503, recoverable: false, category: "PROVIDER", subsystem: "PROVIDER", errorClass: errorClass(error), providerContract: "contract-audit", ...(reasonCode ? { reasonCode } : {}), ...(diagnostic ? { providerDiagnostic: diagnostic } : {}) };
+    return { error: "The Contract Audit provider could not complete this prerequisite. The project was not advanced to implementation.", httpStatus: code === "CONTRACT_AUDIT_PROVIDER_FAILED" ? 503 : 502, recoverable: false, category: "PROVIDER", subsystem: "PROVIDER", errorClass: errorClass(error), providerContract: "contract-audit", ...(reasonCode || code === "CONTRACT_AUDIT_FINDING_CONTRADICTS_HOST_EVIDENCE" ? { reasonCode: reasonCode ?? code } : {}), ...(diagnostic ? { providerDiagnostic: diagnostic } : {}) };
   }
   if (["ARCHITECTURE_REVIEW_PROVIDER_FAILED", "ARCHITECTURE_REVIEW_OUTPUT_INVALID"].includes(code)) {
     return { error: "The Architecture Review provider could not complete this request. The project was not changed.", httpStatus: code === "ARCHITECTURE_REVIEW_OUTPUT_INVALID" ? 502 : 503, recoverable: false, category: "PROVIDER", subsystem: "PROVIDER", errorClass: errorClass(error), ...(safeProviderDiagnostic(error) ? { providerDiagnostic: safeProviderDiagnostic(error) } : {}) };

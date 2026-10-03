@@ -83,6 +83,42 @@ const contractAuditAllowsTaskGraphCycle = (audit: ContractAuditRecord) => {
   return actionable.length > 0 && actionable.every((finding) => finding.correctionTarget === "TASKGRAPH");
 };
 
+type ContractAuditPrerequisiteFrontier = {
+  projectId: string;
+  projectVersion: number;
+  approvedBriefChecksum: string | undefined;
+  planningChecksum: string;
+  architectureChecksum: string;
+  designChecksum: string;
+  databaseDecisionChecksum: string;
+  dependencyProposalChecksum: string;
+};
+
+export const contractAuditPrerequisiteIdentity = (
+  frontier: ContractAuditPrerequisiteFrontier,
+  promptVersion = CONTRACT_AUDIT_PROMPT_VERSION,
+) => {
+  const payload = { ...frontier, contractAuditPromptVersion: promptVersion };
+  return {
+    payload,
+    key: `workbench-contract-audit-prerequisite:${frontier.projectId}:${frontier.projectVersion}:${checksumPersistedDocument(payload)}`,
+  };
+};
+
+export const legacyContractAuditPrerequisiteIdentity = (frontier: ContractAuditPrerequisiteFrontier) => ({
+  payload: frontier,
+  key: `workbench-contract-audit-prerequisite:${frontier.projectId}:${frontier.projectVersion}:${checksumPersistedDocument(frontier)}`,
+});
+
+export const selectContractAuditPrerequisiteOperation = <TCurrent, TLegacy>(
+  current: { key: string; operation: TCurrent | undefined },
+  legacy: { key: string; operation: TLegacy | undefined },
+) => current.operation
+  ? { source: "CURRENT" as const, key: current.key, operation: current.operation }
+  : legacy.operation
+    ? { source: "LEGACY" as const, key: legacy.key, operation: legacy.operation }
+    : undefined;
+
 /** Host approval is persisted on V3; this V1-shaped value is only an in-memory compatibility view. */
 export const approvedBriefForDownstream = (brief: RequirementSpecification, document: BriefV3Document) => {
   if (!document.approval?.approved || document.approval.approvedCanonicalChecksum !== document.briefChecksum) throw new WorkbenchActionError("BRIEF_APPROVAL_REQUIRED", "The current CanonicalBriefV3 is not approved.");
@@ -401,10 +437,18 @@ export class WorkbenchApplication {
     const phase7cApprovalPending = current.project.workflowState === "READY_FOR_IMPLEMENTATION" && contractPackage?.documentType === "phase-7c-contract-package" && contractPackage.status === "PENDING_USER_APPROVAL" && contractAudit?.documentType === "contract-audit" && contractAudit.result.verdict === "APPROVED" && taskGraph?.documentType === "task-graph" && contractAudit.taskGraphChecksum === currentTaskGraphChecksum;
     let phase7cContractAuditRecoveryPending = false;
     if (current.project.workflowState === "CONTRACT_AUDIT" && contractPackage?.documentType === "phase-7c-contract-package" && !contractAudit && taskGraph?.documentType === "task-graph" && taskGraph.validation?.valid && taskGraph.readyForExecution) {
-      const auditFrontierPayload = { projectId, projectVersion: version, approvedBriefChecksum: briefV3?.briefChecksum, planningChecksum: contractPackage.planningChecksum, architectureChecksum: contractPackage.architectureChecksum, designChecksum: contractPackage.designChecksum, databaseDecisionChecksum: contractPackage.databaseDecision.checksum, dependencyProposalChecksum: contractPackage.dependencyProposal.checksum };
-      const auditOperationKey = `workbench-contract-audit-prerequisite:${projectId}:${version}:${checksumPersistedDocument(auditFrontierPayload)}`;
-      const priorOperation = await this.dependencies.database.transaction((tx) => tx.getOperation({ operation: "workbench.contract-audit-prerequisite", key: auditOperationKey }));
-      phase7cContractAuditRecoveryPending = priorOperation?.status === "FAILED";
+      const auditFrontier = { projectId, projectVersion: version, approvedBriefChecksum: briefV3?.briefChecksum, planningChecksum: contractPackage.planningChecksum, architectureChecksum: contractPackage.architectureChecksum, designChecksum: contractPackage.designChecksum, databaseDecisionChecksum: contractPackage.databaseDecision.checksum, dependencyProposalChecksum: contractPackage.dependencyProposal.checksum };
+      const currentIdentity = contractAuditPrerequisiteIdentity(auditFrontier);
+      const legacyIdentity = legacyContractAuditPrerequisiteIdentity(auditFrontier);
+      const [currentOperation, legacyOperation] = await this.dependencies.database.transaction(async (tx) => Promise.all([
+        tx.getOperation({ operation: "workbench.contract-audit-prerequisite", key: currentIdentity.key }),
+        tx.getOperation({ operation: "workbench.contract-audit-prerequisite", key: legacyIdentity.key }),
+      ]));
+      const selectedOperation = selectContractAuditPrerequisiteOperation(
+        { key: currentIdentity.key, operation: currentOperation },
+        { key: legacyIdentity.key, operation: legacyOperation },
+      );
+      phase7cContractAuditRecoveryPending = selectedOperation?.operation.status === "FAILED";
     }
     const allowedActions = actionsForWorkbenchState({
       workflowState: current.project.workflowState,
@@ -1020,8 +1064,8 @@ export class WorkbenchApplication {
     const briefV3 = BriefV3DocumentSchema.parse(briefV3Document);
     const brief = approvedBriefForDownstream(persistedBrief, briefV3);
     const decisions = await new DecisionRepository(this.dependencies.database).list(projectId, version);
-    const auditFrontierPayload = { projectId, projectVersion: version, approvedBriefChecksum: briefV3.briefChecksum, planningChecksum: phase7c.planningChecksum, architectureChecksum: phase7c.architectureChecksum, designChecksum: phase7c.designChecksum, databaseDecisionChecksum: phase7c.databaseDecision.checksum, dependencyProposalChecksum: phase7c.dependencyProposal.checksum };
-    const auditOperationKey = `workbench-contract-audit-prerequisite:${projectId}:${version}:${checksumPersistedDocument(auditFrontierPayload)}`;
+    const auditFrontier = { projectId, projectVersion: version, approvedBriefChecksum: briefV3.briefChecksum, planningChecksum: phase7c.planningChecksum, architectureChecksum: phase7c.architectureChecksum, designChecksum: phase7c.designChecksum, databaseDecisionChecksum: phase7c.databaseDecision.checksum, dependencyProposalChecksum: phase7c.dependencyProposal.checksum };
+    const { payload: auditFrontierPayload, key: auditOperationKey } = contractAuditPrerequisiteIdentity(auditFrontier);
     const auditOperations = new OperationRepository(this.dependencies.database);
     const reservation = await auditOperations.reserve("workbench.contract-audit-prerequisite", auditOperationKey, auditFrontierPayload);
     if (reservation.status === "IN_PROGRESS") throw new WorkbenchOperationConflict("WORKBENCH_OPERATION_IN_PROGRESS", "A current Contract Audit prerequisite is already active.");
@@ -1089,12 +1133,22 @@ export class WorkbenchApplication {
     const phase7cDesignBindingIsCurrent = phase7c.designChecksum === "0".repeat(64) || phase7c.designChecksum === selected.selectedDirectionChecksum;
     if (taskGraph.graphChecksum !== checksumPersistedDocument(taskGraphWithoutChecksum) || phase7c.approvedBriefChecksum !== briefV3.briefChecksum || phase7c.planningChecksum !== planningSemanticChecksum(planning) || !phase7cDesignBindingIsCurrent || architectureReview.approvedBriefChecksum !== briefV3.briefChecksum || architectureReview.acceptedPlanningChecksum !== planningDocumentChecksum(planning))
       throw new WorkbenchActionError("CONTRACT_AUDIT_RECOVERY_BLOCKED", "The current TaskGraph or upstream artifact bindings are stale.");
-    const auditFrontierPayload = { projectId, projectVersion: version, approvedBriefChecksum: briefV3.briefChecksum, planningChecksum: phase7c.planningChecksum, architectureChecksum: phase7c.architectureChecksum, designChecksum: phase7c.designChecksum, databaseDecisionChecksum: phase7c.databaseDecision.checksum, dependencyProposalChecksum: phase7c.dependencyProposal.checksum };
-    const priorOperationKey = `workbench-contract-audit-prerequisite:${projectId}:${version}:${checksumPersistedDocument(auditFrontierPayload)}`;
+    const auditFrontier = { projectId, projectVersion: version, approvedBriefChecksum: briefV3.briefChecksum, planningChecksum: phase7c.planningChecksum, architectureChecksum: phase7c.architectureChecksum, designChecksum: phase7c.designChecksum, databaseDecisionChecksum: phase7c.databaseDecision.checksum, dependencyProposalChecksum: phase7c.dependencyProposal.checksum };
+    const currentIdentity = contractAuditPrerequisiteIdentity(auditFrontier);
+    const legacyIdentity = legacyContractAuditPrerequisiteIdentity(auditFrontier);
     const auditOperations = new OperationRepository(this.dependencies.database);
-    const priorOperation = await this.dependencies.database.transaction((tx) => tx.getOperation({ operation: "workbench.contract-audit-prerequisite", key: priorOperationKey }));
-    if (!priorOperation || priorOperation.status !== "FAILED") throw new WorkbenchActionError("CONTRACT_AUDIT_RECOVERY_BLOCKED", "Recovery requires one preserved failed Contract Audit prerequisite; no new provider work was started.");
-    const recoveryPayload = { ...auditFrontierPayload, priorOperationKey, priorOperationPayloadHash: priorOperation.payloadHash, taskGraphChecksum: taskGraph.graphChecksum, recoveryGeneration: 1 as const };
+    const [currentOperation, legacyOperation] = await this.dependencies.database.transaction(async (tx) => Promise.all([
+      tx.getOperation({ operation: "workbench.contract-audit-prerequisite", key: currentIdentity.key }),
+      tx.getOperation({ operation: "workbench.contract-audit-prerequisite", key: legacyIdentity.key }),
+    ]));
+    const selectedOperation = selectContractAuditPrerequisiteOperation(
+      { key: currentIdentity.key, operation: currentOperation },
+      { key: legacyIdentity.key, operation: legacyOperation },
+    );
+    if (!selectedOperation || selectedOperation.operation.status !== "FAILED") throw new WorkbenchActionError("CONTRACT_AUDIT_RECOVERY_BLOCKED", "Recovery requires one preserved failed Contract Audit prerequisite; no new provider work was started.");
+    const priorOperationKey = selectedOperation.key;
+    const priorOperation = selectedOperation.operation;
+    const recoveryPayload = { ...currentIdentity.payload, priorOperationKey, priorOperationPayloadHash: priorOperation.payloadHash, taskGraphChecksum: taskGraph.graphChecksum, recoveryGeneration: 1 as const };
     const recoveryKey = `workbench-contract-audit-recovery:${projectId}:${version}:${checksumPersistedDocument(recoveryPayload)}`;
     const existingRecovery = await this.dependencies.database.transaction((tx) => tx.getOperation({ operation: "workbench.contract-audit-recovery", key: recoveryKey }));
     if (existingRecovery?.status === "IN_PROGRESS") throw new WorkbenchOperationConflict("WORKBENCH_OPERATION_IN_PROGRESS", "A current Contract Audit recovery is already active.");
