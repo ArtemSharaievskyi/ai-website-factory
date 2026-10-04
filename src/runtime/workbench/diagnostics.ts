@@ -45,6 +45,7 @@ export const WorkbenchOperationSchema = z.enum([
   "RUN_CONTRACT_AUDIT",
   "RECOVER_CONTRACT_AUDIT",
   "CORRECT_CONTRACT_AUDIT",
+  "RETURN_TO_PLANNING_FOR_CORRECTION",
   "REASSESS_CONTRACT_AUDIT",
   "APPROVE_PHASE7C",
   "DESIGN_SELECTION",
@@ -333,6 +334,7 @@ const CONFLICT_CODES = new Set([
   "CONTRACT_AUDIT_WORKFLOW_INVALID",
   "CONTRACT_AUDIT_IDEMPOTENCY_CONFLICT",
   "CONTRACT_AUDIT_CORRECTION_BLOCKED",
+  "CONTRACT_AUDIT_PLANNING_CORRECTION_IN_PROGRESS",
   "CONTRACT_AUDIT_REASSESSMENT_BLOCKED",
   "PHASE7C_APPROVAL_BLOCKED",
   "PERSISTENCE_IMMUTABLE",
@@ -430,6 +432,7 @@ const VALIDATION_CODES = new Set([
   "CONTRACT_AUDIT_CHANGES_REQUIRED",
   "CONTRACT_AUDIT_PREREQUISITE_REJECTED",
   "CONTRACT_AUDIT_UPSTREAM_CORRECTION_REQUIRED",
+  "CONTRACT_AUDIT_PLANNING_CORRECTION_BLOCKED",
   "DATABASE_DECISION_MISSING",
   "DATABASE_NOT_APPROVED",
   "DATABASE_DECISION_STALE",
@@ -589,6 +592,7 @@ function operationForAction(action?: string): WorkbenchOperation {
     case "run-contract-audit": return "RUN_CONTRACT_AUDIT";
     case "recover-contract-audit": return "RECOVER_CONTRACT_AUDIT";
     case "correct-contract-audit": return "CORRECT_CONTRACT_AUDIT";
+    case "return-to-planning-for-correction": return "RETURN_TO_PLANNING_FOR_CORRECTION";
     case "reassess-contract-audit": return "REASSESS_CONTRACT_AUDIT";
     case "approve-phase7c": return "APPROVE_PHASE7C";
     case "design-selection": return "DESIGN_SELECTION";
@@ -892,6 +896,7 @@ function definitionFor(code: string, error: unknown, action?: string): Omit<Work
   if (code === "DESIGN_INPUT_INVALID") return { error: "The host-owned Design inputs did not match the current strict contract. The project was not changed.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
   if (["CONTRACT_AUDIT_INPUT_INVALID", "CONTRACT_AUDIT_BLOCKED", "CONTRACT_AUDIT_CHANGES_REQUIRED", "CONTRACT_AUDIT_PREREQUISITE_REJECTED"].includes(code)) return { error: "The current Contract Audit evidence did not satisfy the guarded prerequisite contract. The project was not advanced to implementation.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error) };
   if (code === "CONTRACT_AUDIT_UPSTREAM_CORRECTION_REQUIRED") return { error: "The current Contract Audit requires an upstream artifact correction; TaskGraph correction is not eligible. The project was not changed.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), reasonCode: code };
+  if (code === "CONTRACT_AUDIT_PLANNING_CORRECTION_BLOCKED") return { error: "The selected Contract Audit finding does not contain complete evidence for the requested deterministic Planning correction. No canonical state was changed.", httpStatus: 422, recoverable: false, category: "VALIDATION", subsystem: "WORKBENCH_APPLICATION", errorClass: errorClass(error), reasonCode: code };
   if (["CONTRACT_AUDIT_PROVIDER_FAILED", "CONTRACT_AUDIT_OUTPUT_INVALID", "CONTRACT_AUDIT_FINDING_CONTRADICTS_HOST_EVIDENCE"].includes(code)) {
     const diagnostic = safeProviderDiagnostic(error);
     const reasonCode = diagnostic?.errorCode ?? diagnostic?.providerErrorCode ?? (diagnostic?.requestAttempted === false ? "CONTRACT_AUDIT_PRE_PROVIDER_FAILURE" : undefined);

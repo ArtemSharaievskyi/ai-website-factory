@@ -3,6 +3,11 @@ import { DocumentBaseSchema, IsoDateTimeSchema, NonEmptyStringSchema, UuidSchema
 import { PlanningPackageSchema } from "./contracts";
 
 const ChecksumSchema = z.string().regex(/^[a-f0-9]{64}$/);
+const InvalidatedPlanningDependentSchema = z.object({
+  documentType: z.enum(["architecture-review", "design-directions", "selected-design", "phase-7c-contract-package", "task-graph", "contract-audit"]),
+  rowVersion: z.number().int().positive(),
+  checksum: ChecksumSchema,
+}).strict();
 
 export const PlanningCorrectionHistoryEntrySchema = z.object({
   correctionId: UuidSchema,
@@ -18,6 +23,9 @@ export const PlanningCorrectionHistoryEntrySchema = z.object({
   nextPlanningSemanticChecksum: ChecksumSchema,
   nextPlanningDocumentChecksum: ChecksumSchema,
   correctionKinds: z.array(NonEmptyStringSchema).min(1),
+  sourceContractAuditChecksum: ChecksumSchema.optional(),
+  sourceFindingId: NonEmptyStringSchema.optional(),
+  invalidatedDependents: z.array(InvalidatedPlanningDependentSchema).optional(),
   providerCalls: z.literal(0),
   appliedAt: IsoDateTimeSchema,
 }).strict();

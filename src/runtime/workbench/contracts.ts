@@ -37,6 +37,7 @@ export const WorkbenchActionSchema = z.enum([
   "RUN_CONTRACT_AUDIT",
   "RECOVER_CONTRACT_AUDIT",
   "CORRECT_CONTRACT_AUDIT",
+  "RETURN_TO_PLANNING_FOR_CORRECTION",
   "REASSESS_CONTRACT_AUDIT",
   "APPROVE_PHASE7C",
   "DESIGN_SELECTION",
@@ -112,6 +113,21 @@ const ContractAuditActionRequestFields = {
 } as const;
 export const CorrectContractAuditRequestSchema = z.object({ action: z.literal("correct-contract-audit"), ...ContractAuditActionRequestFields }).strict();
 export type WorkbenchCorrectContractAuditRequest = z.infer<typeof CorrectContractAuditRequestSchema>;
+export const ReturnToPlanningForCorrectionRequestSchema = z.object({
+  action: z.literal("return-to-planning-for-correction"),
+  projectId: ProjectIdSchema,
+  projectVersion: z.number().int().positive(),
+  expectedProjectRowVersion: z.number().int().positive(),
+  expectedBriefChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+  expectedPlanningDocumentChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+  expectedContractAuditChecksum: z.string().regex(/^[a-f0-9]{64}$/),
+  correction: z.object({
+    kind: z.literal("REMOVE_MARKETING_SEO_FROM_LEGAL_ROUTES"),
+    findingId: z.string().trim().min(1).max(128),
+    routePaths: z.tuple([z.literal("/datenschutz"), z.literal("/impressum")]),
+  }).strict(),
+}).strict();
+export type WorkbenchReturnToPlanningForCorrectionRequest = z.infer<typeof ReturnToPlanningForCorrectionRequestSchema>;
 export const ReassessContractAuditRequestSchema = z.object({ action: z.literal("reassess-contract-audit"), ...ContractAuditActionRequestFields }).strict();
 export type WorkbenchReassessContractAuditRequest = z.infer<typeof ReassessContractAuditRequestSchema>;
 export const ApprovePhase7CRequestSchema = z.object({ action: z.literal("approve-phase7c"), ...ContractAuditActionRequestFields }).strict();
@@ -137,6 +153,7 @@ export const WorkbenchRequestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("run-contract-audit"), projectId: ProjectIdSchema }).strict(),
   z.object({ action: z.literal("recover-contract-audit"), projectId: ProjectIdSchema }).strict(),
   CorrectContractAuditRequestSchema,
+  ReturnToPlanningForCorrectionRequestSchema,
   ReassessContractAuditRequestSchema,
   ApprovePhase7CRequestSchema,
   z.object({ action: z.literal("design-selection"), projectId: ProjectIdSchema, selectedDirectionId: ProjectIdSchema }).strict(),
@@ -326,6 +343,7 @@ export function actionsForWorkbenchState(input: {
   phase7cContractAuditPending?: boolean;
   phase7cContractAuditRecoveryPending?: boolean;
   phase7cContractAuditCorrectionPending?: boolean;
+  phase7cPlanningCorrectionPending?: boolean;
   phase7cContractAuditReassessmentPending?: boolean;
   phase7cApprovalPending?: boolean;
   canRefreshClarifications?: boolean;
@@ -357,6 +375,7 @@ export function actionsForWorkbenchState(input: {
         ...(input.phase7cApprovalPending ? ["APPROVE_PHASE7C"] as WorkbenchAction[] : []),
       ];
     case "CONTRACT_AUDIT":
+      if (input.phase7cPlanningCorrectionPending) return ["RETURN_TO_PLANNING_FOR_CORRECTION"];
       if (input.phase7cContractAuditCorrectionPending) return ["CORRECT_CONTRACT_AUDIT"];
       if (input.phase7cContractAuditReassessmentPending) return ["REASSESS_CONTRACT_AUDIT"];
       return input.phase7cContractAuditRecoveryPending ? ["RECOVER_CONTRACT_AUDIT"] : [];

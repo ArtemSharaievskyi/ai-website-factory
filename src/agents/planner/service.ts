@@ -34,6 +34,10 @@ import {
   type PlanningPackage,
 } from "./contracts";
 import { RequirementSpecificationSchema } from "@/domain/requirements/schema";
+import { ArchitectureReviewRecordSchema, ContractAuditRecordSchema } from "@/domain/review/schema";
+import { DesignDirectionSetSchema, SelectedDesignSchema } from "@/domain/design/schema";
+import { checksumPhase7CBinding, Phase7CContractPackageSchema } from "@/domain/contracts/phase7c";
+import { TaskGraphSchema } from "@/domain/tasks/schema";
 import {
   EmptyPlannerSkillSelectionPort,
   type PlannerArchitectureProvider,
@@ -84,7 +88,7 @@ import { canonicalRequirementEntries } from "@/domain/requirements/v3/identity";
 import { assertPlannerReferenceTableCurrent, createPlannerReferenceTable, PlannerReferenceTableError } from "./reference-table";
 import { isAiProviderError } from "@/integrations/openai/errors";
 import { PlanningCorrectionHistorySchema, type PlanningCorrectionHistoryEntry } from "./correction-history";
-import { correctUnapprovedPlanningPackage } from "./deterministic-correction";
+import { correctAcceptedPlanningFromContractAudit, correctUnapprovedPlanningPackage, type ContractAuditPlanningCorrection } from "./deterministic-correction";
 import type { ProviderDiagnostic, ProviderInvocationLedgerHandle, ProviderInvocationLedgerPort, ProviderTerminationParseStatus } from "@/integrations/openai/usage";
 import {
   admitPlanningCoverage,
@@ -1477,6 +1481,219 @@ export class PlannerArchitectService {
       });
       this.packages.set(this.packageKey(input.projectId, input.projectVersion), result.package);
     }
+    return { ...result, providerCalls: 0 };
+  }
+
+  async returnToPlanningForContractAudit(input: {
+    projectId: string;
+    projectVersion: number;
+    expectedProjectRowVersion: number;
+    expectedBriefChecksum: string;
+    expectedPlanningDocumentChecksum: string;
+    expectedContractAuditChecksum: string;
+    correction: ContractAuditPlanningCorrection;
+  }) {
+    const operationPayload = {
+      projectId: input.projectId,
+      projectVersion: input.projectVersion,
+      expectedProjectRowVersion: input.expectedProjectRowVersion,
+      expectedBriefChecksum: input.expectedBriefChecksum,
+      expectedPlanningDocumentChecksum: input.expectedPlanningDocumentChecksum,
+      expectedContractAuditChecksum: input.expectedContractAuditChecksum,
+      correction: input.correction,
+    };
+    const operation = "planner.contract-audit-planning-correction";
+    const payloadHash = checksumPersistedDocument(operationPayload);
+    const operationKey = `planning-contract-audit-return:${input.projectId}:${payloadHash}`;
+    const result = await this.dependencies.database.transaction(async (tx) => {
+      const priorOperation = await tx.getOperation({ operation, key: operationKey, payloadHash });
+      if (priorOperation?.status === "IN_PROGRESS")
+        throw new PlannerError("PLANNING_STALE", "A matching Planning correction already owns this frontier.");
+      if (priorOperation?.status === "SUCCEEDED") {
+        const project = await tx.getProject(input.projectId);
+        const planningRow = await tx.getDocument(input.projectId, input.projectVersion, "planning-package");
+        const briefRow = await tx.getDocument(input.projectId, input.projectVersion, "brief-v3");
+        const historyRow = await tx.getDocument(input.projectId, input.projectVersion, "planning-correction-history");
+        if (!project || project.current_version !== input.projectVersion || project.workflow_state !== "AWAITING_PLANNING_APPROVAL" || !planningRow
+          || planningRow.checksum !== (priorOperation.result as { nextPlanningDocumentChecksum?: unknown } | undefined)?.nextPlanningDocumentChecksum)
+          throw new PlannerError("PLANNING_STALE", "The previously applied correction is no longer the current Planning frontier.");
+        const currentPlanning = PlanningPackageSchema.parse(mapRowToDocument(planningRow));
+        const currentBrief = briefRow ? BriefV3DocumentSchema.parse(mapRowToDocument(briefRow)) : null;
+        const correctionHistory = historyRow ? PlanningCorrectionHistorySchema.parse(mapRowToDocument(historyRow)) : null;
+        const priorResult = priorOperation.result as { nextPlanningDocumentChecksum?: unknown; nextPlanningSemanticChecksum?: unknown };
+        const historyEntry = correctionHistory?.entries.find((entry) => entry.operationKey === operationKey);
+        if (currentPlanning.accepted || currentPlanning.approvedBriefChecksum !== input.expectedBriefChecksum
+          || !currentBrief?.approval?.approved || currentBrief.briefChecksum !== input.expectedBriefChecksum
+          || currentBrief.approval.approvedCanonicalChecksum !== currentBrief.briefChecksum
+          || planningDocumentChecksum(currentPlanning) !== priorResult.nextPlanningDocumentChecksum
+          || planningSemanticChecksum(currentPlanning) !== priorResult.nextPlanningSemanticChecksum
+          || !historyEntry || historyEntry.sourceContractAuditChecksum !== input.expectedContractAuditChecksum
+          || historyEntry.sourceFindingId !== input.correction.findingId
+          || historyEntry.basePlanningDocumentChecksum !== input.expectedPlanningDocumentChecksum
+          || historyEntry.nextPlanningDocumentChecksum !== priorResult.nextPlanningDocumentChecksum)
+          throw new PlannerError("PLANNING_STALE", "The previously corrected Planning candidate is no longer current.");
+        return { status: "REPLAYED" as const, package: currentPlanning };
+      }
+
+      const project = await tx.getProject(input.projectId);
+      if (!project || project.current_version !== input.projectVersion || project.workflow_state !== "CONTRACT_AUDIT" || project.row_version !== input.expectedProjectRowVersion)
+        throw new PlannerError("PLANNING_STALE", "The Contract Audit project frontier or row version changed.");
+      const versionRow = await tx.getVersion(input.projectId, input.projectVersion);
+      if (!versionRow || versionRow.immutable) throw new PlannerError("PLANNING_STALE", "The current project version is missing or immutable.");
+      const [briefRow, planningRow, auditRow, architectureRow, contentRow, assetsRow] = await Promise.all([
+        tx.getDocument(input.projectId, input.projectVersion, "brief-v3"),
+        tx.getDocument(input.projectId, input.projectVersion, "planning-package"),
+        tx.getDocument(input.projectId, input.projectVersion, "contract-audit"),
+        tx.getDocument(input.projectId, input.projectVersion, "architecture"),
+        tx.getDocument(input.projectId, input.projectVersion, "content-plan"),
+        tx.getDocument(input.projectId, input.projectVersion, "asset-manifest"),
+      ]);
+      if (!briefRow || !planningRow || !auditRow || !architectureRow || !contentRow || !assetsRow)
+        throw new PlannerError("PLANNING_STALE", "The current approved Brief, Planning components, or Contract Audit is missing.");
+      const brief = BriefV3DocumentSchema.parse(mapRowToDocument(briefRow));
+      const currentPlanning = PlanningPackageSchema.parse(mapRowToDocument(planningRow));
+      const audit = ContractAuditRecordSchema.parse(mapRowToDocument(auditRow));
+      const currentPlanningChecksum = planningDocumentChecksum(currentPlanning);
+      const auditChecksum = checksumPersistedDocument(audit);
+      if (!brief.approval?.approved || brief.approval.approvedCanonicalChecksum !== brief.briefChecksum
+        || brief.briefChecksum !== input.expectedBriefChecksum
+        || currentPlanning.approvedBriefChecksum !== brief.briefChecksum
+        || !currentPlanning.accepted
+        || currentPlanningChecksum !== input.expectedPlanningDocumentChecksum
+        || auditChecksum !== input.expectedContractAuditChecksum
+        || audit.briefChecksum !== brief.briefChecksum
+        || audit.planningChecksum !== currentPlanningChecksum
+        || !["CHANGES_REQUIRED", "BLOCKED"].includes(audit.result.verdict))
+        throw new PlannerError("PLANNING_STALE", "The approved Brief, accepted Planning, or actionable Contract Audit binding changed.");
+
+      const [architectureReviewRow, directionsRow, selectedRow, phase7cRow, taskGraphRow] = await Promise.all([
+        tx.getDocument(input.projectId, input.projectVersion, "architecture-review"),
+        tx.getDocument(input.projectId, input.projectVersion, "design-directions"),
+        tx.getDocument(input.projectId, input.projectVersion, "selected-design"),
+        tx.getDocument(input.projectId, input.projectVersion, "phase-7c-contract-package"),
+        tx.getDocument(input.projectId, input.projectVersion, "task-graph"),
+      ]);
+      if (!architectureReviewRow || !directionsRow || !selectedRow || !phase7cRow || !taskGraphRow)
+        throw new PlannerError("PLANNING_STALE", "The current downstream approval and artifact chain is incomplete.");
+      const architectureReview = ArchitectureReviewRecordSchema.parse(mapRowToDocument(architectureReviewRow));
+      const directions = DesignDirectionSetSchema.parse(mapRowToDocument(directionsRow));
+      const selected = SelectedDesignSchema.parse(mapRowToDocument(selectedRow));
+      const phase7c = Phase7CContractPackageSchema.parse(mapRowToDocument(phase7cRow));
+      const taskGraph = TaskGraphSchema.parse(mapRowToDocument(taskGraphRow));
+      const selectedDirection = directions.directions.find((direction) => direction.id === selected.selectedDirectionId);
+      const currentTaskGraphChecksum = taskGraph.graphChecksum ?? checksumPersistedDocument(taskGraph);
+      if (architectureReview.result.verdict !== "APPROVED"
+        || architectureReview.approvedBriefChecksum !== brief.briefChecksum
+        || architectureReview.acceptedPlanningChecksum !== currentPlanningChecksum
+        || audit.architectureReviewId !== architectureReview.reviewId
+        || audit.architectureReviewChecksum !== checksumPersistedDocument(architectureReview)
+        || directions.approvedBriefChecksum !== brief.briefChecksum
+        || directions.acceptedPlanningChecksum !== currentPlanningChecksum
+        || selected.directionSetId !== directions.setId || !selectedDirection
+        || phase7c.approvedBriefChecksum !== brief.briefChecksum
+        || phase7c.planningChecksum !== planningSemanticChecksum(currentPlanning)
+        || phase7c.architectureChecksum !== checksumPersistedDocument(currentPlanning.architecture)
+        || phase7c.designChecksum !== checksumPersistedDocument(selected)
+        || phase7c.currentness.status !== "CURRENT"
+        || phase7c.currentness.derivedFromChecksum !== checksumPhase7CBinding(phase7c)
+        || audit.designChecksum !== checksumPersistedDocument(selected)
+        || audit.taskGraphChecksum !== currentTaskGraphChecksum
+        || taskGraph.validation?.valid !== true || taskGraph.readyForExecution !== true
+        || (taskGraph.phase7cContractPackageChecksum && taskGraph.phase7cContractPackageChecksum !== checksumPersistedDocument(phase7c)))
+        throw new PlannerError("PLANNING_STALE", "One or more dependent artifacts are not current for the accepted Planning frontier.");
+
+      const componentChecks = [
+        ["architecture", architectureRow, currentPlanning.architecture],
+        ["content-plan", contentRow, currentPlanning.content],
+        ["asset-manifest", assetsRow, currentPlanning.assets],
+      ] as const;
+      for (const [name, row, embedded] of componentChecks) {
+        if (row.checksum !== checksumPersistedDocument(embedded))
+          throw new PlannerError("PLANNING_STALE", `The persisted ${name} does not match the accepted Planning package.`);
+      }
+      const activeContractAuditOperations = await tx.listOperations({ operation: "workbench.contract-audit.frontier", keyPrefix: `workbench-contract-audit-frontier:${input.projectId}:`, limit: 100 });
+      if (activeContractAuditOperations.some((entry) => entry.status === "IN_PROGRESS"))
+        throw new PlannerError("PLANNING_STALE", "A Contract Audit operation still owns this frontier.");
+
+      let correction;
+      try {
+        correction = correctAcceptedPlanningFromContractAudit({ current: currentPlanning, audit, correction: input.correction, timestamp: now() });
+      } catch (error) {
+        const reasonCode = error instanceof Error && /^PLANNING_CONTRACT_AUDIT_[A-Z0-9_]+$/.test(error.message) ? error.message : "PLANNING_CONTRACT_AUDIT_CORRECTION_EVIDENCE_INCOMPLETE";
+        return { status: "BLOCKED" as const, reasonCode };
+      }
+      let admission;
+      try {
+        admission = admitPlanningRefresh({ candidate: correction.package, current: currentPlanning, canonicalBrief: brief.brief, authorizedDomains: ["pages"], projectId: input.projectId, projectVersion: input.projectVersion, approvedBriefChecksum: brief.briefChecksum, timestamp: correction.package.updatedAt });
+      } catch {
+        return { status: "BLOCKED" as const, reasonCode: "PLANNING_CONTRACT_AUDIT_CANDIDATE_ADMISSION_BLOCKED" };
+      }
+      if (admission.blockers.length > 0) {
+        return { status: "BLOCKED" as const, reasonCode: "PLANNING_CONTRACT_AUDIT_CANDIDATE_ADMISSION_BLOCKED" };
+      }
+      const candidate = PlanningPackageSchema.parse(admission.candidate);
+      const candidateSemanticChecksum = planningSemanticChecksum(candidate);
+      const candidateDocumentChecksum = planningDocumentChecksum(candidate);
+      if (candidate.accepted || candidateSemanticChecksum === planningSemanticChecksum(currentPlanning) || candidateDocumentChecksum === currentPlanningChecksum)
+        return { status: "BLOCKED" as const, reasonCode: "PLANNING_CONTRACT_AUDIT_CORRECTION_NO_CHANGE" };
+
+      const payload = await tx.reserveOperation({ operation, key: operationKey, payloadHash, initialResult: { status: "IN_PROGRESS" } });
+      if (payload.status === "IN_PROGRESS") throw new PlannerError("PLANNING_STALE", "A matching Planning correction is already in progress.");
+      if (payload.status === "SUCCEEDED") {
+        const project = await tx.getProject(input.projectId);
+        const planningRow = await tx.getDocument(input.projectId, input.projectVersion, "planning-package");
+        if (!project || project.workflow_state !== "AWAITING_PLANNING_APPROVAL" || !planningRow
+          || planningRow.checksum !== (payload.result as { nextPlanningDocumentChecksum?: unknown }).nextPlanningDocumentChecksum)
+          throw new PlannerError("PLANNING_STALE", "The concurrently completed Planning correction is no longer current.");
+        return { status: "REPLAYED" as const, package: PlanningPackageSchema.parse(mapRowToDocument(planningRow)) };
+      }
+
+      const savedPackage = PlanningPackageSchema.parse(await saveDocumentCASInTransaction(tx, candidate, planningRow.rowVersion, planningRow.checksum));
+      await saveDocumentCASInTransaction(tx, savedPackage.architecture, architectureRow.rowVersion, architectureRow.checksum);
+      await saveDocumentCASInTransaction(tx, savedPackage.content, contentRow.rowVersion, contentRow.checksum);
+      await saveDocumentCASInTransaction(tx, savedPackage.assets, assetsRow.rowVersion, assetsRow.checksum);
+      const invalidatedSources: Array<{ documentType: "architecture-review" | "design-directions" | "selected-design" | "phase-7c-contract-package" | "task-graph" | "contract-audit"; row: DocumentRow }> = [
+        { documentType: "architecture-review", row: architectureReviewRow }, { documentType: "design-directions", row: directionsRow },
+        { documentType: "selected-design", row: selectedRow }, { documentType: "phase-7c-contract-package", row: phase7cRow },
+        { documentType: "task-graph", row: taskGraphRow }, { documentType: "contract-audit", row: auditRow },
+      ];
+      const invalidatedDependents = invalidatedSources.map(({ documentType, row }) => ({ documentType, rowVersion: row.rowVersion, checksum: row.checksum }));
+      const historyRow = await tx.getDocument(input.projectId, input.projectVersion, "planning-correction-history");
+      const history = historyRow ? PlanningCorrectionHistorySchema.parse(mapRowToDocument(historyRow)) : null;
+      const appliedAt = candidate.updatedAt;
+      const entry: PlanningCorrectionHistoryEntry = {
+        correctionId: randomUUID(), operationKey, projectId: input.projectId, projectVersion: input.projectVersion,
+        baseProjectRowVersion: project.row_version, basePlanningRowVersion: planningRow.rowVersion,
+        basePlanningSemanticChecksum: planningSemanticChecksum(currentPlanning), basePlanningDocumentChecksum: currentPlanningChecksum,
+        briefSemanticChecksum: brief.briefChecksum, previousPlanningPackage: currentPlanning,
+        nextPlanningSemanticChecksum: candidateSemanticChecksum, nextPlanningDocumentChecksum: candidateDocumentChecksum,
+        correctionKinds: correction.correctionKinds, sourceContractAuditChecksum: auditChecksum,
+        sourceFindingId: input.correction.findingId, invalidatedDependents, providerCalls: 0, appliedAt,
+      };
+      const nextHistory = PlanningCorrectionHistorySchema.parse({
+        schemaVersion: 1, documentType: "planning-correction-history", projectId: input.projectId, projectVersion: input.projectVersion,
+        createdAt: history?.createdAt ?? appliedAt, updatedAt: appliedAt, entries: [...(history?.entries ?? []), entry],
+      });
+      await saveDocumentCASInTransaction(tx, nextHistory, historyRow?.rowVersion ?? null, historyRow?.checksum ?? null);
+      await appendDecisionInTransaction(tx, input.projectId, input.projectVersion, DecisionRecordSchema.parse({
+        id: randomUUID(), timestamp: appliedAt, actorType: "system", actorIdentifier: "planner-architect",
+        category: "planning-contract-audit-correction", decision: "Created an unaccepted Planning candidate from the current Contract Audit finding.",
+        rationale: "Removed only duplicated homepage SEO metadata from the two canonical legal routes; the accepted Planning package and downstream evidence are preserved in versioned history or retained as stale checksum-bound artifacts.",
+        affectedDocuments: ["planning-package.json", "planning-correction-history.json", "architecture.json", "content-plan.json", "asset-manifest.json"],
+        requirementChange: false, userApprovalRequired: false, userApprovalStatus: "not-required",
+      }));
+      await transitionWorkflowInTransaction(tx, {
+        projectId: input.projectId, projectVersion: input.projectVersion, expectedState: "CONTRACT_AUDIT",
+        expectedRowVersion: input.expectedProjectRowVersion, targetState: "AWAITING_PLANNING_APPROVAL",
+        actor: "workbench-user", reason: "A checksum-bound Contract Audit finding produced a new unaccepted Planning candidate.",
+        idempotencyKey: operationKey,
+        context: { contractAuditPlanningCorrection: { auditChecksum, basePlanningChecksum: currentPlanningChecksum, candidatePlanningChecksum: candidateDocumentChecksum } },
+      });
+      await tx.completeOperation({ operation, key: operationKey, payloadHash, result: { outcome: "PLANNING_CANDIDATE_CREATED", nextPlanningDocumentChecksum: candidateDocumentChecksum, nextPlanningSemanticChecksum: candidateSemanticChecksum } });
+      return { status: "APPLIED" as const, package: savedPackage, history: nextHistory, entry, previousPlanning: currentPlanning };
+    });
+    if (result.status === "BLOCKED" || result.status === "REPLAYED") return { ...result, providerCalls: 0 };
+    this.packages.set(this.packageKey(input.projectId, input.projectVersion), result.package);
     return { ...result, providerCalls: 0 };
   }
 

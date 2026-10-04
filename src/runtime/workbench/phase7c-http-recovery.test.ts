@@ -6,6 +6,7 @@ import { migrateLegacyBriefToCanonicalBriefV3 } from "@/domain/requirements/v3/m
 import { createBriefV3Document, BriefV3DocumentSchema } from "@/persistence/database/brief-revision-v3-contracts";
 import { FactoryProjectSchema } from "@/domain/project/schema";
 import { PlanningPackageSchema, type PlannerAgentInput, type PlanningPackage } from "@/agents/planner/contracts";
+import { correctAcceptedPlanningFromContractAudit } from "@/agents/planner/deterministic-correction";
 import { buildPlanningPackage, planningSemanticChecksum } from "@/agents/planner/deterministic";
 import { buildImplementationTaskGraph } from "@/orchestration/orchestrator/graph";
 import { DEFAULT_ORCHESTRATION_POLICY, type OrchestratorInput } from "@/orchestration/orchestrator/contracts";
@@ -20,9 +21,13 @@ import { WorkbenchApplication, approvedBriefForDownstream } from "./application"
 import { ContractAuditService } from "@/agents/reviewers/contracts/service";
 import { ContractAuditOrchestrationService } from "@/orchestration/contract-audit/service";
 import { OrchestratorService } from "@/orchestration/orchestrator/service";
+import { PlannerArchitectService } from "@/agents/planner/service";
+import { FakePlannerMemoryPort } from "@/agents/planner/memory";
+import { DesignDirectionSetSchema } from "@/domain/design/schema";
 import { CONTRACT_AUDIT_POLICY_VERSION, CONTRACT_AUDIT_PROMPT_VERSION } from "@/agents/reviewers/contracts/contracts";
 import { evidenceIdFor } from "@/agents/reviewers/evidence";
 import { createSerializedWorkbenchRequest } from "./http-client";
+import type { PersistenceDatabase } from "@/persistence/database/types";
 
 const { mockWorkbench } = vi.hoisted(() => ({ mockWorkbench: { handle: vi.fn() } }));
 
@@ -156,14 +161,39 @@ function approvedArchitectureReview(brief: RequirementSpecification, planning: P
   });
 }
 
-async function seedFixture(options: { legacyPhase7C?: boolean; invalidLegacyBinding?: boolean; unchangedGraph?: boolean; upstreamPlanningFinding?: boolean; staleAuditGraphBinding?: boolean } = {}) {
+async function seedFixture(options: { legacyPhase7C?: boolean; invalidLegacyBinding?: boolean; unchangedGraph?: boolean; upstreamPlanningFinding?: boolean; legalRouteSeoFinding?: boolean; incompleteRouteEvidence?: boolean; missingRouteAspect?: boolean; staleAuditGraphBinding?: boolean; failPlanningCorrectionCommit?: boolean } = {}) {
   const database = new InMemoryPersistenceDatabase();
   const brief = syntheticBrief();
   const migratedCanonicalBrief = migrateLegacyBriefToCanonicalBriefV3(brief);
   const canonicalBrief = { ...migratedCanonicalBrief, decisions: { ...migratedCanonicalBrief.decisions, routePolicy: { mode: "SINGLE_PAGE" as const } } };
   const canonical = createBriefV3Document({ projectId: brief.projectId, projectVersion: 1, brief: canonicalBrief, createdAt: timestamp, updatedAt: timestamp });
   const briefV3 = BriefV3DocumentSchema.parse({ ...canonical, approval: { approved: true, approvedAt: timestamp, approvedBy: "synthetic-user", approvedCanonicalChecksum: canonical.briefChecksum } });
-  const planning = acceptedPlanning(brief, canonicalBrief, briefV3.briefChecksum);
+  const basePlanning = acceptedPlanning(brief, canonicalBrief, briefV3.briefChecksum);
+  const planning = options.legalRouteSeoFinding ? PlanningPackageSchema.parse({
+    ...basePlanning,
+    sitemap: { ...basePlanning.sitemap, routes: basePlanning.sitemap.routes.map((route) => ["/datenschutz", "/impressum"].includes(route.path) ? { ...route, pageType: "legal" as const } : route) },
+    pages: { ...basePlanning.pages, pages: basePlanning.pages.pages.map((page) => {
+      const route = basePlanning.sitemap.routes.find((entry) => entry.id === page.routeId);
+      const seoMetadata = route?.path === "/"
+        ? ["Marketing home title", "Marketing home description"]
+        : route?.path === "/datenschutz" || route?.path === "/impressum"
+          ? ["Marketing home title", "Marketing home description", "Legal-specific robots policy"]
+          : page.seoMetadata;
+      return { ...page, seoMetadata };
+    }) },
+  }) : basePlanning;
+  const direction = {
+    id: id(), label: "Synthetic Cutline", concept: "A synthetic design concept.", rationale: "Fixture only.", mood: "Calm.", colorStrategy: "Light.",
+    typographyStrategy: "Clear.", layoutStrategy: "Single page.", heroStrategy: "Direct.", sectionRhythm: "Numbered.", componentCharacter: "Restrained.",
+    imageArtDirection: "No invented project imagery.", motionPolicy: "Reduced motion supported.", responsivePrinciples: ["Mobile first."], antiTemplateRules: ["Avoid generic templates."],
+    advantages: ["Readable."], risks: ["Fixture only."], requirementReferences: [],
+  };
+  const directions = options.legalRouteSeoFinding || options.upstreamPlanningFinding ? DesignDirectionSetSchema.parse({
+    schemaVersion: 1, documentType: "design-directions", projectId: brief.projectId, projectVersion: 1, createdAt: timestamp, updatedAt: timestamp,
+    setId: id(), directions: [direction, { ...direction, id: id(), label: "Synthetic Grid", concept: "A second synthetic concept." }, { ...direction, id: id(), label: "Synthetic Field", concept: "A third synthetic concept." }],
+    generatedAt: timestamp, generatedBy: "synthetic-design-agent", readyForSelection: true, approvedBriefChecksum: briefV3.briefChecksum,
+    acceptedPlanningChecksum: checksumPersistedDocument(planning), generationIdempotencyKey: id(),
+  }) : undefined;
   const selected = {
     schemaVersion: 1 as const,
     documentType: "selected-design" as const,
@@ -171,12 +201,12 @@ async function seedFixture(options: { legacyPhase7C?: boolean; invalidLegacyBind
     projectVersion: 1,
     createdAt: timestamp,
     updatedAt: timestamp,
-    directionSetId: id(),
-    selectedDirectionId: id(),
+    directionSetId: directions?.setId ?? id(),
+    selectedDirectionId: directions?.directions[0]?.id ?? id(),
     selectedAt: timestamp,
     selectedBy: "synthetic-user",
     selectionNotes: "Synthetic explicit selection",
-    selectedDirectionChecksum: "c".repeat(64),
+    selectedDirectionChecksum: directions ? checksumPersistedDocument(directions.directions[0]) : "c".repeat(64),
   };
   const architectureReview = approvedArchitectureReview(brief, planning, briefV3.briefChecksum);
   const input: OrchestratorInput = {
@@ -237,7 +267,12 @@ async function seedFixture(options: { legacyPhase7C?: boolean; invalidLegacyBind
   }, DEFAULT_ORCHESTRATION_POLICY);
   const badAuditResult = ContractAuditResultSchema.parse({
     verdict: "CHANGES_REQUIRED",
-    findings: options.upstreamPlanningFinding
+    findings: options.legalRouteSeoFinding
+      ? [
+        { findingId: "legal-route-seo", severity: "ERROR", category: "ROUTE_CONTRACT_MISMATCH", summary: "The legal routes /datenschutz and /impressum inherit homepage marketing SEO metadata.", evidenceRefs: options.incompleteRouteEvidence ? ["planning-package"] : planning.sitemap.routes.filter((route) => ["/", "/datenschutz", "/impressum"].includes(route.path)).flatMap((route) => [`planning:${route.id}`, `planning:${planning.pages.pages.find((page) => page.routeId === route.id)!.id}`]), affectedArtifacts: ["planning-package"], recommendedAction: "Remove the homepage marketing SEO metadata from /datenschutz and /impressum.", correctionTarget: "PLANNING", routeMismatchAspect: options.missingRouteAspect ? null : "SEO_OBLIGATION" },
+        { findingId: "synthetic-taskgraph-warning", severity: "WARNING", category: "ARTIFACT_MULTIPLE_OWNERS", summary: "Synthetic TaskGraph ownership warning.", evidenceRefs: ["task-graph"], affectedArtifacts: ["task-graph"], recommendedAction: "Review TaskGraph ownership.", correctionTarget: "TASKGRAPH" },
+      ]
+      : options.upstreamPlanningFinding
       ? [
         { findingId: "synthetic-planning-gap", severity: "ERROR", category: "REQUIREMENT_NOT_TRACED", summary: "Synthetic Planning evidence requires upstream correction.", evidenceRefs: ["requirements"], affectedArtifacts: ["planning-package"], recommendedAction: "Correct the Planning package.", correctionTarget: "PLANNING" },
         { findingId: "synthetic-taskgraph-warning", severity: "WARNING", category: "ARTIFACT_MULTIPLE_OWNERS", summary: "Synthetic TaskGraph ownership warning.", evidenceRefs: ["task-graph"], affectedArtifacts: ["task-graph"], recommendedAction: "Review TaskGraph ownership.", correctionTarget: "TASKGRAPH" },
@@ -279,6 +314,7 @@ async function seedFixture(options: { legacyPhase7C?: boolean; invalidLegacyBind
   await documents.save(planning.content);
   await documents.save(planning.assets);
   await documents.save(architectureReview);
+  if (directions) await documents.save(directions);
   await documents.save(selected);
   await documents.save(phase7c);
   await documents.save(taskGraph);
@@ -287,7 +323,17 @@ async function seedFixture(options: { legacyPhase7C?: boolean; invalidLegacyBind
   const auditor = new ContractAuditService(database, { provider: { promptVersion: CONTRACT_AUDIT_PROMPT_VERSION, review: async (providerInput) => { providerCalls.push("contract-audit"); return { verdict: "APPROVED", findings: [], reviewedArtifactRefs: [evidenceIdFor(providerInput, "requirements")] }; } } });
   const contractAuditor = new ContractAuditOrchestrationService(database, auditor);
   const orchestrator = new OrchestratorService(database);
-  const scope = { planner: {} as never, architectureReviewer: {} as never, design: {} as never, orchestrator, contractAuditor };
+  const plannerDatabase: PersistenceDatabase = options.failPlanningCorrectionCommit ? {
+    transaction: (work) => database.transaction((tx) => work(new Proxy(tx, {
+      get(target, property) {
+        if (property === "completeOperation") return async (input: Parameters<typeof tx.completeOperation>[0]) => { await tx.completeOperation(input); throw new Error("SYNTHETIC_PLANNING_CORRECTION_COMMIT_FAILURE"); };
+        const value = Reflect.get(target, property);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }))),
+  } : database;
+  const planner = new PlannerArchitectService({ database: plannerDatabase, memory: new FakePlannerMemoryPort() });
+  const scope = { planner, architectureReviewer: {} as never, design: {} as never, orchestrator, contractAuditor };
   const entry = new TrialEntryService({ database, createLeadAgent: () => { throw new Error("SYNTHETIC_LEAD_NOT_USED"); } });
   const app = new WorkbenchApplication({ database, entry, getWorkflowScope: () => scope });
   return { database, app, orchestrator, projectId: brief.projectId, providerCalls, oldGraphChecksum: taskGraph.graphChecksum };
@@ -296,6 +342,26 @@ async function seedFixture(options: { legacyPhase7C?: boolean; invalidLegacyBind
 async function post(input: Parameters<typeof createSerializedWorkbenchRequest>[0]) {
   const envelope = await createSerializedWorkbenchRequest(input);
   return POST(new Request("http://localhost/api/workbench", { method: envelope.method, headers: envelope.headers, body: envelope.body }));
+}
+
+async function planningReturnRequest(fixture: Awaited<ReturnType<typeof seedFixture>>) {
+  const documents = new DocumentRepository(fixture.database);
+  const [project, brief, planning, audit] = await Promise.all([
+    new ProjectRepository(fixture.database).getWithVersion(fixture.projectId),
+    documents.get(fixture.projectId, 1, "brief-v3"),
+    documents.get(fixture.projectId, 1, "planning-package"),
+    documents.get(fixture.projectId, 1, "contract-audit"),
+  ]);
+  return {
+    action: "return-to-planning-for-correction" as const,
+    projectId: fixture.projectId,
+    projectVersion: 1,
+    expectedProjectRowVersion: project!.rowVersion,
+    expectedBriefChecksum: brief?.documentType === "brief-v3" ? brief.briefChecksum : "",
+    expectedPlanningDocumentChecksum: checksumPersistedDocument(planning!),
+    expectedContractAuditChecksum: checksumPersistedDocument(audit!),
+    correction: { kind: "REMOVE_MARKETING_SEO_FROM_LEGAL_ROUTES" as const, findingId: "legal-route-seo", routePaths: ["/datenschutz", "/impressum"] as ["/datenschutz", "/impressum"] },
+  };
 }
 
 async function readyForPhase7CApproval() {
@@ -384,13 +450,12 @@ describe("Phase 7C recovery through the serialized Workbench route", () => {
     expect(fixture.providerCalls).toEqual([]);
   });
 
-  it("does not advertise or reserve TaskGraph correction for an upstream Planning finding", async () => {
+  it("advertises the upstream return for mixed Planning and TaskGraph findings and blocks incomplete correction evidence", async () => {
     const fixture = await seedFixture({ upstreamPlanningFinding: true });
     mockWorkbench.handle.mockImplementation((request) => fixture.app.handle(request));
 
     const status = await fixture.app.handle({ action: "status", projectId: fixture.projectId });
     expect(status.status.allowedActions).toEqual([]);
-    expect(status.status.pendingUserAction).toBe("WAIT_FOR_WORKFLOW_OWNER");
 
     const response = await post({ action: "correct-contract-audit", projectId: fixture.projectId, idempotencyKey: `synthetic-upstream-correction-${fixture.projectId}` });
     expect(response.status).toBe(422);
@@ -399,8 +464,204 @@ describe("Phase 7C recovery through the serialized Workbench route", () => {
     expect(body.operationId).toBeUndefined();
     expect(body.attemptId).toBeUndefined();
 
+    const documents = new DocumentRepository(fixture.database);
+    const planning = await documents.get(fixture.projectId, 1, "planning-package");
+    const brief = await documents.get(fixture.projectId, 1, "brief-v3");
+    const audit = await documents.get(fixture.projectId, 1, "contract-audit");
+    const project = await new ProjectRepository(fixture.database).getWithVersion(fixture.projectId);
+    const blocked = await post({
+      action: "return-to-planning-for-correction", projectId: fixture.projectId, projectVersion: 1,
+      expectedProjectRowVersion: project!.rowVersion,
+      expectedBriefChecksum: brief?.documentType === "brief-v3" ? brief.briefChecksum : "",
+      expectedPlanningDocumentChecksum: checksumPersistedDocument(planning!),
+      expectedContractAuditChecksum: checksumPersistedDocument(audit!),
+      correction: { kind: "REMOVE_MARKETING_SEO_FROM_LEGAL_ROUTES", findingId: "synthetic-planning-gap", routePaths: ["/datenschutz", "/impressum"] },
+    });
+    expect(blocked.status).toBe(422);
+    expect(await blocked.json()).toMatchObject({ code: "CONTRACT_AUDIT_PLANNING_CORRECTION_BLOCKED", reasonCode: "CONTRACT_AUDIT_PLANNING_CORRECTION_BLOCKED", attemptCreated: false });
+    expect((await new ProjectRepository(fixture.database).getWithVersion(fixture.projectId))?.rowVersion).toBe(project!.rowVersion);
+
     const corrections = await fixture.database.transaction((tx) => tx.listOperations({ operation: "workbench.contract-audit.correct_contract_audit" }));
     expect(corrections).toEqual([]);
+    expect(fixture.providerCalls).toEqual([]);
+  });
+
+  it("blocks a prose-matching finding without structured route evidence and never advertises it", async () => {
+    const fixture = await seedFixture({ legalRouteSeoFinding: true, incompleteRouteEvidence: true });
+    mockWorkbench.handle.mockImplementation((request) => fixture.app.handle(request));
+    expect((await fixture.app.handle({ action: "status", projectId: fixture.projectId })).status.allowedActions).toEqual([]);
+    const request = await planningReturnRequest(fixture);
+    const beforeProject = await new ProjectRepository(fixture.database).getWithVersion(fixture.projectId);
+    const response = await post(request);
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ code: "CONTRACT_AUDIT_PLANNING_CORRECTION_BLOCKED", attemptCreated: false });
+    expect((await new ProjectRepository(fixture.database).getWithVersion(fixture.projectId))?.rowVersion).toBe(beforeProject?.rowVersion);
+    expect(await new DocumentRepository(fixture.database).get(fixture.projectId, 1, "planning-correction-history")).toBeNull();
+    expect(fixture.providerCalls).toEqual([]);
+  });
+
+  it("blocks the legal-route correction when the structured SEO obligation aspect is absent", async () => {
+    const fixture = await seedFixture({ legalRouteSeoFinding: true, missingRouteAspect: true });
+    mockWorkbench.handle.mockImplementation((request) => fixture.app.handle(request));
+    expect((await fixture.app.handle({ action: "status", projectId: fixture.projectId })).status.allowedActions).toEqual([]);
+    expect((await post(await planningReturnRequest(fixture))).status).toBe(422);
+    expect(await new DocumentRepository(fixture.database).get(fixture.projectId, 1, "planning-correction-history")).toBeNull();
+  });
+
+  it("atomically creates an unaccepted legal-route SEO correction and makes every downstream binding stale", async () => {
+    const fixture = await seedFixture({ legalRouteSeoFinding: true });
+    mockWorkbench.handle.mockImplementation((request) => fixture.app.handle(request));
+    const documents = new DocumentRepository(fixture.database);
+    const beforeProject = await new ProjectRepository(fixture.database).getWithVersion(fixture.projectId);
+    const beforePlanning = await documents.get(fixture.projectId, 1, "planning-package");
+    const beforeAudit = await documents.get(fixture.projectId, 1, "contract-audit");
+    const dependentTypes = ["architecture-review", "design-directions", "selected-design", "phase-7c-contract-package", "task-graph"];
+    const beforeDependents = await Promise.all(dependentTypes.map((type) => documents.getWithMetadata(fixture.projectId, 1, type)));
+    const currentBrief = await documents.get(fixture.projectId, 1, "brief-v3");
+    expect((await fixture.app.handle({ action: "status", projectId: fixture.projectId })).status.allowedActions).toEqual(["RETURN_TO_PLANNING_FOR_CORRECTION"]);
+
+    const request = {
+      action: "return-to-planning-for-correction" as const,
+      projectId: fixture.projectId,
+      projectVersion: 1,
+      expectedProjectRowVersion: beforeProject!.rowVersion,
+      expectedBriefChecksum: currentBrief?.documentType === "brief-v3" ? currentBrief.briefChecksum : "",
+      expectedPlanningDocumentChecksum: checksumPersistedDocument(beforePlanning!),
+      expectedContractAuditChecksum: checksumPersistedDocument(beforeAudit!),
+      correction: { kind: "REMOVE_MARKETING_SEO_FROM_LEGAL_ROUTES" as const, findingId: "legal-route-seo", routePaths: ["/datenschutz", "/impressum"] as ["/datenschutz", "/impressum"] },
+    };
+    if (beforePlanning?.documentType === "planning-package" && beforeAudit?.documentType === "contract-audit") {
+      const pureCandidate = correctAcceptedPlanningFromContractAudit({ current: beforePlanning, audit: beforeAudit, correction: request.correction, timestamp });
+      expect(pureCandidate.package.traceability).toEqual(beforePlanning.traceability);
+      for (const route of beforePlanning.sitemap.routes.filter((entry) => ["/datenschutz", "/impressum"].includes(entry.path))) {
+        const beforePage = beforePlanning.pages.pages.find((page) => page.routeId === route.id)!;
+        const afterPage = pureCandidate.package.pages.pages.find((page) => page.routeId === route.id)!;
+        expect(afterPage.requirementReferences).toEqual(beforePage.requirementReferences);
+      }
+    }
+    const response = await post(request);
+    expect(response.status).toBe(200);
+    const envelope = await response.json() as { data: { project?: { rowVersion: number; workflowState: string }; status: { allowedActions: string[] } } };
+    const projection = envelope.data;
+    expect(projection.project).toMatchObject({ rowVersion: beforeProject!.rowVersion + 1, workflowState: "AWAITING_PLANNING_APPROVAL" });
+    expect(projection.status.allowedActions).toContain("APPROVE_PLANNING");
+    expect(projection.status.allowedActions).not.toContain("START_IMPLEMENTATION");
+
+    const corrected = await documents.get(fixture.projectId, 1, "planning-package");
+    expect(corrected?.documentType).toBe("planning-package");
+    if (corrected?.documentType === "planning-package") {
+      expect(corrected.accepted).toBe(false);
+      expect(corrected.acceptance).toEqual({});
+      const home = corrected.sitemap.routes.find((route) => route.path === "/")!;
+      const legalRoutes = corrected.sitemap.routes.filter((route) => ["/datenschutz", "/impressum"].includes(route.path));
+      const homePage = corrected.pages.pages.find((page) => page.routeId === home.id)!;
+      expect(homePage.seoMetadata).toEqual(["Marketing home title", "Marketing home description"]);
+      for (const route of legalRoutes) {
+        const page = corrected.pages.pages.find((entry) => entry.routeId === route.id)!;
+        expect(page.seoMetadata).toEqual(["Legal-specific robots policy"]);
+        expect(page.requirementReferences.length).toBeGreaterThan(0);
+      }
+      expect(corrected.architecture.acceptance.accepted).toBe(false);
+    }
+    if (corrected?.documentType === "planning-package") {
+      expect(checksumPersistedDocument(corrected)).not.toBe(checksumPersistedDocument(beforePlanning!));
+      const staleReview = await documents.get(fixture.projectId, 1, "architecture-review");
+      const staleDirections = await documents.get(fixture.projectId, 1, "design-directions");
+      const stalePhase7c = await documents.get(fixture.projectId, 1, "phase-7c-contract-package");
+      const staleGraph = await documents.get(fixture.projectId, 1, "task-graph");
+      const staleAudit = await documents.get(fixture.projectId, 1, "contract-audit");
+      expect(staleReview?.documentType === "architecture-review" ? staleReview.acceptedPlanningChecksum : undefined).not.toBe(checksumPersistedDocument(corrected));
+      expect(staleDirections?.documentType === "design-directions" ? staleDirections.acceptedPlanningChecksum : undefined).not.toBe(checksumPersistedDocument(corrected));
+      expect(stalePhase7c?.documentType === "phase-7c-contract-package" ? stalePhase7c.planningChecksum : undefined).not.toBe(planningSemanticChecksum(corrected));
+      expect(staleGraph?.documentType === "task-graph" ? staleGraph.phase7cContractPackageChecksum : undefined).not.toBe(checksumPersistedDocument(stalePhase7c!));
+      expect(staleAudit?.documentType === "contract-audit" ? staleAudit.planningChecksum : undefined).not.toBe(checksumPersistedDocument(corrected));
+    }
+
+    const history = await documents.get(fixture.projectId, 1, "planning-correction-history");
+    expect(history?.documentType).toBe("planning-correction-history");
+    if (history?.documentType === "planning-correction-history") {
+      const entry = history.entries.at(-1)!;
+      expect(entry.previousPlanningPackage).toEqual(beforePlanning);
+      expect(entry.sourceContractAuditChecksum).toBe(checksumPersistedDocument(beforeAudit!));
+      expect((entry.invalidatedDependents ?? []).map((artifact) => artifact.documentType).sort()).toEqual(["architecture-review", "contract-audit", "design-directions", "phase-7c-contract-package", "selected-design", "task-graph"].sort());
+      expect(entry.providerCalls).toBe(0);
+    }
+    expect(await documents.get(fixture.projectId, 1, "contract-audit")).toEqual(beforeAudit);
+    const afterDependents = await Promise.all(dependentTypes.map((type) => documents.getWithMetadata(fixture.projectId, 1, type)));
+    expect(afterDependents.map((row) => row?.checksum)).toEqual(beforeDependents.map((row) => row?.checksum));
+    expect(fixture.providerCalls).toEqual([]);
+  });
+
+  it("replays the same correction identity and serializes concurrent requests without duplicate writes", async () => {
+    const fixture = await seedFixture({ legalRouteSeoFinding: true });
+    mockWorkbench.handle.mockImplementation((request) => fixture.app.handle(request));
+    const req = await planningReturnRequest(fixture);
+    const [first, concurrent] = await Promise.all([post(req), post(req)]);
+    expect([first.status, concurrent.status].sort()).toEqual([200, 200]);
+    const project = await new ProjectRepository(fixture.database).getWithVersion(fixture.projectId);
+    expect(project?.project.workflowState).toBe("AWAITING_PLANNING_APPROVAL");
+    expect(project?.rowVersion).toBe(2);
+    const history = await new DocumentRepository(fixture.database).get(fixture.projectId, 1, "planning-correction-history");
+    expect(history?.documentType === "planning-correction-history" ? history.entries : []).toHaveLength(1);
+    expect(fixture.providerCalls).toEqual([]);
+  });
+
+  it("does not replay a successful correction after the approved Brief binding is no longer current", async () => {
+    const fixture = await seedFixture({ legalRouteSeoFinding: true });
+    mockWorkbench.handle.mockImplementation((request) => fixture.app.handle(request));
+    const req = await planningReturnRequest(fixture);
+    expect((await post(req)).status).toBe(200);
+    const documents = new DocumentRepository(fixture.database);
+    const currentBrief = await documents.get(fixture.projectId, 1, "brief-v3");
+    expect(currentBrief?.documentType).toBe("brief-v3");
+    if (currentBrief?.documentType === "brief-v3") {
+      const staleBrief = BriefV3DocumentSchema.parse({ ...currentBrief, approval: undefined });
+      await documents.save(staleBrief);
+    }
+    const planningBeforeReplay = await documents.getWithMetadata(fixture.projectId, 1, "planning-package");
+    const historyBeforeReplay = await documents.get(fixture.projectId, 1, "planning-correction-history");
+    expect((await post(req)).status).toBe(409);
+    expect(await documents.getWithMetadata(fixture.projectId, 1, "planning-package")).toEqual(planningBeforeReplay);
+    expect(await documents.get(fixture.projectId, 1, "planning-correction-history")).toEqual(historyBeforeReplay);
+    expect(fixture.providerCalls).toEqual([]);
+  });
+
+  it("rejects stale correction checksums and preserves the prior frontier", async () => {
+    const fixture = await seedFixture({ legalRouteSeoFinding: true });
+    mockWorkbench.handle.mockImplementation((request) => fixture.app.handle(request));
+    const req = await planningReturnRequest(fixture);
+    const before = await new ProjectRepository(fixture.database).getWithVersion(fixture.projectId);
+    const response = await post({ ...req, expectedContractAuditChecksum: "f".repeat(64) });
+    expect(response.status).toBe(409);
+    expect((await new ProjectRepository(fixture.database).getWithVersion(fixture.projectId))?.rowVersion).toBe(before?.rowVersion);
+    expect((await new DocumentRepository(fixture.database).get(fixture.projectId, 1, "planning-correction-history"))).toBeNull();
+    expect(fixture.providerCalls).toEqual([]);
+  });
+
+  it("rejects a stale project row-version CAS before writing candidate or history", async () => {
+    const fixture = await seedFixture({ legalRouteSeoFinding: true });
+    mockWorkbench.handle.mockImplementation((request) => fixture.app.handle(request));
+    const req = await planningReturnRequest(fixture);
+    const response = await post({ ...req, expectedProjectRowVersion: req.expectedProjectRowVersion + 1 });
+    expect(response.status).toBe(409);
+    expect((await new ProjectRepository(fixture.database).getWithVersion(fixture.projectId))?.rowVersion).toBe(req.expectedProjectRowVersion);
+    expect(await new DocumentRepository(fixture.database).get(fixture.projectId, 1, "planning-correction-history")).toBeNull();
+  });
+
+  it("rolls back package, component, decision, lifecycle, and idempotency writes if atomic completion fails", async () => {
+    const fixture = await seedFixture({ legalRouteSeoFinding: true, failPlanningCorrectionCommit: true });
+    mockWorkbench.handle.mockImplementation((request) => fixture.app.handle(request));
+    const req = await planningReturnRequest(fixture);
+    const documents = new DocumentRepository(fixture.database);
+    const beforeProject = await new ProjectRepository(fixture.database).getWithVersion(fixture.projectId);
+    const beforePlanning = await documents.getWithMetadata(fixture.projectId, 1, "planning-package");
+    const beforeArchitecture = await documents.getWithMetadata(fixture.projectId, 1, "architecture");
+    const response = await post(req);
+    expect(response.status).toBe(500);
+    expect(await new ProjectRepository(fixture.database).getWithVersion(fixture.projectId)).toEqual(beforeProject);
+    expect(await documents.getWithMetadata(fixture.projectId, 1, "planning-package")).toEqual(beforePlanning);
+    expect(await documents.getWithMetadata(fixture.projectId, 1, "architecture")).toEqual(beforeArchitecture);
+    expect(await documents.get(fixture.projectId, 1, "planning-correction-history")).toBeNull();
     expect(fixture.providerCalls).toEqual([]);
   });
 

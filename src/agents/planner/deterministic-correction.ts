@@ -5,6 +5,7 @@ import { PlanningPackageSchema, type PlanningPackage, type Traceability } from "
 import { checksumPersistedDocument } from "@/persistence/database/serialization";
 import { isNoBackendBrief, selectApplicationProfile } from "./deterministic";
 import { normalizePlanningPackageForHost } from "./refresh-admission";
+import type { ContractAuditRecord } from "@/domain/review/schema";
 
 const correctionId = (key: string) => {
   const bytes = Buffer.from(createHash("sha256").update(key).digest("hex").slice(0, 32), "hex");
@@ -151,4 +152,90 @@ export function correctUnapprovedPlanningPackage(input: {
   if (checksumPersistedDocument(hostNormalized) !== checksumPersistedDocument(corrected))
     correctionKinds.push("NORMALIZE_TRACEABILITY_REFERENCES");
   return { package: hostNormalized, correctionKinds: [...new Set(correctionKinds)] };
+}
+
+export type ContractAuditPlanningCorrection = {
+  kind: "REMOVE_MARKETING_SEO_FROM_LEGAL_ROUTES";
+  findingId: string;
+  routePaths: ["/datenschutz", "/impressum"];
+};
+
+function legalRouteSeoCorrectionEvidence(current: PlanningPackage, audit: ContractAuditRecord, findingId: string) {
+  const finding = audit.result.findings.find((entry) => entry.findingId === findingId);
+  if (!finding || finding.severity === "INFO" || finding.correctionTarget !== "PLANNING"
+    || finding.category !== "ROUTE_CONTRACT_MISMATCH" || finding.routeMismatchAspect !== "SEO_OBLIGATION"
+    || !finding.affectedArtifacts.includes("planning-package")) {
+    throw new Error("PLANNING_CONTRACT_AUDIT_CORRECTION_EVIDENCE_INCOMPLETE");
+  }
+  const retainedEvidence = `${finding.summary} ${finding.recommendedAction}`.toLocaleLowerCase("en-US");
+  if (!retainedEvidence.includes("/datenschutz") || !retainedEvidence.includes("/impressum")
+    || !/seo|metadata/u.test(retainedEvidence) || !/remove|remov/u.test(finding.recommendedAction.toLocaleLowerCase("en-US"))) {
+    throw new Error("PLANNING_CONTRACT_AUDIT_CORRECTION_EVIDENCE_INCOMPLETE");
+  }
+
+  const homeRoute = current.sitemap.routes.filter((route) => route.path === "/");
+  const legalRoutes = (["/datenschutz", "/impressum"] as const).map((routePath) => current.sitemap.routes.filter((route) => route.path === routePath));
+  if (homeRoute.length !== 1 || legalRoutes.some((matches) => matches.length !== 1 || matches[0]?.pageType !== "legal"))
+    throw new Error("PLANNING_CONTRACT_AUDIT_LEGAL_ROUTES_INCOMPLETE");
+  const pages = [homeRoute[0]!, ...legalRoutes.map((matches) => matches[0]!)].map((route) => {
+    const matches = current.pages.pages.filter((page) => page.routeId === route.id);
+    if (matches.length !== 1) throw new Error("PLANNING_CONTRACT_AUDIT_LEGAL_PAGES_INCOMPLETE");
+    return { route, page: matches[0]! };
+  });
+  const homeMetadata = pages[0]!.page.seoMetadata;
+  if (homeMetadata.length === 0) throw new Error("PLANNING_CONTRACT_AUDIT_SEO_SOURCE_MISSING");
+  if (pages.slice(1).some(({ page }) => !page.seoMetadata.some((metadata) => homeMetadata.includes(metadata))))
+    throw new Error("PLANNING_CONTRACT_AUDIT_SEO_TARGET_EVIDENCE_MISSING");
+  const citedPages = pages.map(({ route, page }) => finding.evidenceRefs.some((reference) => [
+    route.id, `route:${route.id}`, `planning:${route.id}`, page.id, `page:${page.id}`, `planning:${page.id}`,
+  ].includes(reference)));
+  if (citedPages.some((cited) => !cited)) throw new Error("PLANNING_CONTRACT_AUDIT_STRUCTURED_ROUTE_EVIDENCE_MISSING");
+  return { legalRoutes: legalRoutes.map((matches) => matches[0]!), pages };
+}
+
+export function hasSupportedContractAuditPlanningCorrection(current: PlanningPackage, audit: ContractAuditRecord): boolean {
+  return audit.result.findings.some((finding) => {
+    try {
+      legalRouteSeoCorrectionEvidence(current, audit, finding.findingId);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+}
+
+/**
+ * Returns an unaccepted Planning candidate for the one explicitly supported
+ * Contract Audit correction. Only homepage SEO entries duplicated on both
+ * canonical legal routes are removed; legal-specific metadata is preserved.
+ */
+export function correctAcceptedPlanningFromContractAudit(input: {
+  current: PlanningPackage;
+  audit: ContractAuditRecord;
+  correction: ContractAuditPlanningCorrection;
+  timestamp: string;
+}): DeterministicPlanningCorrection {
+  const { current, audit, correction, timestamp } = input;
+  const { legalRoutes, pages } = legalRouteSeoCorrectionEvidence(current, audit, correction.findingId);
+  if (correction.routePaths[0] !== "/datenschutz" || correction.routePaths[1] !== "/impressum")
+    throw new Error("PLANNING_CONTRACT_AUDIT_CORRECTION_INPUT_UNSUPPORTED");
+
+  const nextPages = {
+    ...current.pages,
+    pages: current.pages.pages.map((page) => {
+      const routeIndex = legalRoutes.findIndex((route) => route.id === page.routeId);
+      if (routeIndex < 0) return page;
+      const inherited = new Set(pages[routeIndex + 1]!.page.seoMetadata.filter((metadata) => pages[0]!.page.seoMetadata.includes(metadata)));
+      return { ...page, seoMetadata: page.seoMetadata.filter((metadata) => !inherited.has(metadata)) };
+    }),
+  };
+  const candidate = PlanningPackageSchema.parse({
+    ...current,
+    pages: nextPages,
+    accepted: false,
+    acceptance: {},
+    architecture: { ...current.architecture, acceptance: { accepted: false } },
+    updatedAt: timestamp,
+  });
+  return { package: candidate, correctionKinds: ["REMOVE_MARKETING_SEO_FROM_LEGAL_ROUTES"] };
 }
